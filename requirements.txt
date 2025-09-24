@@ -2,5 +2,4 @@ fastapi
 uvicorn[standard]
 requests
 jinja2
-# 可选：使用 SendGrid 发信时启用
-# sendgrid
+pydantic[email]
