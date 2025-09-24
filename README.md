@@ -1,3 +1,5 @@
+
+
 ////the Demo about marketing
 # 营销海报生成服务
 
@@ -58,6 +60,10 @@ uvicorn app.main:app --reload
 2. 仓库选择 `ai-service`，同步分支后 Render 会读取 `render.yaml` 中的部署配置：
    - 使用 Python 环境，执行 `pip install -r requirements.txt`。
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
+
+   - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
+
+
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API 与 SMTP 环境变量。
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
