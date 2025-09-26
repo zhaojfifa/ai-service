@@ -1,6 +1,5 @@
 const form = document.getElementById('poster-form');
 const layoutPreview = document.getElementById('layout-preview');
-
 const generateButton = document.getElementById('generate-poster');
 const posterOutput = document.getElementById('poster-output');
 const posterImage = document.getElementById('poster-image');
@@ -12,7 +11,6 @@ const emailBody = document.getElementById('email-body');
 const sendButton = document.getElementById('send-email');
 const statusElement = document.getElementById('status');
 const apiBaseInput = document.getElementById('api-base');
-
 
 const STORAGE_KEY = 'marketing-poster-api-base';
 let latestPosterImage = null;
@@ -33,7 +31,6 @@ const defaultData = {
   subtitle: '智能蒸烤 · 家宴轻松掌控',
   email: 'client@example.com',
 };
-
 
 function setStatus(message, level = 'info') {
   statusElement.textContent = message;
@@ -63,12 +60,10 @@ function applyDefaults() {
       element.value = value;
     }
   }
-
   const featureInputs = form.querySelectorAll('input[name="features"]');
   featureInputs.forEach((input, index) => {
     input.value = defaultData.features[index] ?? '';
   });
-
   syncEmailFields(defaultData);
 }
 
@@ -85,9 +80,7 @@ function buildLayoutPreview(data) {
     .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
     .join('\n');
 
-
   return `顶部横条\n  · 品牌 Logo（左上）：${data.brand_name}\n  · 代理 / 分销（右上）：${data.agent_name}\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${data.scenario_image}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${data.product_name}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${data.title}\n\n底部区域（三视图或系列说明）\n  · ${data.series_description}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${data.subtitle}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，整体保持现代、简洁与留白感。`;
-
 }
 
 function collectFormData({ strict } = { strict: false }) {
@@ -107,14 +100,12 @@ function collectFormData({ strict } = { strict: false }) {
     email: formData.get('email')?.toString().trim() || '',
   };
 
-
   if (strict) {
     if (payload.features.length < 3 || payload.features.length > 4) {
       throw new Error('请填写 3-4 条产品功能点。');
     }
     for (const [key, value] of Object.entries(payload)) {
       if (key === 'features') continue;
-
       if (!value) {
         throw new Error('请完整填写所有素材字段。');
       }
@@ -126,7 +117,6 @@ function collectFormData({ strict } = { strict: false }) {
 
 function updatePreview() {
   const data = collectFormData({ strict: false });
-
   layoutPreview.textContent = buildLayoutPreview(data);
 }
 
@@ -161,7 +151,6 @@ async function generatePoster() {
     }
 
     const data = await response.json();
-
     layoutPreview.textContent = data.layout_preview;
     glibatreePrompt.value = data.prompt;
     generatedEmail.value = data.email_body;
@@ -244,7 +233,6 @@ apiBaseInput.addEventListener('change', () => {
 form.addEventListener('input', () => {
   updatePreview();
 });
-
 
 generateButton.addEventListener('click', (event) => {
   event.preventDefault();

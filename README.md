@@ -1,3 +1,6 @@
+
+
+////the Demo about marketing
 # 营销海报生成服务
 
 该项目实现了“厨厨房”营销海报的三段式工作流：
@@ -57,22 +60,20 @@ uvicorn app.main:app --reload
 2. 仓库选择 `ai-service`，同步分支后 Render 会读取 `render.yaml` 中的部署配置：
    - 使用 Python 环境，执行 `pip install -r requirements.txt`。
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
+
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
+
+
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API 与 SMTP 环境变量。
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
 ## GitHub Pages 部署前端
 
-仓库已经内置 GitHub Actions 工作流，自动将 `frontend/` 目录发布到 Pages。首次启用时请按照以下步骤配置：
 
-1. 在仓库的 **Settings → Pages** 页面，将 “Build and deployment” 的 Source 改为 **GitHub Actions**。
-2. 返回仓库主页，点击 **Actions** 标签页，确认 `Deploy frontend to GitHub Pages` 工作流已启用（首次会提示“我了解我的工作流”并需要手动启用）。
-3. 将前端或文档改动推送到 `main` 分支，工作流会自动：
-   - 检出仓库代码；
-   - 上传 `frontend/` 目录作为 Pages 工件；
-   - 发布到仓库的 GitHub Pages 站点。
-4. 当工作流执行成功后，`https://<GitHub 用户名>.github.io/ai-service/` 即可访问最新前端页面。
-5. 页面加载后，在顶部“环节 0 · 服务配置”输入 Render 后端的 HTTPS 地址，浏览器会将地址保存在 `localStorage` 中，后续刷新无需重新填写。
+1. 将 `frontend/` 目录内容推送到任意静态站点仓库或当前仓库的 `gh-pages` 分支。
+2. 在 GitHub Pages 配置中指向该分支（或 `/docs` 目录）。
+3. 页面加载后，在顶部“环节 0 · 服务配置”输入 Render 后端的 HTTPS 地址，浏览器会将地址保存在 `localStorage` 中，后续刷新无需重新填写。
+
 
 > 如需在本地调试，可直接通过 `file://` 打开 `frontend/index.html` 或使用任意静态服务器（例如 `python -m http.server`）。
 

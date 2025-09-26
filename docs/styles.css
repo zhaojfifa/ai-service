@@ -1,3 +1,4 @@
+
 :root {
   font-family: "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   color: #1f2933;
@@ -41,7 +42,6 @@ main {
   margin-top: 0;
 }
 
-
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -64,7 +64,6 @@ main {
   font-family: inherit;
   resize: vertical;
 }
-
 
 .features {
   border: 1px solid #e4e7eb;
@@ -90,7 +89,6 @@ main {
   margin-top: 1.5rem;
 }
 
-
 .preview pre {
   background: #0b1f34;
   color: #f8fafc;
@@ -98,7 +96,6 @@ main {
   border-radius: 8px;
   white-space: pre-wrap;
   line-height: 1.6;
-
 }
 
 .primary {
@@ -185,5 +182,4 @@ main {
   main {
     margin-top: 1rem;
   }
-
 }

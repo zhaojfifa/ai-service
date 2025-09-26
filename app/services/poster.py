@@ -8,26 +8,6 @@ from app.schemas import PosterInput
 def render_layout_preview(poster: PosterInput) -> str:
     """Return a textual preview summarising the required layout structure."""
 
-    logo_line = (
-        f"已上传品牌 Logo（{poster.brand_name}）"
-        if poster.brand_logo
-        else poster.brand_name
-    )
-    scenario_line = (
-        f"已上传场景图（描述：{poster.scenario_image}）"
-        if poster.scenario_asset
-        else poster.scenario_image
-    )
-    product_line = (
-        f"已上传 45° 渲染图（{poster.product_name}）"
-        if poster.product_asset
-        else poster.product_name
-    )
-    gallery_line = (
-        f"已上传 {len(poster.gallery_assets)} 张底部产品小图，配文：{poster.series_description}"
-        if poster.gallery_assets
-        else poster.series_description
-    )
 
     features_preview = "\n".join(
         f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features)
@@ -35,14 +15,17 @@ def render_layout_preview(poster: PosterInput) -> str:
 
     preview = f"""
     顶部横条
-      · 品牌 Logo（左上）：{logo_line}
+
+
+      · 品牌 Logo（左上）：{poster.brand_name}
       · 代理 / 分销（右上）：{poster.agent_name}
 
     左侧区域（约 40% 宽）
-      · 应用场景图：{scenario_line}
+      · 应用场景图：{poster.scenario_image}
 
     右侧区域（视觉中心）
-      · 主产品 45° 渲染图：{product_line}
+      · 主产品 45° 渲染图：{poster.product_name}
+
       · 功能点标注：
     {features_preview}
 
@@ -50,7 +33,8 @@ def render_layout_preview(poster: PosterInput) -> str:
       · {poster.title}
 
     底部区域（三视图或系列说明）
-      · {gallery_line}
+
+      · {poster.series_description}
 
     角落副标题 / 标语（大号粗体红字）
       · {poster.subtitle}
@@ -69,22 +53,6 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
         for i, feature in enumerate(poster.features, start=1)
     )
 
-    reference_assets: list[str] = []
-    if poster.brand_logo:
-        reference_assets.append("- 参考素材：品牌 Logo 已上传，请置于顶部横条左侧并保持清晰度。")
-    if poster.scenario_asset:
-        reference_assets.append("- 参考素材：应用场景图已上传，用于左侧 40% 区域的背景演绎。")
-    if poster.product_asset:
-        reference_assets.append(
-            "- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。"
-        )
-    if poster.gallery_assets:
-        reference_assets.append(
-            f"- 参考素材：底部产品小图共 {len(poster.gallery_assets)} 张，需转为灰度横向排列。"
-        )
-
-    references_block = "\n".join(reference_assets)
-    reference_section = f"\n    {references_block}" if references_block else ""
 
     prompt = f"""
     使用 "Glibatree Art Designer" 绘制现代简洁风格的厨电宣传海报。
@@ -97,7 +65,9 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     - 标题：中心位置使用大号粗体红字写 "{poster.title}"。
     - 底部：横向排列灰度三视图或系列产品缩略图，文字说明 "{poster.series_description}"。
     - 副标题：左下角或右下角以大号粗体红字呈现 "{poster.subtitle}"。
-    - 色彩基调：黑 / 红 / 银灰，保持整洁对齐与留白。{reference_section}
+
+    - 色彩基调：黑 / 红 / 银灰，保持整洁对齐与留白。
+
     输出：高分辨率海报，适用于市场营销宣传。
     """
     return textwrap.dedent(prompt).strip()
