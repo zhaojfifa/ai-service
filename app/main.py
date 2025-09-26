@@ -19,7 +19,6 @@ from app.services.poster import (
 )
 
 
-
 settings = get_settings()
 
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
@@ -43,9 +42,11 @@ app.add_middleware(
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
+
 @app.get("/")
 def root():
     return {"ok": True, "service": "ai-service", "version": "1.0.0"}
+
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 def generate_poster(payload: PosterInput) -> GeneratePosterResponse:

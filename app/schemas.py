@@ -20,6 +20,7 @@ class PosterInput(BaseModel):
     email: EmailStr
 
 
+
 class PosterImage(BaseModel):
     """Represents the generated poster asset returned to the client."""
 

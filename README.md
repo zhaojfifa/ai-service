@@ -69,9 +69,11 @@ uvicorn app.main:app --reload
 
 ## GitHub Pages 部署前端
 
+
 1. 将 `frontend/` 目录内容推送到任意静态站点仓库或当前仓库的 `gh-pages` 分支。
 2. 在 GitHub Pages 配置中指向该分支（或 `/docs` 目录）。
 3. 页面加载后，在顶部“环节 0 · 服务配置”输入 Render 后端的 HTTPS 地址，浏览器会将地址保存在 `localStorage` 中，后续刷新无需重新填写。
+
 
 > 如需在本地调试，可直接通过 `file://` 打开 `frontend/index.html` 或使用任意静态服务器（例如 `python -m http.server`）。
 

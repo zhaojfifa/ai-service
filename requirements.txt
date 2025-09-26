@@ -1,4 +1,5 @@
 
+
 fastapi==0.115.0
 uvicorn==0.30.6          # 注意：不要写 uvicorn[standard]
 requests==2.32.3
@@ -7,4 +8,5 @@ email-validator==2.2.0   # EmailStr 需要
 pydantic==2.8.2
 pydantic-core==2.20.1
 Pillow==10.4.0
+
 

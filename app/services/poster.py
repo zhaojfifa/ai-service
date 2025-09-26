@@ -8,12 +8,15 @@ from app.schemas import PosterInput
 def render_layout_preview(poster: PosterInput) -> str:
     """Return a textual preview summarising the required layout structure."""
 
+
     features_preview = "\n".join(
         f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features)
     )
 
     preview = f"""
     顶部横条
+
+
       · 品牌 Logo（左上）：{poster.brand_name}
       · 代理 / 分销（右上）：{poster.agent_name}
 
@@ -22,6 +25,7 @@ def render_layout_preview(poster: PosterInput) -> str:
 
     右侧区域（视觉中心）
       · 主产品 45° 渲染图：{poster.product_name}
+
       · 功能点标注：
     {features_preview}
 
@@ -29,6 +33,7 @@ def render_layout_preview(poster: PosterInput) -> str:
       · {poster.title}
 
     底部区域（三视图或系列说明）
+
       · {poster.series_description}
 
     角落副标题 / 标语（大号粗体红字）
@@ -48,6 +53,7 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
         for i, feature in enumerate(poster.features, start=1)
     )
 
+
     prompt = f"""
     使用 "Glibatree Art Designer" 绘制现代简洁风格的厨电宣传海报。
     关键要求：
@@ -59,7 +65,9 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     - 标题：中心位置使用大号粗体红字写 "{poster.title}"。
     - 底部：横向排列灰度三视图或系列产品缩略图，文字说明 "{poster.series_description}"。
     - 副标题：左下角或右下角以大号粗体红字呈现 "{poster.subtitle}"。
+
     - 色彩基调：黑 / 红 / 银灰，保持整洁对齐与留白。
+
     输出：高分辨率海报，适用于市场营销宣传。
     """
     return textwrap.dedent(prompt).strip()
