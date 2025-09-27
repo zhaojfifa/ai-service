@@ -83,6 +83,12 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
     return image.convert("RGBA")
 
 
+try:  # Pillow >= 10 exposes resampling filters on ``Image.Resampling``
+    RESAMPLE_LANCZOS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
+except AttributeError:  # pragma: no cover - fallback for older Pillow versions
+    RESAMPLE_LANCZOS = Image.LANCZOS
+
+
 def _paste_image(
     canvas: Image.Image,
     asset: Image.Image,
@@ -96,10 +102,10 @@ def _paste_image(
     target_size = (max(right - left, 1), max(bottom - top, 1))
 
     if mode == "cover":
-        resized = ImageOps.fit(asset, target_size, Image.LANCZOS)
+        resized = ImageOps.fit(asset, target_size, RESAMPLE_LANCZOS)
     else:
         resized = asset.copy()
-        resized.thumbnail(target_size, Image.LANCZOS)
+        resized.thumbnail(target_size, RESAMPLE_LANCZOS)
 
     offset_x = left + (target_size[0] - resized.width) // 2
     offset_y = top + (target_size[1] - resized.height) // 2
