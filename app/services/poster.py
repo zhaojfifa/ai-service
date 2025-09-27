@@ -65,7 +65,7 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     """Generate the prompt that will be forwarded to Glibatree Art Designer."""
 
     features = "\n".join(
-        f"- 功能点{i + 1}: {feature}"
+        f"- 功能点{i}: {feature}"
         for i, feature in enumerate(poster.features, start=1)
     )
 
