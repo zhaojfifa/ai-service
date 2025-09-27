@@ -71,6 +71,7 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
     banner_height = int(height * 0.12)
     draw.rectangle([(0, 0), (width, banner_height)], fill=(230, 230, 230))
     draw.text((40, 20), f"Logo: {poster.brand_name}", fill=(0, 0, 0), font=font_body)
+
     brand_text = poster.brand_name.upper()
     draw.text(
         (width - 40 - draw.textlength(brand_text, font=font_body), 20),
@@ -78,6 +79,7 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
         fill=(0, 0, 0),
         font=font_body,
     )
+
 
     # Left scenario area
     left_width = int(width * 0.38)

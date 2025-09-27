@@ -5,6 +5,26 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import List
 
+from pydantic_settings import BaseSettings
+from pydantic import Field
+
+class Settings(BaseSettings):
+    # --- OpenAI ---
+    openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    openai_base_url: str = Field("", alias="OPENAI_BASE_URL")  # 可选，自建代理时用
+    openai_image_size: str = Field("1024x1024", alias="OPENAI_IMAGE_SIZE")
+
+    # --- CORS ---
+    cors_allow_origins: List[str] = Field(default_factory=lambda: ["*"], alias="CORS_ALLOW_ORIGINS")
+
+    # （其余 SMTP / 邮件等你的原配置照旧）
+
+    class Config:
+        env_file = ".env"
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
 
 @dataclass
 class EmailConfig:

@@ -31,6 +31,15 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
+      # （可选）防止 Jekyll 处理，特别是目录以下划线开头时
+      - name: Add .nojekyll
+        run: |
+          touch frontend/.nojekyll
+
+      # （可选）如有自定义域名，写入 CNAME
+      # - name: Add CNAME
+      #   run: echo "your.domain.com" > frontend/CNAME
+
       - name: Upload frontend artifact
         uses: actions/upload-pages-artifact@v3
         with:
