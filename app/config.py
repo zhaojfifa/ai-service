@@ -6,6 +6,14 @@ from functools import lru_cache
 from typing import List
 
 
+def _as_bool(value: str | None, default: bool) -> bool:
+    """Interpret common truthy / falsy strings while providing a default."""
+
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass
 class EmailConfig:
     host: str | None
@@ -51,8 +59,8 @@ def get_settings() -> Settings:
         username=os.getenv("SMTP_USERNAME"),
         password=os.getenv("SMTP_PASSWORD"),
         sender=os.getenv("EMAIL_SENDER"),
-        use_tls=os.getenv("SMTP_USE_TLS", "true").lower() == "true",
-        use_ssl=os.getenv("SMTP_USE_SSL", "false").lower() == "true",
+        use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), True),
+        use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
     )
 
     glibatree = GlibatreeConfig(
