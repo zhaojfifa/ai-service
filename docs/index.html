@@ -11,22 +11,28 @@
       <div class="header-content">
         <div>
           <h1>营销海报生成工作流</h1>
-          <p>依次完成素材输入、海报生成与邮件发送，打造现代简洁的宣传海报。</p>
+          <p>依次完成素材输入、海报生成与邮件发送，打造现代简洁的厨电宣传海报。</p>
         </div>
+
         <label class="api-config">
-      <h1>营销海报生成工作流</h1>
-      <p>按照三个环节完成素材输入、海报生成以及邮件发送。</p>
-    </header>
-
-
+          <span>后端 API 地址</span>
+          <input
+            type="url"
+            id="api-base"
+            placeholder="https://your-render-service.onrender.com"
+          />
+        </label>
       </div>
     </header>
 
     <main>
+      <!-- 环节 1：素材输入 + 版式预览 -->
       <section id="input-section" class="card">
         <h2>环节 1 · 素材输入与版式预览</h2>
+
         <form id="poster-form">
           <div class="layout-fields">
+            <!-- 顶部横条 -->
             <fieldset class="fieldset">
               <legend>顶部横条</legend>
               <div class="grid">
@@ -41,6 +47,7 @@
               </div>
             </fieldset>
 
+            <!-- 图像素材 -->
             <fieldset class="fieldset">
               <legend>图像素材</legend>
               <div class="grid">
@@ -52,6 +59,7 @@
                   <span>应用场景描述（用于提示词）</span>
                   <textarea name="scenario_image" rows="3" required></textarea>
                 </label>
+
                 <label class="field file-field">
                   <span>产品 45° 渲染图上传</span>
                   <input type="file" name="product_asset" accept="image/*" />
@@ -60,6 +68,7 @@
                   <span>主产品名称</span>
                   <input type="text" name="product_name" required />
                 </label>
+
                 <label class="field file-field">
                   <span>底部产品小图（3-4 张，支持多选）</span>
                   <input type="file" name="gallery_assets" accept="image/*" multiple />
@@ -71,6 +80,7 @@
               </div>
             </fieldset>
 
+            <!-- 文案字段（不含邮箱） -->
             <fieldset class="fieldset">
               <legend>文案字段</legend>
               <div class="grid">
@@ -82,13 +92,10 @@
                   <span>副标题文案</span>
                   <input type="text" name="subtitle" required />
                 </label>
-                <label class="field">
-                  <span>客户邮箱</span>
-                  <input type="email" name="email" required />
-                </label>
               </div>
             </fieldset>
 
+            <!-- 功能点 -->
             <fieldset class="features">
               <legend>功能点（填写 3-4 条）</legend>
               <div class="feature-item">
@@ -107,7 +114,11 @@
           </div>
         </form>
 
-        <div class="preview">
+        <!-- 版式预览按钮 -->
+        <button id="build-preview" class="secondary" type="button">构建版式预览</button>
+
+        <!-- 版式预览容器：初始隐藏，由 JS 决定展示 -->
+        <div class="preview hidden" id="preview-container">
           <h3>版式预览</h3>
           <div id="layout-preview" class="poster-preview">
             <div class="poster-header">
@@ -116,54 +127,80 @@
               </div>
               <div class="poster-brand" id="preview-brand-name"></div>
             </div>
+
             <div class="poster-body">
               <div class="poster-left">
                 <img id="preview-scenario-image" alt="应用场景预览" />
               </div>
+
+              <!-- 右侧主视觉（主产品 + 功能点标注） -->
               <div class="poster-right">
                 <div class="poster-product-wrapper">
                   <img id="preview-product-image" alt="产品渲染图预览" />
+                  <!-- 功能点紧跟主产品，位于底部小图之前 -->
                   <ul id="preview-feature-list"></ul>
                 </div>
               </div>
             </div>
+
             <div class="poster-title" id="preview-title"></div>
+            <!-- 底部小图在功能点之后 -->
             <div class="poster-gallery" id="preview-gallery"></div>
             <div class="poster-series" id="preview-series-description"></div>
             <div class="poster-subtitle" id="preview-subtitle"></div>
           </div>
+
           <details class="layout-structure">
             <summary>查看版式结构说明</summary>
             <pre id="layout-structure-text"></pre>
           </details>
-
         </div>
       </section>
 
+      <!-- 环节 2：生成海报 -->
       <section id="generation-section" class="card">
         <h2>环节 2 · 调用后端生成海报</h2>
         <p class="hint">
-          点击下方按钮后，系统会向 FastAPI 服务提交素材，后端会代理
-          Glibatree 生成海报（或返回预览图）并输出提示词与营销邮件草稿。
+          点击下方按钮后，系统会向 FastAPI 服务提交素材，后端会调用 AI 生成海报（并返回预览图），同时输出提示词与营销邮件草稿。
         </p>
         <button id="generate-poster" class="primary">生成海报与文案</button>
 
         <div id="poster-output" class="hidden">
-          <div class="output-group">
+          <!-- AI 生成预览（含转圈提示） -->
+          <div class="output-group" id="ai-preview">
+            <h3>AI 生成预览</h3>
+            <div class="ai-preview-canvas">
+              <div class="spinner" id="ai-spinner" aria-hidden="true"></div>
+              <p id="ai-preview-message">正在调用 AI 生成海报，请稍候…</p>
+            </div>
+          </div>
+
+          <!-- 海报图片 -->
+          <div class="output-group hidden" id="poster-visual">
             <h3>海报预览</h3>
             <img id="poster-image" alt="海报预览" />
           </div>
-          <div class="output-group">
-            <h3>Glibatree 提示词</h3>
+
+          <!-- 提示词 -->
+          <div class="output-group hidden" id="prompt-group">
+            <h3>AI 提示词</h3>
             <textarea id="glibatree-prompt" rows="10" readonly></textarea>
           </div>
-          <div class="output-group">
+
+          <!-- 邮件草稿 -->
+          <div class="output-group hidden" id="email-group">
             <h3>营销邮件草稿</h3>
             <textarea id="generated-email" rows="10"></textarea>
           </div>
         </div>
+
+        <!-- 再次生成 -->
+        <button id="regenerate-poster" class="secondary hidden" type="button">
+          再次生成海报
+        </button>
       </section>
 
+      <!-- 环节 3：发送邮件 -->
       <section id="email-section" class="card">
         <h2>环节 3 · 邮件发送</h2>
         <div class="grid">
