@@ -12,6 +12,9 @@ body {
 
 header,
 footer {
+
+  text-align: center;
+  padding: 1.5rem 1rem;
   background: white;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
@@ -60,6 +63,7 @@ footer {
   padding: 1.5rem 1rem;
 }
 
+
 main {
   max-width: 1100px;
   margin: 2rem auto;
@@ -78,6 +82,7 @@ main {
 .card h2 {
   margin-top: 0;
 }
+
 
 .layout-fields {
   display: flex;
@@ -98,6 +103,7 @@ main {
   color: #ef4c54;
   padding: 0 0.5rem;
 }
+
 
 .grid {
   display: grid;
@@ -122,9 +128,11 @@ main {
   resize: vertical;
 }
 
+
 .file-field input[type="file"] {
   padding: 0.4rem 0.5rem;
 }
+
 
 .features {
   border: 1px solid #e4e7eb;
@@ -353,6 +361,7 @@ main {
   color: #1f2933;
 }
 
+
 .preview pre {
   background: #0b1f34;
   color: #f8fafc;
@@ -360,7 +369,9 @@ main {
   border-radius: 8px;
   white-space: pre-wrap;
   line-height: 1.6;
+
   margin: 0.75rem 0 0;
+
 }
 
 .primary {
@@ -434,6 +445,7 @@ main {
   color: #d64545;
 }
 
+
 @media (max-width: 768px) {
   .header-content {
     flex-direction: column;
@@ -457,6 +469,7 @@ main {
     text-align: center;
   }
 }
+
 
 .status-warning {
   color: #c07600;
@@ -497,4 +510,5 @@ main {
   .poster-gallery {
     flex-wrap: wrap;
   }
+
 }

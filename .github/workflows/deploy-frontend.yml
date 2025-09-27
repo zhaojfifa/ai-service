@@ -1,3 +1,4 @@
+
 name: Deploy frontend to GitHub Pages
 
 on:
@@ -39,3 +40,32 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+name: Sync frontend to docs
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync frontend -> docs
+        run: |
+          rm -rf docs
+          mkdir -p docs
+          cp -a frontend/. docs/
+
+      - name: Commit & push if changed
+        run: |
+          if [[ -n "$(git status --porcelain docs)" ]]; then
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git add docs
+            git commit -m "Sync docs from frontend"
+            git push
+          fi
+

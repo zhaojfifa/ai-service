@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>营销海报生成工作流</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>营销海报生成工作流</h1>
+      <p>按照三个环节完成素材输入、海报生成以及邮件发送。</p>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>环节 0 · 服务配置</h2>
+        <p class="hint">
+          将 Render 部署的 FastAPI 服务地址填写在下方，GitHub Pages 页面会通过该地址完成后续的生成与发送操作。
+        </p>
+        <label class="field">
+          <span>后端 API 地址</span>
+          <input
+            type="url"
+            id="api-base"
+            placeholder="https://your-render-service.onrender.com"
+          />
+        </label>
+      </section>
+
+      <section id="input-section" class="card">
+        <h2>环节 1 · 素材输入与版式预览</h2>
+        <form id="poster-form">
+          <div class="grid">
+            <label class="field">
+              <span>品牌名称</span>
+              <input type="text" name="brand_name" required />
+            </label>
+            <label class="field">
+              <span>代理 / 分销名称</span>
+              <input type="text" name="agent_name" required />
+            </label>
+            <label class="field">
+              <span>应用场景描述</span>
+              <textarea name="scenario_image" rows="3" required></textarea>
+            </label>
+            <label class="field">
+              <span>主产品名称</span>
+              <input type="text" name="product_name" required />
+            </label>
+            <label class="field">
+              <span>标题文案</span>
+              <input type="text" name="title" required />
+            </label>
+            <label class="field">
+              <span>副标题文案</span>
+              <input type="text" name="subtitle" required />
+            </label>
+            <label class="field">
+              <span>三视图 / 系列说明</span>
+              <textarea name="series_description" rows="2" required></textarea>
+            </label>
+            <label class="field">
+              <span>客户邮箱</span>
+              <input type="email" name="email" required />
+            </label>
+          </div>
+
+          <fieldset class="features">
+            <legend>功能点（填写 3-4 条）</legend>
+            <div class="feature-item">
+              <input type="text" name="features" required />
+            </div>
+            <div class="feature-item">
+              <input type="text" name="features" required />
+            </div>
+            <div class="feature-item">
+              <input type="text" name="features" required />
+            </div>
+            <div class="feature-item">
+              <input type="text" name="features" placeholder="可选" />
+            </div>
+          </fieldset>
+        </form>
+
+        <div class="preview">
+          <h3>版式预览</h3>
+
+          <pre id="layout-preview"></pre>
+
+        </div>
+      </section>
+
+      <section id="generation-section" class="card">
+        <h2>环节 2 · 调用后端生成海报</h2>
+        <p class="hint">
+          点击下方按钮后，系统会向 FastAPI 服务提交素材，后端会代理
+          Glibatree 生成海报（或返回预览图）并输出提示词与营销邮件草稿。
+        </p>
+        <button id="generate-poster" class="primary">生成海报与文案</button>
+
+        <div id="poster-output" class="hidden">
+          <div class="output-group">
+            <h3>海报预览</h3>
+            <img id="poster-image" alt="海报预览" />
+          </div>
+          <div class="output-group">
+            <h3>Glibatree 提示词</h3>
+            <textarea id="glibatree-prompt" rows="10" readonly></textarea>
+          </div>
+          <div class="output-group">
+            <h3>营销邮件草稿</h3>
+            <textarea id="generated-email" rows="10"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section id="email-section" class="card">
+        <h2>环节 3 · 邮件发送</h2>
+        <div class="grid">
+          <label class="field">
+            <span>收件邮箱</span>
+            <input type="email" id="email-recipient" required />
+          </label>
+          <label class="field">
+            <span>邮件主题</span>
+            <input type="text" id="email-subject" required />
+          </label>
+        </div>
+        <label class="field">
+          <span>邮件正文</span>
+          <textarea id="email-body" rows="10" required></textarea>
+        </label>
+        <button id="send-email" class="primary">发送营销邮件</button>
+        <p id="status" role="status"></p>
+      </section>
+    </main>
+
+    <footer>
+      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
+    </footer>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
