@@ -76,4 +76,7 @@ def api_generate_poster(payload: PosterInput) -> GeneratePosterResponse:
                 poster=payload,
                 openai_api_key=openai_api_key,
                 openai_base_url=os.getenv("OPENAI_BASE_URL"),
-                size=os.getenv("OPENAI_IMAGE_SIZE"
+                size=os.getenv("OPENAI_IMAGE_SIZE", "1024x1024"),
+             )
+                
+               
