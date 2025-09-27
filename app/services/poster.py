@@ -1,45 +1,27 @@
+# app/services/poster.py
 from __future__ import annotations
 
 import textwrap
+from typing import Tuple
 
 from app.schemas import PosterInput
+from app.services.openai_image import generate_image_with_openai
 
 
 def render_layout_preview(poster: PosterInput) -> str:
-    """Return a textual preview summarising the required layout structure."""
-
-
-    logo_line = (
-        f"已上传品牌 Logo（{poster.brand_name}）"
-        if poster.brand_logo
-        else poster.brand_name
-    )
-    scenario_line = (
-        f"已上传场景图（描述：{poster.scenario_image}）"
-        if poster.scenario_asset
-        else poster.scenario_image
-    )
-    product_line = (
-        f"已上传 45° 渲染图（{poster.product_name}）"
-        if poster.product_asset
-        else poster.product_name
-    )
-    gallery_line = (
-        f"已上传 {len(poster.gallery_assets)} 张底部产品小图，配文：{poster.series_description}"
-        if poster.gallery_assets
-        else poster.series_description
-    )
-
-
+    """返回一个基于输入素材的版式结构预览（纯文本）。"""
     features_preview = "\n".join(
         f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features)
     )
 
+    gallery_line = (
+        f"已上传 {len(poster.gallery_assets)} 张底部产品小图，配文：{poster.series_description}"
+        if poster.gallery_assets
+        else poster.series_description or "（未提供）"
+    )
+
     preview = f"""
     顶部横条
-
-
-
       · 品牌 Logo（左上）：{poster.brand_name}
       · 代理 / 分销（右上）：{poster.agent_name}
 
@@ -48,7 +30,6 @@ def render_layout_preview(poster: PosterInput) -> str:
 
     右侧区域（视觉中心）
       · 主产品 45° 渲染图：{poster.product_name}
-
       · 功能点标注：
     {features_preview}
 
@@ -56,9 +37,7 @@ def render_layout_preview(poster: PosterInput) -> str:
       · {poster.title}
 
     底部区域（三视图或系列说明）
-
       · {gallery_line}
-
 
     角落副标题 / 标语（大号粗体红字）
       · {poster.subtitle}
@@ -69,69 +48,60 @@ def render_layout_preview(poster: PosterInput) -> str:
     return textwrap.dedent(preview).strip()
 
 
-def build_glibatree_prompt(poster: PosterInput) -> str:
-    """Generate the prompt that will be forwarded to Glibatree Art Designer."""
+def build_openai_prompt(poster: PosterInput) -> str:
+    """生成给 OpenAI 图片模型的提示词（Prompt）。"""
 
     features = "\n".join(
         f"- 功能点{i + 1}: {feature}"
         for i, feature in enumerate(poster.features, start=1)
     )
-
-
-    reference_assets: list[str] = []
-    if poster.brand_logo:
-        reference_assets.append("- 参考素材：品牌 Logo 已上传，请置于顶部横条左侧并保持清晰度。")
-    if poster.scenario_asset:
-        reference_assets.append("- 参考素材：应用场景图已上传，用于左侧 40% 区域的背景演绎。")
-    if poster.product_asset:
-        reference_assets.append(
-            "- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。"
-        )
-    if poster.gallery_assets:
-        reference_assets.append(
-            f"- 参考素材：底部产品小图共 {len(poster.gallery_assets)} 张，需转为灰度横向排列。"
-        )
-
-    references_block = "\n".join(reference_assets)
-    reference_section = f"\n    {references_block}" if references_block else ""
-
-    brand_title = poster.brand_name.upper()
-
+    brand_title = (poster.brand_name or "").upper()
 
     prompt = f"""
-    使用 "Glibatree Art Designer" 绘制现代简洁风格的厨电宣传海报。
-    关键要求：
-    - 版式：左侧 40% 宽度放置应用场景图，右侧视觉中心展示 {poster.product_name} 的 45° 渲染图。
-
-    - 顶部横条：左上角嵌入品牌 {poster.brand_name} Logo，右上角用大写字母展示 {brand_title}。
-
-    - 产品材质：突出金属与塑料质感，背景为浅灰或白色。
-    - 功能标注：在产品周围添加 3–4 条功能提示，使用虚线连接，黑色小号字体。
-    {features}
-    - 标题：中心位置使用大号粗体红字写 "{poster.title}"。
-    - 底部：横向排列灰度三视图或系列产品缩略图，文字说明 "{poster.series_description}"。
-    - 副标题：左下角或右下角以大号粗体红字呈现 "{poster.subtitle}"。
-
-    - 色彩基调：黑 / 红 / 银灰，保持整洁对齐与留白。{reference_section}
-
-    输出：高分辨率海报，适用于市场营销宣传。
-    """
+现代简洁风格的厨房电器宣传海报，要求：
+- 版式：左侧 40% 宽放应用场景图，右侧视觉中心展示「{poster.product_name}」的 45° 渲染图；
+- 顶部横条：左上放 {poster.brand_name} 品牌 Logo，右上以大写字母展示 {brand_title}；
+- 产品材质：突出金属 / 塑料质感，背景浅灰或白色；
+- 功能标注：在产品周围用虚线 + 黑色小号字体标注 3–4 条功能点：
+{features}
+- 中部标题：使用大号粗体红字「{poster.title}」；
+- 底部：横向排列灰度的三视图或系列产品小图，附文字「{poster.series_description}」；
+- 角落副标题：左下或右下以大号粗体红字呈现「{poster.subtitle}」；
+- 色彩基调：黑 / 红 / 银灰，整体对齐规整，留白充足；
+- 输出：高分辨率、清晰、可印刷。
+"""
     return textwrap.dedent(prompt).strip()
 
 
-def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
-    """Create a marketing email body tailored for the target client."""
+def generate_poster_with_openai(
+    poster: PosterInput,
+    openai_api_key: str,
+    openai_base_url: str | None = None,
+    size: str = "1024x1024",
+) -> Tuple[str, str, str]:
+    """
+    使用 OpenAI 生成海报图片，返回 (preview, prompt, png_path)
+    """
+    preview = render_layout_preview(poster)
+    prompt = build_openai_prompt(poster)
+    png_path = generate_image_with_openai(
+        prompt=prompt,
+        api_key=openai_api_key,
+        base_url=openai_base_url,
+        size=size,
+    )
+    return preview, prompt, png_path
 
-    # 安全取值，避免 None
+
+def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
+    """生成营销邮件正文（纯文本），适合直接发送。"""
     brand = poster.brand_name or ""
     product = poster.product_name or ""
     subtitle = poster.subtitle or ""
     to_email = poster.email or ""
     features = poster.features or []
-
     feature_lines = "\n".join(f"• {f}" for f in features) if features else "（详见海报标注）"
 
-    # 用三单引号，避免和正文中的双引号冲突；注意最后一定有成对的三引号
     email = f'''收件人：{to_email}
 主题：{brand} {product} 市场推广海报
 
@@ -149,6 +119,4 @@ def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
 
 —— {brand} 市场团队
 '''
-
-    return dedent(email).strip()
-
+    return textwrap.dedent(email).strip()
