@@ -84,6 +84,28 @@ uvicorn app.main:app --reload
 
 页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。
 
+## 命令行快速体验
+
+若希望在终端快速验证三段式流程，可使用根目录下的 `poster_workflow.py` 脚本：
+
+1. 准备配置文件（项目已提供 `examples/sample_workflow.json` 作为示例），字段与前端填写内容一致：
+   - `poster`：对应 `PosterInput` 的各项素材与文案字段，支持可选的 Base64 图片数据；
+   - `email`：可选，包含收件人、主题与自定义正文，未配置时脚本会生成默认营销话术。
+2. 运行脚本并指定输入文件，可选地指定输出目录保存结果：
+
+   ```bash
+   python poster_workflow.py --input examples/sample_workflow.json --output-dir out/
+   ```
+
+   终端会依次输出版式预览、Glibatree 提示词、海报生成信息及营销邮件草稿，`out/` 目录中会生成对应的 `.txt` 文本与海报图片。
+3. 若在环境变量中正确配置了 SMTP（参见上文），可以追加 `--send-email` 直接完成邮件发送：
+
+   ```bash
+   python poster_workflow.py --input config.json --send-email
+   ```
+
+   当未配置邮件服务时脚本会提示“邮件服务未配置，已跳过真实发送”，便于在开发环境调试。
+
 ## 常见问题
 
 - **尚未配置 Glibatree API**：后端会自动生成占位海报图，版式与功能点均对应输入内容。部署正式服务时在 Render 上配置 `GLIBATREE_API_URL` 与 `GLIBATREE_API_KEY` 即可。  
