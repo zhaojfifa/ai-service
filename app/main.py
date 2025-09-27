@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi.responses import RedirectResponse
+from fastapi import Response
 from app.config import get_settings
 from app.schemas import (
     GeneratePosterResponse,
@@ -13,8 +14,7 @@ from app.schemas import (
 )
 from app.services.email_sender import send_email
 # === Add: 根路径的 GET/HEAD 响应，避免 Render 探活 404 ===
-from fastapi.responses import RedirectResponse
-from fastapi import Response
+
 
 @app.get("/", include_in_schema=False)
 def index():
