@@ -122,25 +122,33 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
 def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
     """Create a marketing email body tailored for the target client."""
 
-    feature_lines = "\n".join(f"· {feature}" for feature in poster.features)
+    # 安全取值，避免 None
+    brand = poster.brand_name or ""
+    product = poster.product_name or ""
+    subtitle = poster.subtitle or ""
+    to_email = poster.email or ""
+    features = poster.features or []
 
-    email = f"""
-    收件人：{poster.email}
-    主题：{poster.brand_name} {poster.product_name} 市场推广海报
+    feature_lines = "\n".join(f"• {f}" for f in features) if features else "（详见海报标注）"
 
-    尊敬的客户，
+    # 用三单引号，避免和正文中的双引号冲突；注意最后一定有成对的三引号
+    email = f'''收件人：{to_email}
+主题：{brand} {product} 市场推广海报
 
-    您好！感谢您持续关注 {poster.brand_name} 厨房解决方案。我们最新推出的 {poster.product_name} 已经上线，特此奉上宣传海报供您推广使用。海报以 "{poster.subtitle}" 为主题，在现代简洁的版式中突出了以下核心优势：
-    {feature_lines}
+尊敬的客户，
 
-    欢迎将本次营销物料分发至您的渠道。若需定制化内容或更多产品资料，我们的团队将随时为您跟进。
+您好！感谢持续关注 {brand} 厨房解决方案。我们最新推出的 {product} 已经上线，特此奉上海报供您推广使用。
+海报以“{subtitle}”为主题，在现代简洁的版式中突出以下功能亮点：
+{feature_lines}
 
-    营销海报文件：{poster_filename}
+欢迎将本次营销物料分发至您的渠道。若需定制化内容或更多产品资料，我们的团队将随时为您跟进。
 
-    期待与您的下一次合作，祝商祺！
+营销海报文件：{poster_filename}
 
+期待与您的下一次合作，祝商祺！
 
-    —— {poster.brand_name} 市场团队
+—— {brand} 市场团队
+'''
 
-    return textwrap.dedent(email).strip()
+    return dedent(email).strip()
 
