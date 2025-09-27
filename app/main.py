@@ -6,10 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi import Response
 
-settings = get_settings()
-app = FastAPI(title="Marketing Poster API", version="1.0.0")
+# FIX: 先导入 get_settings，再调用，否则会 NameError
+from app.config import get_settings  # FIX: moved up
 
-from app.config import get_settings
 from app.schemas import (
     GeneratePosterResponse,
     PosterInput,
@@ -17,9 +16,12 @@ from app.schemas import (
     SendEmailResponse,
 )
 from app.services.email_sender import send_email
-# === Add: 根路径的 GET/HEAD 响应，避免 Render 探活 404 ===
 
+# ---- 初始化配置 & 应用 -------------------------------------------------
+settings = get_settings()           # FIX: moved below import
+app = FastAPI(title="Marketing Poster API", version="1.0.0")  # FIX: app 在所有装饰器之前
 
+# === 根路径：避免 Render 探活 404 ===
 @app.get("/", include_in_schema=False)
 def index():
     # 访问根路径时跳到 API 文档
@@ -29,25 +31,18 @@ def index():
 def index_head():
     # Render 探活会发 HEAD /，这里返回 204 即可
     return Response(status_code=204)
-# === End Add ===
+# === End ===
 
-# [ADDED] —— OpenAI 客户端（方案2：用 OpenAI 生成海报替代 Glibatree）
-# -----------------------------------------------------------
+# ---- 方案 2：OpenAI 生成海报 ------------------------------------------
 try:
     # 新版 SDK：pip install openai>=1.40.0
-    from openai import OpenAI  # [ADDED]
-except Exception as _:
-    OpenAI = None  # 便于启动时不报错；若调用时仍为 None 会抛出 500
-
-# -----------------------------------------------------------
-
+    from openai import OpenAI
+except Exception:
+    OpenAI = None  # 启动不报错；真正调用时再抛出
 
 # 允许跨域
 allow_origins = settings.allowed_origins
-if allow_origins == ["*"]:
-    allow_credentials = False
-else:
-    allow_credentials = True
+allow_credentials = False if allow_origins == ["*"] else True
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,16 +52,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
-
-# [CHANGED] —— 方案2：使用 OpenAI 生成海报图像
-# -----------------------------------------------------------
 def _build_openai_prompt(poster: PosterInput) -> str:
-    """把结构化输入转成图像生成提示词。"""
     features_text = "；".join(poster.features or [])
     series_text = poster.series or "三视图/系列款式"
     prompt = f"""
@@ -83,41 +73,30 @@ def _build_openai_prompt(poster: PosterInput) -> str:
     """
     return " ".join(line.strip() for line in prompt.splitlines() if line.strip())
 
-
 def _openai_generate_image(poster: PosterInput) -> str:
     """
-    调用 OpenAI 生成图片（base64）。返回 base64 PNG 字符串。
-    依赖环境变量 OPENAI_API_KEY（通过 settings.OPENAI_API_KEY 获取）
+    使用 OpenAI 生成 base64 PNG 字符串。
+    依赖环境变量 OPENAI_API_KEY（在 settings.OPENAI_API_KEY）。
     """
     if not OpenAI:
         raise RuntimeError("OpenAI SDK 未安装，请在 requirements.txt 加入 openai>=1.40.0")
-
     if not getattr(settings, "OPENAI_API_KEY", None):
         raise RuntimeError("未配置 OPENAI_API_KEY，无法调用 OpenAI 生成海报")
 
-    client = OpenAI(api_key=settings.OPENAI_API_KEY)  # [ADDED]
-
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
     prompt = _build_openai_prompt(poster)
-    # 生成图像，b64_json 返回 base64 数据
-    result = client.images.generate(  # [ADDED]
+    result = client.images.generate(
         model="gpt-image-1",
         prompt=prompt,
         size="1024x1024",
         response_format="b64_json",
     )
-    image_b64 = result.data[0].b64_json
-    return image_b64
-# -----------------------------------------------------------
-
+    return result.data[0].b64_json
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 def generate_poster_asset(payload: PosterInput) -> GeneratePosterResponse:
-    """
-    方案2：改为调用 OpenAI 生成海报（base64）。
-    """
     try:
-        poster_image_b64 = _openai_generate_image(payload)  # [CHANGED]
-        # 这里也可以构造一个邮件正文，用于发送
+        poster_image_b64 = _openai_generate_image(payload)
         feature_lines = "\n".join(f"• {f}" for f in (payload.features or []))
         email_body = f"""尊敬的客户，您好！
 
@@ -133,21 +112,18 @@ def generate_poster_asset(payload: PosterInput) -> GeneratePosterResponse:
 祝商祺！
 —— {payload.brand_name} 市场团队
 """
-        # 返回 base64 图像给前端预览/下载
         return GeneratePosterResponse(
             email_body=email_body,
-            poster_image={"content": poster_image_b64, "format": "png"},  # [CHANGED]
+            poster_image={"content": poster_image_b64, "format": "png"},
         )
-    except Exception as exc:  # 统一转 HTTP 友好错误
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
 
 @app.post("/api/send-email", response_model=SendEmailResponse)
 def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
     try:
         return send_email(payload)
-    except Exception as exc:  # pragma: no cover - ensures HTTP friendly message
+    except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-
 
 __all__ = ["app"]
