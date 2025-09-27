@@ -1,7 +1,9 @@
 
 
 
+
 ////the Demo about marketing
+
 # 营销海报生成服务
 
 该项目实现了“厨厨房”营销海报的三段式工作流：
@@ -62,9 +64,7 @@ uvicorn app.main:app --reload
    - 使用 Python 环境，执行 `pip install -r requirements.txt`。
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
 
-
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
-
 
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API 与 SMTP 环境变量。
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
@@ -89,7 +89,8 @@ uvicorn app.main:app --reload
 ## 使用流程
 
 
-1. **环节 1 – 素材输入 + 版式预览**：填写品牌、代理、场景、功能点等信息，右侧实时更新文本版式预览，确保素材齐全。
+1. **环节 1 – 素材输入 + 版式预览**：填写品牌名称、场景描述、功能点等信息，右侧实时更新文本版式预览，确保素材齐全。
+
 
 2. **环节 2 – 生成海报**：点击“生成海报与文案”按钮，前端会调用后端接口获取 Glibatree 提示词、海报图（若未配置真实接口则展示占位图）以及营销邮件草稿。
 3. **环节 3 – 邮件发送**：确认或修改邮件主题与正文，点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成邮件发送；否则返回未执行的提示，方便调试。

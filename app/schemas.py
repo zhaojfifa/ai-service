@@ -9,7 +9,9 @@ class PosterInput(BaseModel):
 
     brand_name: constr(strip_whitespace=True, min_length=1)
 
+
     agent_name: constr(strip_whitespace=True, min_length=1)
+
 
     scenario_image: constr(strip_whitespace=True, min_length=1)
     product_name: constr(strip_whitespace=True, min_length=1)
@@ -19,7 +21,9 @@ class PosterInput(BaseModel):
     title: constr(strip_whitespace=True, min_length=1)
     series_description: constr(strip_whitespace=True, min_length=1)
     subtitle: constr(strip_whitespace=True, min_length=1)
+
     email: EmailStr
+
 
     brand_logo: Optional[str] = Field(
         None,

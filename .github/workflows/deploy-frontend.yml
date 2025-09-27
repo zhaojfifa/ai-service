@@ -1,39 +1,50 @@
-name: Manual sync frontend to docs
+name: Deploy frontend to GitHub Pages
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
 
 jobs:
-  sync:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
     steps:
-      - name: Checkout
+      - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # （可选）防止 Jekyll 处理，特别是目录以下划线开头时
+      - name: Add .nojekyll
+        run: |
+          touch frontend/.nojekyll
+
+      # （可选）如有自定义域名，写入 CNAME
+      # - name: Add CNAME
+      #   run: echo "your.domain.com" > frontend/CNAME
+
+      - name: Upload frontend artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          fetch-depth: 0
+          path: frontend
 
-      - name: Prepare docs directory
-        run: |
-          mkdir -p docs
-          find docs -mindepth 1 -maxdepth 1 ! -name CNAME -exec rm -rf {} +
-
-      - name: Copy frontend -> docs
-        run: |
-          cp -r frontend/* docs/
-
-      - name: Inject backend API base URL
-        if: ${{ env.API_BASE_URL != '' }}
-        run: |
-          sed -i "s|__API_BASE_URL__|${{ env.API_BASE_URL }}|g" docs/app.js || true
-          sed -i "s|__API_BASE_URL__|${{ env.API_BASE_URL }}|g" docs/index.html || true
-        env:
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-
-      - name: Commit & push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'chore(docs): manual sync from frontend'
-          file_pattern: docs/**
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,13 +1,17 @@
+
 # app/main.py
+
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.responses import RedirectResponse
 from fastapi import Response
 
 # FIX: 先导入 get_settings，再调用，否则会 NameError
 from app.config import get_settings  # FIX: moved up
+
 
 from app.schemas import (
     GeneratePosterResponse,
@@ -16,6 +20,24 @@ from app.schemas import (
     SendEmailResponse,
 )
 from app.services.email_sender import send_email
+
+from app.services.glibatree import generate_poster_asset
+from app.services.poster import (
+    build_glibatree_prompt,
+    compose_marketing_email,
+    render_layout_preview,
+)
+
+settings = get_settings()
+
+app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
+allow_origins = settings.allowed_origins
+if allow_origins == ["*"]:
+    allow_credentials = False
+else:
+    allow_credentials = True
+
 
 # ---- 初始化配置 & 应用 -------------------------------------------------
 settings = get_settings()           # FIX: moved below import
@@ -44,6 +66,7 @@ except Exception:
 allow_origins = settings.allowed_origins
 allow_credentials = False if allow_origins == ["*"] else True
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
@@ -52,9 +75,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+
+@app.post("/api/generate-poster", response_model=GeneratePosterResponse)
+def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
+    preview = render_layout_preview(payload)
+    prompt = build_glibatree_prompt(payload)
+    poster_image = generate_poster_asset(payload, prompt, preview)
+    email_body = compose_marketing_email(payload, poster_image.filename)
+    return GeneratePosterResponse(
+        layout_preview=preview,
+        prompt=prompt,
+        email_body=email_body,
+        poster_image=poster_image,
+    )
+
 
 def _build_openai_prompt(poster: PosterInput) -> str:
     features_text = "；".join(poster.features or [])
@@ -119,11 +159,15 @@ def generate_poster_asset(payload: PosterInput) -> GeneratePosterResponse:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+
 @app.post("/api/send-email", response_model=SendEmailResponse)
 def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
     try:
         return send_email(payload)
-    except Exception as exc:
+
+    except Exception as exc:  # pragma: no cover - ensures HTTP friendly message
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+
 __all__ = ["app"]
+

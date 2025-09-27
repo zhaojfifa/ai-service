@@ -1,5 +1,5 @@
+<script>
 const form = document.getElementById('poster-form');
-
 const layoutStructure = document.getElementById('layout-structure-text');
 
 const generateButton = document.getElementById('generate-poster');
@@ -14,6 +14,15 @@ const sendButton = document.getElementById('send-email');
 const statusElement = document.getElementById('status');
 const apiBaseInput = document.getElementById('api-base');
 
+const buildPreviewButton = document.getElementById('build-preview');
+const previewContainer = document.getElementById('preview-container');
+const posterVisual = document.getElementById('poster-visual');
+const promptGroup = document.getElementById('prompt-group');
+const emailGroup = document.getElementById('email-group');
+const aiPreview = document.getElementById('ai-preview');
+const aiPreviewMessage = document.getElementById('ai-preview-message');
+const aiSpinner = document.getElementById('ai-spinner');
+const regenerateButton = document.getElementById('regenerate-poster');
 
 const brandLogoInput = form.querySelector('input[name="brand_logo"]');
 const scenarioAssetInput = form.querySelector('input[name="scenario_asset"]');
@@ -32,10 +41,10 @@ const previewSeries = document.getElementById('preview-series-description');
 
 const STORAGE_KEY = 'marketing-poster-api-base';
 let latestPosterImage = null;
+let previewEnabled = false;
 
 const defaultData = {
   brand_name: '厨匠ChefCraft',
-
   scenario_image: '现代开放式厨房中智能蒸烤一体机的使用场景',
   product_name: 'ChefCraft 智能蒸烤大师',
   features: [
@@ -47,9 +56,9 @@ const defaultData = {
   title: '焕新厨房效率，打造大厨级美味',
   series_description: '标准款 / 高配款 / 嵌入式款 产品三视图',
   subtitle: '智能蒸烤 · 家宴轻松掌控',
-  email: 'client@example.com',
 };
 
+const defaultEmailRecipient = 'client@example.com';
 
 const placeholderImages = {
   brandLogo: createPlaceholder('品牌\\nLogo'),
@@ -69,7 +78,23 @@ const imageState = {
 };
 
 function createPlaceholder(text) {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360">\n    <defs>\n      <style>\n        .bg { fill: #e5e9f0; }\n        .border { fill: none; stroke: #cbd2d9; stroke-width: 4; stroke-dasharray: 12 10; }\n        .label {\n          font-size: 28px;\n          font-family: 'Segoe UI', 'Noto Sans', sans-serif;\n          font-weight: 600;\n          fill: #3d4852;\n        }\n      </style>\n    </defs>\n    <rect class="bg" x="0" y="0" width="480" height="360" rx="32" />\n    <rect class="border" x="18" y="18" width="444" height="324" rx="26" />\n    <text class="label" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">${text}</text>\n  </svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360">
+    <defs>
+      <style>
+        .bg { fill: #e5e9f0; }
+        .border { fill: none; stroke: #cbd2d9; stroke-width: 4; stroke-dasharray: 12 10; }
+        .label {
+          font-size: 28px;
+          font-family: 'Segoe UI', 'Noto Sans', sans-serif;
+          font-weight: 600;
+          fill: #3d4852;
+        }
+      </style>
+    </defs>
+    <rect class="bg" x="0" y="0" width="480" height="360" rx="32" />
+    <rect class="border" x="18" y="18" width="444" height="324" rx="26" />
+    <text class="label" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">${text}</text>
+  </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
@@ -89,7 +114,6 @@ function normaliseAsset(value) {
 function getDisplaySource(value, fallback) {
   return value && value.length > 0 ? value : fallback;
 }
-
 
 function setStatus(message, level = 'info') {
   statusElement.textContent = message;
@@ -115,16 +139,13 @@ function applyDefaults() {
   for (const [key, value] of Object.entries(defaultData)) {
     if (key === 'features') continue;
     const element = form.elements.namedItem(key);
-    if (element) {
-      element.value = value;
-    }
+    if (element) element.value = value;
   }
 
   const featureInputs = form.querySelectorAll('input[name="features"]');
   featureInputs.forEach((input, index) => {
     input.value = defaultData.features[index] ?? '';
   });
-
 
   if (brandLogoInput) brandLogoInput.value = '';
   if (scenarioAssetInput) scenarioAssetInput.value = '';
@@ -136,27 +157,44 @@ function applyDefaults() {
   imageState.product = null;
   imageState.gallery = [];
 
+  // 预览初始状态与 AI 预览区初始化
+  previewEnabled = false;
+  if (previewContainer) previewContainer.classList.add('hidden');
+  if (layoutStructure) layoutStructure.textContent = '点击“构建版式预览”按钮以查看布局结构概览。';
+
+  if (posterOutput) posterOutput.classList.add('hidden');
+  if (aiPreview) aiPreview.classList.remove('complete');
+  if (aiSpinner) aiSpinner.classList.remove('hidden');
+  if (aiPreviewMessage) aiPreviewMessage.textContent = '准备调用 AI 生成海报…';
+  if (posterVisual) posterVisual.classList.add('hidden');
+  if (promptGroup) promptGroup.classList.add('hidden');
+  if (emailGroup) emailGroup.classList.add('hidden');
+  if (regenerateButton) {
+    regenerateButton.classList.add('hidden');
+    regenerateButton.disabled = false;
+  }
+
+  emailRecipient.value = '';
+  emailSubject.value = '';
+  emailBody.value = '';
 
   syncEmailFields(defaultData);
 }
 
 function syncEmailFields(data, emailText) {
-  emailRecipient.value = data.email;
-
   const brandLabel = data.brand_name || '品牌';
   const productLabel = data.product_name || '产品';
   emailSubject.value = `${brandLabel} ${productLabel} 市场推广海报`;
-
-  if (emailText) {
-    emailBody.value = emailText;
+  if (!emailRecipient.value) {
+    emailRecipient.value = defaultEmailRecipient; // 文案区不再携带邮箱；收件人独立输入
   }
+  if (emailText) emailBody.value = emailText;
 }
 
 function buildLayoutPreview(data) {
   const featuresPreview = data.features
     .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
     .join('\n');
-
 
   const logoLine = data.brand_logo
     ? `已上传品牌 Logo（${data.brand_name}）`
@@ -171,17 +209,35 @@ function buildLayoutPreview(data) {
     ? `已上传 ${data.gallery_assets.length} 张底部产品小图，配文：${data.series_description}`
     : data.series_description;
 
-  return `顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌名称 / 代理名（右上）：${
-    data.brand_name || '待填写品牌名称'
-  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${data.title}\n\n底部区域（三视图或系列说明）\n  · ${galleryLine}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${data.subtitle}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，整体保持现代、简洁与留白感。`;
+  return `顶部横条
+  · 品牌 Logo（左上）：${logoLine}
+  · 品牌名称 / 代理名（右上）：${data.brand_name || '待填写品牌名称'}
 
+左侧区域（约 40% 宽）
+  · 应用场景图：${scenarioLine}
+
+右侧区域（视觉中心）
+  · 主产品 45° 渲染图：${productLine}
+  · 功能点标注：
+${featuresPreview}
+
+中部标题（大号粗体红字）
+  · ${data.title}
+
+底部区域（三视图或系列说明）
+  · ${galleryLine}
+
+角落副标题 / 标语（大号粗体红字）
+  · ${data.subtitle}
+
+主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）
+背景：浅灰或白色，整体保持现代、简洁与留白感。`;
 }
 
 function collectFormData({ strict } = { strict: false }) {
   const formData = new FormData(form);
   const payload = {
     brand_name: formData.get('brand_name')?.toString().trim() || '',
-
     scenario_image: formData.get('scenario_image')?.toString().trim() || '',
     product_name: formData.get('product_name')?.toString().trim() || '',
     features: formData
@@ -191,15 +247,13 @@ function collectFormData({ strict } = { strict: false }) {
     title: formData.get('title')?.toString().trim() || '',
     series_description: formData.get('series_description')?.toString().trim() || '',
     subtitle: formData.get('subtitle')?.toString().trim() || '',
-    email: formData.get('email')?.toString().trim() || '',
   };
 
-
+  // 图片/素材只走 DataURL，不进入文案区邮箱
   payload.brand_logo = normaliseAsset(imageState.brandLogo);
   payload.scenario_asset = normaliseAsset(imageState.scenario);
   payload.product_asset = normaliseAsset(imageState.product);
   payload.gallery_assets = imageState.gallery.slice(0, 4).filter((asset) => !!asset);
-
 
   if (strict) {
     if (payload.features.length < 3 || payload.features.length > 4) {
@@ -207,11 +261,9 @@ function collectFormData({ strict } = { strict: false }) {
     }
     for (const [key, value] of Object.entries(payload)) {
       if (key === 'features') continue;
-
       if (key.endsWith('_asset') || key === 'gallery_assets' || key === 'brand_logo') {
         continue;
       }
-
       if (!value) {
         throw new Error('请完整填写所有素材字段。');
       }
@@ -221,7 +273,10 @@ function collectFormData({ strict } = { strict: false }) {
   return payload;
 }
 
-function updatePreview() {
+function updatePreview(options = {}) {
+  const { force = false } = options;
+  if (!previewEnabled && !force) return;
+
   const data = collectFormData({ strict: false });
 
   const featuresForPreview = data.features.length ? data.features : defaultData.features;
@@ -234,10 +289,11 @@ function updatePreview() {
     series_description: data.series_description || defaultData.series_description,
   };
 
-  if (layoutStructure) {
-    layoutStructure.textContent = buildLayoutPreview(layoutData);
-  }
+  if (layoutStructure) layoutStructure.textContent = buildLayoutPreview(layoutData);
+  if (previewContainer) previewContainer.classList.remove('hidden');
+  previewEnabled = true;
 
+  // 卡片图层预览
   previewBrandLogo.src = getDisplaySource(imageState.brandLogo, placeholderImages.brandLogo);
   previewBrandName.textContent = layoutData.brand_name;
 
@@ -313,10 +369,11 @@ async function handleGalleryInput(input) {
     setStatus('无法读取底部产品小图，请重试。', 'error');
   }
   updatePreview();
-
 }
 
-async function generatePoster() {
+async function generatePoster(options = {}) {
+  const { triggeredByRegenerate = false } = options;
+
   const apiBase = (apiBaseInput.value || '').trim();
   if (!apiBase) {
     setStatus('请先填写后端 API 地址。', 'warning');
@@ -331,8 +388,18 @@ async function generatePoster() {
     return;
   }
 
-  setStatus('正在生成海报与邮件草稿...', 'info');
+  setStatus(triggeredByRegenerate ? '正在重新生成海报，请稍候…' : '正在生成海报与邮件草稿...', 'info');
   generateButton.disabled = true;
+  if (regenerateButton) regenerateButton.disabled = true;
+
+  if (posterOutput) posterOutput.classList.remove('hidden');
+  if (aiPreview) aiPreview.classList.remove('complete');
+  if (aiSpinner) aiSpinner.classList.remove('hidden');
+  if (aiPreviewMessage) aiPreviewMessage.textContent = '正在调用 AI 生成海报，请稍候…';
+  if (posterVisual) posterVisual.classList.add('hidden');
+  if (promptGroup) promptGroup.classList.add('hidden');
+  if (emailGroup) emailGroup.classList.add('hidden');
+  latestPosterImage = null;
 
   try {
     const response = await fetch(`${apiBase.replace(/\/$/, '')}/api/generate-poster`, {
@@ -348,10 +415,7 @@ async function generatePoster() {
 
     const data = await response.json();
 
-    if (layoutStructure) {
-      layoutStructure.textContent = data.layout_preview;
-    }
-
+    if (layoutStructure) layoutStructure.textContent = data.layout_preview;
     glibatreePrompt.value = data.prompt;
     generatedEmail.value = data.email_body;
     emailBody.value = data.email_body;
@@ -360,14 +424,25 @@ async function generatePoster() {
     posterImage.src = data.poster_image.data_url;
     posterImage.alt = `${payload.product_name} 海报预览`;
     latestPosterImage = data.poster_image;
-    posterOutput.classList.remove('hidden');
+
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (aiPreviewMessage) aiPreviewMessage.textContent = 'AI 生成完成，以下为最新海报预览。';
+    if (posterVisual) posterVisual.classList.remove('hidden');
+    if (promptGroup) promptGroup.classList.remove('hidden');
+    if (emailGroup) emailGroup.classList.remove('hidden');
+    if (regenerateButton) regenerateButton.classList.remove('hidden');
 
     setStatus('海报与文案生成完成，请确认后发送邮件。', 'success');
   } catch (error) {
     console.error(error);
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (aiPreviewMessage) aiPreviewMessage.textContent = error.message || '生成海报时发生错误。';
+    if (regenerateButton) regenerateButton.classList.remove('hidden');
     setStatus(error.message || '生成海报时发生错误。', 'error');
   } finally {
     generateButton.disabled = false;
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (regenerateButton) regenerateButton.disabled = false;
   }
 }
 
@@ -377,7 +452,6 @@ async function sendEmail() {
     setStatus('请先填写后端 API 地址。', 'warning');
     return;
   }
-
   if (!latestPosterImage) {
     setStatus('请先完成海报生成步骤。', 'warning');
     return;
@@ -426,7 +500,6 @@ async function sendEmail() {
   }
 }
 
-
 function attachImageListeners() {
   if (brandLogoInput) {
     brandLogoInput.addEventListener('change', () => {
@@ -450,7 +523,6 @@ function attachImageListeners() {
   }
 }
 
-
 apiBaseInput.addEventListener('change', () => {
   saveApiBase();
 });
@@ -459,14 +531,26 @@ form.addEventListener('input', () => {
   updatePreview();
 });
 
-
 attachImageListeners();
-
 
 generateButton.addEventListener('click', (event) => {
   event.preventDefault();
   generatePoster();
 });
+
+if (regenerateButton) {
+  regenerateButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    generatePoster({ triggeredByRegenerate: true });
+  });
+}
+
+if (buildPreviewButton) {
+  buildPreviewButton.addEventListener('click', (event) => {
+    event.preventDefault();
+    updatePreview({ force: true });
+  });
+}
 
 sendButton.addEventListener('click', (event) => {
   event.preventDefault();
@@ -480,3 +564,4 @@ sendButton.addEventListener('click', (event) => {
   generatedEmail.setAttribute('readonly', 'readonly');
   setStatus('请确认素材内容，完成海报生成与邮件发送流程。', 'info');
 })();
+</script>
