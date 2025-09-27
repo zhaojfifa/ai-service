@@ -12,6 +12,20 @@ from app.schemas import (
     SendEmailResponse,
 )
 from app.services.email_sender import send_email
+# === Add: 根路径的 GET/HEAD 响应，避免 Render 探活 404 ===
+from fastapi.responses import RedirectResponse
+from fastapi import Response
+
+@app.get("/", include_in_schema=False)
+def index():
+    # 访问根路径时跳到 API 文档
+    return RedirectResponse(url="/docs", status_code=307)
+
+@app.head("/", include_in_schema=False)
+def index_head():
+    # Render 探活会发 HEAD /，这里返回 204 即可
+    return Response(status_code=204)
+# === End Add ===
 
 # [ADDED] —— OpenAI 客户端（方案2：用 OpenAI 生成海报替代 Glibatree）
 # -----------------------------------------------------------
