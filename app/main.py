@@ -5,6 +5,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi import Response
+
+settings = get_settings()
+app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
 from app.config import get_settings
 from app.schemas import (
     GeneratePosterResponse,
@@ -37,8 +41,6 @@ except Exception as _:
 
 # -----------------------------------------------------------
 
-settings = get_settings()
-app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
 # 允许跨域
 allow_origins = settings.allowed_origins
