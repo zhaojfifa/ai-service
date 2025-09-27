@@ -15,14 +15,9 @@ from app.schemas import (
     SendEmailResponse,
 )
 from app.services.email_sender import send_email
-
-# 两种后端
-from app.services.glibatree import generate_poster_asset as gliba_generate
 from app.services.poster import (
     render_layout_preview,
     compose_marketing_email,
-    build_openai_prompt,
-    generate_poster_with_openai,
     build_glibatree_prompt,
 )
 
@@ -53,33 +48,41 @@ def index_head() -> Response:
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
-# ---- 生成海报 ----
+# ---- 生成海报（统一一个路由，内部选择后端）----
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
     """
     根据 IMAGE_BACKEND 环境变量选择后端：
-      - openai  : 使用 OpenAI 生成
+      - openai   : 使用 OpenAI 图像模型
       - glibatree(默认): 使用 Glibatree 生成
     """
     preview = render_layout_preview(payload)
-    backend = (os.getenv("IMAGE_BACKEND") or getattr(settings, "IMAGE_BACKEND", "") or "glibatree").lower()
+    backend = (
+        os.getenv("IMAGE_BACKEND")
+        or getattr(settings, "IMAGE_BACKEND", "")
+        or "glibatree"
+    ).lower()
 
     if backend == "openai":
-        # —— OpenAI 路径 ——
+        # 延迟导入，避免顶层导入失败阻断启动
+        try:
+            from app.services.poster import generate_poster_with_openai, build_openai_prompt
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"OpenAI 后端未就绪：{e}")
+
         api_key = os.getenv("OPENAI_API_KEY") or getattr(settings, "OPENAI_API_KEY", None)
         if not api_key:
             raise HTTPException(status_code=500, detail="OPENAI_API_KEY 未配置（IMAGE_BACKEND=openai）")
 
         try:
-            # 生成图片文件，返回 (preview_text, prompt, png_path)
+            # 生成图片（保存到临时文件），返回 (preview_text, prompt, png_path)
             _pv, prompt, png_path = generate_poster_with_openai(
                 poster=payload,
                 openai_api_key=api_key,
                 openai_base_url=os.getenv("OPENAI_BASE_URL"),
                 size=os.getenv("OPENAI_IMAGE_SIZE", "1024x1024"),
             )
-
-            # 转为 Data URL 回前端
+            # 转为 data URL
             with open(png_path, "rb") as f:
                 b64 = base64.b64encode(f.read()).decode("utf-8")
             data_url = f"data:image/png;base64,{b64}"
@@ -95,7 +98,12 @@ def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     else:
-        # —— Glibatree 路径（默认）——
+        # Glibatree（默认）—— 延迟导入，避免顶层失败
+        try:
+            from app.services.glibatree import generate_poster_asset as gliba_generate
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Glibatree 后端未就绪：{e}")
+
         prompt = build_glibatree_prompt(payload)
         try:
             poster_asset = gliba_generate(payload, prompt, preview)
