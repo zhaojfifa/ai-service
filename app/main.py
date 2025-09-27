@@ -18,7 +18,6 @@ from app.services.email_sender import send_email
 from app.services.poster import (
     render_layout_preview,
     compose_marketing_email,
-  #  build_glibatree_prompt,
 )
 
 settings = get_settings()
