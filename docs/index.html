@@ -8,85 +8,134 @@
   </head>
   <body>
     <header>
+      <div class="header-content">
+        <div>
+          <h1>营销海报生成工作流</h1>
+          <p>依次完成素材输入、海报生成与邮件发送，打造现代简洁的厨电宣传海报。</p>
+        </div>
+        <label class="api-config">
       <h1>营销海报生成工作流</h1>
       <p>按照三个环节完成素材输入、海报生成以及邮件发送。</p>
     </header>
 
-    <main>
-      <section class="card">
-        <h2>环节 0 · 服务配置</h2>
-        <p class="hint">
-          将 Render 部署的 FastAPI 服务地址填写在下方，GitHub Pages 页面会通过该地址完成后续的生成与发送操作。
-        </p>
-        <label class="field">
-          <span>后端 API 地址</span>
-          <input
-            type="url"
-            id="api-base"
-            placeholder="https://your-render-service.onrender.com"
-          />
-        </label>
-      </section>
 
+      </div>
+    </header>
+
+    <main>
       <section id="input-section" class="card">
         <h2>环节 1 · 素材输入与版式预览</h2>
         <form id="poster-form">
-          <div class="grid">
-            <label class="field">
-              <span>品牌名称</span>
-              <input type="text" name="brand_name" required />
-            </label>
-            <label class="field">
-              <span>代理 / 分销名称</span>
-              <input type="text" name="agent_name" required />
-            </label>
-            <label class="field">
-              <span>应用场景描述</span>
-              <textarea name="scenario_image" rows="3" required></textarea>
-            </label>
-            <label class="field">
-              <span>主产品名称</span>
-              <input type="text" name="product_name" required />
-            </label>
-            <label class="field">
-              <span>标题文案</span>
-              <input type="text" name="title" required />
-            </label>
-            <label class="field">
-              <span>副标题文案</span>
-              <input type="text" name="subtitle" required />
-            </label>
-            <label class="field">
-              <span>三视图 / 系列说明</span>
-              <textarea name="series_description" rows="2" required></textarea>
-            </label>
-            <label class="field">
-              <span>客户邮箱</span>
-              <input type="email" name="email" required />
-            </label>
-          </div>
+          <div class="layout-fields">
+            <fieldset class="fieldset">
+              <legend>顶部横条</legend>
+              <div class="grid">
+                <label class="field file-field">
+                  <span>品牌 Logo 上传</span>
+                  <input type="file" name="brand_logo" accept="image/*" />
+                </label>
+                <label class="field">
+                  <span>品牌名称 / 代理名</span>
+                  <input type="text" name="brand_name" required />
+                </label>
+              </div>
+            </fieldset>
 
-          <fieldset class="features">
-            <legend>功能点（填写 3-4 条）</legend>
-            <div class="feature-item">
-              <input type="text" name="features" required />
-            </div>
-            <div class="feature-item">
-              <input type="text" name="features" required />
-            </div>
-            <div class="feature-item">
-              <input type="text" name="features" required />
-            </div>
-            <div class="feature-item">
-              <input type="text" name="features" placeholder="可选" />
-            </div>
-          </fieldset>
+            <fieldset class="fieldset">
+              <legend>图像素材</legend>
+              <div class="grid">
+                <label class="field file-field">
+                  <span>应用场景图上传</span>
+                  <input type="file" name="scenario_asset" accept="image/*" />
+                </label>
+                <label class="field">
+                  <span>应用场景描述（用于提示词）</span>
+                  <textarea name="scenario_image" rows="3" required></textarea>
+                </label>
+                <label class="field file-field">
+                  <span>产品 45° 渲染图上传</span>
+                  <input type="file" name="product_asset" accept="image/*" />
+                </label>
+                <label class="field">
+                  <span>主产品名称</span>
+                  <input type="text" name="product_name" required />
+                </label>
+                <label class="field file-field">
+                  <span>底部产品小图（3-4 张，支持多选）</span>
+                  <input type="file" name="gallery_assets" accept="image/*" multiple />
+                </label>
+                <label class="field">
+                  <span>三视图 / 系列说明</span>
+                  <textarea name="series_description" rows="2" required></textarea>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend>文案字段</legend>
+              <div class="grid">
+                <label class="field">
+                  <span>标题文案</span>
+                  <input type="text" name="title" required />
+                </label>
+                <label class="field">
+                  <span>副标题文案</span>
+                  <input type="text" name="subtitle" required />
+                </label>
+                <label class="field">
+                  <span>客户邮箱</span>
+                  <input type="email" name="email" required />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="features">
+              <legend>功能点（填写 3-4 条）</legend>
+              <div class="feature-item">
+                <input type="text" name="features" required />
+              </div>
+              <div class="feature-item">
+                <input type="text" name="features" required />
+              </div>
+              <div class="feature-item">
+                <input type="text" name="features" required />
+              </div>
+              <div class="feature-item">
+                <input type="text" name="features" placeholder="可选" />
+              </div>
+            </fieldset>
+          </div>
         </form>
 
         <div class="preview">
           <h3>版式预览</h3>
-
-          <pre id="layout-preview"></pre>
+          <div id="layout-preview" class="poster-preview">
+            <div class="poster-header">
+              <div class="poster-logo">
+                <img id="preview-brand-logo" alt="品牌 Logo 预览" />
+              </div>
+              <div class="poster-brand" id="preview-brand-name"></div>
+            </div>
+            <div class="poster-body">
+              <div class="poster-left">
+                <img id="preview-scenario-image" alt="应用场景预览" />
+              </div>
+              <div class="poster-right">
+                <div class="poster-product-wrapper">
+                  <img id="preview-product-image" alt="产品渲染图预览" />
+                  <ul id="preview-feature-list"></ul>
+                </div>
+              </div>
+            </div>
+            <div class="poster-title" id="preview-title"></div>
+            <div class="poster-gallery" id="preview-gallery"></div>
+            <div class="poster-series" id="preview-series-description"></div>
+            <div class="poster-subtitle" id="preview-subtitle"></div>
+          </div>
+          <details class="layout-structure">
+            <summary>查看版式结构说明</summary>
+            <pre id="layout-structure-text"></pre>
+          </details>
 
         </div>
       </section>
