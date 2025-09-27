@@ -125,6 +125,53 @@ def generate_poster_with_openai(
     )
     return preview, prompt, png_path
 
+# 省略前文…
+
+@app.post("/api/generate-poster", response_model=GeneratePosterResponse)
+def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
+    preview = render_layout_preview(payload)
+
+    backend = (os.getenv("IMAGE_BACKEND") or getattr(settings, "IMAGE_BACKEND", "") or "glibatree").lower()
+
+    if backend == "openai":
+        # …这里保持你的 OpenAI 分支逻辑…
+        # return GeneratePosterResponse(…)
+        ...
+
+    # ---- Glibatree 分支：延迟导入 + 兜底 ----
+    try:
+        # 如果 poster.py 实现了专用 prompt，就用它
+        from app.services.poster import build_glibatree_prompt as _build_gliba_prompt
+        prompt = _build_gliba_prompt(payload)
+    except Exception:
+        # 没有的话，兜底：优先用 build_openai_prompt；再不行用内置简单 prompt
+        try:
+            from app.services.poster import build_openai_prompt
+            prompt = build_openai_prompt(payload)
+        except Exception:
+            features = "\n".join(f"- 功能点{i+1}: {f}" for i, f in enumerate(payload.features or []))
+            prompt = (
+                f"为『{payload.brand_name} {payload.product_name}』生成现代简洁风海报：\n"
+                f"- 左 40% 放应用场景「{payload.scenario_image}」，右侧中心放 45° 产品渲染\n"
+                f"- 标题（红色粗体）：{payload.title}\n"
+                f"- 底部灰度小图（3–4 张），说明：{payload.series_description}\n"
+                f"- 右下角副标题（红色粗体）：{payload.subtitle}\n"
+                f"- 功能点：\n{features}\n"
+                "主色黑/红/银灰，背景浅灰/白；排版规整、留白充足。"
+            )
+
+    # 延迟导入生成器，避免启动期阻塞
+    from app.services.glibatree import generate_poster_asset as gliba_generate
+
+    poster_asset = gliba_generate(payload, prompt, preview)
+    email_body = compose_marketing_email(payload, poster_asset.filename)
+
+    return GeneratePosterResponse(
+        layout_preview=preview,
+        prompt=prompt,
+        email_body=email_body,
+        poster_image=poster_asset,
+    )
 
 def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
     """
