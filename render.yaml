@@ -4,43 +4,20 @@ services:
     name: ai-service
     env: python
     plan: free
-    autoDeploy: true
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /health
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --log-level debug
+    autoDeploy: true
     envVars:
-      # Python 版本（可选；也可在 runtime.txt 指定）
       - key: PYTHON_VERSION
-        value: 3.11.5
-
-      # 图像生成后端：现用 OpenAI
+        value: 3.11.9
       - key: IMAGE_BACKEND
         value: openai
       - key: OPENAI_API_KEY
-        sync: false      # 在 Render 控制台里填写
+        sync: false        # 在控制台填
       - key: OPENAI_BASE_URL
         value: https://api.openai.com/v1
       - key: OPENAI_MODEL
         value: gpt-image-1
-
-      # CORS 白名单（前端 GitHub Pages + 本地调试）
       - key: ALLOWED_ORIGINS
         value: https://zhaojfifa.github.io/ai-service, http://localhost:5173, http://localhost:3000
-
-      # 邮件发送
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: 587
-      - key: SMTP_USER
-        value: your_gmail_account@gmail.com
-      - key: SMTP_PASS
-        sync: false
-      - key: FROM_EMAIL
-        value: your_gmail_account@gmail.com
-
-      # （可选）保留 Glibatree 作为回退
-      - key: GLIB_URL
-        value: https://designer.glibatree.com/api/v1/design
-      - key: GLIB_KEY
-        sync: false
+      # 如有邮件配置，同样放这里（SMTP_* / FROM_EMAIL 等）
