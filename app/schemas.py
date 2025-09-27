@@ -8,7 +8,9 @@ class PosterInput(BaseModel):
     """Data structure describing all poster inputs for the workflow."""
 
     brand_name: constr(strip_whitespace=True, min_length=1)
+
     agent_name: constr(strip_whitespace=True, min_length=1)
+
     scenario_image: constr(strip_whitespace=True, min_length=1)
     product_name: constr(strip_whitespace=True, min_length=1)
     features: list[constr(strip_whitespace=True, min_length=1)] = Field(
@@ -18,6 +20,24 @@ class PosterInput(BaseModel):
     series_description: constr(strip_whitespace=True, min_length=1)
     subtitle: constr(strip_whitespace=True, min_length=1)
     email: EmailStr
+
+    brand_logo: Optional[str] = Field(
+        None,
+        description="Optional data URL for the brand logo shown in the top banner.",
+    )
+    scenario_asset: Optional[str] = Field(
+        None,
+        description="Optional data URL for the scenario image displayed on the left column.",
+    )
+    product_asset: Optional[str] = Field(
+        None,
+        description="Optional data URL for the 45° product render showcased in the focal area.",
+    )
+    gallery_assets: list[str] = Field(
+        default_factory=list,
+        max_items=4,
+        description="Optional grayscale gallery images rendered at the bottom of the layout.",
+    )
 
 
 

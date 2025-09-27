@@ -48,6 +48,7 @@ def root():
     return {"ok": True, "service": "ai-service", "version": "1.0.0"}
 
 
+
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
     preview = render_layout_preview(payload)

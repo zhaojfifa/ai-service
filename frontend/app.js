@@ -1,5 +1,6 @@
 const form = document.getElementById('poster-form');
-const layoutPreview = document.getElementById('layout-preview');
+
+const layoutStructure = document.getElementById('layout-structure-text');
 
 const generateButton = document.getElementById('generate-poster');
 const posterOutput = document.getElementById('poster-output');
@@ -14,12 +15,27 @@ const statusElement = document.getElementById('status');
 const apiBaseInput = document.getElementById('api-base');
 
 
+const brandLogoInput = form.querySelector('input[name="brand_logo"]');
+const scenarioAssetInput = form.querySelector('input[name="scenario_asset"]');
+const productAssetInput = form.querySelector('input[name="product_asset"]');
+const galleryAssetsInput = form.querySelector('input[name="gallery_assets"]');
+
+const previewBrandLogo = document.getElementById('preview-brand-logo');
+const previewBrandName = document.getElementById('preview-brand-name');
+const previewScenarioImage = document.getElementById('preview-scenario-image');
+const previewProductImage = document.getElementById('preview-product-image');
+const previewFeatureList = document.getElementById('preview-feature-list');
+const previewTitle = document.getElementById('preview-title');
+const previewSubtitle = document.getElementById('preview-subtitle');
+const previewGallery = document.getElementById('preview-gallery');
+const previewSeries = document.getElementById('preview-series-description');
+
 const STORAGE_KEY = 'marketing-poster-api-base';
 let latestPosterImage = null;
 
 const defaultData = {
   brand_name: '厨匠ChefCraft',
-  agent_name: '味觉星球营销中心',
+
   scenario_image: '现代开放式厨房中智能蒸烤一体机的使用场景',
   product_name: 'ChefCraft 智能蒸烤大师',
   features: [
@@ -33,6 +49,46 @@ const defaultData = {
   subtitle: '智能蒸烤 · 家宴轻松掌控',
   email: 'client@example.com',
 };
+
+
+const placeholderImages = {
+  brandLogo: createPlaceholder('品牌\\nLogo'),
+  scenario: createPlaceholder('应用场景'),
+  product: createPlaceholder('产品渲染'),
+};
+
+const placeholderGallery = Array.from({ length: 4 }, (_, index) =>
+  createPlaceholder(`产品小图 ${index + 1}`)
+);
+
+const imageState = {
+  brandLogo: null,
+  scenario: null,
+  product: null,
+  gallery: [],
+};
+
+function createPlaceholder(text) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360">\n    <defs>\n      <style>\n        .bg { fill: #e5e9f0; }\n        .border { fill: none; stroke: #cbd2d9; stroke-width: 4; stroke-dasharray: 12 10; }\n        .label {\n          font-size: 28px;\n          font-family: 'Segoe UI', 'Noto Sans', sans-serif;\n          font-weight: 600;\n          fill: #3d4852;\n        }\n      </style>\n    </defs>\n    <rect class="bg" x="0" y="0" width="480" height="360" rx="32" />\n    <rect class="border" x="18" y="18" width="444" height="324" rx="26" />\n    <text class="label" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">${text}</text>\n  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result?.toString() || '');
+    reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function normaliseAsset(value) {
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function getDisplaySource(value, fallback) {
+  return value && value.length > 0 ? value : fallback;
+}
 
 
 function setStatus(message, level = 'info') {
@@ -69,12 +125,28 @@ function applyDefaults() {
     input.value = defaultData.features[index] ?? '';
   });
 
+
+  if (brandLogoInput) brandLogoInput.value = '';
+  if (scenarioAssetInput) scenarioAssetInput.value = '';
+  if (productAssetInput) productAssetInput.value = '';
+  if (galleryAssetsInput) galleryAssetsInput.value = '';
+
+  imageState.brandLogo = null;
+  imageState.scenario = null;
+  imageState.product = null;
+  imageState.gallery = [];
+
+
   syncEmailFields(defaultData);
 }
 
 function syncEmailFields(data, emailText) {
   emailRecipient.value = data.email;
-  emailSubject.value = `${data.brand_name} ${data.product_name} 市场推广海报`;
+
+  const brandLabel = data.brand_name || '品牌';
+  const productLabel = data.product_name || '产品';
+  emailSubject.value = `${brandLabel} ${productLabel} 市场推广海报`;
+
   if (emailText) {
     emailBody.value = emailText;
   }
@@ -86,7 +158,22 @@ function buildLayoutPreview(data) {
     .join('\n');
 
 
-  return `顶部横条\n  · 品牌 Logo（左上）：${data.brand_name}\n  · 代理 / 分销（右上）：${data.agent_name}\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${data.scenario_image}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${data.product_name}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${data.title}\n\n底部区域（三视图或系列说明）\n  · ${data.series_description}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${data.subtitle}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，整体保持现代、简洁与留白感。`;
+  const logoLine = data.brand_logo
+    ? `已上传品牌 Logo（${data.brand_name}）`
+    : data.brand_name || '待上传品牌 Logo';
+  const scenarioLine = data.scenario_asset
+    ? `已上传场景图（描述：${data.scenario_image || '未填写'}）`
+    : data.scenario_image || '待提供场景描述';
+  const productLine = data.product_asset
+    ? `已上传 45° 渲染图（${data.product_name}）`
+    : data.product_name;
+  const galleryLine = (data.gallery_assets?.length || 0) > 0
+    ? `已上传 ${data.gallery_assets.length} 张底部产品小图，配文：${data.series_description}`
+    : data.series_description;
+
+  return `顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌名称 / 代理名（右上）：${
+    data.brand_name || '待填写品牌名称'
+  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${data.title}\n\n底部区域（三视图或系列说明）\n  · ${galleryLine}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${data.subtitle}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，整体保持现代、简洁与留白感。`;
 
 }
 
@@ -94,7 +181,7 @@ function collectFormData({ strict } = { strict: false }) {
   const formData = new FormData(form);
   const payload = {
     brand_name: formData.get('brand_name')?.toString().trim() || '',
-    agent_name: formData.get('agent_name')?.toString().trim() || '',
+
     scenario_image: formData.get('scenario_image')?.toString().trim() || '',
     product_name: formData.get('product_name')?.toString().trim() || '',
     features: formData
@@ -108,12 +195,22 @@ function collectFormData({ strict } = { strict: false }) {
   };
 
 
+  payload.brand_logo = normaliseAsset(imageState.brandLogo);
+  payload.scenario_asset = normaliseAsset(imageState.scenario);
+  payload.product_asset = normaliseAsset(imageState.product);
+  payload.gallery_assets = imageState.gallery.slice(0, 4).filter((asset) => !!asset);
+
+
   if (strict) {
     if (payload.features.length < 3 || payload.features.length > 4) {
       throw new Error('请填写 3-4 条产品功能点。');
     }
     for (const [key, value] of Object.entries(payload)) {
       if (key === 'features') continue;
+
+      if (key.endsWith('_asset') || key === 'gallery_assets' || key === 'brand_logo') {
+        continue;
+      }
 
       if (!value) {
         throw new Error('请完整填写所有素材字段。');
@@ -127,7 +224,96 @@ function collectFormData({ strict } = { strict: false }) {
 function updatePreview() {
   const data = collectFormData({ strict: false });
 
-  layoutPreview.textContent = buildLayoutPreview(data);
+  const featuresForPreview = data.features.length ? data.features : defaultData.features;
+  const layoutData = {
+    ...data,
+    features: featuresForPreview,
+    brand_name: data.brand_name || '品牌名 / 代理名',
+    title: data.title || '标题文案',
+    subtitle: data.subtitle || '副标题文案',
+    series_description: data.series_description || defaultData.series_description,
+  };
+
+  if (layoutStructure) {
+    layoutStructure.textContent = buildLayoutPreview(layoutData);
+  }
+
+  previewBrandLogo.src = getDisplaySource(imageState.brandLogo, placeholderImages.brandLogo);
+  previewBrandName.textContent = layoutData.brand_name;
+
+  previewScenarioImage.src = getDisplaySource(imageState.scenario, placeholderImages.scenario);
+  previewScenarioImage.alt = data.scenario_image
+    ? `${data.scenario_image} - 场景预览`
+    : '应用场景预览';
+
+  previewProductImage.src = getDisplaySource(imageState.product, placeholderImages.product);
+  previewProductImage.alt = data.product_name
+    ? `${data.product_name} 渲染预览`
+    : '产品渲染图预览';
+
+  previewFeatureList.innerHTML = '';
+  featuresForPreview.slice(0, 4).forEach((feature, index) => {
+    const item = document.createElement('li');
+    item.classList.add(`feature-tag-${index + 1}`);
+    item.textContent = feature || `功能点 ${index + 1}`;
+    previewFeatureList.appendChild(item);
+  });
+
+  previewTitle.textContent = layoutData.title;
+  previewSubtitle.textContent = layoutData.subtitle;
+
+  const gallerySourcesBase = imageState.gallery.slice(0, 4);
+  const gallerySources = gallerySourcesBase.length >= 3
+    ? gallerySourcesBase
+    : [...gallerySourcesBase, ...placeholderGallery].slice(0, 4);
+
+  previewGallery.innerHTML = '';
+  gallerySources.forEach((src, index) => {
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = `产品小图 ${index + 1}`;
+    previewGallery.appendChild(img);
+  });
+
+  previewSeries.textContent = layoutData.series_description;
+}
+
+async function handleSingleImageInput(input, key) {
+  const file = input.files && input.files[0];
+  if (!file) {
+    imageState[key] = null;
+    updatePreview();
+    return;
+  }
+
+  try {
+    imageState[key] = await fileToDataUrl(file);
+  } catch (error) {
+    console.error(error);
+    imageState[key] = null;
+    setStatus('无法读取上传的图片，请重试。', 'error');
+  }
+  updatePreview();
+}
+
+async function handleGalleryInput(input) {
+  const files = input.files ? Array.from(input.files).slice(0, 4) : [];
+  if (!files.length) {
+    imageState.gallery = [];
+    updatePreview();
+    return;
+  }
+
+  try {
+    const assets = await Promise.all(files.map((file) => fileToDataUrl(file)));
+    imageState.gallery = assets;
+  } catch (error) {
+    console.error(error);
+    imageState.gallery = [];
+    setStatus('无法读取底部产品小图，请重试。', 'error');
+  }
+  updatePreview();
+
 }
 
 async function generatePoster() {
@@ -162,7 +348,10 @@ async function generatePoster() {
 
     const data = await response.json();
 
-    layoutPreview.textContent = data.layout_preview;
+    if (layoutStructure) {
+      layoutStructure.textContent = data.layout_preview;
+    }
+
     glibatreePrompt.value = data.prompt;
     generatedEmail.value = data.email_body;
     emailBody.value = data.email_body;
@@ -237,6 +426,31 @@ async function sendEmail() {
   }
 }
 
+
+function attachImageListeners() {
+  if (brandLogoInput) {
+    brandLogoInput.addEventListener('change', () => {
+      handleSingleImageInput(brandLogoInput, 'brandLogo');
+    });
+  }
+  if (scenarioAssetInput) {
+    scenarioAssetInput.addEventListener('change', () => {
+      handleSingleImageInput(scenarioAssetInput, 'scenario');
+    });
+  }
+  if (productAssetInput) {
+    productAssetInput.addEventListener('change', () => {
+      handleSingleImageInput(productAssetInput, 'product');
+    });
+  }
+  if (galleryAssetsInput) {
+    galleryAssetsInput.addEventListener('change', () => {
+      handleGalleryInput(galleryAssetsInput);
+    });
+  }
+}
+
+
 apiBaseInput.addEventListener('change', () => {
   saveApiBase();
 });
@@ -244,6 +458,9 @@ apiBaseInput.addEventListener('change', () => {
 form.addEventListener('input', () => {
   updatePreview();
 });
+
+
+attachImageListeners();
 
 
 generateButton.addEventListener('click', (event) => {

@@ -1,5 +1,6 @@
 
 
+
 ////the Demo about marketing
 # 营销海报生成服务
 
@@ -61,6 +62,7 @@ uvicorn app.main:app --reload
    - 使用 Python 环境，执行 `pip install -r requirements.txt`。
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
 
+
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
 
 
@@ -70,16 +72,25 @@ uvicorn app.main:app --reload
 ## GitHub Pages 部署前端
 
 
-1. 将 `frontend/` 目录内容推送到任意静态站点仓库或当前仓库的 `gh-pages` 分支。
-2. 在 GitHub Pages 配置中指向该分支（或 `/docs` 目录）。
-3. 页面加载后，在顶部“环节 0 · 服务配置”输入 Render 后端的 HTTPS 地址，浏览器会将地址保存在 `localStorage` 中，后续刷新无需重新填写。
+仓库已经内置 GitHub Actions 工作流，自动将 `frontend/` 目录发布到 Pages。首次启用时请按照以下步骤配置：
+
+1. 在仓库的 **Settings → Pages** 页面，将 “Build and deployment” 的 Source 改为 **GitHub Actions**。
+2. 返回仓库主页，点击 **Actions** 标签页，确认 `Deploy frontend to GitHub Pages` 工作流已启用（首次会提示“我了解我的工作流”并需要手动启用）。
+3. 将前端或文档改动推送到 `main` 分支，工作流会自动：
+   - 检出仓库代码；
+   - 上传 `frontend/` 目录作为 Pages 工件；
+   - 发布到仓库的 GitHub Pages 站点。
+4. 当工作流执行成功后，`https://<GitHub 用户名>.github.io/ai-service/` 即可访问最新前端页面。
+5. 页面加载后，在页头右上角的“后端 API 地址”输入框中填写 Render 后端的 HTTPS 地址，浏览器会将地址保存在 `localStorage` 中，后续刷新无需重新填写。
 
 
 > 如需在本地调试，可直接通过 `file://` 打开 `frontend/index.html` 或使用任意静态服务器（例如 `python -m http.server`）。
 
 ## 使用流程
 
+
 1. **环节 1 – 素材输入 + 版式预览**：填写品牌、代理、场景、功能点等信息，右侧实时更新文本版式预览，确保素材齐全。
+
 2. **环节 2 – 生成海报**：点击“生成海报与文案”按钮，前端会调用后端接口获取 Glibatree 提示词、海报图（若未配置真实接口则展示占位图）以及营销邮件草稿。
 3. **环节 3 – 邮件发送**：确认或修改邮件主题与正文，点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成邮件发送；否则返回未执行的提示，方便调试。
 

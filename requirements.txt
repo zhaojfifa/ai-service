@@ -1,5 +1,6 @@
 
 
+
 fastapi==0.115.0
 uvicorn==0.30.6          # 注意：不要写 uvicorn[standard]
 requests==2.32.3
