@@ -1,4 +1,6 @@
+
 # app/config.py
+
 from __future__ import annotations
 
 import os
@@ -9,9 +11,11 @@ from typing import List
 
 def _as_bool(value: str | None, default: bool) -> bool:
     """Interpret common truthy / falsy strings while providing a default."""
+
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
 
 
 def _as_list(csv: str | None, fallback: List[str]) -> List[str]:
@@ -80,9 +84,11 @@ def get_settings() -> Settings:
         username=os.getenv("SMTP_USERNAME") or os.getenv("SMTP_USER"),
         password=os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS"),
         sender=os.getenv("EMAIL_SENDER") or os.getenv("FROM_EMAIL"),
+
         use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), True),
         use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
     )
+
 
     # Glibatree（命名兼容）
     glibatree = GlibatreeConfig(
@@ -106,3 +112,4 @@ def get_settings() -> Settings:
         openai_model=openai_model,
         openai_image_size=openai_image_size,
     )
+

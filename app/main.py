@@ -1,3 +1,4 @@
+
 # app/main.py
 from __future__ import annotations
 import os
@@ -5,6 +6,7 @@ import base64
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import RedirectResponse
+
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -14,6 +16,7 @@ from app.schemas import (
     SendEmailRequest,
     SendEmailResponse,
 )
+
 from app.services.poster import (
     render_layout_preview,
     build_openai_prompt,     # 统一使用的通用 Prompt
@@ -28,6 +31,7 @@ app = FastAPI(title="Marketing Poster API", version="1.0.0")
 allow_origins = settings.allowed_origins
 allow_credentials = False if allow_origins == ["*"] else True
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
@@ -35,6 +39,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # 根路径：文档跳转 + 探活兼容
 @app.get("/", include_in_schema=False)
@@ -45,9 +50,11 @@ def index():
 def index_head():
     return Response(status_code=204)
 
+
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
 
 # ---- 生成海报 ----
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
@@ -105,6 +112,7 @@ def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
     poster_image = gliba_generate(payload, prompt, preview)
     email_body = compose_marketing_email(payload, poster_image.filename)
 
+
     return GeneratePosterResponse(
         layout_preview=preview,
         prompt=prompt,
@@ -112,12 +120,16 @@ def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
         poster_image=poster_image,
     )
 
-# ---- 发送邮件 ----
+
 @app.post("/api/send-email", response_model=SendEmailResponse)
 def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
     try:
         return send_email(payload)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+
+    except Exception as exc:  # pragma: no cover - ensures HTTP friendly message
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
 
 __all__ = ["app"]
+
+
