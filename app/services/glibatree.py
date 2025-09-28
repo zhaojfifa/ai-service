@@ -1,3 +1,4 @@
+# app/services/glibatree.py
 from __future__ import annotations
 
 import base64
@@ -13,21 +14,22 @@ from app.schemas import PosterImage, PosterInput
 
 
 def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> PosterImage:
-    """Generate a poster image via Glibatree or a local fallback."""
-
+    """
+    优先调用 Glibatree 服务生成；若未配置或出错，则回退到本地占位图生成，
+    以确保前后端流程不被阻断。
+    """
     settings = get_settings()
-    if settings.glibatree.is_configured:
+    if getattr(settings, "glibatree", None) and settings.glibatree.is_configured:
         try:
             return _request_glibatree_asset(settings.glibatree.api_url, settings.glibatree.api_key, prompt)
-        except Exception:  # pragma: no cover - fallback guarantees resilience
-            # Fall back to mocked asset in case of network/API errors.
+        except Exception:
+            # 网络/鉴权/格式异常时，回退到本地占位图
             pass
     return _generate_mock_poster(poster, preview)
 
 
 def _request_glibatree_asset(api_url: str, api_key: str, prompt: str) -> PosterImage:
-    """Call the remote Glibatree API and transform the result into PosterImage."""
-
+    """调用 Glibatree API 并转换为 PosterImage。"""
     response = requests.post(
         api_url,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -37,6 +39,7 @@ def _request_glibatree_asset(api_url: str, api_key: str, prompt: str) -> PosterI
     response.raise_for_status()
     payload: dict[str, Any] = response.json()
 
+    # 兼容多种返回
     if "data_url" in payload:
         data_url = payload["data_url"]
     elif "image_base64" in payload:
@@ -59,8 +62,7 @@ def _request_glibatree_asset(api_url: str, api_key: str, prompt: str) -> PosterI
 
 
 def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
-    """Decode a base64 data URL into a Pillow image, returning ``None`` on error."""
-
+    """把 base64 data URL 解码为 Pillow Image（失败返回 None）。"""
     if not data_url:
         return None
     try:
@@ -83,9 +85,10 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
     return image.convert("RGBA")
 
 
-try:  # Pillow >= 10 exposes resampling filters on ``Image.Resampling``
+# Pillow >=10 使用 Image.Resampling；向下兼容旧版本
+try:
     RESAMPLE_LANCZOS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
-except AttributeError:  # pragma: no cover - fallback for older Pillow versions
+except AttributeError:  # pragma: no cover
     RESAMPLE_LANCZOS = Image.LANCZOS
 
 
@@ -96,8 +99,7 @@ def _paste_image(
     *,
     mode: str = "contain",
 ) -> None:
-    """Paste ``asset`` into ``box`` on ``canvas`` while preserving aspect ratio."""
-
+    """把 asset 按 box 尺寸粘贴到 canvas，保持比例；mode 支持 contain/cover。"""
     left, top, right, bottom = box
     target_size = (max(right - left, 1), max(bottom - top, 1))
 
@@ -115,26 +117,31 @@ def _paste_image(
 
 
 def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
-    """Create a placeholder poster that visualises the requested layout."""
-
+    """
+    生成占位海报：可视化版式（顶部横条 / 左侧场景 / 右侧产品 / 功能点 / 标题副标题 / 底部系列小图）。
+    若上传了 data URL 图片，会嵌入到相应区域。
+    """
     width, height = 1280, 720
     image = Image.new("RGB", (width, height), color=(245, 245, 245))
     draw = ImageDraw.Draw(image)
     font_title = ImageFont.load_default()
     font_body = ImageFont.load_default()
 
-    # Top banner
+    # 顶部横条
     banner_height = int(height * 0.15)
     draw.rectangle([(0, 0), (width, banner_height)], fill=(230, 230, 230))
+
+    # 左侧 Logo（支持图片）
     logo_size = max(min(96, banner_height - 32), 48)
     logo_box = (40, 20, 40 + logo_size, 20 + logo_size)
-    logo_image = _load_image_from_data_url(poster.brand_logo)
+    logo_image = _load_image_from_data_url(getattr(poster, "brand_logo", None))
     if logo_image:
         _paste_image(image, logo_image, logo_box, mode="contain")
     else:
         draw.text((logo_box[0], logo_box[1]), f"Logo: {poster.brand_name}", fill=(0, 0, 0), font=font_body)
 
-    agent_text = poster.agent_name.upper()
+    # 右上角品牌/代理名
+    agent_text = (getattr(poster, "agent_name", None) or poster.brand_name or "").upper()
     draw.text(
         (width - 40 - draw.textlength(agent_text, font=font_body), 30),
         agent_text,
@@ -142,14 +149,14 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
         font=font_body,
     )
 
-    # Left scenario area
+    # 左侧场景区域
     left_width = int(width * 0.38)
     scenario_top = banner_height + 30
     scenario_bottom = height - 220
     scenario_box = (40, scenario_top, 40 + left_width, scenario_bottom)
     draw.rounded_rectangle(scenario_box, radius=26, outline=(180, 180, 180), width=4, fill=(236, 239, 243))
 
-    scenario_image = _load_image_from_data_url(poster.scenario_asset)
+    scenario_image = _load_image_from_data_url(getattr(poster, "scenario_asset", None))
     if scenario_image:
         _paste_image(image, scenario_image, scenario_box, mode="cover")
     else:
@@ -162,14 +169,14 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
             spacing=4,
         )
 
-    # Right product render area
+    # 右侧产品区域
     product_left = 80 + left_width
     product_top = banner_height + 30
     product_bottom = height - 240
     product_box = (product_left, product_top, width - 60, product_bottom)
     draw.rounded_rectangle(product_box, radius=24, outline=(150, 150, 150), width=4, fill=(235, 238, 243))
 
-    product_image = _load_image_from_data_url(poster.product_asset)
+    product_image = _load_image_from_data_url(getattr(poster, "product_asset", None))
     if product_image:
         _paste_image(image, product_image, product_box, mode="contain")
     else:
@@ -180,28 +187,27 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
             font=font_body,
         )
 
-    # Feature annotations
+    # 功能点标注（靠近产品区）
     feature_start_y = product_top + 80
-    for idx, feature in enumerate(poster.features, start=1):
+    for idx, feature in enumerate(poster.features or [], start=1):
         text = textwrap.fill(f"{idx}. {feature}", width=24)
         y = feature_start_y + (idx - 1) * 60
         draw.text((product_left + 32, y), text, fill=(40, 40, 40), font=font_body)
 
-    # Title and subtitle
+    # 中部标题 / 右下副标题
     title_y = height - 240
     draw.text((40, title_y), poster.title, fill=(220, 20, 60), font=font_title)
     subtitle_y = height - 50
     draw.text((40, subtitle_y), poster.subtitle, fill=(220, 20, 60), font=font_title)
 
-    # Series section at bottom
+    # 底部系列区（小图 + 文案）
     series_top = height - 170
     series_bottom = height - 70
     series_box = (40, series_top, width - 40, series_bottom)
     draw.rounded_rectangle(series_box, radius=18, outline=(210, 210, 210), width=3, fill=(248, 248, 248))
 
     gallery_images = [
-        _load_image_from_data_url(asset)
-        for asset in poster.gallery_assets[:4]
+        _load_image_from_data_url(asset) for asset in (poster.gallery_assets or [])[:4]
     ]
     gallery_images = [img for img in gallery_images if img is not None]
 
@@ -226,11 +232,13 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
 
         series_text_y = gallery_bottom + 10
     else:
+        # 没有小图时，仅显示系列文案
         series_text_y = series_top + 20
 
-    series_text = textwrap.fill(poster.series_description, width=60)
+    series_text = textwrap.fill(poster.series_description or "", width=60)
     draw.text((series_box[0] + 20, series_text_y), series_text, fill=(90, 90, 90), font=font_body)
 
+    # 输出 base64 data URL
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     base64_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -243,4 +251,3 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
         width=width,
         height=height,
     )
-
