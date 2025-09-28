@@ -1,4 +1,3 @@
-
 # Web & ASGI
 fastapi==0.115.0
 starlette==0.38.2
@@ -9,12 +8,11 @@ pydantic==2.8.2
 pydantic-core==2.20.1
 pydantic-settings==2.4.0
 
-# 业务用到的通用库
+# HTTP & utils
 requests==2.32.3
 email-validator==2.2.0
 python-multipart==0.0.9
 Pillow==10.4.0
 
-# 如果你使用官方 SDK 走 OpenAI 路线（而不是自己 requests 调接口），保留它
+# OpenAI（若 IMAGE_BACKEND=openai 时需要）
 openai==1.44.0
-

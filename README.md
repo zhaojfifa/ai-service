@@ -1,8 +1,7 @@
 
 
-
-
 ////the Demo about marketing
+
 
 # 营销海报生成服务
 
@@ -23,9 +22,11 @@ ai-service/
 │   ├── main.py           # API 入口
 │   └── services/         # Glibatree、邮件与文案辅助逻辑
 ├── frontend/             # GitHub Pages 静态站点
-│   ├── index.html        # 三步工作流页面
+│   ├── index.html        # 环节 1：素材输入与版式预览
+│   ├── stage2.html       # 环节 2：AI 海报生成
+│   ├── stage3.html       # 环节 3：营销邮件发送
 │   ├── styles.css        # 页面样式
-│   └── app.js            # 与后端交互的脚本
+│   └── app.js            # 多页面脚本，负责状态存储与 API 交互
 ├── requirements.txt      # 后端依赖
 ├── render.yaml           # Render 部署模版
 └── .gitignore
@@ -64,6 +65,7 @@ uvicorn app.main:app --reload
    - 使用 Python 环境，执行 `pip install -r requirements.txt`。
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
 
+
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
 
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API 与 SMTP 环境变量。
@@ -89,13 +91,34 @@ uvicorn app.main:app --reload
 ## 使用流程
 
 
-1. **环节 1 – 素材输入 + 版式预览**：填写品牌名称、场景描述、功能点等信息，右侧实时更新文本版式预览，确保素材齐全。
-
-
-2. **环节 2 – 生成海报**：点击“生成海报与文案”按钮，前端会调用后端接口获取 Glibatree 提示词、海报图（若未配置真实接口则展示占位图）以及营销邮件草稿。
-3. **环节 3 – 邮件发送**：确认或修改邮件主题与正文，点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成邮件发送；否则返回未执行的提示，方便调试。
+1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 中上传品牌 Logo、场景图、产品渲染图，并为 3–4 张底部产品小图分别配上文字说明。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
+2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，点击“生成海报与文案”后调用 FastAPI 接口获取 Glibatree 提示词、海报图（未接入真实服务时展示占位图）以及营销文案，并将结果保存供下一环节使用。
+3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 
 页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。
+
+## 命令行快速体验
+
+若希望在终端快速验证三段式流程，可使用根目录下的 `poster_workflow.py` 脚本：
+
+1. 准备配置文件（项目已提供 `examples/sample_workflow.json` 作为示例），字段与前端填写内容一致：
+   - `poster`：对应 `PosterInput` 的各项素材与文案字段，支持可选的 Base64 图片数据；
+   - `email`：可选，包含收件人、主题与自定义正文，未配置时脚本会生成默认营销话术。
+2. 运行脚本并指定输入文件，可选地指定输出目录保存结果：
+
+   ```bash
+   python poster_workflow.py --input examples/sample_workflow.json --output-dir out/
+   ```
+
+   终端会依次输出版式预览、Glibatree 提示词、海报生成信息及营销邮件草稿，`out/` 目录中会生成对应的 `.txt` 文本与海报图片。
+3. 若在环境变量中正确配置了 SMTP（参见上文），可以追加 `--send-email` 直接完成邮件发送：
+
+   ```bash
+   python poster_workflow.py --input config.json --send-email
+   ```
+
+   当未配置邮件服务时脚本会提示“邮件服务未配置，已跳过真实发送”，便于在开发环境调试。
+
 
 ## 常见问题
 
