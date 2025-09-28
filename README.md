@@ -1,3 +1,4 @@
+
 # 营销海报生成服务
 
 该项目实现了“厨厨房”营销海报的三段式工作流：
@@ -59,11 +60,14 @@ uvicorn app.main:app --reload
 2. 仓库选择 `ai-service`，同步分支后 Render 会读取 `render.yaml` 中的部署配置：
    - 使用 Python 环境，执行 `pip install -r requirements.txt`。
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
+
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
+
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API 与 SMTP 环境变量。
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
 ## GitHub Pages 部署前端
+
 
 仓库已经内置 GitHub Actions 工作流，自动将 `frontend/` 目录发布到 Pages。首次启用时请按照以下步骤配置：
 
@@ -76,9 +80,11 @@ uvicorn app.main:app --reload
 4. 当工作流执行成功后，`https://<GitHub 用户名>.github.io/ai-service/` 即可访问最新前端页面。
 5. 页面加载后，在页头右上角的“后端 API 地址”输入框中填写 Render 后端的 HTTPS 地址，浏览器会将地址保存在 `localStorage` 中，后续刷新无需重新填写。
 
+
 > 如需在本地调试，可直接通过 `file://` 打开 `frontend/index.html` 或使用任意静态服务器（例如 `python -m http.server`）。
 
 ## 使用流程
+
 
 1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 中上传品牌 Logo、场景图、产品渲染图，并为 3–4 张底部产品小图分别配上文字说明。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
 2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，点击“生成海报与文案”后调用 FastAPI 接口获取 Glibatree 提示词、海报图（未接入真实服务时展示占位图）以及营销文案，并将结果保存供下一环节使用。
@@ -108,11 +114,13 @@ uvicorn app.main:app --reload
 
    当未配置邮件服务时脚本会提示“邮件服务未配置，已跳过真实发送”，便于在开发环境调试。
 
+
 ## 常见问题
 
 - **尚未配置 Glibatree API**：后端会自动生成占位海报图，版式与功能点均对应输入内容。部署正式服务时在 Render 上配置 `GLIBATREE_API_URL` 与 `GLIBATREE_API_KEY` 即可。
 - **邮件未发送成功**：检查 Render 环境变量中 SMTP 相关配置，并确认端口与 TLS 设置正确。若未配置，则接口返回 `status=skipped` 并提示“邮件服务未配置”。
 - **前端跨域问题**：可通过设置 `ALLOWED_ORIGINS` 限制或允许特定域名，例如 `https://username.github.io`。
 - **本地缺少 `origin` 远端**：某些教学/沙箱环境拉取仓库时不会自动保存 GitHub 远端。若运行 `git fetch origin` 报错，可执行 `git remote add origin https://github.com/<用户名>/ai-service.git`（或 SSH 地址）后再同步，确保 `git remote -v` 能看到 `origin`。
+
 
 欢迎根据业务需求扩展页面样式或接入真实的 Glibatree 与邮件服务。

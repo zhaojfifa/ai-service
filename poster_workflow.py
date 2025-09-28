@@ -66,7 +66,6 @@ TModel = TypeVar("TModel")
 
 def _model_validate(model: Type[TModel], data: Dict[str, Any]) -> TModel:
     """Support both Pydantic v1 (``parse_obj``) and v2 (``model_validate``)."""
-
     if hasattr(model, "model_validate"):
         return model.model_validate(data)  # type: ignore[attr-defined]
     return model.parse_obj(data)  # type: ignore[attr-defined]
@@ -74,7 +73,6 @@ def _model_validate(model: Type[TModel], data: Dict[str, Any]) -> TModel:
 
 def _model_dump(instance: Any) -> Dict[str, Any]:
     """Return a plain ``dict`` regardless of the installed Pydantic version."""
-
     if hasattr(instance, "model_dump"):
         return instance.model_dump()  # type: ignore[attr-defined]
     return instance.dict()  # type: ignore[attr-defined]

@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import textwrap
@@ -31,12 +32,15 @@ def render_layout_preview(poster: PosterInput) -> str:
 
     features_preview = "\n".join(
         f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features)
+
     )
 
     preview = f"""
     顶部横条
       · 品牌 Logo（左上）：{logo_line}
+
       · 品牌代理名 / 分销名（右上）：{poster.agent_name}
+
 
     左侧区域（约 40% 宽）
       · 应用场景图：{scenario_line}
@@ -44,7 +48,9 @@ def render_layout_preview(poster: PosterInput) -> str:
     右侧区域（视觉中心）
       · 主产品 45° 渲染图：{product_line}
       · 功能点标注：
+
     {features_preview}
+
 
     中部标题（大号粗体红字）
       · {poster.title}
@@ -55,10 +61,13 @@ def render_layout_preview(poster: PosterInput) -> str:
     角落副标题 / 标语（大号粗体红字）
       · {poster.subtitle}
 
+
     主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）
+
     背景：浅灰或白色，整体保持现代、简洁与留白感。
     """
     return textwrap.dedent(preview).strip()
+
 
 
 def build_glibatree_prompt(poster: PosterInput) -> str:
@@ -125,4 +134,5 @@ def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
     —— {poster.brand_name} · {poster.agent_name}
     """
     return textwrap.dedent(email).strip()
+
 

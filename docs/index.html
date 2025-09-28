@@ -36,12 +36,11 @@
       <section class="card stage-card">
         <h2>环节 1 · 素材输入与版式预览</h2>
         <p class="hint">
-
-          按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
-          点击“保存并前往环节 2”继续流程。
+          按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后点击“保存并前往环节 2”继续流程。
         </p>
-        <form id="poster-form" novalidate>
 
+        <form id="poster-form" novalidate>
+          <!-- 顶部横条 -->
           <fieldset class="fieldset">
             <legend>顶部横条</legend>
             <div class="grid top-banner-grid">
@@ -65,7 +64,7 @@
             </div>
           </fieldset>
 
-
+          <!-- 图像素材区（含功能点：描述 45° 渲染图） -->
           <fieldset class="fieldset">
             <legend>图像素材区</legend>
 
@@ -99,9 +98,7 @@
                   <input type="text" name="product_name" required />
                 </label>
 
-
                 <!-- 功能点：放入图像素材区，作为“产品 45° 渲染图”的描述 -->
-
                 <div class="feature-fields">
                   <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
                   <div class="feature-grid">
@@ -115,11 +112,9 @@
             </div>
           </fieldset>
 
-
           <!-- 文字字段（联动“底部产品小图”：每条=图片+说明） -->
           <fieldset class="fieldset">
             <legend>文字字段与底部产品</legend>
-
 
             <div class="grid text-grid">
               <label class="field">
@@ -164,11 +159,9 @@
         </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
-
         <!-- 版式预览 -->
         <div class="preview hidden" id="preview-container">
           <h3>版式预览</h3>
-
 
           <div id="layout-preview" class="poster-preview">
             <div class="poster-header">

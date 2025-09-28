@@ -10,6 +10,7 @@ body {
   background: #f5f7fa;
 }
 
+
 header,
 footer {
   background: white;
@@ -19,6 +20,7 @@ footer {
 header {
   padding: 1.5rem 1rem;
 }
+
 
 .stage-nav {
   max-width: 1100px;
@@ -52,6 +54,7 @@ header {
   opacity: 0.6;
 }
 
+
 .header-content {
   max-width: 1100px;
   margin: 0 auto;
@@ -61,6 +64,7 @@ header {
   align-items: flex-start;
 }
 
+
 .header-content h1 {
   margin: 0;
 }
@@ -69,6 +73,7 @@ header {
   margin: 0.5rem 0 0;
   color: #52606d;
 }
+
 
 .api-config {
   display: flex;
@@ -87,10 +92,12 @@ header {
   font-family: inherit;
 }
 
+
 footer {
   text-align: center;
   padding: 1.5rem 1rem;
 }
+
 
 main {
   max-width: 1100px;
@@ -100,12 +107,15 @@ main {
   gap: 1.5rem;
 }
 
+
 .card {
   background: white;
+
   border-radius: 12px;
   padding: 1.5rem;
   box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
 }
+
 
 .card h2 {
   margin-top: 0;
@@ -117,6 +127,7 @@ main {
   gap: 1.5rem;
 }
 
+
 .fieldset {
   border: 1px solid #e4e7eb;
   border-radius: 14px;
@@ -125,9 +136,11 @@ main {
   background: #f9fafb;
 }
 
+
 .stage-card .fieldset + .fieldset {
   margin-top: 1.25rem;
 }
+
 
 .inline-preview {
   margin-top: 0.5rem;
@@ -148,11 +161,13 @@ main {
   object-fit: contain;
 }
 
+
 .image-zones {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
 }
+
 
 .image-stack {
   display: flex;
@@ -187,6 +202,7 @@ main {
   margin-bottom: 1rem;
 }
 
+
 .gallery-upload {
   display: flex;
   align-items: flex-start;
@@ -194,6 +210,7 @@ main {
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
+
 
 .gallery-upload .field-label {
   font-weight: 600;
@@ -211,6 +228,7 @@ main {
   display: grid;
   gap: 1rem;
 }
+
 
 .gallery-item {
   background: white;
@@ -274,6 +292,7 @@ main {
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
+
 
 .stage-summary {
   background: #f9fafb;
@@ -381,6 +400,7 @@ main {
   padding: 0 0.5rem;
 }
 
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -404,9 +424,11 @@ main {
   resize: vertical;
 }
 
+
 .file-field input[type="file"] {
   padding: 0.4rem 0.5rem;
 }
+
 
 .features {
   border: 1px solid #e4e7eb;
@@ -440,6 +462,7 @@ main {
   display: none;
 }
 
+
 .poster-preview {
   background: linear-gradient(145deg, #ffffff, #f1f5f9);
   border: 1px solid #d9e2ec;
@@ -460,6 +483,7 @@ main {
   padding: 0.75rem 1rem;
   border: 1px solid rgba(239, 76, 84, 0.18);
 }
+
 
 .poster-logo {
   display: flex;
@@ -485,6 +509,7 @@ main {
 }
 
 .poster-brand-name {
+
   font-weight: 700;
   color: #1f2933;
   font-size: 1.05rem;
@@ -510,6 +535,7 @@ main {
   gap: 1.25rem;
 }
 
+
 .poster-left img {
   width: 100%;
   height: 100%;
@@ -519,6 +545,7 @@ main {
   background: #e5e9f0;
   box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.6);
 }
+
 
 .poster-right {
   display: flex;
@@ -532,6 +559,7 @@ main {
   border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.12);
   background: linear-gradient(160deg, #f8fafc, #e2e8f0);
+
   display: flex;
   justify-content: center;
   align-items: center;
@@ -539,12 +567,14 @@ main {
   min-height: 300px;
 }
 
+
 #preview-product-image {
   max-width: 68%;
   max-height: 82%;
   object-fit: contain;
   filter: drop-shadow(0 12px 25px rgba(15, 23, 42, 0.25));
 }
+
 
 #preview-feature-list {
   list-style: none;
@@ -555,19 +585,23 @@ main {
   pointer-events: none;
 }
 
+
 #preview-feature-list li {
   position: absolute;
   border: 1px dashed rgba(31, 41, 51, 0.85);
   background: rgba(255, 255, 255, 0.94);
   color: #1f2933;
+
   font-size: 0.75rem;
   line-height: 1.35;
+
   padding: 0.4rem 0.55rem;
   border-radius: 10px;
   width: 140px;
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
   text-align: left;
 }
+
 
 #preview-feature-list li.feature-tag-1 {
   top: 10%;
@@ -589,11 +623,13 @@ main {
   left: 6%;
 }
 
+
 #preview-feature-list li.feature-tag-1::after,
 #preview-feature-list li.feature-tag-2::after,
 #preview-feature-list li.feature-tag-3::after {
   content: "";
   position: absolute;
+
   top: 50%;
   left: -44px;
   width: 38px;
@@ -619,6 +655,9 @@ main {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
+
+
+/* 支持 Stage1 的 figure + figcaption 预览 */
 
 .poster-gallery {
   display: grid;
@@ -690,10 +729,12 @@ main {
   border-radius: 999px;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
+
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   margin-top: 1rem;
 }
+
 
 .primary:hover {
   transform: translateY(-1px);
@@ -723,11 +764,13 @@ main {
   margin-top: 1.25rem;
 }
 
+
 .secondary:hover {
   background: rgba(239, 76, 84, 0.08);
   color: #d83a42;
   box-shadow: 0 6px 16px rgba(239, 76, 84, 0.18);
 }
+
 
 .secondary:disabled {
   opacity: 0.5;
@@ -738,6 +781,7 @@ main {
 .output-group {
   margin-top: 1.5rem;
 }
+
 
 #poster-output img {
   max-width: 100%;
@@ -886,4 +930,5 @@ main {
   .poster-gallery {
     flex-wrap: wrap;
   }
+
 }
