@@ -57,6 +57,27 @@ function init() {
       break;
   }
 }
+// 统一规范 API Base：去掉末尾斜杠 & 末尾 /api
++function normalizeApiBase(input) {
++  let u = (input || '').trim();
++  u = u.replace(/\/+$/, '');    // 去掉结尾斜杠
++  u = u.replace(/\/api$/i, ''); // 去掉结尾 /api
++  return u;
++}
+
++function buildUrl(path) {
++  const base = normalizeApiBase(localStorage.getItem('apiBase') || '');
++  const p = path.startsWith('/') ? path : `/${path}`;
++  return `${base}/api${p}`;
++}
+
+// 保存输入框时也归一化
+- localStorage.setItem('apiBase', input.value);
++ localStorage.setItem('apiBase', normalizeApiBase(input.value));
+
+// 调用时统一用：
+- const url = `${apiBase}/api/generate-poster`;
++ const url = buildUrl('/generate-poster');
 
 function loadApiBase() {
   if (!apiBaseInput) return;
