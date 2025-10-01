@@ -1,6 +1,5 @@
 
 /* app.js — multi-stage (stage1 / stage2 / stage3) */
-
 const STORAGE_KEYS = {
   apiBase: 'marketing-poster-api-base',
   stage1: 'marketing-poster-stage1-data',
@@ -36,8 +35,6 @@ const placeholderImages = {
 const apiBaseInput = document.getElementById('api-base');
 
 init();
-
-
 function init() {
   loadApiBase();
   if (apiBaseInput) {
@@ -64,11 +61,9 @@ function init() {
 function loadApiBase() {
   if (!apiBaseInput) return;
   const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
-
   if (stored) {
     apiBaseInput.value = stored;
   }
-
 }
 
 function saveApiBase() {
@@ -83,7 +78,6 @@ function saveApiBase() {
 
 
 /* ========== Stage 1 ========== */
-
 function initStage1() {
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
@@ -91,17 +85,13 @@ function initStage1() {
   const statusElement = document.getElementById('stage1-status');
   const previewContainer = document.getElementById('preview-container');
   const layoutStructure = document.getElementById('layout-structure-text');
-
   const galleryButton = document.getElementById('add-gallery-item');
   const galleryFileInput = document.getElementById('gallery-file-input');
   const galleryItemsContainer = document.getElementById('gallery-items');
 
-
   if (!form || !buildPreviewButton || !nextButton) {
     return;
   }
-
-
   const previewElements = {
     brandLogo: document.getElementById('preview-brand-logo'),
     brandName: document.getElementById('preview-brand-name'),
@@ -129,8 +119,6 @@ function initStage1() {
   };
 
   let currentLayoutPreview = '';
-
-
   const refreshPreview = () => {
     if (!form) return null;
     const payload = collectStage1Data(form, state, { strict: false });
@@ -149,7 +137,6 @@ function initStage1() {
     applyStage1DataToForm(stored, form, state, inlinePreviews);
     state.previewBuilt = Boolean(stored.preview_built);
     currentLayoutPreview = stored.layout_preview || '';
-
   } else {
     applyStage1Defaults(form);
     updateInlinePlaceholders(inlinePreviews);
@@ -160,25 +147,20 @@ function initStage1() {
     'brandLogo',
     inlinePreviews.brand_logo,
     state,
-
     refreshPreview
-
   );
   attachSingleImageHandler(
     form.querySelector('input[name="scenario_asset"]'),
     'scenario',
     inlinePreviews.scenario_asset,
     state,
-
     refreshPreview
-
   );
   attachSingleImageHandler(
     form.querySelector('input[name="product_asset"]'),
     'product',
     inlinePreviews.product_asset,
     state,
-
     refreshPreview
   );
 
@@ -191,8 +173,6 @@ function initStage1() {
   });
 
   refreshPreview();
-
-
   if (galleryButton && galleryFileInput) {
     galleryButton.addEventListener('click', () => {
       galleryFileInput.click();
@@ -200,10 +180,9 @@ function initStage1() {
 
     galleryFileInput.addEventListener('change', async (event) => {
       const files = Array.from(event.target.files || []);
-
-      if (!files.length) return;
-
-
+      if (!files.length) {
+        return;
+      }
       const remaining = Math.max(0, 4 - state.galleryEntries.length);
       if (remaining <= 0) {
         setStatus(statusElement, '最多仅支持上传 4 张底部产品小图。', 'warning');
@@ -226,7 +205,6 @@ function initStage1() {
         }
       }
       galleryFileInput.value = '';
-
       state.previewBuilt = false;
       renderGalleryItems(state, galleryItemsContainer, {
         previewElements,
@@ -236,21 +214,17 @@ function initStage1() {
         onChange: refreshPreview,
       });
       refreshPreview();
-
     });
   }
 
   form.addEventListener('input', () => {
-
     state.previewBuilt = false;
     refreshPreview();
-
   });
 
   buildPreviewButton.addEventListener('click', () => {
     try {
       const payload = collectStage1Data(form, state, { strict: true });
-
       currentLayoutPreview = updatePosterPreview(
         payload,
         state,
@@ -258,7 +232,6 @@ function initStage1() {
         layoutStructure,
         previewContainer
       );
-
       state.previewBuilt = true;
       const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
       saveStage1Data(serialised);
@@ -272,7 +245,6 @@ function initStage1() {
   nextButton.addEventListener('click', () => {
     try {
       const payload = collectStage1Data(form, state, { strict: true });
-
       currentLayoutPreview = updatePosterPreview(
         payload,
         state,
@@ -280,7 +252,6 @@ function initStage1() {
         layoutStructure,
         previewContainer
       );
-
       state.previewBuilt = true;
       const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
       saveStage1Data(serialised);
@@ -353,15 +324,12 @@ function applyStage1DataToForm(data, form, state, inlinePreviews) {
 
 
 function attachSingleImageHandler(input, key, inlinePreview, state, refreshPreview) {
-
   if (!input) return;
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
       state[key] = null;
-
       state.previewBuilt = false;
-
       if (inlinePreview) {
         const placeholder =
           key === 'brandLogo'
@@ -371,9 +339,7 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
             : placeholderImages.product;
         inlinePreview.src = placeholder;
       }
-
       refreshPreview();
-
       return;
     }
     try {
@@ -382,16 +348,13 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
       if (inlinePreview) {
         inlinePreview.src = dataUrl;
       }
-
       state.previewBuilt = false;
       refreshPreview();
-
     } catch (error) {
       console.error(error);
     }
   });
 }
-
 function renderGalleryItems(state, container, options = {}) {
   const {
     previewElements,
@@ -400,7 +363,6 @@ function renderGalleryItems(state, container, options = {}) {
     statusElement,
     onChange,
   } = options;
-
   if (!container) return;
   container.innerHTML = '';
 
@@ -422,7 +384,6 @@ function renderGalleryItems(state, container, options = {}) {
     removeButton.textContent = '移除';
     removeButton.addEventListener('click', () => {
       state.galleryEntries = state.galleryEntries.filter((g) => g.id !== entry.id);
-
       state.previewBuilt = false;
       renderGalleryItems(state, container, {
         previewElements,
@@ -432,7 +393,6 @@ function renderGalleryItems(state, container, options = {}) {
         onChange,
       });
       onChange?.();
-
     });
 
     const actions = document.createElement('div');
@@ -454,10 +414,8 @@ function renderGalleryItems(state, container, options = {}) {
         const dataUrl = await fileToDataUrl(file);
         entry.asset = buildAsset(file, dataUrl);
         previewImage.src = dataUrl;
-
         state.previewBuilt = false;
         onChange?.();
-
       } catch (error) {
         console.error(error);
         setStatus(statusElement, '读取底部产品小图时发生错误。', 'error');
@@ -483,10 +441,8 @@ function renderGalleryItems(state, container, options = {}) {
     captionInput.placeholder = '请输入对应系列说明';
     captionInput.addEventListener('input', () => {
       entry.caption = captionInput.value;
-
       state.previewBuilt = false;
       onChange?.();
-
     });
     captionField.appendChild(captionInput);
     item.appendChild(captionField);
@@ -535,14 +491,12 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   if (strict) {
     const missing = [];
     for (const [key, value] of Object.entries(payload)) {
-
       if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
         continue;
       }
       if (typeof value === 'string' && !value) {
         missing.push(key);
       }
-
     }
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
@@ -561,7 +515,6 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
-
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -575,14 +528,11 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     gallery,
   } = elements;
 
-
   const layoutText = buildLayoutPreview(payload);
 
   if (layoutStructure) {
     layoutStructure.textContent = layoutText;
   }
-
-
   if (previewContainer) {
     previewContainer.classList.remove('hidden');
   }
@@ -645,9 +595,7 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     }
   }
 
-
   return layoutText;
-
 }
 
 function buildLayoutPreview(payload) {
@@ -660,7 +608,6 @@ function buildLayoutPreview(payload) {
   const productLine = payload.product_asset
     ? `已上传 45° 渲染图（${payload.product_name}）`
     : payload.product_name || '主产品名称待补充';
-
 
   const featuresPreview = (payload.features.length ? payload.features : DEFAULT_STAGE1.features)
     .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
@@ -1101,4 +1048,3 @@ function createId() {
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
-

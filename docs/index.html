@@ -22,7 +22,6 @@
           />
         </label>
       </div>
-
       <nav class="stage-nav" aria-label="流程导航">
         <span class="active">环节 1 · 素材输入与版式预览</span>
         <span class="nav-arrow" aria-hidden="true">→</span>
@@ -36,12 +35,10 @@
       <section class="card stage-card">
         <h2>环节 1 · 素材输入与版式预览</h2>
         <p class="hint">
-
           按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
           点击“保存并前往环节 2”继续流程。
         </p>
         <form id="poster-form" novalidate>
-
           <fieldset class="fieldset">
             <legend>顶部横条</legend>
             <div class="grid top-banner-grid">
@@ -52,12 +49,10 @@
                   <img data-inline-preview="brand_logo" alt="品牌 Logo 预览" />
                 </div>
               </label>
-
               <label class="field">
                 <span>品牌名称</span>
                 <input type="text" name="brand_name" required />
               </label>
-
               <label class="field">
                 <span>品牌代理名 / 分销名</span>
                 <input type="text" name="agent_name" required />
@@ -68,7 +63,6 @@
 
           <fieldset class="fieldset">
             <legend>图像素材区</legend>
-
             <div class="image-zones">
               <div class="image-stack">
                 <label class="field file-field">
@@ -78,13 +72,11 @@
                     <img data-inline-preview="scenario_asset" alt="应用场景预览" />
                   </div>
                 </label>
-
                 <label class="field">
                   <span>应用场景描述（用于提示词）</span>
                   <textarea name="scenario_image" rows="3" required></textarea>
                 </label>
               </div>
-
               <div class="image-stack">
                 <label class="field file-field">
                   <span>产品 45° 渲染图上传</span>
@@ -93,15 +85,10 @@
                     <img data-inline-preview="product_asset" alt="产品渲染图预览" />
                   </div>
                 </label>
-
                 <label class="field">
                   <span>主产品名称</span>
                   <input type="text" name="product_name" required />
                 </label>
-
-
-                <!-- 功能点：放入图像素材区，作为“产品 45° 渲染图”的描述 -->
-
                 <div class="feature-fields">
                   <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
                   <div class="feature-grid">
@@ -115,24 +102,18 @@
             </div>
           </fieldset>
 
-
-          <!-- 文字字段（联动“底部产品小图”：每条=图片+说明） -->
           <fieldset class="fieldset">
             <legend>文字字段与底部产品</legend>
-
-
             <div class="grid text-grid">
               <label class="field">
                 <span>标题文案（大号粗体红字）</span>
                 <input type="text" name="title" required />
               </label>
-
               <label class="field">
                 <span>副标题文案（左下 / 右下角）</span>
                 <input type="text" name="subtitle" required />
               </label>
             </div>
-
             <div class="gallery-upload">
               <div>
                 <span class="field-label">底部产品小图（3-4 张，支持多选）</span>
@@ -140,11 +121,9 @@
                   每个条目由一张产品小图和一段系列说明组成，支持灰度或黑白素材。
                 </p>
               </div>
-
               <button type="button" id="add-gallery-item" class="secondary">
                 上传底部产品小图
               </button>
-
               <input
                 type="file"
                 id="gallery-file-input"
@@ -153,7 +132,6 @@
                 hidden
               />
             </div>
-
             <div id="gallery-items" class="gallery-items" aria-live="polite"></div>
           </fieldset>
         </form>
@@ -164,12 +142,8 @@
         </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
-
-        <!-- 版式预览 -->
         <div class="preview hidden" id="preview-container">
           <h3>版式预览</h3>
-
-
           <div id="layout-preview" class="poster-preview">
             <div class="poster-header">
               <div class="poster-logo">
@@ -180,12 +154,10 @@
               </div>
               <div class="poster-agent" id="preview-agent-name"></div>
             </div>
-
             <div class="poster-body">
               <div class="poster-left">
                 <img id="preview-scenario-image" alt="应用场景预览" />
               </div>
-
               <div class="poster-right">
                 <div class="poster-product-wrapper">
                   <img id="preview-product-image" alt="产品渲染图预览" />
@@ -193,12 +165,10 @@
                 </div>
               </div>
             </div>
-
             <div class="poster-title" id="preview-title"></div>
             <div class="poster-gallery" id="preview-gallery"></div>
             <div class="poster-subtitle" id="preview-subtitle"></div>
           </div>
-
           <details class="layout-structure">
             <summary>查看版式结构说明</summary>
             <pre id="layout-structure-text"></pre>
@@ -210,7 +180,6 @@
     <footer>
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
-
-    <script src="app.js" defer></script>
+    <script src="app.js" type="module"></script>
   </body>
 </html>
