@@ -16,3 +16,4 @@ Pillow==10.4.0
 
 # OpenAI（若 IMAGE_BACKEND=openai 时需要）
 openai==1.44.0
+
