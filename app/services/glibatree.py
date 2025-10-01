@@ -1,330 +1,197 @@
+# app/services/glibatree.py
 from __future__ import annotations
 
 import base64
-import logging
-import textwrap
-from contextlib import ExitStack
-from io import BytesIO
-from typing import Any, Tuple
+import io
+import os
+from typing import Tuple
 
-import httpx
-import requests
+try:
+    import httpx  # 用于代理/自定义超时
+except ModuleNotFoundError as e:
+    raise RuntimeError("Missing dependency 'httpx'. Run: pip install httpx") from e
+
 from openai import OpenAI
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont
 
-from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterImage, PosterInput
 
-
-logger = logging.getLogger(__name__)
-
-OPENAI_IMAGE_SIZE = "1024x1024"
+# 供测试与业务共用的常量
+OPENAI_IMAGE_SIZE = os.getenv("OPENAI_IMAGE_SIZE", "1024x1024")
 
 
-def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> PosterImage:
-    """Generate a poster image via Glibatree or a local fallback."""
-
-    settings = get_settings()
-    if settings.glibatree.is_configured:
-        try:
-            if settings.glibatree.use_openai_client:
-                logger.debug("Requesting Glibatree asset via OpenAI client")
-                return _request_glibatree_openai(settings.glibatree, prompt)
-            logger.debug("Requesting Glibatree asset via HTTP endpoint %s", settings.glibatree.api_url)
-            return _request_glibatree_http(
-                settings.glibatree.api_url or "",
-                settings.glibatree.api_key or "",
-                prompt,
-            )
-        except Exception:
-            logger.exception("Glibatree request failed, falling back to mock poster")
-            # Fall back to mocked asset in case of network/API errors.
-            pass
-    return _generate_mock_poster(poster, preview)
+# ----------------------------- OpenAI client ------------------------------ #
+def _parse_size(size: str) -> Tuple[int, int]:
+    w, h = size.lower().split("x")
+    return int(w), int(h)
 
 
-def _request_glibatree_http(api_url: str, api_key: str, prompt: str) -> PosterImage:
-    """Call the remote Glibatree API and transform the result into PosterImage."""
-    response = requests.post(
-        api_url,
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={"prompt": prompt},
-        timeout=60,
+def _get_openai_client() -> OpenAI:
+    """
+    创建 OpenAI 客户端。
+    - 支持通过环境变量 OPENAI_BASE_URL / OPENAI_API_KEY / OPENAI_MODEL
+    - 支持从 HTTP(S)_PROXY 注入代理（OpenAI SDK v1 需通过 http_client 注入）
+    """
+    base = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    key = os.getenv("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    http_proxy = os.getenv("HTTP_PROXY") or os.getenv("http_proxy")
+    https_proxy = os.getenv("HTTPS_PROXY") or os.getenv("https_proxy")
+
+    if http_proxy or https_proxy:
+        proxies = {}
+        if http_proxy:
+            proxies["http"] = http_proxy
+        if https_proxy:
+            proxies["https"] = https_proxy
+        http_client = httpx.Client(proxies=proxies, timeout=60)
+        return OpenAI(api_key=key, base_url=base, http_client=http_client)
+
+    return OpenAI(api_key=key, base_url=base)
+
+
+# ----------------------------- OpenAI backend ----------------------------- #
+def _request_glibatree_openai(poster: PosterInput, prompt: str, preview: str) -> PosterImage:
+    """
+    调用 OpenAI 图像生成（示例用 gpt-image-1）。
+    返回 PosterImage（data_url 内含 base64）。
+    """
+    client = _get_openai_client()
+    model = os.getenv("OPENAI_MODEL", "gpt-image-1")
+    size = OPENAI_IMAGE_SIZE
+    width, height = _parse_size(size)
+
+    # OpenAI Images API（SDK v1）
+    resp = client.images.generate(
+        model=model,
+        prompt=prompt,
+        size=size,
     )
-    try:
-        response.raise_for_status()
-    except requests.HTTPError as exc:  # pragma: no cover - relies on remote API failures
-        detail = exc.response.text if exc.response is not None else str(exc)
-        raise RuntimeError(f"Glibatree API 请求失败：{detail}") from exc
-    payload: dict[str, Any] = response.json()
-    if "data_url" in payload:
-        data_url = payload["data_url"]
-    elif "image_base64" in payload:
-        data_url = f"data:image/png;base64,{payload['image_base64']}"
-    else:
-        raise ValueError("Unexpected Glibatree response format")
-
-    width = int(payload.get("width", 1024))
-    height = int(payload.get("height", 1024))
-    filename = payload.get("filename", "poster.png")
-    media_type = payload.get("media_type", "image/png")
+    image_b64 = resp.data[0].b64_json  # SDK v1 字段名
 
     return PosterImage(
-        filename=filename,
-        media_type=media_type,
-        data_url=data_url,
-        width=width,
-        height=height,
-    )
-
-
-def _request_glibatree_openai(config: GlibatreeConfig, prompt: str) -> PosterImage:
-    """Request a poster asset via the OpenAI 1.x client with optional proxy support."""
-
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
-
-    client_kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:
-        client_kwargs["base_url"] = config.api_url
-
-    http_client: httpx.Client | None = None
-    if config.proxy:
-        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
-        client_kwargs["http_client"] = http_client
-
-    with ExitStack() as stack:
-        if http_client is not None:
-            stack.callback(http_client.close)
-
-        client = OpenAI(**client_kwargs)
-        response = client.images.generate(
-            model=config.model or "gpt-image-1",
-            prompt=prompt,
-            size=OPENAI_IMAGE_SIZE,
-            response_format="b64_json",
-        )
-
-    if not response.data:
-        raise ValueError("Glibatree API 未返回任何图像数据。")
-
-    image = response.data[0]
-    b64_data = getattr(image, "b64_json", None)
-    if not b64_data:
-        raise ValueError("Glibatree API 响应缺少 b64_json 字段。")
-
-    media_type = getattr(image, "mime_type", None) or "image/png"
-    filename = getattr(image, "filename", None) or "poster.png"
-    width_attr = getattr(image, "width", None)
-    height_attr = getattr(image, "height", None)
-    if isinstance(width_attr, int) and isinstance(height_attr, int) and width_attr > 0 and height_attr > 0:
-        width, height = width_attr, height_attr
-    else:
-        width, height = _parse_image_size(getattr(image, "size", None) or OPENAI_IMAGE_SIZE)
-
-    data_url = f"data:{media_type};base64,{b64_data}"
-
-    return PosterImage(
-        filename=filename,
-        media_type=media_type,
-        data_url=data_url,
-        width=width,
-        height=height,
-    )
-
-
-def _parse_image_size(size: str) -> Tuple[int, int]:
-    try:
-        left, right = size.lower().split("x", 1)
-        width = int(left)
-        height = int(right)
-        return max(width, 1), max(height, 1)
-    except Exception:  # pragma: no cover - defensive fallback
-        return 1024, 1024
-
-
-def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
-    """Decode a base64 data URL into a Pillow image, returning ``None`` on error.""
-
-    if not data_url:
-        return None
-    try:
-        header, encoded = data_url.split(",", 1)
-    except ValueError:
-        return None
-    if not header.startswith("data:") or ";base64" not in header:
-        return None
-
-    try:
-        binary = base64.b64decode(encoded)
-    except (base64.binascii.Error, ValueError):
-        return None
-
-    try:
-        image = Image.open(BytesIO(binary))
-    except Exception:
-        return None
-
-    return image.convert("RGBA")
-
-
-try:  # Pillow >= 10 exposes resampling filters on ``Image.Resampling``
-    RESAMPLE_LANCZOS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
-except AttributeError:  # pragma: no cover - fallback for older Pillow versions
-    RESAMPLE_LANCZOS = Image.LANCZOS
-
-
-def _paste_image(
-    canvas: Image.Image,
-    asset: Image.Image,
-    box: Tuple[int, int, int, int],
-    *,
-    mode: str = "contain",
-) -> None:
-    """Paste ``asset`` into ``box`` on ``canvas`` while preserving aspect ratio."""
-
-    left, top, right, bottom = box
-    target_size = (max(right - left, 1), max(bottom - top, 1))
-
-    if mode == "cover":
-        resized = ImageOps.fit(asset, target_size, RESAMPLE_LANCZOS)
-    else:
-        resized = asset.copy()
-        resized.thumbnail(target_size, RESAMPLE_LANCZOS)
-
-    offset_x = left + (target_size[0] - resized.width) // 2
-    offset_y = top + (target_size[1] - resized.height) // 2
-    converted = resized.convert("RGBA")
-    mask = converted.split()[3] if "A" in converted.getbands() else None
-    canvas.paste(converted, (offset_x, offset_y), mask)
-
-
-def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
-    """Create a placeholder poster that visualises the requested layout."""
-    width, height = 1280, 720
-    image = Image.new("RGB", (width, height), color=(245, 245, 245))
-    draw = ImageDraw.Draw(image)
-    font_title = ImageFont.load_default()
-    font_body = ImageFont.load_default()
-    # Top banner
-    banner_height = int(height * 0.15)
-    draw.rectangle([(0, 0), (width, banner_height)], fill=(230, 230, 230))
-    logo_size = max(min(96, banner_height - 32), 48)
-    logo_box = (40, 20, 40 + logo_size, 20 + logo_size)
-    logo_image = _load_image_from_data_url(poster.brand_logo)
-    if logo_image:
-        _paste_image(image, logo_image, logo_box, mode="contain")
-    else:
-        draw.text((logo_box[0], logo_box[1]), f"Logo: {poster.brand_name}", fill=(0, 0, 0), font=font_body)
-
-    agent_text = poster.agent_name.upper()
-    draw.text(
-        (width - 40 - draw.textlength(agent_text, font=font_body), 30),
-        agent_text,
-        fill=(0, 0, 0),
-        font=font_body,
-    )
-
-    # Left scenario area
-    left_width = int(width * 0.38)
-    scenario_top = banner_height + 30
-    scenario_bottom = height - 220
-    scenario_box = (40, scenario_top, 40 + left_width, scenario_bottom)
-    draw.rounded_rectangle(scenario_box, radius=26, outline=(180, 180, 180), width=4, fill=(236, 239, 243))
-
-    scenario_image = _load_image_from_data_url(poster.scenario_asset)
-    if scenario_image:
-        _paste_image(image, scenario_image, scenario_box, mode="cover")
-    else:
-        scenario_text = textwrap.fill(f"场景: {poster.scenario_image}", width=20)
-        draw.multiline_text(
-            (scenario_box[0] + 20, scenario_top + 20),
-            scenario_text,
-            fill=(80, 80, 80),
-            font=font_body,
-            spacing=4,
-        )
-
-
-    # Right product render area
-    product_left = 80 + left_width
-    product_top = banner_height + 30
-    product_bottom = height - 240
-    product_box = (product_left, product_top, width - 60, product_bottom)
-    draw.rounded_rectangle(product_box, radius=24, outline=(150, 150, 150), width=4, fill=(235, 238, 243))
-
-    product_image = _load_image_from_data_url(poster.product_asset)
-    if product_image:
-        _paste_image(image, product_image, product_box, mode="contain")
-    else:
-        draw.text(
-            (product_left + 24, product_top + 20),
-            f"产品: {poster.product_name}",
-            fill=(20, 20, 20),
-            font=font_body,
-        )
-
-    # Feature annotations
-    feature_start_y = product_top + 80
-    for idx, feature in enumerate(poster.features, start=1):
-        text = textwrap.fill(f"{idx}. {feature}", width=24)
-        y = feature_start_y + (idx - 1) * 60
-        draw.text((product_left + 32, y), text, fill=(40, 40, 40), font=font_body)
-
-    # Title and subtitle
-    title_y = height - 240
-    draw.text((40, title_y), poster.title, fill=(220, 20, 60), font=font_title)
-    subtitle_y = height - 50
-    draw.text((40, subtitle_y), poster.subtitle, fill=(220, 20, 60), font=font_title)
-
-    # Series section at bottom
-    series_top = height - 170
-    series_bottom = height - 70
-    series_box = (40, series_top, width - 40, series_bottom)
-    draw.rounded_rectangle(series_box, radius=18, outline=(210, 210, 210), width=3, fill=(248, 248, 248))
-
-    gallery_images = [
-        _load_image_from_data_url(asset)
-        for asset in poster.gallery_assets[:4]
-    ]
-    gallery_images = [img for img in gallery_images if img is not None]
-
-    if gallery_images:
-        gallery_count = max(len(gallery_images), 3)
-        gallery_left = series_box[0] + 20
-        gallery_right = series_box[2] - 20
-        gallery_top = series_top + 14
-        gallery_bottom = series_top + 70
-        total_width = gallery_right - gallery_left
-        spacing = 16
-        slot_width = (total_width - spacing * (gallery_count - 1)) // gallery_count
-        slot_height = max(gallery_bottom - gallery_top, 1)
-
-        for index in range(gallery_count):
-            slot_left = gallery_left + index * (slot_width + spacing)
-            slot_right = slot_left + slot_width
-            box = (slot_left, gallery_top, slot_right, gallery_top + slot_height)
-            draw.rounded_rectangle(box, radius=12, outline=(180, 180, 180), width=2, fill=(240, 240, 240))
-            if index < len(gallery_images):
-                _paste_image(image, gallery_images[index], box, mode="cover")
-
-        series_text_y = gallery_bottom + 10
-    else:
-        series_text_y = series_top + 20
-
-    series_text = textwrap.fill(poster.series_description, width=60)
-    draw.text((series_box[0] + 20, series_text_y), series_text, fill=(90, 90, 90), font=font_body)
-    buffer = BytesIO()
-    image.save(buffer, format="PNG")
-    base64_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-    data_url = f"data:image/png;base64,{base64_data}"
-
-    return PosterImage(
-        filename="mock_poster.png",
+        filename="poster_openai.png",
         media_type="image/png",
-        data_url=data_url,
         width=width,
         height=height,
+        data_url=f"data:image/png;base64,{image_b64}",
     )
 
+
+# --------------------------- Mock / 占位图后备 ---------------------------- #
+def _draw_multiline(draw: ImageDraw.ImageDraw, xy, text: str, font, fill, max_width: int):
+    """
+    极简断行：按空格切分，超过宽度就换行。
+    """
+    words = text.split()
+    lines = []
+    line = ""
+    for w in words:
+        trial = (line + " " + w).strip()
+        if draw.textlength(trial, font=font) <= max_width:
+            line = trial
+        else:
+            if line:
+                lines.append(line)
+            line = w
+    if line:
+        lines.append(line)
+
+    x, y = xy
+    lh = font.size + 4
+    for ln in lines:
+        draw.text((x, y), ln, font=font, fill=fill)
+        y += lh
+
+
+def _generate_mock_image(poster: PosterInput, prompt: str, preview: str) -> PosterImage:
+    """
+    生成占位海报：用于未配置真实图像后端时的可视化回退。
+    - 顶部横条：品牌 + 代理
+    - 左侧灰底代表“场景图”
+    - 右侧浅底代表“产品图”+ 功能点文本
+    - 中部标题、底部系列说明、右下副标题
+    """
+    width, height = _parse_size(OPENAI_IMAGE_SIZE)
+    img = Image.new("RGB", (width, height), (248, 250, 252))
+    draw = ImageDraw.Draw(img)
+
+    # 字体（平台上没有系统字体时，用默认）
+    try:
+        font_bold = ImageFont.truetype("arial.ttf", size=36)
+        font_text = ImageFont.truetype("arial.ttf", size=22)
+        font_small = ImageFont.truetype("arial.ttf", size=18)
+    except Exception:
+        font_bold = ImageFont.load_default()
+        font_text = ImageFont.load_default()
+        font_small = ImageFont.load_default()
+
+    # 顶部横条
+    header_h = int(height * 0.1)
+    draw.rectangle((32, 32, width - 32, 32 + header_h), fill=(255, 240, 241), outline=(239, 76, 84))
+    draw.text((48, 48), f"{poster.brand_name}", font=font_bold, fill=(31, 41, 51))
+    draw.text((width - 48 - draw.textlength(poster.agent_name, font=font_small), 48),
+              poster.agent_name, font=font_small, fill=(31, 41, 51))
+
+    # 主体两栏
+    body_top = 48 + header_h + 24
+    gutter = 24
+    left_w = int(width * 0.4) - 64
+    right_x = 32 + left_w + gutter
+    # 左侧“场景图”
+    draw.rectangle((32, body_top, 32 + left_w, height - 220), fill=(229, 233, 240), outline=(200, 210, 220))
+    _draw_multiline(draw, (48, body_top + 16), poster.scenario_image or "应用场景图", font_small, (80, 90, 100), left_w - 32)
+
+    # 右侧“产品 + 功能点”
+    draw.rectangle((right_x, body_top, width - 32, height - 220), fill=(235, 239, 245), outline=(200, 210, 220))
+    _draw_multiline(draw, (right_x + 16, body_top + 16), poster.product_name or "主产品 45° 渲染图", font_text,
+                    (30, 30, 30), (width - 32) - (right_x + 32))
+    y = body_top + 70
+    for i, feat in enumerate(poster.features[:4], start=1):
+        _draw_multiline(draw, (right_x + 16, y), f"{i}. {feat}", font_small, (30, 30, 30),
+                        (width - 32) - (right_x + 32))
+        y += font_small.size + 10
+
+    # 标题
+    draw.text((32, height - 210), poster.title, font=font_bold, fill=(239, 76, 84))
+    # 底部“系列说明”
+    _draw_multiline(draw, (32, height - 170), poster.series_description, font_small, (82, 96, 109), width - 64)
+    # 右下“副标题”
+    sub_w = draw.textlength(poster.subtitle, font=font_bold)
+    draw.text((width - 32 - sub_w, height - 60), poster.subtitle, font=font_bold, fill=(239, 76, 84))
+
+    # 输出为 base64 data URL
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+    return PosterImage(
+        filename="poster_mock.png",
+        media_type="image/png",
+        width=width,
+        height=height,
+        data_url=f"data:image/png;base64,{b64}",
+    )
+
+
+# ------------------------------- Facade ----------------------------------- #
+def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> PosterImage:
+    """
+    统一入口：
+    - 如果 IMAGE_BACKEND=openai 且配置了 OPENAI_API_KEY，则走 OpenAI 生成。
+    - 否则返回占位图（Mock），保证流程不阻塞。
+    """
+    backend = os.getenv("IMAGE_BACKEND", "").lower()
+    if backend == "openai" and os.getenv("OPENAI_API_KEY"):
+        try:
+            return _request_glibatree_openai(poster, prompt, preview)
+        except Exception as e:
+            # 失败回退占位图，同时把异常拼进 alt 内容方便排查
+            return _generate_mock_image(
+                poster,
+                prompt,
+                preview + f"\n[openai-error]: {e}"
+            )
+    return _generate_mock_image(poster, prompt, preview)
