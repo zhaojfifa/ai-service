@@ -1,3 +1,5 @@
+
+/* app.js — multi-stage (stage1 / stage2 / stage3) */
 const STORAGE_KEYS = {
   apiBase: 'marketing-poster-api-base',
   stage1: 'marketing-poster-stage1-data',
@@ -55,6 +57,27 @@ function init() {
       break;
   }
 }
+// 统一规范 API Base：去掉末尾斜杠 & 末尾 /api
++function normalizeApiBase(input) {
++  let u = (input || '').trim();
++  u = u.replace(/\/+$/, '');    // 去掉结尾斜杠
++  u = u.replace(/\/api$/i, ''); // 去掉结尾 /api
++  return u;
++}
+
++function buildUrl(path) {
++  const base = normalizeApiBase(localStorage.getItem('apiBase') || '');
++  const p = path.startsWith('/') ? path : `/${path}`;
++  return `${base}/api${p}`;
++}
+
+// 保存输入框时也归一化
+- localStorage.setItem('apiBase', input.value);
++ localStorage.setItem('apiBase', normalizeApiBase(input.value));
+
+// 调用时统一用：
+- const url = `${apiBase}/api/generate-poster`;
++ const url = buildUrl('/generate-poster');
 
 function loadApiBase() {
   if (!apiBaseInput) return;
@@ -73,6 +96,9 @@ function saveApiBase() {
     localStorage.removeItem(STORAGE_KEYS.apiBase);
   }
 }
+
+
+/* ========== Stage 1 ========== */
 function initStage1() {
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
@@ -218,42 +244,22 @@ function initStage1() {
   });
 
   buildPreviewButton.addEventListener('click', () => {
-    const relaxedPayload = collectStage1Data(form, state, { strict: false });
-    currentLayoutPreview = updatePosterPreview(
-      relaxedPayload,
-      state,
-      previewElements,
-      layoutStructure,
-      previewContainer
-    );
-
     try {
-      const strictPayload = collectStage1Data(form, state, { strict: true });
-      state.previewBuilt = true;
-      const serialised = serialiseStage1Data(
-        strictPayload,
+      const payload = collectStage1Data(form, state, { strict: true });
+      currentLayoutPreview = updatePosterPreview(
+        payload,
         state,
-        currentLayoutPreview,
-        true
+        previewElements,
+        layoutStructure,
+        previewContainer
       );
+      state.previewBuilt = true;
+      const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
       saveStage1Data(serialised);
       setStatus(statusElement, '版式预览已构建，可继续下一环节。', 'success');
     } catch (error) {
-      console.warn(error);
-      state.previewBuilt = false;
-      const serialised = serialiseStage1Data(
-        relaxedPayload,
-        state,
-        currentLayoutPreview,
-        false
-      );
-      saveStage1Data(serialised);
-      const reason = error?.message || '请补全必填素材。';
-      setStatus(
-        statusElement,
-        `预览已更新，但${reason.replace(/^[，。]?/, '')}`,
-        'warning'
-      );
+      console.error(error);
+      setStatus(statusElement, error.message || '构建版式预览失败，请检查输入。', 'error');
     }
   });
 
@@ -336,6 +342,8 @@ function applyStage1DataToForm(data, form, state, inlinePreviews) {
     inlinePreviews.product_asset.src = state.product?.dataUrl || placeholderImages.product;
   }
 }
+
+
 function attachSingleImageHandler(input, key, inlinePreview, state, refreshPreview) {
   if (!input) return;
   input.addEventListener('change', async () => {

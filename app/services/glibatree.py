@@ -331,4 +331,3 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
         width=width,
         height=height,
     )
-
