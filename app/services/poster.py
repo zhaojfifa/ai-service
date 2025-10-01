@@ -6,10 +6,12 @@ from app.schemas import PosterInput
 
 
 def render_layout_preview(poster: PosterInput) -> str:
-    """返回一段可读性强的版式结构预览文本。"""
+    """Return a textual preview summarising the required layout structure."""
 
     logo_line = (
-        f"已上传品牌 Logo（{poster.brand_name}）" if poster.brand_logo else poster.brand_name
+        f"已上传品牌 Logo（{poster.brand_name}）"
+        if poster.brand_logo
+        else poster.brand_name
     )
     scenario_line = (
         f"已上传场景图（描述：{poster.scenario_image}）"
@@ -28,7 +30,7 @@ def render_layout_preview(poster: PosterInput) -> str:
     )
 
     features_preview = "\n".join(
-        f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features or [])
+        f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features)
     )
 
     preview = f"""
@@ -42,7 +44,7 @@ def render_layout_preview(poster: PosterInput) -> str:
     右侧区域（视觉中心）
       · 主产品 45° 渲染图：{product_line}
       · 功能点标注：
-{features_preview}
+    {features_preview}
 
     中部标题（大号粗体红字）
       · {poster.title}
@@ -60,10 +62,11 @@ def render_layout_preview(poster: PosterInput) -> str:
 
 
 def build_glibatree_prompt(poster: PosterInput) -> str:
-    """生成发送给 Glibatree Art Designer 的提示词。"""
+    """Generate the prompt that will be forwarded to Glibatree Art Designer."""
 
     features = "\n".join(
-        f"- 功能点{i}: {feature}" for i, feature in enumerate(poster.features or [], start=1)
+        f"- 功能点{i}: {feature}"
+        for i, feature in enumerate(poster.features, start=1)
     )
 
     reference_assets: list[str] = []
@@ -72,7 +75,9 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     if poster.scenario_asset:
         reference_assets.append("- 参考素材：应用场景图已上传，用于左侧 40% 区域的背景演绎。")
     if poster.product_asset:
-        reference_assets.append("- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。")
+        reference_assets.append(
+            "- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。"
+        )
     if poster.gallery_assets:
         reference_assets.append(
             f"- 参考素材：底部产品小图共 {len(poster.gallery_assets)} 张，需转为灰度横向排列。"
@@ -101,9 +106,9 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
 
 
 def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
-    """生成营销邮件正文。"""
+    """Create a marketing email body tailored for the target client."""
 
-    feature_lines = "\n".join(f"· {feature}" for feature in (poster.features or []))
+    feature_lines = "\n".join(f"· {feature}" for feature in poster.features)
 
     email = f"""
     尊敬的客户，
@@ -120,18 +125,3 @@ def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
     —— {poster.brand_name} · {poster.agent_name}
     """
     return textwrap.dedent(email).strip()
-
-
-# --- 兼容 main.py 的导入：为 OpenAI 路线提供同名函数 ---
-def build_openai_prompt(poster: PosterInput) -> str:
-    """与 build_glibatree_prompt 兼容的同名接口，避免 ImportError。"""
-    return build_glibatree_prompt(poster)
-
-
-# 显式导出，避免打包/裁剪导致的符号缺失
-__all__ = [
-    "render_layout_preview",
-    "build_glibatree_prompt",
-    "build_openai_prompt",
-    "compose_marketing_email",
-]
