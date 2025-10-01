@@ -125,4 +125,3 @@ def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
     —— {poster.brand_name} · {poster.agent_name}
     """
     return textwrap.dedent(email).strip()
-

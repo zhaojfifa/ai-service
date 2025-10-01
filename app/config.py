@@ -1,10 +1,14 @@
+# app/config.py
+
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import List
+
 from urllib.parse import urlparse
+
 
 
 def _as_bool(value: str | None, default: bool) -> bool:
@@ -14,6 +18,12 @@ def _as_bool(value: str | None, default: bool) -> bool:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
+
+def _as_list(csv: str | None, fallback: List[str]) -> List[str]:
+    if not csv:
+        return fallback
+    items = [x.strip() for x in csv.split(",") if x.strip()]
+    return items or fallback
 
 @dataclass
 class EmailConfig:
@@ -82,7 +92,6 @@ def _parse_allowed_origins(raw: str) -> List[str]:
 
     return cleaned or ["*"]
 
-
 @lru_cache()
 def get_settings() -> Settings:
     environment = os.getenv("ENVIRONMENT", "development")
@@ -95,6 +104,7 @@ def get_settings() -> Settings:
         username=os.getenv("SMTP_USERNAME"),
         password=os.getenv("SMTP_PASSWORD"),
         sender=os.getenv("EMAIL_SENDER"),
+
         use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), True),
         use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
     )

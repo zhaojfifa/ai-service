@@ -45,7 +45,6 @@ def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> Pos
 
 def _request_glibatree_http(api_url: str, api_key: str, prompt: str) -> PosterImage:
     """Call the remote Glibatree API and transform the result into PosterImage."""
-
     response = requests.post(
         api_url,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -58,7 +57,6 @@ def _request_glibatree_http(api_url: str, api_key: str, prompt: str) -> PosterIm
         detail = exc.response.text if exc.response is not None else str(exc)
         raise RuntimeError(f"Glibatree API 请求失败：{detail}") from exc
     payload: dict[str, Any] = response.json()
-
     if "data_url" in payload:
         data_url = payload["data_url"]
     elif "image_base64" in payload:
@@ -147,7 +145,7 @@ def _parse_image_size(size: str) -> Tuple[int, int]:
 
 
 def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
-    """Decode a base64 data URL into a Pillow image, returning ``None`` on error."""
+    """Decode a base64 data URL into a Pillow image, returning ``None`` on error.""
 
     if not data_url:
         return None
@@ -204,13 +202,11 @@ def _paste_image(
 
 def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
     """Create a placeholder poster that visualises the requested layout."""
-
     width, height = 1280, 720
     image = Image.new("RGB", (width, height), color=(245, 245, 245))
     draw = ImageDraw.Draw(image)
     font_title = ImageFont.load_default()
     font_body = ImageFont.load_default()
-
     # Top banner
     banner_height = int(height * 0.15)
     draw.rectangle([(0, 0), (width, banner_height)], fill=(230, 230, 230))
@@ -249,6 +245,7 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
             font=font_body,
             spacing=4,
         )
+
 
     # Right product render area
     product_left = 80 + left_width
@@ -318,7 +315,6 @@ def _generate_mock_poster(poster: PosterInput, preview: str) -> PosterImage:
 
     series_text = textwrap.fill(poster.series_description, width=60)
     draw.text((series_box[0] + 20, series_text_y), series_text, fill=(90, 90, 90), font=font_body)
-
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     base64_data = base64.b64encode(buffer.getvalue()).decode("utf-8")

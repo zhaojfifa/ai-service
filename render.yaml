@@ -1,10 +1,53 @@
+# render.yaml
 services:
   - type: web
-    name: marketing-poster-api
+    name: ai-service
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --log-level debug
+    autoDeploy: true
     envVars:
+      # 运行时
       - key: PYTHON_VERSION
-        value: 3.11.5
+        value: 3.11.9
+
+      # 前端跨域（按需替换为你的 Pages 域名）
+      - key: ALLOWED_ORIGINS
+        value: https://zhaojfifa.github.io/ai-service, http://localhost:5173, http://localhost:3000
+
+      # 图像生成后端选择：openai / glibatree
+      - key: IMAGE_BACKEND
+        value: openai
+
+      # OpenAI 配置（在 Render 控制台填充密钥）
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: OPENAI_MODEL
+        value: gpt-image-1
+      - key: OPENAI_IMAGE_SIZE
+        value: 1024x1024
+
+      # Glibatree（可选；接入后端时启用）
+      - key: GLIBATREE_API_URL
+        sync: false
+      - key: GLIBATREE_API_KEY
+        sync: false
+
+      # 邮件发送（可选；使用 SMTP 时在控制台填）
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_SENDER
+        sync: false
+      - key: SMTP_USE_TLS
+        value: "true"
+      - key: SMTP_USE_SSL
+        value: "false"

@@ -40,7 +40,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
@@ -64,12 +63,14 @@ def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+
 @app.post("/api/send-email", response_model=SendEmailResponse)
 def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
     try:
         return send_email(payload)
     except Exception as exc:  # pragma: no cover - ensures HTTP friendly message
         logger.exception("Failed to send marketing email")
+
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
