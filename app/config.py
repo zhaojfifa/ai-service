@@ -9,18 +9,59 @@ from urllib.parse import urlparse
 
 def _as_bool(value: str | None, default: bool) -> bool:
     """Interpret common truthy / falsy strings while providing a default."""
-
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-
 def _as_list(csv: str | None, fallback: List[str]) -> List[str]:
+    """Split a CSV string to list with trimming and fallback."""
     if not csv:
         return fallback
     items = [x.strip() for x in csv.split(",") if x.strip()]
     return items or fallback
+
+
+def _normalise_origin(value: str) -> str | None:
+    """
+    将单个 origin 归一化：
+    - 允许 "*"
+    - 允许裸域名（如 localhost:5173），自动补 http://
+    - 去掉路径，仅保留 scheme://host[:port]
+    - 非法值返回 None
+    """
+    v = value.strip()
+    if not v:
+        return None
+    if v == "*":
+        return "*"
+    if "://" not in v:
+        # 浏览器 Origin 一定包含 scheme；为了容错，这里自动补 http
+        v = "http://" + v
+    p = urlparse(v)
+    if not (p.scheme and p.netloc):
+        return None
+    return f"{p.scheme}://{p.netloc}"
+
+
+def _parse_allowed_origins(raw: str | None) -> List[str]:
+    """
+    解析 ALLOWED_ORIGINS 环境变量，返回始终非空的 list[str]。
+    支持: "*", 逗号分隔、去重、自动补 scheme、去除路径。
+    """
+    if not raw:
+        return ["*"]
+
+    cleaned: List[str] = []
+    for token in raw.split(","):
+        origin = _normalise_origin(token)
+        if origin == "*":
+            return ["*"]
+        if origin and origin not in cleaned:
+            cleaned.append(origin)
+
+    return cleaned or ["*"]
+
 
 @dataclass
 class EmailConfig:
@@ -43,7 +84,7 @@ class GlibatreeConfig:
     api_key: str | None
     model: str | None
     proxy: str | None
-    client: str
+    client: str  # "http" | "openai"
 
     @property
     def use_openai_client(self) -> bool:
@@ -64,35 +105,14 @@ class Settings:
     glibatree: GlibatreeConfig
 
 
-def _parse_allowed_origins(raw: str) -> List[str]:
-    """Normalise comma-separated origins into values accepted by CORSMiddleware."""
-
-    if not raw:
-        return ["*"]
-
-    cleaned: List[str] = []
-    for origin in raw.split(","):
-        value = origin.strip()
-        if not value:
-            continue
-        if value == "*":
-            return ["*"]
-
-        parsed = urlparse(value)
-        if parsed.scheme and parsed.netloc:
-            normalised = f"{parsed.scheme}://{parsed.netloc}"
-        else:
-            normalised = value
-
-        if normalised not in cleaned:
-            cleaned.append(normalised)
-
 @lru_cache()
 def get_settings() -> Settings:
     environment = os.getenv("ENVIRONMENT", "development")
-    origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
-    allowed_origins = _parse_allowed_origins(origins_raw)
 
+    # --- CORS ---
+    allowed_origins = _parse_allowed_origins(os.getenv("ALLOWED_ORIGINS"))
+
+    # --- Email ---
     email = EmailConfig(
         host=os.getenv("SMTP_HOST"),
         port=int(os.getenv("SMTP_PORT", "587")),
@@ -103,18 +123,20 @@ def get_settings() -> Settings:
         use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
     )
 
+    # --- Glibatree / OpenAI ---
     api_url = os.getenv("GLIBATREE_API_URL")
-    raw_client = os.getenv("GLIBATREE_CLIENT")
-    if raw_client:
-        client = raw_client.strip().lower()
-        if client not in {"http", "openai"}:
-            client = "openai" if (api_url and "openai" in api_url.lower()) else "http"
-    elif api_url and "openai" in api_url.lower():
-        client = "openai"
-    elif api_url:
-        client = "http"
+    raw_client = (os.getenv("GLIBATREE_CLIENT") or "").strip().lower()
+
+    if raw_client in {"http", "openai"}:
+        client = raw_client
     else:
-        client = "openai"
+        # 根据 URL 做一个合理默认：含 "openai" -> openai，否则 http。
+        if api_url and "openai" in api_url.lower():
+            client = "openai"
+        elif api_url:
+            client = "http"
+        else:
+            client = "openai"  # 默认走 OpenAI SDK，需 GLIBATREE_API_KEY
 
     glibatree = GlibatreeConfig(
         api_url=api_url,
@@ -130,4 +152,3 @@ def get_settings() -> Settings:
         email=email,
         glibatree=glibatree,
     )
-
