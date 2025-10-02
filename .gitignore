@@ -4,3 +4,4 @@ output/
 env/
 *.pyc
 frontend/templates/*.png
+

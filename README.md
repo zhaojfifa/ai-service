@@ -25,6 +25,7 @@ ai-service/
 │   └── templates/        # 锁版模板 Base64 文本、蒙版与规范（供前后端共用）
 ├── docs/
 │   └── brand-guides/     # 品牌色板、字体与版式规范
+
 ├── requirements.txt      # 后端依赖
 ├── render.yaml           # Render 部署模版
 └── .gitignore
@@ -73,7 +74,6 @@ uvicorn app.main:app --reload
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
 ## GitHub Pages 部署前端
-
 仓库已经内置 GitHub Actions 工作流，自动将 `frontend/` 目录发布到 Pages。首次启用时请按照以下步骤配置：
 
 1. 在仓库的 **Settings → Pages** 页面，将 “Build and deployment” 的 Source 改为 **GitHub Actions**。
@@ -112,6 +112,7 @@ python scripts/decode_template_assets.py
 - **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
 - **后端流水线**：`app/services/glibatree.py` 会先按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
+
 
 页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。
 

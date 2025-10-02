@@ -5,6 +5,7 @@
     "scenario_image": "现代简约厨房岛台，晨光洒入",
     "product_name": "全能智能蒸烤炸一体机",
     "template_id": "template_dual",
+
     "features": [
       "一键智能菜单，秒选家宴模式",
       "360° 热风循环，锁鲜少油",
@@ -18,6 +19,7 @@
     "scenario_asset": null,
     "product_asset": null,
     "gallery_items": []
+
   },
   "email": {
     "recipient": "client@example.com",

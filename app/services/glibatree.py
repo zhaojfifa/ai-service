@@ -15,6 +15,7 @@ import requests
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
+
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterImage, PosterInput
 
@@ -359,6 +360,7 @@ def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> Pos
     template = _load_template_resources(poster.template_id)
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
+
     settings = get_settings()
     if settings.glibatree.is_configured:
         try:
@@ -456,6 +458,7 @@ def _request_glibatree_openai_edit(
     base_bytes = _image_to_png_bytes(locked_frame)
     mask_bytes = _image_to_png_bytes(template.mask_background)
 
+
     with ExitStack() as stack:
         if http_client is not None:
             stack.callback(http_client.close)
@@ -465,6 +468,7 @@ def _request_glibatree_openai_edit(
             model=config.model or "gpt-image-1",
             image=base_bytes,
             mask=mask_bytes,
+
             prompt=prompt,
             size=OPENAI_IMAGE_SIZE,
             response_format="b64_json",
@@ -586,4 +590,5 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
         width=output.width,
         height=output.height,
     )
+
 

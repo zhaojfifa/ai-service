@@ -28,6 +28,7 @@ class PosterInput(BaseModel):
         "template_dual",
         description="Identifier of the locked layout template to use when rendering.",
     )
+
     features: list[constr(strip_whitespace=True, min_length=1)] = Field(
         ..., min_items=3, max_items=4
     )
@@ -50,6 +51,7 @@ class PosterInput(BaseModel):
         default_factory=list,
         max_items=4,
         description="Bottom gallery entries paired with captions for the series strip.",
+
     )
 
 

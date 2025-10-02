@@ -9,8 +9,6 @@ const DEFAULT_STAGE1 = {
   agent_name: '星辉渠道服务中心',
   scenario_image: '现代开放式厨房中智能蒸烤一体机的沉浸式体验',
   product_name: 'ChefCraft 智能蒸烤大师',
-  template_id: 'template_dual',
-
   features: [
     '一键蒸烤联动，精准锁鲜',
     '360° 智能热风循环，均匀受热',
@@ -20,11 +18,6 @@ const DEFAULT_STAGE1 = {
   title: '焕新厨房效率，打造大厨级美味',
   subtitle: '智能蒸烤 · 家宴轻松掌控',
 };
-
-const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
-const templateCache = new Map();
-let templateRegistryPromise = null;
-
 
 const DEFAULT_EMAIL_RECIPIENT = 'client@example.com';
 
@@ -118,11 +111,9 @@ function initStage1() {
     product: null,
     galleryEntries: [],
     previewBuilt: false,
-    templateId: DEFAULT_STAGE1.template_id,
   };
 
   let currentLayoutPreview = '';
-
   const refreshPreview = () => {
     if (!form) return null;
     const payload = collectStage1Data(form, state, { strict: false });
@@ -334,7 +325,6 @@ function applyStage1DataToForm(data, form, state, inlinePreviews) {
         asset: entry.asset || null,
       }))
     : [];
-  state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
 
   if (inlinePreviews.brand_logo) {
     inlinePreviews.brand_logo.src = state.brandLogo?.dataUrl || placeholderImages.brandLogo;
@@ -510,8 +500,6 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.scenario_asset = state.scenario;
   payload.product_asset = state.product;
   payload.gallery_entries = galleryEntries;
-  payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
-
 
   if (strict) {
     const missing = [];
@@ -645,8 +633,7 @@ function buildLayoutPreview(payload) {
         .join('\n')
     : '    · 底部产品小图待上传（需提供 3-4 张灰度素材并附文字说明）。';
 
-  return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
-
+  return `顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
     payload.agent_name || '代理名待填写'
   }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
 }
@@ -669,8 +656,6 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       caption: entry.caption,
       asset: entry.asset,
     })),
-    template_id: state.templateId || DEFAULT_STAGE1.template_id,
-
     layout_preview: layoutPreview,
     preview_built: previewBuilt,
   };
@@ -708,9 +693,6 @@ function initStage2() {
   const regenerateButton = document.getElementById('regenerate-poster');
   const nextButton = document.getElementById('to-stage3');
   const overviewList = document.getElementById('stage1-overview');
-  const templateSelect = document.getElementById('template-select');
-  const templateCanvas = document.getElementById('template-preview-canvas');
-  const templateDescription = document.getElementById('template-description');
 
   if (!generateButton || !nextButton) {
     return;
@@ -726,87 +708,9 @@ function initStage2() {
     return;
   }
 
-  const needsTemplatePersist = !('template_id' in stage1Data);
-  stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
-  if (needsTemplatePersist) {
-    stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-    if (layoutStructure) {
-      layoutStructure.textContent = stage1Data.layout_preview;
-    }
-    saveStage1Data(stage1Data);
-  }
-  let currentTemplateId = stage1Data.template_id;
-
   populateStage1Summary(stage1Data, overviewList);
   if (layoutStructure && stage1Data.layout_preview) {
     layoutStructure.textContent = stage1Data.layout_preview;
-  }
-
-  let templateRegistry = [];
-
-  async function refreshTemplatePreview(templateId) {
-    if (!templateCanvas) return;
-    try {
-      const assets = await ensureTemplateAssets(templateId);
-      if (templateDescription) {
-        templateDescription.textContent = assets.entry?.description || '';
-      }
-      const previewAssets = await prepareTemplatePreviewAssets(stage1Data);
-      drawTemplatePreview(templateCanvas, assets, stage1Data, previewAssets);
-    } catch (error) {
-      console.error(error);
-      if (templateDescription) {
-        templateDescription.textContent = '';
-      }
-      const ctx = templateCanvas?.getContext?.('2d');
-      if (ctx && templateCanvas) {
-        ctx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
-        ctx.fillStyle = '#f4f5f7';
-        ctx.fillRect(0, 0, templateCanvas.width, templateCanvas.height);
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
-        ctx.fillText('模板预览加载失败', 40, 40);
-      }
-    }
-  }
-
-  (async () => {
-    if (!templateSelect || !templateCanvas) return;
-    try {
-      templateRegistry = await loadTemplateRegistry();
-      templateSelect.innerHTML = '';
-      templateRegistry.forEach((entry) => {
-        const option = document.createElement('option');
-        option.value = entry.id;
-        option.textContent = entry.name;
-        templateSelect.appendChild(option);
-      });
-      if (!templateRegistry.find((entry) => entry.id === currentTemplateId) && templateRegistry[0]) {
-        currentTemplateId = templateRegistry[0].id;
-        stage1Data.template_id = currentTemplateId;
-        saveStage1Data(stage1Data);
-      }
-      templateSelect.value = currentTemplateId;
-      await refreshTemplatePreview(currentTemplateId);
-    } catch (error) {
-      console.error(error);
-      setStatus(statusElement, '模板清单加载失败，请检查 templates/ 目录。', 'warning');
-    }
-  })();
-
-  if (templateSelect) {
-    templateSelect.addEventListener('change', async (event) => {
-      const value = event.target.value || DEFAULT_STAGE1.template_id;
-      currentTemplateId = value;
-      stage1Data.template_id = value;
-      stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-      if (layoutStructure) {
-        layoutStructure.textContent = stage1Data.layout_preview;
-      }
-      saveStage1Data(stage1Data);
-      await refreshTemplatePreview(value);
-      setStatus(statusElement, '模板已切换，请重新生成海报以应用新布局。', 'info');
-    });
   }
 
   generateButton.addEventListener('click', () => {
@@ -868,8 +772,6 @@ function populateStage1Summary(stage1Data, overviewList) {
   overviewList.innerHTML = '';
 
   const entries = [
-    ['模板', stage1Data.template_id || DEFAULT_STAGE1.template_id],
-
     ['品牌 / 代理', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
     ['主产品名称', stage1Data.product_name],
     [
@@ -927,8 +829,6 @@ async function triggerGeneration(options) {
     agent_name: stage1Data.agent_name,
     scenario_image: stage1Data.scenario_image,
     product_name: stage1Data.product_name,
-    template_id: stage1Data.template_id || currentTemplateId,
-
     features: stage1Data.features,
     title: stage1Data.title,
     subtitle: stage1Data.subtitle,
@@ -936,13 +836,11 @@ async function triggerGeneration(options) {
     brand_logo: stage1Data.brand_logo?.dataUrl || null,
     scenario_asset: stage1Data.scenario_asset?.dataUrl || null,
     product_asset: stage1Data.product_asset?.dataUrl || null,
-    gallery_items:
+    gallery_assets:
       stage1Data.gallery_entries
-        ?.filter((entry) => entry.asset?.dataUrl)
-        .map((entry) => ({
-          caption: entry.caption?.trim() || null,
-          asset: entry.asset?.dataUrl || null,
-        })) || [],
+        ?.filter((entry) => entry.asset)
+        .map((entry) => entry.asset?.dataUrl)
+        .filter(Boolean) || [],
   };
 
   generateButton.disabled = true;
@@ -1000,7 +898,6 @@ async function triggerGeneration(options) {
       poster_image: data.poster_image,
       prompt: data.prompt,
       email_body: data.email_body,
-      template_id: payload.template_id,
     };
     saveStage2Result(stage2Result);
     return stage2Result;
@@ -1022,376 +919,6 @@ async function triggerGeneration(options) {
       regenerateButton.classList.remove('hidden');
     }
   }
-}
-
-async function loadTemplateRegistry() {
-  if (!templateRegistryPromise) {
-    templateRegistryPromise = fetch(TEMPLATE_REGISTRY_PATH)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('无法加载模板清单');
-        }
-        return response.json();
-      })
-      .catch((error) => {
-        templateRegistryPromise = null;
-        throw error;
-      });
-  }
-  const registry = await templateRegistryPromise;
-  return Array.isArray(registry) ? registry : [];
-}
-
-async function ensureTemplateAssets(templateId) {
-  if (templateCache.has(templateId)) {
-    return templateCache.get(templateId);
-  }
-  const registry = await loadTemplateRegistry();
-  const entry =
-    registry.find((item) => item.id === templateId) || registry.find((item) => item.id);
-  if (!entry) {
-    throw new Error('模板列表为空');
-  }
-  const [spec, image] = await Promise.all([
-    fetch(`templates/${entry.spec}`).then((response) => {
-      if (!response.ok) throw new Error('无法加载模板规范');
-      return response.json();
-    }),
-    loadImageAsset(`templates/${entry.preview}`),
-  ]);
-
-  const payload = { entry, spec, image };
-  templateCache.set(entry.id, payload);
-  return payload;
-}
-
-async function prepareTemplatePreviewAssets(stage1Data) {
-  const result = {
-    brand_logo: null,
-    scenario: null,
-    product: null,
-    gallery: [],
-  };
-
-  const tasks = [];
-  const queue = (key, dataUrl, index) => {
-    if (!dataUrl) return;
-    tasks.push(
-      loadImageAsset(dataUrl)
-        .then((image) => {
-          if (key === 'gallery') {
-            result.gallery[index] = image;
-          } else {
-            result[key] = image;
-          }
-        })
-        .catch(() => undefined)
-    );
-  };
-
-  queue('brand_logo', stage1Data.brand_logo?.dataUrl);
-  queue('scenario', stage1Data.scenario_asset?.dataUrl);
-  queue('product', stage1Data.product_asset?.dataUrl);
-  (stage1Data.gallery_entries || []).forEach((entry, index) => {
-    queue('gallery', entry?.asset?.dataUrl, index);
-  });
-
-  await Promise.allSettled(tasks);
-  return result;
-}
-
-function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const spec = assets.spec || {};
-  const size = spec.size || {};
-  const width = Number(size.width) || assets.image.width;
-  const height = Number(size.height) || assets.image.height;
-
-  canvas.width = width;
-  canvas.height = height;
-
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = '#f4f5f7';
-  ctx.fillRect(0, 0, width, height);
-  ctx.imageSmoothingEnabled = true;
-  ctx.drawImage(assets.image, 0, 0, width, height);
-
-  const slots = spec.slots || {};
-  const fonts = {
-    brand: '600 36px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    agent: '600 30px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    title: '700 64px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    subtitle: '700 40px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    body: '400 28px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    feature: '500 26px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    caption: '400 22px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-  };
-
-  const brandSlot = getSlotRect(slots.logo);
-  if (brandSlot) {
-    if (previewAssets.brand_logo) {
-      drawPreviewImage(ctx, previewAssets.brand_logo, brandSlot, 'contain');
-    } else {
-      drawPreviewPlaceholder(ctx, brandSlot, stage1Data.brand_name || '品牌 Logo');
-    }
-  }
-
-  const brandNameSlot = getSlotRect(slots.brand_name);
-  if (brandNameSlot) {
-    drawPreviewText(ctx, stage1Data.brand_name || '品牌名称', brandNameSlot, {
-      font: fonts.brand,
-      color: '#1f2933',
-    });
-  }
-
-  const agentSlot = getSlotRect(slots.agent_name);
-  if (agentSlot) {
-    drawPreviewText(ctx, (stage1Data.agent_name || '代理名').toUpperCase(), agentSlot, {
-      font: fonts.agent,
-      color: '#1f2933',
-      align: 'right',
-    });
-  }
-
-  const scenarioSlot = getSlotRect(slots.scenario);
-  if (scenarioSlot) {
-    if (previewAssets.scenario) {
-      drawPreviewImage(ctx, previewAssets.scenario, scenarioSlot, 'cover');
-    } else {
-      drawPreviewPlaceholder(ctx, scenarioSlot, stage1Data.scenario_image || '应用场景');
-    }
-  }
-
-  const productSlot = getSlotRect(slots.product);
-  if (productSlot) {
-    if (previewAssets.product) {
-      drawPreviewImage(ctx, previewAssets.product, productSlot, 'contain');
-    } else {
-      drawPreviewPlaceholder(ctx, productSlot, stage1Data.product_name || '产品渲染图');
-    }
-  }
-
-  const titleSlot = getSlotRect(slots.title);
-  if (titleSlot) {
-    drawPreviewText(ctx, stage1Data.title || '标题文案待补充', titleSlot, {
-      font: fonts.title,
-      color: '#ef4c54',
-      align: 'center',
-      lineHeight: 72,
-    });
-  }
-
-  const subtitleSlot = getSlotRect(slots.subtitle);
-  if (subtitleSlot) {
-    drawPreviewText(ctx, stage1Data.subtitle || '副标题待补充', subtitleSlot, {
-      font: fonts.subtitle,
-      color: '#ef4c54',
-      align: 'right',
-      lineHeight: 48,
-    });
-  }
-
-  const callouts = spec.feature_callouts || [];
-  callouts.forEach((callout, index) => {
-    if (!stage1Data.features || !stage1Data.features[index]) return;
-    const labelSlot = getSlotRect(callout.label_box);
-    if (!labelSlot) return;
-    drawPreviewText(
-      ctx,
-      `${index + 1}. ${stage1Data.features[index]}`,
-      labelSlot,
-      {
-        font: fonts.feature,
-        color: '#1f2933',
-        lineHeight: 34,
-      }
-    );
-  });
-
-  const gallery = spec.gallery || {};
-  const galleryItems = gallery.items || [];
-  galleryItems.forEach((slot, index) => {
-    const rect = getSlotRect(slot);
-    if (!rect) return;
-    const image = previewAssets.gallery[index];
-    if (image) {
-      ctx.save();
-      ctx.filter = 'grayscale(100%)';
-      drawPreviewImage(ctx, image, rect, 'cover');
-      ctx.restore();
-    } else {
-      drawPreviewPlaceholder(ctx, rect, `底部小图 ${index + 1}`);
-    }
-
-    const caption = stage1Data.gallery_entries?.[index]?.caption;
-    if (caption) {
-      drawPreviewText(ctx, caption, {
-        x: rect.x + 8,
-        y: rect.y + rect.height - 44,
-        width: rect.width - 16,
-        height: 40,
-      }, {
-        font: fonts.caption,
-        color: '#1f2933',
-        lineHeight: 26,
-      });
-    }
-  });
-
-  const stripSlot = getSlotRect(gallery.strip);
-  if (stripSlot) {
-    drawPreviewText(ctx, stage1Data.series_description || '系列说明待补充', {
-      x: stripSlot.x + 12,
-      y: stripSlot.y + Math.max(stripSlot.height - 44, 0),
-      width: stripSlot.width - 24,
-      height: 40,
-    }, {
-      font: fonts.caption,
-      color: '#1f2933',
-      lineHeight: 24,
-    });
-  }
-}
-
-function loadImageAsset(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.decoding = 'async';
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`无法加载图片：${src}`));
-    img.src = src;
-  });
-}
-
-function drawPreviewImage(ctx, image, slot, mode = 'contain') {
-  const rect = getSlotRect(slot);
-  if (!rect) return;
-  const { x, y, width, height } = rect;
-  let drawWidth = width;
-  let drawHeight = height;
-
-  if (mode === 'cover') {
-    const scale = Math.max(width / image.width, height / image.height);
-    drawWidth = image.width * scale;
-    drawHeight = image.height * scale;
-  } else {
-    const scale = Math.min(width / image.width, height / image.height);
-    drawWidth = image.width * scale;
-    drawHeight = image.height * scale;
-  }
-
-  const offsetX = x + (width - drawWidth) / 2;
-  const offsetY = y + (height - drawHeight) / 2;
-  ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
-}
-
-function drawPreviewPlaceholder(ctx, slot, label) {
-  const rect = getSlotRect(slot);
-  if (!rect) return;
-  const { x, y, width, height } = rect;
-  ctx.save();
-  ctx.strokeStyle = '#cbd2d9';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([10, 8]);
-  ctx.strokeRect(x + 6, y + 6, Math.max(width - 12, 0), Math.max(height - 12, 0));
-  ctx.setLineDash([]);
-  drawPreviewText(ctx, label, rect, {
-    font: '20px "Noto Sans SC", "Microsoft YaHei", sans-serif',
-    color: '#6b7280',
-    align: 'center',
-    lineHeight: 28,
-  });
-  ctx.restore();
-}
-
-function drawPreviewText(ctx, text, slot, options = {}) {
-  if (!text) return;
-  const rect = getSlotRect(slot);
-  if (!rect) return;
-  const { x, y, width, height } = rect;
-  ctx.save();
-  if (options.font) ctx.font = options.font;
-  ctx.fillStyle = options.color || '#1f2933';
-  ctx.textBaseline = 'top';
-  const lines = wrapPreviewText(ctx, text, width);
-  const fontSizeMatch = /([0-9]+(?:\.[0-9]+)?)px/.exec(ctx.font);
-  const fontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 24;
-  const lineHeight = options.lineHeight || fontSize * 1.3;
-  let offsetY = y;
-  lines.forEach((line) => {
-    if (offsetY + lineHeight > y + height) return;
-    let offsetX = x;
-    const measured = ctx.measureText(line);
-    if (options.align === 'center') {
-      offsetX = x + Math.max((width - measured.width) / 2, 0);
-    } else if (options.align === 'right') {
-      offsetX = x + Math.max(width - measured.width, 0);
-    }
-    ctx.fillText(line, offsetX, offsetY);
-    offsetY += lineHeight;
-  });
-  ctx.restore();
-}
-
-function wrapPreviewText(ctx, text, maxWidth) {
-  const tokens = tokeniseText(text);
-  const lines = [];
-  let current = '';
-  tokens.forEach((token) => {
-    if (token === '\n') {
-      if (current.trim()) lines.push(current.trim());
-      current = '';
-      return;
-    }
-    const candidate = current ? current + token : token;
-    const width = ctx.measureText(candidate.trimStart()).width;
-    if (width <= maxWidth || !current.trim()) {
-      current = candidate;
-    } else {
-      if (current.trim()) lines.push(current.trim());
-      current = token.trimStart();
-    }
-  });
-  if (current.trim()) lines.push(current.trim());
-  return lines;
-}
-
-function tokeniseText(text) {
-  const tokens = [];
-  let buffer = '';
-  for (const char of text) {
-    if (char === '\n') {
-      if (buffer) {
-        tokens.push(buffer);
-        buffer = '';
-      }
-      tokens.push('\n');
-    } else if (char === ' ') {
-      buffer += char;
-    } else if (/^[A-Za-z0-9]$/.test(char)) {
-      buffer += char;
-    } else {
-      if (buffer) {
-        tokens.push(buffer);
-        buffer = '';
-      }
-      tokens.push(char);
-    }
-  }
-  if (buffer) tokens.push(buffer);
-  return tokens;
-}
-
-function getSlotRect(slot) {
-  if (!slot) return null;
-  const x = Number(slot.x) || 0;
-  const y = Number(slot.y) || 0;
-  const width = Number(slot.width) || 0;
-  const height = Number(slot.height) || 0;
-  return { x, y, width, height };
 }
 
 function saveStage2Result(data) {
