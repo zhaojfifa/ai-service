@@ -21,7 +21,11 @@ ai-service/
 │   ├── stage2.html       # 环节 2：AI 海报生成
 │   ├── stage3.html       # 环节 3：营销邮件发送
 │   ├── styles.css        # 页面样式
-│   └── app.js            # 多页面脚本，负责状态存储与 API 交互
+│   ├── app.js            # 多页面脚本，负责状态存储与 API 交互
+│   └── templates/        # 锁版模板 Base64 文本、蒙版与规范（供前后端共用）
+├── docs/
+│   └── brand-guides/     # 品牌色板、字体与版式规范
+
 ├── requirements.txt      # 后端依赖
 ├── render.yaml           # Render 部署模版
 └── .gitignore
@@ -76,6 +80,7 @@ uvicorn app.main:app --reload
 2. 返回仓库主页，点击 **Actions** 标签页，确认 `Deploy frontend to GitHub Pages` 工作流已启用（首次会提示“我了解我的工作流”并需要手动启用）。
 3. 将前端或文档改动推送到 `main` 分支，工作流会自动：
    - 检出仓库代码；
+   - 执行 `scripts/decode_template_assets.py`，把提交中的 Base64 文本解码为实际的模板 PNG/蒙版；
    - 上传 `frontend/` 目录作为 Pages 工件；
    - 发布到仓库的 GitHub Pages 站点。
 4. 当工作流执行成功后，`https://<GitHub 用户名>.github.io/ai-service/` 即可访问最新前端页面。
@@ -83,11 +88,31 @@ uvicorn app.main:app --reload
 
 > 如需在本地调试，可直接通过 `file://` 打开 `frontend/index.html` 或使用任意静态服务器（例如 `python -m http.server`）。
 
+## 模板资源解码
+
+由于 GitHub 不再直接存储二进制模板图片，`frontend/templates/` 中的 `*.b64` 文件保存了 Base64 文本。需要在本地或流水线中执行
+以下脚本将其还原为 PNG：
+
+```bash
+python scripts/decode_template_assets.py
+```
+
+脚本会在同目录下生成对应的 `.png` 文件（已在 `.gitignore` 中忽略），生成多次也不会重复写入。当前端页面需要直接引用模板
+图片或蒙版时，请确保已执行上述脚本。
+
 ## 使用流程
 
 1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 中上传品牌 Logo、场景图、产品渲染图，并为 3–4 张底部产品小图分别配上文字说明。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
-2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，点击“生成海报与文案”后调用 FastAPI 接口获取 Glibatree 提示词、海报图（未接入真实服务时展示占位图）以及营销文案，并将结果保存供下一环节使用。
+2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并允许在“锁版模板”下拉框中选择 `frontend/templates/` 目录内的版式。右侧 Canvas 会实时展示程序绘制的挂点、文案与已上传素材，点击“生成海报与文案”后调用 FastAPI 返回 Glibatree 提示词、AI 生成海报（或本地回退图）以及营销文案，并将结果保存供下一环节使用。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
+
+## 模板锁版与局部生成
+
+- **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标与尺寸）。前端预览与后端渲染共用该目录，确保版式一致。
+- **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
+- **后端流水线**：`app/services/glibatree.py` 会先按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
+- **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
+
 
 页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。
 
@@ -96,7 +121,7 @@ uvicorn app.main:app --reload
 若希望在终端快速验证三段式流程，可使用根目录下的 `poster_workflow.py` 脚本：
 
 1. 准备配置文件（项目已提供 `examples/sample_workflow.json` 作为示例），字段与前端填写内容一致：
-   - `poster`：对应 `PosterInput` 的各项素材与文案字段，支持可选的 Base64 图片数据；
+   - `poster`：对应 `PosterInput` 的各项素材与文案字段，支持可选的 Base64 图片数据，并新增 `template_id` 以及带文案的 `gallery_items`；
    - `email`：可选，包含收件人、主题与自定义正文，未配置时脚本会生成默认营销话术。
 2. 运行脚本并指定输入文件，可选地指定输出目录保存结果：
 

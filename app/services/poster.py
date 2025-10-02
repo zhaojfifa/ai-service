@@ -23,9 +23,11 @@ def render_layout_preview(poster: PosterInput) -> str:
         if poster.product_asset
         else poster.product_name
     )
+    gallery_count = sum(1 for item in poster.gallery_items if item.asset)
     gallery_line = (
-        f"已上传 {len(poster.gallery_assets)} 张底部产品小图，配文：{poster.series_description}"
-        if poster.gallery_assets
+        f"已上传 {gallery_count} 张底部产品小图，配文：{poster.series_description}"
+        if gallery_count
+
         else poster.series_description
     )
 
@@ -37,6 +39,11 @@ def render_layout_preview(poster: PosterInput) -> str:
     顶部横条
       · 品牌 Logo（左上）：{logo_line}
       · 品牌代理名 / 分销名（右上）：{poster.agent_name}
+
+
+    模板锁版
+      · 当前模板：{poster.template_id}
+
 
     左侧区域（约 40% 宽）
       · 应用场景图：{scenario_line}
@@ -78,9 +85,10 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
         reference_assets.append(
             "- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。"
         )
-    if poster.gallery_assets:
+    if poster.gallery_items:
         reference_assets.append(
-            f"- 参考素材：底部产品小图共 {len(poster.gallery_assets)} 张，需转为灰度横向排列。"
+            f"- 参考素材：底部产品小图共 {len(poster.gallery_items)} 张，需转为灰度横向排列。"
+
         )
 
     references_block = "\n".join(reference_assets)
@@ -89,18 +97,19 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     agent_title = poster.agent_name.upper()
 
     prompt = f"""
-    使用 "Glibatree Art Designer" 绘制现代简洁风格的厨电宣传海报。
-    关键要求：
-    - 版式：左侧 40% 宽度放置应用场景图，右侧视觉中心展示 {poster.product_name} 的 45° 渲染图。
-    - 顶部横条：左上角嵌入品牌 {poster.brand_name} Logo，右上角用大写字母展示合作代理 {agent_title}。
-    - 产品材质：突出金属与塑料质感，背景为浅灰或白色。
-    - 功能标注：在产品周围添加 3–4 条功能提示，使用虚线连接，黑色小号字体。
+    You are an art director. You will receive a locked poster frame and a binary mask. Fill ONLY the transparent region of the mask. Do not modify or cover any existing pixels (logos, typography, callouts, product edges). Absolutely no new text or logos. No extra UI. Keep composition minimal and premium.
+
+    风格基调：现代简洁（Swiss Minimal），软质棚拍光线，银灰背景，控制红色饱和度不过度抢眼。
+    产品类别：{poster.product_name}
+    品牌：{poster.brand_name}，代理：{poster.agent_name}
+    背景方向：左暗右亮，突出主产品的金属与塑料质感。
+    功能提示：
     {features}
-    - 标题：中心位置使用大号粗体红字写 "{poster.title}"。
-    - 底部：横向排列灰度三视图或系列产品缩略图，文字说明 "{poster.series_description}"。
-    - 副标题：左下角或右下角以大号粗体红字呈现 "{poster.subtitle}"。
-    - 色彩基调：黑 / 红 / 银灰，保持整洁对齐与留白。{reference_section}
-    输出：高分辨率海报，适用于市场营销宣传。
+    底部系列说明：{poster.series_description}
+    副标题：{poster.subtitle}
+    模板：{poster.template_id}
+    注意：仅在 mask 透明区域内补足背景氛围与光影，不得新增文字或移动既有元素。{reference_section}
+
     """
     return textwrap.dedent(prompt).strip()
 
@@ -125,3 +134,4 @@ def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:
     —— {poster.brand_name} · {poster.agent_name}
     """
     return textwrap.dedent(email).strip()
+

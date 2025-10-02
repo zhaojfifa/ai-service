@@ -6,6 +6,7 @@ from functools import lru_cache
 from typing import List
 from urllib.parse import urlparse
 
+
 def _as_bool(value: str | None, default: bool) -> bool:
     """Interpret common truthy / falsy strings while providing a default."""
 
@@ -20,6 +21,7 @@ def _as_list(csv: str | None, fallback: List[str]) -> List[str]:
         return fallback
     items = [x.strip() for x in csv.split(",") if x.strip()]
     return items or fallback
+
 @dataclass
 class EmailConfig:
     host: str | None
@@ -85,7 +87,6 @@ def _parse_allowed_origins(raw: str) -> List[str]:
         if normalised not in cleaned:
             cleaned.append(normalised)
 
-    return cleaned or ["*"]
 @lru_cache()
 def get_settings() -> Settings:
     environment = os.getenv("ENVIRONMENT", "development")

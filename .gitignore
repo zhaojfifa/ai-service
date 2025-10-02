@@ -3,3 +3,5 @@ output/
 .venv/
 env/
 *.pyc
+frontend/templates/*.png
+
