@@ -115,8 +115,6 @@ class PosterServiceTests(unittest.TestCase):
         scenario_pixel = image.getpixel(slot_center(scenario_slot))
         product_pixel = image.getpixel(slot_center(product_slot))
         gallery_pixel = image.getpixel(slot_center(gallery_slot))
-
-
         self.assertGreater(logo_pixel[0], logo_pixel[1])
         self.assertGreater(logo_pixel[0], logo_pixel[2])
         self.assertGreater(scenario_pixel[1], scenario_pixel[0])

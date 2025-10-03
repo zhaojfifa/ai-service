@@ -62,7 +62,6 @@ def _parse_allowed_origins(raw: str | None) -> List[str]:
 
     return cleaned or ["*"]
 
-
 @dataclass
 class EmailConfig:
     host: str | None
@@ -105,14 +104,38 @@ class Settings:
     glibatree: GlibatreeConfig
 
 
+def _parse_allowed_origins(raw: str) -> List[str]:
+    """Normalise comma-separated origins into values accepted by CORSMiddleware."""
+
+    if not raw:
+        return ["*"]
+
+    cleaned: List[str] = []
+    for origin in raw.split(","):
+        value = origin.strip()
+        if not value:
+            continue
+        if value == "*":
+            return ["*"]
+
+        parsed = urlparse(value)
+        if parsed.scheme and parsed.netloc:
+            normalised = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            normalised = value
+
+        if normalised not in cleaned:
+            cleaned.append(normalised)
+
+    return cleaned or ["*"]
+
+
 @lru_cache()
 def get_settings() -> Settings:
     environment = os.getenv("ENVIRONMENT", "development")
+    origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
+    allowed_origins = _parse_allowed_origins(origins_raw)
 
-    # --- CORS ---
-    allowed_origins = _parse_allowed_origins(os.getenv("ALLOWED_ORIGINS"))
-
-    # --- Email ---
     email = EmailConfig(
         host=os.getenv("SMTP_HOST"),
         port=int(os.getenv("SMTP_PORT", "587")),
@@ -123,20 +146,18 @@ def get_settings() -> Settings:
         use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
     )
 
-    # --- Glibatree / OpenAI ---
     api_url = os.getenv("GLIBATREE_API_URL")
-    raw_client = (os.getenv("GLIBATREE_CLIENT") or "").strip().lower()
-
-    if raw_client in {"http", "openai"}:
-        client = raw_client
+    raw_client = os.getenv("GLIBATREE_CLIENT")
+    if raw_client:
+        client = raw_client.strip().lower()
+        if client not in {"http", "openai"}:
+            client = "openai" if (api_url and "openai" in api_url.lower()) else "http"
+    elif api_url and "openai" in api_url.lower():
+        client = "openai"
+    elif api_url:
+        client = "http"
     else:
-        # 根据 URL 做一个合理默认：含 "openai" -> openai，否则 http。
-        if api_url and "openai" in api_url.lower():
-            client = "openai"
-        elif api_url:
-            client = "http"
-        else:
-            client = "openai"  # 默认走 OpenAI SDK，需 GLIBATREE_API_KEY
+        client = "openai"
 
     glibatree = GlibatreeConfig(
         api_url=api_url,

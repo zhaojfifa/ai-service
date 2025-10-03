@@ -25,7 +25,6 @@ ai-service/
 │   └── templates/        # 锁版模板 Base64 文本、蒙版与规范（供前后端共用）
 ├── docs/
 │   └── brand-guides/     # 品牌色板、字体与版式规范
-
 ├── requirements.txt      # 后端依赖
 ├── render.yaml           # Render 部署模版
 └── .gitignore
@@ -97,8 +96,9 @@ uvicorn app.main:app --reload
 python scripts/decode_template_assets.py
 ```
 
-脚本会在同目录下生成对应的 `.png` 文件（已在 `.gitignore` 中忽略），生成多次也不会重复写入。当前端页面需要直接引用模板
-图片或蒙版时，请确保已执行上述脚本。
+脚本会在同目录下生成对应的 `.png` 文件（已在 `.gitignore` 中忽略），生成多次也不会重复写入。后端服务会在缺少 PNG 时自动
+从 `.b64` 文件解码模板与蒙版，当前端页面需要直接引用模板图片或蒙版时，请确保已执行上述脚本。
+
 
 ## 使用流程
 
@@ -112,7 +112,6 @@ python scripts/decode_template_assets.py
 - **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
 - **后端流水线**：`app/services/glibatree.py` 会先按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
-
 
 页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。
 

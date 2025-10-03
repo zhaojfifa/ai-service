@@ -27,7 +27,6 @@ def render_layout_preview(poster: PosterInput) -> str:
     gallery_line = (
         f"已上传 {gallery_count} 张底部产品小图，配文：{poster.series_description}"
         if gallery_count
-
         else poster.series_description
     )
 
@@ -39,12 +38,8 @@ def render_layout_preview(poster: PosterInput) -> str:
     顶部横条
       · 品牌 Logo（左上）：{logo_line}
       · 品牌代理名 / 分销名（右上）：{poster.agent_name}
-
-
     模板锁版
       · 当前模板：{poster.template_id}
-
-
     左侧区域（约 40% 宽）
       · 应用场景图：{scenario_line}
 
@@ -88,7 +83,6 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     if poster.gallery_items:
         reference_assets.append(
             f"- 参考素材：底部产品小图共 {len(poster.gallery_items)} 张，需转为灰度横向排列。"
-
         )
 
     references_block = "\n".join(reference_assets)
@@ -109,7 +103,6 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     副标题：{poster.subtitle}
     模板：{poster.template_id}
     注意：仅在 mask 透明区域内补足背景氛围与光影，不得新增文字或移动既有元素。{reference_section}
-
     """
     return textwrap.dedent(prompt).strip()
 

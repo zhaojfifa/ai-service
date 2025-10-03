@@ -34,8 +34,6 @@ jobs:
       - name: Add .nojekyll
         run: |
           touch frontend/.nojekyll
-
-
       - name: Decode template assets
         run: |
           python scripts/decode_template_assets.py
@@ -43,8 +41,6 @@ jobs:
       # 如有自定义域名，可在此写入 CNAME 文件
       # - name: Add CNAME
       #   run: echo "your.domain.com" > frontend/CNAME
-
-
       - name: Upload frontend artifact
         uses: actions/upload-pages-artifact@v3
         with:

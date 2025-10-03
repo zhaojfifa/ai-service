@@ -14,8 +14,6 @@ import httpx
 import requests
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
-
-
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterImage, PosterInput
 
@@ -55,20 +53,13 @@ def _load_template_resources(template_id: str) -> TemplateResources:
         spec: dict[str, Any] = json.load(handle)
 
     assets = spec.get("assets", {})
-    template_path = TEMPLATE_ROOT / assets.get("template", "")
-    mask_bg_path = TEMPLATE_ROOT / assets.get("mask_background", "")
-    mask_scene_path = TEMPLATE_ROOT / assets.get("mask_scene", "")
+    template_asset = assets.get("template", "")
+    mask_bg_asset = assets.get("mask_background", "")
+    mask_scene_asset = assets.get("mask_scene", "")
 
-    if not template_path.exists():
-        raise FileNotFoundError(f"Template image missing: {template_path}")
-    if not mask_bg_path.exists():
-        raise FileNotFoundError(f"Template mask missing: {mask_bg_path}")
-
-    template_image = Image.open(template_path).convert("RGBA")
-    mask_background = Image.open(mask_bg_path).convert("RGBA")
-    mask_scene = None
-    if mask_scene_path.exists():
-        mask_scene = Image.open(mask_scene_path).convert("RGBA")
+    template_image = _load_template_asset(template_asset)
+    mask_background = _load_template_asset(mask_bg_asset)
+    mask_scene = _load_template_asset(mask_scene_asset, required=False)
 
     return TemplateResources(
         id=template_id,
@@ -79,6 +70,30 @@ def _load_template_resources(template_id: str) -> TemplateResources:
     )
 
 
+def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Image | None:
+    """Load a template asset from PNG or its Base64-encoded fallback."""
+
+    if not asset_name:
+        if required:
+            raise FileNotFoundError("Template asset name is empty")
+        return None
+
+    png_path = TEMPLATE_ROOT / asset_name
+    if png_path.exists():
+        return Image.open(png_path).convert("RGBA")
+
+    b64_path = png_path.with_suffix(".b64")
+    if b64_path.exists():
+        try:
+            decoded = base64.b64decode(b64_path.read_text(encoding="utf-8"))
+            return Image.open(BytesIO(decoded)).convert("RGBA")
+        except (UnidentifiedImageError, ValueError) as exc:
+            raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
+
+    if required:
+        raise FileNotFoundError(f"Template asset missing: {png_path}")
+
+    return None
 def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:
     """Attempt to load a sans-serif font while gracefully falling back to default."""
 
@@ -360,7 +375,6 @@ def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> Pos
     template = _load_template_resources(poster.template_id)
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
-
     settings = get_settings()
     if settings.glibatree.is_configured:
         try:
@@ -458,7 +472,6 @@ def _request_glibatree_openai_edit(
     base_bytes = _image_to_png_bytes(locked_frame)
     mask_bytes = _image_to_png_bytes(template.mask_background)
 
-
     with ExitStack() as stack:
         if http_client is not None:
             stack.callback(http_client.close)
@@ -468,7 +481,6 @@ def _request_glibatree_openai_edit(
             model=config.model or "gpt-image-1",
             image=base_bytes,
             mask=mask_bytes,
-
             prompt=prompt,
             size=OPENAI_IMAGE_SIZE,
             response_format="b64_json",
@@ -590,5 +602,3 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
         width=output.width,
         height=output.height,
     )
-
-
