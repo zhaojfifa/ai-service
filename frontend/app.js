@@ -624,7 +624,11 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 }
 
 function buildLayoutPreview(payload) {
-    payload.template_label || payload.template_id || DEFAULT_STAGE1.template_id;
+    const templateLine =
+    payload.template_label ||
+    payload.template_id ||
+    DEFAULT_STAGE1.template_id;
+
   const logoLine = payload.brand_logo
     ? `已上传品牌 Logo（${payload.brand_name}）`
     : payload.brand_name || '品牌 Logo 待上传';
