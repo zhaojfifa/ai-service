@@ -14,7 +14,6 @@ import httpx
 import requests
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
-
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterImage, PosterInput
 
@@ -95,8 +94,6 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
         raise FileNotFoundError(f"Template asset missing: {png_path}")
 
     return None
-
-
 def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:
     """Attempt to load a sans-serif font while gracefully falling back to default."""
 
@@ -605,4 +602,3 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
         width=output.width,
         height=output.height,
     )
-

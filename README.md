@@ -73,7 +73,6 @@ uvicorn app.main:app --reload
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
 ## GitHub Pages 部署前端
-
 仓库已经内置 GitHub Actions 工作流，自动将 `frontend/` 目录发布到 Pages。首次启用时请按照以下步骤配置：
 
 1. 在仓库的 **Settings → Pages** 页面，将 “Build and deployment” 的 Source 改为 **GitHub Actions**。
@@ -99,6 +98,7 @@ python scripts/decode_template_assets.py
 
 脚本会在同目录下生成对应的 `.png` 文件（已在 `.gitignore` 中忽略），生成多次也不会重复写入。后端服务会在缺少 PNG 时自动
 从 `.b64` 文件解码模板与蒙版，当前端页面需要直接引用模板图片或蒙版时，请确保已执行上述脚本。
+
 
 ## 使用流程
 
