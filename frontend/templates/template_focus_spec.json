@@ -1,0 +1,34 @@
+{
+  "id": "template_focus",
+  "name": "聚焦主体模板",
+  "size": {"width": 1024, "height": 1024},
+  "assets": {
+    "template": "template_focus_template.png",
+    "mask_background": "template_focus_mask_bg.png",
+    "mask_scene": "template_focus_mask_scene.png"
+  },
+  "slots": {
+    "logo": {"x": 92, "y": 84, "width": 144, "height": 72},
+    "brand_name": {"x": 260, "y": 96, "width": 420, "height": 64},
+    "agent_name": {"x": 720, "y": 100, "width": 220, "height": 56},
+    "title": {"x": 120, "y": 420, "width": 808, "height": 72},
+    "subtitle": {"x": 708, "y": 904, "width": 220, "height": 36},
+    "scenario": {"x": 112, "y": 240, "width": 208, "height": 488},
+    "product": {"x": 380, "y": 240, "width": 560, "height": 480}
+  },
+  "feature_callouts": [
+    {"anchor": {"x": 320, "y": 280}, "label_box": {"x": 128, "y": 260, "width": 176, "height": 80}},
+    {"anchor": {"x": 320, "y": 380}, "label_box": {"x": 128, "y": 360, "width": 176, "height": 80}},
+    {"anchor": {"x": 320, "y": 480}, "label_box": {"x": 128, "y": 460, "width": 176, "height": 80}},
+    {"anchor": {"x": 320, "y": 580}, "label_box": {"x": 128, "y": 560, "width": 176, "height": 80}}
+  ],
+  "gallery": {
+    "strip": {"x": 112, "y": 812, "width": 816, "height": 92},
+    "items": [
+      {"x": 128, "y": 820, "width": 176, "height": 88},
+      {"x": 320, "y": 820, "width": 176, "height": 88},
+      {"x": 512, "y": 820, "width": 176, "height": 88},
+      {"x": 704, "y": 820, "width": 176, "height": 88}
+    ]
+  }
+}
