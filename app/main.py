@@ -35,7 +35,6 @@ else:
 # --- CORS ---
 allow_origins = settings.allowed_origins  # 总是返回列表（如 ["*"] 或具体域）
 allow_credentials = allow_origins != ["*"]  # "*" 时禁止携带凭证以符合浏览器规范
-main
 
 app.add_middleware(
     CORSMiddleware,
