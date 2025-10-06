@@ -562,6 +562,7 @@ function renderGalleryItems(state, container, options = {}) {
 
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
+
   const payload = {
     brand_name: formData.get('brand_name')?.toString().trim() || '',
     agent_name: formData.get('agent_name')?.toString().trim() || '',
@@ -571,27 +572,29 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     subtitle: formData.get('subtitle')?.toString().trim() || '',
   };
 
+  // 功能点
   const features = formData
     .getAll('features')
-    .map((feature) => feature.toString().trim())
-    .filter((feature) => feature.length > 0);
-
+    .map((v) => v.toString().trim())
+    .filter(Boolean);
   payload.features = features;
 
-  const galleryEntries = state.galleryEntries.map((entry) => ({
+  // 底部小图
+  const galleryEntries = (state.galleryEntries || []).map((entry) => ({
     id: entry.id,
-    caption: entry.caption.trim(),
-    asset: entry.asset,
+    caption: (entry.caption || '').trim(),
+    asset: entry.asset || null,
   }));
+  const validGalleryEntries = galleryEntries.filter((e) => e.asset);
 
-  const validGalleryEntries = galleryEntries.filter((entry) => entry.asset);
-
+  // 系列说明（用于版式说明条）
   payload.series_description = validGalleryEntries.length
     ? validGalleryEntries
         .map((entry, index) => `小图${index + 1}：${entry.caption || '系列说明待补充'}`)
         .join(' / ')
     : '';
 
+  // 资产与模板
   payload.brand_logo = state.brandLogo;
   payload.scenario_asset = state.scenario;
   payload.product_asset = state.product;
@@ -599,48 +602,39 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
   payload.template_label = state.templateLabel || '';
 
- function collectStage1Data(form, state, { strict = false } = {}) {
-  ...
+  // 严格校验（仅在构建或跳转下一步时启用）
   if (strict) {
--   const missing = [];
--   for (const [key, value] of Object.entries(payload)) {
--     if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
--       continue;
--     }
--     if (typeof value === 'string' && !value) {
--       missing.push(key);
--     }
--   }
-+   // 只检查这些必填项；模板相关是可选的
-+   const REQUIRED = [
-+     'brand_name',
-+     'agent_name',
-+     'scenario_image',
-+     'product_name',
-+     'title',
-+     'subtitle',
-+   ];
-+   const missing = REQUIRED.filter((k) => !payload[k]);
+    // 只校验真正的必填项（模板名/label 等可选）
+    const REQUIRED = [
+      'brand_name',
+      'agent_name',
+      'scenario_image',
+      'product_name',
+      'title',
+      'subtitle',
+    ];
+    const missing = REQUIRED.filter((k) => !payload[k]);
 
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
 
--   const validGalleryEntries = galleryEntries.filter((entry) => entry.asset);
-+   const validGalleryEntries = (payload.gallery_entries || []).filter((e) => e.asset);
-
-    if (validGalleryEntries.length < 3) {
+    const valid = (payload.gallery_entries || []).filter((e) => e.asset);
+    if (valid.length < 3) {
       throw new Error('请上传至少 3 张底部产品小图，并填写对应文案。');
     }
-    if (validGalleryEntries.some((entry) => !entry.caption)) {
+    if (valid.some((e) => !e.caption)) {
       throw new Error('请为每张底部产品小图填写文案说明。');
     }
+
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
     }
   }
+
   return payload;
 }
+
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -725,7 +719,7 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 }
 
 function buildLayoutPreview(payload) {
-    const templateLine =
+  const templateLine =
     payload.template_label ||
     payload.template_id ||
     DEFAULT_STAGE1.template_id;
@@ -733,9 +727,11 @@ function buildLayoutPreview(payload) {
   const logoLine = payload.brand_logo
     ? `已上传品牌 Logo（${payload.brand_name}）`
     : payload.brand_name || '品牌 Logo 待上传';
+
   const scenarioLine = payload.scenario_asset
     ? `已上传应用场景图（描述：${payload.scenario_image || '待补充'}）`
     : payload.scenario_image || '应用场景描述待补充';
+
   const productLine = payload.product_asset
     ? `已上传 45° 渲染图（${payload.product_name}）`
     : payload.product_name || '主产品名称待补充';
@@ -751,10 +747,34 @@ function buildLayoutPreview(payload) {
         .join('\n')
     : '    · 底部产品小图待上传（需提供 3-4 张灰度素材并附文字说明）。';
 
-  return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
-    payload.agent_name || '代理名待填写'
-  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
+  return `模板锁版
+  · 当前模板：${templateLine}
+
+顶部横条
+  · 品牌 Logo（左上）：${logoLine}
+  · 品牌代理名 / 分销名（右上）：${payload.agent_name || '代理名待填写'}
+
+左侧区域（约 40% 宽）
+  · 应用场景图：${scenarioLine}
+
+右侧区域（视觉中心）
+  · 主产品 45° 渲染图：${productLine}
+  · 功能点标注：
+${featuresPreview}
+
+中部标题（大号粗体红字）
+  · ${payload.title || '标题文案待补充'}
+
+底部区域（三视图或系列款式）
+${gallerySummary}
+
+角落副标题 / 标语（大号粗体红字）
+  · ${payload.subtitle || '副标题待补充'}
+
+主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）
+背景：浅灰或白色，保持留白与对齐。`;
 }
+
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
   return {
