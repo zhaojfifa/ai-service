@@ -173,7 +173,6 @@ function initStage1() {
   const galleryFileInput = document.getElementById('gallery-file-input');
   const galleryItemsContainer = document.getElementById('gallery-items');
   
-  window.__stage1 = { form, state, refresh: refreshPreview };
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
