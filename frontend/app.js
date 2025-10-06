@@ -78,6 +78,90 @@ function saveApiBase() {
     localStorage.removeItem(STORAGE_KEYS.apiBase);
   }
 }
+/** 读取表单并生成一份完成度报告 */
+function getCompletionReport(form, state) {
+  const fd = new FormData(form);
+  const text = (n) => (fd.get(n) || '').toString().trim();
+  const features = fd.getAll('features').map(v => v.toString().trim()).filter(Boolean);
+  const galleryWithAsset = (state.galleryEntries || []).filter(e => e.asset);
+  const captionsComplete = galleryWithAsset.every(e => (e.caption || '').trim().length > 0);
+
+  return {
+    '品牌 Logo': Boolean(state.brandLogo),
+    '品牌名称': !!text('brand_name'),
+    '代理名 / 分销名': !!text('agent_name'),
+    '应用场景图': Boolean(state.scenario),
+    '应用场景描述': !!text('scenario_image'),
+    '主产品 45° 渲染图': Boolean(state.product),
+    '主产品名称': !!text('product_name'),
+    '功能点 ≥ 3 条': features.length >= 3,
+    '底部小图 ≥ 3 张': galleryWithAsset.length >= 3,
+    '每张小图有文案': captionsComplete,
+    '标题': !!text('title'),
+    '副标题': !!text('subtitle'),
+  };
+}
+
+/** 把完成度报告渲染到面板 */
+function renderChecklist(form, state) {
+  const report = getCompletionReport(form, state);
+  const list = document.getElementById('check-items');
+  const bar = document.getElementById('check-progress');
+  if (!list || !bar) return;
+
+  const entries = Object.entries(report);
+  const done = entries.filter(([, ok]) => ok).length;
+  const total = entries.length;
+
+  list.innerHTML = '';
+  entries.forEach(([label, ok]) => {
+    const li = document.createElement('li');
+    li.className = ok ? 'ok' : 'missing';
+    li.textContent = `${ok ? '✅' : '⛔'} ${label}`;
+    list.appendChild(li);
+  });
+  bar.style.width = `${Math.round((done / total) * 100)}%`;
+
+  // 同时高亮未完成的输入域
+  applyInvalidHighlight(form, state, report);
+}
+
+/** 根据报告给对应输入域加红框/去红框 */
+function applyInvalidHighlight(form, state, report) {
+  const mark = (el, ok) => {
+    if (!el) return;
+    const box = el.closest('.field') || el.closest('.gallery-upload') || el.closest('.gallery-items');
+    if (box) box.classList.toggle('invalid', !ok);
+  };
+
+  // 文本类
+  mark(form.elements.namedItem('brand_name'), report['品牌名称']);
+  mark(form.elements.namedItem('agent_name'), report['代理名 / 分销名']);
+  mark(form.elements.namedItem('scenario_image'), report['应用场景描述']);
+  mark(form.elements.namedItem('product_name'), report['主产品名称']);
+  mark(form.elements.namedItem('title'), report['标题']);
+  mark(form.elements.namedItem('subtitle'), report['副标题']);
+
+  // 功能点（前3条必填）
+  const featureInputs = form.querySelectorAll('input[name="features"]');
+  featureInputs.forEach((input, idx) => {
+    const ok = input.value.trim().length > 0 || idx >= 3;
+    mark(input, ok);
+  });
+
+  // 底部小图（数量 & 每张有文案）
+  const galleryItemsBox = document.getElementById('gallery-items');
+  const galleryUploadBox = document.querySelector('.gallery-upload');
+  const galleryWithAsset = (state.galleryEntries || []).filter(e => e.asset);
+  if (galleryItemsBox) galleryItemsBox.classList.toggle('invalid', galleryWithAsset.length < 3);
+  if (galleryUploadBox) galleryUploadBox.classList.toggle('invalid', galleryWithAsset.length < 3);
+
+  // 小图文案逐一标记
+  document.querySelectorAll('.gallery-caption input').forEach((input) => {
+    mark(input, input.value.trim().length > 0);
+  });
+}
+
 function initStage1() {
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
@@ -132,6 +216,7 @@ function initStage1() {
       layoutStructure,
       previewContainer
     );
+    renderChecklist(form, state); // ← 新增：刷新完成度面板
     return payload;
   };
 
