@@ -174,6 +174,27 @@ function initStage1() {
     statusElement,
     onChange: refreshPreview,
   });
+  /* 完成度面板 */
+.checklist { margin: .75rem 0 1rem; }
+.checklist h3 { margin: 0 0 .5rem; }
+.checklist .progress { height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+.checklist .progress > span { display: block; height: 100%; width: 0; background: #ef4c54; transition: width .2s; }
+.checklist ul { list-style: none; padding: 0; margin: .75rem 0 0; display: grid; gap: .35rem; }
+.checklist li { font-size: .95rem; display: flex; align-items: center; gap: .5rem; }
+.checklist li.ok { color: #0f7a6c; }
+.checklist li.missing { color: #d64545; }
+
+/* 高亮未完成的输入域 */
+.field.invalid input,
+.field.invalid textarea {
+  border-color: #ef4c54;
+  box-shadow: 0 0 0 2px rgba(239,76,84,.12);
+}
+.gallery-items.invalid,
+.gallery-upload.invalid {
+  border-color: #ef4c54 !important;
+  box-shadow: 0 0 0 2px rgba(239,76,84,.12);
+}
 
   refreshPreview();
   if (galleryButton && galleryFileInput) {
