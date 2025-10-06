@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import unittest
 from unittest.mock import ANY, MagicMock, patch
 

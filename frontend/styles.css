@@ -185,6 +185,7 @@ main {
 .text-grid {
   margin-bottom: 1rem;
 }
+
 .gallery-upload {
   display: flex;
   align-items: flex-start;
@@ -192,6 +193,7 @@ main {
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
+
 .gallery-upload .field-label {
   font-weight: 600;
   display: block;
@@ -271,6 +273,7 @@ main {
   flex-wrap: wrap;
   margin-bottom: 1rem;
 }
+
 .stage-summary {
   background: #f9fafb;
   border: 1px solid #e4e7eb;
@@ -509,6 +512,7 @@ main {
   padding: 0.75rem 1rem;
   border: 1px solid rgba(239, 76, 84, 0.18);
 }
+
 .poster-logo {
   display: flex;
   align-items: center;
@@ -770,6 +774,7 @@ main {
   transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   margin-top: 1.25rem;
 }
+
 .secondary:hover {
   background: rgba(239, 76, 84, 0.08);
   color: #d83a42;

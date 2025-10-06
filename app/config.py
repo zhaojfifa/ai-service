@@ -85,6 +85,7 @@ class GlibatreeConfig:
     proxy: str | None
     client: str  # "http" | "openai"
 
+
     @property
     def use_openai_client(self) -> bool:
         return self.client == "openai"

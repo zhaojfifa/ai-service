@@ -97,6 +97,7 @@ class PosterServiceTests(unittest.TestCase):
 
         _header, encoded = asset.data_url.split(",", 1)
         image = Image.open(BytesIO(base64.b64decode(encoded))).convert("RGB")
+
         spec_path = Path("frontend/templates/template_dual_spec.json")
         spec = json.loads(spec_path.read_text(encoding="utf-8"))
 
@@ -115,6 +116,7 @@ class PosterServiceTests(unittest.TestCase):
         scenario_pixel = image.getpixel(slot_center(scenario_slot))
         product_pixel = image.getpixel(slot_center(product_slot))
         gallery_pixel = image.getpixel(slot_center(gallery_slot))
+
         self.assertGreater(logo_pixel[0], logo_pixel[1])
         self.assertGreater(logo_pixel[0], logo_pixel[2])
         self.assertGreater(scenario_pixel[1], scenario_pixel[0])

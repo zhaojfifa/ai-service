@@ -35,6 +35,8 @@ const placeholderImages = {
   ),
 };
 
+const assetStore = createAssetStore();
+
 const apiBaseInput = document.getElementById('api-base');
 
 init();
@@ -78,6 +80,7 @@ function saveApiBase() {
     localStorage.removeItem(STORAGE_KEYS.apiBase);
   }
 }
+
 /** 读取表单并生成一份完成度报告 */
 function getCompletionReport(form, state) {
   const fd = new FormData(form);
@@ -172,7 +175,6 @@ function initStage1() {
   const galleryButton = document.getElementById('add-gallery-item');
   const galleryFileInput = document.getElementById('gallery-file-input');
   const galleryItemsContainer = document.getElementById('gallery-items');
-  
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
@@ -223,12 +225,23 @@ function initStage1() {
 
   const stored = loadStage1Data();
   if (stored) {
-    applyStage1DataToForm(stored, form, state, inlinePreviews);
-    state.previewBuilt = Boolean(stored.preview_built);
-    currentLayoutPreview = stored.layout_preview || '';
+    void (async () => {
+      await applyStage1DataToForm(stored, form, state, inlinePreviews);
+      state.previewBuilt = Boolean(stored.preview_built);
+      currentLayoutPreview = stored.layout_preview || '';
+      renderGalleryItems(state, galleryItemsContainer, {
+        previewElements,
+        layoutStructure,
+        previewContainer,
+        statusElement,
+        onChange: refreshPreview,
+      });
+      refreshPreview();
+    })();
   } else {
     applyStage1Defaults(form);
     updateInlinePlaceholders(inlinePreviews);
+    refreshPreview();
   }
 
   attachSingleImageHandler(
@@ -260,7 +273,6 @@ function initStage1() {
     statusElement,
     onChange: refreshPreview,
   });
-  
   refreshPreview();
   if (galleryButton && galleryFileInput) {
     galleryButton.addEventListener('click', () => {
@@ -283,10 +295,11 @@ function initStage1() {
       for (const file of selected) {
         try {
           const dataUrl = await fileToDataUrl(file);
+          const asset = await buildAsset(file, dataUrl, null);
           state.galleryEntries.push({
             id: createId(),
             caption: '',
-            asset: buildAsset(file, dataUrl),
+            asset,
           });
         } catch (error) {
           console.error(error);
@@ -393,7 +406,8 @@ function updateInlinePlaceholders(inlinePreviews) {
   if (inlinePreviews.product_asset) inlinePreviews.product_asset.src = placeholderImages.product;
 }
 
-function applyStage1DataToForm(data, form, state, inlinePreviews) {
+async function applyStage1DataToForm(data, form, state, inlinePreviews) {
+
   for (const key of ['brand_name', 'agent_name', 'scenario_image', 'product_name', 'title', 'subtitle']) {
     const element = form.elements.namedItem(key);
     if (element && typeof data[key] === 'string') {
@@ -409,15 +423,17 @@ function applyStage1DataToForm(data, form, state, inlinePreviews) {
     input.value = features[index] ?? '';
   });
 
-  state.brandLogo = data.brand_logo || null;
-  state.scenario = data.scenario_asset || null;
-  state.product = data.product_asset || null;
+  state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
+  state.scenario = await rehydrateStoredAsset(data.scenario_asset);
+  state.product = await rehydrateStoredAsset(data.product_asset);
   state.galleryEntries = Array.isArray(data.gallery_entries)
-    ? data.gallery_entries.map((entry) => ({
-        id: entry.id || createId(),
-        caption: entry.caption || '',
-        asset: entry.asset || null,
-      }))
+    ? await Promise.all(
+        data.gallery_entries.map(async (entry) => ({
+          id: entry.id || createId(),
+          caption: entry.caption || '',
+          asset: await rehydrateStoredAsset(entry.asset),
+        }))
+      )
     : [];
   state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
   state.templateLabel = data.template_label || '';
@@ -437,6 +453,7 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
+      await deleteStoredAsset(state[key]);
       state[key] = null;
       state.previewBuilt = false;
       if (inlinePreview) {
@@ -453,7 +470,8 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
     }
     try {
       const dataUrl = await fileToDataUrl(file);
-      state[key] = buildAsset(file, dataUrl);
+      state[key] = await buildAsset(file, dataUrl, state[key]);
+
       if (inlinePreview) {
         inlinePreview.src = dataUrl;
       }
@@ -491,7 +509,9 @@ function renderGalleryItems(state, container, options = {}) {
     removeButton.type = 'button';
     removeButton.classList.add('secondary');
     removeButton.textContent = '移除';
-    removeButton.addEventListener('click', () => {
+    removeButton.addEventListener('click', async () => {
+      await deleteStoredAsset(entry.asset);
+
       state.galleryEntries = state.galleryEntries.filter((g) => g.id !== entry.id);
       state.previewBuilt = false;
       renderGalleryItems(state, container, {
@@ -521,7 +541,7 @@ function renderGalleryItems(state, container, options = {}) {
       if (!file) return;
       try {
         const dataUrl = await fileToDataUrl(file);
-        entry.asset = buildAsset(file, dataUrl);
+        entry.asset = await buildAsset(file, dataUrl, entry.asset);
         previewImage.src = dataUrl;
         state.previewBuilt = false;
         onChange?.();
@@ -562,7 +582,6 @@ function renderGalleryItems(state, container, options = {}) {
 
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
-
   const payload = {
     brand_name: formData.get('brand_name')?.toString().trim() || '',
     agent_name: formData.get('agent_name')?.toString().trim() || '',
@@ -572,29 +591,27 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     subtitle: formData.get('subtitle')?.toString().trim() || '',
   };
 
-  // 功能点
   const features = formData
     .getAll('features')
-    .map((v) => v.toString().trim())
-    .filter(Boolean);
+    .map((feature) => feature.toString().trim())
+    .filter((feature) => feature.length > 0);
+
   payload.features = features;
 
-  // 底部小图
-  const galleryEntries = (state.galleryEntries || []).map((entry) => ({
+  const galleryEntries = state.galleryEntries.map((entry) => ({
     id: entry.id,
-    caption: (entry.caption || '').trim(),
-    asset: entry.asset || null,
+    caption: entry.caption.trim(),
+    asset: entry.asset,
   }));
-  const validGalleryEntries = galleryEntries.filter((e) => e.asset);
 
-  // 系列说明（用于版式说明条）
+  const validGalleryEntries = galleryEntries.filter((entry) => entry.asset);
+
   payload.series_description = validGalleryEntries.length
     ? validGalleryEntries
         .map((entry, index) => `小图${index + 1}：${entry.caption || '系列说明待补充'}`)
         .join(' / ')
     : '';
 
-  // 资产与模板
   payload.brand_logo = state.brandLogo;
   payload.scenario_asset = state.scenario;
   payload.product_asset = state.product;
@@ -602,28 +619,24 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
   payload.template_label = state.templateLabel || '';
 
-  // 严格校验（仅在构建或跳转下一步时启用）
   if (strict) {
-    // 只校验真正的必填项（模板名/label 等可选）
-    const REQUIRED = [
-      'brand_name',
-      'agent_name',
-      'scenario_image',
-      'product_name',
-      'title',
-      'subtitle',
-    ];
-    const missing = REQUIRED.filter((k) => !payload[k]);
-
+    const missing = [];
+    for (const [key, value] of Object.entries(payload)) {
+      if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
+        continue;
+      }
+      if (typeof value === 'string' && !value) {
+        missing.push(key);
+      }
+    }
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
-
-    const valid = (payload.gallery_entries || []).filter((e) => e.asset);
-    if (valid.length < 3) {
+    if (validGalleryEntries.length < 3) {
       throw new Error('请上传至少 3 张底部产品小图，并填写对应文案。');
     }
-    if (valid.some((e) => !e.caption)) {
+    const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
+    if (captionsIncomplete) {
       throw new Error('请为每张底部产品小图填写文案说明。');
     }
 
@@ -634,7 +647,6 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
-
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -720,14 +732,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 
 function buildLayoutPreview(payload) {
   const templateLine =
-    payload.template_label ||
-    payload.template_id ||
-    DEFAULT_STAGE1.template_id;
-
+    payload.template_label || payload.template_id || DEFAULT_STAGE1.template_id;
   const logoLine = payload.brand_logo
     ? `已上传品牌 Logo（${payload.brand_name}）`
     : payload.brand_name || '品牌 Logo 待上传';
-
   const scenarioLine = payload.scenario_asset
     ? `已上传应用场景图（描述：${payload.scenario_image || '待补充'}）`
     : payload.scenario_image || '应用场景描述待补充';
@@ -747,32 +755,9 @@ function buildLayoutPreview(payload) {
         .join('\n')
     : '    · 底部产品小图待上传（需提供 3-4 张灰度素材并附文字说明）。';
 
-  return `模板锁版
-  · 当前模板：${templateLine}
-
-顶部横条
-  · 品牌 Logo（左上）：${logoLine}
-  · 品牌代理名 / 分销名（右上）：${payload.agent_name || '代理名待填写'}
-
-左侧区域（约 40% 宽）
-  · 应用场景图：${scenarioLine}
-
-右侧区域（视觉中心）
-  · 主产品 45° 渲染图：${productLine}
-  · 功能点标注：
-${featuresPreview}
-
-中部标题（大号粗体红字）
-  · ${payload.title || '标题文案待补充'}
-
-底部区域（三视图或系列款式）
-${gallerySummary}
-
-角落副标题 / 标语（大号粗体红字）
-  · ${payload.subtitle || '副标题待补充'}
-
-主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）
-背景：浅灰或白色，保持留白与对齐。`;
+  return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
+    payload.agent_name || '代理名待填写'
+  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
 }
 
 
@@ -786,13 +771,14 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     title: payload.title,
     subtitle: payload.subtitle,
     series_description: payload.series_description,
-    brand_logo: state.brandLogo,
-    scenario_asset: state.scenario,
-    product_asset: state.product,
+    brand_logo: serialiseAssetForStorage(state.brandLogo),
+    scenario_asset: serialiseAssetForStorage(state.scenario),
+    product_asset: serialiseAssetForStorage(state.product),
     gallery_entries: state.galleryEntries.map((entry) => ({
       id: entry.id,
       caption: entry.caption,
-      asset: entry.asset,
+      asset: serialiseAssetForStorage(entry.asset),
+
     })),
     template_id: state.templateId || DEFAULT_STAGE1.template_id,
     template_label: state.templateLabel || '',
@@ -803,8 +789,34 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
 
 function saveStage1Data(data, options = {}) {
   const { preserveStage2 = false } = options;
-  sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
+  } catch (error) {
+    if (isQuotaError(error)) {
+      console.warn('sessionStorage 容量不足，正在尝试覆盖旧的环节 1 数据。', error);
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.stage1);
+        sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
+      } catch (innerError) {
+        console.error('无法保存环节 1 数据，已放弃持久化。', innerError);
+      }
+    } else {
+      console.error('保存环节 1 数据失败。', error);
+    }
+  }
   if (!preserveStage2) {
+    const stage2Raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
+    if (stage2Raw) {
+      try {
+        const stage2Meta = JSON.parse(stage2Raw);
+        const key = stage2Meta?.poster_image?.storage_key;
+        if (key) {
+          void assetStore.delete(key);
+        }
+      } catch (error) {
+        console.warn('清理环节 2 缓存时解析失败。', error);
+      }
+    }
     sessionStorage.removeItem(STORAGE_KEYS.stage2);
   }
 }
@@ -820,175 +832,155 @@ function loadStage1Data() {
   }
 }
 function initStage2() {
-  const statusElement = document.getElementById('stage2-status');
-  const layoutStructure = document.getElementById('layout-structure-text');
-  const posterOutput = document.getElementById('poster-output');
-  const aiPreview = document.getElementById('ai-preview');
-  const aiSpinner = document.getElementById('ai-spinner');
-  const aiPreviewMessage = document.getElementById('ai-preview-message');
-  const posterVisual = document.getElementById('poster-visual');
-  const posterImage = document.getElementById('poster-image');
-  const promptGroup = document.getElementById('prompt-group');
-  const emailGroup = document.getElementById('email-group');
-  const promptTextarea = document.getElementById('glibatree-prompt');
-  const emailTextarea = document.getElementById('generated-email');
-  const generateButton = document.getElementById('generate-poster');
-  const regenerateButton = document.getElementById('regenerate-poster');
-  const nextButton = document.getElementById('to-stage3');
-  const overviewList = document.getElementById('stage1-overview');
-  const templateSelect = document.getElementById('template-select');
-  const templateCanvas = document.getElementById('template-preview-canvas');
-  const templateDescription = document.getElementById('template-description');
+  void (async () => {
+    const statusElement = document.getElementById('stage2-status');
+    const layoutStructure = document.getElementById('layout-structure-text');
+    const posterOutput = document.getElementById('poster-output');
+    const aiPreview = document.getElementById('ai-preview');
+    const aiSpinner = document.getElementById('ai-spinner');
+    const aiPreviewMessage = document.getElementById('ai-preview-message');
+    const posterVisual = document.getElementById('poster-visual');
+    const posterImage = document.getElementById('poster-image');
+    const promptGroup = document.getElementById('prompt-group');
+    const emailGroup = document.getElementById('email-group');
+    const promptTextarea = document.getElementById('glibatree-prompt');
+    const emailTextarea = document.getElementById('generated-email');
+    const generateButton = document.getElementById('generate-poster');
+    const regenerateButton = document.getElementById('regenerate-poster');
+    const nextButton = document.getElementById('to-stage3');
+    const overviewList = document.getElementById('stage1-overview');
+    const templateSelect = document.getElementById('template-select');
+    const templateCanvas = document.getElementById('template-preview-canvas');
+    const templateDescription = document.getElementById('template-description');
 
-  if (!generateButton || !nextButton) {
-    return;
-  }
-
-  const stage1Data = loadStage1Data();
-  if (!stage1Data || !stage1Data.preview_built) {
-    setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
-    generateButton.disabled = true;
-    if (regenerateButton) {
-      regenerateButton.disabled = true;
+    if (!generateButton || !nextButton) {
+      return;
     }
-    return;
-  }
 
-  const needsTemplatePersist = !('template_id' in stage1Data);
-  stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
-  if (needsTemplatePersist) {
-    stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-    if (layoutStructure) {
-      layoutStructure.textContent = stage1Data.layout_preview;
+    const stage1Data = loadStage1Data();
+    if (!stage1Data || !stage1Data.preview_built) {
+      setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
+      generateButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+      }
+      return;
     }
-    saveStage1Data(stage1Data);
-  }
-  let currentTemplateId = stage1Data.template_id;
 
-  if (layoutStructure && stage1Data.layout_preview) {
-    layoutStructure.textContent = stage1Data.layout_preview;
-  }
+    await hydrateStage1DataAssets(stage1Data);
 
-  let templateRegistry = [];
-
-  const updateSummary = () => {
-    const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
-    const entry = templateRegistry.find((item) => item.id === templateId);
-    const label = entry?.name || stage1Data.template_label || null;
-    populateStage1Summary(stage1Data, overviewList, label);
-  };
-
-  updateSummary();
-
-  async function refreshTemplatePreview(templateId) {
-    if (!templateCanvas) return;
-    try {
-      const assets = await ensureTemplateAssets(templateId);
-      if (templateDescription) {
-        templateDescription.textContent = assets.entry?.description || '';
-      }
-      const previewAssets = await prepareTemplatePreviewAssets(stage1Data);
-      drawTemplatePreview(templateCanvas, assets, stage1Data, previewAssets);
-    } catch (error) {
-      console.error(error);
-      if (templateDescription) {
-        templateDescription.textContent = '';
-      }
-      const ctx = templateCanvas?.getContext?.('2d');
-      if (ctx && templateCanvas) {
-        ctx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
-        ctx.fillStyle = '#f4f5f7';
-        ctx.fillRect(0, 0, templateCanvas.width, templateCanvas.height);
-        ctx.fillStyle = '#6b7280';
-        ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
-        ctx.fillText('模板预览加载失败', 40, 40);
-      }
-    }
-  }
-
-  (async () => {
-    if (!templateSelect || !templateCanvas) return;
-    try {
-      templateRegistry = await loadTemplateRegistry();
-      templateSelect.innerHTML = '';
-      templateRegistry.forEach((entry) => {
-        const option = document.createElement('option');
-        option.value = entry.id;
-        option.textContent = entry.name;
-        templateSelect.appendChild(option);
-      });
-      const activeEntry = templateRegistry.find((entry) => entry.id === currentTemplateId);
-      if (!activeEntry && templateRegistry[0]) {
-        const fallbackEntry = templateRegistry[0];
-        currentTemplateId = fallbackEntry.id;
-        stage1Data.template_id = fallbackEntry.id;
-        stage1Data.template_label = fallbackEntry.name || '';
-        stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-        if (layoutStructure) {
-          layoutStructure.textContent = stage1Data.layout_preview;
-        }
-        saveStage1Data(stage1Data);
-      } else if (activeEntry) {
-        const label = activeEntry.name || '';
-        if (stage1Data.template_label !== label) {
-          stage1Data.template_label = label;
-          stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-          if (layoutStructure) {
-            layoutStructure.textContent = stage1Data.layout_preview;
-          }
-          saveStage1Data(stage1Data, { preserveStage2: true });
-        }
-      }
-      templateSelect.value = currentTemplateId;
-      await refreshTemplatePreview(currentTemplateId);
-      updateSummary();
-    } catch (error) {
-      console.error(error);
-      setStatus(statusElement, '模板清单加载失败，请检查 templates/ 目录。', 'warning');
-    }
-  })();
-
-  if (templateSelect) {
-    templateSelect.addEventListener('change', async (event) => {
-      const value = event.target.value || DEFAULT_STAGE1.template_id;
-      currentTemplateId = value;
-      stage1Data.template_id = value;
-      const entry = templateRegistry.find((item) => item.id === value);
-      stage1Data.template_label = entry?.name || '';
+    const needsTemplatePersist = !('template_id' in stage1Data);
+    stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+    if (needsTemplatePersist) {
       stage1Data.layout_preview = buildLayoutPreview(stage1Data);
       if (layoutStructure) {
         layoutStructure.textContent = stage1Data.layout_preview;
       }
       saveStage1Data(stage1Data);
-      updateSummary();
-      await refreshTemplatePreview(value);
-      setStatus(statusElement, '模板已切换，请重新生成海报以应用新布局。', 'info');
-    });
-  }
+    }
+    let currentTemplateId = stage1Data.template_id;
 
-  generateButton.addEventListener('click', () => {
-    triggerGeneration({
-      stage1Data,
-      statusElement,
-      layoutStructure,
-      posterOutput,
-      aiPreview,
-      aiSpinner,
-      aiPreviewMessage,
-      posterVisual,
-      posterImage,
-      promptGroup,
-      emailGroup,
-      promptTextarea,
-      emailTextarea,
-      generateButton,
-      regenerateButton,
-      nextButton,
-    }).catch((error) => console.error(error));
-  });
+    if (layoutStructure && stage1Data.layout_preview) {
+      layoutStructure.textContent = stage1Data.layout_preview;
+    }
 
-  if (regenerateButton) {
-    regenerateButton.addEventListener('click', () => {
+    let templateRegistry = [];
+
+    const updateSummary = () => {
+      const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+      const entry = templateRegistry.find((item) => item.id === templateId);
+      const label = entry?.name || stage1Data.template_label || null;
+      populateStage1Summary(stage1Data, overviewList, label);
+    };
+
+    updateSummary();
+
+    async function refreshTemplatePreview(templateId) {
+      if (!templateCanvas) return;
+      try {
+        const assets = await ensureTemplateAssets(templateId);
+        if (templateDescription) {
+          templateDescription.textContent = assets.entry?.description || '';
+        }
+        const previewAssets = await prepareTemplatePreviewAssets(stage1Data);
+        drawTemplatePreview(templateCanvas, assets, stage1Data, previewAssets);
+      } catch (error) {
+        console.error(error);
+        if (templateDescription) {
+          templateDescription.textContent = '';
+        }
+        const ctx = templateCanvas?.getContext?.('2d');
+        if (ctx && templateCanvas) {
+          ctx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
+          ctx.fillStyle = '#f4f5f7';
+          ctx.fillRect(0, 0, templateCanvas.width, templateCanvas.height);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
+          ctx.fillText('模板预览加载失败', 40, 40);
+        }
+      }
+    }
+
+    if (templateSelect && templateCanvas) {
+      try {
+        templateRegistry = await loadTemplateRegistry();
+        templateSelect.innerHTML = '';
+        templateRegistry.forEach((entry) => {
+          const option = document.createElement('option');
+          option.value = entry.id;
+          option.textContent = entry.name;
+          templateSelect.appendChild(option);
+        });
+        const activeEntry = templateRegistry.find((entry) => entry.id === currentTemplateId);
+        if (!activeEntry && templateRegistry[0]) {
+          const fallbackEntry = templateRegistry[0];
+          currentTemplateId = fallbackEntry.id;
+          stage1Data.template_id = fallbackEntry.id;
+          stage1Data.template_label = fallbackEntry.name || '';
+          stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+          if (layoutStructure) {
+            layoutStructure.textContent = stage1Data.layout_preview;
+          }
+          saveStage1Data(stage1Data);
+        } else if (activeEntry) {
+          const label = activeEntry.name || '';
+          if (stage1Data.template_label !== label) {
+            stage1Data.template_label = label;
+            stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+            if (layoutStructure) {
+              layoutStructure.textContent = stage1Data.layout_preview;
+            }
+            saveStage1Data(stage1Data, { preserveStage2: true });
+          }
+        }
+        templateSelect.value = currentTemplateId;
+        await refreshTemplatePreview(currentTemplateId);
+        updateSummary();
+      } catch (error) {
+        console.error(error);
+        setStatus(statusElement, '模板清单加载失败，请检查 templates/ 目录。', 'warning');
+      }
+    }
+
+    if (templateSelect) {
+      templateSelect.addEventListener('change', async (event) => {
+        const value = event.target.value || DEFAULT_STAGE1.template_id;
+        currentTemplateId = value;
+        stage1Data.template_id = value;
+        const entry = templateRegistry.find((item) => item.id === value);
+        stage1Data.template_label = entry?.name || '';
+        stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+        if (layoutStructure) {
+          layoutStructure.textContent = stage1Data.layout_preview;
+        }
+        saveStage1Data(stage1Data, { preserveStage2: true });
+        updateSummary();
+        await refreshTemplatePreview(value);
+        setStatus(statusElement, '模板已切换，请重新生成海报以应用新布局。', 'info');
+      });
+    }
+
+    generateButton.addEventListener('click', () => {
       triggerGeneration({
         stage1Data,
         statusElement,
@@ -1008,18 +1000,40 @@ function initStage2() {
         nextButton,
       }).catch((error) => console.error(error));
     });
-  }
 
-  nextButton.addEventListener('click', () => {
-    const stored = loadStage2Result();
-    if (!stored || !stored.poster_image) {
-      setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
-      return;
+    if (regenerateButton) {
+      regenerateButton.addEventListener('click', () => {
+        triggerGeneration({
+          stage1Data,
+          statusElement,
+          layoutStructure,
+          posterOutput,
+          aiPreview,
+          aiSpinner,
+          aiPreviewMessage,
+          posterVisual,
+          posterImage,
+          promptGroup,
+          emailGroup,
+          promptTextarea,
+          emailTextarea,
+          generateButton,
+          regenerateButton,
+          nextButton,
+        }).catch((error) => console.error(error));
+      });
     }
-    window.location.href = 'stage3.html';
-  });
-}
 
+    nextButton.addEventListener('click', async () => {
+      const stored = await loadStage2Result();
+      if (!stored || !stored.poster_image) {
+        setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
+        return;
+      }
+      window.location.href = 'stage3.html';
+    });
+  })();
+}
 function populateStage1Summary(stage1Data, overviewList, templateName) {
   if (!overviewList) return;
   overviewList.innerHTML = '';
@@ -1081,7 +1095,10 @@ async function triggerGeneration(options) {
     return null;
   }
 
+  await hydrateStage1DataAssets(stage1Data);
+
   const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+
   const payload = {
     brand_name: stage1Data.brand_name,
     agent_name: stage1Data.agent_name,
@@ -1161,7 +1178,7 @@ async function triggerGeneration(options) {
       email_body: data.email_body,
       template_id: payload.template_id,
     };
-    saveStage2Result(stage2Result);
+    await saveStage2Result(stage2Result);
     return stage2Result;
   } catch (error) {
     console.error(error);
@@ -1461,6 +1478,7 @@ function deriveBase64Fallback(url) {
   }
   return `${path.slice(0, -4)}.b64`;
 }
+
 function drawPreviewImage(ctx, image, slot, mode = 'contain') {
   const rect = getSlotRect(slot);
   if (!rect) return;
@@ -1589,64 +1607,118 @@ function getSlotRect(slot) {
   return { x, y, width, height };
 }
 
-function saveStage2Result(data) {
-  sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(data));
+async function saveStage2Result(data) {
+  if (!data) return;
+
+  let previousKey = null;
+  const existingRaw = sessionStorage.getItem(STORAGE_KEYS.stage2);
+  if (existingRaw) {
+    try {
+      const existing = JSON.parse(existingRaw);
+      previousKey = existing?.poster_image?.storage_key || null;
+    } catch (error) {
+      console.warn('无法解析现有的环节 2 数据，跳过旧键清理。', error);
+    }
+  }
+
+  const payload = { ...data };
+  if (data.poster_image) {
+    const key = data.poster_image.storage_key || createId();
+    if (data.poster_image.data_url) {
+      await assetStore.put(key, data.poster_image.data_url);
+    }
+    payload.poster_image = {
+      filename: data.poster_image.filename,
+      media_type: data.poster_image.media_type,
+      width: data.poster_image.width,
+      height: data.poster_image.height,
+      storage_key: key,
+    };
+    if (previousKey && previousKey !== key) {
+      await assetStore.delete(previousKey).catch(() => undefined);
+    }
+  }
+
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
+  } catch (error) {
+    if (isQuotaError(error)) {
+      console.warn('sessionStorage 容量不足，正在覆盖旧的环节 2 结果。', error);
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.stage2);
+        sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
+      } catch (innerError) {
+        console.error('无法保存环节 2 结果，已放弃持久化。', innerError);
+      }
+    } else {
+      console.error('保存环节 2 结果失败。', error);
+    }
+  }
 }
 
-function loadStage2Result() {
+async function loadStage2Result() {
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (parsed?.poster_image?.storage_key) {
+      const dataUrl = await assetStore.get(parsed.poster_image.storage_key);
+      if (dataUrl) {
+        parsed.poster_image.data_url = dataUrl;
+      }
+    }
+    return parsed;
   } catch (error) {
     console.error('Unable to parse stage2 result', error);
     return null;
   }
 }
+
 function initStage3() {
-  const statusElement = document.getElementById('stage3-status');
-  const posterImage = document.getElementById('stage3-poster-image');
-  const posterCaption = document.getElementById('stage3-poster-caption');
-  const promptTextarea = document.getElementById('stage3-prompt');
-  const emailRecipient = document.getElementById('email-recipient');
-  const emailSubject = document.getElementById('email-subject');
-  const emailBody = document.getElementById('email-body');
-  const sendButton = document.getElementById('send-email');
+  void (async () => {
+    const statusElement = document.getElementById('stage3-status');
+    const posterImage = document.getElementById('stage3-poster-image');
+    const posterCaption = document.getElementById('stage3-poster-caption');
+    const promptTextarea = document.getElementById('stage3-prompt');
+    const emailRecipient = document.getElementById('email-recipient');
+    const emailSubject = document.getElementById('email-subject');
+    const emailBody = document.getElementById('email-body');
+    const sendButton = document.getElementById('send-email');
 
-  if (!sendButton || !emailRecipient || !emailSubject || !emailBody) {
-    return;
-  }
-
-  const stage1Data = loadStage1Data();
-  const stage2Result = loadStage2Result();
-
-  if (!stage1Data || !stage2Result?.poster_image) {
-    setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
-    sendButton.disabled = true;
-    return;
-  }
-
-  if (posterImage && stage2Result.poster_image?.data_url) {
-    posterImage.src = stage2Result.poster_image.data_url;
-    posterImage.alt = `${stage1Data.product_name} 海报预览`;
-  }
-  if (posterCaption) {
-    posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
-  }
-  if (promptTextarea) {
-    promptTextarea.value = stage2Result.prompt || '';
-  }
-
-  emailSubject.value = buildEmailSubject(stage1Data);
-  emailRecipient.value = stage1Data.default_recipient || DEFAULT_EMAIL_RECIPIENT;
-  emailBody.value = stage2Result.email_body || '';
-
-  sendButton.addEventListener('click', async () => {
-    const apiBase = (apiBaseInput?.value || '').trim();
-    if (!apiBase) {
-      setStatus(statusElement, '请先填写后端 API 地址。', 'warning');
+    if (!sendButton || !emailRecipient || !emailSubject || !emailBody) {
       return;
     }
+
+    const stage1Data = loadStage1Data();
+    const stage2Result = await loadStage2Result();
+
+    if (!stage1Data || !stage2Result?.poster_image) {
+      setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
+      sendButton.disabled = true;
+      return;
+    }
+
+    if (posterImage && stage2Result.poster_image?.data_url) {
+      posterImage.src = stage2Result.poster_image.data_url;
+      posterImage.alt = `${stage1Data.product_name} 海报预览`;
+    }
+    if (posterCaption) {
+      posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
+    }
+    if (promptTextarea) {
+      promptTextarea.value = stage2Result.prompt || '';
+    }
+
+    emailSubject.value = buildEmailSubject(stage1Data);
+    emailRecipient.value = stage1Data.default_recipient || DEFAULT_EMAIL_RECIPIENT;
+    emailBody.value = stage2Result.email_body || '';
+
+    sendButton.addEventListener('click', async () => {
+      const apiBase = (apiBaseInput?.value || '').trim();
+      if (!apiBase) {
+        setStatus(statusElement, '请先填写后端 API 地址。', 'warning');
+        return;
+      }
 
     const recipient = emailRecipient.value.trim();
     const subject = emailSubject.value.trim();
@@ -1684,7 +1756,8 @@ function initStage3() {
     } finally {
       sendButton.disabled = false;
     }
-  });
+    });
+  })();
 }
 
 function buildEmailSubject(stage1Data) {
@@ -1714,12 +1787,19 @@ function createPlaceholder(text) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
-function buildAsset(file, dataUrl) {
+async function buildAsset(file, dataUrl, previousAsset) {
+  const key = createId();
+  await assetStore.put(key, dataUrl);
+  if (previousAsset?.key && previousAsset.key !== key) {
+    await assetStore.delete(previousAsset.key).catch(() => undefined);
+  }
   return {
+    key,
     dataUrl,
     name: file.name,
     type: file.type,
-    lastModified: file.lastModified,
+    size: typeof file.size === 'number' ? file.size : undefined,
+    lastModified: file.lastModified ?? Date.now(),
   };
 }
 
@@ -1728,4 +1808,176 @@ function createId() {
     return crypto.randomUUID();
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function serialiseAssetForStorage(asset) {
+  if (!asset || !asset.key) return null;
+  const { key, name, type, size, lastModified } = asset;
+  return {
+    key,
+    name: name || null,
+    type: type || null,
+    size: typeof size === 'number' ? size : null,
+    lastModified: typeof lastModified === 'number' ? lastModified : null,
+  };
+}
+
+async function rehydrateStoredAsset(assetMeta) {
+  if (!assetMeta) return null;
+  if (assetMeta.dataUrl) return assetMeta;
+  if (!assetMeta.key) return null;
+  const dataUrl = await assetStore.get(assetMeta.key);
+  if (!dataUrl) return { ...assetMeta, dataUrl: null };
+  return { ...assetMeta, dataUrl };
+}
+
+async function hydrateStage1DataAssets(stage1Data) {
+  if (!stage1Data) return stage1Data;
+  stage1Data.brand_logo = await rehydrateStoredAsset(stage1Data.brand_logo);
+  stage1Data.scenario_asset = await rehydrateStoredAsset(stage1Data.scenario_asset);
+  stage1Data.product_asset = await rehydrateStoredAsset(stage1Data.product_asset);
+  if (Array.isArray(stage1Data.gallery_entries)) {
+    stage1Data.gallery_entries = await Promise.all(
+      stage1Data.gallery_entries.map(async (entry) => ({
+        ...entry,
+        asset: await rehydrateStoredAsset(entry.asset),
+      }))
+    );
+  }
+  return stage1Data;
+}
+
+async function deleteStoredAsset(asset) {
+  if (asset?.key) {
+    await assetStore.delete(asset.key).catch(() => undefined);
+  }
+}
+
+function isQuotaError(error) {
+  if (typeof DOMException === 'undefined') return false;
+  return (
+    error instanceof DOMException &&
+    (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+  );
+}
+
+function createAssetStore() {
+  const DB_NAME = 'marketing-poster-assets';
+  const STORE_NAME = 'assets';
+  const VERSION = 1;
+  const memoryStore = new Map();
+  const supportsIndexedDB = typeof indexedDB !== 'undefined';
+  let dbPromise = null;
+
+  function openDb() {
+    if (!supportsIndexedDB) return Promise.resolve(null);
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('无法打开 IndexedDB'));
+      }).catch((error) => {
+        console.warn('IndexedDB 不可用，回退到内存存储。', error);
+        return null;
+      });
+    }
+    return dbPromise;
+  }
+
+  async function put(key, value) {
+    if (!key) return null;
+    const db = await openDb();
+    if (!db) {
+      memoryStore.set(key, value);
+      return key;
+    }
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.onabort = () => {
+        console.warn('IndexedDB 写入失败，使用内存存储。', tx.error);
+        memoryStore.set(key, value);
+        resolve(key);
+      };
+      tx.oncomplete = () => resolve(key);
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(value, key);
+      request.onerror = () => {
+        tx.abort();
+      };
+    });
+  }
+
+  async function get(key) {
+    if (!key) return null;
+    const db = await openDb();
+    if (!db) {
+      return memoryStore.get(key) || null;
+    }
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      tx.onabort = () => {
+        console.warn('IndexedDB 读取失败，使用内存存储。', tx.error);
+        resolve(memoryStore.get(key) || null);
+      };
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => {
+        const result = request.result;
+        if (result) {
+          resolve(result);
+        } else {
+          resolve(memoryStore.get(key) || null);
+        }
+      };
+      request.onerror = () => {
+        tx.abort();
+      };
+    });
+  }
+
+  async function remove(key) {
+    if (!key) return;
+    const db = await openDb();
+    if (!db) {
+      memoryStore.delete(key);
+      return;
+    }
+    await new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => {
+        console.warn('IndexedDB 删除失败，尝试清理内存存储。', tx.error);
+        memoryStore.delete(key);
+        resolve();
+      };
+      tx.objectStore(STORE_NAME).delete(key);
+    });
+    memoryStore.delete(key);
+  }
+
+  async function clear() {
+    const db = await openDb();
+    if (db) {
+      await new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => resolve();
+        tx.objectStore(STORE_NAME).clear();
+      });
+    }
+    memoryStore.clear();
+  }
+
+  return {
+    put,
+    get,
+    delete: remove,
+    clear,
+  };
 }
