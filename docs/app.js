@@ -599,31 +599,46 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
   payload.template_label = state.templateLabel || '';
 
+ function collectStage1Data(form, state, { strict = false } = {}) {
+  ...
   if (strict) {
-    const missing = [];
-    for (const [key, value] of Object.entries(payload)) {
-      if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
-        continue;
-      }
-      if (typeof value === 'string' && !value) {
-        missing.push(key);
-      }
-    }
+-   const missing = [];
+-   for (const [key, value] of Object.entries(payload)) {
+-     if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
+-       continue;
+-     }
+-     if (typeof value === 'string' && !value) {
+-       missing.push(key);
+-     }
+-   }
++   // 只检查这些必填项；模板相关是可选的
++   const REQUIRED = [
++     'brand_name',
++     'agent_name',
++     'scenario_image',
++     'product_name',
++     'title',
++     'subtitle',
++   ];
++   const missing = REQUIRED.filter((k) => !payload[k]);
+
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
+
+-   const validGalleryEntries = galleryEntries.filter((entry) => entry.asset);
++   const validGalleryEntries = (payload.gallery_entries || []).filter((e) => e.asset);
+
     if (validGalleryEntries.length < 3) {
       throw new Error('请上传至少 3 张底部产品小图，并填写对应文案。');
     }
-    const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
-    if (captionsIncomplete) {
+    if (validGalleryEntries.some((entry) => !entry.caption)) {
       throw new Error('请为每张底部产品小图填写文案说明。');
     }
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
     }
   }
-
   return payload;
 }
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
