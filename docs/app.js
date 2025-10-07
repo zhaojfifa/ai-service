@@ -27,7 +27,6 @@ const templateCache = new Map();
 let templateRegistryPromise = null;
 
 const PROMPT_PRESETS_PATH = 'prompts/presets.json';
-let promptPresetPromise = null;
 const PROMPT_SLOTS = ['scenario', 'product', 'gallery'];
 const DEFAULT_PROMPT_VARIANTS = 1;
 
@@ -1590,8 +1589,6 @@ function loadStage1Data() {
     return null;
   }
 }
-
-
 function loadPromptPresets() {
   if (!promptPresetPromise) {
     promptPresetPromise = fetch(PROMPT_PRESETS_PATH)
