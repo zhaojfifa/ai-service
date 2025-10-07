@@ -26,6 +26,11 @@ const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
 const templateCache = new Map();
 let templateRegistryPromise = null;
 
+const PROMPT_PRESETS_PATH = 'prompts/presets.json';
+let promptPresetPromise = null;
+const PROMPT_SLOTS = ['scenario', 'product', 'gallery'];
+const DEFAULT_PROMPT_VARIANTS = 1;
+
 const DEFAULT_EMAIL_RECIPIENT = 'client@example.com';
 
 const placeholderImages = {
@@ -137,10 +142,18 @@ function initStage1() {
     templateLabel: '',
     scenarioMode: DEFAULT_STAGE1.scenario_mode,
     productMode: DEFAULT_STAGE1.product_mode,
+    scenarioType: 'image',
+    scenarioAllowsPrompt: true,
+    scenarioAllowsUpload: true,
+    productType: 'image',
+    productAllowsPrompt: true,
+    productAllowsUpload: true,
     templateSpec: null,
     galleryLimit: 4,
     galleryAllowsPrompt: true,
+    galleryAllowsUpload: true,
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
+    galleryType: 'image',
   };
 
   let currentLayoutPreview = '';
@@ -172,6 +185,7 @@ function initStage1() {
         statusElement,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
+        forcePromptOnly: state.galleryAllowsUpload === false,
         promptPlaceholder:
           state.templateSpec?.materials?.gallery?.promptPlaceholder ||
           '描述要生成的小图内容',
@@ -223,18 +237,54 @@ function initStage1() {
 
     const scenarioMaterial = materials.scenario || {};
     const scenarioLabel = getMaterialLabel('scenario', scenarioMaterial);
-    const scenarioAllowsPrompt = scenarioMaterial.allowsPrompt !== false;
+    const scenarioType = (scenarioMaterial.type || 'image').toLowerCase();
+    const scenarioAllowsUpload = scenarioType !== 'text' && scenarioMaterial.allowsUpload !== false;
+    const scenarioAllowsPrompt =
+      scenarioType === 'text' || scenarioMaterial.allowsPrompt !== false;
+    state.scenarioType = scenarioType;
+    state.scenarioAllowsPrompt = scenarioAllowsPrompt;
+    state.scenarioAllowsUpload = scenarioAllowsUpload;
+
     const scenarioToggleLabel = form.querySelector('[data-material-toggle-label="scenario"]');
     if (scenarioToggleLabel) {
       scenarioToggleLabel.textContent = `${scenarioLabel}素材来源`;
     }
+    const scenarioToggle = form.querySelector('[data-mode-target="scenario"]');
+    const scenarioUploadOption = form.querySelector('[data-mode-option="scenario-upload"]');
+    const scenarioUploadRadio = scenarioUploadOption?.querySelector('input[type="radio"]');
+    if (scenarioUploadOption) {
+      scenarioUploadOption.classList.toggle('hidden', !scenarioAllowsUpload);
+    }
+    if (scenarioUploadRadio) {
+      scenarioUploadRadio.disabled = !scenarioAllowsUpload;
+    }
     const scenarioPromptOption = form.querySelector('[data-mode-option="scenario-prompt"]');
+    const scenarioPromptRadio = scenarioPromptOption?.querySelector('input[type="radio"]');
     if (scenarioPromptOption) {
       scenarioPromptOption.classList.toggle('hidden', !scenarioAllowsPrompt);
     }
+    if (scenarioPromptRadio) {
+      scenarioPromptRadio.disabled = !scenarioAllowsPrompt;
+    }
+    if (scenarioToggle) {
+      scenarioToggle.classList.toggle(
+        'single-mode',
+        !scenarioAllowsUpload || !scenarioAllowsPrompt
+      );
+    }
+
     const scenarioFileLabel = form.querySelector('[data-material-label="scenario"]');
     if (scenarioFileLabel) {
       scenarioFileLabel.textContent = `${scenarioLabel}上传`;
+      scenarioFileLabel.classList.toggle('hidden', !scenarioAllowsUpload);
+    }
+    const scenarioFieldWrapper = form.querySelector('[data-material-field="scenario"]');
+    if (scenarioFieldWrapper) {
+      scenarioFieldWrapper.classList.toggle('hidden', !scenarioAllowsUpload);
+    }
+    const scenarioFileInput = form.querySelector('input[name="scenario_asset"]');
+    if (scenarioFileInput) {
+      scenarioFileInput.disabled = !scenarioAllowsUpload;
     }
     const scenarioDescription = form.querySelector('[data-material-description="scenario"]');
     if (scenarioDescription) {
@@ -247,33 +297,86 @@ function initStage1() {
       scenarioTextarea.placeholder =
         scenarioMaterial.promptPlaceholder || `描述${scenarioLabel}的氛围与细节`;
     }
-    if (!scenarioAllowsPrompt && state.scenarioMode === 'prompt') {
+    let scenarioChanged = false;
+    if (!scenarioAllowsUpload) {
+      if (state.scenario) {
+        await deleteStoredAsset(state.scenario);
+        state.scenario = null;
+        scenarioChanged = true;
+      }
+      state.scenarioMode = 'prompt';
+      if (scenarioUploadRadio) {
+        scenarioUploadRadio.checked = false;
+      }
+      if (scenarioPromptRadio) {
+        scenarioPromptRadio.checked = true;
+      }
+      if (inlinePreviews.scenario_asset) {
+        inlinePreviews.scenario_asset.src = placeholderImages.scenario;
+      }
+    } else if (!scenarioAllowsPrompt && state.scenarioMode === 'prompt') {
       state.scenarioMode = 'upload';
-      const uploadRadio = form.querySelector('input[name="scenario_mode"][value="upload"]');
-      if (uploadRadio) {
-        uploadRadio.checked = true;
+      if (scenarioUploadRadio) {
+        scenarioUploadRadio.checked = true;
       }
-      const promptRadio = form.querySelector('input[name="scenario_mode"][value="prompt"]');
-      if (promptRadio) {
-        promptRadio.checked = false;
+      if (scenarioPromptRadio) {
+        scenarioPromptRadio.checked = false;
       }
+    }
+    if (scenarioChanged) {
+      state.previewBuilt = false;
     }
     applyModeToInputs('scenario', state, form, inlinePreviews, { initial: true });
 
     const productMaterial = materials.product || {};
     const productLabel = getMaterialLabel('product', productMaterial);
-    const productAllowsPrompt = productMaterial.allowsPrompt !== false;
+    const productType = (productMaterial.type || 'image').toLowerCase();
+    const productAllowsUpload = productType !== 'text' && productMaterial.allowsUpload !== false;
+    const productAllowsPrompt = productType === 'text' || productMaterial.allowsPrompt !== false;
+    state.productType = productType;
+    state.productAllowsPrompt = productAllowsPrompt;
+    state.productAllowsUpload = productAllowsUpload;
+
     const productToggleLabel = form.querySelector('[data-material-toggle-label="product"]');
     if (productToggleLabel) {
       productToggleLabel.textContent = `${productLabel}素材来源`;
     }
+    const productToggle = form.querySelector('[data-mode-target="product"]');
+    const productUploadOption = form.querySelector('[data-mode-option="product-upload"]');
+    const productUploadRadio = productUploadOption?.querySelector('input[type="radio"]');
+    if (productUploadOption) {
+      productUploadOption.classList.toggle('hidden', !productAllowsUpload);
+    }
+    if (productUploadRadio) {
+      productUploadRadio.disabled = !productAllowsUpload;
+    }
     const productPromptOption = form.querySelector('[data-mode-option="product-prompt"]');
+    const productPromptRadio = productPromptOption?.querySelector('input[type="radio"]');
     if (productPromptOption) {
       productPromptOption.classList.toggle('hidden', !productAllowsPrompt);
     }
+    if (productPromptRadio) {
+      productPromptRadio.disabled = !productAllowsPrompt;
+    }
+    if (productToggle) {
+      productToggle.classList.toggle(
+        'single-mode',
+        !productAllowsUpload || !productAllowsPrompt
+      );
+    }
+
     const productFileLabel = form.querySelector('[data-material-label="product"]');
     if (productFileLabel) {
       productFileLabel.textContent = `${productLabel}上传`;
+      productFileLabel.classList.toggle('hidden', !productAllowsUpload);
+    }
+    const productFieldWrapper = form.querySelector('[data-material-field="product"]');
+    if (productFieldWrapper) {
+      productFieldWrapper.classList.toggle('hidden', !productAllowsUpload);
+    }
+    const productFileInput = form.querySelector('input[name="product_asset"]');
+    if (productFileInput) {
+      productFileInput.disabled = !productAllowsUpload;
     }
     const productPromptContainer = form.querySelector('[data-material-prompt="product"]');
     if (productPromptContainer) {
@@ -290,22 +393,43 @@ function initStage1() {
       productPromptInput.placeholder =
         productMaterial.promptPlaceholder || `补充${productLabel}的材质、角度等信息`;
     }
-    if (!productAllowsPrompt && state.productMode === 'prompt') {
+    let productChanged = false;
+    if (!productAllowsUpload) {
+      if (state.product) {
+        await deleteStoredAsset(state.product);
+        state.product = null;
+        productChanged = true;
+      }
+      state.productMode = 'prompt';
+      if (productUploadRadio) {
+        productUploadRadio.checked = false;
+      }
+      if (productPromptRadio) {
+        productPromptRadio.checked = true;
+      }
+      if (inlinePreviews.product_asset) {
+        inlinePreviews.product_asset.src = placeholderImages.product;
+      }
+    } else if (!productAllowsPrompt && state.productMode === 'prompt') {
       state.productMode = 'upload';
-      const uploadRadio = form.querySelector('input[name="product_mode"][value="upload"]');
-      if (uploadRadio) {
-        uploadRadio.checked = true;
+      if (productUploadRadio) {
+        productUploadRadio.checked = true;
       }
-      const promptRadio = form.querySelector('input[name="product_mode"][value="prompt"]');
-      if (promptRadio) {
-        promptRadio.checked = false;
+      if (productPromptRadio) {
+        productPromptRadio.checked = false;
       }
+    }
+    if (productChanged) {
+      state.previewBuilt = false;
     }
     applyModeToInputs('product', state, form, inlinePreviews, { initial: true });
 
     const galleryMaterial = materials.gallery || {};
     const galleryLabel = getMaterialLabel('gallery', galleryMaterial);
-    const galleryAllowsPrompt = galleryMaterial.allowsPrompt !== false;
+    const galleryType = (galleryMaterial.type || 'image').toLowerCase();
+    const galleryAllowsUpload = galleryType !== 'text' && galleryMaterial.allowsUpload !== false;
+    const galleryAllowsPrompt =
+      galleryType === 'text' || galleryMaterial.allowsPrompt !== false;
     const slotCount = Array.isArray(spec?.gallery?.items)
       ? spec.gallery.items.length
       : null;
@@ -315,6 +439,8 @@ function initStage1() {
       : slotCount || state.galleryLimit || 4;
     state.galleryLabel = galleryLabel;
     state.galleryAllowsPrompt = galleryAllowsPrompt;
+    state.galleryAllowsUpload = galleryAllowsUpload;
+    state.galleryType = galleryType;
     if (state.galleryLimit !== galleryLimit) {
       const removed = state.galleryEntries.splice(galleryLimit);
       await Promise.all(
@@ -324,13 +450,25 @@ function initStage1() {
     } else {
       state.galleryLimit = galleryLimit;
     }
-    if (!galleryAllowsPrompt) {
+    if (!galleryAllowsUpload) {
+      await Promise.all(
+        state.galleryEntries.map(async (entry) => {
+          if (entry.asset) {
+            await deleteStoredAsset(entry.asset);
+            entry.asset = null;
+          }
+          entry.mode = 'prompt';
+        })
+      );
+      state.previewBuilt = false;
+    } else if (!galleryAllowsPrompt) {
       state.galleryEntries.forEach((entry) => {
         if (entry.mode === 'prompt') {
           entry.mode = 'upload';
           entry.prompt = '';
         }
       });
+      state.previewBuilt = false;
     }
 
     const galleryLabelElement = document.querySelector('[data-gallery-label]');
@@ -339,13 +477,17 @@ function initStage1() {
     }
     const galleryDescription = document.querySelector('[data-gallery-description]');
     if (galleryDescription) {
-      galleryDescription.textContent = galleryAllowsPrompt
+      galleryDescription.textContent = !galleryAllowsUpload
+        ? `每个条目需通过文字描述生成，共 ${galleryLimit} 项，请填写系列说明。`
+        : galleryAllowsPrompt
         ? `每个条目由一张图像与系列说明组成，可上传或使用 AI 生成，共需 ${galleryLimit} 项。`
         : `请上传 ${galleryLimit} 张${galleryLabel}并填写对应说明。`;
     }
     const galleryUploadButton = document.querySelector('[data-gallery-upload]');
     if (galleryUploadButton) {
       galleryUploadButton.textContent = `上传${galleryLabel}`;
+      galleryUploadButton.classList.toggle('hidden', !galleryAllowsUpload);
+      galleryUploadButton.disabled = !galleryAllowsUpload;
     }
     const galleryPromptButton = document.querySelector('[data-gallery-prompt]');
     if (galleryPromptButton) {
@@ -363,9 +505,11 @@ function initStage1() {
       statusElement,
       onChange: refreshPreview,
       allowPrompt: galleryAllowsPrompt,
+      forcePromptOnly: !galleryAllowsUpload,
       promptPlaceholder:
         galleryMaterial.promptPlaceholder || '描述要生成的小图内容',
     });
+    refreshPreview();
   }
 
   async function refreshTemplatePreviewStage1(templateId) {
@@ -474,6 +618,7 @@ function initStage1() {
     statusElement,
     onChange: refreshPreview,
     allowPrompt: state.galleryAllowsPrompt,
+    forcePromptOnly: state.galleryAllowsUpload === false,
     promptPlaceholder:
       state.templateSpec?.materials?.gallery?.promptPlaceholder ||
       '描述要生成的小图内容',
@@ -483,10 +628,27 @@ function initStage1() {
 
   if (galleryButton && galleryFileInput) {
     galleryButton.addEventListener('click', () => {
+      if (!state.galleryAllowsUpload) {
+        setStatus(
+          statusElement,
+          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}由模板限定为 AI 生成，请通过“添加 AI 生成条目”补充素材。`,
+          'info'
+        );
+        return;
+      }
       galleryFileInput.click();
     });
 
     galleryFileInput.addEventListener('change', async (event) => {
+      if (!state.galleryAllowsUpload) {
+        event.target.value = '';
+        setStatus(
+          statusElement,
+          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}当前仅支持文字描述生成。`,
+          'warning'
+        );
+        return;
+      }
       const files = Array.from(event.target.files || []);
       if (!files.length) {
         return;
@@ -529,6 +691,7 @@ function initStage1() {
         statusElement,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
+        forcePromptOnly: state.galleryAllowsUpload === false,
         promptPlaceholder:
           state.templateSpec?.materials?.gallery?.promptPlaceholder ||
           '描述要生成的小图内容',
@@ -571,6 +734,7 @@ function initStage1() {
         statusElement,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
+        forcePromptOnly: state.galleryAllowsUpload === false,
         promptPlaceholder:
           state.templateSpec?.materials?.gallery?.promptPlaceholder ||
           '描述要生成的小图内容',
@@ -735,6 +899,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   state.galleryLimit = typeof data.gallery_limit === 'number' ? data.gallery_limit : state.galleryLimit;
   state.galleryLabel = data.gallery_label || state.galleryLabel;
   state.galleryAllowsPrompt = data.gallery_allows_prompt !== false;
+  state.galleryAllowsUpload = data.gallery_allows_upload !== false;
   if (state.galleryEntries.length > state.galleryLimit) {
     state.galleryEntries = state.galleryEntries.slice(0, state.galleryLimit);
   }
@@ -794,7 +959,11 @@ function applyModeToInputs(target, state, form, inlinePreviews, options = {}) {
   const mode = target === 'scenario' ? state.scenarioMode : state.productMode;
   const fileInput = form.querySelector(`input[name="${target}_asset"]`);
   if (fileInput) {
-    fileInput.disabled = mode === 'prompt';
+    const allowsUpload =
+      target === 'scenario'
+        ? state.scenarioAllowsUpload !== false
+        : state.productAllowsUpload !== false;
+    fileInput.disabled = mode === 'prompt' || !allowsUpload;
   }
   const promptField = form.querySelector(`[data-mode-visible="${target}:prompt"]`);
   if (promptField) {
@@ -819,6 +988,20 @@ async function switchAssetMode(target, mode, context) {
   const { form, state, inlinePreviews, refreshPreview } = context;
   const assetKey = target === 'scenario' ? 'scenario' : 'product';
   const previousMode = target === 'scenario' ? state.scenarioMode : state.productMode;
+  const allowsPrompt =
+    target === 'scenario'
+      ? state.scenarioAllowsPrompt !== false
+      : state.productAllowsPrompt !== false;
+  const allowsUpload =
+    target === 'scenario'
+      ? state.scenarioAllowsUpload !== false
+      : state.productAllowsUpload !== false;
+  if (mode === 'prompt' && !allowsPrompt) {
+    mode = 'upload';
+  }
+  if (mode === 'upload' && !allowsUpload) {
+    mode = 'prompt';
+  }
   if (previousMode === mode) {
     applyModeToInputs(target, state, form, inlinePreviews, { initial: true });
     return;
@@ -846,6 +1029,7 @@ async function switchAssetMode(target, mode, context) {
   state.previewBuilt = false;
   refreshPreview?.();
 }
+
 function renderGalleryItems(state, container, options = {}) {
   const {
     previewElements,
@@ -854,6 +1038,7 @@ function renderGalleryItems(state, container, options = {}) {
     statusElement,
     onChange,
     allowPrompt = true,
+    forcePromptOnly = false,
     promptPlaceholder = '描述要生成的小图内容',
   } = options;
   if (!container) return;
@@ -861,10 +1046,23 @@ function renderGalleryItems(state, container, options = {}) {
 
   const limit = state.galleryLimit || 4;
   const label = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
+  const allowUpload = !forcePromptOnly;
+  const allowPromptMode = forcePromptOnly ? true : allowPrompt;
 
   state.galleryEntries.slice(0, limit).forEach((entry, index) => {
-    entry.mode = entry.mode || 'upload';
+    entry.mode = entry.mode || (allowUpload ? 'upload' : 'prompt');
     entry.prompt = typeof entry.prompt === 'string' ? entry.prompt : '';
+    if (!allowUpload && entry.asset) {
+      void deleteStoredAsset(entry.asset);
+      entry.asset = null;
+      state.previewBuilt = false;
+    }
+    if (!allowUpload) {
+      entry.mode = 'prompt';
+    } else if (!allowPromptMode && entry.mode === 'prompt') {
+      entry.mode = 'upload';
+      state.previewBuilt = false;
+    }
 
     const placeholder = getGalleryPlaceholder(index, label);
 
@@ -894,6 +1092,7 @@ function renderGalleryItems(state, container, options = {}) {
         statusElement,
         onChange,
         allowPrompt,
+        forcePromptOnly,
         promptPlaceholder,
       });
       onChange?.();
@@ -907,25 +1106,35 @@ function renderGalleryItems(state, container, options = {}) {
 
     const modeToggle = document.createElement('div');
     modeToggle.classList.add('mode-toggle', 'gallery-mode-toggle');
+    if (!allowUpload || !allowPromptMode) {
+      modeToggle.classList.add('single-mode');
+    }
     const modeLabel = document.createElement('span');
-    modeLabel.textContent = '素材来源';
+    if (!allowUpload && allowPromptMode) {
+      modeLabel.textContent = '素材来源（模板限定：AI 生成）';
+    } else if (allowUpload && !allowPromptMode) {
+      modeLabel.textContent = '素材来源（模板限定：需上传图像）';
+    } else {
+      modeLabel.textContent = '素材来源';
+    }
     modeToggle.appendChild(modeLabel);
 
     const radioName = `gallery_mode_${entry.id}`;
-    const uploadLabel = document.createElement('label');
-    const uploadRadio = document.createElement('input');
-    uploadRadio.type = 'radio';
-    uploadRadio.name = radioName;
-    uploadRadio.value = 'upload';
-    uploadLabel.appendChild(uploadRadio);
-    uploadLabel.append(' 上传图像');
+    let uploadRadio = null;
+    if (allowUpload) {
+      const uploadLabel = document.createElement('label');
+      uploadRadio = document.createElement('input');
+      uploadRadio.type = 'radio';
+      uploadRadio.name = radioName;
+      uploadRadio.value = 'upload';
+      uploadLabel.appendChild(uploadRadio);
+      uploadLabel.append(' 上传图像');
+      modeToggle.appendChild(uploadLabel);
+    }
 
-    modeToggle.appendChild(uploadLabel);
-
-    let promptLabel;
-    let promptRadio;
-    if (allowPrompt) {
-      promptLabel = document.createElement('label');
+    let promptRadio = null;
+    if (allowPromptMode) {
+      const promptLabel = document.createElement('label');
       promptRadio = document.createElement('input');
       promptRadio.type = 'radio';
       promptRadio.name = radioName;
@@ -942,6 +1151,7 @@ function renderGalleryItems(state, container, options = {}) {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
+    fileInput.disabled = !allowUpload;
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
@@ -956,6 +1166,9 @@ function renderGalleryItems(state, container, options = {}) {
         setStatus(statusElement, '读取底部产品小图时发生错误。', 'error');
       }
     });
+    if (!allowUpload) {
+      fileField.classList.add('mode-hidden');
+    }
     fileField.appendChild(fileInput);
     item.appendChild(fileField);
 
@@ -999,69 +1212,75 @@ function renderGalleryItems(state, container, options = {}) {
 
     async function applyGalleryMode(mode, options = {}) {
       const { initial = false } = options;
-      if (!allowPrompt) {
-        mode = 'upload';
+      let resolvedMode = mode;
+      if (!allowUpload) {
+        resolvedMode = 'prompt';
+      } else if (!allowPromptMode && mode === 'prompt') {
+        resolvedMode = 'upload';
       }
-      entry.mode = mode;
-      const isPrompt = mode === 'prompt';
-      fileInput.disabled = isPrompt;
-      promptTextarea.disabled = !isPrompt || !allowPrompt;
-      if (isPrompt) {
+      entry.mode = resolvedMode;
+      const isPrompt = resolvedMode === 'prompt';
+
+      fileInput.disabled = !allowUpload || isPrompt;
+      if (allowUpload) {
+        fileField.classList.toggle('mode-hidden', isPrompt);
+      } else {
         fileField.classList.add('mode-hidden');
-        promptField.classList.add('mode-visible');
-        if (!initial) {
+      }
+
+      if (allowPromptMode) {
+        promptField.classList.remove('hidden');
+        promptField.classList.toggle('mode-visible', isPrompt);
+        promptTextarea.disabled = !isPrompt;
+      } else {
+        promptField.classList.add('hidden');
+        promptTextarea.disabled = true;
+      }
+
+      if (isPrompt) {
+        if ((!allowUpload && entry.asset) || (allowUpload && entry.asset && !initial)) {
           await deleteStoredAsset(entry.asset);
           entry.asset = null;
-          previewImage.src = placeholder;
-        } else if (!entry.asset?.dataUrl) {
-          previewImage.src = placeholder;
         }
+        previewImage.src = placeholder;
       } else {
-        fileField.classList.remove('mode-hidden');
-        promptField.classList.remove('mode-visible');
         previewImage.src = entry.asset?.dataUrl || placeholder;
       }
+
       if (!initial) {
         state.previewBuilt = false;
         onChange?.();
       }
     }
 
-    uploadRadio.addEventListener('change', () => {
-      if (uploadRadio.checked) {
-        void applyGalleryMode('upload');
-      }
-    });
-    if (allowPrompt && promptRadio) {
+    if (uploadRadio) {
+      uploadRadio.addEventListener('change', () => {
+        if (uploadRadio.checked) {
+          void applyGalleryMode('upload');
+        }
+      });
+      uploadRadio.checked = entry.mode !== 'prompt';
+    }
+
+    if (promptRadio) {
       promptRadio.addEventListener('change', () => {
         if (promptRadio.checked) {
           void applyGalleryMode('prompt');
         }
       });
+      promptRadio.checked = entry.mode === 'prompt';
     }
 
-    if (!allowPrompt) {
+    if (!allowPromptMode) {
       promptField.classList.add('hidden');
       promptTextarea.disabled = true;
-      if (promptRadio) {
-        promptRadio.disabled = true;
-      }
-      uploadRadio.checked = true;
-      entry.mode = 'upload';
-    } else {
-      uploadRadio.checked = entry.mode !== 'prompt';
-      if (promptRadio) {
-        promptRadio.checked = entry.mode === 'prompt';
-      }
     }
 
-    promptTextarea.disabled = entry.mode !== 'prompt' || !allowPrompt;
     void applyGalleryMode(entry.mode, { initial: true });
 
     container.appendChild(item);
   });
 }
-
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
   const payload = {
@@ -1320,6 +1539,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     gallery_limit: state.galleryLimit || 4,
     gallery_label: state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery,
     gallery_allows_prompt: state.galleryAllowsPrompt !== false,
+    gallery_allows_upload: state.galleryAllowsUpload !== false,
     layout_preview: layoutPreview,
     preview_built: previewBuilt,
   };
@@ -1369,6 +1589,394 @@ function loadStage1Data() {
     return null;
   }
 }
+function loadPromptPresets() {
+  if (!promptPresetPromise) {
+    promptPresetPromise = fetch(PROMPT_PRESETS_PATH)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('无法加载提示词预设');
+        }
+        return response.json();
+      })
+      .catch((error) => {
+        promptPresetPromise = null;
+        throw error;
+      });
+  }
+  return promptPresetPromise.then((data) => ({
+    presets: data?.presets || {},
+    defaultAssignments: data?.defaultAssignments || {},
+  }));
+}
+
+const PROMPT_SLOT_LABELS = {
+  scenario: '场景背景',
+  product: '核心产品',
+  gallery: '底部系列小图',
+};
+
+function createPromptState(stage1Data, presets) {
+  const state = {
+    slots: {},
+    seed: parseSeed(stage1Data?.prompt_seed),
+    lockSeed: Boolean(stage1Data?.prompt_lock_seed),
+    variants: clampVariants(Number(stage1Data?.prompt_variants) || DEFAULT_PROMPT_VARIANTS),
+  };
+  const savedSlots = stage1Data?.prompt_settings || {};
+  const presetMap = presets.presets || {};
+  const defaults = presets.defaultAssignments || {};
+  PROMPT_SLOTS.forEach((slot) => {
+    const saved = savedSlots?.[slot] || {};
+    const fallbackId = defaults?.[slot] || Object.keys(presetMap)[0] || null;
+    const presetId = saved.preset || fallbackId;
+    const preset = (presetMap && presetId ? presetMap[presetId] : null) || {};
+    state.slots[slot] = {
+      preset: presetId,
+      positive: saved.positive ?? preset.positive ?? '',
+      negative: saved.negative ?? preset.negative ?? '',
+      aspect: saved.aspect ?? preset.aspect ?? '',
+    };
+  });
+  return state;
+}
+
+function clonePromptState(state) {
+  return JSON.parse(JSON.stringify(state || {}));
+}
+
+function clampVariants(value) {
+  const num = Number.isFinite(value) ? value : Number(value);
+  if (!Number.isFinite(num)) return DEFAULT_PROMPT_VARIANTS;
+  return Math.min(Math.max(Math.round(num), 1), 3);
+}
+
+function parseSeed(raw) {
+  if (raw === '' || raw === null || raw === undefined) return null;
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.floor(num);
+}
+
+function serialisePromptState(state) {
+  const payload = {};
+  PROMPT_SLOTS.forEach((slot) => {
+    const entry = state.slots?.[slot];
+    if (!entry) return;
+    payload[slot] = {
+      preset: entry.preset || null,
+      positive: entry.positive || '',
+      negative: entry.negative || '',
+      aspect: entry.aspect || '',
+    };
+  });
+  return payload;
+}
+
+function buildPromptPreviewText(state) {
+  const lines = [];
+  PROMPT_SLOTS.forEach((slot) => {
+    const entry = state.slots?.[slot];
+    if (!entry) return;
+    lines.push(`【${PROMPT_SLOT_LABELS[slot] || slot}】`);
+    if (entry.positive) {
+      lines.push(`正向：${entry.positive}`);
+    }
+    if (entry.negative) {
+      lines.push(`负向：${entry.negative}`);
+    }
+    if (entry.aspect) {
+      lines.push(`画幅：${entry.aspect}`);
+    }
+    lines.push('');
+  });
+  return lines.join('
+').trim();
+}
+
+function buildPromptRequest(state) {
+  const prompts = {};
+  PROMPT_SLOTS.forEach((slot) => {
+    const entry = state.slots?.[slot];
+    if (!entry) return;
+    prompts[slot] = {
+      preset: entry.preset || null,
+      positive: entry.positive?.trim() || null,
+      negative: entry.negative?.trim() || null,
+      aspect: entry.aspect || null,
+    };
+  });
+  const variants = clampVariants(state.variants || DEFAULT_PROMPT_VARIANTS);
+  const seed = state.lockSeed ? parseSeed(state.seed) : null;
+  return { prompts, variants, seed, lockSeed: Boolean(state.lockSeed) };
+}
+
+function applyPromptStateToInspector(state, elements, presets) {
+  if (!elements) return;
+  const presetMap = presets?.presets || {};
+  PROMPT_SLOTS.forEach((slot) => {
+    const select = elements.selects?.[slot];
+    const positive = elements.positives?.[slot];
+    const negative = elements.negatives?.[slot];
+    const aspectLabel = elements.aspects?.[slot];
+    const entry = state.slots?.[slot];
+    if (select) {
+      select.value = entry?.preset || '';
+    }
+    if (positive) {
+      positive.value = entry?.positive || '';
+    }
+    if (negative) {
+      negative.value = entry?.negative || '';
+    }
+    if (aspectLabel) {
+      const preset = entry?.preset ? presetMap[entry.preset] : null;
+      const aspect = entry?.aspect || preset?.aspect || '';
+      aspectLabel.textContent = aspect ? `推荐画幅：${aspect}` : '未设置画幅约束';
+    }
+  });
+  if (elements.seedInput) {
+    elements.seedInput.value = state.seed ?? '';
+    elements.seedInput.disabled = !state.lockSeed;
+  }
+  if (elements.lockSeedCheckbox) {
+    elements.lockSeedCheckbox.checked = Boolean(state.lockSeed);
+  }
+  if (elements.variantsInput) {
+    elements.variantsInput.value = clampVariants(state.variants || DEFAULT_PROMPT_VARIANTS);
+  }
+}
+
+function populatePresetSelect(select, presets, slot) {
+  if (!select) return;
+  select.innerHTML = '';
+  const presetMap = presets?.presets || {};
+  const entries = Object.entries(presetMap);
+  if (!entries.length) {
+    select.disabled = true;
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = '暂无预设';
+    select.appendChild(option);
+    return;
+  }
+  entries.forEach(([id, config]) => {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = config?.label || `${slot}：${id}`;
+    select.appendChild(option);
+  });
+}
+
+function persistPromptState(stage1Data, state) {
+  stage1Data.prompt_settings = serialisePromptState(state);
+  stage1Data.prompt_seed = parseSeed(state.seed);
+  stage1Data.prompt_lock_seed = Boolean(state.lockSeed);
+  stage1Data.prompt_variants = clampVariants(state.variants || DEFAULT_PROMPT_VARIANTS);
+  saveStage1Data(stage1Data, { preserveStage2: true });
+}
+
+async function setupPromptInspector(stage1Data, { promptTextarea, statusElement } = {}) {
+  const container = document.getElementById('prompt-inspector');
+  if (!container) return null;
+
+  let presets;
+  try {
+    presets = await loadPromptPresets();
+  } catch (error) {
+    console.error('加载提示词预设失败', error);
+    if (statusElement) {
+      setStatus(statusElement, '提示词预设加载失败，将使用空白提示词。', 'warning');
+    }
+    presets = { presets: {}, defaultAssignments: {} };
+  }
+
+  const selects = {};
+  const positives = {};
+  const negatives = {};
+  const aspects = {};
+  const resets = {};
+
+  PROMPT_SLOTS.forEach((slot) => {
+    selects[slot] = container.querySelector(`[data-preset-select="${slot}"]`);
+    positives[slot] = container.querySelector(`[data-positive="${slot}"]`);
+    negatives[slot] = container.querySelector(`[data-negative="${slot}"]`);
+    aspects[slot] = container.querySelector(`[data-aspect="${slot}"]`);
+    resets[slot] = container.querySelector(`[data-reset="${slot}"]`);
+    populatePresetSelect(selects[slot], presets, slot);
+  });
+
+  const seedInput = container.querySelector('#prompt-seed');
+  const lockSeedCheckbox = container.querySelector('#prompt-lock-seed');
+  const variantsInput = container.querySelector('#prompt-variants');
+  const previewButton = container.querySelector('#preview-prompts');
+  const abButton = container.querySelector('#generate-ab');
+
+  const elements = {
+    selects,
+    positives,
+    negatives,
+    aspects,
+    seedInput,
+    lockSeedCheckbox,
+    variantsInput,
+  };
+
+  const state = createPromptState(stage1Data, presets);
+  applyPromptStateToInspector(state, elements, presets);
+
+  const persist = () => {
+    persistPromptState(stage1Data, state);
+  };
+
+  const applyPreset = (slot, presetId) => {
+    const preset = presets.presets?.[presetId] || {};
+    const entry = state.slots[slot];
+    entry.preset = presetId || null;
+    if (preset.positive) {
+      entry.positive = preset.positive;
+    }
+    if (preset.negative !== undefined) {
+      entry.negative = preset.negative || '';
+    }
+    if (preset.aspect) {
+      entry.aspect = preset.aspect;
+    }
+    applyPromptStateToInspector(state, elements, presets);
+    persist();
+  };
+
+  PROMPT_SLOTS.forEach((slot) => {
+    const select = selects[slot];
+    const positive = positives[slot];
+    const negative = negatives[slot];
+    const reset = resets[slot];
+
+    if (select) {
+      select.addEventListener('change', (event) => {
+        applyPreset(slot, event.target.value || null);
+      });
+    }
+
+    if (positive) {
+      positive.addEventListener('input', (event) => {
+        state.slots[slot].positive = event.target.value;
+        persist();
+      });
+    }
+
+    if (negative) {
+      negative.addEventListener('input', (event) => {
+        state.slots[slot].negative = event.target.value;
+        persist();
+      });
+    }
+
+    if (reset) {
+      reset.addEventListener('click', () => {
+        const presetId = state.slots[slot].preset;
+        if (presetId) {
+          applyPreset(slot, presetId);
+        } else {
+          state.slots[slot].positive = '';
+          state.slots[slot].negative = '';
+          state.slots[slot].aspect = '';
+          applyPromptStateToInspector(state, elements, presets);
+          persist();
+        }
+      });
+    }
+  });
+
+  if (lockSeedCheckbox) {
+    lockSeedCheckbox.addEventListener('change', () => {
+      state.lockSeed = lockSeedCheckbox.checked;
+      if (!state.lockSeed) {
+        state.seed = null;
+      }
+      applyPromptStateToInspector(state, elements, presets);
+      persist();
+    });
+  }
+
+  if (seedInput) {
+    seedInput.addEventListener('input', (event) => {
+      state.seed = parseSeed(event.target.value);
+      persist();
+    });
+  }
+
+  if (variantsInput) {
+    variantsInput.addEventListener('change', (event) => {
+      state.variants = clampVariants(Number(event.target.value) || DEFAULT_PROMPT_VARIANTS);
+      applyPromptStateToInspector(state, elements, presets);
+      persist();
+    });
+  }
+
+  if (previewButton && promptTextarea) {
+    previewButton.addEventListener('click', () => {
+      promptTextarea.value = buildPromptPreviewText(state);
+      setStatus(statusElement, '已根据提示词 Inspector 更新预览。', 'info');
+    });
+  }
+
+  const api = {
+    getState: () => clonePromptState(state),
+    buildRequest: () => buildPromptRequest(state),
+    setVariants(value) {
+      state.variants = clampVariants(value);
+      applyPromptStateToInspector(state, elements, presets);
+      persist();
+    },
+    setSeed(value, lock) {
+      if (typeof lock === 'boolean') {
+        state.lockSeed = lock;
+      }
+      state.seed = parseSeed(value);
+      applyPromptStateToInspector(state, elements, presets);
+      persist();
+    },
+    refresh() {
+      applyPromptStateToInspector(state, elements, presets);
+    },
+    presets,
+    applyBackend(bundle) {
+      if (!bundle) return;
+      PROMPT_SLOTS.forEach((slot) => {
+        const incoming = bundle?.[slot];
+        if (!incoming) return;
+        const entry = state.slots[slot];
+        if (!entry) return;
+        if (incoming.preset !== undefined) {
+          entry.preset = incoming.preset || null;
+        }
+        if (incoming.positive !== undefined) {
+          entry.positive = incoming.positive || '';
+        }
+        if (incoming.negative !== undefined) {
+          entry.negative = incoming.negative || '';
+        }
+        if (incoming.aspect !== undefined) {
+          entry.aspect = incoming.aspect || '';
+        }
+      });
+      applyPromptStateToInspector(state, elements, presets);
+      persist();
+    },
+  };
+
+  if (abButton) {
+    abButton.addEventListener('click', () => {
+      api.setVariants(Math.max(2, state.variants || 2));
+      if (typeof options?.onABTest === 'function') {
+        options.onABTest();
+      }
+    });
+  }
+
+  return api;
+}
+
 function initStage2() {
   void (async () => {
     const statusElement = document.getElementById('stage2-status');
@@ -1379,6 +1987,7 @@ function initStage2() {
     const aiPreviewMessage = document.getElementById('ai-preview-message');
     const posterVisual = document.getElementById('poster-visual');
     const posterImage = document.getElementById('poster-image');
+    const variantsStrip = document.getElementById('poster-variants');
     const promptGroup = document.getElementById('prompt-group');
     const emailGroup = document.getElementById('email-group');
     const promptTextarea = document.getElementById('glibatree-prompt');
@@ -1407,6 +2016,30 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
+    let promptManager = null;
+    const runGeneration = (extra = {}) =>
+      triggerGeneration({
+        stage1Data,
+        statusElement,
+        layoutStructure,
+        posterOutput,
+        aiPreview,
+        aiSpinner,
+        aiPreviewMessage,
+        posterVisual,
+        posterImage,
+        variantsStrip,
+        promptGroup,
+        emailGroup,
+        promptTextarea,
+        emailTextarea,
+        generateButton,
+        regenerateButton,
+        nextButton,
+        promptManager,
+        ...extra,
+      }).catch((error) => console.error(error));
+
     const needsTemplatePersist = !('template_id' in stage1Data);
     stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
     if (needsTemplatePersist) {
@@ -1423,6 +2056,20 @@ function initStage2() {
     }
 
     let templateRegistry = [];
+
+    const handleABTest = () => {
+      const request = promptManager?.buildRequest?.() || { variants: 2 };
+      runGeneration({
+        forceVariants: Math.max(2, request.variants || 2),
+        abTest: true,
+      });
+    };
+
+    promptManager = await setupPromptInspector(stage1Data, {
+      promptTextarea,
+      statusElement,
+      onABTest: handleABTest,
+    });
 
     const updateSummary = () => {
       const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
@@ -1521,46 +2168,12 @@ function initStage2() {
     }
 
     generateButton.addEventListener('click', () => {
-      triggerGeneration({
-        stage1Data,
-        statusElement,
-        layoutStructure,
-        posterOutput,
-        aiPreview,
-        aiSpinner,
-        aiPreviewMessage,
-        posterVisual,
-        posterImage,
-        promptGroup,
-        emailGroup,
-        promptTextarea,
-        emailTextarea,
-        generateButton,
-        regenerateButton,
-        nextButton,
-      }).catch((error) => console.error(error));
+      runGeneration();
     });
 
     if (regenerateButton) {
       regenerateButton.addEventListener('click', () => {
-        triggerGeneration({
-          stage1Data,
-          statusElement,
-          layoutStructure,
-          posterOutput,
-          aiPreview,
-          aiSpinner,
-          aiPreviewMessage,
-          posterVisual,
-          posterImage,
-          promptGroup,
-          emailGroup,
-          promptTextarea,
-          emailTextarea,
-          generateButton,
-          regenerateButton,
-          nextButton,
-        }).catch((error) => console.error(error));
+        runGeneration();
       });
     }
 
@@ -1630,6 +2243,7 @@ async function triggerGeneration(options) {
     aiPreviewMessage,
     posterVisual,
     posterImage,
+    variantsStrip,
     promptGroup,
     emailGroup,
     promptTextarea,
@@ -1637,6 +2251,9 @@ async function triggerGeneration(options) {
     generateButton,
     regenerateButton,
     nextButton,
+    promptManager,
+    forceVariants = null,
+    abTest = false,
   } = options;
 
   const apiBase = (apiBaseInput?.value || '').trim();
@@ -1678,11 +2295,33 @@ async function triggerGeneration(options) {
       })) || [],
   };
 
+  const promptConfig = promptManager?.buildRequest?.() || {
+    prompts: {},
+    variants: DEFAULT_PROMPT_VARIANTS,
+    seed: null,
+    lockSeed: false,
+  };
+  if (forceVariants) {
+    promptConfig.variants = clampVariants(forceVariants);
+  }
+  const promptSnapshot = JSON.parse(JSON.stringify(promptConfig));
+  const requestPayload = {
+    poster: payload,
+    render_mode: 'locked',
+    variants: promptConfig.variants,
+    seed: promptConfig.seed,
+    lock_seed: Boolean(promptConfig.lockSeed),
+    prompts: promptConfig.prompts,
+  };
+
   generateButton.disabled = true;
   if (regenerateButton) {
     regenerateButton.disabled = true;
   }
-  setStatus(statusElement, '正在生成海报与营销文案…', 'info');
+  const statusMessage = abTest
+    ? '正在进行 A/B 提示词生成…'
+    : '正在生成海报与营销文案…';
+  setStatus(statusElement, statusMessage, 'info');
 
   if (posterOutput) posterOutput.classList.remove('hidden');
   if (aiPreview) aiPreview.classList.remove('complete');
@@ -1692,12 +2331,16 @@ async function triggerGeneration(options) {
   if (promptGroup) promptGroup.classList.add('hidden');
   if (emailGroup) emailGroup.classList.add('hidden');
   if (nextButton) nextButton.disabled = true;
+  if (variantsStrip) {
+    variantsStrip.innerHTML = '';
+    variantsStrip.classList.add('hidden');
+  }
 
   try {
     const response = await fetch(`${apiBase.replace(/\/$/, '')}/api/generate-poster`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
     });
 
     if (!response.ok) {
@@ -1713,11 +2356,59 @@ async function triggerGeneration(options) {
       posterImage.src = data.poster_image.data_url;
       posterImage.alt = `${payload.product_name} 海报预览`;
     }
+    const promptDetails = data.prompt_details || null;
     if (promptTextarea) {
-      promptTextarea.value = data.prompt || '';
+      if (data.prompt_bundle) {
+        promptTextarea.value = data.prompt_bundle;
+      } else if (data.prompt) {
+        promptTextarea.value = data.prompt;
+      } else if (promptManager?.getState) {
+        promptTextarea.value = buildPromptPreviewText(promptManager.getState());
+      }
     }
     if (emailTextarea) {
       emailTextarea.value = data.email_body || '';
+    }
+    if (variantsStrip) {
+      variantsStrip.innerHTML = '';
+      const variants = Array.isArray(data.variants) ? data.variants : [];
+      if (variants.length > 1) {
+        variantsStrip.classList.remove('hidden');
+        variants.forEach((variant, index) => {
+          if (!variant?.data_url) return;
+          const card = document.createElement('div');
+          card.className = 'variant-card';
+          const img = document.createElement('img');
+          img.src = variant.data_url;
+          img.alt = `${payload.product_name} 海报变体 ${index + 1}`;
+          card.appendChild(img);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'secondary';
+          button.textContent = '设为主图';
+          button.addEventListener('click', async () => {
+            if (posterImage) {
+              posterImage.src = variant.data_url;
+              posterImage.alt = `${payload.product_name} 海报变体 ${index + 1}`;
+            }
+            await saveStage2Result({
+              poster_image: variant,
+              prompt: data.prompt || data.prompt_bundle || '',
+              prompt_details: promptDetails,
+              email_body: data.email_body,
+              template_id: payload.template_id,
+              variants: data.variants || [],
+              prompt_config: promptSnapshot,
+              scores: data.scores || null,
+            });
+            setStatus(statusElement, `已切换至变体 ${index + 1}`, 'info');
+          });
+          card.appendChild(button);
+          variantsStrip.appendChild(card);
+        });
+      } else {
+        variantsStrip.classList.add('hidden');
+      }
     }
     if (aiPreview) aiPreview.classList.add('complete');
     if (aiSpinner) aiSpinner.classList.add('hidden');
@@ -1731,10 +2422,17 @@ async function triggerGeneration(options) {
 
     const stage2Result = {
       poster_image: data.poster_image,
-      prompt: data.prompt,
+      prompt: data.prompt || data.prompt_bundle || '',
+      prompt_details: promptDetails,
       email_body: data.email_body,
       template_id: payload.template_id,
+      variants: data.variants || [],
+      prompt_config: promptSnapshot,
+      scores: data.scores || null,
     };
+    if (promptManager?.applyBackend && data.prompt_bundle) {
+      promptManager.applyBackend(data.prompt_bundle);
+    }
     await saveStage2Result(stage2Result);
     return stage2Result;
   } catch (error) {
@@ -2168,11 +2866,19 @@ async function saveStage2Result(data) {
   if (!data) return;
 
   let previousKey = null;
+  const previousVariantKeys = new Set();
   const existingRaw = sessionStorage.getItem(STORAGE_KEYS.stage2);
   if (existingRaw) {
     try {
       const existing = JSON.parse(existingRaw);
       previousKey = existing?.poster_image?.storage_key || null;
+      if (Array.isArray(existing?.variants)) {
+        existing.variants.forEach((variant) => {
+          if (variant?.storage_key) {
+            previousVariantKeys.add(variant.storage_key);
+          }
+        });
+      }
     } catch (error) {
       console.warn('无法解析现有的环节 2 数据，跳过旧键清理。', error);
     }
@@ -2194,6 +2900,31 @@ async function saveStage2Result(data) {
     if (previousKey && previousKey !== key) {
       await assetStore.delete(previousKey).catch(() => undefined);
     }
+  }
+
+  if (Array.isArray(data.variants)) {
+    payload.variants = [];
+    const usedVariantKeys = new Set();
+    for (const variant of data.variants) {
+      if (!variant) continue;
+      const key = variant.storage_key || createId();
+      if (variant.data_url) {
+        await assetStore.put(key, variant.data_url);
+      }
+      payload.variants.push({
+        filename: variant.filename,
+        media_type: variant.media_type,
+        width: variant.width,
+        height: variant.height,
+        storage_key: key,
+      });
+      usedVariantKeys.add(key);
+    }
+    previousVariantKeys.forEach((key) => {
+      if (!usedVariantKeys.has(key)) {
+        void assetStore.delete(key).catch(() => undefined);
+      }
+    });
   }
 
   try {
@@ -2223,6 +2954,18 @@ async function loadStage2Result() {
       if (dataUrl) {
         parsed.poster_image.data_url = dataUrl;
       }
+    }
+    if (Array.isArray(parsed?.variants)) {
+      await Promise.all(
+        parsed.variants.map(async (variant) => {
+          if (variant?.storage_key) {
+            const dataUrl = await assetStore.get(variant.storage_key);
+            if (dataUrl) {
+              variant.data_url = dataUrl;
+            }
+          }
+        })
+      );
     }
     return parsed;
   } catch (error) {

@@ -1,20 +1,79 @@
 {
   "id": "template_dual",
   "name": "双列功能模板",
+  "version": "2025.02",
   "size": {"width": 1024, "height": 1024},
   "assets": {
     "template": "template_dual_template.png",
     "mask_background": "template_dual_mask_bg.png",
     "mask_scene": "template_dual_mask_scene.png"
   },
+  "materials": {
+    "brand_logo": {"type": "image", "label": "品牌 Logo", "mode": "place"},
+    "scenario": {
+      "type": "image",
+      "label": "应用场景图",
+      "mode": "generate",
+      "allowsPrompt": true,
+      "promptPlaceholder": "描述左侧场景的氛围、主体与光线"
+    },
+    "product": {
+      "type": "image",
+      "label": "产品 45° 渲染图",
+      "mode": "generate",
+      "allowsPrompt": true
+    },
+    "gallery": {
+      "type": "image",
+      "label": "底部产品小图",
+      "mode": "process",
+      "allowsPrompt": true,
+      "count": 4,
+      "promptPlaceholder": "描述系列产品的视角与造型"
+    }
+  },
   "slots": {
-    "logo": {"x": 96, "y": 92, "width": 136, "height": 64},
-    "brand_name": {"x": 248, "y": 96, "width": 360, "height": 64},
-    "agent_name": {"x": 768, "y": 96, "width": 152, "height": 56},
-    "scenario": {"x": 112, "y": 240, "width": 320, "height": 504},
-    "product": {"x": 520, "y": 240, "width": 392, "height": 504},
-    "title": {"x": 112, "y": 772, "width": 832, "height": 60},
-    "subtitle": {"x": 720, "y": 924, "width": 216, "height": 40}
+    "logo": {"x": 96, "y": 92, "width": 136, "height": 64, "guidance": {"mode": "place"}},
+    "brand_name": {"x": 248, "y": 96, "width": 360, "height": 64, "guidance": {"mode": "place", "align": "left"}},
+    "agent_name": {"x": 768, "y": 96, "width": 152, "height": 56, "guidance": {"mode": "place", "align": "right"}},
+    "scenario": {
+      "x": 112,
+      "y": 240,
+      "width": 320,
+      "height": 504,
+      "guidance": {
+        "mode": "generate",
+        "preset": "scenario-closeup",
+        "aspect": "1:1",
+        "mask": "mask_scene"
+      }
+    },
+    "product": {
+      "x": 520,
+      "y": 240,
+      "width": 392,
+      "height": 504,
+      "guidance": {
+        "mode": "generate",
+        "preset": "hero-white-bg",
+        "aspect": "4:5",
+        "alpha_required": true
+      }
+    },
+    "title": {
+      "x": 112,
+      "y": 772,
+      "width": 832,
+      "height": 60,
+      "guidance": {"mode": "place", "fill": "brand_red", "align": "center"}
+    },
+    "subtitle": {
+      "x": 720,
+      "y": 924,
+      "width": 216,
+      "height": 40,
+      "guidance": {"mode": "place", "fill": "brand_red", "align": "right"}
+    }
   },
   "feature_callouts": [
     {"anchor": {"x": 520, "y": 320}, "label_box": {"x": 560, "y": 288, "width": 360, "height": 72}},
@@ -25,10 +84,34 @@
   "gallery": {
     "strip": {"x": 112, "y": 840, "width": 832, "height": 104},
     "items": [
-      {"x": 112, "y": 840, "width": 176, "height": 104},
-      {"x": 304, "y": 840, "width": 176, "height": 104},
-      {"x": 496, "y": 840, "width": 176, "height": 104},
-      {"x": 688, "y": 840, "width": 176, "height": 104}
+      {
+        "x": 112,
+        "y": 840,
+        "width": 176,
+        "height": 104,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale", "contrast+8"]}
+      },
+      {
+        "x": 304,
+        "y": 840,
+        "width": 176,
+        "height": 104,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale"]}
+      },
+      {
+        "x": 496,
+        "y": 840,
+        "width": 176,
+        "height": 104,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale"]}
+      },
+      {
+        "x": 688,
+        "y": 840,
+        "width": 176,
+        "height": 104,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale"]}
+      }
     ]
   }
 }
