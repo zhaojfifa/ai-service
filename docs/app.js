@@ -1591,7 +1591,6 @@ function loadStage1Data() {
   }
 }
 
-let promptPresetPromise = null; // 确保声明
 
 function loadPromptPresets() {
   if (!promptPresetPromise) {
