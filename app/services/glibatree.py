@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 from contextlib import ExitStack
 from dataclasses import dataclass
 from functools import lru_cache
@@ -14,13 +15,16 @@ import httpx
 import requests
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+
 from app.config import GlibatreeConfig, get_settings
-from app.schemas import PosterImage, PosterInput
+from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 
 
 logger = logging.getLogger(__name__)
 
 OPENAI_IMAGE_SIZE = "1024x1024"
+ASSET_IMAGE_SIZE = os.getenv("OPENAI_ASSET_SIZE", OPENAI_IMAGE_SIZE)
+GALLERY_IMAGE_SIZE = os.getenv("OPENAI_GALLERY_SIZE", "512x512")
 TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "frontend" / "templates"
 DEFAULT_TEMPLATE_ID = "template_dual"
 
@@ -28,6 +32,16 @@ BRAND_RED = (239, 76, 84)
 INK_BLACK = (31, 41, 51)
 SILVER = (244, 245, 247)
 GUIDE_GREY = (203, 210, 217)
+
+
+def _copy_model(instance, **update):
+    """Compatibility helper for cloning Pydantic v1/v2 models with updates."""
+
+    if hasattr(instance, "model_copy"):
+        return instance.model_copy(update=update, deep=True)  # type: ignore[attr-defined]
+    data = instance.dict()
+    data.update(update)
+    return type(instance)(**data)
 
 
 @dataclass
@@ -94,6 +108,8 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
         raise FileNotFoundError(f"Template asset missing: {png_path}")
 
     return None
+
+
 def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:
     """Attempt to load a sans-serif font while gracefully falling back to default."""
 
@@ -602,3 +618,198 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
         width=output.width,
         height=output.height,
     )
+
+
+def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
+    if not config.api_key:
+        raise ValueError("GLIBATREE_API_KEY 未配置，无法调用 OpenAI 生成素材。")
+
+    client_kwargs: dict[str, Any] = {"api_key": config.api_key}
+    if config.api_url:
+        client_kwargs["base_url"] = config.api_url
+
+    http_client: httpx.Client | None = None
+    if config.proxy:
+        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
+        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
+        client_kwargs["http_client"] = http_client
+
+    with ExitStack() as stack:
+        if http_client is not None:
+            stack.callback(http_client.close)
+
+        client = OpenAI(**client_kwargs)
+        response = client.images.generate(
+            model=config.model or "gpt-image-1",
+            prompt=prompt,
+            size=size,
+        )
+
+    if not response.data:
+        raise ValueError("OpenAI 未返回任何图像数据。")
+
+    image = response.data[0]
+    b64_data = getattr(image, "b64_json", None)
+    if not b64_data:
+        raise ValueError("OpenAI 响应缺少 b64_json 字段。")
+
+    return f"data:image/png;base64,{b64_data}"
+
+
+def _enforce_template_materials(
+    poster: PosterInput, template: TemplateResources
+) -> tuple[PosterInput, dict[str, Any]]:
+    """Ensure poster inputs respect the selected template's material constraints."""
+
+    materials = template.spec.get("materials", {})
+
+    scenario_material = materials.get("scenario", {})
+    scenario_type = (scenario_material.get("type") or "image").lower()
+    scenario_allows_prompt = bool(scenario_material.get("allowsPrompt")) and scenario_type == "image"
+
+    product_material = materials.get("product", {})
+    product_type = (product_material.get("type") or "image").lower()
+    product_allows_prompt = bool(product_material.get("allowsPrompt")) and product_type == "image"
+
+    gallery_material = materials.get("gallery", {})
+    gallery_type = (gallery_material.get("type") or "image").lower()
+    gallery_allows_prompt = bool(gallery_material.get("allowsPrompt")) and gallery_type == "image"
+
+    gallery_spec = template.spec.get("gallery", {})
+    gallery_slot_count = len(gallery_spec.get("items", []) or [])
+    gallery_limit_raw = gallery_material.get("count")
+    try:
+        gallery_limit_from_material = int(gallery_limit_raw) if gallery_limit_raw is not None else None
+    except (TypeError, ValueError):
+        gallery_limit_from_material = None
+
+    gallery_limit = gallery_limit_from_material or gallery_slot_count or len(poster.gallery_items)
+
+    updates: dict[str, Any] = {}
+
+    if poster.scenario_mode == "prompt" and not scenario_allows_prompt:
+        logger.info(
+            "Template %s disallows prompt mode for scenario; reverting to upload.",
+            template.id,
+        )
+        updates["scenario_mode"] = "upload"
+
+    if poster.product_mode == "prompt" and not product_allows_prompt:
+        logger.info(
+            "Template %s disallows prompt mode for product; reverting to upload.",
+            template.id,
+        )
+        updates["product_mode"] = "upload"
+
+    sanitised_gallery: list[PosterGalleryItem] = []
+    gallery_changed = False
+    for index, item in enumerate(poster.gallery_items):
+        if index >= gallery_limit:
+            gallery_changed = True
+            break
+
+        desired_mode = item.mode
+        if desired_mode == "prompt" and not gallery_allows_prompt:
+            desired_mode = "upload"
+
+        sanitised_item = item if desired_mode == item.mode else _copy_model(item, mode=desired_mode)
+        sanitised_gallery.append(sanitised_item)
+        if sanitised_item is not item:
+            gallery_changed = True
+
+    if len(poster.gallery_items) != len(sanitised_gallery):
+        gallery_changed = True
+
+    if gallery_changed:
+        updates["gallery_items"] = sanitised_gallery
+
+    if updates:
+        poster = _copy_model(poster, **updates)
+
+    material_flags = {
+        "scenario": {"allows_prompt": scenario_allows_prompt, "type": scenario_type},
+        "product": {"allows_prompt": product_allows_prompt, "type": product_type},
+        "gallery": {
+            "allows_prompt": gallery_allows_prompt,
+            "type": gallery_type,
+            "count": gallery_limit,
+        },
+    }
+
+    return poster, material_flags
+
+
+def prepare_poster_assets(poster: PosterInput) -> PosterInput:
+    """Resolve AI-generated assets for scenario, product, and gallery slots."""
+
+    template = _load_template_resources(poster.template_id)
+    poster, material_flags = _enforce_template_materials(poster, template)
+
+    settings = get_settings()
+    config = settings.glibatree
+
+    if not config.use_openai_client or not config.api_key:
+        return poster
+
+    updates: dict[str, Any] = {}
+
+    scenario_allows_prompt = material_flags["scenario"].get("allows_prompt", False)
+    if (
+        scenario_allows_prompt
+        and poster.scenario_mode == "prompt"
+        and not poster.scenario_asset
+    ):
+        prompt_text = poster.scenario_prompt or poster.scenario_image
+        if prompt_text:
+            try:
+                scenario_asset = _generate_image_from_openai(config, prompt_text, ASSET_IMAGE_SIZE)
+                updates["scenario_asset"] = scenario_asset
+            except Exception:  # pragma: no cover - network failure paths
+                logger.exception("Failed to generate scenario asset from prompt: %s", prompt_text)
+
+    product_allows_prompt = material_flags["product"].get("allows_prompt", False)
+    if (
+        product_allows_prompt
+        and poster.product_mode == "prompt"
+        and not poster.product_asset
+    ):
+        prompt_text = poster.product_prompt or poster.product_name
+        if prompt_text:
+            try:
+                product_asset = _generate_image_from_openai(config, prompt_text, ASSET_IMAGE_SIZE)
+                updates["product_asset"] = product_asset
+            except Exception:  # pragma: no cover - network failure paths
+                logger.exception("Failed to generate product asset from prompt: %s", prompt_text)
+
+    gallery_flags = material_flags["gallery"]
+    gallery_allows_prompt = gallery_flags.get("allows_prompt", False)
+    gallery_limit = gallery_flags.get("count") or len(poster.gallery_items)
+
+    gallery_updates: list[PosterGalleryItem] = []
+    gallery_changed = False
+    for index, item in enumerate(poster.gallery_items):
+        if index >= gallery_limit:
+            break
+        if (
+            gallery_allows_prompt
+            and item.mode == "prompt"
+            and not item.asset
+            and item.prompt
+        ):
+            try:
+                asset_url = _generate_image_from_openai(config, item.prompt, GALLERY_IMAGE_SIZE)
+                gallery_updates.append(_copy_model(item, asset=asset_url))
+                gallery_changed = True
+            except Exception:  # pragma: no cover - network failure paths
+                logger.exception("Failed to generate gallery asset from prompt: %s", item.prompt)
+                gallery_updates.append(item)
+        else:
+            gallery_updates.append(item)
+
+    if gallery_changed:
+        updates["gallery_items"] = gallery_updates
+
+    if updates:
+        return _copy_model(poster, **updates)
+    return poster
+

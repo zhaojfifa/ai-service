@@ -5,10 +5,15 @@ import json
 import unittest
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 try:
-    from app.schemas import PosterInput
-    from app.services.glibatree import generate_poster_asset
+    from app.schemas import PosterGalleryItem, PosterInput
+    from app.services.glibatree import (
+        TemplateResources,
+        generate_poster_asset,
+        prepare_poster_assets,
+    )
     from app.services.poster import (
         build_glibatree_prompt,
         compose_marketing_email,
@@ -19,6 +24,8 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised via skip
     DEPENDENCY_ERROR = exc
     PosterInput = None  # type: ignore[assignment]
     generate_poster_asset = build_glibatree_prompt = compose_marketing_email = render_layout_preview = None  # type: ignore[assignment]
+    prepare_poster_assets = None  # type: ignore[assignment]
+    TemplateResources = None  # type: ignore[assignment]
     Image = None  # type: ignore[assignment]
 else:
     DEPENDENCY_ERROR = None
@@ -73,6 +80,40 @@ class PosterServiceTests(unittest.TestCase):
                 self.assertIn(feature, email)
         self.assertIn(poster_image_filename, email)
 
+    def test_preview_mentions_ai_generation_when_prompt_modes(self) -> None:
+        update = {
+            "scenario_mode": "prompt",
+            "scenario_prompt": "开放式厨房柔和背光",
+            "product_mode": "prompt",
+            "product_prompt": "银灰色蒸烤一体机 45° 正面", 
+            "gallery_items": [
+                PosterGalleryItem(mode="prompt", prompt="小图 1 描述", caption="系列 1"),
+                PosterGalleryItem(mode="prompt", prompt="小图 2 描述", caption="系列 2"),
+                PosterGalleryItem(mode="prompt", prompt="小图 3 描述", caption="系列 3"),
+            ],
+        }
+        try:
+            poster = self.poster.model_copy(update=update)  # type: ignore[attr-defined]
+        except AttributeError:
+            data = self.poster.dict()
+            data.update(
+                {
+                    "scenario_mode": "prompt",
+                    "scenario_prompt": "开放式厨房柔和背光",
+                    "product_mode": "prompt",
+                    "product_prompt": "银灰色蒸烤一体机 45° 正面",
+                    "gallery_items": [
+                        {"mode": "prompt", "prompt": "小图 1 描述", "caption": "系列 1"},
+                        {"mode": "prompt", "prompt": "小图 2 描述", "caption": "系列 2"},
+                        {"mode": "prompt", "prompt": "小图 3 描述", "caption": "系列 3"},
+                    ],
+                }
+            )
+            poster = PosterInput(**data)  # type: ignore[arg-type]
+
+        preview = render_layout_preview(poster)
+        self.assertIn("AI 生成", preview)
+
     def test_mock_poster_embeds_uploaded_assets(self) -> None:
         try:
             payload = self.poster.model_dump()
@@ -124,6 +165,60 @@ class PosterServiceTests(unittest.TestCase):
         self.assertGreater(product_pixel[2], product_pixel[0])
         self.assertGreater(product_pixel[2], product_pixel[1])
         self.assertTrue(abs(gallery_pixel[0] - gallery_pixel[1]) <= 5)
+
+    @unittest.skipIf(DEPENDENCY_ERROR is not None, f"Missing dependency: {DEPENDENCY_ERROR}")
+    def test_prepare_poster_assets_respects_template_materials(self) -> None:
+        if prepare_poster_assets is None or TemplateResources is None or Image is None:  # pragma: no cover - safety
+            self.skipTest("Required helpers are unavailable")
+
+        template_image = Image.new("RGBA", (16, 16), (255, 255, 255, 255))
+        spec = {
+            "id": "custom",
+            "materials": {
+                "scenario": {"type": "image", "allowsPrompt": False},
+                "product": {"type": "image", "allowsPrompt": True},
+                "gallery": {"type": "image", "allowsPrompt": False, "count": 2},
+            },
+            "gallery": {"items": [{}, {}]},
+        }
+
+        template = TemplateResources(
+            id="custom",
+            spec=spec,
+            template=template_image,
+            mask_background=template_image,
+            mask_scene=None,
+        )
+
+        gallery_items = [
+            PosterGalleryItem(mode="prompt", prompt="AI 小图 1", caption="系列 1"),
+            PosterGalleryItem(mode="upload", asset=make_data_url((32, 32, 32)), caption="系列 2"),
+            PosterGalleryItem(mode="prompt", prompt="AI 小图 3", caption="系列 3"),
+        ]
+
+        update = {
+            "scenario_mode": "prompt",
+            "scenario_prompt": "需要生成的厨房背景",
+            "product_mode": "prompt",
+            "product_prompt": "不锈钢蒸烤箱 45° 角度",
+            "gallery_items": gallery_items,
+        }
+
+        try:
+            poster = self.poster.model_copy(update=update)  # type: ignore[attr-defined]
+        except AttributeError:
+            data = self.poster.dict()
+            data.update(update)
+            poster = PosterInput(**data)  # type: ignore[arg-type]
+
+        with patch("app.services.glibatree._load_template_resources", return_value=template):
+            prepared = prepare_poster_assets(poster)
+
+        self.assertEqual(prepared.scenario_mode, "upload")
+        self.assertEqual(prepared.product_mode, "prompt")
+        self.assertEqual(len(prepared.gallery_items), 2)
+        for item in prepared.gallery_items:
+            self.assertNotEqual(item.mode, "prompt")
 
 
 if __name__ == "__main__":

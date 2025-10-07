@@ -101,25 +101,25 @@ python scripts/decode_template_assets.py
 
 ## 使用流程
 
-1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 中上传品牌 Logo、场景图、产品渲染图，并为 3–4 张底部产品小图分别配上文字说明。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
-2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并允许在“锁版模板”下拉框中选择 `frontend/templates/` 目录内的版式。右侧 Canvas 会实时展示程序绘制的挂点、文案与已上传素材，点击“生成海报与文案”后调用 FastAPI 返回 Glibatree 提示词、AI 生成海报（或本地回退图）以及营销文案，并将结果保存供下一环节使用。
+1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true`，会显示“上传图像 / 文字生成”模式切换；若为 `allowsPrompt=false`，则仅保留上传项。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
+2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，点击“生成海报与文案”后，前端会携带各素材的模式信息调用 FastAPI。后端会在需要时先通过 OpenAI 生成缺失的场景、产品或底部小图，再执行模板渲染，返回最新的 Glibatree 提示词、海报预览（或本地回退图）以及营销文案，并将结果保存供下一环节使用。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 
 ## 模板锁版与局部生成
 
-- **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标与尺寸）。前端预览与后端渲染共用该目录，确保版式一致。
+- **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标、尺寸及 `materials` 定义）。`materials` 字段会为每个槽位提供 `label`、`type`、`count`、`allowsPrompt`、`promptPlaceholder` 等元数据，前端据此渲染表单文案、限制素材数量并切换上传/AI 模式，后端则据此判断哪些槽位需要在渲染前调用 AI 生成素材。
 - **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
-- **后端流水线**：`app/services/glibatree.py` 会先按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
+- **后端流水线**：`app/services/glibatree.py` 会先调用 `prepare_poster_assets`，对所有标记为“文字生成”的槽位请求 OpenAI 生成素材（缺少 API Key 时自动跳过），随后按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
 
-页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。
+页面默认填充了示例素材，便于快速体验。所有生成的海报图均以内嵌 Base64 数据返回，可直接预览或保存为图片文件。浏览器还会缓存模板 ID、素材模式以及 `gallery_limit` 等信息，以便多次往返页面时自动匹配模板要求。
 
 ## 命令行快速体验
 
 若希望在终端快速验证三段式流程，可使用根目录下的 `poster_workflow.py` 脚本：
 
 1. 准备配置文件（项目已提供 `examples/sample_workflow.json` 作为示例），字段与前端填写内容一致：
-   - `poster`：对应 `PosterInput` 的各项素材与文案字段，支持可选的 Base64 图片数据，并新增 `template_id` 以及带文案的 `gallery_items`；
+   - `poster`：对应 `PosterInput` 的各项素材与文案字段，支持可选的 Base64 图片数据，并包含 `template_id`、素材模式（`scenario_mode`/`product_mode`）以及带文案或 AI 描述的 `gallery_items`；
    - `email`：可选，包含收件人、主题与自定义正文，未配置时脚本会生成默认营销话术。
 2. 运行脚本并指定输入文件，可选地指定输出目录保存结果：
 
@@ -127,7 +127,7 @@ python scripts/decode_template_assets.py
    python poster_workflow.py --input examples/sample_workflow.json --output-dir out/
    ```
 
-   终端会依次输出版式预览、Glibatree 提示词、海报生成信息及营销邮件草稿，`out/` 目录中会生成对应的 `.txt` 文本与海报图片。
+   终端会依次输出版式预览、Glibatree 提示词、海报生成信息及营销邮件草稿；若素材标记为“文字生成”，脚本会在生成海报前调用 OpenAI 生成对应槽位的图片。`out/` 目录中会生成对应的 `.txt` 文本与海报图片。
 3. 若在环境变量中正确配置了 SMTP（参见上文），可以追加 `--send-email` 直接完成邮件发送：
 
    ```bash

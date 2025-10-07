@@ -38,8 +38,10 @@ def render_layout_preview(poster: PosterInput) -> str:
     顶部横条
       · 品牌 Logo（左上）：{logo_line}
       · 品牌代理名 / 分销名（右上）：{poster.agent_name}
+
     模板锁版
       · 当前模板：{poster.template_id}
+
     左侧区域（约 40% 宽）
       · 应用场景图：{scenario_line}
 

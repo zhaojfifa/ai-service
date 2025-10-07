@@ -37,19 +37,32 @@
         <p class="hint">
           按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
           点击“保存并前往环节 2”继续流程。
-        <!-- 实时完成度 -->
-          <div id="stage1-checklist" class="checklist card">
-            <h3>实时完成度</h3>
-            <div class="progress"><span id="check-progress"></span></div>
-            <ul id="check-items"></ul>
-          </div>
         </p>
         <form id="poster-form" novalidate>
           <fieldset class="fieldset">
+            <legend>模板选择</legend>
+            <div class="template-select-grid">
+              <label class="field">
+                <span>选择锁版模板</span>
+                <select id="template-select-stage1" name="template_id" required></select>
+              </label>
+              <div class="template-meta">
+                <p id="template-description-stage1" class="template-description"></p>
+                <canvas
+                  id="template-preview-stage1"
+                  width="360"
+                  height="360"
+                  aria-label="模板预览"
+                ></canvas>
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset class="fieldset">
             <legend>顶部横条</legend>
             <div class="grid top-banner-grid">
-              <label class="field file-field">
-                <span>品牌 Logo 上传</span>
+              <label class="field file-field" data-material-field="brand_logo">
+                <span data-material-label="brand_logo">品牌 Logo 上传</span>
                 <input type="file" name="brand_logo" accept="image/*" />
                 <div class="inline-preview" role="presentation">
                   <img data-inline-preview="brand_logo" alt="品牌 Logo 预览" />
@@ -69,21 +82,39 @@
             <legend>图像素材区</legend>
             <div class="image-zones">
               <div class="image-stack">
-                <label class="field file-field">
-                  <span>应用场景图上传</span>
+                <div class="mode-toggle" data-mode-target="scenario">
+                  <span data-material-toggle-label="scenario">场景素材来源</span>
+                  <label data-mode-option="scenario-upload">
+                    <input type="radio" name="scenario_mode" value="upload" checked /> 上传图像
+                  </label>
+                  <label data-mode-option="scenario-prompt">
+                    <input type="radio" name="scenario_mode" value="prompt" /> 文字生成
+                  </label>
+                </div>
+                <label class="field file-field" data-material-field="scenario">
+                  <span data-material-label="scenario">应用场景图上传</span>
                   <input type="file" name="scenario_asset" accept="image/*" />
                   <div class="inline-preview">
                     <img data-inline-preview="scenario_asset" alt="应用场景预览" />
                   </div>
                 </label>
-                <label class="field">
-                  <span>应用场景描述（用于提示词）</span>
-                  <textarea name="scenario_image" rows="3" required></textarea>
+                <label class="field" data-material-description-container="scenario">
+                  <span data-material-description="scenario">应用场景描述（上传或 AI 生成时都会用到）</span>
+                  <textarea name="scenario_image" rows="3" required data-material-input="scenario"></textarea>
                 </label>
               </div>
               <div class="image-stack">
-                <label class="field file-field">
-                  <span>产品 45° 渲染图上传</span>
+                <div class="mode-toggle" data-mode-target="product">
+                  <span data-material-toggle-label="product">主产品素材来源</span>
+                  <label data-mode-option="product-upload">
+                    <input type="radio" name="product_mode" value="upload" checked /> 上传图像
+                  </label>
+                  <label data-mode-option="product-prompt">
+                    <input type="radio" name="product_mode" value="prompt" /> 文字生成
+                  </label>
+                </div>
+                <label class="field file-field" data-material-field="product">
+                  <span data-material-label="product">产品 45° 渲染图上传</span>
                   <input type="file" name="product_asset" accept="image/*" />
                   <div class="inline-preview">
                     <img data-inline-preview="product_asset" alt="产品渲染图预览" />
@@ -92,6 +123,15 @@
                 <label class="field">
                   <span>主产品名称</span>
                   <input type="text" name="product_name" required />
+                </label>
+                <label class="field optional" data-mode-visible="product:prompt" data-material-prompt="product">
+                  <span data-material-prompt-label="product">产品图生成描述（可选补充）</span>
+                  <textarea
+                    name="product_prompt"
+                    rows="3"
+                    placeholder="补充产品材质、角度、使用场景等信息"
+                    data-material-input="product-prompt"
+                  ></textarea>
                 </label>
                 <div class="feature-fields">
                   <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
@@ -120,13 +160,22 @@
             </div>
             <div class="gallery-upload">
               <div>
-                <span class="field-label">底部产品小图（3-4 张，支持多选）</span>
-                <p class="micro-copy">
-                  每个条目由一张产品小图和一段系列说明组成，支持灰度或黑白素材。
+                <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
+                <p class="micro-copy" data-gallery-description>
+                  每个条目由一张产品小图和一段系列说明组成，可上传现成图像，也可
+                  仅输入描述让 AI 生成。
                 </p>
               </div>
-              <button type="button" id="add-gallery-item" class="secondary">
+              <button type="button" id="add-gallery-item" class="secondary" data-gallery-upload>
                 上传底部产品小图
+              </button>
+              <button
+                type="button"
+                id="add-gallery-placeholder"
+                class="secondary subtle"
+                data-gallery-prompt
+              >
+                添加 AI 生成条目
               </button>
               <input
                 type="file"
@@ -183,6 +232,7 @@
     <footer>
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
+
     <script src="app.js" type="module"></script>
   </body>
 </html>

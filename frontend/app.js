@@ -10,6 +10,8 @@ const DEFAULT_STAGE1 = {
   scenario_image: '现代开放式厨房中智能蒸烤一体机的沉浸式体验',
   product_name: 'ChefCraft 智能蒸烤大师',
   template_id: 'template_dual',
+  scenario_mode: 'upload',
+  product_mode: 'upload',
   features: [
     '一键蒸烤联动，精准锁鲜',
     '360° 智能热风循环，均匀受热',
@@ -30,9 +32,15 @@ const placeholderImages = {
   brandLogo: createPlaceholder('品牌\\nLogo'),
   scenario: createPlaceholder('应用场景'),
   product: createPlaceholder('产品渲染'),
-  gallery: Array.from({ length: 4 }, (_, index) =>
-    createPlaceholder(`底部小图 ${index + 1}`)
-  ),
+};
+
+const galleryPlaceholderCache = new Map();
+
+const MATERIAL_DEFAULT_LABELS = {
+  brand_logo: '品牌 Logo',
+  scenario: '应用场景图',
+  product: '主产品渲染图',
+  gallery: '底部产品小图',
 };
 
 const assetStore = createAssetStore();
@@ -40,6 +48,7 @@ const assetStore = createAssetStore();
 const apiBaseInput = document.getElementById('api-base');
 
 init();
+
 function init() {
   loadApiBase();
   if (apiBaseInput) {
@@ -81,90 +90,6 @@ function saveApiBase() {
   }
 }
 
-/** 读取表单并生成一份完成度报告 */
-function getCompletionReport(form, state) {
-  const fd = new FormData(form);
-  const text = (n) => (fd.get(n) || '').toString().trim();
-  const features = fd.getAll('features').map(v => v.toString().trim()).filter(Boolean);
-  const galleryWithAsset = (state.galleryEntries || []).filter(e => e.asset);
-  const captionsComplete = galleryWithAsset.every(e => (e.caption || '').trim().length > 0);
-
-  return {
-    '品牌 Logo': Boolean(state.brandLogo),
-    '品牌名称': !!text('brand_name'),
-    '代理名 / 分销名': !!text('agent_name'),
-    '应用场景图': Boolean(state.scenario),
-    '应用场景描述': !!text('scenario_image'),
-    '主产品 45° 渲染图': Boolean(state.product),
-    '主产品名称': !!text('product_name'),
-    '功能点 ≥ 3 条': features.length >= 3,
-    '底部小图 ≥ 3 张': galleryWithAsset.length >= 3,
-    '每张小图有文案': captionsComplete,
-    '标题': !!text('title'),
-    '副标题': !!text('subtitle'),
-  };
-}
-
-/** 把完成度报告渲染到面板 */
-function renderChecklist(form, state) {
-  const report = getCompletionReport(form, state);
-  const list = document.getElementById('check-items');
-  const bar = document.getElementById('check-progress');
-  if (!list || !bar) return;
-
-  const entries = Object.entries(report);
-  const done = entries.filter(([, ok]) => ok).length;
-  const total = entries.length;
-
-  list.innerHTML = '';
-  entries.forEach(([label, ok]) => {
-    const li = document.createElement('li');
-    li.className = ok ? 'ok' : 'missing';
-    li.textContent = `${ok ? '✅' : '⛔'} ${label}`;
-    list.appendChild(li);
-  });
-  bar.style.width = `${Math.round((done / total) * 100)}%`;
-
-  // 同时高亮未完成的输入域
-  applyInvalidHighlight(form, state, report);
-}
-
-/** 根据报告给对应输入域加红框/去红框 */
-function applyInvalidHighlight(form, state, report) {
-  const mark = (el, ok) => {
-    if (!el) return;
-    const box = el.closest('.field') || el.closest('.gallery-upload') || el.closest('.gallery-items');
-    if (box) box.classList.toggle('invalid', !ok);
-  };
-
-  // 文本类
-  mark(form.elements.namedItem('brand_name'), report['品牌名称']);
-  mark(form.elements.namedItem('agent_name'), report['代理名 / 分销名']);
-  mark(form.elements.namedItem('scenario_image'), report['应用场景描述']);
-  mark(form.elements.namedItem('product_name'), report['主产品名称']);
-  mark(form.elements.namedItem('title'), report['标题']);
-  mark(form.elements.namedItem('subtitle'), report['副标题']);
-
-  // 功能点（前3条必填）
-  const featureInputs = form.querySelectorAll('input[name="features"]');
-  featureInputs.forEach((input, idx) => {
-    const ok = input.value.trim().length > 0 || idx >= 3;
-    mark(input, ok);
-  });
-
-  // 底部小图（数量 & 每张有文案）
-  const galleryItemsBox = document.getElementById('gallery-items');
-  const galleryUploadBox = document.querySelector('.gallery-upload');
-  const galleryWithAsset = (state.galleryEntries || []).filter(e => e.asset);
-  if (galleryItemsBox) galleryItemsBox.classList.toggle('invalid', galleryWithAsset.length < 3);
-  if (galleryUploadBox) galleryUploadBox.classList.toggle('invalid', galleryWithAsset.length < 3);
-
-  // 小图文案逐一标记
-  document.querySelectorAll('.gallery-caption input').forEach((input) => {
-    mark(input, input.value.trim().length > 0);
-  });
-}
-
 function initStage1() {
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
@@ -173,12 +98,17 @@ function initStage1() {
   const previewContainer = document.getElementById('preview-container');
   const layoutStructure = document.getElementById('layout-structure-text');
   const galleryButton = document.getElementById('add-gallery-item');
+  const galleryPlaceholderButton = document.getElementById('add-gallery-placeholder');
   const galleryFileInput = document.getElementById('gallery-file-input');
   const galleryItemsContainer = document.getElementById('gallery-items');
+  const templateSelectStage1 = document.getElementById('template-select-stage1');
+  const templateDescriptionStage1 = document.getElementById('template-description-stage1');
+  const templateCanvasStage1 = document.getElementById('template-preview-stage1');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
   }
+
   const previewElements = {
     brandLogo: document.getElementById('preview-brand-logo'),
     brandName: document.getElementById('preview-brand-name'),
@@ -205,9 +135,16 @@ function initStage1() {
     previewBuilt: false,
     templateId: DEFAULT_STAGE1.template_id,
     templateLabel: '',
+    scenarioMode: DEFAULT_STAGE1.scenario_mode,
+    productMode: DEFAULT_STAGE1.product_mode,
+    templateSpec: null,
+    galleryLimit: 4,
+    galleryAllowsPrompt: true,
+    galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
   };
 
   let currentLayoutPreview = '';
+  let templateRegistry = [];
 
   const refreshPreview = () => {
     if (!form) return null;
@@ -219,7 +156,6 @@ function initStage1() {
       layoutStructure,
       previewContainer
     );
-    renderChecklist(form, state); // ← 新增：刷新完成度面板
     return payload;
   };
 
@@ -235,13 +171,278 @@ function initStage1() {
         previewContainer,
         statusElement,
         onChange: refreshPreview,
+        allowPrompt: state.galleryAllowsPrompt,
+        promptPlaceholder:
+          state.templateSpec?.materials?.gallery?.promptPlaceholder ||
+          '描述要生成的小图内容',
       });
       refreshPreview();
     })();
   } else {
     applyStage1Defaults(form);
     updateInlinePlaceholders(inlinePreviews);
+    applyModeToInputs('scenario', state, form, inlinePreviews, { initial: true });
+    applyModeToInputs('product', state, form, inlinePreviews, { initial: true });
     refreshPreview();
+  }
+
+  const modeContext = { form, state, inlinePreviews, refreshPreview };
+
+  const scenarioModeRadios = form.querySelectorAll('input[name="scenario_mode"]');
+  scenarioModeRadios.forEach((radio) => {
+    radio.addEventListener('change', (event) => {
+      if (!radio.checked) return;
+      const value = radio.value === 'prompt' ? 'prompt' : 'upload';
+      void switchAssetMode('scenario', value, modeContext);
+    });
+  });
+
+  const productModeRadios = form.querySelectorAll('input[name="product_mode"]');
+  productModeRadios.forEach((radio) => {
+    radio.addEventListener('change', (event) => {
+      if (!radio.checked) return;
+      const value = radio.value === 'prompt' ? 'prompt' : 'upload';
+      void switchAssetMode('product', value, modeContext);
+    });
+  });
+
+  const getMaterialLabel = (key, material) =>
+    (material && typeof material.label === 'string' && material.label.trim()) ||
+    MATERIAL_DEFAULT_LABELS[key] || key;
+
+  async function applyTemplateMaterialsStage1(spec) {
+    state.templateSpec = spec || null;
+    const materials = (spec && spec.materials) || {};
+
+    const brandMaterial = materials.brand_logo || {};
+    const brandLabel = getMaterialLabel('brand_logo', brandMaterial);
+    const brandField = form.querySelector('[data-material-field="brand_logo"] [data-material-label="brand_logo"]');
+    if (brandField) {
+      brandField.textContent = `${brandLabel}上传`;
+    }
+
+    const scenarioMaterial = materials.scenario || {};
+    const scenarioLabel = getMaterialLabel('scenario', scenarioMaterial);
+    const scenarioAllowsPrompt = scenarioMaterial.allowsPrompt !== false;
+    const scenarioToggleLabel = form.querySelector('[data-material-toggle-label="scenario"]');
+    if (scenarioToggleLabel) {
+      scenarioToggleLabel.textContent = `${scenarioLabel}素材来源`;
+    }
+    const scenarioPromptOption = form.querySelector('[data-mode-option="scenario-prompt"]');
+    if (scenarioPromptOption) {
+      scenarioPromptOption.classList.toggle('hidden', !scenarioAllowsPrompt);
+    }
+    const scenarioFileLabel = form.querySelector('[data-material-label="scenario"]');
+    if (scenarioFileLabel) {
+      scenarioFileLabel.textContent = `${scenarioLabel}上传`;
+    }
+    const scenarioDescription = form.querySelector('[data-material-description="scenario"]');
+    if (scenarioDescription) {
+      scenarioDescription.textContent = scenarioAllowsPrompt
+        ? `${scenarioLabel}描述（上传或 AI 生成时都会用到）`
+        : `${scenarioLabel}描述`;
+    }
+    const scenarioTextarea = form.querySelector('[data-material-input="scenario"]');
+    if (scenarioTextarea) {
+      scenarioTextarea.placeholder =
+        scenarioMaterial.promptPlaceholder || `描述${scenarioLabel}的氛围与细节`;
+    }
+    if (!scenarioAllowsPrompt && state.scenarioMode === 'prompt') {
+      state.scenarioMode = 'upload';
+      const uploadRadio = form.querySelector('input[name="scenario_mode"][value="upload"]');
+      if (uploadRadio) {
+        uploadRadio.checked = true;
+      }
+      const promptRadio = form.querySelector('input[name="scenario_mode"][value="prompt"]');
+      if (promptRadio) {
+        promptRadio.checked = false;
+      }
+    }
+    applyModeToInputs('scenario', state, form, inlinePreviews, { initial: true });
+
+    const productMaterial = materials.product || {};
+    const productLabel = getMaterialLabel('product', productMaterial);
+    const productAllowsPrompt = productMaterial.allowsPrompt !== false;
+    const productToggleLabel = form.querySelector('[data-material-toggle-label="product"]');
+    if (productToggleLabel) {
+      productToggleLabel.textContent = `${productLabel}素材来源`;
+    }
+    const productPromptOption = form.querySelector('[data-mode-option="product-prompt"]');
+    if (productPromptOption) {
+      productPromptOption.classList.toggle('hidden', !productAllowsPrompt);
+    }
+    const productFileLabel = form.querySelector('[data-material-label="product"]');
+    if (productFileLabel) {
+      productFileLabel.textContent = `${productLabel}上传`;
+    }
+    const productPromptContainer = form.querySelector('[data-material-prompt="product"]');
+    if (productPromptContainer) {
+      productPromptContainer.classList.toggle('hidden', !productAllowsPrompt);
+    }
+    const productPromptLabel = form.querySelector('[data-material-prompt-label="product"]');
+    if (productPromptLabel) {
+      productPromptLabel.textContent = productAllowsPrompt
+        ? `${productLabel}生成描述（可选补充）`
+        : `${productLabel}说明`;
+    }
+    const productPromptInput = form.querySelector('[data-material-input="product-prompt"]');
+    if (productPromptInput) {
+      productPromptInput.placeholder =
+        productMaterial.promptPlaceholder || `补充${productLabel}的材质、角度等信息`;
+    }
+    if (!productAllowsPrompt && state.productMode === 'prompt') {
+      state.productMode = 'upload';
+      const uploadRadio = form.querySelector('input[name="product_mode"][value="upload"]');
+      if (uploadRadio) {
+        uploadRadio.checked = true;
+      }
+      const promptRadio = form.querySelector('input[name="product_mode"][value="prompt"]');
+      if (promptRadio) {
+        promptRadio.checked = false;
+      }
+    }
+    applyModeToInputs('product', state, form, inlinePreviews, { initial: true });
+
+    const galleryMaterial = materials.gallery || {};
+    const galleryLabel = getMaterialLabel('gallery', galleryMaterial);
+    const galleryAllowsPrompt = galleryMaterial.allowsPrompt !== false;
+    const slotCount = Array.isArray(spec?.gallery?.items)
+      ? spec.gallery.items.length
+      : null;
+    const configuredCount = Number(galleryMaterial.count);
+    const galleryLimit = Number.isFinite(configuredCount) && configuredCount > 0
+      ? configuredCount
+      : slotCount || state.galleryLimit || 4;
+    state.galleryLabel = galleryLabel;
+    state.galleryAllowsPrompt = galleryAllowsPrompt;
+    if (state.galleryLimit !== galleryLimit) {
+      const removed = state.galleryEntries.splice(galleryLimit);
+      await Promise.all(
+        removed.map((entry) => deleteStoredAsset(entry.asset))
+      );
+      state.galleryLimit = galleryLimit;
+    } else {
+      state.galleryLimit = galleryLimit;
+    }
+    if (!galleryAllowsPrompt) {
+      state.galleryEntries.forEach((entry) => {
+        if (entry.mode === 'prompt') {
+          entry.mode = 'upload';
+          entry.prompt = '';
+        }
+      });
+    }
+
+    const galleryLabelElement = document.querySelector('[data-gallery-label]');
+    if (galleryLabelElement) {
+      galleryLabelElement.textContent = `${galleryLabel}（${galleryLimit} 项，支持多选）`;
+    }
+    const galleryDescription = document.querySelector('[data-gallery-description]');
+    if (galleryDescription) {
+      galleryDescription.textContent = galleryAllowsPrompt
+        ? `每个条目由一张图像与系列说明组成，可上传或使用 AI 生成，共需 ${galleryLimit} 项。`
+        : `请上传 ${galleryLimit} 张${galleryLabel}并填写对应说明。`;
+    }
+    const galleryUploadButton = document.querySelector('[data-gallery-upload]');
+    if (galleryUploadButton) {
+      galleryUploadButton.textContent = `上传${galleryLabel}`;
+    }
+    const galleryPromptButton = document.querySelector('[data-gallery-prompt]');
+    if (galleryPromptButton) {
+      const promptText = galleryLabel.includes('条目')
+        ? '添加 AI 生成条目'
+        : `添加 AI 生成${galleryLabel}`;
+      galleryPromptButton.textContent = promptText;
+      galleryPromptButton.classList.toggle('hidden', !galleryAllowsPrompt);
+    }
+
+    renderGalleryItems(state, galleryItemsContainer, {
+      previewElements,
+      layoutStructure,
+      previewContainer,
+      statusElement,
+      onChange: refreshPreview,
+      allowPrompt: galleryAllowsPrompt,
+      promptPlaceholder:
+        galleryMaterial.promptPlaceholder || '描述要生成的小图内容',
+    });
+  }
+
+  async function refreshTemplatePreviewStage1(templateId) {
+    if (!templateCanvasStage1) return;
+    try {
+      const assets = await ensureTemplateAssets(templateId);
+      await applyTemplateMaterialsStage1(assets.spec);
+      const ctx = templateCanvasStage1.getContext('2d');
+      if (!ctx) return;
+      const { width, height } = templateCanvasStage1;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, width, height);
+      const image = assets.image;
+      const scale = Math.min(width / image.width, height / image.height);
+      const drawWidth = image.width * scale;
+      const drawHeight = image.height * scale;
+      const offsetX = (width - drawWidth) / 2;
+      const offsetY = (height - drawHeight) / 2;
+      ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+      if (templateDescriptionStage1) {
+        templateDescriptionStage1.textContent = assets.entry?.description || '';
+      }
+    } catch (error) {
+      console.error(error);
+      if (templateDescriptionStage1) {
+        templateDescriptionStage1.textContent = '模板预览加载失败，请检查模板资源。';
+      }
+      if (templateCanvasStage1) {
+        const ctx = templateCanvasStage1.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
+          ctx.fillStyle = '#f4f5f7';
+          ctx.fillRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
+          ctx.fillText('模板预览加载失败', 24, 48);
+        }
+      }
+    }
+  }
+
+  if (templateSelectStage1) {
+    loadTemplateRegistry()
+      .then(async (registry) => {
+        templateRegistry = registry;
+        templateSelectStage1.innerHTML = '';
+        registry.forEach((entry) => {
+          const option = document.createElement('option');
+          option.value = entry.id;
+          option.textContent = entry.name;
+          templateSelectStage1.appendChild(option);
+        });
+        const activeEntry = registry.find((entry) => entry.id === state.templateId);
+        if (!activeEntry && registry[0]) {
+          state.templateId = registry[0].id;
+          state.templateLabel = registry[0].name || '';
+        } else if (activeEntry) {
+          state.templateLabel = activeEntry.name || state.templateLabel;
+        }
+        templateSelectStage1.value = state.templateId;
+        await refreshTemplatePreviewStage1(state.templateId);
+      })
+      .catch((error) => {
+        console.error(error);
+        setStatus(statusElement, '无法加载模板列表，请检查 templates 目录。', 'warning');
+      });
+
+    templateSelectStage1.addEventListener('change', async (event) => {
+      const value = event.target.value || DEFAULT_STAGE1.template_id;
+      state.templateId = value;
+      const entry = templateRegistry.find((item) => item.id === value);
+      state.templateLabel = entry?.name || '';
+      state.previewBuilt = false;
+      refreshPreview();
+      await refreshTemplatePreviewStage1(value);
+    });
   }
 
   attachSingleImageHandler(
@@ -272,8 +473,14 @@ function initStage1() {
     previewContainer,
     statusElement,
     onChange: refreshPreview,
+    allowPrompt: state.galleryAllowsPrompt,
+    promptPlaceholder:
+      state.templateSpec?.materials?.gallery?.promptPlaceholder ||
+      '描述要生成的小图内容',
   });
+
   refreshPreview();
+
   if (galleryButton && galleryFileInput) {
     galleryButton.addEventListener('click', () => {
       galleryFileInput.click();
@@ -284,9 +491,14 @@ function initStage1() {
       if (!files.length) {
         return;
       }
-      const remaining = Math.max(0, 4 - state.galleryEntries.length);
+      const limit = state.galleryLimit || 4;
+      const remaining = Math.max(0, limit - state.galleryEntries.length);
       if (remaining <= 0) {
-        setStatus(statusElement, '最多仅支持上传 4 张底部产品小图。', 'warning');
+        setStatus(
+          statusElement,
+          `最多仅支持上传 ${limit} 张${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}。`,
+          'warning'
+        );
         galleryFileInput.value = '';
         return;
       }
@@ -300,6 +512,8 @@ function initStage1() {
             id: createId(),
             caption: '',
             asset,
+            mode: 'upload',
+            prompt: '',
           });
         } catch (error) {
           console.error(error);
@@ -314,6 +528,52 @@ function initStage1() {
         previewContainer,
         statusElement,
         onChange: refreshPreview,
+        allowPrompt: state.galleryAllowsPrompt,
+        promptPlaceholder:
+          state.templateSpec?.materials?.gallery?.promptPlaceholder ||
+          '描述要生成的小图内容',
+      });
+      refreshPreview();
+    });
+  }
+
+  if (galleryPlaceholderButton) {
+    galleryPlaceholderButton.addEventListener('click', () => {
+      if (!state.galleryAllowsPrompt) {
+        setStatus(
+          statusElement,
+          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}仅支持上传图像素材。`,
+          'info'
+        );
+        return;
+      }
+      const limit = state.galleryLimit || 4;
+      if (state.galleryEntries.length >= limit) {
+        setStatus(
+          statusElement,
+          `最多仅支持 ${limit} 个${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}条目。`,
+          'warning'
+        );
+        return;
+      }
+      state.galleryEntries.push({
+        id: createId(),
+        caption: '',
+        asset: null,
+        mode: 'prompt',
+        prompt: '',
+      });
+      state.previewBuilt = false;
+      renderGalleryItems(state, galleryItemsContainer, {
+        previewElements,
+        layoutStructure,
+        previewContainer,
+        statusElement,
+        onChange: refreshPreview,
+        allowPrompt: state.galleryAllowsPrompt,
+        promptPlaceholder:
+          state.templateSpec?.materials?.gallery?.promptPlaceholder ||
+          '描述要生成的小图内容',
       });
       refreshPreview();
     });
@@ -398,6 +658,21 @@ function applyStage1Defaults(form) {
   featureInputs.forEach((input, index) => {
     input.value = DEFAULT_STAGE1.features[index] ?? '';
   });
+
+  const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
+  scenarioModeInputs.forEach((input) => {
+    input.checked = input.value === DEFAULT_STAGE1.scenario_mode;
+  });
+
+  const productModeInputs = form.querySelectorAll('input[name="product_mode"]');
+  productModeInputs.forEach((input) => {
+    input.checked = input.value === DEFAULT_STAGE1.product_mode;
+  });
+
+  const productPrompt = form.elements.namedItem('product_prompt');
+  if (productPrompt && 'value' in productPrompt) {
+    productPrompt.value = '';
+  }
 }
 
 function updateInlinePlaceholders(inlinePreviews) {
@@ -407,7 +682,6 @@ function updateInlinePlaceholders(inlinePreviews) {
 }
 
 async function applyStage1DataToForm(data, form, state, inlinePreviews) {
-
   for (const key of ['brand_name', 'agent_name', 'scenario_image', 'product_name', 'title', 'subtitle']) {
     const element = form.elements.namedItem(key);
     if (element && typeof data[key] === 'string') {
@@ -423,6 +697,27 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     input.value = features[index] ?? '';
   });
 
+  const scenarioModeValue = data.scenario_mode || DEFAULT_STAGE1.scenario_mode;
+  const productModeValue = data.product_mode || DEFAULT_STAGE1.product_mode;
+  state.scenarioMode = scenarioModeValue;
+  state.productMode = productModeValue;
+
+  const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
+  scenarioModeInputs.forEach((input) => {
+    input.checked = input.value === scenarioModeValue;
+  });
+
+  const productModeInputs = form.querySelectorAll('input[name="product_mode"]');
+  productModeInputs.forEach((input) => {
+    input.checked = input.value === productModeValue;
+  });
+
+  const productPrompt = form.elements.namedItem('product_prompt');
+  if (productPrompt && 'value' in productPrompt) {
+    productPrompt.value =
+      typeof data.product_prompt === 'string' ? data.product_prompt : '';
+  }
+
   state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
@@ -432,11 +727,22 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
           id: entry.id || createId(),
           caption: entry.caption || '',
           asset: await rehydrateStoredAsset(entry.asset),
+          mode: entry.mode || 'upload',
+          prompt: entry.prompt || '',
         }))
       )
     : [];
+  state.galleryLimit = typeof data.gallery_limit === 'number' ? data.gallery_limit : state.galleryLimit;
+  state.galleryLabel = data.gallery_label || state.galleryLabel;
+  state.galleryAllowsPrompt = data.gallery_allows_prompt !== false;
+  if (state.galleryEntries.length > state.galleryLimit) {
+    state.galleryEntries = state.galleryEntries.slice(0, state.galleryLimit);
+  }
   state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
   state.templateLabel = data.template_label || '';
+
+  applyModeToInputs('scenario', state, form, inlinePreviews);
+  applyModeToInputs('product', state, form, inlinePreviews);
 
   if (inlinePreviews.brand_logo) {
     inlinePreviews.brand_logo.src = state.brandLogo?.dataUrl || placeholderImages.brandLogo;
@@ -448,6 +754,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     inlinePreviews.product_asset.src = state.product?.dataUrl || placeholderImages.product;
   }
 }
+
 function attachSingleImageHandler(input, key, inlinePreview, state, refreshPreview) {
   if (!input) return;
   input.addEventListener('change', async () => {
@@ -471,7 +778,6 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
     try {
       const dataUrl = await fileToDataUrl(file);
       state[key] = await buildAsset(file, dataUrl, state[key]);
-
       if (inlinePreview) {
         inlinePreview.src = dataUrl;
       }
@@ -482,6 +788,64 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
     }
   });
 }
+
+function applyModeToInputs(target, state, form, inlinePreviews, options = {}) {
+  const { initial = false } = options;
+  const mode = target === 'scenario' ? state.scenarioMode : state.productMode;
+  const fileInput = form.querySelector(`input[name="${target}_asset"]`);
+  if (fileInput) {
+    fileInput.disabled = mode === 'prompt';
+  }
+  const promptField = form.querySelector(`[data-mode-visible="${target}:prompt"]`);
+  if (promptField) {
+    if (mode === 'prompt') {
+      promptField.classList.add('mode-visible');
+    } else {
+      promptField.classList.remove('mode-visible');
+    }
+  }
+
+  if (!initial) {
+    const inlineKey = `${target}_asset`;
+    const inlinePreview = inlinePreviews?.[inlineKey];
+    if (inlinePreview && !state[target]?.dataUrl) {
+      inlinePreview.src =
+        target === 'scenario' ? placeholderImages.scenario : placeholderImages.product;
+    }
+  }
+}
+
+async function switchAssetMode(target, mode, context) {
+  const { form, state, inlinePreviews, refreshPreview } = context;
+  const assetKey = target === 'scenario' ? 'scenario' : 'product';
+  const previousMode = target === 'scenario' ? state.scenarioMode : state.productMode;
+  if (previousMode === mode) {
+    applyModeToInputs(target, state, form, inlinePreviews, { initial: true });
+    return;
+  }
+
+  if (target === 'scenario') {
+    state.scenarioMode = mode;
+  } else {
+    state.productMode = mode;
+  }
+
+  applyModeToInputs(target, state, form, inlinePreviews);
+
+  if (mode === 'prompt') {
+    await deleteStoredAsset(state[assetKey]);
+    state[assetKey] = null;
+    const inlineKey = `${target}_asset`;
+    const inlinePreview = inlinePreviews?.[inlineKey];
+    if (inlinePreview) {
+      inlinePreview.src =
+        target === 'scenario' ? placeholderImages.scenario : placeholderImages.product;
+    }
+  }
+
+  state.previewBuilt = false;
+  refreshPreview?.();
+}
 function renderGalleryItems(state, container, options = {}) {
   const {
     previewElements,
@@ -489,11 +853,21 @@ function renderGalleryItems(state, container, options = {}) {
     previewContainer,
     statusElement,
     onChange,
+    allowPrompt = true,
+    promptPlaceholder = '描述要生成的小图内容',
   } = options;
   if (!container) return;
   container.innerHTML = '';
 
-  state.galleryEntries.slice(0, 4).forEach((entry, index) => {
+  const limit = state.galleryLimit || 4;
+  const label = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
+
+  state.galleryEntries.slice(0, limit).forEach((entry, index) => {
+    entry.mode = entry.mode || 'upload';
+    entry.prompt = typeof entry.prompt === 'string' ? entry.prompt : '';
+
+    const placeholder = getGalleryPlaceholder(index, label);
+
     const item = document.createElement('div');
     item.classList.add('gallery-item');
     item.dataset.id = entry.id;
@@ -502,7 +876,7 @@ function renderGalleryItems(state, container, options = {}) {
     header.classList.add('gallery-item-header');
     const title = document.createElement('span');
     title.classList.add('gallery-item-title');
-    title.textContent = `底部产品 ${index + 1}`;
+    title.textContent = `${label} ${index + 1}`;
     header.appendChild(title);
 
     const removeButton = document.createElement('button');
@@ -511,7 +885,6 @@ function renderGalleryItems(state, container, options = {}) {
     removeButton.textContent = '移除';
     removeButton.addEventListener('click', async () => {
       await deleteStoredAsset(entry.asset);
-
       state.galleryEntries = state.galleryEntries.filter((g) => g.id !== entry.id);
       state.previewBuilt = false;
       renderGalleryItems(state, container, {
@@ -520,6 +893,8 @@ function renderGalleryItems(state, container, options = {}) {
         previewContainer,
         statusElement,
         onChange,
+        allowPrompt,
+        promptPlaceholder,
       });
       onChange?.();
     });
@@ -530,9 +905,40 @@ function renderGalleryItems(state, container, options = {}) {
     header.appendChild(actions);
     item.appendChild(header);
 
+    const modeToggle = document.createElement('div');
+    modeToggle.classList.add('mode-toggle', 'gallery-mode-toggle');
+    const modeLabel = document.createElement('span');
+    modeLabel.textContent = '素材来源';
+    modeToggle.appendChild(modeLabel);
+
+    const radioName = `gallery_mode_${entry.id}`;
+    const uploadLabel = document.createElement('label');
+    const uploadRadio = document.createElement('input');
+    uploadRadio.type = 'radio';
+    uploadRadio.name = radioName;
+    uploadRadio.value = 'upload';
+    uploadLabel.appendChild(uploadRadio);
+    uploadLabel.append(' 上传图像');
+
+    modeToggle.appendChild(uploadLabel);
+
+    let promptLabel;
+    let promptRadio;
+    if (allowPrompt) {
+      promptLabel = document.createElement('label');
+      promptRadio = document.createElement('input');
+      promptRadio.type = 'radio';
+      promptRadio.name = radioName;
+      promptRadio.value = 'prompt';
+      promptLabel.appendChild(promptRadio);
+      promptLabel.append(' 文字生成');
+      modeToggle.appendChild(promptLabel);
+    }
+    item.appendChild(modeToggle);
+
     const fileField = document.createElement('label');
-    fileField.classList.add('field', 'file-field');
-    fileField.innerHTML = '<span>上传产品小图</span>';
+    fileField.classList.add('field', 'file-field', 'gallery-file-field');
+    fileField.innerHTML = `<span>上传${label}</span>`;
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
@@ -556,14 +962,14 @@ function renderGalleryItems(state, container, options = {}) {
     const previewWrapper = document.createElement('div');
     previewWrapper.classList.add('gallery-item-preview');
     const previewImage = document.createElement('img');
-    previewImage.alt = `底部产品 ${index + 1} 预览`;
-    previewImage.src = entry.asset?.dataUrl || placeholderImages.gallery[index];
+    previewImage.alt = `${label} ${index + 1} 预览`;
+    previewImage.src = entry.asset?.dataUrl || placeholder;
     previewWrapper.appendChild(previewImage);
     item.appendChild(previewWrapper);
 
     const captionField = document.createElement('label');
     captionField.classList.add('field', 'gallery-caption');
-    captionField.innerHTML = '<span>小图文案</span>';
+    captionField.innerHTML = `<span>${label}文案</span>`;
     const captionInput = document.createElement('input');
     captionInput.type = 'text';
     captionInput.value = entry.caption || '';
@@ -575,6 +981,82 @@ function renderGalleryItems(state, container, options = {}) {
     });
     captionField.appendChild(captionInput);
     item.appendChild(captionField);
+
+    const promptField = document.createElement('label');
+    promptField.classList.add('field', 'gallery-prompt', 'optional');
+    promptField.innerHTML = '<span>AI 生成描述</span>';
+    const promptTextarea = document.createElement('textarea');
+    promptTextarea.rows = 2;
+    promptTextarea.placeholder = promptPlaceholder;
+    promptTextarea.value = entry.prompt || '';
+    promptTextarea.addEventListener('input', () => {
+      entry.prompt = promptTextarea.value;
+      state.previewBuilt = false;
+      onChange?.();
+    });
+    promptField.appendChild(promptTextarea);
+    item.appendChild(promptField);
+
+    async function applyGalleryMode(mode, options = {}) {
+      const { initial = false } = options;
+      if (!allowPrompt) {
+        mode = 'upload';
+      }
+      entry.mode = mode;
+      const isPrompt = mode === 'prompt';
+      fileInput.disabled = isPrompt;
+      promptTextarea.disabled = !isPrompt || !allowPrompt;
+      if (isPrompt) {
+        fileField.classList.add('mode-hidden');
+        promptField.classList.add('mode-visible');
+        if (!initial) {
+          await deleteStoredAsset(entry.asset);
+          entry.asset = null;
+          previewImage.src = placeholder;
+        } else if (!entry.asset?.dataUrl) {
+          previewImage.src = placeholder;
+        }
+      } else {
+        fileField.classList.remove('mode-hidden');
+        promptField.classList.remove('mode-visible');
+        previewImage.src = entry.asset?.dataUrl || placeholder;
+      }
+      if (!initial) {
+        state.previewBuilt = false;
+        onChange?.();
+      }
+    }
+
+    uploadRadio.addEventListener('change', () => {
+      if (uploadRadio.checked) {
+        void applyGalleryMode('upload');
+      }
+    });
+    if (allowPrompt && promptRadio) {
+      promptRadio.addEventListener('change', () => {
+        if (promptRadio.checked) {
+          void applyGalleryMode('prompt');
+        }
+      });
+    }
+
+    if (!allowPrompt) {
+      promptField.classList.add('hidden');
+      promptTextarea.disabled = true;
+      if (promptRadio) {
+        promptRadio.disabled = true;
+      }
+      uploadRadio.checked = true;
+      entry.mode = 'upload';
+    } else {
+      uploadRadio.checked = entry.mode !== 'prompt';
+      if (promptRadio) {
+        promptRadio.checked = entry.mode === 'prompt';
+      }
+    }
+
+    promptTextarea.disabled = entry.mode !== 'prompt' || !allowPrompt;
+    void applyGalleryMode(entry.mode, { initial: true });
 
     container.appendChild(item);
   });
@@ -598,17 +1080,24 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   payload.features = features;
 
-  const galleryEntries = state.galleryEntries.map((entry) => ({
+  const galleryLimit = state.galleryLimit || 4;
+  const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
+
+  const galleryEntries = state.galleryEntries.slice(0, galleryLimit).map((entry) => ({
     id: entry.id,
     caption: entry.caption.trim(),
     asset: entry.asset,
+    mode: entry.mode || 'upload',
+    prompt: entry.prompt?.trim() || null,
   }));
 
-  const validGalleryEntries = galleryEntries.filter((entry) => entry.asset);
+  const validGalleryEntries = galleryEntries.filter((entry) =>
+    entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
+  );
 
   payload.series_description = validGalleryEntries.length
     ? validGalleryEntries
-        .map((entry, index) => `小图${index + 1}：${entry.caption || '系列说明待补充'}`)
+        .map((entry, index) => `${galleryLabel}${index + 1}：${entry.caption || '系列说明待补充'}`)
         .join(' / ')
     : '';
 
@@ -618,11 +1107,31 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.gallery_entries = galleryEntries;
   payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
   payload.template_label = state.templateLabel || '';
+  payload.scenario_mode = state.scenarioMode || 'upload';
+  payload.product_mode = state.productMode || 'upload';
+  const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
+  payload.product_prompt = productPromptValue || null;
+  payload.scenario_prompt =
+    payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
+  payload.gallery_label = galleryLabel;
+  payload.gallery_limit = galleryLimit;
+  payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
 
   if (strict) {
     const missing = [];
     for (const [key, value] of Object.entries(payload)) {
-      if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
+      if (
+        [
+          'brand_logo',
+          'scenario_asset',
+          'product_asset',
+          'gallery_entries',
+          'scenario_mode',
+          'product_mode',
+          'product_prompt',
+          'scenario_prompt',
+        ].includes(key)
+      ) {
         continue;
       }
       if (typeof value === 'string' && !value) {
@@ -632,14 +1141,21 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
-    if (validGalleryEntries.length < 3) {
-      throw new Error('请上传至少 3 张底部产品小图，并填写对应文案。');
+    if (galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
+      throw new Error(
+        `请准备至少 ${galleryLimit} 个${galleryLabel}（上传或 AI 生成）并填写对应文案。`
+      );
     }
     const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
     if (captionsIncomplete) {
-      throw new Error('请为每张底部产品小图填写文案说明。');
+      throw new Error(`请为每个${galleryLabel}填写文案说明。`);
     }
-
+    const promptMissing = galleryEntries.some(
+      (entry) => entry.mode === 'prompt' && !entry.prompt
+    );
+    if (promptMissing) {
+      throw new Error(`选择 AI 生成的${galleryLabel}需要提供文字描述。`);
+    }
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
     }
@@ -665,6 +1181,7 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
   if (layoutStructure) {
     layoutStructure.textContent = layoutText;
   }
+
   if (previewContainer) {
     previewContainer.classList.remove('hidden');
   }
@@ -706,9 +1223,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 
   if (gallery) {
     gallery.innerHTML = '';
-    const entries = state.galleryEntries.slice(0, 4);
-    const placeholders = placeholderImages.gallery;
-    const total = Math.max(entries.length, 3);
+    const limit = state.galleryLimit || 4;
+    const entries = state.galleryEntries.slice(0, limit);
+    const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
+    const total = Math.max(entries.length, limit);
     for (let index = 0; index < total; index += 1) {
       const entry = entries[index];
       const figure = document.createElement('figure');
@@ -717,10 +1235,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       if (entry?.asset?.dataUrl) {
         img.src = entry.asset.dataUrl;
       } else {
-        img.src = placeholders[index] || placeholders[placeholders.length - 1];
+        img.src = getGalleryPlaceholder(index, galleryLabel);
       }
-      img.alt = `底部产品 ${index + 1} 预览`;
-      caption.textContent = entry?.caption || `底部小图 ${index + 1}`;
+      img.alt = `${galleryLabel} ${index + 1} 预览`;
+      caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
       figure.appendChild(img);
       figure.appendChild(caption);
       gallery.appendChild(figure);
@@ -736,30 +1254,42 @@ function buildLayoutPreview(payload) {
   const logoLine = payload.brand_logo
     ? `已上传品牌 Logo（${payload.brand_name}）`
     : payload.brand_name || '品牌 Logo 待上传';
-  const scenarioLine = payload.scenario_asset
+  const scenarioLine = payload.scenario_mode === 'prompt'
+    ? `AI 生成（描述：${payload.scenario_prompt || payload.scenario_image || '待补充'}）`
+    : payload.scenario_asset
     ? `已上传应用场景图（描述：${payload.scenario_image || '待补充'}）`
     : payload.scenario_image || '应用场景描述待补充';
-
-  const productLine = payload.product_asset
-    ? `已上传 45° 渲染图（${payload.product_name}）`
+  const productLine = payload.product_mode === 'prompt'
+    ? `AI 生成（${payload.product_prompt || payload.product_name || '描述待补充'}）`
+    : payload.product_asset
+    ? `已上传 45° 渲染图（${payload.product_name || '主产品'}）`
     : payload.product_name || '主产品名称待补充';
+  const galleryLabel = payload.gallery_label || MATERIAL_DEFAULT_LABELS.gallery;
+  const galleryLimit = payload.gallery_limit || 4;
 
   const featuresPreview = (payload.features.length ? payload.features : DEFAULT_STAGE1.features)
     .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
     .join('\n');
 
-  const galleryEntries = payload.gallery_entries?.filter((entry) => entry.asset) ?? [];
+  const galleryEntries = Array.isArray(payload.gallery_entries)
+    ? payload.gallery_entries.filter((entry) =>
+        entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
+      )
+    : [];
   const gallerySummary = galleryEntries.length
     ? galleryEntries
-        .map((entry, index) => `    · 底部产品小图${index + 1}：${entry.caption || '系列说明待补充'}`)
+        .map((entry, index) =>
+          entry.mode === 'prompt'
+            ? `    · ${galleryLabel}${index + 1}：AI 生成（${entry.prompt || '描述待补充'}）`
+            : `    · ${galleryLabel}${index + 1}：${entry.caption || '系列说明待补充'}`
+        )
         .join('\n')
-    : '    · 底部产品小图待上传（需提供 3-4 张灰度素材并附文字说明）。';
+    : `    · ${galleryLabel}待准备（可上传或 AI 生成 ${galleryLimit} 项素材，并附文字说明）。`;
 
   return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
     payload.agent_name || '代理名待填写'
   }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
 }
-
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
   return {
@@ -771,6 +1301,10 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     title: payload.title,
     subtitle: payload.subtitle,
     series_description: payload.series_description,
+    scenario_mode: state.scenarioMode || 'upload',
+    product_mode: state.productMode || 'upload',
+    product_prompt: payload.product_prompt,
+    scenario_prompt: payload.scenario_prompt,
     brand_logo: serialiseAssetForStorage(state.brandLogo),
     scenario_asset: serialiseAssetForStorage(state.scenario),
     product_asset: serialiseAssetForStorage(state.product),
@@ -778,10 +1312,14 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       id: entry.id,
       caption: entry.caption,
       asset: serialiseAssetForStorage(entry.asset),
-
+      mode: entry.mode || 'upload',
+      prompt: entry.prompt || null,
     })),
     template_id: state.templateId || DEFAULT_STAGE1.template_id,
     template_label: state.templateLabel || '',
+    gallery_limit: state.galleryLimit || 4,
+    gallery_label: state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery,
+    gallery_allows_prompt: state.galleryAllowsPrompt !== false,
     layout_preview: layoutPreview,
     preview_built: previewBuilt,
   };
@@ -954,6 +1492,8 @@ function initStage2() {
           }
         }
         templateSelect.value = currentTemplateId;
+        templateSelect.disabled = true;
+        templateSelect.title = '模板已在环节 1 中选定，可返回修改';
         await refreshTemplatePreview(currentTemplateId);
         updateSummary();
       } catch (error) {
@@ -1054,8 +1594,18 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
     ['标题', stage1Data.title],
     ['副标题', stage1Data.subtitle],
     [
-      '底部产品',
-      `${stage1Data.gallery_entries?.filter((entry) => entry.asset).length || 0} 张小图`,
+      stage1Data.gallery_label || '底部产品',
+      (() => {
+        const galleryLimit = stage1Data.gallery_limit || 0;
+        const galleryCount =
+          stage1Data.gallery_entries?.filter((entry) =>
+            entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
+          ).length || 0;
+        if (galleryLimit > 0) {
+          return `${galleryCount} / ${galleryLimit} 项素材`;
+        }
+        return `${galleryCount} 项素材`;
+      })(),
     ],
   ];
 
@@ -1112,13 +1662,20 @@ async function triggerGeneration(options) {
     brand_logo: stage1Data.brand_logo?.dataUrl || null,
     scenario_asset: stage1Data.scenario_asset?.dataUrl || null,
     product_asset: stage1Data.product_asset?.dataUrl || null,
+    scenario_mode: stage1Data.scenario_mode || 'upload',
+    scenario_prompt:
+      stage1Data.scenario_mode === 'prompt'
+        ? stage1Data.scenario_prompt || stage1Data.scenario_image
+        : null,
+    product_mode: stage1Data.product_mode || 'upload',
+    product_prompt: stage1Data.product_prompt || null,
     gallery_items:
-      stage1Data.gallery_entries
-        ?.filter((entry) => entry.asset?.dataUrl)
-        .map((entry) => ({
-          caption: entry.caption?.trim() || null,
-          asset: entry.asset?.dataUrl || null,
-        })) || [],
+      stage1Data.gallery_entries?.map((entry) => ({
+        caption: entry.caption?.trim() || null,
+        asset: entry.asset?.dataUrl || null,
+        mode: entry.mode || 'upload',
+        prompt: entry.prompt?.trim() || null,
+      })) || [],
   };
 
   generateButton.disabled = true;
@@ -1785,6 +2342,18 @@ function fileToDataUrl(file) {
 function createPlaceholder(text) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="300">\n    <defs>\n      <style>\n        .bg { fill: #e5e9f0; }\n        .border { fill: none; stroke: #cbd2d9; stroke-width: 4; stroke-dasharray: 12 10; }\n        .label {\n          font-size: 26px;\n          font-family: 'Segoe UI', 'Noto Sans', sans-serif;\n          font-weight: 600;\n          fill: #3d4852;\n        }\n      </style>\n    </defs>\n    <rect class="bg" x="0" y="0" width="420" height="300" rx="28" />\n    <rect class="border" x="16" y="16" width="388" height="268" rx="24" />\n    <text class="label" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">${text}</text>\n  </svg>`;
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function getGalleryPlaceholder(index, label = MATERIAL_DEFAULT_LABELS.gallery) {
+  const baseLabel = label || MATERIAL_DEFAULT_LABELS.gallery;
+  const key = `${baseLabel}-${index}`;
+  if (!galleryPlaceholderCache.has(key)) {
+    galleryPlaceholderCache.set(
+      key,
+      createPlaceholder(`${baseLabel} ${index + 1}`)
+    );
+  }
+  return galleryPlaceholderCache.get(key);
 }
 
 async function buildAsset(file, dataUrl, previousAsset) {

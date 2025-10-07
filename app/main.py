@@ -23,6 +23,7 @@ from app.services.poster import (
 )
 
 logger = logging.getLogger(__name__)
+
 settings = get_settings()
 
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
@@ -75,7 +76,7 @@ def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
             email_body=email_body,
             poster_image=poster_image,
         )
-    except Exception as exc:  # 防御性日志
+    except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to generate poster")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
