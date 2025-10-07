@@ -22,6 +22,7 @@ ai-service/
 │   ├── stage3.html       # 环节 3：营销邮件发送
 │   ├── styles.css        # 页面样式
 │   ├── app.js            # 多页面脚本，负责状态存储与 API 交互
+│   ├── prompts/          # 提示词预设（Prompt Inspector 读取）
 │   └── templates/        # 锁版模板 Base64 文本、蒙版与规范（供前后端共用）
 ├── docs/
 │   └── brand-guides/     # 品牌色板、字体与版式规范
@@ -101,13 +102,14 @@ python scripts/decode_template_assets.py
 
 ## 使用流程
 
-1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true`，会显示“上传图像 / 文字生成”模式切换；若为 `allowsPrompt=false`，则仅保留上传项。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
-2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，点击“生成海报与文案”后，前端会携带各素材的模式信息调用 FastAPI。后端会在需要时先通过 OpenAI 生成缺失的场景、产品或底部小图，再执行模板渲染，返回最新的 Glibatree 提示词、海报预览（或本地回退图）以及营销文案，并将结果保存供下一环节使用。
+1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
+2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，同时提供“Prompt Inspector”面板：可以为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 
 ## 模板锁版与局部生成
 
-- **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标、尺寸及 `materials` 定义）。`materials` 字段会为每个槽位提供 `label`、`type`、`count`、`allowsPrompt`、`promptPlaceholder` 等元数据，前端据此渲染表单文案、限制素材数量并切换上传/AI 模式，后端则据此判断哪些槽位需要在渲染前调用 AI 生成素材。
+- **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标、尺寸及 `materials` 定义）。`materials` 字段会为每个槽位提供 `label`、`type`、`count`、`allowsPrompt`、`allowsUpload`、`promptPlaceholder` 等元数据，前端据此渲染表单文案、限制素材数量并切换上传/AI 模式，后端则据此判断哪些槽位需要在渲染前调用 AI 生成素材。
+- **提示词预设**：`frontend/prompts/presets.json` 汇总了常见的 Prompt Preset（如白底产品、厨房场景、灰度小图等），Prompt Inspector 会自动加载并允许按模板设定默认 Preset；后端也会回传经标准化后的 Prompt Bundle，方便在多端保持一致。若需要扩展主题，可在该文件中新建预设并提交。
 - **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
 - **后端流水线**：`app/services/glibatree.py` 会先调用 `prepare_poster_assets`，对所有标记为“文字生成”的槽位请求 OpenAI 生成素材（缺少 API Key 时自动跳过），随后按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。

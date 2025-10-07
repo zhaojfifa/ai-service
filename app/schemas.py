@@ -15,6 +15,14 @@ class PosterGalleryItem(BaseModel):
         None,
         description="Data URL of the uploaded gallery image (before灰度转换).",
     )
+    mode: Literal["upload", "prompt"] = Field(
+        "upload",
+        description="Whether the gallery item was uploaded or generated from a prompt.",
+    )
+    prompt: Optional[str] = Field(
+        None,
+        description="Optional text prompt when the gallery item is AI generated.",
+    )
 
 
 class PosterInput(BaseModel):
@@ -51,6 +59,40 @@ class PosterInput(BaseModel):
         max_items=4,
         description="Bottom gallery entries paired with captions for the series strip.",
     )
+    gallery_label: Optional[str] = Field(
+        None,
+        description="Optional descriptive label for the gallery strip.",
+    )
+    gallery_limit: Optional[int] = Field(
+        None,
+        ge=0,
+        le=6,
+        description="Maximum number of gallery entries permitted by the template.",
+    )
+    gallery_allows_prompt: Optional[bool] = Field(
+        None,
+        description="Whether the template allows prompt-based gallery generation.",
+    )
+    gallery_allows_upload: Optional[bool] = Field(
+        None,
+        description="Whether the template allows uploading gallery assets.",
+    )
+    scenario_mode: Literal["upload", "prompt"] = Field(
+        "upload",
+        description="How the scenario asset should be sourced (upload or prompt).",
+    )
+    scenario_prompt: Optional[str] = Field(
+        None,
+        description="Prompt text used when generating the scenario asset via AI.",
+    )
+    product_mode: Literal["upload", "prompt"] = Field(
+        "upload",
+        description="How the product asset should be sourced (upload or prompt).",
+    )
+    product_prompt: Optional[str] = Field(
+        None,
+        description="Prompt text used when generating the product asset via AI.",
+    )
 
 
 class PosterImage(BaseModel):
@@ -67,6 +109,45 @@ class PosterImage(BaseModel):
     height: int = Field(..., gt=0)
 
 
+class PromptSlotConfig(BaseModel):
+    preset: Optional[str] = Field(
+        None, description="Identifier of the preset chosen in the inspector"
+    )
+    positive: Optional[str] = Field(
+        None, description="Positive prompt text provided by the inspector"
+    )
+    negative: Optional[str] = Field(
+        None, description="Negative prompt text provided by the inspector"
+    )
+    aspect: Optional[str] = Field(
+        None, description="Aspect ratio guidance associated with the slot"
+    )
+
+
+class PromptBundle(BaseModel):
+    scenario: Optional[PromptSlotConfig] = None
+    product: Optional[PromptSlotConfig] = None
+    gallery: Optional[PromptSlotConfig] = None
+
+
+class GeneratePosterRequest(BaseModel):
+    poster: PosterInput
+    render_mode: Literal["locked", "hybrid", "free"] = "locked"
+    variants: int = Field(1, ge=1, le=3)
+    seed: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Optional seed value used when invoking the image backend.",
+    )
+    lock_seed: bool = Field(
+        False, description="Whether the provided seed should be respected across runs."
+    )
+    prompts: PromptBundle = Field(
+        default_factory=PromptBundle,
+        description="Prompt inspector overrides for each template slot.",
+    )
+
+
 class GeneratePosterResponse(BaseModel):
     """Aggregated response after preparing all marketing assets."""
 
@@ -74,6 +155,23 @@ class GeneratePosterResponse(BaseModel):
     prompt: str
     email_body: str
     poster_image: PosterImage
+    prompt_details: dict[str, str] | None = Field(
+        None, description="Per-slot prompt summary returned by the backend."
+    )
+    prompt_bundle: dict[str, str] | None = Field(
+        None, description="Optional combined prompt bundle for inspector display."
+    )
+    variants: list[PosterImage] = Field(
+        default_factory=list,
+        description="Optional collection of variant posters for A/B comparison.",
+    )
+    scores: dict[str, float] | None = Field(
+        None, description="Optional quality metrics calculated for the generated poster."
+    )
+    seed: Optional[int] = Field(None, description="Seed echoed back from the backend.")
+    lock_seed: Optional[bool] = Field(
+        None, description="Whether the backend honoured the locked seed request."
+    )
 
 
 class SendEmailRequest(BaseModel):

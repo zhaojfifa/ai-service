@@ -139,26 +139,39 @@ def main() -> None:
     config = load_configuration(args.input)
     poster = parse_poster_input(config)
 
+    prompt_overrides = config.get("prompts") if isinstance(config.get("prompts"), dict) else None
+
     preview = render_layout_preview(poster)
-    prompt = build_glibatree_prompt(poster)
-    poster_image = generate_poster_asset(poster, prompt, preview)
+    prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
+        poster, prompt_overrides
+    )
+    generation = generate_poster_asset(
+        poster,
+        prompt_text,
+        preview,
+        prompt_bundle=prompt_bundle,
+        prompt_details=prompt_details,
+    )
+    poster_image = generation.poster
     email_body = compose_marketing_email(poster, poster_image.filename)
 
     print("=== 环节 1 · 版式预览 ===")
     print(preview)
     print("\n=== 环节 2 · Glibatree 提示词 ===")
-    print(prompt)
+    print(prompt_text)
     print("\n=== 环节 2 · 海报生成 ===")
     print(
         f"生成文件：{poster_image.filename} ({poster_image.media_type}, "
         f"{poster_image.width}x{poster_image.height})"
     )
+    if generation.variants:
+        print(f"附加变体：{len(generation.variants)} 张")
 
     print("\n=== 环节 3 · 营销邮件草稿 ===")
     print(email_body)
 
     if args.output_dir:
-        export_outputs(args.output_dir, preview, prompt, email_body, poster_image)
+        export_outputs(args.output_dir, preview, prompt_text, email_body, poster_image)
         print(f"\n已将全部生成结果保存至：{args.output_dir.resolve()}")
 
     if args.send_email:

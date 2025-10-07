@@ -4,13 +4,11 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, PlainTextResponse
-
 
 from app.config import get_settings
 from app.schemas import (
+    GeneratePosterRequest,
     GeneratePosterResponse,
-    PosterInput,
     SendEmailRequest,
     SendEmailResponse,
 )
@@ -45,36 +43,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- 根路径：修复 Render HEAD / 健康探测 & 人类可用性 ---
-@app.get("/", include_in_schema=False)
-def root_redirect():
-    # 访问根直接跳到 Swagger 文档
-    return RedirectResponse(url="/docs", status_code=307)
 
-@app.head("/", include_in_schema=False)
-def root_head():
-    # Render 健康检查会发 HEAD /，这里返回 200
-    return PlainTextResponse("", status_code=200)
-
-# --- 健康检查 ---
-@app.get("/health", include_in_schema=False)
+@app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
-# --- 业务 API ---
+
+def _model_dump(model):
+    if hasattr(model, "model_dump"):
+        return model.model_dump(exclude_none=True)
+    if hasattr(model, "dict"):
+        return model.dict(exclude_none=True)
+    return {}
+
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
-def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
+def generate_poster(payload: GeneratePosterRequest) -> GeneratePosterResponse:
     try:
-        preview = render_layout_preview(payload)
-        prompt = build_glibatree_prompt(payload)
-        poster_image = generate_poster_asset(payload, prompt, preview)
-        email_body = compose_marketing_email(payload, poster_image.filename)
+        poster = payload.poster
+        preview = render_layout_preview(poster)
+        prompt_payload = _model_dump(payload.prompts)
+        prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
+            poster, prompt_payload
+        )
+        result = generate_poster_asset(
+            poster,
+            prompt_text,
+            preview,
+            prompt_bundle=prompt_payload,
+            prompt_details=prompt_details,
+            render_mode=payload.render_mode,
+            variants=payload.variants,
+            seed=payload.seed,
+            lock_seed=payload.lock_seed,
+        )
+        email_body = compose_marketing_email(poster, result.poster.filename)
         return GeneratePosterResponse(
             layout_preview=preview,
-            prompt=prompt,
+            prompt=prompt_text,
             email_body=email_body,
-            poster_image=poster_image,
+            poster_image=result.poster,
+            prompt_details=prompt_details,
+            prompt_bundle=prompt_bundle,
+            variants=result.variants,
+            scores=result.scores,
+            seed=result.seed,
+            lock_seed=result.lock_seed,
         )
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to generate poster")

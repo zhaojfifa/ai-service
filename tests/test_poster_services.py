@@ -67,10 +67,11 @@ class PosterServiceTests(unittest.TestCase):
         self.assertIn("功能点标注", preview)
 
     def test_build_glibatree_prompt_mentions_brand_and_agent(self) -> None:
-        prompt = build_glibatree_prompt(self.poster)
-        self.assertIn("厨匠ChefCraft", prompt)
-        self.assertIn("CHEFCRAFT", prompt.upper())
-        self.assertIn("功能点1", prompt)
+        prompt_text, prompt_details, _ = build_glibatree_prompt(self.poster)
+        self.assertIn("厨匠ChefCraft", prompt_text)
+        self.assertIn("CHEFCRAFT", prompt_text.upper())
+        self.assertIn("功能点1", prompt_text)
+        self.assertIsInstance(prompt_details, dict)
 
     def test_compose_marketing_email_lists_features(self) -> None:
         poster_image_filename = "poster.png"
@@ -133,8 +134,15 @@ class PosterServiceTests(unittest.TestCase):
         poster = PosterInput(**payload)  # type: ignore[arg-type]
 
         preview = render_layout_preview(poster)
-        prompt = build_glibatree_prompt(poster)
-        asset = generate_poster_asset(poster, prompt, preview)
+        prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(poster)
+        result = generate_poster_asset(
+            poster,
+            prompt_text,
+            preview,
+            prompt_bundle=prompt_bundle,
+            prompt_details=prompt_details,
+        )
+        asset = result.poster
 
         _header, encoded = asset.data_url.split(",", 1)
         image = Image.open(BytesIO(base64.b64decode(encoded))).convert("RGB")
@@ -219,6 +227,124 @@ class PosterServiceTests(unittest.TestCase):
         self.assertEqual(len(prepared.gallery_items), 2)
         for item in prepared.gallery_items:
             self.assertNotEqual(item.mode, "prompt")
+
+    def test_prepare_poster_assets_forces_prompt_when_upload_disabled(self) -> None:
+        if prepare_poster_assets is None or TemplateResources is None or Image is None:  # pragma: no cover - safety
+            self.skipTest("Required helpers are unavailable")
+
+        template_image = Image.new("RGBA", (16, 16), (255, 255, 255, 255))
+        spec = {
+            "id": "text-only",
+            "materials": {
+                "scenario": {"type": "text"},
+                "product": {"type": "image", "allowsPrompt": True},
+                "gallery": {
+                    "type": "image",
+                    "allowsUpload": False,
+                    "allowsPrompt": True,
+                    "count": 2,
+                },
+            },
+            "gallery": {"items": [{}, {}]},
+        }
+
+        template = TemplateResources(
+            id="text-only",
+            spec=spec,
+            template=template_image,
+            mask_background=template_image,
+            mask_scene=None,
+        )
+
+        gallery_items = [
+            PosterGalleryItem(mode="upload", asset=make_data_url((120, 120, 120)), caption="系列 A"),
+            PosterGalleryItem(mode="prompt", prompt="AI 小图", caption="系列 B"),
+        ]
+
+        update = {
+            "scenario_mode": "upload",
+            "scenario_asset": make_data_url((0, 0, 0)),
+            "product_mode": "prompt",
+            "gallery_items": gallery_items,
+        }
+
+        try:
+            poster = self.poster.model_copy(update=update)  # type: ignore[attr-defined]
+        except AttributeError:
+            data = self.poster.dict()
+            data.update(update)
+            poster = PosterInput(**data)  # type: ignore[arg-type]
+
+        with patch("app.services.glibatree._load_template_resources", return_value=template):
+            prepared = prepare_poster_assets(poster)
+
+        self.assertEqual(prepared.scenario_mode, "prompt")
+        self.assertIsNone(prepared.scenario_asset)
+        self.assertTrue(all(item.mode == "prompt" for item in prepared.gallery_items))
+        for item in prepared.gallery_items:
+            self.assertIsNone(item.asset)
+
+    def test_template_material_flags_accept_string_values(self) -> None:
+        if prepare_poster_assets is None or TemplateResources is None or Image is None:  # pragma: no cover - safety
+            self.skipTest("Required helpers are unavailable")
+
+        template_image = Image.new("RGBA", (16, 16), (255, 255, 255, 255))
+        spec = {
+            "id": "string-flags",
+            "materials": {
+                "scenario": {"type": "image", "allowsUpload": "false", "allowsPrompt": "YES"},
+                "product": {"type": "image", "allowsPrompt": "no"},
+                "gallery": {
+                    "type": "image",
+                    "allowsUpload": "0",
+                    "allowsPrompt": "1",
+                    "count": "3",
+                },
+            },
+            "gallery": {"items": [{}, {}, {}]},
+        }
+
+        template = TemplateResources(
+            id="string-flags",
+            spec=spec,
+            template=template_image,
+            mask_background=template_image,
+            mask_scene=None,
+        )
+
+        gallery_items = [
+            PosterGalleryItem(mode="upload", asset=make_data_url((10, 20, 30)), caption="图 1"),
+            PosterGalleryItem(mode="prompt", prompt="需要生成的图 2", caption="图 2"),
+            PosterGalleryItem(mode="upload", asset=make_data_url((40, 50, 60)), caption="图 3"),
+            PosterGalleryItem(mode="prompt", prompt="需要生成的图 4", caption="图 4"),
+        ]
+
+        update = {
+            "scenario_mode": "upload",
+            "scenario_asset": make_data_url((120, 120, 120)),
+            "scenario_prompt": "明亮的厨房场景",
+            "product_mode": "prompt",
+            "product_prompt": "磨砂金属蒸烤箱",
+            "gallery_items": gallery_items,
+        }
+
+        try:
+            poster = self.poster.model_copy(update=update)  # type: ignore[attr-defined]
+        except AttributeError:
+            data = self.poster.dict()
+            data.update(update)
+            poster = PosterInput(**data)  # type: ignore[arg-type]
+
+        with patch("app.services.glibatree._load_template_resources", return_value=template):
+            prepared = prepare_poster_assets(poster)
+
+        self.assertEqual(prepared.scenario_mode, "prompt")
+        self.assertIsNone(prepared.scenario_asset)
+        self.assertEqual(prepared.product_mode, "upload")
+        self.assertEqual(len(prepared.gallery_items), 3)
+        for item in prepared.gallery_items:
+            self.assertEqual(item.mode, "prompt")
+            self.assertIsNone(item.asset)
 
 
 if __name__ == "__main__":

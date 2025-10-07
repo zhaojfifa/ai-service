@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import textwrap
 
+from typing import Any
+
 from app.schemas import PosterInput
+
+PROMPT_SLOT_LABELS = {
+    "scenario": "场景背景",
+    "product": "核心产品",
+    "gallery": "底部系列小图",
+}
 
 
 def render_layout_preview(poster: PosterInput) -> str:
@@ -18,17 +26,24 @@ def render_layout_preview(poster: PosterInput) -> str:
         if poster.scenario_asset
         else poster.scenario_image
     )
+    if getattr(poster, "scenario_mode", "upload") == "prompt":
+        scenario_line = f"{scenario_line}（AI 生成）"
     product_line = (
         f"已上传 45° 渲染图（{poster.product_name}）"
         if poster.product_asset
         else poster.product_name
     )
+    if getattr(poster, "product_mode", "upload") == "prompt":
+        product_line = f"{product_line}（AI 生成）"
     gallery_count = sum(1 for item in poster.gallery_items if item.asset)
     gallery_line = (
         f"已上传 {gallery_count} 张底部产品小图，配文：{poster.series_description}"
         if gallery_count
         else poster.series_description
     )
+    prompt_gallery = any(getattr(item, "mode", "upload") == "prompt" for item in poster.gallery_items)
+    if prompt_gallery:
+        gallery_line = f"{gallery_line}（部分由 AI 生成）"
 
     features_preview = "\n".join(
         f"    - 功能点{i + 1}: {feature}" for i, feature in enumerate(poster.features)
@@ -65,8 +80,10 @@ def render_layout_preview(poster: PosterInput) -> str:
     return textwrap.dedent(preview).strip()
 
 
-def build_glibatree_prompt(poster: PosterInput) -> str:
-    """Generate the prompt that will be forwarded to Glibatree Art Designer."""
+def build_glibatree_prompt(
+    poster: PosterInput, prompts: dict[str, Any] | None = None
+) -> tuple[str, dict[str, str], dict[str, Any]]:
+    """Generate the prompt forwarded to Glibatree along with slot summaries."""
 
     features = "\n".join(
         f"- 功能点{i}: {feature}"
@@ -90,7 +107,33 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     references_block = "\n".join(reference_assets)
     reference_section = f"\n    {references_block}" if references_block else ""
 
-    agent_title = poster.agent_name.upper()
+    prompt_details: dict[str, str] = {}
+    prompt_bundle: dict[str, Any] = {}
+    if prompts:
+        for slot, config in prompts.items():
+            if not isinstance(config, dict):
+                continue
+            preset = (config.get("preset") or "").strip()
+            positive = (config.get("positive") or "").strip()
+            negative = (config.get("negative") or "").strip()
+            aspect = (config.get("aspect") or "").strip()
+            lines = []
+            if preset:
+                lines.append(f"Preset: {preset}")
+            if aspect:
+                lines.append(f"Aspect: {aspect}")
+            if positive:
+                lines.append(f"Positive: {positive}")
+            if negative:
+                lines.append(f"Negative: {negative}")
+            if lines:
+                prompt_details[slot] = "\n".join(lines)
+            prompt_bundle[slot] = {
+                "preset": preset or None,
+                "positive": positive or None,
+                "negative": negative or None,
+                "aspect": aspect or None,
+            }
 
     prompt = f"""
     You are an art director. You will receive a locked poster frame and a binary mask. Fill ONLY the transparent region of the mask. Do not modify or cover any existing pixels (logos, typography, callouts, product edges). Absolutely no new text or logos. No extra UI. Keep composition minimal and premium.
@@ -106,7 +149,16 @@ def build_glibatree_prompt(poster: PosterInput) -> str:
     模板：{poster.template_id}
     注意：仅在 mask 透明区域内补足背景氛围与光影，不得新增文字或移动既有元素。{reference_section}
     """
-    return textwrap.dedent(prompt).strip()
+    prompt = textwrap.dedent(prompt).strip()
+
+    if prompt_details:
+        sections = []
+        for slot, summary in prompt_details.items():
+            label = PROMPT_SLOT_LABELS.get(slot, slot)
+            sections.append(f"{label}指引:\n{summary}")
+        prompt = f"{prompt}\n\n{chr(10).join(sections)}"
+
+    return prompt, prompt_details, prompt_bundle
 
 
 def compose_marketing_email(poster: PosterInput, poster_filename: str) -> str:

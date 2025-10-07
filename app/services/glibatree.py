@@ -53,6 +53,16 @@ class TemplateResources:
     mask_scene: Image.Image | None
 
 
+@dataclass
+class PosterGenerationResult:
+    poster: PosterImage
+    prompt_details: dict[str, str]
+    variants: list[PosterImage]
+    scores: dict[str, float] | None = None
+    seed: int | None = None
+    lock_seed: bool = False
+
+
 @lru_cache(maxsize=8)
 def _load_template_resources(template_id: str) -> TemplateResources:
     """Load template spec, locked frame and masks for the given template id."""
@@ -385,33 +395,78 @@ def _render_template_frame(
     return canvas
 
 
-def generate_poster_asset(poster: PosterInput, prompt: str, preview: str) -> PosterImage:
+def generate_poster_asset(
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    *,
+    prompt_bundle: dict[str, Any] | None = None,
+    prompt_details: dict[str, str] | None = None,
+    render_mode: str = "locked",
+    variants: int = 1,
+    seed: int | None = None,
+    lock_seed: bool = False,
+) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
 
     template = _load_template_resources(poster.template_id)
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     settings = get_settings()
+    primary: PosterImage | None = None
     if settings.glibatree.is_configured:
         try:
             if settings.glibatree.use_openai_client:
                 logger.debug("Requesting Glibatree asset via OpenAI edit pipeline")
-                return _request_glibatree_openai_edit(settings.glibatree, prompt, locked_frame, template)
-            logger.debug("Requesting Glibatree asset via HTTP endpoint %s", settings.glibatree.api_url)
-            response = _request_glibatree_http(
-                settings.glibatree.api_url or "",
-                settings.glibatree.api_key or "",
-                prompt,
-                locked_frame,
-                template,
-            )
-            return response
+                primary = _request_glibatree_openai_edit(
+                    settings.glibatree, prompt, locked_frame, template
+                )
+            else:
+                logger.debug(
+                    "Requesting Glibatree asset via HTTP endpoint %s",
+                    settings.glibatree.api_url,
+                )
+                primary = _request_glibatree_http(
+                    settings.glibatree.api_url or "",
+                    settings.glibatree.api_key or "",
+                    prompt,
+                    locked_frame,
+                    template,
+                )
         except Exception:
             logger.exception("Glibatree request failed, falling back to mock poster")
 
-    logger.debug("Falling back to local template renderer")
-    mock_frame = _render_template_frame(poster, template, fill_background=True)
-    return _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
+    if primary is None:
+        logger.debug("Falling back to local template renderer")
+        mock_frame = _render_template_frame(poster, template, fill_background=True)
+        primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
+
+    variant_images: list[PosterImage] = []
+    desired_variants = max(1, variants)
+    if desired_variants > 1:
+        for index in range(1, desired_variants):
+            suffix = f"_v{index + 1}"
+            filename = primary.filename
+            if "." in filename:
+                stem, ext = filename.rsplit(".", 1)
+                filename = f"{stem}{suffix}.{ext}"
+            else:
+                filename = f"{filename}{suffix}"
+            variant_images.append(
+                _copy_model(
+                    primary,
+                    filename=filename,
+                )
+            )
+
+    return PosterGenerationResult(
+        poster=primary,
+        prompt_details=prompt_details or {},
+        variants=variant_images,
+        scores=None,
+        seed=seed if lock_seed else None,
+        lock_seed=bool(lock_seed),
+    )
 
 
 def _request_glibatree_http(
@@ -663,17 +718,56 @@ def _enforce_template_materials(
 
     materials = template.spec.get("materials", {})
 
+    def _interpret_flag(raw_value: Any, default: bool) -> bool:
+        if raw_value is None:
+            return default
+        if isinstance(raw_value, bool):
+            return raw_value
+        if isinstance(raw_value, (int, float)):
+            return bool(raw_value)
+        if isinstance(raw_value, str):
+            candidate = raw_value.strip().lower()
+            if not candidate:
+                return default
+            if candidate in {"1", "true", "yes", "y", "on"}:
+                return True
+            if candidate in {"0", "false", "no", "n", "off"}:
+                return False
+            return default
+        return bool(raw_value)
+
+    def _resolve_material(material: dict[str, Any]) -> tuple[str, bool, bool]:
+        material_type = (material.get("type") or "image").lower()
+        allows_upload = _interpret_flag(
+            material.get("allowsUpload"),
+            material_type != "text",
+        )
+        if material_type == "text":
+            allows_upload = False
+
+        allows_prompt = _interpret_flag(
+            material.get("allowsPrompt"),
+            True,
+        )
+        if not allows_upload:
+            allows_prompt = True
+
+        return material_type, allows_prompt, allows_upload
+
     scenario_material = materials.get("scenario", {})
-    scenario_type = (scenario_material.get("type") or "image").lower()
-    scenario_allows_prompt = bool(scenario_material.get("allowsPrompt")) and scenario_type == "image"
+    scenario_type, scenario_allows_prompt, scenario_allows_upload = _resolve_material(
+        scenario_material
+    )
 
     product_material = materials.get("product", {})
-    product_type = (product_material.get("type") or "image").lower()
-    product_allows_prompt = bool(product_material.get("allowsPrompt")) and product_type == "image"
+    product_type, product_allows_prompt, product_allows_upload = _resolve_material(
+        product_material
+    )
 
     gallery_material = materials.get("gallery", {})
-    gallery_type = (gallery_material.get("type") or "image").lower()
-    gallery_allows_prompt = bool(gallery_material.get("allowsPrompt")) and gallery_type == "image"
+    gallery_type, gallery_allows_prompt, gallery_allows_upload = _resolve_material(
+        gallery_material
+    )
 
     gallery_spec = template.spec.get("gallery", {})
     gallery_slot_count = len(gallery_spec.get("items", []) or [])
@@ -687,19 +781,35 @@ def _enforce_template_materials(
 
     updates: dict[str, Any] = {}
 
-    if poster.scenario_mode == "prompt" and not scenario_allows_prompt:
+    desired_scenario_mode = poster.scenario_mode
+    if not scenario_allows_upload:
+        desired_scenario_mode = "prompt"
+    elif desired_scenario_mode == "prompt" and not scenario_allows_prompt:
+        desired_scenario_mode = "upload"
+    if desired_scenario_mode != poster.scenario_mode:
         logger.info(
-            "Template %s disallows prompt mode for scenario; reverting to upload.",
+            "Template %s enforces scenario mode %s.",
             template.id,
+            desired_scenario_mode,
         )
-        updates["scenario_mode"] = "upload"
+        updates["scenario_mode"] = desired_scenario_mode
+    if not scenario_allows_upload and poster.scenario_asset:
+        updates["scenario_asset"] = None
 
-    if poster.product_mode == "prompt" and not product_allows_prompt:
+    desired_product_mode = poster.product_mode
+    if not product_allows_upload:
+        desired_product_mode = "prompt"
+    elif desired_product_mode == "prompt" and not product_allows_prompt:
+        desired_product_mode = "upload"
+    if desired_product_mode != poster.product_mode:
         logger.info(
-            "Template %s disallows prompt mode for product; reverting to upload.",
+            "Template %s enforces product mode %s.",
             template.id,
+            desired_product_mode,
         )
-        updates["product_mode"] = "upload"
+        updates["product_mode"] = desired_product_mode
+    if not product_allows_upload and poster.product_asset:
+        updates["product_asset"] = None
 
     sanitised_gallery: list[PosterGalleryItem] = []
     gallery_changed = False
@@ -709,10 +819,20 @@ def _enforce_template_materials(
             break
 
         desired_mode = item.mode
-        if desired_mode == "prompt" and not gallery_allows_prompt:
+        updates_for_item: dict[str, Any] = {}
+        if not gallery_allows_upload:
+            desired_mode = "prompt"
+            if item.asset is not None:
+                updates_for_item["asset"] = None
+        elif desired_mode == "prompt" and not gallery_allows_prompt:
             desired_mode = "upload"
 
-        sanitised_item = item if desired_mode == item.mode else _copy_model(item, mode=desired_mode)
+        if desired_mode != item.mode:
+            updates_for_item["mode"] = desired_mode
+
+        sanitised_item = (
+            item if not updates_for_item else _copy_model(item, **updates_for_item)
+        )
         sanitised_gallery.append(sanitised_item)
         if sanitised_item is not item:
             gallery_changed = True
@@ -727,10 +847,19 @@ def _enforce_template_materials(
         poster = _copy_model(poster, **updates)
 
     material_flags = {
-        "scenario": {"allows_prompt": scenario_allows_prompt, "type": scenario_type},
-        "product": {"allows_prompt": product_allows_prompt, "type": product_type},
+        "scenario": {
+            "allows_prompt": scenario_allows_prompt,
+            "allows_upload": scenario_allows_upload,
+            "type": scenario_type,
+        },
+        "product": {
+            "allows_prompt": product_allows_prompt,
+            "allows_upload": product_allows_upload,
+            "type": product_type,
+        },
         "gallery": {
             "allows_prompt": gallery_allows_prompt,
+            "allows_upload": gallery_allows_upload,
             "type": gallery_type,
             "count": gallery_limit,
         },
