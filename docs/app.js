@@ -1382,6 +1382,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
+
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -1589,6 +1590,9 @@ function loadStage1Data() {
     return null;
   }
 }
+
+let promptPresetPromise = null; // 确保声明
+
 function loadPromptPresets() {
   if (!promptPresetPromise) {
     promptPresetPromise = fetch(PROMPT_PRESETS_PATH)
@@ -1689,9 +1693,9 @@ function buildPromptPreviewText(state) {
     }
     lines.push('');
   });
-  return lines.join('
-').trim();
+  return lines.join('\n').trim();
 }
+
 
 function buildPromptRequest(state) {
   const prompts = {};
