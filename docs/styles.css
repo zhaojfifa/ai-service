@@ -335,178 +335,6 @@ main {
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.05);
 }
 
-
-.prompt-inspector {
-  margin-bottom: 1.5rem;
-  border: 1px solid #e4e7eb;
-  border-radius: 16px;
-  background: #ffffff;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-  padding: 1.25rem;
-}
-
-.prompt-inspector header {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-@media (min-width: 960px) {
-  .prompt-inspector header {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-  }
-}
-
-.prompt-inspector .seed-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: center;
-}
-
-.prompt-inspector .seed-controls label {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.85rem;
-  color: #475569;
-}
-
-.prompt-inspector .seed-controls input[type='number'] {
-  margin-top: 0.25rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  font-size: 0.95rem;
-  min-width: 120px;
-}
-
-.prompt-inspector .seed-controls .toggle {
-  flex-direction: row;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.prompt-slot {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1rem;
-  background: #f8fafc;
-}
-
-.prompt-slot .slot-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.prompt-slot h4 {
-  margin: 0;
-  font-size: 1rem;
-  color: #0f172a;
-}
-
-.prompt-slot select {
-  flex: 1;
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  font-size: 0.95rem;
-}
-
-.prompt-editor {
-  margin-top: 0.75rem;
-  display: grid;
-  gap: 0.75rem;
-}
-
-@media (min-width: 960px) {
-  .prompt-editor {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.prompt-editor label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.9rem;
-  color: #475569;
-}
-
-.prompt-editor textarea {
-  min-height: 96px;
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  resize: vertical;
-  font-size: 0.95rem;
-}
-
-.prompt-meta {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.85rem;
-  color: #64748b;
-}
-
-.prompt-meta .link {
-  background: none;
-  border: none;
-  color: #ef4444;
-  cursor: pointer;
-  padding: 0;
-}
-
-.prompt-inspector footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: flex-end;
-}
-
-.variant-strip {
-  margin-top: 1rem;
-  display: grid;
-  gap: 0.75rem;
-}
-
-@media (min-width: 768px) {
-  .variant-strip {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-}
-
-.variant-card {
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  padding: 0.75rem;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.variant-card img {
-  width: 100%;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.variant-card button {
-  align-self: flex-end;
-}
-
 .stage-summary h3 {
   margin-top: 0;
 }
@@ -1111,3 +939,25 @@ main {
     flex-wrap: wrap;
   }
 }
+  /* 完成度面板 */
+.checklist { margin: .75rem 0 1rem; }
+.checklist h3 { margin: 0 0 .5rem; }
+.checklist .progress { height: 8px; background: #eef2f7; border-radius: 999px; overflow: hidden; }
+.checklist .progress > span { display: block; height: 100%; width: 0; background: #ef4c54; transition: width .2s; }
+.checklist ul { list-style: none; padding: 0; margin: .75rem 0 0; display: grid; gap: .35rem; }
+.checklist li { font-size: .95rem; display: flex; align-items: center; gap: .5rem; }
+.checklist li.ok { color: #0f7a6c; }
+.checklist li.missing { color: #d64545; }
+
+/* 高亮未完成的输入域 */
+.field.invalid input,
+.field.invalid textarea {
+  border-color: #ef4c54;
+  box-shadow: 0 0 0 2px rgba(239,76,84,.12);
+}
+.gallery-items.invalid,
+.gallery-upload.invalid {
+  border-color: #ef4c54 !important;
+  box-shadow: 0 0 0 2px rgba(239,76,84,.12);
+}
+

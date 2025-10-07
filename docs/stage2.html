@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>环节 2 · AI 海报生成</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-stage="stage2">
+    <header>
+      <div class="header-content">
+        <div>
+          <h1>营销海报生成工作流</h1>
+          <p>使用环节 1 的素材调用 FastAPI 后端生成海报与营销文案。</p>
+        </div>
+        <label class="api-config">
+          <span>后端 API 地址</span>
+          <input
+            type="url"
+            id="api-base"
+            placeholder="https://your-render-service.onrender.com"
+          />
+        </label>
+      </div>
+      <nav class="stage-nav" aria-label="流程导航">
+        <a href="index.html">环节 1 · 素材输入与版式预览</a>
+        <span class="nav-arrow" aria-hidden="true">→</span>
+        <span class="active">环节 2 · AI 海报生成</span>
+        <span class="nav-arrow" aria-hidden="true">→</span>
+        <a href="stage3.html">环节 3 · 邮件发送</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="card stage-card">
+        <h2>环节 2 · 调用后端生成海报</h2>
+        <p class="hint">
+          确认环节 1 的素材信息后，调用 Render 托管的 FastAPI 服务，让 Glibatree Art
+          Designer 生成海报、提示词与营销文案。
+        </p>
+
+        <div class="stage-summary" id="stage1-summary">
+          <h3>素材概览</h3>
+          <dl id="stage1-overview"></dl>
+        </div>
+        <div class="template-picker">
+          <div class="template-picker-control">
+            <label for="template-select">锁版模板</label>
+            <select id="template-select" aria-label="选择模板"></select>
+            <p id="template-description" class="template-description"></p>
+          </div>
+          <div class="template-preview-wrapper">
+            <canvas
+              id="template-preview-canvas"
+              width="512"
+              height="512"
+              aria-label="模板预览"
+            ></canvas>
+          </div>
+        </div>
+        <div class="generate-actions">
+          <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
+          <button id="regenerate-poster" class="secondary hidden" type="button">
+            再次生成海报
+          </button>
+        </div>
+
+        <div id="poster-output" class="hidden">
+          <div class="output-group" id="layout-preview-group">
+            <h3>版式结构概览</h3>
+            <pre id="layout-structure-text"></pre>
+          </div>
+          <div class="output-group" id="ai-preview">
+            <h3>AI 生成进度</h3>
+            <div class="ai-preview-canvas">
+              <div class="spinner" id="ai-spinner" aria-hidden="true"></div>
+              <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
+            </div>
+          </div>
+          <div class="output-group hidden" id="poster-visual">
+            <h3>海报预览</h3>
+            <img id="poster-image" alt="海报预览" />
+          </div>
+          <div class="output-group hidden" id="prompt-group">
+            <h3>Glibatree 提示词</h3>
+            <textarea id="glibatree-prompt" rows="10" readonly></textarea>
+          </div>
+          <div class="output-group hidden" id="email-group">
+            <h3>营销文案草稿</h3>
+            <textarea id="generated-email" rows="10" readonly></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <a class="secondary" href="index.html">返回环节 1</a>
+          <button id="to-stage3" class="primary" type="button" disabled>
+            保存并前往环节 3
+          </button>
+        </div>
+        <p id="stage2-status" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <footer>
+      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
+    </footer>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
