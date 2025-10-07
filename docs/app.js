@@ -1,0 +1,1983 @@
+const STORAGE_KEYS = {
+  apiBase: 'marketing-poster-api-base',
+  stage1: 'marketing-poster-stage1-data',
+  stage2: 'marketing-poster-stage2-result',
+};
+
+const DEFAULT_STAGE1 = {
+  brand_name: '厨匠ChefCraft',
+  agent_name: '星辉渠道服务中心',
+  scenario_image: '现代开放式厨房中智能蒸烤一体机的沉浸式体验',
+  product_name: 'ChefCraft 智能蒸烤大师',
+  template_id: 'template_dual',
+  features: [
+    '一键蒸烤联动，精准锁鲜',
+    '360° 智能热风循环，均匀受热',
+    '高温自清洁腔体，省心维护',
+    'Wi-Fi 远程操控，云端菜谱推送',
+  ],
+  title: '焕新厨房效率，打造大厨级美味',
+  subtitle: '智能蒸烤 · 家宴轻松掌控',
+};
+
+const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
+const templateCache = new Map();
+let templateRegistryPromise = null;
+
+const DEFAULT_EMAIL_RECIPIENT = 'client@example.com';
+
+const placeholderImages = {
+  brandLogo: createPlaceholder('品牌\\nLogo'),
+  scenario: createPlaceholder('应用场景'),
+  product: createPlaceholder('产品渲染'),
+  gallery: Array.from({ length: 4 }, (_, index) =>
+    createPlaceholder(`底部小图 ${index + 1}`)
+  ),
+};
+
+const assetStore = createAssetStore();
+
+const apiBaseInput = document.getElementById('api-base');
+
+init();
+function init() {
+  loadApiBase();
+  if (apiBaseInput) {
+    apiBaseInput.addEventListener('change', saveApiBase);
+    apiBaseInput.addEventListener('blur', saveApiBase);
+  }
+
+  const stage = document.body?.dataset?.stage;
+  switch (stage) {
+    case 'stage1':
+      initStage1();
+      break;
+    case 'stage2':
+      initStage2();
+      break;
+    case 'stage3':
+      initStage3();
+      break;
+    default:
+      break;
+  }
+}
+
+function loadApiBase() {
+  if (!apiBaseInput) return;
+  const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
+  if (stored) {
+    apiBaseInput.value = stored;
+  }
+}
+
+function saveApiBase() {
+  if (!apiBaseInput) return;
+  const value = apiBaseInput.value.trim();
+  if (value) {
+    localStorage.setItem(STORAGE_KEYS.apiBase, value);
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.apiBase);
+  }
+}
+
+/** 读取表单并生成一份完成度报告 */
+function getCompletionReport(form, state) {
+  const fd = new FormData(form);
+  const text = (n) => (fd.get(n) || '').toString().trim();
+  const features = fd.getAll('features').map(v => v.toString().trim()).filter(Boolean);
+  const galleryWithAsset = (state.galleryEntries || []).filter(e => e.asset);
+  const captionsComplete = galleryWithAsset.every(e => (e.caption || '').trim().length > 0);
+
+  return {
+    '品牌 Logo': Boolean(state.brandLogo),
+    '品牌名称': !!text('brand_name'),
+    '代理名 / 分销名': !!text('agent_name'),
+    '应用场景图': Boolean(state.scenario),
+    '应用场景描述': !!text('scenario_image'),
+    '主产品 45° 渲染图': Boolean(state.product),
+    '主产品名称': !!text('product_name'),
+    '功能点 ≥ 3 条': features.length >= 3,
+    '底部小图 ≥ 3 张': galleryWithAsset.length >= 3,
+    '每张小图有文案': captionsComplete,
+    '标题': !!text('title'),
+    '副标题': !!text('subtitle'),
+  };
+}
+
+/** 把完成度报告渲染到面板 */
+function renderChecklist(form, state) {
+  const report = getCompletionReport(form, state);
+  const list = document.getElementById('check-items');
+  const bar = document.getElementById('check-progress');
+  if (!list || !bar) return;
+
+  const entries = Object.entries(report);
+  const done = entries.filter(([, ok]) => ok).length;
+  const total = entries.length;
+
+  list.innerHTML = '';
+  entries.forEach(([label, ok]) => {
+    const li = document.createElement('li');
+    li.className = ok ? 'ok' : 'missing';
+    li.textContent = `${ok ? '✅' : '⛔'} ${label}`;
+    list.appendChild(li);
+  });
+  bar.style.width = `${Math.round((done / total) * 100)}%`;
+
+  // 同时高亮未完成的输入域
+  applyInvalidHighlight(form, state, report);
+}
+
+/** 根据报告给对应输入域加红框/去红框 */
+function applyInvalidHighlight(form, state, report) {
+  const mark = (el, ok) => {
+    if (!el) return;
+    const box = el.closest('.field') || el.closest('.gallery-upload') || el.closest('.gallery-items');
+    if (box) box.classList.toggle('invalid', !ok);
+  };
+
+  // 文本类
+  mark(form.elements.namedItem('brand_name'), report['品牌名称']);
+  mark(form.elements.namedItem('agent_name'), report['代理名 / 分销名']);
+  mark(form.elements.namedItem('scenario_image'), report['应用场景描述']);
+  mark(form.elements.namedItem('product_name'), report['主产品名称']);
+  mark(form.elements.namedItem('title'), report['标题']);
+  mark(form.elements.namedItem('subtitle'), report['副标题']);
+
+  // 功能点（前3条必填）
+  const featureInputs = form.querySelectorAll('input[name="features"]');
+  featureInputs.forEach((input, idx) => {
+    const ok = input.value.trim().length > 0 || idx >= 3;
+    mark(input, ok);
+  });
+
+  // 底部小图（数量 & 每张有文案）
+  const galleryItemsBox = document.getElementById('gallery-items');
+  const galleryUploadBox = document.querySelector('.gallery-upload');
+  const galleryWithAsset = (state.galleryEntries || []).filter(e => e.asset);
+  if (galleryItemsBox) galleryItemsBox.classList.toggle('invalid', galleryWithAsset.length < 3);
+  if (galleryUploadBox) galleryUploadBox.classList.toggle('invalid', galleryWithAsset.length < 3);
+
+  // 小图文案逐一标记
+  document.querySelectorAll('.gallery-caption input').forEach((input) => {
+    mark(input, input.value.trim().length > 0);
+  });
+}
+
+function initStage1() {
+  const form = document.getElementById('poster-form');
+  const buildPreviewButton = document.getElementById('build-preview');
+  const nextButton = document.getElementById('go-to-stage2');
+  const statusElement = document.getElementById('stage1-status');
+  const previewContainer = document.getElementById('preview-container');
+  const layoutStructure = document.getElementById('layout-structure-text');
+  const galleryButton = document.getElementById('add-gallery-item');
+  const galleryFileInput = document.getElementById('gallery-file-input');
+  const galleryItemsContainer = document.getElementById('gallery-items');
+
+  if (!form || !buildPreviewButton || !nextButton) {
+    return;
+  }
+  const previewElements = {
+    brandLogo: document.getElementById('preview-brand-logo'),
+    brandName: document.getElementById('preview-brand-name'),
+    agentName: document.getElementById('preview-agent-name'),
+    scenarioImage: document.getElementById('preview-scenario-image'),
+    productImage: document.getElementById('preview-product-image'),
+    featureList: document.getElementById('preview-feature-list'),
+    title: document.getElementById('preview-title'),
+    subtitle: document.getElementById('preview-subtitle'),
+    gallery: document.getElementById('preview-gallery'),
+  };
+
+  const inlinePreviews = {
+    brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
+    scenario_asset: document.querySelector('[data-inline-preview="scenario_asset"]'),
+    product_asset: document.querySelector('[data-inline-preview="product_asset"]'),
+  };
+
+  const state = {
+    brandLogo: null,
+    scenario: null,
+    product: null,
+    galleryEntries: [],
+    previewBuilt: false,
+    templateId: DEFAULT_STAGE1.template_id,
+    templateLabel: '',
+  };
+
+  let currentLayoutPreview = '';
+
+  const refreshPreview = () => {
+    if (!form) return null;
+    const payload = collectStage1Data(form, state, { strict: false });
+    currentLayoutPreview = updatePosterPreview(
+      payload,
+      state,
+      previewElements,
+      layoutStructure,
+      previewContainer
+    );
+    renderChecklist(form, state); // ← 新增：刷新完成度面板
+    return payload;
+  };
+
+  const stored = loadStage1Data();
+  if (stored) {
+    void (async () => {
+      await applyStage1DataToForm(stored, form, state, inlinePreviews);
+      state.previewBuilt = Boolean(stored.preview_built);
+      currentLayoutPreview = stored.layout_preview || '';
+      renderGalleryItems(state, galleryItemsContainer, {
+        previewElements,
+        layoutStructure,
+        previewContainer,
+        statusElement,
+        onChange: refreshPreview,
+      });
+      refreshPreview();
+    })();
+  } else {
+    applyStage1Defaults(form);
+    updateInlinePlaceholders(inlinePreviews);
+    refreshPreview();
+  }
+
+  attachSingleImageHandler(
+    form.querySelector('input[name="brand_logo"]'),
+    'brandLogo',
+    inlinePreviews.brand_logo,
+    state,
+    refreshPreview
+  );
+  attachSingleImageHandler(
+    form.querySelector('input[name="scenario_asset"]'),
+    'scenario',
+    inlinePreviews.scenario_asset,
+    state,
+    refreshPreview
+  );
+  attachSingleImageHandler(
+    form.querySelector('input[name="product_asset"]'),
+    'product',
+    inlinePreviews.product_asset,
+    state,
+    refreshPreview
+  );
+
+  renderGalleryItems(state, galleryItemsContainer, {
+    previewElements,
+    layoutStructure,
+    previewContainer,
+    statusElement,
+    onChange: refreshPreview,
+  });
+  refreshPreview();
+  if (galleryButton && galleryFileInput) {
+    galleryButton.addEventListener('click', () => {
+      galleryFileInput.click();
+    });
+
+    galleryFileInput.addEventListener('change', async (event) => {
+      const files = Array.from(event.target.files || []);
+      if (!files.length) {
+        return;
+      }
+      const remaining = Math.max(0, 4 - state.galleryEntries.length);
+      if (remaining <= 0) {
+        setStatus(statusElement, '最多仅支持上传 4 张底部产品小图。', 'warning');
+        galleryFileInput.value = '';
+        return;
+      }
+
+      const selected = files.slice(0, remaining);
+      for (const file of selected) {
+        try {
+          const dataUrl = await fileToDataUrl(file);
+          const asset = await buildAsset(file, dataUrl, null);
+          state.galleryEntries.push({
+            id: createId(),
+            caption: '',
+            asset,
+          });
+        } catch (error) {
+          console.error(error);
+          setStatus(statusElement, '读取底部产品小图时发生错误。', 'error');
+        }
+      }
+      galleryFileInput.value = '';
+      state.previewBuilt = false;
+      renderGalleryItems(state, galleryItemsContainer, {
+        previewElements,
+        layoutStructure,
+        previewContainer,
+        statusElement,
+        onChange: refreshPreview,
+      });
+      refreshPreview();
+    });
+  }
+
+  form.addEventListener('input', () => {
+    state.previewBuilt = false;
+    refreshPreview();
+  });
+
+  buildPreviewButton.addEventListener('click', () => {
+    const relaxedPayload = collectStage1Data(form, state, { strict: false });
+    currentLayoutPreview = updatePosterPreview(
+      relaxedPayload,
+      state,
+      previewElements,
+      layoutStructure,
+      previewContainer
+    );
+
+    try {
+      const strictPayload = collectStage1Data(form, state, { strict: true });
+      state.previewBuilt = true;
+      const serialised = serialiseStage1Data(
+        strictPayload,
+        state,
+        currentLayoutPreview,
+        true
+      );
+      saveStage1Data(serialised);
+      setStatus(statusElement, '版式预览已构建，可继续下一环节。', 'success');
+    } catch (error) {
+      console.warn(error);
+      state.previewBuilt = false;
+      const serialised = serialiseStage1Data(
+        relaxedPayload,
+        state,
+        currentLayoutPreview,
+        false
+      );
+      saveStage1Data(serialised);
+      const reason = error?.message || '请补全必填素材。';
+      setStatus(
+        statusElement,
+        `预览已更新，但${reason.replace(/^[，。]?/, '')}`,
+        'warning'
+      );
+    }
+  });
+
+  nextButton.addEventListener('click', () => {
+    try {
+      const payload = collectStage1Data(form, state, { strict: true });
+      currentLayoutPreview = updatePosterPreview(
+        payload,
+        state,
+        previewElements,
+        layoutStructure,
+        previewContainer
+      );
+      state.previewBuilt = true;
+      const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
+      saveStage1Data(serialised);
+      setStatus(statusElement, '素材已保存，正在跳转至环节 2。', 'info');
+      window.location.href = 'stage2.html';
+    } catch (error) {
+      console.error(error);
+      setStatus(statusElement, error.message || '请先完成版式预览后再继续。', 'error');
+    }
+  });
+}
+
+function applyStage1Defaults(form) {
+  for (const [key, value] of Object.entries(DEFAULT_STAGE1)) {
+    const element = form.elements.namedItem(key);
+    if (element && typeof value === 'string') {
+      element.value = value;
+    }
+  }
+
+  const featureInputs = form.querySelectorAll('input[name="features"]');
+  featureInputs.forEach((input, index) => {
+    input.value = DEFAULT_STAGE1.features[index] ?? '';
+  });
+}
+
+function updateInlinePlaceholders(inlinePreviews) {
+  if (inlinePreviews.brand_logo) inlinePreviews.brand_logo.src = placeholderImages.brandLogo;
+  if (inlinePreviews.scenario_asset) inlinePreviews.scenario_asset.src = placeholderImages.scenario;
+  if (inlinePreviews.product_asset) inlinePreviews.product_asset.src = placeholderImages.product;
+}
+
+async function applyStage1DataToForm(data, form, state, inlinePreviews) {
+
+  for (const key of ['brand_name', 'agent_name', 'scenario_image', 'product_name', 'title', 'subtitle']) {
+    const element = form.elements.namedItem(key);
+    if (element && typeof data[key] === 'string') {
+      element.value = data[key];
+    }
+  }
+
+  const features = Array.isArray(data.features) && data.features.length
+    ? data.features
+    : DEFAULT_STAGE1.features;
+  const featureInputs = form.querySelectorAll('input[name="features"]');
+  featureInputs.forEach((input, index) => {
+    input.value = features[index] ?? '';
+  });
+
+  state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
+  state.scenario = await rehydrateStoredAsset(data.scenario_asset);
+  state.product = await rehydrateStoredAsset(data.product_asset);
+  state.galleryEntries = Array.isArray(data.gallery_entries)
+    ? await Promise.all(
+        data.gallery_entries.map(async (entry) => ({
+          id: entry.id || createId(),
+          caption: entry.caption || '',
+          asset: await rehydrateStoredAsset(entry.asset),
+        }))
+      )
+    : [];
+  state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
+  state.templateLabel = data.template_label || '';
+
+  if (inlinePreviews.brand_logo) {
+    inlinePreviews.brand_logo.src = state.brandLogo?.dataUrl || placeholderImages.brandLogo;
+  }
+  if (inlinePreviews.scenario_asset) {
+    inlinePreviews.scenario_asset.src = state.scenario?.dataUrl || placeholderImages.scenario;
+  }
+  if (inlinePreviews.product_asset) {
+    inlinePreviews.product_asset.src = state.product?.dataUrl || placeholderImages.product;
+  }
+}
+function attachSingleImageHandler(input, key, inlinePreview, state, refreshPreview) {
+  if (!input) return;
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      await deleteStoredAsset(state[key]);
+      state[key] = null;
+      state.previewBuilt = false;
+      if (inlinePreview) {
+        const placeholder =
+          key === 'brandLogo'
+            ? placeholderImages.brandLogo
+            : key === 'scenario'
+            ? placeholderImages.scenario
+            : placeholderImages.product;
+        inlinePreview.src = placeholder;
+      }
+      refreshPreview();
+      return;
+    }
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      state[key] = await buildAsset(file, dataUrl, state[key]);
+
+      if (inlinePreview) {
+        inlinePreview.src = dataUrl;
+      }
+      state.previewBuilt = false;
+      refreshPreview();
+    } catch (error) {
+      console.error(error);
+    }
+  });
+}
+function renderGalleryItems(state, container, options = {}) {
+  const {
+    previewElements,
+    layoutStructure,
+    previewContainer,
+    statusElement,
+    onChange,
+  } = options;
+  if (!container) return;
+  container.innerHTML = '';
+
+  state.galleryEntries.slice(0, 4).forEach((entry, index) => {
+    const item = document.createElement('div');
+    item.classList.add('gallery-item');
+    item.dataset.id = entry.id;
+
+    const header = document.createElement('div');
+    header.classList.add('gallery-item-header');
+    const title = document.createElement('span');
+    title.classList.add('gallery-item-title');
+    title.textContent = `底部产品 ${index + 1}`;
+    header.appendChild(title);
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.classList.add('secondary');
+    removeButton.textContent = '移除';
+    removeButton.addEventListener('click', async () => {
+      await deleteStoredAsset(entry.asset);
+
+      state.galleryEntries = state.galleryEntries.filter((g) => g.id !== entry.id);
+      state.previewBuilt = false;
+      renderGalleryItems(state, container, {
+        previewElements,
+        layoutStructure,
+        previewContainer,
+        statusElement,
+        onChange,
+      });
+      onChange?.();
+    });
+
+    const actions = document.createElement('div');
+    actions.classList.add('gallery-item-actions');
+    actions.appendChild(removeButton);
+    header.appendChild(actions);
+    item.appendChild(header);
+
+    const fileField = document.createElement('label');
+    fileField.classList.add('field', 'file-field');
+    fileField.innerHTML = '<span>上传产品小图</span>';
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        entry.asset = await buildAsset(file, dataUrl, entry.asset);
+        previewImage.src = dataUrl;
+        state.previewBuilt = false;
+        onChange?.();
+      } catch (error) {
+        console.error(error);
+        setStatus(statusElement, '读取底部产品小图时发生错误。', 'error');
+      }
+    });
+    fileField.appendChild(fileInput);
+    item.appendChild(fileField);
+
+    const previewWrapper = document.createElement('div');
+    previewWrapper.classList.add('gallery-item-preview');
+    const previewImage = document.createElement('img');
+    previewImage.alt = `底部产品 ${index + 1} 预览`;
+    previewImage.src = entry.asset?.dataUrl || placeholderImages.gallery[index];
+    previewWrapper.appendChild(previewImage);
+    item.appendChild(previewWrapper);
+
+    const captionField = document.createElement('label');
+    captionField.classList.add('field', 'gallery-caption');
+    captionField.innerHTML = '<span>小图文案</span>';
+    const captionInput = document.createElement('input');
+    captionInput.type = 'text';
+    captionInput.value = entry.caption || '';
+    captionInput.placeholder = '请输入对应系列说明';
+    captionInput.addEventListener('input', () => {
+      entry.caption = captionInput.value;
+      state.previewBuilt = false;
+      onChange?.();
+    });
+    captionField.appendChild(captionInput);
+    item.appendChild(captionField);
+
+    container.appendChild(item);
+  });
+}
+
+function collectStage1Data(form, state, { strict = false } = {}) {
+  const formData = new FormData(form);
+  const payload = {
+    brand_name: formData.get('brand_name')?.toString().trim() || '',
+    agent_name: formData.get('agent_name')?.toString().trim() || '',
+    scenario_image: formData.get('scenario_image')?.toString().trim() || '',
+    product_name: formData.get('product_name')?.toString().trim() || '',
+    title: formData.get('title')?.toString().trim() || '',
+    subtitle: formData.get('subtitle')?.toString().trim() || '',
+  };
+
+  const features = formData
+    .getAll('features')
+    .map((feature) => feature.toString().trim())
+    .filter((feature) => feature.length > 0);
+
+  payload.features = features;
+
+  const galleryEntries = state.galleryEntries.map((entry) => ({
+    id: entry.id,
+    caption: entry.caption.trim(),
+    asset: entry.asset,
+  }));
+
+  const validGalleryEntries = galleryEntries.filter((entry) => entry.asset);
+
+  payload.series_description = validGalleryEntries.length
+    ? validGalleryEntries
+        .map((entry, index) => `小图${index + 1}：${entry.caption || '系列说明待补充'}`)
+        .join(' / ')
+    : '';
+
+  payload.brand_logo = state.brandLogo;
+  payload.scenario_asset = state.scenario;
+  payload.product_asset = state.product;
+  payload.gallery_entries = galleryEntries;
+  payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
+  payload.template_label = state.templateLabel || '';
+
+  if (strict) {
+    const missing = [];
+    for (const [key, value] of Object.entries(payload)) {
+      if (['brand_logo', 'scenario_asset', 'product_asset', 'gallery_entries'].includes(key)) {
+        continue;
+      }
+      if (typeof value === 'string' && !value) {
+        missing.push(key);
+      }
+    }
+    if (payload.features.length < 3) {
+      throw new Error('请填写至少 3 条产品功能点。');
+    }
+    if (validGalleryEntries.length < 3) {
+      throw new Error('请上传至少 3 张底部产品小图，并填写对应文案。');
+    }
+    const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
+    if (captionsIncomplete) {
+      throw new Error('请为每张底部产品小图填写文案说明。');
+    }
+
+    if (missing.length) {
+      throw new Error('请完整填写素材输入表单中的必填字段。');
+    }
+  }
+
+  return payload;
+}
+function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
+  const {
+    brandLogo,
+    brandName,
+    agentName,
+    scenarioImage,
+    productImage,
+    featureList,
+    title,
+    subtitle,
+    gallery,
+  } = elements;
+
+  const layoutText = buildLayoutPreview(payload);
+
+  if (layoutStructure) {
+    layoutStructure.textContent = layoutText;
+  }
+  if (previewContainer) {
+    previewContainer.classList.remove('hidden');
+  }
+
+  if (brandLogo) {
+    brandLogo.src = payload.brand_logo?.dataUrl || placeholderImages.brandLogo;
+  }
+  if (brandName) {
+    brandName.textContent = payload.brand_name || '品牌名称';
+  }
+  if (agentName) {
+    agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
+  }
+  if (scenarioImage) {
+    scenarioImage.src = payload.scenario_asset?.dataUrl || placeholderImages.scenario;
+  }
+  if (productImage) {
+    productImage.src = payload.product_asset?.dataUrl || placeholderImages.product;
+  }
+  if (title) {
+    title.textContent = payload.title || '标题文案';
+  }
+  if (subtitle) {
+    subtitle.textContent = payload.subtitle || '副标题文案';
+  }
+
+  if (featureList) {
+    featureList.innerHTML = '';
+    const featuresForPreview = payload.features.length
+      ? payload.features
+      : DEFAULT_STAGE1.features;
+    featuresForPreview.slice(0, 4).forEach((feature, index) => {
+      const item = document.createElement('li');
+      item.classList.add(`feature-tag-${index + 1}`);
+      item.textContent = feature || `功能点 ${index + 1}`;
+      featureList.appendChild(item);
+    });
+  }
+
+  if (gallery) {
+    gallery.innerHTML = '';
+    const entries = state.galleryEntries.slice(0, 4);
+    const placeholders = placeholderImages.gallery;
+    const total = Math.max(entries.length, 3);
+    for (let index = 0; index < total; index += 1) {
+      const entry = entries[index];
+      const figure = document.createElement('figure');
+      const img = document.createElement('img');
+      const caption = document.createElement('figcaption');
+      if (entry?.asset?.dataUrl) {
+        img.src = entry.asset.dataUrl;
+      } else {
+        img.src = placeholders[index] || placeholders[placeholders.length - 1];
+      }
+      img.alt = `底部产品 ${index + 1} 预览`;
+      caption.textContent = entry?.caption || `底部小图 ${index + 1}`;
+      figure.appendChild(img);
+      figure.appendChild(caption);
+      gallery.appendChild(figure);
+    }
+  }
+
+  return layoutText;
+}
+
+function buildLayoutPreview(payload) {
+  const templateLine =
+    payload.template_label || payload.template_id || DEFAULT_STAGE1.template_id;
+  const logoLine = payload.brand_logo
+    ? `已上传品牌 Logo（${payload.brand_name}）`
+    : payload.brand_name || '品牌 Logo 待上传';
+  const scenarioLine = payload.scenario_asset
+    ? `已上传应用场景图（描述：${payload.scenario_image || '待补充'}）`
+    : payload.scenario_image || '应用场景描述待补充';
+
+  const productLine = payload.product_asset
+    ? `已上传 45° 渲染图（${payload.product_name}）`
+    : payload.product_name || '主产品名称待补充';
+
+  const featuresPreview = (payload.features.length ? payload.features : DEFAULT_STAGE1.features)
+    .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
+    .join('\n');
+
+  const galleryEntries = payload.gallery_entries?.filter((entry) => entry.asset) ?? [];
+  const gallerySummary = galleryEntries.length
+    ? galleryEntries
+        .map((entry, index) => `    · 底部产品小图${index + 1}：${entry.caption || '系列说明待补充'}`)
+        .join('\n')
+    : '    · 底部产品小图待上传（需提供 3-4 张灰度素材并附文字说明）。';
+
+  return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
+    payload.agent_name || '代理名待填写'
+  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
+}
+
+
+function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
+  return {
+    brand_name: payload.brand_name,
+    agent_name: payload.agent_name,
+    scenario_image: payload.scenario_image,
+    product_name: payload.product_name,
+    features: payload.features,
+    title: payload.title,
+    subtitle: payload.subtitle,
+    series_description: payload.series_description,
+    brand_logo: serialiseAssetForStorage(state.brandLogo),
+    scenario_asset: serialiseAssetForStorage(state.scenario),
+    product_asset: serialiseAssetForStorage(state.product),
+    gallery_entries: state.galleryEntries.map((entry) => ({
+      id: entry.id,
+      caption: entry.caption,
+      asset: serialiseAssetForStorage(entry.asset),
+
+    })),
+    template_id: state.templateId || DEFAULT_STAGE1.template_id,
+    template_label: state.templateLabel || '',
+    layout_preview: layoutPreview,
+    preview_built: previewBuilt,
+  };
+}
+
+function saveStage1Data(data, options = {}) {
+  const { preserveStage2 = false } = options;
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
+  } catch (error) {
+    if (isQuotaError(error)) {
+      console.warn('sessionStorage 容量不足，正在尝试覆盖旧的环节 1 数据。', error);
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.stage1);
+        sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
+      } catch (innerError) {
+        console.error('无法保存环节 1 数据，已放弃持久化。', innerError);
+      }
+    } else {
+      console.error('保存环节 1 数据失败。', error);
+    }
+  }
+  if (!preserveStage2) {
+    const stage2Raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
+    if (stage2Raw) {
+      try {
+        const stage2Meta = JSON.parse(stage2Raw);
+        const key = stage2Meta?.poster_image?.storage_key;
+        if (key) {
+          void assetStore.delete(key);
+        }
+      } catch (error) {
+        console.warn('清理环节 2 缓存时解析失败。', error);
+      }
+    }
+    sessionStorage.removeItem(STORAGE_KEYS.stage2);
+  }
+}
+
+function loadStage1Data() {
+  const raw = sessionStorage.getItem(STORAGE_KEYS.stage1);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error('Unable to parse stage1 data', error);
+    return null;
+  }
+}
+function initStage2() {
+  void (async () => {
+    const statusElement = document.getElementById('stage2-status');
+    const layoutStructure = document.getElementById('layout-structure-text');
+    const posterOutput = document.getElementById('poster-output');
+    const aiPreview = document.getElementById('ai-preview');
+    const aiSpinner = document.getElementById('ai-spinner');
+    const aiPreviewMessage = document.getElementById('ai-preview-message');
+    const posterVisual = document.getElementById('poster-visual');
+    const posterImage = document.getElementById('poster-image');
+    const promptGroup = document.getElementById('prompt-group');
+    const emailGroup = document.getElementById('email-group');
+    const promptTextarea = document.getElementById('glibatree-prompt');
+    const emailTextarea = document.getElementById('generated-email');
+    const generateButton = document.getElementById('generate-poster');
+    const regenerateButton = document.getElementById('regenerate-poster');
+    const nextButton = document.getElementById('to-stage3');
+    const overviewList = document.getElementById('stage1-overview');
+    const templateSelect = document.getElementById('template-select');
+    const templateCanvas = document.getElementById('template-preview-canvas');
+    const templateDescription = document.getElementById('template-description');
+
+    if (!generateButton || !nextButton) {
+      return;
+    }
+
+    const stage1Data = loadStage1Data();
+    if (!stage1Data || !stage1Data.preview_built) {
+      setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
+      generateButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+      }
+      return;
+    }
+
+    await hydrateStage1DataAssets(stage1Data);
+
+    const needsTemplatePersist = !('template_id' in stage1Data);
+    stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+    if (needsTemplatePersist) {
+      stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+      if (layoutStructure) {
+        layoutStructure.textContent = stage1Data.layout_preview;
+      }
+      saveStage1Data(stage1Data);
+    }
+    let currentTemplateId = stage1Data.template_id;
+
+    if (layoutStructure && stage1Data.layout_preview) {
+      layoutStructure.textContent = stage1Data.layout_preview;
+    }
+
+    let templateRegistry = [];
+
+    const updateSummary = () => {
+      const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+      const entry = templateRegistry.find((item) => item.id === templateId);
+      const label = entry?.name || stage1Data.template_label || null;
+      populateStage1Summary(stage1Data, overviewList, label);
+    };
+
+    updateSummary();
+
+    async function refreshTemplatePreview(templateId) {
+      if (!templateCanvas) return;
+      try {
+        const assets = await ensureTemplateAssets(templateId);
+        if (templateDescription) {
+          templateDescription.textContent = assets.entry?.description || '';
+        }
+        const previewAssets = await prepareTemplatePreviewAssets(stage1Data);
+        drawTemplatePreview(templateCanvas, assets, stage1Data, previewAssets);
+      } catch (error) {
+        console.error(error);
+        if (templateDescription) {
+          templateDescription.textContent = '';
+        }
+        const ctx = templateCanvas?.getContext?.('2d');
+        if (ctx && templateCanvas) {
+          ctx.clearRect(0, 0, templateCanvas.width, templateCanvas.height);
+          ctx.fillStyle = '#f4f5f7';
+          ctx.fillRect(0, 0, templateCanvas.width, templateCanvas.height);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
+          ctx.fillText('模板预览加载失败', 40, 40);
+        }
+      }
+    }
+
+    if (templateSelect && templateCanvas) {
+      try {
+        templateRegistry = await loadTemplateRegistry();
+        templateSelect.innerHTML = '';
+        templateRegistry.forEach((entry) => {
+          const option = document.createElement('option');
+          option.value = entry.id;
+          option.textContent = entry.name;
+          templateSelect.appendChild(option);
+        });
+        const activeEntry = templateRegistry.find((entry) => entry.id === currentTemplateId);
+        if (!activeEntry && templateRegistry[0]) {
+          const fallbackEntry = templateRegistry[0];
+          currentTemplateId = fallbackEntry.id;
+          stage1Data.template_id = fallbackEntry.id;
+          stage1Data.template_label = fallbackEntry.name || '';
+          stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+          if (layoutStructure) {
+            layoutStructure.textContent = stage1Data.layout_preview;
+          }
+          saveStage1Data(stage1Data);
+        } else if (activeEntry) {
+          const label = activeEntry.name || '';
+          if (stage1Data.template_label !== label) {
+            stage1Data.template_label = label;
+            stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+            if (layoutStructure) {
+              layoutStructure.textContent = stage1Data.layout_preview;
+            }
+            saveStage1Data(stage1Data, { preserveStage2: true });
+          }
+        }
+        templateSelect.value = currentTemplateId;
+        await refreshTemplatePreview(currentTemplateId);
+        updateSummary();
+      } catch (error) {
+        console.error(error);
+        setStatus(statusElement, '模板清单加载失败，请检查 templates/ 目录。', 'warning');
+      }
+    }
+
+    if (templateSelect) {
+      templateSelect.addEventListener('change', async (event) => {
+        const value = event.target.value || DEFAULT_STAGE1.template_id;
+        currentTemplateId = value;
+        stage1Data.template_id = value;
+        const entry = templateRegistry.find((item) => item.id === value);
+        stage1Data.template_label = entry?.name || '';
+        stage1Data.layout_preview = buildLayoutPreview(stage1Data);
+        if (layoutStructure) {
+          layoutStructure.textContent = stage1Data.layout_preview;
+        }
+        saveStage1Data(stage1Data, { preserveStage2: true });
+        updateSummary();
+        await refreshTemplatePreview(value);
+        setStatus(statusElement, '模板已切换，请重新生成海报以应用新布局。', 'info');
+      });
+    }
+
+    generateButton.addEventListener('click', () => {
+      triggerGeneration({
+        stage1Data,
+        statusElement,
+        layoutStructure,
+        posterOutput,
+        aiPreview,
+        aiSpinner,
+        aiPreviewMessage,
+        posterVisual,
+        posterImage,
+        promptGroup,
+        emailGroup,
+        promptTextarea,
+        emailTextarea,
+        generateButton,
+        regenerateButton,
+        nextButton,
+      }).catch((error) => console.error(error));
+    });
+
+    if (regenerateButton) {
+      regenerateButton.addEventListener('click', () => {
+        triggerGeneration({
+          stage1Data,
+          statusElement,
+          layoutStructure,
+          posterOutput,
+          aiPreview,
+          aiSpinner,
+          aiPreviewMessage,
+          posterVisual,
+          posterImage,
+          promptGroup,
+          emailGroup,
+          promptTextarea,
+          emailTextarea,
+          generateButton,
+          regenerateButton,
+          nextButton,
+        }).catch((error) => console.error(error));
+      });
+    }
+
+    nextButton.addEventListener('click', async () => {
+      const stored = await loadStage2Result();
+      if (!stored || !stored.poster_image) {
+        setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
+        return;
+      }
+      window.location.href = 'stage3.html';
+    });
+  })();
+}
+function populateStage1Summary(stage1Data, overviewList, templateName) {
+  if (!overviewList) return;
+  overviewList.innerHTML = '';
+
+  const entries = [
+    [
+      '模板',
+      templateName || stage1Data.template_id || DEFAULT_STAGE1.template_id,
+    ],
+    ['品牌 / 代理', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
+    ['主产品名称', stage1Data.product_name],
+    [
+      '功能点',
+      (stage1Data.features || [])
+        .map((feature, index) => `${index + 1}. ${feature}`)
+        .join('\n'),
+    ],
+    ['标题', stage1Data.title],
+    ['副标题', stage1Data.subtitle],
+    [
+      '底部产品',
+      `${stage1Data.gallery_entries?.filter((entry) => entry.asset).length || 0} 张小图`,
+    ],
+  ];
+
+  entries.forEach(([term, description]) => {
+    const dt = document.createElement('dt');
+    dt.textContent = term;
+    const dd = document.createElement('dd');
+    dd.textContent = description;
+    overviewList.appendChild(dt);
+    overviewList.appendChild(dd);
+  });
+}
+
+async function triggerGeneration(options) {
+  const {
+    stage1Data,
+    statusElement,
+    layoutStructure,
+    posterOutput,
+    aiPreview,
+    aiSpinner,
+    aiPreviewMessage,
+    posterVisual,
+    posterImage,
+    promptGroup,
+    emailGroup,
+    promptTextarea,
+    emailTextarea,
+    generateButton,
+    regenerateButton,
+    nextButton,
+  } = options;
+
+  const apiBase = (apiBaseInput?.value || '').trim();
+  if (!apiBase) {
+    setStatus(statusElement, '请先填写后端 API 地址。', 'warning');
+    return null;
+  }
+
+  await hydrateStage1DataAssets(stage1Data);
+
+  const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+
+  const payload = {
+    brand_name: stage1Data.brand_name,
+    agent_name: stage1Data.agent_name,
+    scenario_image: stage1Data.scenario_image,
+    product_name: stage1Data.product_name,
+    template_id: templateId,
+    features: stage1Data.features,
+    title: stage1Data.title,
+    subtitle: stage1Data.subtitle,
+    series_description: stage1Data.series_description,
+    brand_logo: stage1Data.brand_logo?.dataUrl || null,
+    scenario_asset: stage1Data.scenario_asset?.dataUrl || null,
+    product_asset: stage1Data.product_asset?.dataUrl || null,
+    gallery_items:
+      stage1Data.gallery_entries
+        ?.filter((entry) => entry.asset?.dataUrl)
+        .map((entry) => ({
+          caption: entry.caption?.trim() || null,
+          asset: entry.asset?.dataUrl || null,
+        })) || [],
+  };
+
+  generateButton.disabled = true;
+  if (regenerateButton) {
+    regenerateButton.disabled = true;
+  }
+  setStatus(statusElement, '正在生成海报与营销文案…', 'info');
+
+  if (posterOutput) posterOutput.classList.remove('hidden');
+  if (aiPreview) aiPreview.classList.remove('complete');
+  if (aiSpinner) aiSpinner.classList.remove('hidden');
+  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
+  if (posterVisual) posterVisual.classList.add('hidden');
+  if (promptGroup) promptGroup.classList.add('hidden');
+  if (emailGroup) emailGroup.classList.add('hidden');
+  if (nextButton) nextButton.disabled = true;
+
+  try {
+    const response = await fetch(`${apiBase.replace(/\/$/, '')}/api/generate-poster`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || '生成海报时发生错误。');
+    }
+
+    const data = await response.json();
+    if (layoutStructure && data.layout_preview) {
+      layoutStructure.textContent = data.layout_preview;
+    }
+    if (posterImage && data.poster_image?.data_url) {
+      posterImage.src = data.poster_image.data_url;
+      posterImage.alt = `${payload.product_name} 海报预览`;
+    }
+    if (promptTextarea) {
+      promptTextarea.value = data.prompt || '';
+    }
+    if (emailTextarea) {
+      emailTextarea.value = data.email_body || '';
+    }
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (aiPreviewMessage) aiPreviewMessage.textContent = 'AI 生成完成，以下为最新输出。';
+    if (posterVisual) posterVisual.classList.remove('hidden');
+    if (promptGroup) promptGroup.classList.remove('hidden');
+    if (emailGroup) emailGroup.classList.remove('hidden');
+    if (nextButton) nextButton.disabled = false;
+
+    setStatus(statusElement, '海报与营销文案生成完成。', 'success');
+
+    const stage2Result = {
+      poster_image: data.poster_image,
+      prompt: data.prompt,
+      email_body: data.email_body,
+      template_id: payload.template_id,
+    };
+    await saveStage2Result(stage2Result);
+    return stage2Result;
+  } catch (error) {
+    console.error(error);
+    setStatus(statusElement, error.message || '生成海报时发生错误。', 'error');
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (aiPreviewMessage) aiPreviewMessage.textContent = '生成失败，请稍后重试。';
+    if (posterVisual) posterVisual.classList.add('hidden');
+    if (promptGroup) promptGroup.classList.add('hidden');
+    if (emailGroup) emailGroup.classList.add('hidden');
+    if (nextButton) nextButton.disabled = true;
+    return null;
+  } finally {
+    generateButton.disabled = false;
+    if (regenerateButton) {
+      regenerateButton.disabled = false;
+      regenerateButton.classList.remove('hidden');
+    }
+  }
+}
+
+async function loadTemplateRegistry() {
+  if (!templateRegistryPromise) {
+    templateRegistryPromise = fetch(TEMPLATE_REGISTRY_PATH)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('无法加载模板清单');
+        }
+        return response.json();
+      })
+      .catch((error) => {
+        templateRegistryPromise = null;
+        throw error;
+      });
+  }
+  const registry = await templateRegistryPromise;
+  return Array.isArray(registry) ? registry : [];
+}
+
+async function ensureTemplateAssets(templateId) {
+  if (templateCache.has(templateId)) {
+    return templateCache.get(templateId);
+  }
+  const registry = await loadTemplateRegistry();
+  const entry =
+    registry.find((item) => item.id === templateId) || registry.find((item) => item.id);
+  if (!entry) {
+    throw new Error('模板列表为空');
+  }
+  const [spec, image] = await Promise.all([
+    fetch(`templates/${entry.spec}`).then((response) => {
+      if (!response.ok) throw new Error('无法加载模板规范');
+      return response.json();
+    }),
+    loadImageAsset(`templates/${entry.preview}`),
+  ]);
+
+  const payload = { entry, spec, image };
+  templateCache.set(entry.id, payload);
+  return payload;
+}
+
+async function prepareTemplatePreviewAssets(stage1Data) {
+  const result = {
+    brand_logo: null,
+    scenario: null,
+    product: null,
+    gallery: [],
+  };
+
+  const tasks = [];
+  const queue = (key, dataUrl, index) => {
+    if (!dataUrl) return;
+    tasks.push(
+      loadImageAsset(dataUrl)
+        .then((image) => {
+          if (key === 'gallery') {
+            result.gallery[index] = image;
+          } else {
+            result[key] = image;
+          }
+        })
+        .catch(() => undefined)
+    );
+  };
+
+  queue('brand_logo', stage1Data.brand_logo?.dataUrl);
+  queue('scenario', stage1Data.scenario_asset?.dataUrl);
+  queue('product', stage1Data.product_asset?.dataUrl);
+  (stage1Data.gallery_entries || []).forEach((entry, index) => {
+    queue('gallery', entry?.asset?.dataUrl, index);
+  });
+
+  await Promise.allSettled(tasks);
+  return result;
+}
+
+function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const spec = assets.spec || {};
+  const size = spec.size || {};
+  const width = Number(size.width) || assets.image.width;
+  const height = Number(size.height) || assets.image.height;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = '#f4f5f7';
+  ctx.fillRect(0, 0, width, height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(assets.image, 0, 0, width, height);
+
+  const slots = spec.slots || {};
+  const fonts = {
+    brand: '600 36px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    agent: '600 30px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    title: '700 64px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    subtitle: '700 40px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    body: '400 28px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    feature: '500 26px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    caption: '400 22px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+  };
+
+  const brandSlot = getSlotRect(slots.logo);
+  if (brandSlot) {
+    if (previewAssets.brand_logo) {
+      drawPreviewImage(ctx, previewAssets.brand_logo, brandSlot, 'contain');
+    } else {
+      drawPreviewPlaceholder(ctx, brandSlot, stage1Data.brand_name || '品牌 Logo');
+    }
+  }
+
+  const brandNameSlot = getSlotRect(slots.brand_name);
+  if (brandNameSlot) {
+    drawPreviewText(ctx, stage1Data.brand_name || '品牌名称', brandNameSlot, {
+      font: fonts.brand,
+      color: '#1f2933',
+    });
+  }
+
+  const agentSlot = getSlotRect(slots.agent_name);
+  if (agentSlot) {
+    drawPreviewText(ctx, (stage1Data.agent_name || '代理名').toUpperCase(), agentSlot, {
+      font: fonts.agent,
+      color: '#1f2933',
+      align: 'right',
+    });
+  }
+
+  const scenarioSlot = getSlotRect(slots.scenario);
+  if (scenarioSlot) {
+    if (previewAssets.scenario) {
+      drawPreviewImage(ctx, previewAssets.scenario, scenarioSlot, 'cover');
+    } else {
+      drawPreviewPlaceholder(ctx, scenarioSlot, stage1Data.scenario_image || '应用场景');
+    }
+  }
+
+  const productSlot = getSlotRect(slots.product);
+  if (productSlot) {
+    if (previewAssets.product) {
+      drawPreviewImage(ctx, previewAssets.product, productSlot, 'contain');
+    } else {
+      drawPreviewPlaceholder(ctx, productSlot, stage1Data.product_name || '产品渲染图');
+    }
+  }
+
+  const titleSlot = getSlotRect(slots.title);
+  if (titleSlot) {
+    drawPreviewText(ctx, stage1Data.title || '标题文案待补充', titleSlot, {
+      font: fonts.title,
+      color: '#ef4c54',
+      align: 'center',
+      lineHeight: 72,
+    });
+  }
+
+  const subtitleSlot = getSlotRect(slots.subtitle);
+  if (subtitleSlot) {
+    drawPreviewText(ctx, stage1Data.subtitle || '副标题待补充', subtitleSlot, {
+      font: fonts.subtitle,
+      color: '#ef4c54',
+      align: 'right',
+      lineHeight: 48,
+    });
+  }
+
+  const callouts = spec.feature_callouts || [];
+  callouts.forEach((callout, index) => {
+    if (!stage1Data.features || !stage1Data.features[index]) return;
+    const labelSlot = getSlotRect(callout.label_box);
+    if (!labelSlot) return;
+    drawPreviewText(
+      ctx,
+      `${index + 1}. ${stage1Data.features[index]}`,
+      labelSlot,
+      {
+        font: fonts.feature,
+        color: '#1f2933',
+        lineHeight: 34,
+      }
+    );
+  });
+
+  const gallery = spec.gallery || {};
+  const galleryItems = gallery.items || [];
+  galleryItems.forEach((slot, index) => {
+    const rect = getSlotRect(slot);
+    if (!rect) return;
+    const image = previewAssets.gallery[index];
+    if (image) {
+      ctx.save();
+      ctx.filter = 'grayscale(100%)';
+      drawPreviewImage(ctx, image, rect, 'cover');
+      ctx.restore();
+    } else {
+      drawPreviewPlaceholder(ctx, rect, `底部小图 ${index + 1}`);
+    }
+
+    const caption = stage1Data.gallery_entries?.[index]?.caption;
+    if (caption) {
+      drawPreviewText(ctx, caption, {
+        x: rect.x + 8,
+        y: rect.y + rect.height - 44,
+        width: rect.width - 16,
+        height: 40,
+      }, {
+        font: fonts.caption,
+        color: '#1f2933',
+        lineHeight: 26,
+      });
+    }
+  });
+
+  const stripSlot = getSlotRect(gallery.strip);
+  if (stripSlot) {
+    drawPreviewText(ctx, stage1Data.series_description || '系列说明待补充', {
+      x: stripSlot.x + 12,
+      y: stripSlot.y + Math.max(stripSlot.height - 44, 0),
+      width: stripSlot.width - 24,
+      height: 40,
+    }, {
+      font: fonts.caption,
+      color: '#1f2933',
+      lineHeight: 24,
+    });
+  }
+}
+
+function loadImageAsset(src) {
+  return new Promise((resolve, reject) => {
+    const attempt = (url, allowFallback) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = async () => {
+        if (!allowFallback) {
+          reject(new Error(`无法加载图片：${url}`));
+          return;
+        }
+
+        const fallback = deriveBase64Fallback(url);
+        if (!fallback) {
+          reject(new Error(`无法加载图片：${url}`));
+          return;
+        }
+
+        try {
+          const response = await fetch(fallback, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error(`无法加载 Base64 资源：${fallback}`);
+          }
+          const base64 = (await response.text()).trim();
+          attempt(`data:image/png;base64,${base64}`, false);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      img.src = url;
+    };
+
+    attempt(src, !src.startsWith('data:'));
+  });
+}
+
+function deriveBase64Fallback(url) {
+  if (!url || url.startsWith('data:')) {
+    return null;
+  }
+  const [path] = url.split('?', 1);
+  if (!path.endsWith('.png')) {
+    return null;
+  }
+  return `${path.slice(0, -4)}.b64`;
+}
+
+function drawPreviewImage(ctx, image, slot, mode = 'contain') {
+  const rect = getSlotRect(slot);
+  if (!rect) return;
+  const { x, y, width, height } = rect;
+  let drawWidth = width;
+  let drawHeight = height;
+
+  if (mode === 'cover') {
+    const scale = Math.max(width / image.width, height / image.height);
+    drawWidth = image.width * scale;
+    drawHeight = image.height * scale;
+  } else {
+    const scale = Math.min(width / image.width, height / image.height);
+    drawWidth = image.width * scale;
+    drawHeight = image.height * scale;
+  }
+
+  const offsetX = x + (width - drawWidth) / 2;
+  const offsetY = y + (height - drawHeight) / 2;
+  ctx.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+}
+
+function drawPreviewPlaceholder(ctx, slot, label) {
+  const rect = getSlotRect(slot);
+  if (!rect) return;
+  const { x, y, width, height } = rect;
+  ctx.save();
+  ctx.strokeStyle = '#cbd2d9';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.strokeRect(x + 6, y + 6, Math.max(width - 12, 0), Math.max(height - 12, 0));
+  ctx.setLineDash([]);
+  drawPreviewText(ctx, label, rect, {
+    font: '20px "Noto Sans SC", "Microsoft YaHei", sans-serif',
+    color: '#6b7280',
+    align: 'center',
+    lineHeight: 28,
+  });
+  ctx.restore();
+}
+
+function drawPreviewText(ctx, text, slot, options = {}) {
+  if (!text) return;
+  const rect = getSlotRect(slot);
+  if (!rect) return;
+  const { x, y, width, height } = rect;
+  ctx.save();
+  if (options.font) ctx.font = options.font;
+  ctx.fillStyle = options.color || '#1f2933';
+  ctx.textBaseline = 'top';
+  const lines = wrapPreviewText(ctx, text, width);
+  const fontSizeMatch = /([0-9]+(?:\.[0-9]+)?)px/.exec(ctx.font);
+  const fontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 24;
+  const lineHeight = options.lineHeight || fontSize * 1.3;
+  let offsetY = y;
+  lines.forEach((line) => {
+    if (offsetY + lineHeight > y + height) return;
+    let offsetX = x;
+    const measured = ctx.measureText(line);
+    if (options.align === 'center') {
+      offsetX = x + Math.max((width - measured.width) / 2, 0);
+    } else if (options.align === 'right') {
+      offsetX = x + Math.max(width - measured.width, 0);
+    }
+    ctx.fillText(line, offsetX, offsetY);
+    offsetY += lineHeight;
+  });
+  ctx.restore();
+}
+
+function wrapPreviewText(ctx, text, maxWidth) {
+  const tokens = tokeniseText(text);
+  const lines = [];
+  let current = '';
+  tokens.forEach((token) => {
+    if (token === '\n') {
+      if (current.trim()) lines.push(current.trim());
+      current = '';
+      return;
+    }
+    const candidate = current ? current + token : token;
+    const width = ctx.measureText(candidate.trimStart()).width;
+    if (width <= maxWidth || !current.trim()) {
+      current = candidate;
+    } else {
+      if (current.trim()) lines.push(current.trim());
+      current = token.trimStart();
+    }
+  });
+  if (current.trim()) lines.push(current.trim());
+  return lines;
+}
+
+function tokeniseText(text) {
+  const tokens = [];
+  let buffer = '';
+  for (const char of text) {
+    if (char === '\n') {
+      if (buffer) {
+        tokens.push(buffer);
+        buffer = '';
+      }
+      tokens.push('\n');
+    } else if (char === ' ') {
+      buffer += char;
+    } else if (/^[A-Za-z0-9]$/.test(char)) {
+      buffer += char;
+    } else {
+      if (buffer) {
+        tokens.push(buffer);
+        buffer = '';
+      }
+      tokens.push(char);
+    }
+  }
+  if (buffer) tokens.push(buffer);
+  return tokens;
+}
+
+function getSlotRect(slot) {
+  if (!slot) return null;
+  const x = Number(slot.x) || 0;
+  const y = Number(slot.y) || 0;
+  const width = Number(slot.width) || 0;
+  const height = Number(slot.height) || 0;
+  return { x, y, width, height };
+}
+
+async function saveStage2Result(data) {
+  if (!data) return;
+
+  let previousKey = null;
+  const existingRaw = sessionStorage.getItem(STORAGE_KEYS.stage2);
+  if (existingRaw) {
+    try {
+      const existing = JSON.parse(existingRaw);
+      previousKey = existing?.poster_image?.storage_key || null;
+    } catch (error) {
+      console.warn('无法解析现有的环节 2 数据，跳过旧键清理。', error);
+    }
+  }
+
+  const payload = { ...data };
+  if (data.poster_image) {
+    const key = data.poster_image.storage_key || createId();
+    if (data.poster_image.data_url) {
+      await assetStore.put(key, data.poster_image.data_url);
+    }
+    payload.poster_image = {
+      filename: data.poster_image.filename,
+      media_type: data.poster_image.media_type,
+      width: data.poster_image.width,
+      height: data.poster_image.height,
+      storage_key: key,
+    };
+    if (previousKey && previousKey !== key) {
+      await assetStore.delete(previousKey).catch(() => undefined);
+    }
+  }
+
+  try {
+    sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
+  } catch (error) {
+    if (isQuotaError(error)) {
+      console.warn('sessionStorage 容量不足，正在覆盖旧的环节 2 结果。', error);
+      try {
+        sessionStorage.removeItem(STORAGE_KEYS.stage2);
+        sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
+      } catch (innerError) {
+        console.error('无法保存环节 2 结果，已放弃持久化。', innerError);
+      }
+    } else {
+      console.error('保存环节 2 结果失败。', error);
+    }
+  }
+}
+
+async function loadStage2Result() {
+  const raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.poster_image?.storage_key) {
+      const dataUrl = await assetStore.get(parsed.poster_image.storage_key);
+      if (dataUrl) {
+        parsed.poster_image.data_url = dataUrl;
+      }
+    }
+    return parsed;
+  } catch (error) {
+    console.error('Unable to parse stage2 result', error);
+    return null;
+  }
+}
+
+function initStage3() {
+  void (async () => {
+    const statusElement = document.getElementById('stage3-status');
+    const posterImage = document.getElementById('stage3-poster-image');
+    const posterCaption = document.getElementById('stage3-poster-caption');
+    const promptTextarea = document.getElementById('stage3-prompt');
+    const emailRecipient = document.getElementById('email-recipient');
+    const emailSubject = document.getElementById('email-subject');
+    const emailBody = document.getElementById('email-body');
+    const sendButton = document.getElementById('send-email');
+
+    if (!sendButton || !emailRecipient || !emailSubject || !emailBody) {
+      return;
+    }
+
+    const stage1Data = loadStage1Data();
+    const stage2Result = await loadStage2Result();
+
+    if (!stage1Data || !stage2Result?.poster_image) {
+      setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
+      sendButton.disabled = true;
+      return;
+    }
+
+    if (posterImage && stage2Result.poster_image?.data_url) {
+      posterImage.src = stage2Result.poster_image.data_url;
+      posterImage.alt = `${stage1Data.product_name} 海报预览`;
+    }
+    if (posterCaption) {
+      posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
+    }
+    if (promptTextarea) {
+      promptTextarea.value = stage2Result.prompt || '';
+    }
+
+    emailSubject.value = buildEmailSubject(stage1Data);
+    emailRecipient.value = stage1Data.default_recipient || DEFAULT_EMAIL_RECIPIENT;
+    emailBody.value = stage2Result.email_body || '';
+
+    sendButton.addEventListener('click', async () => {
+      const apiBase = (apiBaseInput?.value || '').trim();
+      if (!apiBase) {
+        setStatus(statusElement, '请先填写后端 API 地址。', 'warning');
+        return;
+      }
+
+    const recipient = emailRecipient.value.trim();
+    const subject = emailSubject.value.trim();
+    const body = emailBody.value.trim();
+
+    if (!recipient || !subject || !body) {
+      setStatus(statusElement, '请完整填写收件邮箱、主题与正文。', 'error');
+      return;
+    }
+
+    sendButton.disabled = true;
+    setStatus(statusElement, '正在发送营销邮件…', 'info');
+
+    try {
+      const response = await fetch(`${apiBase.replace(/\/$/, '')}/api/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient,
+          subject,
+          body,
+          attachment: stage2Result.poster_image,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || '发送邮件时发生错误。');
+      }
+
+      setStatus(statusElement, '营销邮件发送成功！', 'success');
+    } catch (error) {
+      console.error(error);
+      setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
+    } finally {
+      sendButton.disabled = false;
+    }
+    });
+  })();
+}
+
+function buildEmailSubject(stage1Data) {
+  const brand = stage1Data.brand_name || '品牌';
+  const agent = stage1Data.agent_name ? `（${stage1Data.agent_name}）` : '';
+  const product = stage1Data.product_name || '产品';
+  return `${brand}${agent} ${product} 市场推广海报`;
+}
+
+function setStatus(element, message, level = 'info') {
+  if (!element) return;
+  element.textContent = message;
+  element.className = level ? `status-${level}` : '';
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result?.toString() || '');
+    reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function createPlaceholder(text) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="300">\n    <defs>\n      <style>\n        .bg { fill: #e5e9f0; }\n        .border { fill: none; stroke: #cbd2d9; stroke-width: 4; stroke-dasharray: 12 10; }\n        .label {\n          font-size: 26px;\n          font-family: 'Segoe UI', 'Noto Sans', sans-serif;\n          font-weight: 600;\n          fill: #3d4852;\n        }\n      </style>\n    </defs>\n    <rect class="bg" x="0" y="0" width="420" height="300" rx="28" />\n    <rect class="border" x="16" y="16" width="388" height="268" rx="24" />\n    <text class="label" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">${text}</text>\n  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+async function buildAsset(file, dataUrl, previousAsset) {
+  const key = createId();
+  await assetStore.put(key, dataUrl);
+  if (previousAsset?.key && previousAsset.key !== key) {
+    await assetStore.delete(previousAsset.key).catch(() => undefined);
+  }
+  return {
+    key,
+    dataUrl,
+    name: file.name,
+    type: file.type,
+    size: typeof file.size === 'number' ? file.size : undefined,
+    lastModified: file.lastModified ?? Date.now(),
+  };
+}
+
+function createId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function serialiseAssetForStorage(asset) {
+  if (!asset || !asset.key) return null;
+  const { key, name, type, size, lastModified } = asset;
+  return {
+    key,
+    name: name || null,
+    type: type || null,
+    size: typeof size === 'number' ? size : null,
+    lastModified: typeof lastModified === 'number' ? lastModified : null,
+  };
+}
+
+async function rehydrateStoredAsset(assetMeta) {
+  if (!assetMeta) return null;
+  if (assetMeta.dataUrl) return assetMeta;
+  if (!assetMeta.key) return null;
+  const dataUrl = await assetStore.get(assetMeta.key);
+  if (!dataUrl) return { ...assetMeta, dataUrl: null };
+  return { ...assetMeta, dataUrl };
+}
+
+async function hydrateStage1DataAssets(stage1Data) {
+  if (!stage1Data) return stage1Data;
+  stage1Data.brand_logo = await rehydrateStoredAsset(stage1Data.brand_logo);
+  stage1Data.scenario_asset = await rehydrateStoredAsset(stage1Data.scenario_asset);
+  stage1Data.product_asset = await rehydrateStoredAsset(stage1Data.product_asset);
+  if (Array.isArray(stage1Data.gallery_entries)) {
+    stage1Data.gallery_entries = await Promise.all(
+      stage1Data.gallery_entries.map(async (entry) => ({
+        ...entry,
+        asset: await rehydrateStoredAsset(entry.asset),
+      }))
+    );
+  }
+  return stage1Data;
+}
+
+async function deleteStoredAsset(asset) {
+  if (asset?.key) {
+    await assetStore.delete(asset.key).catch(() => undefined);
+  }
+}
+
+function isQuotaError(error) {
+  if (typeof DOMException === 'undefined') return false;
+  return (
+    error instanceof DOMException &&
+    (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+  );
+}
+
+function createAssetStore() {
+  const DB_NAME = 'marketing-poster-assets';
+  const STORE_NAME = 'assets';
+  const VERSION = 1;
+  const memoryStore = new Map();
+  const supportsIndexedDB = typeof indexedDB !== 'undefined';
+  let dbPromise = null;
+
+  function openDb() {
+    if (!supportsIndexedDB) return Promise.resolve(null);
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            db.createObjectStore(STORE_NAME);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error('无法打开 IndexedDB'));
+      }).catch((error) => {
+        console.warn('IndexedDB 不可用，回退到内存存储。', error);
+        return null;
+      });
+    }
+    return dbPromise;
+  }
+
+  async function put(key, value) {
+    if (!key) return null;
+    const db = await openDb();
+    if (!db) {
+      memoryStore.set(key, value);
+      return key;
+    }
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.onabort = () => {
+        console.warn('IndexedDB 写入失败，使用内存存储。', tx.error);
+        memoryStore.set(key, value);
+        resolve(key);
+      };
+      tx.oncomplete = () => resolve(key);
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.put(value, key);
+      request.onerror = () => {
+        tx.abort();
+      };
+    });
+  }
+
+  async function get(key) {
+    if (!key) return null;
+    const db = await openDb();
+    if (!db) {
+      return memoryStore.get(key) || null;
+    }
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      tx.onabort = () => {
+        console.warn('IndexedDB 读取失败，使用内存存储。', tx.error);
+        resolve(memoryStore.get(key) || null);
+      };
+      const store = tx.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => {
+        const result = request.result;
+        if (result) {
+          resolve(result);
+        } else {
+          resolve(memoryStore.get(key) || null);
+        }
+      };
+      request.onerror = () => {
+        tx.abort();
+      };
+    });
+  }
+
+  async function remove(key) {
+    if (!key) return;
+    const db = await openDb();
+    if (!db) {
+      memoryStore.delete(key);
+      return;
+    }
+    await new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => {
+        console.warn('IndexedDB 删除失败，尝试清理内存存储。', tx.error);
+        memoryStore.delete(key);
+        resolve();
+      };
+      tx.objectStore(STORE_NAME).delete(key);
+    });
+    memoryStore.delete(key);
+  }
+
+  async function clear() {
+    const db = await openDb();
+    if (db) {
+      await new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.oncomplete = () => resolve();
+        tx.onabort = () => resolve();
+        tx.objectStore(STORE_NAME).clear();
+      });
+    }
+    memoryStore.clear();
+  }
+
+  return {
+    put,
+    get,
+    delete: remove,
+    clear,
+  };
+}

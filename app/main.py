@@ -4,6 +4,8 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse, PlainTextResponse
+
 
 from app.config import get_settings
 from app.schemas import (
@@ -31,6 +33,9 @@ if allow_origins == ["*"]:
     allow_credentials = False
 else:
     allow_credentials = True
+# --- CORS ---
+allow_origins = settings.allowed_origins  # 总是返回列表（如 ["*"] 或具体域）
+allow_credentials = allow_origins != ["*"]  # "*" 时禁止携带凭证以符合浏览器规范
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,11 +45,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- 根路径：修复 Render HEAD / 健康探测 & 人类可用性 ---
+@app.get("/", include_in_schema=False)
+def root_redirect():
+    # 访问根直接跳到 Swagger 文档
+    return RedirectResponse(url="/docs", status_code=307)
 
-@app.get("/health")
+@app.head("/", include_in_schema=False)
+def root_head():
+    # Render 健康检查会发 HEAD /，这里返回 200
+    return PlainTextResponse("", status_code=200)
+
+# --- 健康检查 ---
+@app.get("/health", include_in_schema=False)
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
 
+# --- 业务 API ---
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 def generate_poster(payload: PosterInput) -> GeneratePosterResponse:
@@ -74,4 +91,3 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 
 __all__ = ["app"]
-

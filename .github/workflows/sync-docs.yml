@@ -1,0 +1,49 @@
+name: Sync frontend to docs (Pages branch mode)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/sync-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 清空 docs/（保留 CNAME/静态资源可按需处理）
+      - name: Prepare docs directory
+        run: |
+          mkdir -p docs
+          find docs -mindepth 1 -maxdepth 1 ! -name CNAME -exec rm -rf {} +
+
+      # 复制 frontend 静态文件到 docs
+      - name: Copy frontend -> docs
+        run: |
+          cp -r frontend/* docs/
+
+      # （可选）注入后端地址（在仓库 Settings → Secrets and variables → Actions 设置 API_BASE_URL）
+      - name: Inject backend API base URL
+        if: ${{ env.API_BASE_URL != '' }}
+        run: |
+          # 这里按你的文件实际情况替换占位符
+          sed -i "s|__API_BASE_URL__|${{ env.API_BASE_URL }}|g" docs/app.js || true
+          sed -i "s|__API_BASE_URL__|${{ env.API_BASE_URL }}|g" docs/index.html || true
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+      # 提交变更（只提交 docs/**）
+      - name: Commit & push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore(docs): sync from frontend'
+          file_pattern: docs/**
