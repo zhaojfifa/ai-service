@@ -1696,8 +1696,7 @@ function buildPromptPreviewText(state) {
     }
     lines.push('');
   });
-  return lines.join('
-').trim();
+  return lines.join('').trim();
 }
 
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
