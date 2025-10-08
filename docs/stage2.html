@@ -190,16 +190,19 @@
             <div id="poster-variants" class="variant-strip hidden" aria-live="polite"></div>
           </div>
           <div class="output-group hidden" id="prompt-group">
-            <h3>实际 OpenAI 提示词</h3>
-            <textarea id="openai-request-prompt" rows="10" readonly></textarea>
-          </div>
-          <div class="output-group hidden" id="prompt-default-group">
-            <h3>模板默认英文提示词</h3>
-            <textarea id="template-default-prompt" rows="8" readonly></textarea>
-          </div>
-          <div class="output-group hidden" id="prompt-bundle-group">
-            <h3>提示词槽位配置（JSON）</h3>
-            <pre id="prompt-bundle-json"></pre>
+            <h3>Prompt 输出</h3>
+            <label class="field">
+              <span>实际发送到 OpenAI 的 Prompt</span>
+              <textarea id="openai-prompt" rows="12" readonly></textarea>
+            </label>          
+            <details open>
+              <summary>模板默认英文 Prompt（参考）</summary>
+              <textarea id="default-en-prompt" rows="10" readonly></textarea>
+            </details>          
+            <details>
+              <summary>Prompt Bundle（各槽位配置，JSON）</summary>
+              <textarea id="prompt-bundle" rows="10" readonly></textarea>
+            </details>        
           </div>
           <div class="output-group hidden" id="email-group">
             <h3>营销文案草稿</h3>

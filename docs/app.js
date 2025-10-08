@@ -27,7 +27,6 @@ const templateCache = new Map();
 let templateRegistryPromise = null;
 
 const PROMPT_PRESETS_PATH = 'prompts/presets.json';
-let promptPresetPromise = null;
 const PROMPT_SLOTS = ['scenario', 'product', 'gallery'];
 const DEFAULT_PROMPT_VARIANTS = 1;
 
@@ -1199,6 +1198,9 @@ function renderGalleryItems(state, container, options = {}) {
     promptField.classList.add('field', 'gallery-prompt', 'optional');
     promptField.innerHTML = '<span>AI 生成描述</span>';
     const promptTextarea = document.createElement('textarea');
+    const openaiPromptTextarea = document.getElementById('openai-prompt');
+    const defaultEnTextarea = document.getElementById('default-en-prompt');
+    const promptBundleTextarea = document.getElementById('prompt-bundle');
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
@@ -1510,6 +1512,58 @@ function buildLayoutPreview(payload) {
     payload.agent_name || '代理名待填写'
   }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
 }
+function buildDefaultEnglishPromptFromTemplate(stage1Data) {
+  const bn = stage1Data.brand_name || 'Brand';
+  const an = stage1Data.agent_name || 'Agent';
+  const pn = stage1Data.product_name || 'Product';
+
+  const features = Array.isArray(stage1Data.features) ? stage1Data.features : [];
+  const featureLines = features.length
+    ? features.map((f, i) => `- Feature ${i + 1}: ${f}`).join('\n')
+    : '- Feature 1: (TBD)';
+
+  const refs = [];
+  if (stage1Data.brand_logo?.dataUrl) {
+    refs.push('- Reference: Brand logo is uploaded. Keep it intact and place it at the top-left header as in the locked template.');
+  }
+  if (stage1Data.scenario_asset?.dataUrl) {
+    refs.push('- Reference: Scenario image is uploaded. Use it to build the left 40% background atmosphere, do not overtake the product focus.');
+  }
+  if (stage1Data.product_asset?.dataUrl) {
+    refs.push('- Reference: Main product render (~45°) is uploaded. Preserve metallic/plastic materials and studio lighting.');
+  }
+  const galleryCount = (stage1Data.gallery_entries || []).filter(e =>
+    e?.asset?.dataUrl || (e?.mode === 'prompt' && e?.prompt)
+  ).length;
+  if (galleryCount > 0) {
+    refs.push(`- Reference: ${galleryCount} bottom thumbnails exist. Arrange in a horizontal row and convert to grayscale.`);
+  }
+  const refBlock = refs.length ? `\nReferences:\n${refs.join('\n')}` : '';
+
+  const series = stage1Data.series_description || '';
+  const subtitle = stage1Data.subtitle || '';
+  const templateId = stage1Data.template_id || 'template_dual';
+
+  return `
+You are an art director. You will receive a locked poster frame and a binary mask.
+Fill ONLY the transparent region of the mask. Do not modify, relocate, or cover any
+existing pixels (logos, typography, callouts, product edges). Absolutely no new text or logos.
+
+Art Direction: Modern Swiss minimalism, soft studio lighting, silver/gray background,
+restrained use of saturated red (focus on elegance, not aggression).
+
+Product: ${pn}
+Brand: ${bn} (Agent: ${an})
+Template: ${templateId}
+
+Background: darker on the left, brighter on the right, to highlight the main product and its materials.
+Features:
+${featureLines}
+
+Series strip/caption: ${series || '(optional)'}
+Tagline: ${subtitle || '(optional)'}${refBlock}
+`.trim();
+}
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
   return {
@@ -1616,12 +1670,6 @@ const PROMPT_SLOT_LABELS = {
   gallery: '底部系列小图',
 };
 
-const PROMPT_SLOT_LABELS_EN = {
-  scenario: 'Scenario Background',
-  product: 'Hero Product',
-  gallery: 'Gallery Thumbnails',
-};
-
 function createPromptState(stage1Data, presets) {
   const state = {
     slots: {},
@@ -1696,90 +1744,9 @@ function buildPromptPreviewText(state) {
     }
     lines.push('');
   });
-  return lines.join('
-').trim();
-}
-
-function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
-  if (!templateSpec) return '';
-
-  const lines = [];
-  const templateName = templateSpec.name || templateSpec.id || 'Poster Template';
-  const version = templateSpec.version ? ` v${templateSpec.version}` : '';
-  lines.push(`${templateName}${version}`.trim());
-
-  const width = templateSpec.size?.width;
-  const height = templateSpec.size?.height;
-  if (width && height) {
-    lines.push(`Canvas: ${width} × ${height} px`);
-  }
-
-  if (stage1Data?.brand_name) {
-    lines.push(`Brand: ${stage1Data.brand_name}`);
-  }
-  if (stage1Data?.agent_name) {
-    lines.push(`Distributor: ${stage1Data.agent_name}`);
-  }
-  if (stage1Data?.product_name) {
-    lines.push(`Product: ${stage1Data.product_name}`);
-  }
-  if (stage1Data?.title) {
-    lines.push(`Headline: ${stage1Data.title}`);
-  }
-  if (stage1Data?.subtitle) {
-    lines.push(`Tagline: ${stage1Data.subtitle}`);
-  }
-  if (stage1Data?.series_description) {
-    lines.push(`Series copy: ${stage1Data.series_description}`);
-  }
-
-  const features = Array.isArray(stage1Data?.features)
-    ? stage1Data.features.filter(Boolean)
-    : [];
-  if (features.length) {
-    lines.push('Feature highlights:');
-    features.forEach((feature, index) => {
-      lines.push(`- Feature ${index + 1}: ${feature}`);
-    });
-  }
-
-  const slotMap = templateSpec.slots || {};
-  const presetMap = presets?.presets || {};
-  const defaults = presets?.defaultAssignments || {};
-
-  const promptSections = [];
-  PROMPT_SLOTS.forEach((slot) => {
-    const slotSpec = slotMap[slot];
-    if (!slotSpec) return;
-    const label = PROMPT_SLOT_LABELS_EN[slot] || slot;
-    const guidance = slotSpec.guidance || {};
-    const presetId = guidance.preset || defaults[slot] || null;
-    const preset = presetId ? presetMap[presetId] || null : null;
-    const section = [];
-    section.push(`- ${label}: ${presetId || 'N/A'}`);
-    if (preset?.positive) {
-      section.push(`  • Positive: ${preset.positive}`);
-    }
-    if (preset?.negative) {
-      section.push(`  • Negative: ${preset.negative}`);
-    }
-    if (preset?.aspect || guidance.aspect) {
-      section.push(`  • Aspect: ${preset?.aspect || guidance.aspect}`);
-    }
-    if (guidance.mode) {
-      section.push(`  • Mode: ${guidance.mode}`);
-    }
-    promptSections.push(section.join('\n'));
-  });
-
-  if (promptSections.length) {
-    lines.push('');
-    lines.push('Template prompt presets:');
-    lines.push(promptSections.join('\n'));
-  }
-
   return lines.join('\n').trim();
 }
+
 
 function buildPromptRequest(state) {
   const prompts = {};
@@ -1863,10 +1830,7 @@ function persistPromptState(stage1Data, state) {
   saveStage1Data(stage1Data, { preserveStage2: true });
 }
 
-async function setupPromptInspector(
-  stage1Data,
-  { promptTextarea, statusElement, onStateChange, onABTest } = {}
-) {
+async function setupPromptInspector(stage1Data, { promptTextarea, statusElement } = {}) {
   const container = document.getElementById('prompt-inspector');
   if (!container) return null;
 
@@ -1915,18 +1879,9 @@ async function setupPromptInspector(
   const state = createPromptState(stage1Data, presets);
   applyPromptStateToInspector(state, elements, presets);
 
-  const emitStateChange = () => {
-    if (typeof onStateChange === 'function') {
-      onStateChange(clonePromptState(state), presets);
-    }
-  };
-
   const persist = () => {
     persistPromptState(stage1Data, state);
-    emitStateChange();
   };
-
-  emitStateChange();
 
   const applyPreset = (slot, presetId) => {
     const preset = presets.presets?.[presetId] || {};
@@ -2068,8 +2023,8 @@ async function setupPromptInspector(
   if (abButton) {
     abButton.addEventListener('click', () => {
       api.setVariants(Math.max(2, state.variants || 2));
-      if (typeof onABTest === 'function') {
-        onABTest();
+      if (typeof options?.onABTest === 'function') {
+        options.onABTest();
       }
     });
   }
@@ -2089,12 +2044,8 @@ function initStage2() {
     const posterImage = document.getElementById('poster-image');
     const variantsStrip = document.getElementById('poster-variants');
     const promptGroup = document.getElementById('prompt-group');
-    const promptDefaultGroup = document.getElementById('prompt-default-group');
-    const promptBundleGroup = document.getElementById('prompt-bundle-group');
     const emailGroup = document.getElementById('email-group');
-    const promptTextarea = document.getElementById('openai-request-prompt');
-    const defaultPromptTextarea = document.getElementById('template-default-prompt');
-    const promptBundlePre = document.getElementById('prompt-bundle-json');
+    const promptTextarea = document.getElementById('glibatree-prompt');
     const emailTextarea = document.getElementById('generated-email');
     const generateButton = document.getElementById('generate-poster');
     const regenerateButton = document.getElementById('regenerate-poster');
@@ -2121,67 +2072,8 @@ function initStage2() {
     await hydrateStage1DataAssets(stage1Data);
 
     let promptManager = null;
-    let currentTemplateAssets = null;
-    let latestPromptState = null;
-    let promptPresets = null;
-
-    const updatePromptPanels = (options = {}) => {
-      const spec = options.spec || currentTemplateAssets?.spec || null;
-      const presetsSource =
-        options.presets || promptPresets || promptManager?.presets || { presets: {}, defaultAssignments: {} };
-
-      if (defaultPromptTextarea && promptDefaultGroup) {
-        const englishPrompt = buildTemplateDefaultPrompt(stage1Data, spec, presetsSource);
-        if (englishPrompt) {
-          defaultPromptTextarea.value = englishPrompt;
-          promptDefaultGroup.classList.remove('hidden');
-        } else {
-          defaultPromptTextarea.value = '';
-          promptDefaultGroup.classList.add('hidden');
-        }
-      }
-
-      if (promptBundlePre && promptBundleGroup) {
-        let bundleData = options.bundle || null;
-        if (!bundleData) {
-          const requestPrompts = promptManager?.buildRequest?.()?.prompts || null;
-          if (requestPrompts && Object.keys(requestPrompts).length) {
-            bundleData = requestPrompts;
-          } else if (latestPromptState?.slots) {
-            bundleData = serialisePromptState(latestPromptState);
-          }
-        }
-
-        let bundleText = '';
-        if (bundleData) {
-          if (typeof bundleData === 'string') {
-            bundleText = bundleData;
-          } else if (typeof bundleData === 'object') {
-            const keys = Object.keys(bundleData);
-            if (keys.length) {
-              bundleText = JSON.stringify(bundleData, null, 2);
-            }
-          }
-        }
-
-        if (bundleText) {
-          promptBundlePre.textContent = bundleText;
-          promptBundleGroup.classList.remove('hidden');
-        } else {
-          promptBundlePre.textContent = '';
-          promptBundleGroup.classList.add('hidden');
-        }
-      }
-    };
-    const runGeneration = (extra = {}) => {
-      const currentRequest = promptManager?.buildRequest?.();
-      if (currentRequest?.prompts) {
-        updatePromptPanels({ bundle: currentRequest.prompts });
-      } else {
-        updatePromptPanels();
-      }
-
-      return triggerGeneration({
+    const runGeneration = (extra = {}) =>
+      triggerGeneration({
         stage1Data,
         statusElement,
         layoutStructure,
@@ -2195,15 +2087,16 @@ function initStage2() {
         promptGroup,
         emailGroup,
         promptTextarea,
+        openaiPromptTextarea,
+        defaultEnTextarea,
+        promptBundleTextarea,
         emailTextarea,
         generateButton,
         regenerateButton,
         nextButton,
         promptManager,
-        updatePromptPanels,
         ...extra,
       }).catch((error) => console.error(error));
-    };
 
     const needsTemplatePersist = !('template_id' in stage1Data);
     stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
@@ -2234,20 +2127,7 @@ function initStage2() {
       promptTextarea,
       statusElement,
       onABTest: handleABTest,
-      onStateChange: (stateSnapshot, presets) => {
-        latestPromptState = stateSnapshot || latestPromptState;
-        if (presets) {
-          promptPresets = presets;
-        }
-        updatePromptPanels();
-      },
     });
-
-    if (promptManager) {
-      promptPresets = promptManager.presets || promptPresets;
-      latestPromptState = promptManager.getState?.() || latestPromptState;
-      updatePromptPanels();
-    }
 
     const updateSummary = () => {
       const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
@@ -2262,17 +2142,13 @@ function initStage2() {
       if (!templateCanvas) return;
       try {
         const assets = await ensureTemplateAssets(templateId);
-        currentTemplateAssets = assets;
         if (templateDescription) {
           templateDescription.textContent = assets.entry?.description || '';
         }
         const previewAssets = await prepareTemplatePreviewAssets(stage1Data);
         drawTemplatePreview(templateCanvas, assets, stage1Data, previewAssets);
-        updatePromptPanels({ spec: assets.spec });
       } catch (error) {
         console.error(error);
-        currentTemplateAssets = null;
-        updatePromptPanels();
         if (templateDescription) {
           templateDescription.textContent = '';
         }
@@ -2427,6 +2303,9 @@ async function triggerGeneration(options) {
     posterImage,
     variantsStrip,
     promptGroup,
+    openaiPromptTextarea,
+    defaultEnTextarea,
+    promptBundleTextarea,
     emailGroup,
     promptTextarea,
     emailTextarea,
@@ -2434,7 +2313,6 @@ async function triggerGeneration(options) {
     regenerateButton,
     nextButton,
     promptManager,
-    updatePromptPanels,
     forceVariants = null,
     abTest = false,
   } = options;
@@ -2497,10 +2375,6 @@ async function triggerGeneration(options) {
     prompts: promptConfig.prompts,
   };
 
-  if (typeof updatePromptPanels === 'function') {
-    updatePromptPanels({ bundle: promptSnapshot.prompts });
-  }
-
   generateButton.disabled = true;
   if (regenerateButton) {
     regenerateButton.disabled = true;
@@ -2536,6 +2410,34 @@ async function triggerGeneration(options) {
     }
 
     const data = await response.json();
+    if (promptTextarea && promptManager?.getState) {
+    // 仅展示当前 Inspector 的人类可读预览；真正发送给模型的见 #openai-prompt
+    promptTextarea.value = buildPromptPreviewText(promptManager.getState());
+    }
+    if (openaiPromptTextarea) {
+    if (typeof data.prompt === 'string' && data.prompt.trim()) {
+      openaiPromptTextarea.value = data.prompt; // 这就是后端实际发给模型的文本
+    } else if (promptManager?.getState) {
+      openaiPromptTextarea.value = buildPromptPreviewText(promptManager.getState());
+    } else {
+      openaiPromptTextarea.value = '(No prompt returned)';
+    }
+  }
+    if (defaultEnTextarea) {
+  defaultEnTextarea.value = buildDefaultEnglishPromptFromTemplate(stage1Data);
+}
+if (promptBundleTextarea) {
+  const bundle = data.prompt_bundle || (requestPayload?.prompts) || {};
+  try {
+    promptBundleTextarea.value = JSON.stringify(bundle, null, 2);
+  } catch {
+    promptBundleTextarea.value = String(bundle ?? '');
+  }
+}
+
+
+
+
     if (layoutStructure && data.layout_preview) {
       layoutStructure.textContent = data.layout_preview;
     }
@@ -2544,25 +2446,7 @@ async function triggerGeneration(options) {
       posterImage.alt = `${payload.product_name} 海报预览`;
     }
     const promptDetails = data.prompt_details || null;
-    if (promptTextarea) {
-      if (data.prompt) {
-        promptTextarea.value = data.prompt;
-      } else if (data.prompt_bundle) {
-        const bundleText =
-          typeof data.prompt_bundle === 'string'
-            ? data.prompt_bundle
-            : JSON.stringify(data.prompt_bundle, null, 2);
-        promptTextarea.value = bundleText;
-      } else if (promptManager?.getState) {
-        promptTextarea.value = buildPromptPreviewText(promptManager.getState());
-      } else {
-        promptTextarea.value = '';
-      }
-    }
-    console.info('[Stage2] OpenAI prompt payload:', data.prompt || data.prompt_bundle || '(no prompt returned)');
-    if (typeof updatePromptPanels === 'function') {
-      updatePromptPanels({ bundle: data.prompt_bundle || promptSnapshot.prompts });
-    }
+   
     if (emailTextarea) {
       emailTextarea.value = data.email_body || '';
     }
@@ -2642,9 +2526,6 @@ async function triggerGeneration(options) {
     if (promptGroup) promptGroup.classList.add('hidden');
     if (emailGroup) emailGroup.classList.add('hidden');
     if (nextButton) nextButton.disabled = true;
-    if (typeof updatePromptPanels === 'function') {
-      updatePromptPanels();
-    }
     return null;
   } finally {
     generateButton.disabled = false;
