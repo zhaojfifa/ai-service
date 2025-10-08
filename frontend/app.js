@@ -1198,6 +1198,9 @@ function renderGalleryItems(state, container, options = {}) {
     promptField.classList.add('field', 'gallery-prompt', 'optional');
     promptField.innerHTML = '<span>AI 生成描述</span>';
     const promptTextarea = document.createElement('textarea');
+    const openaiPromptTextarea = document.getElementById('openai-prompt');
+    const defaultEnTextarea = document.getElementById('default-en-prompt');
+    const promptBundleTextarea = document.getElementById('prompt-bundle');
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
@@ -1508,6 +1511,58 @@ function buildLayoutPreview(payload) {
   return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
     payload.agent_name || '代理名待填写'
   }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
+}
+function buildDefaultEnglishPromptFromTemplate(stage1Data) {
+  const bn = stage1Data.brand_name || 'Brand';
+  const an = stage1Data.agent_name || 'Agent';
+  const pn = stage1Data.product_name || 'Product';
+
+  const features = Array.isArray(stage1Data.features) ? stage1Data.features : [];
+  const featureLines = features.length
+    ? features.map((f, i) => `- Feature ${i + 1}: ${f}`).join('\n')
+    : '- Feature 1: (TBD)';
+
+  const refs = [];
+  if (stage1Data.brand_logo?.dataUrl) {
+    refs.push('- Reference: Brand logo is uploaded. Keep it intact and place it at the top-left header as in the locked template.');
+  }
+  if (stage1Data.scenario_asset?.dataUrl) {
+    refs.push('- Reference: Scenario image is uploaded. Use it to build the left 40% background atmosphere, do not overtake the product focus.');
+  }
+  if (stage1Data.product_asset?.dataUrl) {
+    refs.push('- Reference: Main product render (~45°) is uploaded. Preserve metallic/plastic materials and studio lighting.');
+  }
+  const galleryCount = (stage1Data.gallery_entries || []).filter(e =>
+    e?.asset?.dataUrl || (e?.mode === 'prompt' && e?.prompt)
+  ).length;
+  if (galleryCount > 0) {
+    refs.push(`- Reference: ${galleryCount} bottom thumbnails exist. Arrange in a horizontal row and convert to grayscale.`);
+  }
+  const refBlock = refs.length ? `\nReferences:\n${refs.join('\n')}` : '';
+
+  const series = stage1Data.series_description || '';
+  const subtitle = stage1Data.subtitle || '';
+  const templateId = stage1Data.template_id || 'template_dual';
+
+  return `
+You are an art director. You will receive a locked poster frame and a binary mask.
+Fill ONLY the transparent region of the mask. Do not modify, relocate, or cover any
+existing pixels (logos, typography, callouts, product edges). Absolutely no new text or logos.
+
+Art Direction: Modern Swiss minimalism, soft studio lighting, silver/gray background,
+restrained use of saturated red (focus on elegance, not aggression).
+
+Product: ${pn}
+Brand: ${bn} (Agent: ${an})
+Template: ${templateId}
+
+Background: darker on the left, brighter on the right, to highlight the main product and its materials.
+Features:
+${featureLines}
+
+Series strip/caption: ${series || '(optional)'}
+Tagline: ${subtitle || '(optional)'}${refBlock}
+`.trim();
 }
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
@@ -2032,6 +2087,9 @@ function initStage2() {
         promptGroup,
         emailGroup,
         promptTextarea,
+        openaiPromptTextarea,
+        defaultEnTextarea,
+        promptBundleTextarea,
         emailTextarea,
         generateButton,
         regenerateButton,
@@ -2245,6 +2303,9 @@ async function triggerGeneration(options) {
     posterImage,
     variantsStrip,
     promptGroup,
+    openaiPromptTextarea,
+    defaultEnTextarea,
+    promptBundleTextarea,
     emailGroup,
     promptTextarea,
     emailTextarea,
@@ -2349,6 +2410,34 @@ async function triggerGeneration(options) {
     }
 
     const data = await response.json();
+    if (promptTextarea && promptManager?.getState) {
+    // 仅展示当前 Inspector 的人类可读预览；真正发送给模型的见 #openai-prompt
+    promptTextarea.value = buildPromptPreviewText(promptManager.getState());
+    }
+    if (openaiPromptTextarea) {
+    if (typeof data.prompt === 'string' && data.prompt.trim()) {
+      openaiPromptTextarea.value = data.prompt; // 这就是后端实际发给模型的文本
+    } else if (promptManager?.getState) {
+      openaiPromptTextarea.value = buildPromptPreviewText(promptManager.getState());
+    } else {
+      openaiPromptTextarea.value = '(No prompt returned)';
+    }
+  }
+    if (defaultEnTextarea) {
+  defaultEnTextarea.value = buildDefaultEnglishPromptFromTemplate(stage1Data);
+}
+if (promptBundleTextarea) {
+  const bundle = data.prompt_bundle || (requestPayload?.prompts) || {};
+  try {
+    promptBundleTextarea.value = JSON.stringify(bundle, null, 2);
+  } catch {
+    promptBundleTextarea.value = String(bundle ?? '');
+  }
+}
+
+
+
+
     if (layoutStructure && data.layout_preview) {
       layoutStructure.textContent = data.layout_preview;
     }
@@ -2357,15 +2446,7 @@ async function triggerGeneration(options) {
       posterImage.alt = `${payload.product_name} 海报预览`;
     }
     const promptDetails = data.prompt_details || null;
-    if (promptTextarea) {
-      if (data.prompt_bundle) {
-        promptTextarea.value = data.prompt_bundle;
-      } else if (data.prompt) {
-        promptTextarea.value = data.prompt;
-      } else if (promptManager?.getState) {
-        promptTextarea.value = buildPromptPreviewText(promptManager.getState());
-      }
-    }
+   
     if (emailTextarea) {
       emailTextarea.value = data.email_body || '';
     }
