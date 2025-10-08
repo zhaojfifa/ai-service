@@ -173,3 +173,4 @@ def get_settings() -> Settings:
         email=email,
         glibatree=glibatree,
     )
+
