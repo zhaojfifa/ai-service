@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field, constr
 from typing import Literal, Optional
+
+from pydantic import BaseModel, EmailStr, Field, constr
 
 
 class PosterGalleryItem(BaseModel):
@@ -109,6 +110,8 @@ class PosterImage(BaseModel):
     height: int = Field(..., gt=0)
 
 
+# -------- Prompt models (per-slot schema) --------
+
 class PromptSlotConfig(BaseModel):
     preset: Optional[str] = Field(
         None, description="Identifier of the preset chosen in the inspector"
@@ -125,10 +128,13 @@ class PromptSlotConfig(BaseModel):
 
 
 class PromptBundle(BaseModel):
+    """Bundle of per-slot prompt settings used for both request and response."""
     scenario: Optional[PromptSlotConfig] = None
     product: Optional[PromptSlotConfig] = None
     gallery: Optional[PromptSlotConfig] = None
 
+
+# --------------- API Schemas ---------------
 
 class GeneratePosterRequest(BaseModel):
     poster: PosterInput
@@ -158,8 +164,9 @@ class GeneratePosterResponse(BaseModel):
     prompt_details: dict[str, str] | None = Field(
         None, description="Per-slot prompt summary returned by the backend."
     )
-    prompt_bundle: dict[str, str] | None = Field(
-        None, description="Optional combined prompt bundle for inspector display."
+    # ✅ 改为结构化的槽位模型，避免把 dict 当成字符串校验失败
+    prompt_bundle: PromptBundle | None = Field(
+        None, description="Combined prompt bundle for inspector display."
     )
     variants: list[PosterImage] = Field(
         default_factory=list,
@@ -182,12 +189,12 @@ class SendEmailRequest(BaseModel):
     body: constr(strip_whitespace=True, min_length=1)
     attachment: Optional[PosterImage] = Field(
         None,
-        description=
-        "Optional poster attachment. When omitted the email will be sent without attachments.",
+        description=(
+            "Optional poster attachment. When omitted the email will be sent without attachments."
+        ),
     )
 
 
 class SendEmailResponse(BaseModel):
     status: Literal["sent", "skipped"]
     detail: str
-
