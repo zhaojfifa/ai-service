@@ -32,9 +32,8 @@ if allow_origins == ["*"]:
 else:
     allow_credentials = True
 # --- CORS ---
-allow_origins = settings.allowed_origins  # 总是返回列表（如 ["*"] 或具体域）
-allow_credentials = allow_origins != ["*"]  # "*" 时禁止携带凭证以符合浏览器规范
-
+allow_origins = settings.allowed_origins            # 例如 ["https://zhaojiffa.github.io"] 或 ["*"]
+allow_credentials = allow_origins != ["*"]          # 不是 * 才允许携带凭证
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
