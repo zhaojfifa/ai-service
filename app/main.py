@@ -27,34 +27,41 @@ settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
 def _normalize_allowed_origins(value):
-    """把 env 或 settings 中的 allowed_origins 统一转成 List[str]"""
+    """
+    把 env/settings 中的 allowed origins 统一成 List[str]
+    支持：None / "" / "*" / 逗号分隔字符串 / JSON 数组 / 原生 list
+    """
     if value in (None, "", [], ("",), {}):
         return ["*"]
     if isinstance(value, list):
-        return [o.strip() for o in value if o and str(o).strip()]
+        return [str(o).strip() for o in value if str(o).strip()]
     if isinstance(value, str):
         s = value.strip()
-        # 支持 JSON 数组
+        if s == "*":
+            return ["*"]
+        # JSON 数组
         if s.startswith("["):
             try:
                 arr = json.loads(s)
                 return [str(o).strip() for o in arr if str(o).strip()]
             except Exception:
                 pass
-        # 兼容逗号分隔
+        # 逗号分隔
         return [p.strip() for p in s.split(",") if p.strip()]
     return ["*"]
 
-# --- CORS ---
-allow_origins = _normalize_allowed_origins(getattr(settings, "allowed_origins", ["*"]))
-# 只要包含 "*" 就必须关闭 credentials（浏览器规范）
+# 兼容两种字段名：settings.allowed_origins 或 settings.ALLOWED_ORIGINS
+raw = getattr(settings, "allowed_origins", None) or getattr(settings, "ALLOWED_ORIGINS", None)
+allow_origins = _normalize_allowed_origins(raw)
+
+# 只要包含 * 就必须关闭 credentials（浏览器规范要求）
 allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins if "*" not in allow_origins else ["*"],
     allow_credentials=allow_credentials,
-    allow_methods=["*"],   # 也覆盖 OPTIONS
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
