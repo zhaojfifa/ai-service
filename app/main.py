@@ -1,60 +1,52 @@
 from __future__ import annotations
 
+import json                    # ←← 必须导入
 import logging
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.schemas import (
-    GeneratePosterRequest,
-    GeneratePosterResponse,
-    SendEmailRequest,
-    SendEmailResponse,
-)
-from app.services.email_sender import send_email
-from app.services.glibatree import generate_poster_asset
-from app.services.poster import (
-    build_glibatree_prompt,
-    compose_marketing_email,
-    render_layout_preview,
-)
 
 logger = logging.getLogger(__name__)
 
 settings = get_settings()
-
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
-def _normalize_allowed_origins(value):
+def _normalize_allowed_origins(value) -> list[str]:
     """
-    把 env/settings 中的 allowed origins 统一成 List[str]
     支持：None / "" / "*" / 逗号分隔字符串 / JSON 数组 / 原生 list
+    输出：去重、去尾随斜杠的 List[str]
     """
     if value in (None, "", [], ("",), {}):
-        return ["*"]
-    if isinstance(value, list):
-        return [str(o).strip() for o in value if str(o).strip()]
-    if isinstance(value, str):
+        result = ["*"]
+    elif isinstance(value, list):
+        result = [str(o).strip() for o in value if str(o).strip()]
+    elif isinstance(value, str):
         s = value.strip()
         if s == "*":
-            return ["*"]
-        # JSON 数组
-        if s.startswith("["):
+            result = ["*"]
+        elif s.startswith("["):
+            # 正确解析 JSON 数组
             try:
                 arr = json.loads(s)
-                return [str(o).strip() for o in arr if str(o).strip()]
+                result = [str(o).strip() for o in arr if str(o).strip()]
             except Exception:
-                pass
-        # 逗号分隔
-        return [p.strip() for p in s.split(",") if p.strip()]
-    return ["*"]
+                # 回退：把外层[]去掉再按逗号切（尽量容错）
+                s2 = s.strip("[]")
+                result = [p.strip().strip('"').strip("'") for p in s2.split(",") if p.strip()]
+        else:
+            result = [p.strip() for p in s.split(",") if p.strip()]
+    else:
+        result = ["*"]
 
-# 兼容两种字段名：settings.allowed_origins 或 settings.ALLOWED_ORIGINS
+    # 去尾随 /、去重
+    result = [r.rstrip("/") for r in result]
+    return list(dict.fromkeys(result))
+
 raw = getattr(settings, "allowed_origins", None) or getattr(settings, "ALLOWED_ORIGINS", None)
 allow_origins = _normalize_allowed_origins(raw)
 
-# 只要包含 * 就必须关闭 credentials（浏览器规范要求）
+# 只要包含 * 就必须关闭 credentials
 allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
@@ -65,7 +57,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger.info("CORS -> allow_origins=%s allow_credentials=%s", allow_origins, allow_credentials)
+logger.info("CORS raw=%r -> allow_origins=%s, allow_credentials=%s",raw, allow_origins, allow_credentials)
 
 
 @app.get("/health")
