@@ -26,21 +26,39 @@ settings = get_settings()
 
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
-allow_origins = settings.allowed_origins
-if allow_origins == ["*"]:
-    allow_credentials = False
-else:
-    allow_credentials = True
+def _normalize_allowed_origins(value):
+    """把 env 或 settings 中的 allowed_origins 统一转成 List[str]"""
+    if value in (None, "", [], ("",), {}):
+        return ["*"]
+    if isinstance(value, list):
+        return [o.strip() for o in value if o and str(o).strip()]
+    if isinstance(value, str):
+        s = value.strip()
+        # 支持 JSON 数组
+        if s.startswith("["):
+            try:
+                arr = json.loads(s)
+                return [str(o).strip() for o in arr if str(o).strip()]
+            except Exception:
+                pass
+        # 兼容逗号分隔
+        return [p.strip() for p in s.split(",") if p.strip()]
+    return ["*"]
+
 # --- CORS ---
-allow_origins = settings.allowed_origins            # 例如 ["https://zhaojiffa.github.io"] 或 ["*"]
-allow_credentials = allow_origins != ["*"]          # 不是 * 才允许携带凭证
+allow_origins = _normalize_allowed_origins(getattr(settings, "allowed_origins", ["*"]))
+# 只要包含 "*" 就必须关闭 credentials（浏览器规范）
+allow_credentials = "*" not in allow_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=allow_origins if "*" not in allow_origins else ["*"],
     allow_credentials=allow_credentials,
-    allow_methods=["*"],
+    allow_methods=["*"],   # 也覆盖 OPTIONS
     allow_headers=["*"],
 )
+
+logger.info("CORS -> allow_origins=%s allow_credentials=%s", allow_origins, allow_credentials)
 
 
 @app.get("/health")
