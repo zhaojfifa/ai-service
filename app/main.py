@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-import json                    # ←← 必须导入
+import json                     # ← 你用了 json，但之前没导入
 import logging
-from fastapi import FastAPI
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
+# 建议模块方式导入 schemas，避免局部名被不小心覆盖
+from app import schemas
+
 
 from app.config import get_settings
 
