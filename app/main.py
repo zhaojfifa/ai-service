@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 import json                     # ← 你用了 json，但之前没导入
@@ -7,8 +8,20 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 # 建议模块方式导入 schemas，避免局部名被不小心覆盖
-from app import schemas
+from app.schemas import (
+    GeneratePosterRequest,
+    GeneratePosterResponse,
+    SendEmailRequest,
+    SendEmailResponse,
+)
 
+from app.services.email_sender import send_email
+from app.services.glibatree import generate_poster_asset
+from app.services.poster import (
+    build_glibatree_prompt,
+    compose_marketing_email,
+    render_layout_preview,
+)
 
 from app.config import get_settings
 
