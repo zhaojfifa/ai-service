@@ -1,5 +1,6 @@
 from __future__ import annotations
-
+import os
+import sys
 import json                     # ← 你用了 json，但之前没导入
 import logging
 
@@ -25,6 +26,7 @@ from app.services.poster import (
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
+uvlog = logging.getLogger("uvicorn.error")
 
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
@@ -73,7 +75,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
+@app.on_event("startup")
+async def _show_cors_settings():
+    raw_env = os.getenv("ALLOWED_ORIGINS") or getattr(settings, "allowed_origins", None) or getattr(settings, "ALLOWED_ORIGINS", None)
+    uvlog.info("ALLOWED_ORIGINS(raw) = %r", raw_env)
+    uvlog.info("CORS -> allow_origins=%s allow_credentials=%s", allow_origins, allow_credentials)
 logger.info("CORS raw=%r -> allow_origins=%s, allow_credentials=%s",raw, allow_origins, allow_credentials)
 
 
