@@ -1,0 +1,109 @@
+{
+  "id": "template_focus",
+  "name": "聚焦主体模板",
+  "version": "2025.02",
+  "size": {"width": 1024, "height": 1024},
+  "assets": {
+    "template": "template_focus_template.png",
+    "mask_background": "template_focus_mask_bg.png",
+    "mask_scene": "template_focus_mask_scene.png"
+  },
+  "materials": {
+    "brand_logo": {"type": "image", "label": "品牌 Logo", "mode": "place"},
+    "scenario": {
+      "type": "image",
+      "label": "辅助场景背景",
+      "mode": "generate",
+      "allowsPrompt": true,
+      "promptPlaceholder": "描述背景氛围、灯光与色彩"
+    },
+    "product": {
+      "type": "image",
+      "label": "核心产品渲染图",
+      "mode": "generate",
+      "allowsPrompt": true
+    },
+    "gallery": {
+      "type": "image",
+      "label": "底部系列对比图",
+      "mode": "process",
+      "allowsPrompt": true,
+      "count": 3,
+      "promptPlaceholder": "描述系列产品灰度化小图"
+    }
+  },
+  "slots": {
+    "logo": {"x": 96, "y": 104, "width": 132, "height": 60, "guidance": {"mode": "place"}},
+    "brand_name": {"x": 248, "y": 108, "width": 400, "height": 60, "guidance": {"mode": "place", "align": "left"}},
+    "agent_name": {"x": 760, "y": 108, "width": 168, "height": 52, "guidance": {"mode": "place", "align": "right"}},
+    "product": {
+      "x": 312,
+      "y": 196,
+      "width": 400,
+      "height": 520,
+      "guidance": {
+        "mode": "generate",
+        "preset": "hero-white-bg",
+        "aspect": "4:5",
+        "alpha_required": true
+      }
+    },
+    "scenario": {
+      "x": 96,
+      "y": 256,
+      "width": 168,
+      "height": 392,
+      "guidance": {
+        "mode": "generate",
+        "preset": "warm-home",
+        "aspect": "3:2",
+        "mask": "mask_scene"
+      }
+    },
+    "title": {
+      "x": 96,
+      "y": 740,
+      "width": 832,
+      "height": 72,
+      "guidance": {"mode": "place", "fill": "brand_red", "align": "left"}
+    },
+    "subtitle": {
+      "x": 688,
+      "y": 900,
+      "width": 240,
+      "height": 52,
+      "guidance": {"mode": "place", "fill": "brand_red", "align": "right"}
+    }
+  },
+  "feature_callouts": [
+    {"anchor": {"x": 512, "y": 280}, "label_box": {"x": 744, "y": 252, "width": 240, "height": 68}},
+    {"anchor": {"x": 512, "y": 380}, "label_box": {"x": 744, "y": 352, "width": 240, "height": 68}},
+    {"anchor": {"x": 512, "y": 480}, "label_box": {"x": 744, "y": 452, "width": 240, "height": 68}}
+  ],
+  "gallery": {
+    "strip": {"x": 96, "y": 824, "width": 832, "height": 112},
+    "items": [
+      {
+        "x": 96,
+        "y": 824,
+        "width": 256,
+        "height": 112,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale", "contrast+6"]}
+      },
+      {
+        "x": 368,
+        "y": 824,
+        "width": 256,
+        "height": 112,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale"]}
+      },
+      {
+        "x": 640,
+        "y": 824,
+        "width": 256,
+        "height": 112,
+        "guidance": {"mode": "process", "preset": "pack-gray", "ops": ["grayscale"]}
+      }
+    ]
+  }
+}
