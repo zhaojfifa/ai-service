@@ -1,3 +1,13 @@
+// ===== Worker / Render 候选基址 =====
+const WORKER_BASE = 'https://render-proxy.zhaojiffa.workers.dev';
+const RENDER_BASE = 'https://ai-service-x758.onrender.com';
+
+// 从输入框/本地存储读取的地址，也和上面两个一起做候选
+function getApiCandidates() {
+  const uiBase = (apiBaseInput?.value || '').trim();
+  // 顺序：UI 指定 > Worker > Render（可根据需要换顺序）
+  return [uiBase, WORKER_BASE, RENDER_BASE].filter(Boolean);
+}
 const STORAGE_KEYS = {
   apiBase: 'marketing-poster-api-base',
   stage1: 'marketing-poster-stage1-data',
@@ -70,11 +80,11 @@ function assignPosterImage(element, image, altText) {
 }
 
 async function r2PresignPut(folder, file) {
-  const apiBase = (apiBaseInput?.value || '').trim();
-  if (!apiBase) {
-    throw new Error('未配置后端 API 地址，无法上传至 R2。');
-  }
-  const endpoint = `${apiBase.replace(/\/$/, '')}/api/r2/presign-put`;
+  const candidates = getApiCandidates();
+  const base = await pickHealthyBase(candidates);
+  if (!base) throw new Error('未配置后端 API 地址，无法上传至 R2。');
+
+  const endpoint = `${base.replace(/\/$/, '')}/api/r2/presign-put`;
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -105,26 +115,73 @@ async function uploadFileToR2(folder, file) {
   }
   return presign;
 }
+// 小工具：带超时的 fetch
+function fetchWithTimeout(url, init = {}, timeoutMs = 5000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: ctrl.signal })
+    .finally(() => clearTimeout(t));
+}
 
-async function warmUp(apiBase) {
-  if (!apiBase) return;
+// 探活一个 base：GET /health 200 视为健康
+async function isHealthy(base) {
+  const url = `${base.replace(/\/$/, '')}/health`;
   try {
-    await fetch(`${apiBase.replace(/\/$/, '')}/health`, {
+    const resp = await fetchWithTimeout(url, {
       method: 'GET',
       mode: 'cors',
       cache: 'no-store',
       credentials: 'omit',
-    });
-  } catch (error) {
-    console.warn('[warmUp] health check failed', error);
+    }, 5000);
+    return resp.ok;
+  } catch {
+    return false;
   }
 }
 
+// 在候选里选择健康基址；全挂则返回第一个以便错误可观测
+async function pickHealthyBase(candidates) {
+  for (const base of candidates) {
+    if (!base) continue;
+    if (await isHealthy(base)) {
+      console.info('[base] picked healthy:', base);
+      return base;
+    }
+  }
+  const fallback = candidates.find(Boolean) || '';
+  console.warn('[base] none healthy, fallback:', fallback);
+  return fallback;
+}
+
+async function warmUp(apiBaseOrBases) {
+  const list = Array.isArray(apiBaseOrBases) ? apiBaseOrBases : [apiBaseOrBases].filter(Boolean);
+  for (const base of list) {
+    try {
+      await fetch(`${base.replace(/\/$/, '')}/health`, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'omit',
+      });
+    } catch (err) {
+      console.warn('[warmUp] health check failed', base, err);
+    }
+  }
+}
+
+
 async function postJsonWithRetry(url, payload, retry = 1, rawPayload) {
   const raw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+
+  // 根据 url 推导候选（保持 /api/... 路径）
+  const path = url.replace(/^https?:\/\/[^/]+/, '');
+  const bases = getApiCandidates();
+  const base = await pickHealthyBase(bases);
+  let finalUrl = `${base.replace(/\/$/, '')}${path}`;
+
   for (let attempt = 0; attempt <= retry; attempt += 1) {
     try {
-      const response = await fetch(url, {
+      const response = await fetch(finalUrl, {
         method: 'POST',
         mode: 'cors',
         cache: 'no-store',
@@ -138,16 +195,19 @@ async function postJsonWithRetry(url, payload, retry = 1, rawPayload) {
       }
       return response;
     } catch (error) {
-      if (attempt === retry) {
-        throw error;
-      }
-      const base = url.replace(/\/api\/.*/, '');
+      console.warn('[postJsonWithRetry] failed:', finalUrl, error);
+      if (attempt === retry) throw error;
+
+      // 唤醒 + 换一个 base 再试
       await warmUp(base);
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const nextBase = await pickHealthyBase(bases);
+      finalUrl = `${nextBase.replace(/\/$/, '')}${path}`;
+      await new Promise((r) => setTimeout(r, 800));
     }
   }
   throw new Error('请求失败');
 }
+
 
 function applyStoredAssetValue(target, storedValue) {
   if (!target || typeof storedValue !== 'string') return;
@@ -2575,7 +2635,15 @@ async function triggerGeneration(options) {
     abTest = false,
   } = options;
 
-  const apiBase = (apiBaseInput?.value || '').trim();
+  // 原来: const apiBase = (apiBaseInput?.value || '').trim();
+// 新写法：
+const candidates = getApiCandidates();
+const apiBase = await pickHealthyBase(candidates);
+if (!apiBase) {
+  setStatus(statusElement, '请先填写后端 API 地址。', 'warning');
+  return null;
+}
+
   if (!apiBase) {
     setStatus(statusElement, '请先填写后端 API 地址。', 'warning');
     return null;
@@ -2663,6 +2731,10 @@ async function triggerGeneration(options) {
   }
 
   const requestUrl = `${apiBase.replace(/\/$/, '')}/api/generate-poster`;
+  await warmUp(apiBase);            // 唤醒选中的 base
+  const response = await postJsonWithRetry(requestUrl, requestPayload, 1, rawPayload);
+
+  
   const rawPayload = JSON.stringify(requestPayload);
   const payloadBytes = new TextEncoder().encode(rawPayload).length;
   const containsDataUrl = /data:[^;]+;base64,/.test(rawPayload);
