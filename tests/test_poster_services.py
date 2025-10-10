@@ -177,6 +177,50 @@ class PosterServiceTests(unittest.TestCase):
         self.assertGreater(product_pixel[2], product_pixel[1])
         self.assertTrue(abs(gallery_pixel[0] - gallery_pixel[1]) <= 5)
 
+    def test_preview_and_prompt_recognise_r2_keys(self) -> None:
+        gallery_item = PosterGalleryItem(  # type: ignore[call-arg]
+            caption="系列 A",
+            asset=None,
+            key="gallery/one.png",
+            mode="upload",
+        )
+        update = {
+            "scenario_asset": None,
+            "scenario_key": "scenario/example.png",
+            "product_asset": None,
+            "product_key": "product/example.png",
+            "gallery_items": [gallery_item],
+        }
+        try:
+            poster = self.poster.model_copy(update=update)  # type: ignore[attr-defined]
+        except AttributeError:
+            data = self.poster.dict()
+            data.update(
+                {
+                    "scenario_asset": None,
+                    "scenario_key": "scenario/example.png",
+                    "product_asset": None,
+                    "product_key": "product/example.png",
+                    "gallery_items": [
+                        {
+                            "caption": "系列 A",
+                            "asset": None,
+                            "key": "gallery/one.png",
+                            "mode": "upload",
+                        }
+                    ],
+                }
+            )
+            poster = PosterInput(**data)  # type: ignore[arg-type]
+
+        preview = render_layout_preview(poster)
+        self.assertIn("已上传场景图", preview)
+        self.assertIn("已上传 45° 渲染图", preview)
+
+        prompt_text, _, _ = build_glibatree_prompt(poster)
+        self.assertIn("应用场景图已上传", prompt_text)
+        self.assertIn("主产品 45° 渲染图已上传", prompt_text)
+
     @unittest.skipIf(DEPENDENCY_ERROR is not None, f"Missing dependency: {DEPENDENCY_ERROR}")
     def test_prepare_poster_assets_respects_template_materials(self) -> None:
         if prepare_poster_assets is None or TemplateResources is None or Image is None:  # pragma: no cover - safety

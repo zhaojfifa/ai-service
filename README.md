@@ -46,6 +46,7 @@ uvicorn app.main:app --reload
 
 - `POST /api/generate-poster`：接收素材参数，返回版式预览、Glibatree 提示词、占位海报图（或真实 API 响应）及营销邮件草稿。
 - `POST /api/send-email`：将邮件发送请求交给 SMTP 服务执行；未配置 SMTP 时返回 `status=skipped`。
+- `POST /api/r2/presign-put`：在配置 Cloudflare R2 后，为前端生成直传所需的预签名 PUT URL 与对象 Key。
 - `GET /health`：健康检查。
 
 ### 可选环境变量
@@ -59,6 +60,8 @@ uvicorn app.main:app --reload
 | `GLIBATREE_PROXY` | 可选，HTTP(S) 代理地址；配置后会通过 `httpx` 客户端转发至 OpenAI SDK。|
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_SENDER` | 配置后端通过指定 SMTP 账号发送邮件。|
 | `SMTP_USE_TLS`, `SMTP_USE_SSL` | 控制 TLS/SSL 行为（默认启用 TLS）。|
+| `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
+| `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
 ## Render 托管后端
 
@@ -71,8 +74,9 @@ uvicorn app.main:app --reload
    - `ALLOWED_ORIGINS` 支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
      `https://your-account.github.io/ai-service/` 时，会被规范化为 `https://your-account.github.io`，避免跨域校验失败。
    - 若通过 OpenAI 1.x SDK 调 Glibatree，请提供 `GLIBATREE_API_KEY`，并根据实际需求配置 `GLIBATREE_CLIENT=openai`、`GLIBATREE_MODEL` 以及（可选的）`GLIBATREE_PROXY`。SDK 现在会自动构建 httpx 客户端并兼容代理参数。
-   - 如需将生成的成品图上传至 Cloudflare R2 以避免 JSON 体积过大，可追加：
-     `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`（默认 `auto`）与 `S3_BUCKET`；若已为桶绑定自定义域名，可额外配置 `S3_PUBLIC_BASE`，返回的 URL 会使用该域名。未配置这些变量时，接口会保持原有的 Base64 返回方式，便于本地教学或离线调试。
+   - 如需将生成的成品图与用户上传的素材统一存放到 Cloudflare R2，以避免超大 JSON 造成浏览器连接中断，可额外提供：
+     `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`（默认 `auto`）、`S3_BUCKET`、`S3_PUBLIC_BASE`（可选，自定义公开域名）与 `S3_SIGNED_GET_TTL`（私有桶生成预签名 GET 的有效期秒数）。前端还可以通过 `UPLOAD_MAX_BYTES`、`UPLOAD_ALLOWED_MIME` 控制直传文件大小与 MIME 类型。未配置这些变量时，接口会保持原有的 Base64 返回方式，便于本地教学或离线调试。
+   - 配置完成后，前端会在上传素材时先请求 `POST /api/r2/presign-put` 获取预签名 PUT URL，再由浏览器直传到 R2；生成海报时只需把对象 Key 发送给后端即可。
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
 ## GitHub Pages 部署前端
@@ -105,7 +109,7 @@ python scripts/decode_template_assets.py
 
 ## 使用流程
 
-1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。
+1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。若后端已配置 Cloudflare R2 环境变量，页面会在上传素材时先调用 `/api/r2/presign-put` 获取预签名 URL，并由浏览器将文件直接写入 R2，仅把对象 Key 保存在会话状态里；未配置时则继续沿用本地 Data URL。
 2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，同时提供“Prompt Inspector”面板：可以为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 

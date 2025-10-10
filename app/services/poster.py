@@ -21,21 +21,23 @@ def render_layout_preview(poster: PosterInput) -> str:
         if poster.brand_logo
         else poster.brand_name
     )
+    has_scenario_asset = bool(poster.scenario_asset or getattr(poster, "scenario_key", None))
     scenario_line = (
         f"已上传场景图（描述：{poster.scenario_image}）"
-        if poster.scenario_asset
+        if has_scenario_asset
         else poster.scenario_image
     )
     if getattr(poster, "scenario_mode", "upload") == "prompt":
         scenario_line = f"{scenario_line}（AI 生成）"
+    has_product_asset = bool(poster.product_asset or getattr(poster, "product_key", None))
     product_line = (
         f"已上传 45° 渲染图（{poster.product_name}）"
-        if poster.product_asset
+        if has_product_asset
         else poster.product_name
     )
     if getattr(poster, "product_mode", "upload") == "prompt":
         product_line = f"{product_line}（AI 生成）"
-    gallery_count = sum(1 for item in poster.gallery_items if item.asset)
+    gallery_count = sum(1 for item in poster.gallery_items if item.asset or getattr(item, "key", None))
     gallery_line = (
         f"已上传 {gallery_count} 张底部产品小图，配文：{poster.series_description}"
         if gallery_count
@@ -93,9 +95,9 @@ def build_glibatree_prompt(
     reference_assets: list[str] = []
     if poster.brand_logo:
         reference_assets.append("- 参考素材：品牌 Logo 已上传，请置于顶部横条左侧并保持清晰度。")
-    if poster.scenario_asset:
+    if has_scenario_asset:
         reference_assets.append("- 参考素材：应用场景图已上传，用于左侧 40% 区域的背景演绎。")
-    if poster.product_asset:
+    if has_product_asset:
         reference_assets.append(
             "- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。"
         )

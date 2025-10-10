@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
-from app.services.storage_r2 import put_bytes
+from app.services.s3_client import get_bytes, put_bytes
 
 
 logger = logging.getLogger(__name__)
@@ -287,7 +287,9 @@ def _render_template_frame(
     if scenario_slot:
         left, top, width_box, height_box = _slot_to_box(scenario_slot)
         scenario_box = (left, top, left + width_box, top + height_box)
-        scenario_image = _load_image_from_data_url(poster.scenario_asset)
+        scenario_image = _load_image_asset(
+            poster.scenario_asset, getattr(poster, "scenario_key", None)
+        )
         if scenario_image:
             _paste_image(canvas, scenario_image, scenario_box, mode="cover")
         else:
@@ -305,7 +307,9 @@ def _render_template_frame(
     if product_slot:
         left, top, width_box, height_box = _slot_to_box(product_slot)
         product_box = (left, top, left + width_box, top + height_box)
-        product_image = _load_image_from_data_url(poster.product_asset)
+        product_image = _load_image_asset(
+            poster.product_asset, getattr(poster, "product_key", None)
+        )
         if product_image:
             _paste_image(canvas, product_image, product_box, mode="contain")
         else:
@@ -369,11 +373,10 @@ def _render_template_frame(
         entry = poster.gallery_items[index]
         left, top, width_box, height_box = _slot_to_box(slot)
         box = (left, top, left + width_box, top + height_box)
-        if entry.asset:
-            asset_image = _load_image_from_data_url(entry.asset)
-            if asset_image:
-                grayscale = ImageOps.grayscale(asset_image).convert("RGBA")
-                _paste_image(canvas, grayscale, box, mode="cover")
+        asset_image = _load_image_asset(entry.asset, getattr(entry, "key", None))
+        if asset_image:
+            grayscale = ImageOps.grayscale(asset_image).convert("RGBA")
+            _paste_image(canvas, grayscale, box, mode="cover")
         if entry.caption:
             _draw_wrapped_text(
                 draw,
@@ -600,24 +603,51 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
 
     if not data_url:
         return None
-    try:
-        header, encoded = data_url.split(",", 1)
-    except ValueError:
+    if "," not in data_url:
+        logger.warning("Data URL missing comma separator: %s", data_url[:32])
         return None
+
+    header, encoded = data_url.split(",", 1)
     if not header.startswith("data:") or ";base64" not in header:
+        logger.warning("Unsupported data URL header: %s", header)
         return None
 
     try:
         binary = base64.b64decode(encoded)
-    except (base64.binascii.Error, ValueError):
+    except (base64.binascii.Error, ValueError) as exc:
+        logger.warning("Failed to decode data URL: %s", exc)
         return None
 
     try:
         image = Image.open(BytesIO(binary))
-    except Exception:
+    except Exception as exc:
+        logger.warning("Decoded image is invalid: %s", exc)
         return None
 
     return image.convert("RGBA")
+
+
+def _load_image_from_key(key: str | None) -> Image.Image | None:
+    if not key:
+        return None
+    try:
+        payload = get_bytes(key)
+    except Exception as exc:  # pragma: no cover - depends on network configuration
+        logger.warning("Unable to download object %s from R2: %s", key, exc)
+        return None
+
+    try:
+        return Image.open(BytesIO(payload)).convert("RGBA")
+    except Exception as exc:
+        logger.warning("Downloaded asset %s is not a valid image: %s", key, exc)
+        return None
+
+
+def _load_image_asset(data_url: str | None, key: str | None) -> Image.Image | None:
+    image = _load_image_from_key(key)
+    if image is not None:
+        return image
+    return _load_image_from_data_url(data_url)
 
 
 try:  # Pillow >= 10 exposes resampling filters on ``Image.Resampling``
@@ -809,8 +839,9 @@ def _enforce_template_materials(
             desired_scenario_mode,
         )
         updates["scenario_mode"] = desired_scenario_mode
-    if not scenario_allows_upload and poster.scenario_asset:
+    if not scenario_allows_upload and (poster.scenario_asset or poster.scenario_key):
         updates["scenario_asset"] = None
+        updates["scenario_key"] = None
 
     desired_product_mode = poster.product_mode
     if not product_allows_upload:
@@ -824,8 +855,9 @@ def _enforce_template_materials(
             desired_product_mode,
         )
         updates["product_mode"] = desired_product_mode
-    if not product_allows_upload and poster.product_asset:
+    if not product_allows_upload and (poster.product_asset or poster.product_key):
         updates["product_asset"] = None
+        updates["product_key"] = None
 
     sanitised_gallery: list[PosterGalleryItem] = []
     gallery_changed = False
@@ -838,8 +870,9 @@ def _enforce_template_materials(
         updates_for_item: dict[str, Any] = {}
         if not gallery_allows_upload:
             desired_mode = "prompt"
-            if item.asset is not None:
+            if item.asset is not None or item.key is not None:
                 updates_for_item["asset"] = None
+                updates_for_item["key"] = None
         elif desired_mode == "prompt" and not gallery_allows_prompt:
             desired_mode = "upload"
 
@@ -903,6 +936,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
         scenario_allows_prompt
         and poster.scenario_mode == "prompt"
         and not poster.scenario_asset
+        and not poster.scenario_key
     ):
         prompt_text = poster.scenario_prompt or poster.scenario_image
         if prompt_text:
@@ -917,6 +951,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
         product_allows_prompt
         and poster.product_mode == "prompt"
         and not poster.product_asset
+        and not poster.product_key
     ):
         prompt_text = poster.product_prompt or poster.product_name
         if prompt_text:
@@ -939,6 +974,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
             gallery_allows_prompt
             and item.mode == "prompt"
             and not item.asset
+            and not item.key
             and item.prompt
         ):
             try:

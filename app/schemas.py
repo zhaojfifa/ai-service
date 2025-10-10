@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, EmailStr, Field, constr
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 
 class PosterGalleryItem(BaseModel):
@@ -14,6 +14,10 @@ class PosterGalleryItem(BaseModel):
     asset: Optional[str] = Field(
         None,
         description="Data URL of the uploaded gallery image (before灰度转换).",
+    )
+    key: Optional[str] = Field(
+        None,
+        description="Object storage key pointing to the uploaded gallery asset.",
     )
     mode: Literal["upload", "prompt"] = Field(
         "upload",
@@ -53,6 +57,14 @@ class PosterInput(BaseModel):
     product_asset: Optional[str] = Field(
         None,
         description="Optional data URL for the 45° product render showcased in the focal area.",
+    )
+    scenario_key: Optional[str] = Field(
+        None,
+        description="Optional Cloudflare R2 key for the uploaded scenario image.",
+    )
+    product_key: Optional[str] = Field(
+        None,
+        description="Optional Cloudflare R2 key for the uploaded product render.",
     )
     gallery_items: list[PosterGalleryItem] = Field(
         default_factory=list,
@@ -132,6 +144,28 @@ class PromptBundle(BaseModel):
     scenario: Optional[PromptSlotConfig] = None
     product: Optional[PromptSlotConfig] = None
     gallery: Optional[PromptSlotConfig] = None
+
+
+class R2PresignPutRequest(BaseModel):
+    folder: str = Field(
+        default="uploads",
+        description="Logical directory such as scenario / product / gallery",
+    )
+    filename: str = Field(..., description="Original filename supplied by the browser")
+    content_type: str = Field(..., description="Detected MIME type of the upload")
+    size: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Optional byte size reported by the browser for validation",
+    )
+
+
+class R2PresignPutResponse(BaseModel):
+    key: str
+    put_url: str
+    public_url: Optional[str] = Field(
+        None, description="Public URL when the bucket exposes a static endpoint"
+    )
 
 
 class GeneratePosterRequest(BaseModel):

@@ -11,6 +11,8 @@ from app.config import get_settings
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    R2PresignPutRequest,
+    R2PresignPutResponse,
     SendEmailRequest,
     SendEmailResponse,
 )
@@ -21,6 +23,11 @@ from app.services.poster import (
     compose_marketing_email,
     render_layout_preview,
 )
+from app.services.s3_client import make_key, presigned_put_url, public_url_for
+
+
+
+
 
 from app.config import get_settings
 
@@ -29,6 +36,14 @@ uvlog = logging.getLogger("uvicorn.error")
 
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
+UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
+UPLOAD_ALLOWED_MIME = {
+    item.strip()
+    for item in os.getenv("UPLOAD_ALLOWED_MIME", "image/png,image/jpeg,image/webp").split(",")
+    if item.strip()
+}
+
 
 def _normalize_allowed_origins(value):
     # 支持 None / "" / "*" / CSV / JSON / list
@@ -83,6 +98,22 @@ def _model_dump(model):
     if hasattr(model, "dict"):
         return model.dict(exclude_none=True)
     return {}
+
+
+@app.post("/api/r2/presign-put", response_model=R2PresignPutResponse)
+def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
+    if UPLOAD_ALLOWED_MIME and request.content_type not in UPLOAD_ALLOWED_MIME:
+        raise HTTPException(status_code=415, detail=f"content_type not allowed: {request.content_type}")
+    if UPLOAD_MAX_BYTES and request.size and request.size > UPLOAD_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="file exceeds permitted size")
+
+    try:
+        key = make_key(request.folder, request.filename)
+        put_url = presigned_put_url(key, request.content_type)
+    except RuntimeError as exc:  # pragma: no cover - configuration issue
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
