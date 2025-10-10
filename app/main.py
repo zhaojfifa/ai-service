@@ -1,21 +1,13 @@
 from __future__ import annotations
-
-import logging
-import os
-
-import json
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from pydantic import ValidationError
 import os
 import sys
 import json                     # ← 你用了 json，但之前没导入
 import logging
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from pydantic import ValidationError
+
 
 from app.config import get_settings
 from app.schemas import (
@@ -34,8 +26,6 @@ from app.services.poster import (
     render_layout_preview,
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
-
-
 
 
 
