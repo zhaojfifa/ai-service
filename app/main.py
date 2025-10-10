@@ -1,4 +1,14 @@
 from __future__ import annotations
+
+import logging
+import os
+
+import json
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from pydantic import ValidationError
 import os
 import sys
 import json                     # ← 你用了 json，但之前没导入
@@ -82,9 +92,17 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_credentials=allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length"],
+    max_age=600,
 )
+
+
+@app.options("/{rest_of_path:path}")
+def cors_preflight_handler(rest_of_path: str) -> Response:
+    """Ensure any CORS preflight request receives an immediate 204 response."""
+    return Response(status_code=204)
 
 
 @app.get("/health")
@@ -98,6 +116,27 @@ def _model_dump(model):
     if hasattr(model, "dict"):
         return model.dict(exclude_none=True)
     return {}
+
+
+def _model_validate(model, data):
+    if hasattr(model, "model_validate"):
+        return model.model_validate(data)
+    if hasattr(model, "parse_obj"):
+        return model.parse_obj(data)
+    return model(**data)
+
+
+async def read_json_relaxed(request: Request) -> dict:
+    try:
+        payload = await request.json()
+    except Exception:
+        body = await request.body()
+        if not body:
+            return {}
+        payload = json.loads(body.decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Request body must be a JSON object")
+    return payload
 
 
 @app.post("/api/r2/presign-put", response_model=R2PresignPutResponse)
@@ -117,7 +156,17 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
-def generate_poster(payload: GeneratePosterRequest) -> GeneratePosterResponse:
+async def generate_poster(request: Request) -> GeneratePosterResponse:
+    try:
+        raw_payload = await read_json_relaxed(request)
+        payload = _model_validate(GeneratePosterRequest, raw_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     try:
         poster = payload.poster
         preview = render_layout_preview(poster)
