@@ -69,6 +69,43 @@ function assignPosterImage(element, image, altText) {
   return true;
 }
 
+async function r2PresignPut(folder, file) {
+  const apiBase = (apiBaseInput?.value || '').trim();
+  if (!apiBase) {
+    throw new Error('未配置后端 API 地址，无法上传至 R2。');
+  }
+  const endpoint = `${apiBase.replace(/\/$/, '')}/api/r2/presign-put`;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      folder,
+      filename: file.name || 'upload.png',
+      content_type: file.type || 'application/octet-stream',
+      size: typeof file.size === 'number' ? file.size : null,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || '获取 R2 上传授权失败。');
+  }
+  return response.json();
+}
+
+async function uploadFileToR2(folder, file) {
+  const presign = await r2PresignPut(folder, file);
+  const response = await fetch(presign.put_url, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+  }
+  return presign;
+}
+
 function applyStoredAssetValue(target, storedValue) {
   if (!target || typeof storedValue !== 'string') return;
   if (storedValue.startsWith('data:')) {
@@ -622,21 +659,24 @@ function initStage1() {
     'brandLogo',
     inlinePreviews.brand_logo,
     state,
-    refreshPreview
+    refreshPreview,
+    statusElement
   );
   attachSingleImageHandler(
     form.querySelector('input[name="scenario_asset"]'),
     'scenario',
     inlinePreviews.scenario_asset,
     state,
-    refreshPreview
+    refreshPreview,
+    statusElement
   );
   attachSingleImageHandler(
     form.querySelector('input[name="product_asset"]'),
     'product',
     inlinePreviews.product_asset,
     state,
-    refreshPreview
+    refreshPreview,
+    statusElement
   );
 
   renderGalleryItems(state, galleryItemsContainer, {
@@ -696,8 +736,7 @@ function initStage1() {
       const selected = files.slice(0, remaining);
       for (const file of selected) {
         try {
-          const dataUrl = await fileToDataUrl(file);
-          const asset = await buildAsset(file, dataUrl, null);
+          const asset = await prepareAssetFromFile('gallery', file, null, statusElement);
           state.galleryEntries.push({
             id: createId(),
             caption: '',
@@ -707,7 +746,7 @@ function initStage1() {
           });
         } catch (error) {
           console.error(error);
-          setStatus(statusElement, '读取底部产品小图时发生错误。', 'error');
+          setStatus(statusElement, '上传或读取底部产品小图时发生错误。', 'error');
         }
       }
       galleryFileInput.value = '';
@@ -948,7 +987,14 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   }
 }
 
-function attachSingleImageHandler(input, key, inlinePreview, state, refreshPreview) {
+function attachSingleImageHandler(
+  input,
+  key,
+  inlinePreview,
+  state,
+  refreshPreview,
+  statusElement
+) {
   if (!input) return;
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
@@ -969,15 +1015,33 @@ function attachSingleImageHandler(input, key, inlinePreview, state, refreshPrevi
       return;
     }
     try {
-      const dataUrl = await fileToDataUrl(file);
-      state[key] = await buildAsset(file, dataUrl, state[key]);
+      const folderMap = {
+        brandLogo: 'brand-logo',
+        scenario: 'scenario',
+        product: 'product',
+      };
+      const folder = folderMap[key] || 'uploads';
+      const forceDataUrl = key === 'brandLogo';
+      state[key] = await prepareAssetFromFile(
+        folder,
+        file,
+        state[key],
+        statusElement,
+        { forceDataUrl }
+      );
       if (inlinePreview) {
-        inlinePreview.src = dataUrl;
+        inlinePreview.src = state[key]?.dataUrl ||
+          (key === 'brandLogo'
+            ? placeholderImages.brandLogo
+            : key === 'scenario'
+            ? placeholderImages.scenario
+            : placeholderImages.product);
       }
       state.previewBuilt = false;
       refreshPreview();
     } catch (error) {
       console.error(error);
+      setStatus(statusElement, '处理图片素材时发生错误，请重试。', 'error');
     }
   });
 }
@@ -1184,14 +1248,13 @@ function renderGalleryItems(state, container, options = {}) {
       const file = fileInput.files?.[0];
       if (!file) return;
       try {
-        const dataUrl = await fileToDataUrl(file);
-        entry.asset = await buildAsset(file, dataUrl, entry.asset);
-        previewImage.src = dataUrl;
+        entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
+        previewImage.src = entry.asset?.dataUrl || placeholder;
         state.previewBuilt = false;
         onChange?.();
       } catch (error) {
         console.error(error);
-        setStatus(statusElement, '读取底部产品小图时发生错误。', 'error');
+        setStatus(statusElement, '上传或读取底部产品小图时发生错误。', 'error');
       }
     });
     if (!allowUpload) {
@@ -1501,14 +1564,16 @@ function buildLayoutPreview(payload) {
   const logoLine = payload.brand_logo
     ? `已上传品牌 Logo（${payload.brand_name}）`
     : payload.brand_name || '品牌 Logo 待上传';
+  const hasScenarioAsset = Boolean(payload.scenario_asset || payload.scenario_key);
   const scenarioLine = payload.scenario_mode === 'prompt'
     ? `AI 生成（描述：${payload.scenario_prompt || payload.scenario_image || '待补充'}）`
-    : payload.scenario_asset
+    : hasScenarioAsset
     ? `已上传应用场景图（描述：${payload.scenario_image || '待补充'}）`
     : payload.scenario_image || '应用场景描述待补充';
+  const hasProductAsset = Boolean(payload.product_asset || payload.product_key);
   const productLine = payload.product_mode === 'prompt'
     ? `AI 生成（${payload.product_prompt || payload.product_name || '描述待补充'}）`
-    : payload.product_asset
+    : hasProductAsset
     ? `已上传 45° 渲染图（${payload.product_name || '主产品'}）`
     : payload.product_name || '主产品名称待补充';
   const galleryLabel = payload.gallery_label || MATERIAL_DEFAULT_LABELS.gallery;
@@ -1520,7 +1585,9 @@ function buildLayoutPreview(payload) {
 
   const galleryEntries = Array.isArray(payload.gallery_entries)
     ? payload.gallery_entries.filter((entry) =>
-        entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
+        entry.mode === 'prompt'
+          ? Boolean(entry.prompt)
+          : Boolean(entry.asset || entry.key)
       )
     : [];
   const gallerySummary = galleryEntries.length
@@ -1708,29 +1775,24 @@ function serialisePromptState(state) {
 
 function buildPromptPreviewText(state) {
   const lines = [];
-  const slots = Array.isArray(PROMPT_SLOTS) ? PROMPT_SLOTS : [];
-
-  for (const slot of slots) {
-    const entry = state?.slots?.[slot];
-    if (!entry) continue;
-
-    lines.push(`【${(PROMPT_SLOT_LABELS && PROMPT_SLOT_LABELS[slot]) || slot}】`);
-
-    if (entry.positive) lines.push(`正向：${String(entry.positive)}`);
-    if (entry.negative) lines.push(`负向：${String(entry.negative)}`);
-    if (entry.aspect)   lines.push(`画幅：${String(entry.aspect)}`);
-
-    // 分段空行
+  PROMPT_SLOTS.forEach((slot) => {
+    const entry = state.slots?.[slot];
+    if (!entry) return;
+    lines.push(`【${PROMPT_SLOT_LABELS[slot] || slot}】`);
+    if (entry.positive) {
+      lines.push(`正向：${entry.positive}`);
+    }
+    if (entry.negative) {
+      lines.push(`负向：${entry.negative}`);
+    }
+    if (entry.aspect) {
+      lines.push(`画幅：${entry.aspect}`);
+    }
     lines.push('');
-  }
-
-  // 用 \n 连接；去掉首尾空白；压掉多余空行
-  return lines
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  });
+  return lines.join('
+').trim();
 }
-
 
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
   if (!templateSpec) return '';
@@ -2481,6 +2543,9 @@ async function triggerGeneration(options) {
 
   const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
 
+  const scenarioAsset = stage1Data.scenario_asset || null;
+  const productAsset = stage1Data.product_asset || null;
+
   const payload = {
     brand_name: stage1Data.brand_name,
     agent_name: stage1Data.agent_name,
@@ -2492,8 +2557,20 @@ async function triggerGeneration(options) {
     subtitle: stage1Data.subtitle,
     series_description: stage1Data.series_description,
     brand_logo: stage1Data.brand_logo?.dataUrl || null,
-    scenario_asset: stage1Data.scenario_asset?.dataUrl || null,
-    product_asset: stage1Data.product_asset?.dataUrl || null,
+    scenario_asset:
+      scenarioAsset && scenarioAsset.r2Key
+        ? null
+        : scenarioAsset?.dataUrl && scenarioAsset.dataUrl.startsWith('data:')
+        ? scenarioAsset.dataUrl
+        : null,
+    scenario_key: scenarioAsset?.r2Key || null,
+    product_asset:
+      productAsset && productAsset.r2Key
+        ? null
+        : productAsset?.dataUrl && productAsset.dataUrl.startsWith('data:')
+        ? productAsset.dataUrl
+        : null,
+    product_key: productAsset?.r2Key || null,
     scenario_mode: stage1Data.scenario_mode || 'upload',
     scenario_prompt:
       stage1Data.scenario_mode === 'prompt'
@@ -2502,12 +2579,22 @@ async function triggerGeneration(options) {
     product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
     gallery_items:
-      stage1Data.gallery_entries?.map((entry) => ({
-        caption: entry.caption?.trim() || null,
-        asset: entry.asset?.dataUrl || null,
-        mode: entry.mode || 'upload',
-        prompt: entry.prompt?.trim() || null,
-      })) || [],
+      stage1Data.gallery_entries?.map((entry) => {
+        const asset = entry.asset || null;
+        const dataUrl = asset?.dataUrl;
+        const r2Key = asset?.r2Key || null;
+        const serialisedAsset =
+          r2Key || !(typeof dataUrl === 'string' && dataUrl.startsWith('data:'))
+            ? null
+            : dataUrl;
+        return {
+          caption: entry.caption?.trim() || null,
+          asset: serialisedAsset,
+          key: r2Key,
+          mode: entry.mode || 'upload',
+          prompt: entry.prompt?.trim() || null,
+        };
+      }) || [],
   };
 
   const promptConfig = promptManager?.buildRequest?.() || {
@@ -3341,20 +3428,77 @@ function getGalleryPlaceholder(index, label = MATERIAL_DEFAULT_LABELS.gallery) {
   return galleryPlaceholderCache.get(key);
 }
 
-async function buildAsset(file, dataUrl, previousAsset) {
-  const key = createId();
-  await assetStore.put(key, dataUrl);
-  if (previousAsset?.key && previousAsset.key !== key) {
+async function buildAsset(file, dataUrl, previousAsset, options = {}) {
+  const { remoteUrl = null, r2Key = null } = options;
+  const isDataUrl = typeof dataUrl === 'string' && dataUrl.startsWith('data:');
+  let storageKey = previousAsset?.key || null;
+
+  if (isDataUrl && dataUrl) {
+    const newKey = createId();
+    await assetStore.put(newKey, dataUrl);
+    if (previousAsset?.key && previousAsset.key !== newKey) {
+      await assetStore.delete(previousAsset.key).catch(() => undefined);
+    }
+    storageKey = newKey;
+  } else if (previousAsset?.key) {
     await assetStore.delete(previousAsset.key).catch(() => undefined);
+    storageKey = null;
   }
+
+  const previewSource = dataUrl || remoteUrl || null;
+
   return {
-    key,
-    dataUrl,
-    name: file.name,
-    type: file.type,
-    size: typeof file.size === 'number' ? file.size : undefined,
-    lastModified: file.lastModified ?? Date.now(),
+    key: storageKey,
+    dataUrl: previewSource,
+    remoteUrl: remoteUrl || (previewSource && !isDataUrl ? previewSource : null),
+    r2Key: r2Key || null,
+    name: file?.name || previousAsset?.name || null,
+    type: file?.type || previousAsset?.type || null,
+    size:
+      typeof file?.size === 'number'
+        ? file.size
+        : typeof previousAsset?.size === 'number'
+        ? previousAsset.size
+        : null,
+    lastModified:
+      typeof file?.lastModified === 'number'
+        ? file.lastModified
+        : typeof previousAsset?.lastModified === 'number'
+        ? previousAsset.lastModified
+        : Date.now(),
   };
+}
+
+async function prepareAssetFromFile(
+  folder,
+  file,
+  previousAsset,
+  statusElement,
+  options = {}
+) {
+  const { forceDataUrl = false } = options;
+  let presign = null;
+  const hasApiBase = Boolean((apiBaseInput?.value || '').trim());
+  if (hasApiBase) {
+    try {
+      presign = await uploadFileToR2(folder, file);
+    } catch (error) {
+      console.warn('R2 上传失败，回退至本地数据：', error);
+      setStatus(
+        statusElement,
+        error instanceof Error ? error.message : '上传到 R2 失败，已回退至本地预览。',
+        'warning'
+      );
+    }
+  }
+
+  let remoteUrl = presign?.public_url || null;
+  let dataUrl = !remoteUrl || forceDataUrl ? await fileToDataUrl(file) : remoteUrl;
+
+  return buildAsset(file, dataUrl, previousAsset, {
+    remoteUrl,
+    r2Key: presign?.key || null,
+  });
 }
 
 function createId() {
@@ -3365,23 +3509,35 @@ function createId() {
 }
 
 function serialiseAssetForStorage(asset) {
-  if (!asset || !asset.key) return null;
-  const { key, name, type, size, lastModified } = asset;
+  if (!asset) return null;
+  const { key, name, type, size, lastModified, dataUrl, remoteUrl, r2Key } = asset;
+  const isDataUrl = typeof dataUrl === 'string' && dataUrl.startsWith('data:');
   return {
-    key,
+    key: key || null,
     name: name || null,
     type: type || null,
     size: typeof size === 'number' ? size : null,
     lastModified: typeof lastModified === 'number' ? lastModified : null,
+    remoteUrl: !isDataUrl ? dataUrl || remoteUrl || null : remoteUrl || null,
+    r2Key: r2Key || null,
   };
 }
 
 async function rehydrateStoredAsset(assetMeta) {
   if (!assetMeta) return null;
-  if (assetMeta.dataUrl) return assetMeta;
-  if (!assetMeta.key) return null;
+  if (assetMeta.dataUrl && typeof assetMeta.dataUrl === 'string') {
+    return assetMeta;
+  }
+  if (assetMeta.remoteUrl) {
+    return { ...assetMeta, dataUrl: assetMeta.remoteUrl };
+  }
+  if (!assetMeta.key) {
+    return { ...assetMeta, dataUrl: null };
+  }
   const dataUrl = await assetStore.get(assetMeta.key);
-  if (!dataUrl) return { ...assetMeta, dataUrl: null };
+  if (!dataUrl) {
+    return { ...assetMeta, dataUrl: null };
+  }
   return { ...assetMeta, dataUrl };
 }
 
