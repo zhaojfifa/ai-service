@@ -1708,24 +1708,29 @@ function serialisePromptState(state) {
 
 function buildPromptPreviewText(state) {
   const lines = [];
-  PROMPT_SLOTS.forEach((slot) => {
-    const entry = state.slots?.[slot];
-    if (!entry) return;
-    lines.push(`【${PROMPT_SLOT_LABELS[slot] || slot}】`);
-    if (entry.positive) {
-      lines.push(`正向：${entry.positive}`);
-    }
-    if (entry.negative) {
-      lines.push(`负向：${entry.negative}`);
-    }
-    if (entry.aspect) {
-      lines.push(`画幅：${entry.aspect}`);
-    }
+  const slots = Array.isArray(PROMPT_SLOTS) ? PROMPT_SLOTS : [];
+
+  for (const slot of slots) {
+    const entry = state?.slots?.[slot];
+    if (!entry) continue;
+
+    lines.push(`【${(PROMPT_SLOT_LABELS && PROMPT_SLOT_LABELS[slot]) || slot}】`);
+
+    if (entry.positive) lines.push(`正向：${String(entry.positive)}`);
+    if (entry.negative) lines.push(`负向：${String(entry.negative)}`);
+    if (entry.aspect)   lines.push(`画幅：${String(entry.aspect)}`);
+
+    // 分段空行
     lines.push('');
-  });
-  return lines.join('
-').trim();
+  }
+
+  // 用 \n 连接；去掉首尾空白；压掉多余空行
+  return lines
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
+
 
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
   if (!templateSpec) return '';
