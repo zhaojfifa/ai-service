@@ -248,10 +248,9 @@ function init() {
 function loadApiBase() {
   if (!apiBaseInput) return;
   const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
-  if (stored) {
-    apiBaseInput.value = stored;
-  }
+  apiBaseInput.value = (stored && stored.trim()) || WORKER_BASE; // 默认 Worker
 }
+
 
 function saveApiBase() {
   if (!apiBaseInput) return;
