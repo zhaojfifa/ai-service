@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
-
 from pydantic import BaseModel, EmailStr, Field, constr
+from typing import Literal, Optional
 
 
 class PosterGalleryItem(BaseModel):
@@ -103,14 +102,16 @@ class PosterImage(BaseModel):
     media_type: str = Field(
         "image/png", description="MIME type of the generated poster image"
     )
-    data_url: str = Field(
-        ..., description="Data URL (base64) that can be displayed directly in browsers"
+    data_url: Optional[str] = Field(
+        None,
+        description="Embedded data URL (base64) fallback when object storage is unavailable",
+    )
+    url: Optional[str] = Field(
+        None, description="Public or signed URL pointing to the generated poster asset"
     )
     width: int = Field(..., gt=0)
     height: int = Field(..., gt=0)
 
-
-# -------- Prompt models (per-slot schema) --------
 
 class PromptSlotConfig(BaseModel):
     preset: Optional[str] = Field(
@@ -128,13 +129,10 @@ class PromptSlotConfig(BaseModel):
 
 
 class PromptBundle(BaseModel):
-    """Bundle of per-slot prompt settings used for both request and response."""
     scenario: Optional[PromptSlotConfig] = None
     product: Optional[PromptSlotConfig] = None
     gallery: Optional[PromptSlotConfig] = None
 
-
-# --------------- API Schemas ---------------
 
 class GeneratePosterRequest(BaseModel):
     poster: PosterInput
@@ -164,9 +162,8 @@ class GeneratePosterResponse(BaseModel):
     prompt_details: dict[str, str] | None = Field(
         None, description="Per-slot prompt summary returned by the backend."
     )
-    # ✅ 改为结构化的槽位模型，避免把 dict 当成字符串校验失败
-    prompt_bundle: PromptBundle | None = Field(
-        None, description="Combined prompt bundle for inspector display."
+    prompt_bundle: dict[str, str] | None = Field(
+        None, description="Optional combined prompt bundle for inspector display."
     )
     variants: list[PosterImage] = Field(
         default_factory=list,
@@ -189,12 +186,12 @@ class SendEmailRequest(BaseModel):
     body: constr(strip_whitespace=True, min_length=1)
     attachment: Optional[PosterImage] = Field(
         None,
-        description=(
-            "Optional poster attachment. When omitted the email will be sent without attachments."
-        ),
+        description=
+        "Optional poster attachment. When omitted the email will be sent without attachments.",
     )
 
 
 class SendEmailResponse(BaseModel):
     status: Literal["sent", "skipped"]
     detail: str
+

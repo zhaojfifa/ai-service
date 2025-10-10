@@ -23,6 +23,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Type, TypeVar
 
+import requests
+
 from app.schemas import PosterImage, PosterInput, SendEmailRequest
 from app.services.email_sender import send_email
 from app.services.glibatree import generate_poster_asset
@@ -119,8 +121,16 @@ def export_outputs(
     (output_dir / "email_body.txt").write_text(email_body, encoding="utf-8")
 
     image_path = output_dir / poster_image.filename
-    _header, encoded = poster_image.data_url.split(",", 1)
-    binary = base64.b64decode(encoded)
+    if poster_image.data_url:
+        _header, encoded = poster_image.data_url.split(",", 1)
+        binary = base64.b64decode(encoded)
+    elif poster_image.url:
+        response = requests.get(poster_image.url, timeout=60)
+        response.raise_for_status()
+        binary = response.content
+    else:
+        raise ValueError("Poster image missing both data URL and remote URL")
+
     image_path.write_bytes(binary)
 
     metadata = {

@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 def _as_bool(value: str | None, default: bool) -> bool:
     """Interpret common truthy / falsy strings while providing a default."""
+
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -102,6 +103,12 @@ class Settings:
     allowed_origins: List[str]
     email: EmailConfig
     glibatree: GlibatreeConfig
+    s3_endpoint: str | None
+    s3_access_key: str | None
+    s3_secret_key: str | None
+    s3_region: str
+    s3_bucket: str | None
+    s3_public_base: str | None
 
 
 def _parse_allowed_origins(raw: str) -> List[str]:
@@ -172,5 +179,11 @@ def get_settings() -> Settings:
         allowed_origins=allowed_origins,
         email=email,
         glibatree=glibatree,
+        s3_endpoint=os.getenv("S3_ENDPOINT"),
+        s3_access_key=os.getenv("S3_ACCESS_KEY"),
+        s3_secret_key=os.getenv("S3_SECRET_KEY"),
+        s3_region=os.getenv("S3_REGION", "auto"),
+        s3_bucket=os.getenv("S3_BUCKET"),
+        s3_public_base=os.getenv("S3_PUBLIC_BASE"),
     )
 

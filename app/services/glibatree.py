@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 import os
 from contextlib import ExitStack
 from dataclasses import dataclass
+from datetime import datetime
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
@@ -18,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.services.storage_r2 import put_bytes
 
 
 logger = logging.getLogger(__name__)
@@ -664,12 +667,25 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
 
     buffer = BytesIO()
     output.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    image_bytes = buffer.getvalue()
+
+    safe_filename = filename or "poster.png"
+    slug = safe_filename.replace(" ", "_").replace("/", "_")
+    timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    digest = hashlib.sha1(image_bytes).hexdigest()[:10]
+    key = f"posters/{timestamp}-{digest}-{slug}"
+
+    url = put_bytes(key, image_bytes, content_type="image/png")
+    data_url: str | None = None
+    if not url:
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        data_url = f"data:image/png;base64,{encoded}"
 
     return PosterImage(
-        filename=filename,
+        filename=safe_filename,
         media_type="image/png",
-        data_url=f"data:image/png;base64,{encoded}",
+        data_url=data_url,
+        url=url,
         width=output.width,
         height=output.height,
     )

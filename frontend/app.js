@@ -50,6 +50,34 @@ const MATERIAL_DEFAULT_LABELS = {
 
 const assetStore = createAssetStore();
 
+function getPosterImageSource(image) {
+  if (!image || typeof image !== 'object') return '';
+  const directUrl = typeof image.url === 'string' ? image.url : '';
+  if (directUrl) return directUrl;
+  const dataUrl = typeof image.data_url === 'string' ? image.data_url : '';
+  return dataUrl;
+}
+
+function assignPosterImage(element, image, altText) {
+  if (!element) return false;
+  const src = getPosterImageSource(image);
+  if (!src) return false;
+  element.src = src;
+  if (altText) {
+    element.alt = altText;
+  }
+  return true;
+}
+
+function applyStoredAssetValue(target, storedValue) {
+  if (!target || typeof storedValue !== 'string') return;
+  if (storedValue.startsWith('data:')) {
+    target.data_url = storedValue;
+  } else {
+    target.url = storedValue;
+  }
+}
+
 const apiBaseInput = document.getElementById('api-base');
 
 init();
@@ -1382,7 +1410,6 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
-
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -1696,7 +1723,8 @@ function buildPromptPreviewText(state) {
     }
     lines.push('');
   });
-  return lines.join('').trim();
+  return lines.join('
+').trim();
 }
 
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
@@ -2538,9 +2566,14 @@ async function triggerGeneration(options) {
     if (layoutStructure && data.layout_preview) {
       layoutStructure.textContent = data.layout_preview;
     }
-    if (posterImage && data.poster_image?.data_url) {
-      posterImage.src = data.poster_image.data_url;
-      posterImage.alt = `${payload.product_name} 海报预览`;
+    if (
+      assignPosterImage(
+        posterImage,
+        data.poster_image,
+        `${payload.product_name} 海报预览`
+      )
+    ) {
+      // Assigned successfully
     }
     const promptDetails = data.prompt_details || null;
     if (promptTextarea) {
@@ -2571,11 +2604,12 @@ async function triggerGeneration(options) {
       if (variants.length > 1) {
         variantsStrip.classList.remove('hidden');
         variants.forEach((variant, index) => {
-          if (!variant?.data_url) return;
+          const variantSrc = getPosterImageSource(variant);
+          if (!variantSrc) return;
           const card = document.createElement('div');
           card.className = 'variant-card';
           const img = document.createElement('img');
-          img.src = variant.data_url;
+          img.src = variantSrc;
           img.alt = `${payload.product_name} 海报变体 ${index + 1}`;
           card.appendChild(img);
           const button = document.createElement('button');
@@ -2583,10 +2617,11 @@ async function triggerGeneration(options) {
           button.className = 'secondary';
           button.textContent = '设为主图';
           button.addEventListener('click', async () => {
-            if (posterImage) {
-              posterImage.src = variant.data_url;
-              posterImage.alt = `${payload.product_name} 海报变体 ${index + 1}`;
-            }
+            assignPosterImage(
+              posterImage,
+              variant,
+              `${payload.product_name} 海报变体 ${index + 1}`
+            );
             await saveStage2Result({
               poster_image: variant,
               prompt: data.prompt || data.prompt_bundle || '',
@@ -3086,8 +3121,9 @@ async function saveStage2Result(data) {
   const payload = { ...data };
   if (data.poster_image) {
     const key = data.poster_image.storage_key || createId();
-    if (data.poster_image.data_url) {
-      await assetStore.put(key, data.poster_image.data_url);
+    const source = getPosterImageSource(data.poster_image);
+    if (source) {
+      await assetStore.put(key, source);
     }
     payload.poster_image = {
       filename: data.poster_image.filename,
@@ -3107,8 +3143,9 @@ async function saveStage2Result(data) {
     for (const variant of data.variants) {
       if (!variant) continue;
       const key = variant.storage_key || createId();
-      if (variant.data_url) {
-        await assetStore.put(key, variant.data_url);
+      const source = getPosterImageSource(variant);
+      if (source) {
+        await assetStore.put(key, source);
       }
       payload.variants.push({
         filename: variant.filename,
@@ -3149,18 +3186,18 @@ async function loadStage2Result() {
   try {
     const parsed = JSON.parse(raw);
     if (parsed?.poster_image?.storage_key) {
-      const dataUrl = await assetStore.get(parsed.poster_image.storage_key);
-      if (dataUrl) {
-        parsed.poster_image.data_url = dataUrl;
+      const storedValue = await assetStore.get(parsed.poster_image.storage_key);
+      if (storedValue) {
+        applyStoredAssetValue(parsed.poster_image, storedValue);
       }
     }
     if (Array.isArray(parsed?.variants)) {
       await Promise.all(
         parsed.variants.map(async (variant) => {
           if (variant?.storage_key) {
-            const dataUrl = await assetStore.get(variant.storage_key);
-            if (dataUrl) {
-              variant.data_url = dataUrl;
+            const storedValue = await assetStore.get(variant.storage_key);
+            if (storedValue) {
+              applyStoredAssetValue(variant, storedValue);
             }
           }
         })
@@ -3197,10 +3234,11 @@ function initStage3() {
       return;
     }
 
-    if (posterImage && stage2Result.poster_image?.data_url) {
-      posterImage.src = stage2Result.poster_image.data_url;
-      posterImage.alt = `${stage1Data.product_name} 海报预览`;
-    }
+    assignPosterImage(
+      posterImage,
+      stage2Result.poster_image,
+      `${stage1Data.product_name} 海报预览`
+    );
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }

@@ -82,7 +82,9 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
 
         assert result.filename == "poster.png"
         assert result.media_type == "image/png"
-        assert result.data_url.startswith("data:image/png;base64,")
+        assert result.data_url or result.url
+        if result.data_url:
+            assert result.data_url.startswith("data:image/png;base64,")
 
     def test_openai_client_without_proxy_omits_http_client(self) -> None:
         config = self.make_config(api_url=None, proxy=None)
@@ -124,7 +126,9 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
 
         assert result.media_type == "image/png"
         assert result.filename == "poster.png"
-        assert result.data_url.startswith("data:image/png;base64,")
+        assert result.data_url or result.url
+        if result.data_url:
+            assert result.data_url.startswith("data:image/png;base64,")
 
 
 if __name__ == "__main__":

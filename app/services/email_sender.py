@@ -5,6 +5,8 @@ import smtplib
 from email.message import EmailMessage
 from typing import Tuple
 
+import requests
+
 from app.config import get_settings
 from app.schemas import PosterImage, SendEmailRequest, SendEmailResponse
 
@@ -44,11 +46,22 @@ def send_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 
 def _decode_attachment(attachment: PosterImage) -> Tuple[str, bytes, str]:
-    header, encoded = attachment.data_url.split(",", 1)
-    if not header.startswith("data:") or ";base64" not in header:
-        raise ValueError("Attachment must be provided as base64 data URL")
-    media_type = header[len("data:"): header.index(";")]
-    content = base64.b64decode(encoded)
+    if attachment.data_url:
+        header, encoded = attachment.data_url.split(",", 1)
+        if not header.startswith("data:") or ";base64" not in header:
+            raise ValueError("Attachment must be provided as base64 data URL")
+        media_type = header[len("data:"): header.index(";")]
+        content = base64.b64decode(encoded)
+    elif attachment.url:
+        response = requests.get(attachment.url, timeout=30)
+        response.raise_for_status()
+        content = response.content
+        media_type = attachment.media_type or response.headers.get(
+            "Content-Type", "application/octet-stream"
+        )
+    else:
+        raise ValueError("Attachment missing data_url or URL source")
+
     filename = attachment.filename or "poster.png"
     return filename, content, media_type
 

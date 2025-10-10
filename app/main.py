@@ -7,14 +7,13 @@ import logging
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-# 建议模块方式导入 schemas，避免局部名被不小心覆盖
+from app.config import get_settings
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
     SendEmailRequest,
     SendEmailResponse,
 )
-
 from app.services.email_sender import send_email
 from app.services.glibatree import generate_poster_asset
 from app.services.poster import (
@@ -71,12 +70,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-@app.on_event("startup")
-async def _show_cors_settings():
-    raw_env = os.getenv("ALLOWED_ORIGINS") or getattr(settings, "allowed_origins", None) or getattr(settings, "ALLOWED_ORIGINS", None)
-    uvlog.info("ALLOWED_ORIGINS(raw) = %r", raw_env)
-    uvlog.info("CORS -> allow_origins=%s allow_credentials=%s", allow_origins, allow_credentials)
-logger.info("CORS raw=%r -> allow_origins=%s, allow_credentials=%s",raw, allow_origins, allow_credentials)
 
 
 @app.get("/health")
@@ -140,3 +133,4 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 
 __all__ = ["app"]
+
