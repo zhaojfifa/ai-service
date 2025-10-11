@@ -1,7 +1,23 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
-const HEALTH_PATHS = ['/api/health', '/health'];
+// 1) 新增：按域名决定健康检查路径
+function isRenderHost(base) {
+  try {
+    const u = new URL(base, location.href);
+    return /onrender\.com$/i.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function healthPathsFor(base) {
+  // Render 后端只有 /health，且通常无 CORS
+  if (isRenderHost(base)) return ['/health'];
+  // Worker（或网关）提供 /api/health（带 CORS）
+  return ['/api/health', '/health'];
+}
+
 const HEALTH_CACHE_TTL = 60_000;
 const HEALTH_CACHE = new Map();
 
