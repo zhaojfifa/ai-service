@@ -199,7 +199,9 @@ async function postJsonWithRetry(baseOrBases, path, payload, retry = 1, rawOverr
   let lastError = null;
 
   while (pool.length && attempt <= retry) {
-    const base = await pickHealthyBase(pool);
+    const base = await pickHealthyBase([uiBase, WORKER_BASE, RENDER_BASE]);
+    const res  = await postJsonWithRetry(base, '/api/generate-poster', payload, 1);
+
     if (!base) break;
     const url = joinBasePath(base, path);
     if (!url) {
