@@ -27,14 +27,10 @@ from app.services.poster import (
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
 
-
-
-from app.config import get_settings
-
 logger = logging.getLogger(__name__)
-uvlog = logging.getLogger("uvicorn.error")
 
 settings = get_settings()
+
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
