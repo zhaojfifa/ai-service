@@ -209,4 +209,19 @@
   window.MPoster = {
     resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy
   };
+  if (!window.MPoster) return; // 安全保护
+  const { resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy } = window.MPoster;
+
+  // 旧版 app.js 直接用的全局函数名：
+  window.resolveApiBases = resolveApiBases;
+  window.warmUp = warmUp;
+  window.pickHealthyBase = pickHealthyBase;
+  window.postJsonWithRetry = postJsonWithRetry;
+  window.isHealthy = isHealthy;
+
+  // 旧版 app.js 里曾直接引用的内部缓存；这里暴露一个同名引用，避免报错
+  // 注意：这行依赖 placeholder.js 内部定义的 _healthCache 变量存在
+  if (typeof _healthCache !== 'undefined') {
+    window._healthCache = _healthCache;
+  }
 })();
