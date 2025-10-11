@@ -222,7 +222,8 @@
     <footer>
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
-
-    <script src="app.js" type="module"></script>
+    <!-- styles.css 之后，app.js 之前 -->
+    <script defer src="placeholder.js?v=1"></script>
+    <script defer src="app.js?v=1"></script>
   </body>
 </html>
