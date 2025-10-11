@@ -77,11 +77,9 @@ allow_credentials = "*" not in allow_origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://zhaojiffa.github.io"],
-    allow_credentials=allow_credentials,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-    expose_headers=["Content-Length"],
-    max_age=600,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
