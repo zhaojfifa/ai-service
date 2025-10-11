@@ -74,14 +74,28 @@ allow_origins = _normalize_allowed_origins(raw)
 
 allow_credentials = "*" not in allow_origins
 
+# 建议明确写你的前端域名（更安全）
+allow_origins = [
+    "https://zhaojfifa.github.io",
+    "https://zhaojfifa.github.io/ai-service/"
+    # 或调试用： "*"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://zhaojiffa.github.io"],
+    allow_origins=allow_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],   # GET, POST, OPTIONS...
+    allow_headers=["*"],   # Content-Type, Authorization, x-api-key...
+    expose_headers=[],     # 如需要可暴露自定义响应头
+    max_age=86400,         # 预检缓存
 )
 
+# 若你路由里对 OPTIONS 会 405/400，可加兜底（通常 CORSMiddleware 已处理）
+from fastapi.responses import Response
+@app.options("/{path:path}")
+async def cors_preflight(path: str):
+    return Response(status_code=204)
 
 @app.options("/{rest_of_path:path}")
 def cors_preflight_handler(rest_of_path: str) -> Response:
