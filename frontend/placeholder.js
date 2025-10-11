@@ -1,194 +1,162 @@
-/* ======= 极简占位版 app.js（可直接部署）======= */
-
-/** 默认候选基址（可按需调整顺序）*/
-const WORKER_BASE = 'https://render-proxy.zhaojiffa.workers.dev';
-const RENDER_BASE = 'https://ai-service-x758.onrender.com';
-
-/** UI 中“后端地址”输入框（可为空） */
-const apiBaseInput = document.getElementById('api-base');
-
-/** 取候选基址：UI 指定 > Worker > Render */
-function getApiCandidates() {
-  const ui = (apiBaseInput?.value || '').trim();
-  return [ui, WORKER_BASE, RENDER_BASE].filter(Boolean);
-}
-
-/** 简易超时 fetch */
-function fetchWithTimeout(url, init = {}, timeoutMs = 4000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
-  return fetch(url, { ...init, signal: ctrl.signal })
-    .finally(() => clearTimeout(t));
-}
-
-/** 探测一个 base 是否健康：优先 /api/health，其次 /health */
-async function isHealthy(base, timeoutMs = 2000) {
-  if (!base) return false;
-  const normalized = base.replace(/\/+$/, '');
-  const paths = ['/api/health', '/health'];
-  for (const p of paths) {
-    try {
-      const res = await fetchWithTimeout(`${normalized}${p}`, {
-        method: 'GET',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-      }, timeoutMs);
-      if (res.ok) return true;
-    } catch (_) {
-      // ignore, try next path
-    }
-  }
-  return false;
-}
-
-/** 健康缓存，减少反复探测 */
-const _healthCache = new Map(); // base -> { ok, ts }
-const HEALTH_TTL = 60_000;
-
-/** 并发预热（探测） */
-async function warmUp(apiBaseOrBases, opts = {}) {
-  const bases = resolveApiBases(apiBaseOrBases);
-  if (!bases.length) return { healthy: [], unhealthy: [] };
-
-  const now = Date.now();
-  const timeoutMs = Number(opts.timeoutMs ?? 2000);
-
-  const tasks = bases.map(async (b) => {
-    const cached = _healthCache.get(b);
-    if (cached && now - cached.ts < HEALTH_TTL) {
-      return { base: b, ok: cached.ok, source: 'cache' };
-    }
-    const ok = await isHealthy(b, timeoutMs);
-    _healthCache.set(b, { ok, ts: Date.now() });
-    return { base: b, ok, source: 'probe' };
-  });
-
-  const results = await Promise.all(tasks);
-  const healthy = results.filter(r => r.ok).map(r => r.base);
-  const unhealthy = results.filter(r => !r.ok).map(r => r.base);
-  return { healthy, unhealthy };
-}
-
-/** 解析候选 */
-function resolveApiBases(input) {
-  const ui = (apiBaseInput?.value || '').trim();
-  const manual = Array.isArray(input) ? input.join(',') : (input || '');
-  const merged = [manual, ui, WORKER_BASE, RENDER_BASE]
-    .join(',')
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-  const seen = new Set();
-  const out = [];
-  for (const b of merged) {
-    const norm = b.replace(/\/+$/, '');
-    if (!seen.has(norm)) {
-      seen.add(norm);
-      out.push(norm);
-    }
-  }
-  return out;
-}
-
-/** 选择健康基址（先用缓存命中，否则并发探测；都不健康就返回第一个做可观测失败） */
-async function pickHealthyBase(apiBaseOrBases, opts = {}) {
-  const bases = resolveApiBases(apiBaseOrBases);
-  if (!bases.length) return null;
-
-  const now = Date.now();
-  const cached = bases.find(b => {
-    const c = _healthCache.get(b);
-    return c && c.ok && now - c.ts < HEALTH_TTL;
-  });
-  if (cached) return cached;
-
-  const { healthy } = await warmUp(bases, { timeoutMs: opts.timeoutMs ?? 2000 });
-  return healthy[0] || bases[0] || null;
-}
-
-/**
- * POST（自动重试 + 回退）
- * @param apiBaseOrBases  可以是候选基址（字符串|数组），也可以直接传绝对 URL
- * @param pathOrUrl       相对路径（如 '/api/generate-poster'）或绝对 URL
- * @param payload         JS 对象
- * @param retry           重试次数（默认 1，即最多请求 2 轮）
+/* placeholder.js — worker/render 探活 + 选择 + 重试
+ * 仅暴露 window.MPoster，避免与 app.js 顶层符号冲突
  */
-async function postJsonWithRetry(apiBaseOrBases, pathOrUrl, payload, retry = 1) {
-  const body = JSON.stringify(payload ?? {});
-  const tooLarge = body.length > 300_000 || /data:[^;]+;base64,/.test(body);
-  if (tooLarge) {
-    throw new Error('请求体过大或包含 base64 图片，请改用对象存储的 key/url。');
-  }
+(() => {
+  'use strict';
 
-  // 如果 pathOrUrl 是绝对 URL，直接照它发；否则用健康基址拼接
-  const absolute = /^(https?:)?\/\//i.test(pathOrUrl);
-  const urlFor = async () => {
-    if (absolute) return pathOrUrl;
-    const base = await pickHealthyBase(apiBaseOrBases);
-    if (!base) throw new Error('无可用后端基址');
-    return `${base.replace(/\/+$/, '')}/${String(pathOrUrl).replace(/^\/+/, '')}`;
-  };
+  // ---------- 常量与缓存 ----------
+  const HEALTH_PATHS = ['/api/health', '/health']; // 依次尝试
+  const HEALTH_TTL_MS = 60_000; // 探活结果缓存 60s
+  const _healthCache = new Map(); // key=base, val={ ok, ts }
 
-  let lastErr = null;
-  for (let round = 0; round <= retry; round += 1) {
+  // ---------- 工具 ----------
+  function normalizeBase(base) {
+    if (!base) return null;
     try {
-      const url = await urlFor();
-      const res = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || `HTTP ${res.status}`);
-      }
-      return res;
-    } catch (err) {
-      lastErr = err;
-      // 本轮失败，预热一遍再继续
-      try { await warmUp(apiBaseOrBases); } catch {}
-      await new Promise(r => setTimeout(r, 600));
+      const u = new URL(base, window.location.href);
+      // 去掉末尾多余的斜杠
+      const pathname = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
+      return `${u.origin}${pathname}`;
+    } catch {
+      return null;
     }
   }
-  throw lastErr || new Error('请求失败');
-}
 
-/* ---------- 一点点可选的 UI 辅助（存在就用，不存在忽略） ---------- */
-(function boot() {
-  const stored = localStorage.getItem('marketing-poster-api-base');
-  if (apiBaseInput && !apiBaseInput.value) {
-    apiBaseInput.value = stored || WORKER_BASE;
+  function resolveApiBases(input) {
+    // 支持数组、逗号分隔字符串、单个字符串
+    const raw = Array.isArray(input) ? input.join(',') : (input || '');
+    const seen = new Set();
+    const out = [];
+    raw.split(',')
+       .map(s => s.trim())
+       .filter(Boolean)
+       .forEach((b) => {
+         const n = normalizeBase(b);
+         if (n && !seen.has(n)) { seen.add(n); out.push(n); }
+       });
+    return out;
   }
-  apiBaseInput?.addEventListener('change', () => {
-    const v = apiBaseInput.value.trim();
-    if (v) localStorage.setItem('marketing-poster-api-base', v);
-  });
+
+  function fetchWithTimeout(url, init = {}, timeoutMs = 2500) {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort('timeout'), timeoutMs);
+    return fetch(url, { ...init, signal: c.signal }).finally(() => clearTimeout(t));
+  }
+
+  async function isHealthy(base, timeoutMs = 2500) {
+    const b = normalizeBase(base);
+    if (!b) return false;
+    for (const p of HEALTH_PATHS) {
+      try {
+        const res = await fetchWithTimeout(`${b}${p}`, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-store',
+          credentials: 'omit',
+        }, timeoutMs);
+        if (res.ok) return true;
+      } catch { /* ignore and try next */ }
+    }
+    return false;
+  }
+
+  // ---------- 并发探活 ----------
+  async function warmUp(apiBaseOrBases, { timeoutMs = 2500, useCache = true } = {}) {
+    const bases = resolveApiBases(apiBaseOrBases);
+    if (!bases.length) return { healthy: [], unhealthy: [] };
+    const now = Date.now();
+
+    const tasks = bases.map(async (b) => {
+      const cached = _healthCache.get(b);
+      if (useCache && cached && now - cached.ts < HEALTH_TTL_MS) {
+        return { base: b, ok: cached.ok, source: 'cache' };
+      }
+      const ok = await isHealthy(b, timeoutMs);
+      _healthCache.set(b, { ok, ts: Date.now() });
+      return { base: b, ok, source: 'probe' };
+    });
+
+    const results = await Promise.all(tasks);
+    return {
+      healthy: results.filter(r => r.ok).map(r => r.base),
+      unhealthy: results.filter(r => !r.ok).map(r => r.base),
+    };
+  }
+
+  // ---------- 选择健康基址（含缓存命中） ----------
+  async function pickHealthyBase(apiBaseOrBases, opts = {}) {
+    const bases = resolveApiBases(apiBaseOrBases);
+    if (!bases.length) return null;
+
+    // 先用缓存
+    const cached = bases.find(b => {
+      const c = _healthCache.get(b);
+      return c && c.ok && (Date.now() - c.ts) < HEALTH_TTL_MS;
+    });
+    if (cached) return cached;
+
+    const { healthy } = await warmUp(bases, opts);
+    return healthy[0] || null;
+  }
+
+  // ---------- POST JSON（带自动回退与重试） ----------
+  async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1) {
+    const bases = resolveApiBases(apiBaseOrBases);
+    if (!bases.length) throw new Error('未配置后端 API 地址');
+
+    const bodyRaw = JSON.stringify(payload);
+    // 防止把大体积或 dataURL 直接塞进请求
+    if (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000) {
+      throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传输 key/url。');
+    }
+
+    const mkUrl = (b) => `${b.replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
+
+    let base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+    let lastErr = null;
+
+    for (let attempt = 0; attempt <= retry; attempt += 1) {
+      const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
+      for (const b of order) {
+        try {
+          const res = await fetch(mkUrl(b), {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            credentials: 'omit',
+            headers: { 'Content-Type': 'application/json' },
+            body: bodyRaw,
+          });
+          if (!res.ok) {
+            const text = await res.text().catch(() => '');
+            throw new Error(text || `HTTP ${res.status}`);
+          }
+          _healthCache.set(b, { ok: true, ts: Date.now() });
+          return res;
+        } catch (e) {
+          lastErr = e;
+          _healthCache.set(b, { ok: false, ts: Date.now() });
+          base = null; // 下一轮重选
+        }
+      }
+      // 整轮失败：热身 + 等待 + 重新挑
+      await warmUp(bases).catch(() => {});
+      await new Promise(r => setTimeout(r, 800));
+      base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+    }
+
+    throw lastErr || new Error('请求失败');
+  }
+
+  // ---------- 导出到命名空间 ----------
+  window.MPoster = {
+    // 供 app.js 使用的公共 API：
+    resolveApiBases,
+    warmUp,
+    pickHealthyBase,
+    postJsonWithRetry,
+
+    // 可选：如果需要单独调用
+    isHealthy,
+  };
 })();
-
-/* ---------- 对外导出，方便旧代码直接复用 ---------- */
-window.MPoster = {
-  WORKER_BASE,
-  RENDER_BASE,
-  getApiCandidates,
-  resolveApiBases,
-  warmUp,
-  pickHealthyBase,
-  isHealthy,
-  postJsonWithRetry,
-};
-// 兼容模式：向全局挂同名函数，覆盖 app.js 里旧实现
-if (window.MPoster) {
-  Object.assign(window, {
-    getApiCandidates : window.MPoster.getApiCandidates,
-    resolveApiBases  : window.MPoster.resolveApiBases,
-    warmUp           : window.MPoster.warmUp,
-    pickHealthyBase  : window.MPoster.pickHealthyBase,
-    isHealthy        : window.MPoster.isHealthy,
-    postJsonWithRetry: window.MPoster.postJsonWithRetry,
-  });
-}
-
