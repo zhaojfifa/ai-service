@@ -1,14 +1,13 @@
 from __future__ import annotations
-
-import logging
 import os
-
-import json
-
+import sys
+import json                     # ← 你用了 json，但之前没导入
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
+
 
 from app.config import get_settings
 from app.schemas import (
@@ -41,11 +40,39 @@ UPLOAD_ALLOWED_MIME = {
     if item.strip()
 }
 
-allow_origins = settings.allowed_origins
-if allow_origins == ["*"]:
-    allow_credentials = False
-else:
-    allow_credentials = True
+
+def _normalize_allowed_origins(value):
+    # 支持 None / "" / "*" / CSV / JSON / list
+    if not value:
+        return ["*"]
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, str):
+        s = value.strip()
+        if s.startswith("["):  # JSON
+            try:
+                items = json.loads(s)
+            except Exception:
+                items = s.split(",")
+        else:                   # CSV
+            items = s.split(",")
+    else:
+        items = [str(value)]
+
+    def clean(x: str) -> str:
+        s = str(x).strip().strip('"').strip("'").rstrip("/")
+        return s
+
+    out = [clean(x) for x in items if clean(x)]
+    return out or ["*"]
+
+raw = (
+    getattr(settings, "allowed_origins", None)
+    or os.getenv("ALLOWED_ORIGINS")
+)
+allow_origins = _normalize_allowed_origins(raw)
+
+allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
     CORSMiddleware,
