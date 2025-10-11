@@ -123,7 +123,8 @@ async function probeBase(base, { force } = {}) {
     return cached.ok;
   }
 
-  for (const path of HEALTH_PATHS) {
+  const paths = healthPathsFor(base);           // ← 关键：按域名取路径
+  for (const path of paths) {
     const url = joinBasePath(base, path);
     if (!url) continue;
     try {
@@ -145,6 +146,7 @@ async function probeBase(base, { force } = {}) {
   HEALTH_CACHE.set(base, { ok: false, timestamp: Date.now() });
   return false;
 }
+
 
 async function warmUp(baseOrBases, { force } = {}) {
   const bases = ensureArray(baseOrBases).filter(Boolean);
