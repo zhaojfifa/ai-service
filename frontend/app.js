@@ -153,59 +153,172 @@ async function pickHealthyBase(candidates) {
   return fallback;
 }
 
-async function warmUp(apiBaseOrBases) {
-  const list = Array.isArray(apiBaseOrBases) ? apiBaseOrBases : [apiBaseOrBases].filter(Boolean);
-  for (const base of list) {
-    try {
-      await fetch(`${base.replace(/\/$/, '')}/health`, {
-        method: 'GET',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-      });
-    } catch (err) {
-      console.warn('[warmUp] health check failed', base, err);
+// -------- 基础工具：解析候选基址 --------
+function resolveApiBases(input) {
+  // 支持字符串 / 逗号分隔 / 数组
+  const manual = typeof input === 'string' ? input : Array.isArray(input) ? input.join(',') : '';
+  const fromInput = (apiBaseInput?.value || '').trim();
+  const merged = [manual, fromInput]
+    .join(',')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // 去重并标准化（去掉末尾斜杠）
+  const seen = new Set();
+  const bases = [];
+  merged.forEach((b) => {
+    const norm = b.replace(/\/+$/, '');
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      bases.push(norm);
     }
-  }
+  });
+  return bases;
 }
 
+// -------- 探活缓存（避免频繁探活）--------
+const _healthCache = new Map(); // key=base, value={ok:boolean, ts:number}
+const HEALTH_TTL_MS = 60 * 1000;
 
-async function postJsonWithRetry(url, payload, retry = 1, rawPayload) {
-  const raw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+// -------- 并发探活 + 竞速选择 --------
+async function warmUp(apiBaseOrBases, opts = {}) {
+  const bases = resolveApiBases(apiBaseOrBases);
+  if (!bases.length) return { healthy: [], unhealthy: [] };
 
-  // 根据 url 推导候选（保持 /api/... 路径）
-  const path = url.replace(/^https?:\/\/[^/]+/, '');
-  const bases = getApiCandidates();
-  const base = await pickHealthyBase(bases);
-  let finalUrl = `${base.replace(/\/$/, '')}${path}`;
+  const {
+    paths = ['/api/health', '/health'], // 先试 Worker 的 /api/health，再试后端 /health
+    timeoutMs = 2500,
+    useCache = true,
+  } = opts;
 
-  for (let attempt = 0; attempt <= retry; attempt += 1) {
-    try {
-      const response = await fetch(finalUrl, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body: raw,
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
-      }
-      return response;
-    } catch (error) {
-      console.warn('[postJsonWithRetry] failed:', finalUrl, error);
-      if (attempt === retry) throw error;
+  const controller = (ms) => {
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort('timeout'), ms);
+    return { signal: c.signal, cancel: () => clearTimeout(t) };
+  };
 
-      // 唤醒 + 换一个 base 再试
-      await warmUp(base);
-      const nextBase = await pickHealthyBase(bases);
-      finalUrl = `${nextBase.replace(/\/$/, '')}${path}`;
-      await new Promise((r) => setTimeout(r, 800));
+  const now = Date.now();
+  const tasks = bases.map(async (base) => {
+    // 命中缓存且未过期
+    const cached = _healthCache.get(base);
+    if (useCache && cached && now - cached.ts < HEALTH_TTL_MS) {
+      return { base, ok: cached.ok, source: 'cache' };
     }
+
+    let ok = false;
+    for (const p of paths) {
+      const { signal, cancel } = controller(timeoutMs);
+      try {
+        const res = await fetch(`${base}${p}`, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          signal,
+        });
+        cancel();
+        if (res.ok) {
+          ok = true;
+          break;
+        }
+      } catch (e) {
+        // ignore single path error, try next path
+      }
+    }
+
+    _healthCache.set(base, { ok, ts: Date.now() });
+    return { base, ok, source: 'probe' };
+  });
+
+  const results = await Promise.all(tasks);
+  const healthy = results.filter((r) => r.ok).map((r) => r.base);
+  const unhealthy = results.filter((r) => !r.ok).map((r) => r.base);
+  return { healthy, unhealthy };
+}
+
+// -------- 选择健康基址（含竞速+回退）--------
+async function pickHealthyBase(apiBaseOrBases, opts = {}) {
+  const bases = resolveApiBases(apiBaseOrBases);
+  if (!bases.length) return null;
+
+  // 1) 先用缓存中健康的基址（保持顺序）
+  const cachedHealthy = bases.filter((b) => {
+    const c = _healthCache.get(b);
+    return c && c.ok && Date.now() - c.ts < HEALTH_TTL_MS;
+  });
+  if (cachedHealthy.length) return cachedHealthy[0];
+
+  // 2) 无缓存则做一次并发探活
+  const { healthy } = await warmUp(bases, opts);
+  return healthy[0] || null;
+}
+
+// -------- POST JSON（集成健康选择与回退）--------
+async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
+  const bases = resolveApiBases(apiBaseOrBases);
+  if (!bases.length) throw new Error('未配置后端 API 地址');
+
+  const bodyRaw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+
+  // 如果 body 太大或包含 dataURL，前端直接提示（保持你原先的守卫逻辑）
+  const containsDataUrl = /data:[^;]+;base64,/.test(bodyRaw);
+  if (containsDataUrl || bodyRaw.length > 300000) {
+    throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传输 key/url。');
   }
-  throw new Error('请求失败');
+
+  // 先选择健康基址
+  let base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+
+  // 如果一次都没选到，就用第一个候选并尝试触发一次探活（允许后续重试时命中缓存）
+  if (!base) {
+    base = bases[0];
+    void warmUp(bases).catch(() => {});
+  }
+
+  const urlFor = (b) => `${b.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`;
+
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retry; attempt += 1) {
+    // 构造本次尝试的基址顺序：先用上次失败后可能变健康的、再用其余的
+    const tryOrder = base
+      ? [base, ...bases.filter((b) => b !== base)]
+      : [...bases];
+
+    for (const b of tryOrder) {
+      try {
+        const res = await fetch(urlFor(b), {
+          method: 'POST',
+          mode: 'cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/json' },
+          body: bodyRaw,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        // 成功：把成功基址写入健康缓存，返回
+        _healthCache.set(b, { ok: true, ts: Date.now() });
+        return res;
+      } catch (err) {
+        lastErr = err;
+        // 当前基址失败，标记为不健康并继续下一个
+        _healthCache.set(b, { ok: false, ts: Date.now() });
+        base = null; // 触发下次循环重新选择
+      }
+    }
+
+    // 一轮都失败了：做一次暖场并等待片刻再重试
+    try {
+      await warmUp(bases, { timeoutMs: 2500 });
+    } catch {}
+    await new Promise((r) => setTimeout(r, 800));
+    base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+  }
+
+  throw lastErr || new Error('请求失败');
 }
 
 
