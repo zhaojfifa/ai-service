@@ -217,10 +217,11 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
     void warmUp(bases).catch(() => {});
   }
 
-  const urlFor = (b) => `${b.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`; // ← 没有 u
+  const urlFor = (b) => `${b.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`;
 
   let lastErr = null;
   for (let attempt = 0; attempt <= retry; attempt += 1) {
+    const tryOrder = base ? [base, ...bases.filter((x) => x !== base)] : [...bases];
     for (const b of tryOrder) {
       try {
         const res = await fetch(urlFor(b), {
