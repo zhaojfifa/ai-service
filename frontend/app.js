@@ -200,63 +200,56 @@ function validatePayloadSize(rawPayload) {
   }
 }
 
-async function postJsonWithRetry(baseOrBases, path, payload, retry = 1, rawOverride) {
-  const bases = ensureArray(baseOrBases).filter(Boolean);
-  if (!bases.length) {
-    bases.push(...getApiCandidates());
+async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
+  const bases = resolveApiBases(apiBaseOrBases);
+  if (!bases.length) throw new Error('未配置后端 API 地址');
+
+  const bodyRaw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+
+  const containsDataUrl = /data:[^;]+;base64,/.test(bodyRaw);
+  if (containsDataUrl || bodyRaw.length > 300000) {
+    throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传输 key/url。');
   }
-  if (!bases.length) {
-    throw new Error('缺少可用的 API 基址，请先配置 Render 或 Worker 地址。');
+
+  let base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+  if (!base) {
+    base = bases[0];
+    void warmUp(bases).catch(() => {});
   }
 
-  const raw = typeof rawOverride === 'string' ? rawOverride : JSON.stringify(payload ?? {});
-  validatePayloadSize(raw);
+  const urlFor = (b) => `${b.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`; // ← 没有 u
 
-  let attempt = 0;
-  let pool = [...bases];
-  let lastError = null;
-
-  while (pool.length && attempt <= retry) {
-    const base = await pickHealthyBase([uiBase, WORKER_BASE, RENDER_BASE]);
-    const res  = await postJsonWithRetry(base, '/api/generate-poster', payload, 1);
-
-    if (!base) break;
-    const url = joinBasePath(base, path);
-    if (!url) {
-      pool = pool.filter((item) => item !== base);
-      continue;
-    }
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body: raw,
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retry; attempt += 1) {
+    const tryOrder = base ? [base, ...bases.filter((x) => x !== base)] : [...bases];
+    for (const b of tryOrder) {
+      try {
+        const res = await fetch(urlFor(b), {
+          method: 'POST',
+          mode: 'cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/json' },
+          body: bodyRaw,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        _healthCache.set(b, { ok: true, ts: Date.now() });
+        return res;
+      } catch (err) {
+        lastErr = err;
+        _healthCache.set(b, { ok: false, ts: Date.now() });
+        base = null;
       }
-      HEALTH_CACHE.set(base, { ok: true, timestamp: Date.now() });
-      return response;
-    } catch (error) {
-      lastError = error;
-      HEALTH_CACHE.set(base, { ok: false, timestamp: Date.now() });
-      pool = pool.filter((item) => item !== base);
-      attempt += 1;
-      if (!pool.length || attempt > retry) {
-        break;
-      }
-      await warmUp(pool, { force: true });
-      const delay = Math.min(2000, 400 * 2 ** attempt);
-      await new Promise((resolve) => setTimeout(resolve, delay));
     }
+    try { await warmUp(bases, { timeoutMs: 2500 }); } catch {}
+    await new Promise((r) => setTimeout(r, 800));
+    base = await pickHealthyBase(bases, { timeoutMs: 2500 });
   }
 
-  throw lastError || new Error('所有候选基址均无法访问，请稍后重试。');
+  throw lastErr || new Error('请求失败');
 }
 
 App.utils.postJsonWithRetry = postJsonWithRetry;
