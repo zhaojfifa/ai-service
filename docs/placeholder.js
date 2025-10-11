@@ -180,3 +180,15 @@ window.MPoster = {
   isHealthy,
   postJsonWithRetry,
 };
+// 兼容模式：向全局挂同名函数，覆盖 app.js 里旧实现
+if (window.MPoster) {
+  Object.assign(window, {
+    getApiCandidates : window.MPoster.getApiCandidates,
+    resolveApiBases  : window.MPoster.resolveApiBases,
+    warmUp           : window.MPoster.warmUp,
+    pickHealthyBase  : window.MPoster.pickHealthyBase,
+    isHealthy        : window.MPoster.isHealthy,
+    postJsonWithRetry: window.MPoster.postJsonWithRetry,
+  });
+}
+
