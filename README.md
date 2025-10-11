@@ -79,6 +79,37 @@ uvicorn app.main:app --reload
    - 配置完成后，前端会在上传素材时先请求 `POST /api/r2/presign-put` 获取预签名 PUT URL，再由浏览器直传到 R2；生成海报时只需把对象 Key 发送给后端即可。
 4. 部署完成后记录 Render 分配的 HTTPS 域名，例如 `https://marketing-poster-api.onrender.com`。
 
+## Cloudflare Worker 反向代理
+
+部署在 GitHub Pages 的前端会优先调用 Cloudflare Worker，以规避跨域预检和 Render 免费实例的冷启动延迟。仓库根目录的 `worker/worker.js` 已提供代理脚本，核心要点如下：
+
+- 仅转发 `/api/*` 与 `/health` 请求，其余路径直接返回 `404 Not found`。
+- `GET /api/health` 在 Worker 内部直接返回 `200 ok`，前端能在 1 个 RTT 内判断 Worker 是否可用；其它 `/api/*` 和 `/health` 请求都会透传到 Render。
+- 所有响应统一注入：
+  - `Access-Control-Allow-Origin`（默认 `*`，可通过 `ALLOWED_ORIGINS` 限定 GitHub Pages 域名与 Worker 自身域名）；
+  - `Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS`；
+  - `Access-Control-Allow-Headers: *`；
+  - `Access-Control-Expose-Headers: *`；
+  - `Access-Control-Max-Age: 86400`；
+  - 预检 `OPTIONS` 请求固定返回 204。
+- Worker 会自动剥离浏览器附带的 Cookie，禁止向 Render 透传凭据。
+
+> **部署步骤**
+>
+> 1. 在 Cloudflare 控制台创建新的 Worker，并将 `worker/worker.js` 粘贴为脚本内容。
+> 2. 配置 Worker 环境变量：
+>    - `RENDER_ORIGIN`：Render 服务的根地址，例如 `https://marketing-poster-api.onrender.com`；
+>    - `ALLOWED_ORIGINS`：允许的前端域名，支持 JSON / 逗号分隔写法，例如 `"[\"https://username.github.io\",\"https://render-proxy.username.workers.dev\"]"`；
+>    - 如需自定义跨域头，可选填 `CORS_ALLOW_METHODS`、`CORS_ALLOW_HEADERS`、`CORS_EXPOSE_HEADERS`、`CORS_MAX_AGE`。
+> 3. 为 Worker 绑定 `render-proxy.<your-subdomain>.workers.dev` 或自定义域名，确保 GitHub Pages 能访问。
+
+## 前端的基址优先级与健康探测
+
+- `getApiCandidates` 会按 “手动输入 → Worker → Render → 其它备选” 的优先级收集基址，并缓存最近 60 秒的健康状态。
+- `warmUp` / `pickHealthyBase` 会先探测 `GET /api/health`（Worker 快速响应），若 404 再回退 `GET /health`（Render）。
+- `postJsonWithRetry` 允许传入相对路径或完整的绝对 URL；若传入绝对地址，会直接发送请求而不会与基址重复拼接。
+- 在发起 `POST /api/generate-poster` 之前，前端会校验请求体大小不超过 300KB，且素材字段不能携带 `data:` 协议的 Base64 字符串，避免浏览器因超大 JSON 断开连接。
+
 ## GitHub Pages 部署前端
 
 仓库已经内置 GitHub Actions 工作流，自动将 `frontend/` 目录发布到 Pages。首次启用时请按照以下步骤配置：

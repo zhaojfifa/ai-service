@@ -1,13 +1,16 @@
 from __future__ import annotations
-import os
-import sys
-import json                     # ← 你用了 json，但之前没导入
+
+import json
 import logging
+import os
+import re
+from typing import Iterable
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import PlainTextResponse, Response
 from pydantic import ValidationError
-
 
 from app.config import get_settings
 from app.schemas import (
@@ -27,10 +30,6 @@ from app.services.poster import (
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
 
-
-
-from app.config import get_settings
-
 logger = logging.getLogger(__name__)
 uvlog = logging.getLogger("uvicorn.error")
 
@@ -44,31 +43,50 @@ UPLOAD_ALLOWED_MIME = {
     if item.strip()
 }
 
+REQUEST_BODY_MAX_BYTES = 300_000
+DATA_URL_PATTERN = re.compile(r"^data:[^;]+;base64,", re.IGNORECASE)
 
-def _normalize_allowed_origins(value):
-    # 支持 None / "" / "*" / CSV / JSON / list
+
+def _normalize_allowed_origins(value: Iterable[str] | str | None) -> list[str]:
+    """Normalise configured origins to bare scheme://host pairs."""
+
+    def to_origin(candidate: str | None) -> str | None:
+        if not candidate:
+            return None
+        raw = str(candidate).strip().strip('"').strip("'")
+        if not raw:
+            return None
+        guess = raw if "://" in raw else f"https://{raw}"
+        parsed = urlsplit(guess)
+        if not parsed.scheme or not parsed.netloc:
+            return None
+        scheme = parsed.scheme.lower()
+        if scheme not in {"http", "https"}:
+            return None
+        return f"{scheme}://{parsed.netloc}"
+
     if not value:
         return ["*"]
     if isinstance(value, list):
         items = value
     elif isinstance(value, str):
         s = value.strip()
-        if s.startswith("["):  # JSON
+        if s.startswith("["):
             try:
                 items = json.loads(s)
             except Exception:
                 items = s.split(",")
-        else:                   # CSV
+        else:
             items = s.split(",")
     else:
         items = [str(value)]
 
-    def clean(x: str) -> str:
-        s = str(x).strip().strip('"').strip("'").rstrip("/")
-        return s
-
-    out = [clean(x) for x in items if clean(x)]
-    return out or ["*"]
+    origins = [to_origin(item) for item in items]
+    deduped = []
+    for origin in origins:
+        if origin and origin not in deduped:
+            deduped.append(origin)
+    return deduped or ["*"]
 
 raw = (
     getattr(settings, "allowed_origins", None)
@@ -76,16 +94,14 @@ raw = (
 )
 allow_origins = _normalize_allowed_origins(raw)
 
-allow_credentials = "*" not in allow_origins
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=allow_credentials,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-    expose_headers=["Content-Length"],
-    max_age=600,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
 
 
@@ -95,9 +111,9 @@ def cors_preflight_handler(rest_of_path: str) -> Response:
     return Response(status_code=204)
 
 
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/health", response_class=PlainTextResponse)
+def health_check() -> PlainTextResponse:
+    return PlainTextResponse("ok")
 
 
 def _model_dump(model):
@@ -117,16 +133,58 @@ def _model_validate(model, data):
 
 
 async def read_json_relaxed(request: Request) -> dict:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > REQUEST_BODY_MAX_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="Request body exceeds 300KB. Upload assets to object storage instead of embedding Base64.",
+                )
+        except ValueError:
+            # Ignore invalid content-length headers and rely on actual body size.
+            pass
+
+    body = await request.body()
+    if body and len(body) > REQUEST_BODY_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail="Request body exceeds 300KB. Upload assets to object storage instead of embedding Base64.",
+        )
+    if not body:
+        return {}
+
     try:
-        payload = await request.json()
-    except Exception:
-        body = await request.body()
-        if not body:
-            return {}
-        payload = json.loads(body.decode("utf-8"))
+        decoded = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Request body must be UTF-8 encoded JSON") from exc
+
+    try:
+        payload = json.loads(decoded)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {exc.msg}") from exc
+
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="Request body must be a JSON object")
     return payload
+
+
+def _detect_embedded_data_urls(poster) -> list[str]:
+    """Return a list of fields that still contain Base64 data URLs."""
+
+    fields: list[str] = []
+
+    def register(value: str | None, label: str) -> None:
+        if isinstance(value, str) and DATA_URL_PATTERN.match(value.strip()):
+            fields.append(label)
+
+    register(getattr(poster, "brand_logo", None), "poster.brand_logo")
+    register(getattr(poster, "scenario_asset", None), "poster.scenario_asset")
+    register(getattr(poster, "product_asset", None), "poster.product_asset")
+    for index, item in enumerate(getattr(poster, "gallery_items", []) or []):
+        register(getattr(item, "asset", None), f"poster.gallery_items[{index}].asset")
+
+    return fields
 
 
 @app.post("/api/r2/presign-put", response_model=R2PresignPutResponse)
@@ -157,8 +215,19 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    poster = payload.poster
+    data_url_fields = _detect_embedded_data_urls(poster)
+    if data_url_fields:
+        joined = ", ".join(data_url_fields)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "请求体仍包含 Base64 图片，请改为上传至对象存储，仅传输对象 key 或公开 URL："
+                f"{joined}"
+            ),
+        )
+
     try:
-        poster = payload.poster
         preview = render_layout_preview(poster)
         prompt_payload = _model_dump(payload.prompts)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
@@ -188,6 +257,8 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             seed=result.seed,
             lock_seed=result.lock_seed,
         )
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to generate poster")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

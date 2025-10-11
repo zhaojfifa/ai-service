@@ -6,6 +6,12 @@ const HEALTH_CACHE_TTL = 60_000;
 const HEALTH_CACHE = new Map();
 
 let documentAssetBase = null;
+const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+const DATA_URL_PATTERN = /^data:[^;]+;base64,/i;
+
+function isAbsoluteUrl(value) {
+  return typeof value === 'string' && ABSOLUTE_URL_PATTERN.test(value);
+}
 
 function resolveDocumentAssetBase() {
   if (documentAssetBase) return documentAssetBase;
@@ -24,7 +30,7 @@ function resolveDocumentAssetBase() {
 
 function assetUrl(path) {
   if (!path) return resolveDocumentAssetBase();
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(path)) {
+  if (isAbsoluteUrl(path)) {
     return path;
   }
   const base = resolveDocumentAssetBase();
@@ -48,10 +54,22 @@ function normaliseBase(base) {
 }
 
 function joinBasePath(base, path) {
+  if (isAbsoluteUrl(path)) {
+    return path;
+  }
   const normalised = normaliseBase(base);
   if (!normalised) return null;
-  const suffix = path.startsWith('/') ? path : `/${path}`;
-  return `${normalised}${suffix}`;
+  try {
+    const suffix = path ? (path.startsWith('/') ? path : `/${path}`) : '';
+    const url = new URL(suffix || '/', normalised.endsWith('/') ? normalised : `${normalised}/`);
+    if (!suffix) {
+      return normalised;
+    }
+    return url.toString();
+  } catch (error) {
+    console.warn('[joinBasePath] failed to combine', base, path, error);
+    return null;
+  }
 }
 
 function ensureArray(value) {
@@ -63,39 +81,42 @@ function ensureArray(value) {
 const warmUpLocks = new Map();
 
 function getApiCandidates(extra) {
-  const candidates = new Set();
+  const seen = new Set();
+  const candidates = [];
   const addCandidate = (value) => {
     const trimmed = typeof value === 'string' ? value.trim() : '';
     if (!trimmed) return;
     const normalised = normaliseBase(trimmed);
-    if (normalised) {
-      candidates.add(normalised);
+    if (normalised && !seen.has(normalised)) {
+      seen.add(normalised);
+      candidates.push(normalised);
     }
   };
 
   const inputValue = document.getElementById('api-base')?.value;
   addCandidate(inputValue);
 
+  const bodyDataset = document.body?.dataset ?? {};
+  addCandidate(bodyDataset.workerBase);
+  addCandidate(window.APP_WORKER_BASE);
+
   const stored = localStorage.getItem(STORAGE_KEYS?.apiBase ?? '');
   addCandidate(stored);
 
-  const bodyDataset = document.body?.dataset ?? {};
-  addCandidate(bodyDataset.workerBase);
   addCandidate(bodyDataset.renderBase);
-  addCandidate(bodyDataset.apiBase);
+  addCandidate(window.APP_RENDER_BASE);
 
+  addCandidate(bodyDataset.apiBase);
   if (Array.isArray(window.APP_API_BASES)) {
     window.APP_API_BASES.forEach(addCandidate);
   }
-  addCandidate(window.APP_WORKER_BASE);
-  addCandidate(window.APP_RENDER_BASE);
   addCandidate(window.APP_DEFAULT_API_BASE);
 
   if (extra) {
     ensureArray(extra).forEach(addCandidate);
   }
 
-  return Array.from(candidates);
+  return candidates;
 }
 
 App.utils.getApiCandidates = getApiCandidates;
@@ -176,13 +197,58 @@ function validatePayloadSize(rawPayload) {
   if (!rawPayload) return;
   const encoder = new TextEncoder();
   const size = encoder.encode(rawPayload).length;
-  const hasBase64 = /data:[^;]+;base64,/i.test(rawPayload);
+  const hasBase64 = DATA_URL_PATTERN.test(rawPayload);
   if (hasBase64 || size > 300_000) {
     throw new Error('请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url。');
   }
 }
 
+function containsDataUrl(value) {
+  return typeof value === 'string' && DATA_URL_PATTERN.test(value);
+}
+
+function getAssetReference(asset, options = {}) {
+  if (!asset || typeof asset !== 'object') return null;
+  const { allowKeyFallback = false } = options;
+  const direct = asset.remoteUrl || asset.dataUrl || null;
+  if (direct && !containsDataUrl(direct)) {
+    return direct;
+  }
+  if (allowKeyFallback && typeof asset.r2Key === 'string' && asset.r2Key) {
+    return asset.r2Key;
+  }
+  return null;
+}
+
+function ensureAssetReady(asset, { label, required = false, allowKeyFallback = false }) {
+  const key = asset && typeof asset === 'object' && asset.r2Key ? asset.r2Key : null;
+  const reference = getAssetReference(asset, { allowKeyFallback });
+  if (required && !key && !reference) {
+    throw new Error(`${label} 尚未上传或上传失败，请先完成素材上传。`);
+  }
+  return { key, reference };
+}
+
 async function postJsonWithRetry(baseOrBases, path, payload, retry = 1, rawOverride) {
+  const raw = typeof rawOverride === 'string' ? rawOverride : JSON.stringify(payload ?? {});
+  validatePayloadSize(raw);
+
+  if (typeof path === 'string' && isAbsoluteUrl(path)) {
+    const response = await fetch(path, {
+      method: 'POST',
+      mode: 'cors',
+      cache: 'no-store',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'application/json' },
+      body: raw,
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+    return response;
+  }
+
   const bases = ensureArray(baseOrBases).filter(Boolean);
   if (!bases.length) {
     bases.push(...getApiCandidates());
@@ -190,9 +256,6 @@ async function postJsonWithRetry(baseOrBases, path, payload, retry = 1, rawOverr
   if (!bases.length) {
     throw new Error('缺少可用的 API 基址，请先配置 Render 或 Worker 地址。');
   }
-
-  const raw = typeof rawOverride === 'string' ? rawOverride : JSON.stringify(payload ?? {});
-  validatePayloadSize(raw);
 
   let attempt = 0;
   let pool = [...bases];
@@ -2793,88 +2856,107 @@ async function triggerGeneration(options) {
 
   const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
 
-  const scenarioAsset = stage1Data.scenario_asset || null;
-  const productAsset = stage1Data.product_asset || null;
+  let payload;
+  let requestPayload;
+  let rawPayload;
+  let promptSnapshot = null;
 
-  const payload = {
-    brand_name: stage1Data.brand_name,
-    agent_name: stage1Data.agent_name,
-    scenario_image: stage1Data.scenario_image,
-    product_name: stage1Data.product_name,
-    template_id: templateId,
-    features: stage1Data.features,
-    title: stage1Data.title,
-    subtitle: stage1Data.subtitle,
-    series_description: stage1Data.series_description,
-    brand_logo: stage1Data.brand_logo?.dataUrl || null,
-    scenario_asset:
-      scenarioAsset && scenarioAsset.r2Key
-        ? null
-        : scenarioAsset?.dataUrl && scenarioAsset.dataUrl.startsWith('data:')
-        ? scenarioAsset.dataUrl
-        : null,
-    scenario_key: scenarioAsset?.r2Key || null,
-    product_asset:
-      productAsset && productAsset.r2Key
-        ? null
-        : productAsset?.dataUrl && productAsset.dataUrl.startsWith('data:')
-        ? productAsset.dataUrl
-        : null,
-    product_key: productAsset?.r2Key || null,
-    scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt:
-      stage1Data.scenario_mode === 'prompt'
-        ? stage1Data.scenario_prompt || stage1Data.scenario_image
-        : null,
-    product_mode: stage1Data.product_mode || 'upload',
-    product_prompt: stage1Data.product_prompt || null,
-    gallery_items:
-      stage1Data.gallery_entries?.map((entry) => {
-        const asset = entry.asset || null;
-        const dataUrl = asset?.dataUrl;
-        const r2Key = asset?.r2Key || null;
-        const serialisedAsset =
-          r2Key || !(typeof dataUrl === 'string' && dataUrl.startsWith('data:'))
-            ? null
-            : dataUrl;
-        return {
-          caption: entry.caption?.trim() || null,
-          asset: serialisedAsset,
-          key: r2Key,
-          mode: entry.mode || 'upload',
-          prompt: entry.prompt?.trim() || null,
-        };
-      }) || [],
-  };
-
-  const promptConfig = promptManager?.buildRequest?.() || {
-    prompts: {},
-    variants: DEFAULT_PROMPT_VARIANTS,
-    seed: null,
-    lockSeed: false,
-  };
-  if (forceVariants) {
-    promptConfig.variants = clampVariants(forceVariants);
-  }
-  const promptSnapshot = JSON.parse(JSON.stringify(promptConfig));
-  const requestPayload = {
-    poster: payload,
-    render_mode: 'locked',
-    variants: promptConfig.variants,
-    seed: promptConfig.seed,
-    lock_seed: Boolean(promptConfig.lockSeed),
-    prompts: promptConfig.prompts,
-  };
-
-  if (typeof updatePromptPanels === 'function') {
-    updatePromptPanels({ bundle: promptSnapshot.prompts });
-  }
-
-  const rawPayload = JSON.stringify(requestPayload);
   try {
+    const scenarioAsset = stage1Data.scenario_asset || null;
+    const productAsset = stage1Data.product_asset || null;
+    const scenarioMode = stage1Data.scenario_mode || 'upload';
+    const productMode = stage1Data.product_mode || 'upload';
+
+    const scenarioState = ensureAssetReady(scenarioAsset, {
+      label: '应用场景图',
+      required: scenarioMode !== 'prompt',
+    });
+    const productState = ensureAssetReady(productAsset, {
+      label: '主产品渲染图',
+      required: productMode !== 'prompt',
+    });
+
+    const brandLogoReference = getAssetReference(stage1Data.brand_logo, {
+      allowKeyFallback: true,
+    });
+
+    const galleryItems = Array.isArray(stage1Data.gallery_entries)
+      ? stage1Data.gallery_entries.map((entry, index) => {
+          const assetMeta = entry.asset || null;
+          const galleryState = ensureAssetReady(assetMeta, {
+            label: `底部产品小图 ${index + 1}`,
+            required: (entry.mode || 'upload') !== 'prompt',
+            allowKeyFallback: true,
+          });
+          return {
+            caption: entry.caption?.trim() || null,
+            asset: galleryState.reference,
+            key: galleryState.key,
+            mode: entry.mode || 'upload',
+            prompt: entry.prompt?.trim() || null,
+          };
+        })
+      : [];
+
+    payload = {
+      brand_name: stage1Data.brand_name,
+      agent_name: stage1Data.agent_name,
+      scenario_image: stage1Data.scenario_image,
+      product_name: stage1Data.product_name,
+      template_id: templateId,
+      features: stage1Data.features,
+      title: stage1Data.title,
+      subtitle: stage1Data.subtitle,
+      series_description: stage1Data.series_description,
+      brand_logo: brandLogoReference,
+      scenario_asset: scenarioState.reference,
+      scenario_key: scenarioState.key,
+      product_asset: productState.reference,
+      product_key: productState.key,
+      scenario_mode: scenarioMode,
+      scenario_prompt:
+        scenarioMode === 'prompt'
+          ? stage1Data.scenario_prompt || stage1Data.scenario_image
+          : null,
+      product_mode: productMode,
+      product_prompt:
+        productMode === 'prompt' ? stage1Data.product_prompt || null : null,
+      gallery_items: galleryItems,
+    };
+
+    const promptConfig = promptManager?.buildRequest?.() || {
+      prompts: {},
+      variants: DEFAULT_PROMPT_VARIANTS,
+      seed: null,
+      lockSeed: false,
+    };
+    if (forceVariants) {
+      promptConfig.variants = clampVariants(forceVariants);
+    }
+    promptSnapshot = JSON.parse(JSON.stringify(promptConfig));
+    requestPayload = {
+      poster: payload,
+      render_mode: 'locked',
+      variants: promptConfig.variants,
+      seed: promptConfig.seed,
+      lock_seed: Boolean(promptConfig.lockSeed),
+      prompts: promptConfig.prompts,
+    };
+
+    if (typeof updatePromptPanels === 'function') {
+      updatePromptPanels({ bundle: promptSnapshot.prompts });
+    }
+
+    rawPayload = JSON.stringify(requestPayload);
     validatePayloadSize(rawPayload);
-  } catch (validationError) {
-    setStatus(statusElement, validationError.message, 'error');
+  } catch (buildError) {
+    setStatus(
+      statusElement,
+      buildError instanceof Error
+        ? buildError.message
+        : '请求体构建失败，请检查素材上传状态。',
+      'error'
+    );
     return null;
   }
 
