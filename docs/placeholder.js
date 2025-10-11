@@ -195,33 +195,29 @@
     throw lastErr || new Error('请求失败');
   }
 
-  // ------------------------------------------------------------
-  // 3) 导出到全局（给 app.js 用）
-  //    —— 一定要保证 placeholder.js 在 app.js 之前加载
-  // ------------------------------------------------------------
-  window.resolveApiBases  = window.resolveApiBases  || resolveApiBases;
-  window.warmUp           = window.warmUp           || warmUp;
-  window.pickHealthyBase  = window.pickHealthyBase  || pickHealthyBase;
-  window.postJsonWithRetry= window.postJsonWithRetry|| postJsonWithRetry;
-  window.isHealthy        = window.isHealthy        || isHealthy;
+ // ------------------------------------------------------------
+// 3) 导出到全局（给 app.js 用）
+//    —— 一定要保证 placeholder.js 在 app.js 之前加载
+// ------------------------------------------------------------
+(function () {
+  // 此处假设本文件前面已经定义了以下函数/变量：
+  //   resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy, _healthCache
 
-  // 同时挂一个命名空间，便于以后引用
-  window.MPoster = {
-    resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy
-  };
-  if (!window.MPoster) return; // 安全保护
-  const { resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy } = window.MPoster;
+  // 1) 命名空间：不覆盖已有的
+  const ns = (window.MPoster = window.MPoster || {});
+  Object.assign(ns, { resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy });
 
-  // 旧版 app.js 直接用的全局函数名：
-  window.resolveApiBases = resolveApiBases;
-  window.warmUp = warmUp;
-  window.pickHealthyBase = pickHealthyBase;
-  window.postJsonWithRetry = postJsonWithRetry;
-  window.isHealthy = isHealthy;
+  // 2) 兼容老版：只有当全局不存在时才挂载一次
+  window.resolveApiBases   = window.resolveApiBases   || ns.resolveApiBases;
+  window.warmUp            = window.warmUp            || ns.warmUp;
+  window.pickHealthyBase   = window.pickHealthyBase   || ns.pickHealthyBase;
+  window.postJsonWithRetry = window.postJsonWithRetry || ns.postJsonWithRetry;
+  window.isHealthy         = window.isHealthy         || ns.isHealthy;
 
-  // 旧版 app.js 里曾直接引用的内部缓存；这里暴露一个同名引用，避免报错
-  // 注意：这行依赖 placeholder.js 内部定义的 _healthCache 变量存在
-  if (typeof _healthCache !== 'undefined') {
+  // 3) 兼容老版内部缓存（如果存在就暴露）
+  if (typeof _healthCache !== 'undefined' && !window._healthCache) {
     window._healthCache = _healthCache;
   }
+})();
+
 })();
