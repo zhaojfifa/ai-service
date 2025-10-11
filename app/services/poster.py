@@ -92,18 +92,41 @@ def build_glibatree_prompt(
         for i, feature in enumerate(poster.features, start=1)
     )
 
+    has_scenario_asset = bool(
+        poster.scenario_asset or getattr(poster, "scenario_key", None)
+    )
+    has_product_asset = bool(
+        poster.product_asset or getattr(poster, "product_key", None)
+    )
+    gallery_uploads = [
+        item for item in poster.gallery_items if item.asset or getattr(item, "key", None)
+    ]
+
+    scenario_mode = getattr(poster, "scenario_mode", "upload")
+    product_mode = getattr(poster, "product_mode", "upload")
+
     reference_assets: list[str] = []
     if poster.brand_logo:
         reference_assets.append("- 参考素材：品牌 Logo 已上传，请置于顶部横条左侧并保持清晰度。")
     if has_scenario_asset:
-        reference_assets.append("- 参考素材：应用场景图已上传，用于左侧 40% 区域的背景演绎。")
+        reference_assets.append(
+            "- 参考素材：应用场景图已上传，用于左侧 40% 区域的背景演绎。"
+        )
+    elif scenario_mode == "prompt" and getattr(poster, "scenario_prompt", None):
+        reference_assets.append(
+            "- 场景需由 AI 生成，请遵循场景提示词并保持与模板遮罩匹配。"
+        )
     if has_product_asset:
         reference_assets.append(
             "- 参考素材：主产品 45° 渲染图已上传，请保留金属 / 塑料质感与光影。"
         )
-    if poster.gallery_items:
+    elif product_mode == "prompt" and getattr(poster, "product_prompt", None):
         reference_assets.append(
-            f"- 参考素材：底部产品小图共 {len(poster.gallery_items)} 张，需转为灰度横向排列。"
+            "- 主产品需由 AI 生成，请突出 45° 角度与高端材质表现。"
+        )
+    if gallery_uploads:
+        reference_assets.append(
+            f"- 参考素材：底部产品小图共 {len(gallery_uploads)} 张，需转为灰度横向排列。"
         )
 
     references_block = "\n".join(reference_assets)
