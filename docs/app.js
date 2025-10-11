@@ -200,29 +200,33 @@ function validatePayloadSize(rawPayload) {
   }
 }
 
+// 完整替换 app.js 里的 postJsonWithRetry
 async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
-  const bases = resolveApiBases(apiBaseOrBases);
+  // 规范化候选基址
+  const bases = (window.resolveApiBases?.(apiBaseOrBases))
+    ?? (Array.isArray(apiBaseOrBases) ? apiBaseOrBases
+        : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
-  const bodyRaw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+  // 组包（外部已给字符串就不再二次 JSON.stringify）
+  const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
 
-  const containsDataUrl = /data:[^;]+;base64,/.test(bodyRaw);
-  if (containsDataUrl || bodyRaw.length > 300000) {
-    throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传输 key/url。');
+  // 粗略体积 & dataURL 防御
+  if (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000) {
+    throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传 key/url。');
   }
 
-  let base = await pickHealthyBase(bases, { timeoutMs: 2500 });
-  if (!base) {
-    base = bases[0];
-    void warmUp(bases).catch(() => {});
-  }
+  // 先挑健康基址，失败就先用第一个
+  let base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
 
-  const urlFor = (b) => `${b.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`;
-
+  const urlFor = (b) => `${String(b).replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
   let lastErr = null;
+
   for (let attempt = 0; attempt <= retry; attempt += 1) {
-    const tryOrder = base ? [base, ...bases.filter((x) => x !== base)] : [...bases];
-    for (const b of tryOrder) {
+    // ！！！这里以前写成了 tryOrder，导致未定义
+    const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
+
+    for (const b of order) {
       try {
         const res = await fetch(urlFor(b), {
           method: 'POST',
@@ -233,24 +237,28 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           body: bodyRaw,
         });
         if (!res.ok) {
-          const text = await res.text();
+          const text = await res.text().catch(() => '');
           throw new Error(text || `HTTP ${res.status}`);
         }
-        _healthCache.set(b, { ok: true, ts: Date.now() });
+        // 兼容占位缓存：存在才更新，避免 _healthCache 未定义再报错
+        if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
         return res;
-      } catch (err) {
-        lastErr = err;
-        _healthCache.set(b, { ok: false, ts: Date.now() });
-        base = null;
+      } catch (e) {
+        lastErr = e;
+        if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
+        base = null; // 该轮失败，下一轮重新挑
       }
     }
-    try { await warmUp(bases, { timeoutMs: 2500 }); } catch {}
-    await new Promise((r) => setTimeout(r, 800));
-    base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+
+    // 整轮失败后：热身 + 等待 + 重选
+    try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
+    await new Promise(r => setTimeout(r, 800));
+    base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
   }
 
   throw lastErr || new Error('请求失败');
 }
+
 
 App.utils.postJsonWithRetry = postJsonWithRetry;
 
