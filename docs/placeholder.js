@@ -5,7 +5,27 @@
   'use strict';
 
   // ---------- 常量与缓存 ----------
-  const HEALTH_PATHS = ['/api/health', '/health']; // 依次尝试
+function healthPathsFor(base) {
+  try {
+    const u = new URL(base, location.href);
+    // Render 只允许 /health
+    if (/onrender\.com$/.test(u.hostname)) return ['/health'];
+  } catch {}
+  // Worker 或自建网关优先 /api/health
+  return ['/api/health', '/health'];
+}
+
+// 探活里用上：
+async function isHealthy(base) {
+  const baseNoSlash = base.replace(/\/$/, '');
+  for (const p of healthPathsFor(base)) {
+    try {
+      const r = await fetch(`${baseNoSlash}${p}`, { method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit' });
+      if (r.ok) return true;
+    } catch {}
+  }
+  return false;
+}
   const HEALTH_TTL_MS = 60_000; // 探活结果缓存 60s
   const _healthCache = new Map(); // key=base, val={ ok, ts }
 
