@@ -1,27 +1,25 @@
-/* placeholder.js — 只暴露全局工具 + Render/health CORS 兜底 */
+/* placeholder.js — 只暴露全局工具 + Render /health CORS 兜底 */
 (() => {
   'use strict';
 
   // ------------------------------------------------------------
-  // 1) 针对 Render /health 的 CORS 猴补：强制 no-cors，并把结果视为 ok
+  // 1) 针对 Render /health 的 CORS 猴补：强制 no-cors，并把 opaque 视为 OK
   // ------------------------------------------------------------
   (function patchFetchForRenderHealth() {
     const origFetch = window.fetch;
-    window.fetch = async function(input, init = {}) {
+    window.fetch = async function (input, init = {}) {
       try {
-        const url = typeof input === 'string' ? input : (input && input.url) || '';
-        const method = (init.method || 'GET').toUpperCase();
+        const req = (typeof Request !== 'undefined' && input instanceof Request) ? input : null;
+        const url = req ? req.url : (typeof input === 'string' ? input : (input && input.url) || '');
+        const method = (init.method || (req && req.method) || 'GET').toUpperCase();
 
-        // 仅拦 Render 的 /health GET
-        if (
-          /^https?:\/\/[^/]*onrender\.com\/health(?:\?|$)/i.test(url) &&
-          method === 'GET'
-        ) {
+        // 仅拦 Render 的 GET /health
+        if (/^https?:\/\/[^/]*onrender\.com\/health(?:\?|$)/i.test(url) && method === 'GET') {
           const patchedInit = { ...init, mode: 'no-cors' };
-          const res = await origFetch(url, patchedInit);
+          const res = await origFetch(req || url, patchedInit);
 
-          // no-cors 的响应是 opaque，.ok === false，为了探活直接视为 ok
-          if (res.type === 'opaque') {
+          // no-cors -> opaque（ok 为 false），为了探活直接回一个 200 响应
+          if (res && res.type === 'opaque') {
             return new Response('', { status: 200, statusText: 'OK' });
           }
           return res;
@@ -37,8 +35,8 @@
   // ------------------------------------------------------------
   // 2) 基础工具 & 健康检查/选择/重试
   // ------------------------------------------------------------
-  const HEALTH_TTL_MS = 60_000;          // 60s 探活缓存
-  const HEALTH_CACHE = new Map();        // base -> { ok, ts }
+  const HEALTH_TTL_MS = 60_000;   // 60s 探活缓存
+  const HEALTH_CACHE = new Map(); // base -> { ok, ts }
 
   function normalizeBase(base) {
     if (!base) return null;
@@ -46,9 +44,7 @@
       const u = new URL(base, window.location.href);
       const pathname = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
       return `${u.origin}${pathname}`;
-    } catch {
-      return null;
-    }
+    } catch { return null; }
   }
 
   function joinBasePath(base, path) {
@@ -92,17 +88,15 @@
         const timer = setTimeout(() => ctrl.abort('timeout'), timeoutMs);
         const res = await fetch(url, {
           method: 'GET',
-          mode: 'cors',         // 对 Render 会被猴补为 no-cors
+          mode: 'cors',        // Render 会被上面的猴补改成 no-cors
           cache: 'no-store',
           credentials: 'omit',
           signal: ctrl.signal,
         });
         clearTimeout(timer);
-        if (res.ok) return true;     // 普通 CORS 情况
-        // 如果被猴补为 no-cors，我们在 fetch 补丁里已经返回了 {status:200}
-        if (res.status === 200) return true;
+        if (res.ok || res.status === 200) return true;
       } catch {
-        // 忽略，换下一个 path
+        // ignore and try next path
       }
     }
     return false;
@@ -113,7 +107,7 @@
     if (!bases.length) return { healthy: [], unhealthy: [] };
 
     const now = Date.now();
-    const tasks = bases.map(async (b) => {
+    const results = await Promise.all(bases.map(async (b) => {
       const cached = HEALTH_CACHE.get(b);
       if (useCache && cached && now - cached.ts < HEALTH_TTL_MS) {
         return { base: b, ok: cached.ok, source: 'cache' };
@@ -121,9 +115,8 @@
       const ok = await isHealthy(b, timeoutMs);
       HEALTH_CACHE.set(b, { ok, ts: Date.now() });
       return { base: b, ok, source: 'probe' };
-    });
+    }));
 
-    const results = await Promise.all(tasks);
     return {
       healthy: results.filter(r => r.ok).map(r => r.base),
       unhealthy: results.filter(r => !r.ok).map(r => r.base),
@@ -169,7 +162,7 @@
         try {
           const res = await fetch(urlFor(b), {
             method: 'POST',
-            mode: 'cors',                // 业务接口必须 CORS
+            mode: 'cors', // 业务接口必须通过 CORS（服务端需正确返回 CORS 头）
             cache: 'no-store',
             credentials: 'omit',
             headers: { 'Content-Type': 'application/json' },
@@ -195,29 +188,21 @@
     throw lastErr || new Error('请求失败');
   }
 
- // ------------------------------------------------------------
-// 3) 导出到全局（给 app.js 用）
-//    —— 一定要保证 placeholder.js 在 app.js 之前加载
-// ------------------------------------------------------------
-(function () {
-  // 此处假设本文件前面已经定义了以下函数/变量：
-  //   resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy, _healthCache
-
-  // 1) 命名空间：不覆盖已有的
+  // ------------------------------------------------------------
+  // 3) 导出到全局（给 app.js 用）—— 确保 placeholder.js 在 app.js 之前加载
+  // ------------------------------------------------------------
   const ns = (window.MPoster = window.MPoster || {});
   Object.assign(ns, { resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy });
 
-  // 2) 兼容老版：只有当全局不存在时才挂载一次
+  // 兼容老版：仅在不存在时挂全局函数
   window.resolveApiBases   = window.resolveApiBases   || ns.resolveApiBases;
   window.warmUp            = window.warmUp            || ns.warmUp;
   window.pickHealthyBase   = window.pickHealthyBase   || ns.pickHealthyBase;
   window.postJsonWithRetry = window.postJsonWithRetry || ns.postJsonWithRetry;
   window.isHealthy         = window.isHealthy         || ns.isHealthy;
 
-  // 3) 兼容老版内部缓存（如果存在就暴露）
-  if (typeof _healthCache !== 'undefined' && !window._healthCache) {
-    window._healthCache = _healthCache;
+  // 兼容老版内部缓存（旧 app.js 会用到 window._healthCache）
+  if (!window._healthCache) {
+    window._healthCache = HEALTH_CACHE; // 直接暴露当前缓存映射
   }
-})();
-
 })();
