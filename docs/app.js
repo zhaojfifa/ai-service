@@ -2,6 +2,17 @@
 const WORKER_BASE = 'https://render-proxy.zhaojiffa.workers.dev';
 const RENDER_BASE = 'https://ai-service-x758.onrender.com';
 
+// —— 静态资源 URL 统一解析（适配 GitHub Pages 子路径）——
+function assetUrl(relPath) {
+  // 以当前文档的 baseURI 为基准，兼容 /ai-service/ 子路径与任意页面层级
+  try {
+    return new URL(relPath, document.baseURI).toString();
+  } catch {
+    // 兜底：退回到相对路径
+    return relPath;
+  }
+}
+
 // 从输入框/本地存储读取的地址，也和上面两个一起做候选
 function getApiCandidates() {
   const uiBase = (apiBaseInput?.value || '').trim();
