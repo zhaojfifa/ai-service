@@ -2915,6 +2915,33 @@ async function triggerGeneration(options) {
 
   try {
     await warmUp(apiCandidates);
+    // 将对象型的 prompt（如 {preset, aspect, text}）转换成后端需要的纯字符串
+function toPromptString(x) {
+  if (x == null) return '';
+  if (typeof x === 'string') return x.trim();
+
+  // 你如果已经在别处算出了最终文案，可能放在 .text / .prompt 字段
+  if (typeof x.text === 'string')   return x.text.trim();
+  if (typeof x.prompt === 'string') return x.prompt.trim();
+
+  // 只有 preset/aspect 的情况：至少给后端一个可读字符串，避免 500
+  if (x.preset && x.aspect) return `${x.preset} (aspect ${x.aspect})`;
+  if (x.preset)             return String(x.preset);
+
+  // 兜底：把对象压成一行字符串，保证类型正确（不建议长期使用）
+  try { return JSON.stringify(x); } catch { return String(x); }
+}
+
+// 统一把 prompt_bundle 三个字段收敛为字符串
+if (payload && payload.prompt_bundle) {
+  const b = payload.prompt_bundle;
+  payload.prompt_bundle = {
+    scenario: toPromptString(b.scenario),
+    product : toPromptString(b.product),
+    gallery : toPromptString(b.gallery),
+  };
+}
+
     const response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 2, rawPayload);
 
     const data = await response.json();
