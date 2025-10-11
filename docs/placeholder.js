@@ -166,7 +166,57 @@ async function isHealthy(base) {
     }
 
     throw lastErr || new Error('请求失败');
+  }async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
+  const bases = resolveApiBases(apiBaseOrBases);
+  if (!bases.length) throw new Error('未配置后端 API 地址');
+
+  const bodyRaw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+
+  const containsDataUrl = /data:[^;]+;base64,/.test(bodyRaw);
+  if (containsDataUrl || bodyRaw.length > 300000) {
+    throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传输 key/url。');
   }
+
+  let base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+  if (!base) {
+    base = bases[0];
+    void warmUp(bases).catch(() => {});
+  }
+
+  const urlFor = (b) => `${b.replace(/\/$/, '')}/${path.replace(/^\/+/, '')}`; // ← 没有 u
+
+  let lastErr = null;
+  for (let attempt = 0; attempt <= retry; attempt += 1) {
+    const tryOrder = base ? [base, ...bases.filter((x) => x !== base)] : [...bases];
+    for (const b of tryOrder) {
+      try {
+        const res = await fetch(urlFor(b), {
+          method: 'POST',
+          mode: 'cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/json' },
+          body: bodyRaw,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        _healthCache.set(b, { ok: true, ts: Date.now() });
+        return res;
+      } catch (err) {
+        lastErr = err;
+        _healthCache.set(b, { ok: false, ts: Date.now() });
+        base = null;
+      }
+    }
+    try { await warmUp(bases, { timeoutMs: 2500 }); } catch {}
+    await new Promise((r) => setTimeout(r, 800));
+    base = await pickHealthyBase(bases, { timeoutMs: 2500 });
+  }
+
+  throw lastErr || new Error('请求失败');
+}
 
   // ---------- 导出到命名空间 ----------
   window.MPoster = {
