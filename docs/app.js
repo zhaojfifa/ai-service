@@ -2799,123 +2799,208 @@ function toPromptString(x) {
 //   - updatePromptPanels (可选), setStatus(可选), apiBaseInput, statusElement
 // 与现有代码保持同名签名：triggerGeneration(forceVariants)
 
-async function triggerGeneration(forceVariants) {
-  // 1) 解析可用后端基址
-  const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+// drop-in replacement for app.js triggerGeneration — no globals, sends backend-friendly PromptSlotConfig objects
+
+// Helper: normalise one prompt slot to PromptSlotConfig object
+function normalisePromptSlot(input, presets) {
+  const out = { preset: null, positive: "", negative: "", aspect: null };
+  if (!input) return out;
+  if (typeof input === "string") {
+    // treat incoming string as positive prompt
+    out.positive = input.trim();
+    return out;
+  }
+  if (typeof input === "object") {
+    if (typeof input.preset === "string" && input.preset.trim()) out.preset = input.preset.trim();
+    if (typeof input.positive === "string") out.positive = input.positive.trim();
+    if (typeof input.negative === "string") out.negative = input.negative.trim();
+    const aspect = input.aspect ?? (presets?.presets?.[input.preset]?.aspect);
+    if (typeof aspect === "string" && aspect.trim()) out.aspect = aspect.trim();
+    return out;
+  }
+  return out;
+}
+
+// Helper: build prompts object from promptManager (or presets fallback)
+function buildPromptsObject(promptManager, presets) {
+  const bundle = (promptManager && typeof promptManager.buildRequest === "function")
+    ? (promptManager.buildRequest() || {}).prompts
+    : null;
+  const p = {
+    scenario: normalisePromptSlot(bundle?.scenario ?? { preset: presets?.defaultAssignments?.scenario || null }, presets),
+    product : normalisePromptSlot(bundle?.product  ?? { preset: presets?.defaultAssignments?.product  || null }, presets),
+    gallery : normalisePromptSlot(bundle?.gallery  ?? { preset: presets?.defaultAssignments?.gallery  || null }, presets),
+  };
+  return p;
+}
+
+// Helper: tiny clamp for variants (1..3)
+function clampVariantsLocal(v) {
+  const n = Math.round(Number(v || 1));
+  return Math.min(Math.max(n, 1), 3);
+}
+
+// ---- MAIN: triggerGeneration (drop-in) ------------------------------------
+async function triggerGeneration(options) {
+  const {
+    stage1Data,
+    statusElement,
+    layoutStructure,
+    posterOutput,
+    aiPreview,
+    aiSpinner,
+    aiPreviewMessage,
+    posterVisual,
+    posterImage,
+    variantsStrip,
+    promptGroup,
+    emailGroup,
+    promptTextarea,
+    emailTextarea,
+    generateButton,
+    regenerateButton,
+    nextButton,
+    promptManager,
+    updatePromptPanels,
+    // optional explicit presets used as fallback for aspects etc.
+    promptPresets,
+    // optional overrides
+    forceVariants = null,
+    abTest = false,
+  } = options || {};
+
+  if (!stage1Data) throw new Error("triggerGeneration: stage1Data is required");
+
+  // 1) Choose API bases via placeholder helpers (all guarded)
+  const apiBaseInput = document.getElementById("api-base");
+  const apiCandidates = (typeof getApiCandidates === "function")
+    ? getApiCandidates(apiBaseInput?.value || null)
+    : [];
   if (!apiCandidates.length) {
-    setStatus && setStatus(statusElement, '未找到可用的后端基址，请填写或配置 Render / Worker 地址。', 'warning');
+    if (typeof setStatus === "function") setStatus(statusElement, "未找到可用的后端基址，请填写或配置 Render / Worker 地址。", "warning");
     return null;
   }
 
-  // 2) 物料补水（R2 直传或 dataURL）
-  await hydrateStage1DataAssets(stage1Data);
+  // 2) Ensure assets are hydrated (dataUrl for previews / r2Key when uploaded)
+  if (typeof hydrateStage1DataAssets === "function") {
+    await hydrateStage1DataAssets(stage1Data);
+  }
 
-  // 3) 组装 poster（禁止把 dataURL 与 key 同时发上去）
-  const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
+  // 3) Build poster payload (only send dataUrl if *no* r2Key present)
   const scenarioAsset = stage1Data.scenario_asset || null;
-  const productAsset = stage1Data.product_asset || null;
-
+  const productAsset  = stage1Data.product_asset  || null;
   const poster = {
-    brand_name: stage1Data.brand_name || null,
-    agent_name: stage1Data.agent_name || null,
-    scenario_image: stage1Data.scenario_image || null,
-    product_name: stage1Data.product_name || null,
-    template_id: templateId,
-    features: stage1Data.features || [],
-    title: stage1Data.title || null,
-    subtitle: stage1Data.subtitle || null,
-    series_description: stage1Data.series_description || null,
-
-    // brand_logo 仍然允许内联 dataURL（尺寸较小）
+    brand_name: stage1Data.brand_name,
+    agent_name: stage1Data.agent_name,
+    scenario_image: stage1Data.scenario_image,
+    product_name: stage1Data.product_name,
+    template_id: stage1Data.template_id,
+    features: stage1Data.features,
+    title: stage1Data.title,
+    subtitle: stage1Data.subtitle,
+    series_description: stage1Data.series_description,
     brand_logo: stage1Data.brand_logo?.dataUrl || null,
-
-    // 场景图/产品图：若已直传（有 r2Key）则 asset=null、带 key；
-    // 未直传但有 dataURL 则内联 dataURL；否则都为 null。
-    scenario_asset: (scenarioAsset && scenarioAsset.r2Key)
-      ? null
-      : (scenarioAsset?.dataUrl?.startsWith('data:') ? scenarioAsset.dataUrl : null),
-    scenario_key: scenarioAsset?.r2Key || null,
-
-    product_asset: (productAsset && productAsset.r2Key)
-      ? null
-      : (productAsset?.dataUrl?.startsWith('data:') ? productAsset.dataUrl : null),
-    product_key: productAsset?.r2Key || null,
-
-    scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-      : null,
-    product_mode: stage1Data.product_mode || 'upload',
+    scenario_asset: (scenarioAsset && !scenarioAsset.r2Key && typeof scenarioAsset.dataUrl === "string" && scenarioAsset.dataUrl.startsWith("data:")) ? scenarioAsset.dataUrl : null,
+    scenario_key  : scenarioAsset?.r2Key || null,
+    product_asset : (productAsset && !productAsset.r2Key && typeof productAsset.dataUrl === "string" && productAsset.dataUrl.startsWith("data:")) ? productAsset.dataUrl : null,
+    product_key   : productAsset?.r2Key || null,
+    scenario_mode : stage1Data.scenario_mode || "upload",
+    scenario_prompt: (stage1Data.scenario_mode === "prompt") ? (stage1Data.scenario_prompt || stage1Data.scenario_image || "") : null,
+    product_mode  : stage1Data.product_mode || "upload",
     product_prompt: stage1Data.product_prompt || null,
-
-    // 底部小图
-    gallery_items: (stage1Data.gallery_entries || []).map((entry) => {
+    gallery_items : (stage1Data.gallery_entries || []).map((entry) => {
       const asset = entry.asset || null;
       const dataUrl = asset?.dataUrl;
       const r2Key = asset?.r2Key || null;
+      const inline = (!r2Key && typeof dataUrl === "string" && dataUrl.startsWith("data:")) ? dataUrl : null;
       return {
         caption: entry.caption?.trim() || null,
-        asset: r2Key || !(typeof dataUrl === 'string' && dataUrl.startsWith('data:')) ? null : dataUrl,
+        asset: inline,
         key: r2Key,
-        mode: entry.mode || 'upload',
+        mode: entry.mode || "upload",
         prompt: entry.prompt?.trim() || null,
       };
     }),
   };
 
-  // 4) 组装 prompts：必须是 PromptSlotConfig 字典，而非字符串
-  const promptConfig = (promptManager?.buildRequest?.()) || {
-    prompts: {},
-    variants: DEFAULT_PROMPT_VARIANTS,
-    seed: null,
-    lockSeed: false,
-  };
-  if (forceVariants) {
-    promptConfig.variants = clampVariants(forceVariants);
+  // 4) Prompt bundle (backend expects PromptSlotConfig objects, not strings)
+  const presets = promptPresets || (promptManager && promptManager.presets) || { presets: {}, defaultAssignments: {} };
+  const prompts = buildPromptsObject(promptManager, presets);
+
+  // Allow caller to see the exact bundle used
+  if (typeof updatePromptPanels === "function") {
+    updatePromptPanels({ bundle: prompts, presets });
   }
 
-  // 用于 UI 面板回显（避免被后续修改影响）
-  const promptSnapshot = JSON.parse(JSON.stringify(promptConfig));
-
-  // 5) 最终请求体（与后端模型字段一一对应）
+  // 5) Variants / seed
+  const cfg = (promptManager && typeof promptManager.buildRequest === "function") ? (promptManager.buildRequest() || {}) : {};
+  const variants = clampVariantsLocal(forceVariants != null ? forceVariants : cfg.variants);
   const requestPayload = {
     poster,
-    render_mode: 'locked',
-    variants: promptConfig.variants,
-    seed: promptConfig.seed,
-    lock_seed: Boolean(promptConfig.lockSeed),
-    prompts: promptConfig.prompts, // ← 直接传 PromptSlotConfig 字典
+    render_mode: "locked",
+    variants,
+    seed: cfg.lockSeed ? (Number.isFinite(cfg.seed) ? Math.floor(cfg.seed) : null) : null,
+    lock_seed: Boolean(cfg.lockSeed),
+    prompts,
   };
 
-  // 6) 提交前校验体积（统一拦截 base64/dataURL 过大的情况）
   const rawPayload = JSON.stringify(requestPayload);
-  try {
-    validatePayloadSize(rawPayload);
-  } catch (err) {
-    setStatus && setStatus(statusElement, err.message, 'error');
-    return null;
-  }
+  if (typeof validatePayloadSize === "function") validatePayloadSize(rawPayload);
 
-  // 7) 调用后端
-  try {
-    setStatus && setStatus(statusElement, '正在提交生成任务…', 'info');
-    await warmUp(apiCandidates);
-    const res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 2, rawPayload);
-    const data = await res.json();
-    setStatus && setStatus(statusElement, '生成请求已提交。', 'success');
-    
-    // 触发 UI 刷新：更新 Prompt 面板快照
-    if (typeof updatePromptPanels === 'function') {
-      updatePromptPanels({ bundle: promptSnapshot.prompts });
+  // 6) UI updates
+  if (generateButton) generateButton.disabled = true;
+  if (regenerateButton) regenerateButton.disabled = true;
+  if (typeof setStatus === "function") setStatus(statusElement, abTest ? "正在进行 A/B 提示词生成…" : "正在生成海报与营销文案…", "info");
+  if (posterOutput) posterOutput.classList.remove("hidden");
+  if (aiPreview) aiPreview.classList.remove("complete");
+  if (aiSpinner) aiSpinner.classList.remove("hidden");
+  if (aiPreviewMessage) aiPreviewMessage.textContent = "Glibatree Art Designer 正在绘制海报…";
+  if (posterVisual) posterVisual.classList.add("hidden");
+  if (promptGroup) promptGroup.classList.add("hidden");
+  if (emailGroup) emailGroup.classList.add("hidden");
+  if (nextButton) nextButton.disabled = true;
+  if (variantsStrip) { variantsStrip.innerHTML = ""; variantsStrip.classList.add("hidden"); }
+
+  // 7) Warm-up + send
+  if (typeof warmUp === "function") await warmUp(apiCandidates);
+  const res = await postJsonWithRetry(apiCandidates, "/api/generate-poster", requestPayload, 2, rawPayload);
+  const data = await res.json();
+
+  // 8) Minimal success rendering (guard every UI call)
+  if (layoutStructure && data.layout_preview) layoutStructure.textContent = data.layout_preview;
+  if (aiSpinner) aiSpinner.classList.add("hidden");
+  if (aiPreview) aiPreview.classList.add("complete");
+  if (posterImage && data.poster_image) {
+    if (typeof assignPosterImage === "function") {
+      assignPosterImage(posterImage, data.poster_image, `${stage1Data.product_name || "产品"} 海报预览`);
+    } else {
+      const url = data.poster_image.url || data.poster_image.data_url || "";
+      if (url) posterImage.src = url;
     }
-
-    return data;
-  } catch (error) {
-    console.error('[triggerGeneration] 请求失败：', error);
-    setStatus && setStatus(statusElement, (error && error.message) || '后端服务错误', 'error');
-    return null;
+    if (posterVisual) posterVisual.classList.remove("hidden");
   }
+  if (emailTextarea && data.email_body) emailTextarea.value = data.email_body;
+  if (promptTextarea && data.prompt_bundle_text) promptTextarea.value = data.prompt_bundle_text;
+
+  if (typeof saveStage2Result === "function") {
+    await saveStage2Result({
+      poster_image: data.poster_image,
+      prompt: data.prompt_bundle_text || "",
+      email_body: data.email_body || "",
+      variants: Array.isArray(data.variants) ? data.variants : [],
+    });
+  }
+
+  if (generateButton) generateButton.disabled = false;
+  if (regenerateButton) regenerateButton.disabled = false;
+  if (nextButton) nextButton.disabled = false;
+  if (typeof setStatus === "function") setStatus(statusElement, "生成完成！", "success");
+  return data;
 }
+
+// Export to window if needed
+window.triggerGeneration = triggerGeneration;
+
 
 
 
