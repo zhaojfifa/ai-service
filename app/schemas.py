@@ -196,8 +196,13 @@ class GeneratePosterResponse(BaseModel):
     prompt_details: dict[str, str] | None = Field(
         None, description="Per-slot prompt summary returned by the backend."
     )
-    prompt_bundle: dict[str, str] | None = Field(
-        None, description="Optional combined prompt bundle for inspector display."
+    prompt_bundle: "PromptBundle | None" = Field(
+        None,
+        description=(
+            "Optional combined prompt bundle for inspector display. When provided "
+            "it mirrors the PromptBundle schema so the UI can repopulate the "
+            "inspector overrides."
+        ),
     )
     variants: list[PosterImage] = Field(
         default_factory=list,
