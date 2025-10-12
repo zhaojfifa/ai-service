@@ -66,7 +66,8 @@ function normaliseBase(base) {
 function joinBasePath(base, path) {
   const normalised = normaliseBase(base);
   if (!normalised) return null;
-  const suffix = path.startsWith('/') ? path : `/${path}`;
+  const p = String(path || '');
+  const suffix = p.startsWith('/') ? p : `/${p}`;
   return `${normalised}${suffix}`;
 }
 
@@ -76,40 +77,35 @@ function ensureArray(value) {
   return [];
 }
 
-const warmUpLocks = new Map();
 
+
+// 读取候选 API 基址（修复：避免 STORAGE_KEYS 的 TDZ）
 function getApiCandidates(extra) {
   const candidates = new Set();
-  const addCandidate = (value) => {
-    const trimmed = typeof value === 'string' ? value.trim() : '';
-    if (!trimmed) return;
-    const normalised = normaliseBase(trimmed);
-    if (normalised) {
-      candidates.add(normalised);
-    }
+  const add = (v) => {
+    const s = typeof v === 'string' ? v.trim() : '';
+    if (!s) return;
+    const n = normaliseBase(s);
+    if (n) candidates.add(n);
   };
 
   const inputValue = document.getElementById('api-base')?.value;
-  addCandidate(inputValue);
+  add(inputValue);
 
-  const stored = localStorage.getItem(STORAGE_KEYS?.apiBase ?? '');
-  addCandidate(stored);
+  // 避免对未初始化的 STORAGE_KEYS 访问；直接用字面量 key
+  add(localStorage.getItem('marketing-poster-api-base'));
 
-  const bodyDataset = document.body?.dataset ?? {};
-  addCandidate(bodyDataset.workerBase);
-  addCandidate(bodyDataset.renderBase);
-  addCandidate(bodyDataset.apiBase);
+  const ds = document.body?.dataset ?? {};
+  add(ds.workerBase);
+  add(ds.renderBase);
+  add(ds.apiBase);
 
-  if (Array.isArray(window.APP_API_BASES)) {
-    window.APP_API_BASES.forEach(addCandidate);
-  }
-  addCandidate(window.APP_WORKER_BASE);
-  addCandidate(window.APP_RENDER_BASE);
-  addCandidate(window.APP_DEFAULT_API_BASE);
+  if (Array.isArray(window.APP_API_BASES)) window.APP_API_BASES.forEach(add);
+  add(window.APP_WORKER_BASE);
+  add(window.APP_RENDER_BASE);
+  add(window.APP_DEFAULT_API_BASE);
 
-  if (extra) {
-    ensureArray(extra).forEach(addCandidate);
-  }
+  if (extra) ensureArray(extra).forEach(add);
 
   return Array.from(candidates);
 }
@@ -148,18 +144,21 @@ async function probeBase(base, { force } = {}) {
 }
 
 
+const warmUpLocks = new Map();
+
 async function warmUp(baseOrBases, { force } = {}) {
   const bases = ensureArray(baseOrBases).filter(Boolean);
   const targets = bases.length ? bases : getApiCandidates();
   if (!targets.length) return [];
 
-  const lockKey = targets.sort().join('|');
-  if (!force && warmUpLocks.has(lockKey)) {
-    return warmUpLocks.get(lockKey);
-  }
+  const lockKey = [...targets].sort().join('|');
+  const existing = warmUpLocks.get(lockKey);
+  if (!force && existing) return existing;
 
   const task = Promise.allSettled(targets.map((base) => probeBase(base, { force })));
-  warmUpLocks.set(lockKey, task.finally(() => warmUpLocks.delete(lockKey)));
+  warmUpLocks.set(lockKey, task);
+  // 任务结束后释放锁
+  task.finally(() => warmUpLocks.delete(lockKey));
   return task;
 }
 
@@ -190,13 +189,12 @@ async function pickHealthyBase(baseOrBases) {
 
 App.utils.pickHealthyBase = pickHealthyBase;
 
+// 请求体大小校验（发送前统一做）
 function validatePayloadSize(rawPayload) {
   if (!rawPayload) return;
-  const encoder = new TextEncoder();
-  const size = encoder.encode(rawPayload).length;
-  const hasBase64 = /data:[^;]+;base64,/i.test(rawPayload);
-  if (hasBase64 || size > 300_000) {
-    throw new Error('请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url。');
+  const len = new TextEncoder().encode(rawPayload).length;
+  if (/data:[^;]+;base64,/i.test(rawPayload) || len > 300_000) {
+    throw new Error('请求体过大或包含 base64 图片，请先上传素材到 R2，仅传 key/url。');
   }
 }
 
@@ -2782,18 +2780,20 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 // ……前文保持不变
 
 // 统一把各种“对象形态”的 prompt 收敛为字符串
+// 把各种对象/结构的 prompt 规范为纯字符串 —— 后端期望 string
 function toPromptString(x) {
   if (x == null) return '';
   if (typeof x === 'string') return x.trim();
-  if (typeof x.text === 'string')   return x.text.trim();
+  if (typeof x.text === 'string') return x.text.trim();
   if (typeof x.prompt === 'string') return x.prompt.trim();
   if (x.preset && x.aspect) return `${x.preset} (aspect ${x.aspect})`;
-  if (x.preset)             return String(x.preset);
+  if (x.preset) return String(x.preset);
   try { return JSON.stringify(x); } catch { return String(x); }
 }
 
+
 async function triggerGeneration(options) {
-  const {
+ const {
     stage1Data, statusElement, layoutStructure, posterOutput,
     aiPreview, aiSpinner, aiPreviewMessage, posterVisual, posterImage,
     variantsStrip, promptGroup, emailGroup, promptTextarea, emailTextarea,
@@ -2802,7 +2802,6 @@ async function triggerGeneration(options) {
     forceVariants = null, abTest = false,
   } = options;
 
-  // ① 选基址（placeholder.js 已导出 getApiCandidates/pickHealthyBase/warmUp/postJsonWithRetry）
   const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
   if (!apiCandidates.length) {
     setStatus(statusElement, '未找到可用的后端基址，请填写或配置 Render / Worker 地址。', 'warning');
@@ -2811,12 +2810,12 @@ async function triggerGeneration(options) {
 
   await hydrateStage1DataAssets(stage1Data);
 
-  // ② 组 Poster 主体（保持你原来的写法）
+  // ---- ① poster 主体（素材/键/描述） ----
   const templateId = stage1Data.template_id || DEFAULT_STAGE1.template_id;
   const scenarioAsset = stage1Data.scenario_asset || null;
   const productAsset  = stage1Data.product_asset  || null;
 
-  const payload = {
+  const posterPayload = {
     brand_name: stage1Data.brand_name,
     agent_name: stage1Data.agent_name,
     scenario_image: stage1Data.scenario_image,
@@ -2826,31 +2825,35 @@ async function triggerGeneration(options) {
     title: stage1Data.title,
     subtitle: stage1Data.subtitle,
     series_description: stage1Data.series_description,
+
+    // 仅传 dataUrl（预览）或 r2Key（二选一）；已上传则只传 key
     brand_logo: stage1Data.brand_logo?.dataUrl || null,
+
     scenario_asset:
-      scenarioAsset && scenarioAsset.r2Key ? null :
+      scenarioAsset?.r2Key ? null :
       (scenarioAsset?.dataUrl?.startsWith('data:') ? scenarioAsset.dataUrl : null),
     scenario_key: scenarioAsset?.r2Key || null,
+
     product_asset:
-      productAsset && productAsset.r2Key ? null :
+      productAsset?.r2Key ? null :
       (productAsset?.dataUrl?.startsWith('data:') ? productAsset.dataUrl : null),
     product_key: productAsset?.r2Key || null,
+
     scenario_mode: stage1Data.scenario_mode || 'upload',
     scenario_prompt: stage1Data.scenario_mode === 'prompt'
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image)
+      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || '')
       : null,
+
     product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
+
     gallery_items: (stage1Data.gallery_entries || []).map((entry) => {
-      const asset   = entry.asset || null;
-      const dataUrl = asset?.dataUrl;
-      const r2Key   = asset?.r2Key || null;
-      const serialisedAsset = r2Key || !(typeof dataUrl === 'string' && dataUrl.startsWith('data:'))
-        ? null
-        : dataUrl;
+      const a = entry.asset || null;
+      const dataUrl = a?.dataUrl;
+      const r2Key   = a?.r2Key || null;
       return {
         caption: entry.caption?.trim() || null,
-        asset: serialisedAsset,
+        asset: (r2Key || !dataUrl?.startsWith?.('data:')) ? null : dataUrl,
         key: r2Key,
         mode: entry.mode || 'upload',
         prompt: entry.prompt?.trim() || null,
@@ -2858,41 +2861,38 @@ async function triggerGeneration(options) {
     }),
   };
 
-  // ③ 从 Prompt Inspector 取到的 prompts 可能是对象，统一转成字符串
-  const promptConfig = promptManager?.buildRequest?.() || {
+  // ---- ② prompts：统一转字符串（关键） ----
+  const reqFromInspector = promptManager?.buildRequest?.() || {
     prompts: {}, variants: DEFAULT_PROMPT_VARIANTS, seed: null, lockSeed: false,
   };
-  if (forceVariants) promptConfig.variants = clampVariants(forceVariants);
+  if (forceVariants) reqFromInspector.variants = clampVariants(forceVariants);
 
-  // **在这里把 prompts 转成 string**（关键修复）
-  const bundleIn = promptConfig.prompts || {};
   const prompts = {
-    scenario: toPromptString(bundleIn.scenario),
-    product : toPromptString(bundleIn.product),
-    gallery : toPromptString(bundleIn.gallery),
+    scenario: toPromptString(reqFromInspector.prompts?.scenario),
+    product : toPromptString(reqFromInspector.prompts?.product),
+    gallery : toPromptString(reqFromInspector.prompts?.gallery),
   };
 
-  // ④ 组最终请求体（prompts 已经是字符串）
-  const requestPayload = {
-    poster: payload,
-    render_mode: 'locked',
-    variants: promptConfig.variants,
-    seed: promptConfig.seed,
-    lock_seed: Boolean(promptConfig.lockSeed),
-    prompts,  // 👈 现在是 {scenario:string, product:string, gallery:string}
-  };
-
+   // 面板也显示“字符串化后”的 bundle
   if (typeof updatePromptPanels === 'function') {
-    // 面板里也用已经规范化的 prompts
     updatePromptPanels({ bundle: prompts });
   }
 
-  // ⑤ 体积校验在 stringify 之后做
+  // ---- ③ 最终请求体 ----
+  const requestPayload = {
+    poster: posterPayload,
+    render_mode: 'locked',
+    variants: clampVariants(reqFromInspector.variants),
+    seed: parseSeed(reqFromInspector.seed),
+    lock_seed: Boolean(reqFromInspector.lockSeed),
+    prompts, // <- { scenario: string, product: string, gallery: string }
+  };
+
   const rawPayload = JSON.stringify(requestPayload);
   try {
     validatePayloadSize(rawPayload);
-  } catch (e) {
-    setStatus(statusElement, e.message, 'error');
+  } catch (err) {
+    setStatus(statusElement, err.message, 'error');
     return null;
   }
 
@@ -2910,14 +2910,16 @@ async function triggerGeneration(options) {
   if (nextButton) nextButton.disabled = true;
   if (variantsStrip) { variantsStrip.innerHTML = ''; variantsStrip.classList.add('hidden'); }
 
-  // ⑦ 唤醒 + 发送（直接把 rawPayload 传给 postJsonWithRetry，确保发出去就是已转换的版本）
+  // ---- ⑤ 唤醒并发送（把 rawPayload 直接交给重试器） ----
   await warmUp(apiCandidates);
-  const response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 2, rawPayload);
+  const res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 2, rawPayload);
+  const data = await res.json();
 
-  // ⑧ 处理响应（保留你现有逻辑）
-  const data = await response.json();
-  if (layoutStructure && data.layout_preview) layoutStructure.textContent = data.layout_preview;
-  // …余下渲染/保存逻辑保持不变
+  // （后续你的渲染/保存逻辑保持不变）
+  if (layoutStructure && data.layout_preview) {
+    layoutStructure.textContent = data.layout_preview;
+  }
+  // ...
 }
 
 async function loadTemplateRegistry() {
