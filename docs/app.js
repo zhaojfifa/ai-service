@@ -18,8 +18,6 @@ function healthPathsFor(base) {
   return ['/api/health', '/health'];
 }
 // ===== 共享：模板资源助手（全局唯一出口） =====
-const App = (window.App ??= {});
-App.utils = App.utils ?? {};
 
 /** 从 templates/registry.json 读取模板清单（带缓存） */
 App.utils.loadTemplateRegistry = (() => {
@@ -44,7 +42,7 @@ App.utils.loadTemplateRegistry = (() => {
 /** 按模板 id 返回 { entry, spec, image }（带缓存） */
 App.utils.ensureTemplateAssets = (() => {
   const _cache = new Map();
-  return async function App.utils.ensureTemplateAssets(templateId) {
+  return async function ensureTemplateAssets(templateId) {
     if (_cache.has(templateId)) return _cache.get(templateId);
 
     const registry = await App.utils.loadTemplateRegistry();
