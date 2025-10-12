@@ -2867,11 +2867,40 @@ async function triggerGeneration(options) {
   };
   if (forceVariants) reqFromInspector.variants = clampVariants(forceVariants);
 
-  const prompts = {
-    scenario: toPromptString(reqFromInspector.prompts?.scenario),
-    product : toPromptString(reqFromInspector.prompts?.product),
-    gallery : toPromptString(reqFromInspector.prompts?.gallery),
+ // ---- 新增：把各种形态规范化为 PromptSlotConfig 对象 ----
+function normalizePromptSlot(input) {
+  if (input == null) return {};                           // 允许空对象，后端用默认
+  if (typeof input === 'string') {
+    // 支持 "preset-name (aspect 1:1)" 这样的字符串
+    const m = input.match(/\(aspect\s*([^)]+)\)/i);
+    const preset = input.replace(/\s*\(aspect.*?\)\s*$/,'').trim();
+    const obj = {};
+    if (preset) obj.preset = preset;
+    if (m && m[1]) obj.aspect = m[1].trim();
+    return obj;
+  }
+  // 已经是对象：只拣选后端认可的字段
+  const out = {};
+  if (typeof input.preset   === 'string' && input.preset.trim())   out.preset   = input.preset.trim();
+  if (typeof input.positive === 'string')                           out.positive = input.positive;
+  if (typeof input.negative === 'string')                           out.negative = input.negative;
+  if (typeof input.aspect   === 'string' && input.aspect.trim())    out.aspect   = input.aspect.trim();
+  return out;
+}
+
+function normalizePromptBundle(bundle) {
+  const b = bundle || {};
+  return {
+    scenario: normalizePromptSlot(b.scenario),
+    product : normalizePromptSlot(b.product),
+    gallery : normalizePromptSlot(b.gallery),
   };
+}
+
+// ---- 使用上面的规范化，生成最终的 prompts 对象（而不是字符串）----
+const bundleIn = promptConfig.prompts || {};
+const prompts  = normalizePromptBundle(bundleIn);
+
 
    // 面板也显示“字符串化后”的 bundle
   if (typeof updatePromptPanels === 'function') {
@@ -2880,15 +2909,15 @@ async function triggerGeneration(options) {
 
   // ---- ③ 最终请求体 ----
   const requestPayload = {
-    poster: posterPayload,
-    render_mode: 'locked',
-    variants: clampVariants(reqFromInspector.variants),
-    seed: parseSeed(reqFromInspector.seed),
-    lock_seed: Boolean(reqFromInspector.lockSeed),
-    prompts, // <- { scenario: string, product: string, gallery: string }
-  };
+  poster: payload,
+  render_mode: 'locked',
+  variants: clampVariants(promptConfig.variants ?? DEFAULT_PROMPT_VARIANTS),
+  seed: parseSeed(promptConfig.seed),
+  lock_seed: Boolean(promptConfig.lockSeed),
+  prompts,                                      // 👈 现在是对象而非字符串
+};
+const rawPayload = JSON.stringify(requestPayload);
 
-  const rawPayload = JSON.stringify(requestPayload);
   try {
     validatePayloadSize(rawPayload);
   } catch (err) {
