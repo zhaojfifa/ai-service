@@ -196,7 +196,7 @@ class GeneratePosterResponse(BaseModel):
     prompt_details: dict[str, str] | None = Field(
         None, description="Per-slot prompt summary returned by the backend."
     )
-    prompt_bundle: "PromptBundle | None" = Field(
+    prompt_bundle: PromptBundle | None = Field(
         None,
         description=(
             "Optional combined prompt bundle for inspector display. When provided "
