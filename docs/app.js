@@ -17,6 +17,58 @@ function healthPathsFor(base) {
   // Worker（或网关）提供 /api/health（带 CORS）
   return ['/api/health', '/health'];
 }
+// ===== 共享：模板资源助手（全局唯一出口） =====
+const App = (window.App ??= {});
+App.utils = App.utils ?? {};
+
+/** 从 templates/registry.json 读取模板清单（带缓存） */
+App.utils.loadTemplateRegistry = (() => {
+  let _registryP;
+  return async function loadTemplateRegistry() {
+    if (!_registryP) {
+      _registryP = fetch(App.utils.assetUrl?.('templates/registry.json') || 'templates/registry.json')
+        .then(r => {
+          if (!r.ok) throw new Error('无法加载模板清单');
+          return r.json();
+        })
+        .then(list => (Array.isArray(list) ? list : []))
+        .catch(err => {
+          _registryP = null; // 失败时允许下次重试
+          throw err;
+        });
+    }
+    return _registryP;
+  };
+})();
+
+/** 按模板 id 返回 { entry, spec, image }（带缓存） */
+App.utils.ensureTemplateAssets = (() => {
+  const _cache = new Map();
+  return async function App.utils.ensureTemplateAssets(templateId) {
+    if (_cache.has(templateId)) return _cache.get(templateId);
+
+    const registry = await App.utils.loadTemplateRegistry();
+    const entry = registry.find(i => i.id === templateId) || registry[0];
+    if (!entry) throw new Error('模板列表为空');
+
+    const specUrl = App.utils.assetUrl?.(`templates/${entry.spec}`) || `templates/${entry.spec}`;
+    const imgUrl  = App.utils.assetUrl?.(`templates/${entry.preview}`) || `templates/${entry.preview}`;
+
+    const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
+    const imgP  = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('模板预览图加载失败'));
+      img.src = imgUrl;
+    });
+
+    const payload = { entry, spec: await specP, image: await imgP };
+    _cache.set(entry.id, payload);
+    return payload;
+  };
+})();
 
 const HEALTH_CACHE_TTL = 60_000;
 const HEALTH_CACHE = new Map();
@@ -904,7 +956,7 @@ function initStage1() {
   async function refreshTemplatePreviewStage1(templateId) {
   if (!templateCanvasStage1) return;
   try {
-    const assets = await ensureTemplateAssets(templateId); // 原有：加载模板资源 {entry,spec,image}
+    const assets =  await App.utils.ensureTemplateAssets(templateId); // 原有：加载模板资源 {entry,spec,image}
     await applyTemplateMaterialsStage1(assets.spec);       // 原有：同步材料开关/占位说明等
 
     const ctx = templateCanvasStage1.getContext('2d');
@@ -947,7 +999,7 @@ async function mountTemplateChooserStage1() {
 
   // 1) 加载 registry（保持原名）
   try {
-    templateRegistry = await loadTemplateRegistry();
+    templateRegistry = await App.utils.loadTemplateRegistry();
   } catch (e) {
     console.error('[registry] load failed:', e);
     setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json 与静态路径。', 'warning');
@@ -1019,7 +1071,7 @@ async function mountTemplateChooserStage1() {
 // 注意：不要用顶层 await
 void mountTemplateChooserStage1();
   if (templateSelectStage1) {
-    loadTemplateRegistry()
+    App.utils.loadTemplateRegistry()
       .then(async (registry) => {
         templateRegistry = registry;
         templateSelectStage1.innerHTML = '';
@@ -2755,7 +2807,7 @@ function initStage2() {
     async function refreshTemplatePreview(templateId) {
       if (!templateCanvas) return;
       try {
-        const assets = await ensureTemplateAssets(templateId);
+        const assets = await App.utils.ensureTemplateAssets(templateId);
         currentTemplateAssets = assets;
         if (templateDescription) {
           templateDescription.textContent = assets.entry?.description || '';
@@ -2784,7 +2836,7 @@ function initStage2() {
 
     if (templateSelect && templateCanvas) {
       try {
-        templateRegistry = await loadTemplateRegistry();
+        templateRegistry = await App.utils.loadTemplateRegistry();
         templateSelect.innerHTML = '';
         templateRegistry.forEach((entry) => {
           const option = document.createElement('option');
