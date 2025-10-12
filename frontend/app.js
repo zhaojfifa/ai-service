@@ -2819,107 +2819,48 @@ function toPromptString(x) {
   if (x.preset) return String(x.preset);
   try { return JSON.stringify(x); } catch { return String(x); }
 }
-
-// ✅ 统一命名 & 正确请求体：PromptSlotConfig 字典 + poster 字段
-// ⚠️ 注意：该函数假定以下标识符在外层已存在：
-//   - stage1Data, promptManager, DEFAULT_STAGE1, DEFAULT_PROMPT_VARIANTS,
-//   - clampVariants, hydrateStage1DataAssets,
-//   - getApiCandidates, warmUp, validatePayloadSize, postJsonWithRetry,
-//   - updatePromptPanels (可选), setStatus(可选), apiBaseInput, statusElement
-// 与现有代码保持同名签名：triggerGeneration(forceVariants)
-
-// drop-in replacement for app.js triggerGeneration — no globals, sends backend-friendly PromptSlotConfig objects
-
-// Helper: normalise one prompt slot to PromptSlotConfig object
-function normalisePromptSlot(input, presets) {
-  const out = { preset: null, positive: "", negative: "", aspect: null };
-  if (!input) return out;
-  if (typeof input === "string") {
-    // treat incoming string as positive prompt
-    out.positive = input.trim();
-    return out;
-  }
-  if (typeof input === "object") {
-    if (typeof input.preset === "string" && input.preset.trim()) out.preset = input.preset.trim();
-    if (typeof input.positive === "string") out.positive = input.positive.trim();
-    if (typeof input.negative === "string") out.negative = input.negative.trim();
-    const aspect = input.aspect ?? (presets?.presets?.[input.preset]?.aspect);
-    if (typeof aspect === "string" && aspect.trim()) out.aspect = aspect.trim();
-    return out;
-  }
-  return out;
-}
-
-// Helper: build prompts object from promptManager (or presets fallback)
-function buildPrompts(promptManager) {
-  const cfg = promptManager?.buildRequest?.() || { prompts: {}, variants: 1, seed: null, lockSeed: false };
-  const bundle = cfg.prompts || {};
+// ------- 新增小工具：把 PromptInspector 的状态统一成字符串 -------
+function buildPromptBundleStrings(promptManager) {
+  // 优先使用 Inspector 的 buildRequest()
+  const req = typeof promptManager?.buildRequest === 'function'
+    ? (promptManager.buildRequest() || {})
+    : {};
+  const raw = req.prompts || {}; // 可能是对象/字符串混合
+  const toStr = (v) => {
+    if (v == null) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v.text === 'string') return v.text.trim();
+    if (typeof v.prompt === 'string') return v.prompt.trim();
+    if (v.preset && v.aspect) return `${v.preset} (aspect ${v.aspect})`;
+    if (v.preset) return String(v.preset);
+    try { return JSON.stringify(v); } catch { return String(v); }
+  };
   return {
-    prompts: {
-      scenario: toPromptString(bundle.scenario),
-      product:  toPromptString(bundle.product),
-      gallery:  toPromptString(bundle.gallery),
-    },
-    variants: Math.min(Math.max(Number(cfg.variants || 1), 1), 3),
-    seed: (cfg.lockSeed && Number.isFinite(cfg.seed)) ? Math.floor(cfg.seed) : null,
-    lock_seed: Boolean(cfg.lockSeed),
+    scenario: toStr(raw.scenario),
+    product:  toStr(raw.product),
+    gallery:  toStr(raw.gallery),
   };
 }
-// 统一拼装“最终请求体”
-function buildGeneratePayload(stage1Data, promptManager, { forceVariants } = {}) {
-  const {
-    scenario_asset, scenario_key,
-    product_asset,  product_key,
-    gallery_items,
-  } = normalizePosterAssets(stage1Data);
 
-  const promptCfg = buildPrompts(promptManager);
-  if (forceVariants) promptCfg.variants = Math.min(Math.max(Number(forceVariants), 1), 3);
-
-  const poster = {
-    brand_name: stage1Data.brand_name,
-    agent_name: stage1Data.agent_name,
-    scenario_image: stage1Data.scenario_image,
-    product_name: stage1Data.product_name,
-    template_id: stage1Data.template_id,
-    features: stage1Data.features,
-    title: stage1Data.title,
-    subtitle: stage1Data.subtitle,
-    series_description: stage1Data.series_description,
-    brand_logo: stage1Data.brand_logo?.dataUrl || null, // 品牌 logo 一般体积小，保留 dataURL
-    // 关键：二选一
-    scenario_asset, scenario_key,
-    product_asset,  product_key,
-    scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt: stage1Data.scenario_mode === 'prompt'
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || '')
-      : null,
-    product_mode: stage1Data.product_mode || 'upload',
-    product_prompt: stage1Data.product_prompt || null,
-    gallery_items,
-  };
-
-  const requestPayload = {
-    poster,
-    render_mode: 'locked',
-    variants: promptCfg.variants,
-    seed: promptCfg.seed,
-    lock_seed: promptCfg.lock_seed,
-    // 关键：只发字符串 prompts
-    prompts: promptCfg.prompts
-  };
-
-  return requestPayload;
-}
-// Helper: tiny clamp for variants (1..3)
-function clampVariantsLocal(v) {
-  const n = Math.round(Number(v || 1));
-  return Math.min(Math.max(n, 1), 3);
+// ------- 新增小工具：从「字符串版」快速构造「字典版」 -------
+function bundleStringsToDict(bundleStr) {
+  const dict = {};
+  ['scenario', 'product', 'gallery'].forEach((k) => {
+    const v = bundleStr?.[k] || '';
+    dict[k] = { positive: v || '' }; // 最稳妥：只给正向描述，其他字段后端默认
+  });
+  return dict;
 }
 
-// ---- MAIN: triggerGeneration (drop-in) ------------------------------------
-// 触发：规范化 -> 尺寸校验 -> 唤醒 -> 发送
-async function triggerGeneration(opts) {
+// ------- 新增小工具：根据 422 文案判断是否需要回退 -------
+function looksLikePromptConfigExpected(err) {
+  const msg = (err && (err.message || err.detail || '')) + '';
+  // 后端常见文案关键字
+  return /PromptSlotConfig|valid dictionary|input_type=dict/i.test(msg);
+}
+
+// ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
+async function triggerGeneration(options) {
   const {
     stage1Data, statusElement, layoutStructure, posterOutput,
     aiPreview, aiSpinner, aiPreviewMessage, posterVisual, posterImage,
@@ -2927,125 +2868,155 @@ async function triggerGeneration(opts) {
     generateButton, regenerateButton, nextButton,
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
-  } = opts;
+  } = options;
 
-  // 1) 选基址
-  const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
+  // 1) 选可用 API 基址
+  const apiCandidates = (typeof getApiCandidates === 'function')
+    ? getApiCandidates(document.getElementById('api-base')?.value || null)
+    : [];
   if (!apiCandidates.length) {
-    setStatus(statusElement, '未找到可用的后端基址，请填写或配置 Render / Worker 地址。', 'warning');
+    setStatus?.(statusElement, '未找到可用的后端基址，请填写或配置 Render / Worker 地址。', 'warning');
     return null;
   }
 
-  // 2) 恢复/确认素材（保证 dataUrl 可用）
-  await hydrateStage1DataAssets(stage1Data);
+  // 2) 资产补水（确保 dataUrl/r2Key 完备）
+  await hydrateStage1DataAssets?.(stage1Data);
 
-  // 3) 组包（确保 prompts 为字符串）
-  const requestPayload = buildGeneratePayload(stage1Data, promptManager, { forceVariants });
+  // 3) 组海报主体
+  const scenarioAsset = stage1Data.scenario_asset || null;
+  const productAsset  = stage1Data.product_asset  || null;
+  const posterCore = {
+    brand_name:   stage1Data.brand_name,
+    agent_name:   stage1Data.agent_name,
+    scenario_image: stage1Data.scenario_image,
+    product_name: stage1Data.product_name,
+    template_id:  stage1Data.template_id,
+    features:     stage1Data.features,
+    title:        stage1Data.title,
+    subtitle:     stage1Data.subtitle,
+    series_description: stage1Data.series_description,
 
-  // panel 里展示规范化后的 bundle（可见就是纯字符串）
+    // 品牌 logo 仅供预览/可选；后端可忽略
+    brand_logo: stage1Data.brand_logo?.dataUrl || null,
+
+    // 场景/产品素材：优先走 r2Key；否则 dataURL（后端会限制大小）
+    scenario_asset: (scenarioAsset && !scenarioAsset.r2Key && typeof scenarioAsset.dataUrl === 'string' && scenarioAsset.dataUrl.startsWith('data:'))
+      ? scenarioAsset.dataUrl : null,
+    scenario_key: scenarioAsset?.r2Key || null,
+
+    product_asset: (productAsset && !productAsset.r2Key && typeof productAsset.dataUrl === 'string' && productAsset.dataUrl.startsWith('data:'))
+      ? productAsset.dataUrl : null,
+    product_key: productAsset?.r2Key || null,
+
+    scenario_mode:  stage1Data.scenario_mode || 'upload',
+    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
+      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null) : null,
+    product_mode:   stage1Data.product_mode || 'upload',
+    product_prompt: stage1Data.product_prompt || null,
+
+    // 底部小图
+    gallery_items: (stage1Data.gallery_entries || []).map((entry) => {
+      const asset   = entry.asset || null;
+      const dataUrl = asset?.dataUrl;
+      const r2Key   = asset?.r2Key || null;
+      const serialised = r2Key || !(typeof dataUrl === 'string' && dataUrl.startsWith('data:'))
+        ? null
+        : dataUrl;
+      return {
+        caption: entry.caption?.trim() || null,
+        asset:   serialised,
+        key:     r2Key,
+        mode:    entry.mode || 'upload',
+        prompt:  entry.prompt?.trim() || null,
+      };
+    }),
+  };
+
+  // 4) 从 Inspector 拿到 prompts，统一转字符串
+  const bundleStr = buildPromptBundleStrings(promptManager);
+  const requestBase = {
+    poster: posterCore,
+    render_mode: 'locked',
+    variants: Math.max(1, Math.min(3, (promptManager?.buildRequest?.()?.variants ?? 1))),
+    seed: promptManager?.buildRequest?.()?.seed ?? null,
+    lock_seed: Boolean(promptManager?.buildRequest?.()?.lockSeed),
+  };
+  if (forceVariants) requestBase.variants = Math.max(1, Math.min(3, forceVariants));
+
+  // 面板同步（可选）
   if (typeof updatePromptPanels === 'function') {
-    updatePromptPanels({ bundle: requestPayload.prompts });
+    updatePromptPanels({ bundle: bundleStr });
   }
 
-  // 4) 体积校验（在 stringify 之后）
-  const rawPayload = JSON.stringify(requestPayload);
-  try {
-    validatePayloadSize(rawPayload);
-  } catch (e) {
-    setStatus(statusElement, e.message, 'error');
-    return null;
-  }
-
-  // 5) UI 状态
-  generateButton.disabled = true;
-  if (regenerateButton) regenerateButton.disabled = true;
-  setStatus(statusElement, abTest ? '正在进行 A/B 提示词生成…' : '正在生成海报与营销文案…', 'info');
-  if (posterOutput) posterOutput.classList.remove('hidden');
-  if (aiPreview) aiPreview.classList.remove('complete');
-  if (aiSpinner) aiSpinner.classList.remove('hidden');
-  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
-  if (posterVisual) posterVisual.classList.add('hidden');
-  if (promptGroup) promptGroup.classList.add('hidden');
-  if (emailGroup) emailGroup.classList.add('hidden');
-  if (nextButton) nextButton.disabled = true;
+  // 5) UI：进入生成态
+  generateButton && (generateButton.disabled = true);
+  regenerateButton && (regenerateButton.disabled = true);
+  setStatus?.(statusElement, abTest ? '正在进行 A/B 提示词生成…' : '正在生成海报与营销文案…', 'info');
+  posterOutput && posterOutput.classList.remove('hidden');
+  aiPreview && aiPreview.classList.remove('complete');
+  aiSpinner && aiSpinner.classList.remove('hidden');
+  aiPreviewMessage && (aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…');
+  posterVisual && posterVisual.classList.add('hidden');
+  promptGroup && promptGroup.classList.add('hidden');
+  emailGroup && emailGroup.classList.add('hidden');
+  nextButton && (nextButton.disabled = true);
   if (variantsStrip) { variantsStrip.innerHTML = ''; variantsStrip.classList.add('hidden'); }
 
-  // 6) 唤醒 + 发送（保证发送的就是 rawPayload）
-  await warmUp(apiCandidates);
-  let res;
+  // 6) 先试「字符串版」payload
+  const payloadV1 = { ...requestBase, prompt_bundle: bundleStr };
+  const rawV1 = JSON.stringify(payloadV1);
+  try { validatePayloadSize?.(rawV1); } catch (e) { setStatus?.(statusElement, e.message, 'error'); return null; }
+
+  // 唤醒基址
+  await warmUp?.(apiCandidates);
+
   try {
-    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 2, rawPayload);
-  } catch (err) {
-    // fetch 层错误（网络/503 等）
-    setStatus(statusElement, err.message || '请求失败，请稍后再试。', 'error');
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    return null;
+    const res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payloadV1, 1, rawV1);
+    if (!res.ok) {
+      const text = await res.text().catch(()=>'');
+      throw new Error(text || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+
+    // 成功：把后续你的 UI/持久化逻辑接回来（保持原样）
+    if (layoutStructure && data.layout_preview) layoutStructure.textContent = data.layout_preview;
+    // TODO: 调用你现有的渲染/保存函数，例如：
+    // await saveStage2Result(data);
+    // ...并恢复 UI/按钮等等
+    return data;
+  } catch (errV1) {
+    // 如果不是“期望 PromptSlotConfig”的 422，直接抛出
+    if (!(looksLikePromptConfigExpected(errV1))) {
+      setStatus?.(statusElement, (errV1 && errV1.message) || '生成失败', 'error');
+      generateButton && (generateButton.disabled = false);
+      regenerateButton && (regenerateButton.disabled = false);
+      return null;
+    }
+    // 7) 回退「字典版」payload 再试一次
+    const bundleDict = bundleStringsToDict(bundleStr);
+    const payloadV2 = { ...requestBase, prompt_bundle: bundleDict };
+    const rawV2 = JSON.stringify(payloadV2);
+    try { validatePayloadSize?.(rawV2); } catch (e) { setStatus?.(statusElement, e.message, 'error'); return null; }
+
+    try {
+      const res2 = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payloadV2, 1, rawV2);
+      if (!res2.ok) {
+        const text = await res2.text().catch(()=>'');
+        throw new Error(text || `HTTP ${res2.status}`);
+      }
+      const data2 = await res2.json();
+      if (layoutStructure && data2.layout_preview) layoutStructure.textContent = data2.layout_preview;
+      // TODO: 接回你的渲染/保存逻辑
+      return data2;
+    } catch (errV2) {
+      setStatus?.(statusElement, (errV2 && errV2.message) || '生成失败', 'error');
+      generateButton && (generateButton.disabled = false);
+      regenerateButton && (regenerateButton.disabled = false);
+      return null;
+    }
   }
-
-  // 7) 处理响应
-  if (!res.ok) {
-    let detail = await res.text().catch(() => '');
-    if (!detail) detail = `HTTP ${res.status}`;
-    setStatus(statusElement, detail, 'error');
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    return null;
-  }
-
-  const data = await res.json().catch(() => ({}));
-  // 把后续你的渲染/保存逻辑接上即可
-  // 例如：
-  // if (layoutStructure && data.layout_preview) layoutStructure.textContent = data.layout_preview;
-  // await saveStage2Result(data);
-  // ... 显示图片/变体/邮件等
-}
-// Export to window if needed
-window.triggerGeneration = triggerGeneration;
-
-
-
-
-async function loadTemplateRegistry() {
-  if (!templateRegistryPromise) {
-    templateRegistryPromise = fetch(assetUrl(TEMPLATE_REGISTRY_PATH))
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('无法加载模板清单');
-        }
-        return response.json();
-      })
-      .catch((error) => {
-        templateRegistryPromise = null;
-        throw error;
-      });
-  }
-  const registry = await templateRegistryPromise;
-  return Array.isArray(registry) ? registry : [];
 }
 
-async function ensureTemplateAssets(templateId) {
-  if (templateCache.has(templateId)) {
-    return templateCache.get(templateId);
-  }
-  const registry = await loadTemplateRegistry();
-  const entry =
-    registry.find((item) => item.id === templateId) || registry.find((item) => item.id);
-  if (!entry) {
-    throw new Error('模板列表为空');
-  }
-  const [spec, image] = await Promise.all([
-    fetch(assetUrl(`templates/${entry.spec}`)).then((response) => {
-      if (!response.ok) throw new Error('无法加载模板规范');
-      return response.json();
-    }),
-    loadImageAsset(assetUrl(`templates/${entry.preview}`)),
-  ]);
-
-  const payload = { entry, spec, image };
-  templateCache.set(entry.id, payload);
-  return payload;
-}
 
 async function prepareTemplatePreviewAssets(stage1Data) {
   const result = {
