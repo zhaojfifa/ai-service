@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
     SendEmailRequest,
@@ -184,13 +185,18 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             lock_seed=payload.lock_seed,
         )
         email_body = compose_marketing_email(poster, result.poster.filename)
+        prompt_bundle_model = (
+            _model_validate(PromptBundle, prompt_bundle)
+            if prompt_bundle
+            else None
+        )
         return GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
             prompt_details=prompt_details,
-            prompt_bundle=prompt_bundle,
+            prompt_bundle=prompt_bundle_model,
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,
