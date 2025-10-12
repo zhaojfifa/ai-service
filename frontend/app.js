@@ -62,6 +62,33 @@ function normaliseBase(base) {
     return null;
   }
 }
+// 把 stage1Data 中的素材“二选一”规范化为 key 或小 dataURL
+function normalizePosterAssets(stage1Data) {
+  const pickImage = (asset) => {
+    if (!asset) return { asset: null, key: null };
+    const key = asset.r2Key || null;
+    const data = typeof asset.dataUrl === 'string' && asset.dataUrl.startsWith('data:')
+      ? asset.dataUrl
+      : null;
+    return key ? { asset: null, key } : { asset: data, key: null };
+  };
+
+  const { asset: scenario_asset, key: scenario_key } = pickImage(stage1Data.scenario_asset);
+  const { asset: product_asset,  key: product_key  } = pickImage(stage1Data.product_asset);
+
+  const gallery_items = (stage1Data.gallery_entries || []).map((entry) => {
+    const { asset, key } = pickImage(entry.asset);
+    return {
+      caption: entry.caption?.trim() || null,
+      asset,
+      key,
+      mode: entry.mode || 'upload',
+      prompt: entry.prompt?.trim() || null,
+    };
+  });
+
+  return { scenario_asset, scenario_key, product_asset, product_key, gallery_items };
+}
 
 function joinBasePath(base, path) {
   const normalised = normaliseBase(base);
@@ -190,11 +217,12 @@ async function pickHealthyBase(baseOrBases) {
 App.utils.pickHealthyBase = pickHealthyBase;
 
 // 请求体大小校验（发送前统一做）
-function validatePayloadSize(rawPayload) {
-  if (!rawPayload) return;
-  const len = new TextEncoder().encode(rawPayload).length;
-  if (/data:[^;]+;base64,/i.test(rawPayload) || len > 300_000) {
-    throw new Error('请求体过大或包含 base64 图片，请先上传素材到 R2，仅传 key/url。');
+// 校验字符串体积并阻断超大 dataURL
+function validatePayloadSize(raw) {
+  const hasBase64 = /data:[^;]+;base64,/i.test(raw);
+  // 300KB 是你当前防御阈值，可按需调整
+  if (hasBase64 || raw.length > 300_000) {
+    throw new Error('请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url。');
   }
 }
 
@@ -2786,6 +2814,7 @@ function toPromptString(x) {
   if (typeof x === 'string') return x.trim();
   if (typeof x.text === 'string') return x.text.trim();
   if (typeof x.prompt === 'string') return x.prompt.trim();
+  // 带 preset/aspect 的对象，折叠成一句话，避免把对象直接发给后端
   if (x.preset && x.aspect) return `${x.preset} (aspect ${x.aspect})`;
   if (x.preset) return String(x.preset);
   try { return JSON.stringify(x); } catch { return String(x); }
@@ -2822,73 +2851,31 @@ function normalisePromptSlot(input, presets) {
 }
 
 // Helper: build prompts object from promptManager (or presets fallback)
-function buildPromptsObject(promptManager, presets) {
-  const bundle = (promptManager && typeof promptManager.buildRequest === "function")
-    ? (promptManager.buildRequest() || {}).prompts
-    : null;
-  const p = {
-    scenario: normalisePromptSlot(bundle?.scenario ?? { preset: presets?.defaultAssignments?.scenario || null }, presets),
-    product : normalisePromptSlot(bundle?.product  ?? { preset: presets?.defaultAssignments?.product  || null }, presets),
-    gallery : normalisePromptSlot(bundle?.gallery  ?? { preset: presets?.defaultAssignments?.gallery  || null }, presets),
+function buildPrompts(promptManager) {
+  const cfg = promptManager?.buildRequest?.() || { prompts: {}, variants: 1, seed: null, lockSeed: false };
+  const bundle = cfg.prompts || {};
+  return {
+    prompts: {
+      scenario: toPromptString(bundle.scenario),
+      product:  toPromptString(bundle.product),
+      gallery:  toPromptString(bundle.gallery),
+    },
+    variants: Math.min(Math.max(Number(cfg.variants || 1), 1), 3),
+    seed: (cfg.lockSeed && Number.isFinite(cfg.seed)) ? Math.floor(cfg.seed) : null,
+    lock_seed: Boolean(cfg.lockSeed),
   };
-  return p;
 }
-
-// Helper: tiny clamp for variants (1..3)
-function clampVariantsLocal(v) {
-  const n = Math.round(Number(v || 1));
-  return Math.min(Math.max(n, 1), 3);
-}
-
-// ---- MAIN: triggerGeneration (drop-in) ------------------------------------
-async function triggerGeneration(options) {
+// 统一拼装“最终请求体”
+function buildGeneratePayload(stage1Data, promptManager, { forceVariants } = {}) {
   const {
-    stage1Data,
-    statusElement,
-    layoutStructure,
-    posterOutput,
-    aiPreview,
-    aiSpinner,
-    aiPreviewMessage,
-    posterVisual,
-    posterImage,
-    variantsStrip,
-    promptGroup,
-    emailGroup,
-    promptTextarea,
-    emailTextarea,
-    generateButton,
-    regenerateButton,
-    nextButton,
-    promptManager,
-    updatePromptPanels,
-    // optional explicit presets used as fallback for aspects etc.
-    promptPresets,
-    // optional overrides
-    forceVariants = null,
-    abTest = false,
-  } = options || {};
+    scenario_asset, scenario_key,
+    product_asset,  product_key,
+    gallery_items,
+  } = normalizePosterAssets(stage1Data);
 
-  if (!stage1Data) throw new Error("triggerGeneration: stage1Data is required");
+  const promptCfg = buildPrompts(promptManager);
+  if (forceVariants) promptCfg.variants = Math.min(Math.max(Number(forceVariants), 1), 3);
 
-  // 1) Choose API bases via placeholder helpers (all guarded)
-  const apiBaseInput = document.getElementById("api-base");
-  const apiCandidates = (typeof getApiCandidates === "function")
-    ? getApiCandidates(apiBaseInput?.value || null)
-    : [];
-  if (!apiCandidates.length) {
-    if (typeof setStatus === "function") setStatus(statusElement, "未找到可用的后端基址，请填写或配置 Render / Worker 地址。", "warning");
-    return null;
-  }
-
-  // 2) Ensure assets are hydrated (dataUrl for previews / r2Key when uploaded)
-  if (typeof hydrateStage1DataAssets === "function") {
-    await hydrateStage1DataAssets(stage1Data);
-  }
-
-  // 3) Build poster payload (only send dataUrl if *no* r2Key present)
-  const scenarioAsset = stage1Data.scenario_asset || null;
-  const productAsset  = stage1Data.product_asset  || null;
   const poster = {
     brand_name: stage1Data.brand_name,
     agent_name: stage1Data.agent_name,
@@ -2899,105 +2886,120 @@ async function triggerGeneration(options) {
     title: stage1Data.title,
     subtitle: stage1Data.subtitle,
     series_description: stage1Data.series_description,
-    brand_logo: stage1Data.brand_logo?.dataUrl || null,
-    scenario_asset: (scenarioAsset && !scenarioAsset.r2Key && typeof scenarioAsset.dataUrl === "string" && scenarioAsset.dataUrl.startsWith("data:")) ? scenarioAsset.dataUrl : null,
-    scenario_key  : scenarioAsset?.r2Key || null,
-    product_asset : (productAsset && !productAsset.r2Key && typeof productAsset.dataUrl === "string" && productAsset.dataUrl.startsWith("data:")) ? productAsset.dataUrl : null,
-    product_key   : productAsset?.r2Key || null,
-    scenario_mode : stage1Data.scenario_mode || "upload",
-    scenario_prompt: (stage1Data.scenario_mode === "prompt") ? (stage1Data.scenario_prompt || stage1Data.scenario_image || "") : null,
-    product_mode  : stage1Data.product_mode || "upload",
+    brand_logo: stage1Data.brand_logo?.dataUrl || null, // 品牌 logo 一般体积小，保留 dataURL
+    // 关键：二选一
+    scenario_asset, scenario_key,
+    product_asset,  product_key,
+    scenario_mode: stage1Data.scenario_mode || 'upload',
+    scenario_prompt: stage1Data.scenario_mode === 'prompt'
+      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || '')
+      : null,
+    product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
-    gallery_items : (stage1Data.gallery_entries || []).map((entry) => {
-      const asset = entry.asset || null;
-      const dataUrl = asset?.dataUrl;
-      const r2Key = asset?.r2Key || null;
-      const inline = (!r2Key && typeof dataUrl === "string" && dataUrl.startsWith("data:")) ? dataUrl : null;
-      return {
-        caption: entry.caption?.trim() || null,
-        asset: inline,
-        key: r2Key,
-        mode: entry.mode || "upload",
-        prompt: entry.prompt?.trim() || null,
-      };
-    }),
+    gallery_items,
   };
 
-  // 4) Prompt bundle (backend expects PromptSlotConfig objects, not strings)
-  const presets = promptPresets || (promptManager && promptManager.presets) || { presets: {}, defaultAssignments: {} };
-  const prompts = buildPromptsObject(promptManager, presets);
-
-  // Allow caller to see the exact bundle used
-  if (typeof updatePromptPanels === "function") {
-    updatePromptPanels({ bundle: prompts, presets });
-  }
-
-  // 5) Variants / seed
-  const cfg = (promptManager && typeof promptManager.buildRequest === "function") ? (promptManager.buildRequest() || {}) : {};
-  const variants = clampVariantsLocal(forceVariants != null ? forceVariants : cfg.variants);
   const requestPayload = {
     poster,
-    render_mode: "locked",
-    variants,
-    seed: cfg.lockSeed ? (Number.isFinite(cfg.seed) ? Math.floor(cfg.seed) : null) : null,
-    lock_seed: Boolean(cfg.lockSeed),
-    prompts,
+    render_mode: 'locked',
+    variants: promptCfg.variants,
+    seed: promptCfg.seed,
+    lock_seed: promptCfg.lock_seed,
+    // 关键：只发字符串 prompts
+    prompts: promptCfg.prompts
   };
 
-  const rawPayload = JSON.stringify(requestPayload);
-  if (typeof validatePayloadSize === "function") validatePayloadSize(rawPayload);
-
-  // 6) UI updates
-  if (generateButton) generateButton.disabled = true;
-  if (regenerateButton) regenerateButton.disabled = true;
-  if (typeof setStatus === "function") setStatus(statusElement, abTest ? "正在进行 A/B 提示词生成…" : "正在生成海报与营销文案…", "info");
-  if (posterOutput) posterOutput.classList.remove("hidden");
-  if (aiPreview) aiPreview.classList.remove("complete");
-  if (aiSpinner) aiSpinner.classList.remove("hidden");
-  if (aiPreviewMessage) aiPreviewMessage.textContent = "Glibatree Art Designer 正在绘制海报…";
-  if (posterVisual) posterVisual.classList.add("hidden");
-  if (promptGroup) promptGroup.classList.add("hidden");
-  if (emailGroup) emailGroup.classList.add("hidden");
-  if (nextButton) nextButton.disabled = true;
-  if (variantsStrip) { variantsStrip.innerHTML = ""; variantsStrip.classList.add("hidden"); }
-
-  // 7) Warm-up + send
-  if (typeof warmUp === "function") await warmUp(apiCandidates);
-  const res = await postJsonWithRetry(apiCandidates, "/api/generate-poster", requestPayload, 2, rawPayload);
-  const data = await res.json();
-
-  // 8) Minimal success rendering (guard every UI call)
-  if (layoutStructure && data.layout_preview) layoutStructure.textContent = data.layout_preview;
-  if (aiSpinner) aiSpinner.classList.add("hidden");
-  if (aiPreview) aiPreview.classList.add("complete");
-  if (posterImage && data.poster_image) {
-    if (typeof assignPosterImage === "function") {
-      assignPosterImage(posterImage, data.poster_image, `${stage1Data.product_name || "产品"} 海报预览`);
-    } else {
-      const url = data.poster_image.url || data.poster_image.data_url || "";
-      if (url) posterImage.src = url;
-    }
-    if (posterVisual) posterVisual.classList.remove("hidden");
-  }
-  if (emailTextarea && data.email_body) emailTextarea.value = data.email_body;
-  if (promptTextarea && data.prompt_bundle_text) promptTextarea.value = data.prompt_bundle_text;
-
-  if (typeof saveStage2Result === "function") {
-    await saveStage2Result({
-      poster_image: data.poster_image,
-      prompt: data.prompt_bundle_text || "",
-      email_body: data.email_body || "",
-      variants: Array.isArray(data.variants) ? data.variants : [],
-    });
-  }
-
-  if (generateButton) generateButton.disabled = false;
-  if (regenerateButton) regenerateButton.disabled = false;
-  if (nextButton) nextButton.disabled = false;
-  if (typeof setStatus === "function") setStatus(statusElement, "生成完成！", "success");
-  return data;
+  return requestPayload;
+}
+// Helper: tiny clamp for variants (1..3)
+function clampVariantsLocal(v) {
+  const n = Math.round(Number(v || 1));
+  return Math.min(Math.max(n, 1), 3);
 }
 
+// ---- MAIN: triggerGeneration (drop-in) ------------------------------------
+// 触发：规范化 -> 尺寸校验 -> 唤醒 -> 发送
+async function triggerGeneration(opts) {
+  const {
+    stage1Data, statusElement, layoutStructure, posterOutput,
+    aiPreview, aiSpinner, aiPreviewMessage, posterVisual, posterImage,
+    variantsStrip, promptGroup, emailGroup, promptTextarea, emailTextarea,
+    generateButton, regenerateButton, nextButton,
+    promptManager, updatePromptPanels,
+    forceVariants = null, abTest = false,
+  } = opts;
+
+  // 1) 选基址
+  const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
+  if (!apiCandidates.length) {
+    setStatus(statusElement, '未找到可用的后端基址，请填写或配置 Render / Worker 地址。', 'warning');
+    return null;
+  }
+
+  // 2) 恢复/确认素材（保证 dataUrl 可用）
+  await hydrateStage1DataAssets(stage1Data);
+
+  // 3) 组包（确保 prompts 为字符串）
+  const requestPayload = buildGeneratePayload(stage1Data, promptManager, { forceVariants });
+
+  // panel 里展示规范化后的 bundle（可见就是纯字符串）
+  if (typeof updatePromptPanels === 'function') {
+    updatePromptPanels({ bundle: requestPayload.prompts });
+  }
+
+  // 4) 体积校验（在 stringify 之后）
+  const rawPayload = JSON.stringify(requestPayload);
+  try {
+    validatePayloadSize(rawPayload);
+  } catch (e) {
+    setStatus(statusElement, e.message, 'error');
+    return null;
+  }
+
+  // 5) UI 状态
+  generateButton.disabled = true;
+  if (regenerateButton) regenerateButton.disabled = true;
+  setStatus(statusElement, abTest ? '正在进行 A/B 提示词生成…' : '正在生成海报与营销文案…', 'info');
+  if (posterOutput) posterOutput.classList.remove('hidden');
+  if (aiPreview) aiPreview.classList.remove('complete');
+  if (aiSpinner) aiSpinner.classList.remove('hidden');
+  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
+  if (posterVisual) posterVisual.classList.add('hidden');
+  if (promptGroup) promptGroup.classList.add('hidden');
+  if (emailGroup) emailGroup.classList.add('hidden');
+  if (nextButton) nextButton.disabled = true;
+  if (variantsStrip) { variantsStrip.innerHTML = ''; variantsStrip.classList.add('hidden'); }
+
+  // 6) 唤醒 + 发送（保证发送的就是 rawPayload）
+  await warmUp(apiCandidates);
+  let res;
+  try {
+    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 2, rawPayload);
+  } catch (err) {
+    // fetch 层错误（网络/503 等）
+    setStatus(statusElement, err.message || '请求失败，请稍后再试。', 'error');
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    return null;
+  }
+
+  // 7) 处理响应
+  if (!res.ok) {
+    let detail = await res.text().catch(() => '');
+    if (!detail) detail = `HTTP ${res.status}`;
+    setStatus(statusElement, detail, 'error');
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    return null;
+  }
+
+  const data = await res.json().catch(() => ({}));
+  // 把后续你的渲染/保存逻辑接上即可
+  // 例如：
+  // if (layoutStructure && data.layout_preview) layoutStructure.textContent = data.layout_preview;
+  // await saveStage2Result(data);
+  // ... 显示图片/变体/邮件等
+}
 // Export to window if needed
 window.triggerGeneration = triggerGeneration;
 
