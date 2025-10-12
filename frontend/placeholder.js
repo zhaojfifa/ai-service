@@ -1,176 +1,146 @@
-/* placeholder.js — 只暴露全局工具 + Render /health CORS 兜底 */
+/* placeholder.js —— 直接替换 */
 (() => {
   'use strict';
 
-  // ------------------------------------------------------------
-  // 1) 针对 Render /health 的 CORS 猴补：强制 no-cors，并把 opaque 视为 OK
-  // ------------------------------------------------------------
+  // ---------- 仅对 Render /health 做 no-cors 猴补 ----------
   (function patchFetchForRenderHealth() {
-    const origFetch = window.fetch;
-    window.fetch = async function (input, init = {}) {
-      try {
-        const req = (typeof Request !== 'undefined' && input instanceof Request) ? input : null;
-        const url = req ? req.url : (typeof input === 'string' ? input : (input && input.url) || '');
-        const method = (init.method || (req && req.method) || 'GET').toUpperCase();
-
-        // 仅拦 Render 的 GET /health
-        if (/^https?:\/\/[^/]*onrender\.com\/health(?:\?|$)/i.test(url) && method === 'GET') {
-          const patchedInit = { ...init, mode: 'no-cors' };
-          const res = await origFetch(req || url, patchedInit);
-
-          // no-cors -> opaque（ok 为 false），为了探活直接回一个 200 响应
-          if (res && res.type === 'opaque') {
-            return new Response('', { status: 200, statusText: 'OK' });
-          }
-          return res;
-        }
-
-        return await origFetch(input, init);
-      } catch (e) {
-        return Promise.reject(e);
+    const orig = window.fetch;
+    window.fetch = async function(input, init = {}) {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      const method = (init.method || 'GET').toUpperCase();
+      if (/^https?:\/\/[^/]*onrender\.com\/health(?:\?|$)/i.test(url) && method === 'GET') {
+        const patched = { ...init, mode: 'no-cors' };
+        const res = await orig(url, patched);
+        if (res.type === 'opaque') return new Response('', { status: 200, statusText: 'OK' });
+        return res;
       }
+      return orig(input, init);
     };
   })();
 
-  // ------------------------------------------------------------
-  // 2) 基础工具 & 健康检查/选择/重试
-  // ------------------------------------------------------------
-  const HEALTH_TTL_MS = 60_000;   // 60s 探活缓存
-  const HEALTH_CACHE = new Map(); // base -> { ok, ts }
+  // ---------- 基础工具 ----------
+  const HEALTH_TTL = 60_000;
+  const HEALTH_CACHE = new Map(); // base => { ok, ts }
+
+  const isWorkerLike = (host) => /workers\.dev|^worker\.|proxy|cloudflare/i.test(host);
+  const isRender = (host) => /(^|\.)onrender\.com$/i.test(host);
 
   function normalizeBase(base) {
     if (!base) return null;
     try {
-      const u = new URL(base, window.location.href);
-      const pathname = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
-      return `${u.origin}${pathname}`;
+      const u = new URL(base, location.href);
+      const p = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname;
+      return `${u.origin}${p}`;
     } catch { return null; }
   }
 
-  function joinBasePath(base, path) {
+  function join(base, path) {
     const b = (base || '').replace(/\/+$/, '');
-    const p = (path || '').replace(/^\/+/, '');
+    const p = (String(path) || '').replace(/^\/+/, '');
     return b && p ? `${b}/${p}` : b || p || '';
   }
 
-  // Render 只允许 /health；其他域名优先试 /api/health
+  // Render 仅 /health；其余优先 /api/health
   function healthPathsFor(base) {
     try {
       const u = new URL(base, location.href);
-      if (/onrender\.com$/i.test(u.hostname)) return ['/health'];
+      if (isRender(u.hostname)) return ['/health'];
     } catch {}
     return ['/api/health', '/health'];
   }
 
-  // 兼容数组/逗号分隔/单字符串
+  // 解析 & 排序（Worker 优先）
   function resolveApiBases(input) {
     const raw = Array.isArray(input) ? input.join(',') : (input || '');
-    const seen = new Set();
-    const out = [];
-    raw.split(',')
-      .map(s => s.trim())
-      .filter(Boolean)
-      .forEach(b => {
-        const n = normalizeBase(b);
-        if (n && !seen.has(n)) { seen.add(n); out.push(n); }
-      });
-    return out;
+    const seen = new Set(), list = [];
+    raw.split(',').map(s => s.trim()).filter(Boolean).forEach(b => {
+      const n = normalizeBase(b);
+      if (n && !seen.has(n)) { seen.add(n); list.push(n); }
+    });
+    return list.sort((a, b) => {
+      const ha = new URL(a, location.href).hostname;
+      const hb = new URL(b, location.href).hostname;
+      const sa = isWorkerLike(ha) ? 0 : isRender(ha) ? 2 : 1;
+      const sb = isWorkerLike(hb) ? 0 : isRender(hb) ? 2 : 1;
+      return sa - sb; // Worker(0) < Other(1) < Render(2)
+    });
   }
 
   async function isHealthy(base, timeoutMs = 2500) {
     const b = normalizeBase(base);
     if (!b) return false;
-
     for (const p of healthPathsFor(b)) {
-      const url = joinBasePath(b, p);
+      const url = join(b, p);
       try {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort('timeout'), timeoutMs);
-        const res = await fetch(url, {
-          method: 'GET',
-          mode: 'cors',        // Render 会被上面的猴补改成 no-cors
-          cache: 'no-store',
-          credentials: 'omit',
-          signal: ctrl.signal,
-        });
-        clearTimeout(timer);
+        const c = new AbortController();
+        const t = setTimeout(() => c.abort('timeout'), timeoutMs);
+        const res = await fetch(url, { method: 'GET', mode: 'cors', cache: 'no-store', credentials: 'omit', signal: c.signal });
+        clearTimeout(t);
         if (res.ok || res.status === 200) return true;
-      } catch {
-        // ignore and try next path
-      }
+      } catch {}
     }
     return false;
   }
 
-  async function warmUp(apiBaseOrBases, { timeoutMs = 2500, useCache = true } = {}) {
-    const bases = resolveApiBases(apiBaseOrBases);
+  async function warmUp(apiBases, { timeoutMs = 2500, useCache = true } = {}) {
+    const bases = resolveApiBases(apiBases);
     if (!bases.length) return { healthy: [], unhealthy: [] };
-
     const now = Date.now();
-    const results = await Promise.all(bases.map(async (b) => {
-      const cached = HEALTH_CACHE.get(b);
-      if (useCache && cached && now - cached.ts < HEALTH_TTL_MS) {
-        return { base: b, ok: cached.ok, source: 'cache' };
-      }
+    const tasks = bases.map(async (b) => {
+      const c = HEALTH_CACHE.get(b);
+      if (useCache && c && now - c.ts < HEALTH_TTL) return { base: b, ok: c.ok, source: 'cache' };
       const ok = await isHealthy(b, timeoutMs);
       HEALTH_CACHE.set(b, { ok, ts: Date.now() });
       return { base: b, ok, source: 'probe' };
-    }));
-
-    return {
-      healthy: results.filter(r => r.ok).map(r => r.base),
-      unhealthy: results.filter(r => !r.ok).map(r => r.base),
-    };
+    });
+    const r = await Promise.all(tasks);
+    return { healthy: r.filter(x => x.ok).map(x => x.base), unhealthy: r.filter(x => !x.ok).map(x => x.base) };
   }
 
-  async function pickHealthyBase(apiBaseOrBases, opts = {}) {
-    const bases = resolveApiBases(apiBaseOrBases);
+  async function pickHealthyBase(apiBases, opts = {}) {
+    const bases = resolveApiBases(apiBases);
     if (!bases.length) return null;
 
-    // 先看缓存
-    const cached = bases.find(b => {
+    // 先看缓存（且保持排序优先级）
+    for (const b of bases) {
       const c = HEALTH_CACHE.get(b);
-      return c && c.ok && (Date.now() - c.ts) < HEALTH_TTL_MS;
-    });
-    if (cached) return cached;
+      if (c && c.ok && (Date.now() - c.ts) < HEALTH_TTL) return b;
+    }
 
     const { healthy } = await warmUp(bases, opts);
-    return healthy[0] || null;
+    // 维持排序优先级
+    for (const b of bases) if (healthy.includes(b)) return b;
+    return null;
   }
 
-  async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
-    const bases = resolveApiBases(apiBaseOrBases);
+  async function postJsonWithRetry(apiBases, path, payload, retry = 1, rawPayload) {
+    const bases = resolveApiBases(apiBases);
     if (!bases.length) throw new Error('未配置后端 API 地址');
 
-    const bodyRaw = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
-    if (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000) {
+    const body = typeof rawPayload === 'string' ? rawPayload : JSON.stringify(payload);
+    if (/data:[^;]+;base64,/.test(body) || body.length > 300000) {
       throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传输 key/url。');
     }
 
     let base = await pickHealthyBase(bases, { timeoutMs: 2500 });
-    if (!base) {
-      base = bases[0];
-      void warmUp(bases).catch(() => {});
-    }
-
-    const urlFor = (b) => joinBasePath(b, String(path));
+    if (!base) { base = bases[0]; void warmUp(bases).catch(() => {}); }
 
     let lastErr = null;
-    for (let attempt = 0; attempt <= retry; attempt += 1) {
-      const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
+    for (let attempt = 0; attempt <= retry; attempt++) {
+      const order = base ? [base, ...bases.filter(x => x !== base)] : [...bases];
       for (const b of order) {
         try {
-          const res = await fetch(urlFor(b), {
+          const res = await fetch(join(b, path), {
             method: 'POST',
-            mode: 'cors', // 业务接口必须通过 CORS（服务端需正确返回 CORS 头）
+            mode: 'cors',
             cache: 'no-store',
             credentials: 'omit',
             headers: { 'Content-Type': 'application/json' },
-            body: bodyRaw,
+            body,
           });
           if (!res.ok) {
-            const text = await res.text().catch(() => '');
-            throw new Error(text || `HTTP ${res.status}`);
+            const txt = await res.text().catch(() => '');
+            throw new Error(txt || `HTTP ${res.status}`);
           }
           HEALTH_CACHE.set(b, { ok: true, ts: Date.now() });
           return res;
@@ -184,25 +154,16 @@
       await new Promise(r => setTimeout(r, 800));
       base = await pickHealthyBase(bases, { timeoutMs: 2500 });
     }
-
     throw lastErr || new Error('请求失败');
   }
 
-  // ------------------------------------------------------------
-  // 3) 导出到全局（给 app.js 用）—— 确保 placeholder.js 在 app.js 之前加载
-  // ------------------------------------------------------------
+  // ---------- 导出 ----------
   const ns = (window.MPoster = window.MPoster || {});
   Object.assign(ns, { resolveApiBases, warmUp, pickHealthyBase, postJsonWithRetry, isHealthy });
 
-  // 兼容老版：仅在不存在时挂全局函数
   window.resolveApiBases   = window.resolveApiBases   || ns.resolveApiBases;
   window.warmUp            = window.warmUp            || ns.warmUp;
   window.pickHealthyBase   = window.pickHealthyBase   || ns.pickHealthyBase;
   window.postJsonWithRetry = window.postJsonWithRetry || ns.postJsonWithRetry;
   window.isHealthy         = window.isHealthy         || ns.isHealthy;
-
-  // 兼容老版内部缓存（旧 app.js 会用到 window._healthCache）
-  if (!window._healthCache) {
-    window._healthCache = HEALTH_CACHE; // 直接暴露当前缓存映射
-  }
 })();
