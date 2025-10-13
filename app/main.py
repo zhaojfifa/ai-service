@@ -259,11 +259,8 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
             },
         )
-
         poster = payload.poster
         preview = render_layout_preview(poster)
-
-        # 构建 prompt
         prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
@@ -294,15 +291,15 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 converted[slot] = {
                     "preset": config.get("preset"),
                     "aspect": config.get("aspect"),
-                    "positive": config.get("positive") or "",
-                    "negative": config.get("negative") or "",
+                    "prompt": config.get("positive") or "",
+                    "negative_prompt": config.get("negative") or "",
                 }
             if converted:
                 if hasattr(PromptBundle, "model_validate"):
                     response_bundle = PromptBundle.model_validate(converted)
                 elif hasattr(PromptBundle, "parse_obj"):
                     response_bundle = PromptBundle.parse_obj(converted)
-                else:  # fallback
+                else:  # pragma: no cover - legacy Pydantic fallback
                     response_bundle = PromptBundle(**converted)
 
         logger.info(
@@ -320,8 +317,6 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 ),
             },
         )
-
-        # 返回时保持变量不变，优先用转换后的 response_bundle，否则直接回传请求里的
         return GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,

@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, EmailStr, Field, constr
-try:  # pragma: no cover - fallback for Pydantic v1 deployments
+
+try:  # pragma: no cover - compatibility for deployments pinned to Pydantic v1
     from pydantic import field_validator
 except ImportError:  # pragma: no cover
-    from pydantic import validator as field_validator
-try:  # pragma: no cover - Pydantic v2 preferred API
+    field_validator = None  # type: ignore
+
+try:  # pragma: no cover - available only on Pydantic v2
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover
+    ConfigDict = None  # type: ignore
+
+try:  # pragma: no cover - prefer Pydantic v2 APIs when available
     from pydantic import model_validator
-except ImportError:  # pragma: no cover - compatibility with Pydantic v1
+except ImportError:  # pragma: no cover - fall back to v1 root validators
     model_validator = None  # type: ignore
     from pydantic import root_validator
-from typing import Any, Literal, Optional
 
 
 class PosterGalleryItem(BaseModel):
@@ -50,9 +58,7 @@ class PosterInput(BaseModel):
         description="Identifier of the locked layout template to use when rendering.",
     )
     features: list[constr(strip_whitespace=True, min_length=1)] = Field(
-        ...,
-        min_length=3,
-        max_length=4,
+        ..., min_length=3, max_length=4
     )
     title: constr(strip_whitespace=True, min_length=1)
     series_description: constr(strip_whitespace=True, min_length=1)
@@ -136,111 +142,52 @@ class PosterImage(BaseModel):
     height: int = Field(..., gt=0)
 
 
-def _coerce_prompt_text(value: Any) -> str | None:
-    """Convert rich prompt slot payloads into trimmed strings.
+def _coerce_prompt_value(value: Any) -> Optional[str]:
+    """Collapse prompt payloads into trimmed strings.
 
-    The legacy UI used to send dictionaries shaped like ``PromptSlotConfig``
-    while the backend schema expected bare strings. Render still runs that
-    schema, so we need to collapse any structured payloads into a single
-    positive prompt string.
+    Older clients sometimes provide structured prompt dictionaries while the
+    Render deployment expects bare strings. This helper keeps the schema
+    compatible with both shapes without forcing the caller to normalise ahead
+    of time.
     """
 
     if value is None:
         return None
 
     if isinstance(value, str):
-        stripped = value.strip()
-        return stripped or None
+        text = value.strip()
+        return text or None
 
-    # PromptSlotConfig-like objects expose the fields as attributes.
     if hasattr(value, "model_dump"):
         value = value.model_dump(exclude_none=True)
     elif hasattr(value, "dict"):
         value = value.dict(exclude_none=True)
 
     if isinstance(value, dict):
-        positive = value.get("positive") or value.get("prompt") or value.get("text")
+        for key in ("prompt", "positive", "text"):
+            text = value.get(key)
+            if isinstance(text, str) and text.strip():
+                return text.strip()
+
         preset = value.get("preset")
-        aspect = value.get("aspect")
+        aspect = value.get("aspect") or value.get("aspect_ratio")
         parts: list[str] = []
 
-        if isinstance(positive, str) and positive.strip():
-            parts.append(positive.strip())
         if isinstance(preset, str) and preset.strip():
-            parts.append(f"Preset: {preset.strip()}")
+            parts.append(preset.strip())
         if isinstance(aspect, str) and aspect.strip():
-            parts.append(f"Aspect: {aspect.strip()}")
+            parts.append(f"aspect {aspect.strip()}")
 
         if parts:
-            return " | ".join(parts)
+            return " ".join(parts)
 
-    try:
+    try:  # pragma: no cover - defensive fallback for unexpected payloads
         text = str(value)
-    except Exception:  # pragma: no cover - defensive fallback
+    except Exception:
         return None
 
-    stripped = text.strip()
-    return stripped or None
-
-
-Aspect = Literal["1:1", "4:5", "4:3"]
-
-
-PROMPT_SLOT_DEFAULT_ASPECT: dict[str, Aspect] = {
-    "scenario": "1:1",
-    "product": "4:5",
-    "gallery": "4:3",
-}
-
-
-def _normalise_aspect(value: Any, slot: str) -> Aspect:
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate in {"1:1", "4:5", "4:3"}:
-            return candidate  # type: ignore[return-value]
-    return PROMPT_SLOT_DEFAULT_ASPECT[slot]
-
-
-def _coerce_prompt_slot(value: Any, slot: str) -> "PromptSlotConfig":
-    if isinstance(value, PromptSlotConfig):
-        return value
-
-    if value is None:
-        return PromptSlotConfig(aspect=PROMPT_SLOT_DEFAULT_ASPECT[slot])
-
-    if hasattr(value, "model_dump"):
-        value = value.model_dump(exclude_none=True)
-    elif hasattr(value, "dict"):
-        value = value.dict(exclude_none=True)
-
-    if isinstance(value, str):
-        text = value.strip()
-        return PromptSlotConfig(
-            aspect=PROMPT_SLOT_DEFAULT_ASPECT[slot],
-            prompt=text,
-        )
-
-    if isinstance(value, dict):
-        preset = value.get("preset")
-        prompt = (
-            value.get("prompt")
-            or value.get("positive")
-            or value.get("text")
-            or ""
-        )
-        negative = value.get("negative_prompt") or value.get("negative") or ""
-        aspect = value.get("aspect") or value.get("aspect_ratio")
-        return PromptSlotConfig(
-            preset=preset,
-            aspect=_normalise_aspect(aspect, slot),
-            prompt=prompt or "",
-            negative_prompt=negative or "",
-        )
-
-    return PromptSlotConfig(
-        aspect=PROMPT_SLOT_DEFAULT_ASPECT[slot],
-        prompt=str(value).strip(),
-    )
+    text = text.strip()
+    return text or None
 
 
 class PromptSlotConfig(BaseModel):
@@ -303,27 +250,63 @@ def _coerce_prompt_slot(value: Any, slot_name: str) -> "PromptSlotConfig":
     return PromptSlotConfig()
 
 class PromptBundle(BaseModel):
-    scenario: PromptSlotConfig = Field(default_factory=_default_scenario_slot)
-    product:  PromptSlotConfig = Field(default_factory=_default_product_slot)
-    gallery:  PromptSlotConfig = Field(default_factory=_default_gallery_slot)
+    scenario: Optional[str] = None
+    product: Optional[str] = None
+    gallery: Optional[str] = None
 
-    @field_validator("scenario", mode="before")
     @classmethod
-    def _coerce_scenario(cls, value: Any) -> PromptSlotConfig:
-        return _coerce_prompt_slot(value, "scenario")
+    def _normalise(cls, values: Any) -> Any:
+        if not isinstance(values, dict):
+            return values
 
-    @field_validator("product", mode="before")
-    @classmethod
-    def _coerce_product(cls, value: Any) -> PromptSlotConfig:
-        return _coerce_prompt_slot(value, "product")
+        return {
+            "scenario": _coerce_prompt_value(values.get("scenario")),
+            "product": _coerce_prompt_value(values.get("product")),
+            "gallery": _coerce_prompt_value(values.get("gallery")),
+        }
 
-    @field_validator("gallery", mode="before")
-    @classmethod
-    def _coerce_gallery(cls, value: Any) -> PromptSlotConfig:
-        return _coerce_prompt_slot(value, "gallery")
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
 
-    class Config:  # 兼容性设置
+        @model_validator(mode="before")
+        def _coerce_values(cls, values: Any) -> Any:
+            return cls._normalise(values)
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=True)
+        def _coerce_values(cls, values: Any) -> Any:
+            return cls._normalise(values)
+
+    if field_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @field_validator("scenario", "product", "gallery", mode="after")
+        def _trim_strings(cls, value: Optional[str]) -> Optional[str]:
+            if value is None:
+                return None
+            text = value.strip()
+            return text or None
+
+    class Config:  # pragma: no cover - compatibility shim for v1
         extra = "ignore"
+
+
+def _build_prompt_bundle(value: Any) -> PromptBundle | None:
+    if value is None or isinstance(value, PromptBundle):
+        return value
+
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(exclude_none=True)
+    elif hasattr(value, "dict"):
+        value = value.dict(exclude_none=True)
+
+    if not isinstance(value, dict):
+        raise TypeError("prompt_bundle must be a mapping, PromptBundle, or None")
+
+    if hasattr(PromptBundle, "model_validate"):
+        return PromptBundle.model_validate(value)
+    if hasattr(PromptBundle, "parse_obj"):
+        return PromptBundle.parse_obj(value)
+    return PromptBundle(**value)
 
 
 class R2PresignPutRequest(BaseModel):
@@ -368,30 +351,35 @@ class GeneratePosterRequest(BaseModel):
         False,
         description="Whether the provided seed should be respected across runs."
     )
-
     prompt_bundle: PromptBundle = Field(
         default_factory=PromptBundle,
         description="Structured prompt overrides for each template slot.",
     )
 
-    # 兼容旧字段名 "prompts"
-    if "model_validator" in globals():  # pragma: no cover - Pydantic v2
-        from pydantic import model_validator
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
 
         @model_validator(mode="before")
-        @classmethod
-        def _prompts_alias(cls, data: Any) -> Any:
-            if isinstance(data, dict) and "prompt_bundle" not in data and "prompts" in data:
-                data = dict(data)
-                data["prompt_bundle"] = data.pop("prompts")
-            return data
-    else:  # pragma: no cover - Pydantic v1
+        def _alias_prompts(cls, values: Any) -> Any:
+            if isinstance(values, dict) and "prompt_bundle" not in values and "prompts" in values:
+                values = dict(values)
+                values["prompt_bundle"] = values.pop("prompts")
+            return values
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
         @root_validator(pre=True)
-        def _prompts_alias(cls, values: dict[str, Any]) -> dict[str, Any]:
+        def _alias_prompts(cls, values: dict[str, Any]) -> dict[str, Any]:
             if "prompt_bundle" not in values and "prompts" in values:
                 values = dict(values)
                 values["prompt_bundle"] = values.pop("prompts")
             return values
+
+    if ConfigDict:  # pragma: no cover - executed on Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        class Config:  # type: ignore[override]
+            allow_population_by_field_name = True
 
 
 class GeneratePosterResponse(BaseModel):
@@ -408,14 +396,12 @@ class GeneratePosterResponse(BaseModel):
         None,
         description="Per-slot prompt summary returned by the backend."
     )
-
-    # prompt_bundle：结构化对象，可选
-    prompt_bundle: "PromptBundle" | None = Field(
+    prompt_bundle: PromptBundle | dict[str, Any] | None = Field(
         None,
         description=(
             "Optional combined prompt bundle for inspector display. When provided "
-            "it mirrors the PromptBundle schema composed of PromptSlotConfig "
-            "objects so the UI can repopulate the inspector overrides."
+            "the values are normalised into trimmed strings to match the front-end "
+            "expectations."
         ),
     )
 
@@ -447,26 +433,26 @@ class GeneratePosterResponse(BaseModel):
         description="Whether the backend honoured the locked seed request."
     )
 
-    @field_validator("prompt_bundle", mode="before")
-    @classmethod
-    def _coerce_prompt_bundle(
-        cls, value: PromptBundle | dict[str, Any] | None
-    ) -> PromptBundle | None:
-        """Normalise prompt bundles coming from external services."""
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
 
-        if value is None or isinstance(value, PromptBundle):
-            return value
+        @model_validator(mode="before")
+        def _coerce_bundle(cls, values: Any) -> Any:
+            if isinstance(values, dict) and "prompt_bundle" in values:
+                try:
+                    values = dict(values)
+                    values["prompt_bundle"] = _build_prompt_bundle(values["prompt_bundle"])
+                except TypeError:
+                    raise
+            return values
 
-        if isinstance(value, dict):
-            if hasattr(PromptBundle, "model_validate"):
-                return PromptBundle.model_validate(value)
-            if hasattr(PromptBundle, "parse_obj"):
-                return PromptBundle.parse_obj(value)
-            return PromptBundle(**value)
+    else:  # pragma: no cover - executed on Pydantic v1
 
-        raise TypeError(
-            "prompt_bundle must be a PromptBundle, dictionary, or None"
-        )
+        @root_validator(pre=True)
+        def _coerce_bundle(cls, values: dict[str, Any]) -> dict[str, Any]:
+            if "prompt_bundle" in values:
+                values = dict(values)
+                values["prompt_bundle"] = _build_prompt_bundle(values["prompt_bundle"])
+            return values
 
 
 class SendEmailRequest(BaseModel):
