@@ -74,6 +74,46 @@ const HEALTH_CACHE = new Map();
 
 let documentAssetBase = null;
 
+//
+// 组装 prompts —— 每个槽都是对象
+function buildPromptSlot(prefix) {
+  return {
+    preset:  getValue(`#${prefix}-preset`),     // 你的原有取值方法
+    positive:getValue(`#${prefix}-positive`),
+    negative:getValue(`#${prefix}-negative`),
+    aspect:  getValue(`#${prefix}-aspect`)
+  };
+}
+function buildGeneratePayload() {
+  return {
+    poster: collectStage1Data(form, state, { strict: false }),
+    render_mode: state.renderMode || 'locked',
+    variants: Number(state.variants || 2),
+    seed: state.seed ?? null,
+    lock_seed: !!state.lockSeed,
+    prompts: {
+      scenario: buildPromptSlot('scenario'),
+      product:  buildPromptSlot('product'),
+      gallery:  buildPromptSlot('gallery'),
+    }
+  };
+}
+
+// 串行触发，避免免费实例并发卡死
+async function runGeneration() {
+  setBusy(true);
+  try {
+    const payloadA = buildGeneratePayload();
+    await triggerGeneration(payloadA);   // 先等第一个完成
+    if (state.abMode) {
+      const payloadB = buildGeneratePayload(); // 若有B，第二次再发
+      await triggerGeneration(payloadB);
+    }
+  } finally {
+    setBusy(false);
+  }
+}
+
 function resolveDocumentAssetBase() {
   if (documentAssetBase) return documentAssetBase;
   const baseEl = document.querySelector('base[href]');
@@ -278,6 +318,7 @@ function validatePayloadSize(raw) {
 }
 
 // 完整替换 app.js 里的 postJsonWithRetry
+// 发送请求：始终 JSON/UTF-8，支持多基址与重试
 async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
   // 规范化候选基址
   const bases = (window.resolveApiBases?.(apiBaseOrBases))
@@ -300,30 +341,33 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   let lastErr = null;
 
   for (let attempt = 0; attempt <= retry; attempt += 1) {
-    // ！！！这里以前写成了 tryOrder，导致未定义
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
       try {
         const res = await fetch(urlFor(b), {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
           credentials: 'omit',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
           body: bodyRaw,
+          signal: ctrl.signal,
         });
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           throw new Error(text || `HTTP ${res.status}`);
         }
-        // 兼容占位缓存：存在才更新，避免 _healthCache 未定义再报错
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
-        return res;
+        return await res.json(); // 保持旧版语义：直接返回 JSON
       } catch (e) {
         lastErr = e;
         if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
         base = null; // 该轮失败，下一轮重新挑
+      } finally {
+        clearTimeout(timer);
       }
     }
 
@@ -335,7 +379,6 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
 
   throw lastErr || new Error('请求失败');
 }
-
 
 App.utils.postJsonWithRetry = postJsonWithRetry;
 
