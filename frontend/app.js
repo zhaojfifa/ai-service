@@ -489,32 +489,15 @@ function assignPosterImage(element, image, altText) {
 }
 
 // 预签名上传：向后端申请 R2 PUT 地址，返回 {key, put_url, public_url}
-async function r2PresignPut(folder, file, bases, options = {}) {
-  if (!file) throw new Error('没有可上传的文件');
-  const contentType = file.type || 'application/octet-stream';
-  const size = (typeof file.size === 'number') ? file.size : null;
-
+async function r2PresignPut(folder, file, bases) {
   const payload = {
     folder: folder || 'uploads',
-    filename: file.name || 'upload.bin',
-    content_type: contentType,
-    size,
+    filename: file?.name || 'upload.bin',
+    content_type: file?.type || 'application/octet-stream',
+    size: typeof file?.size === 'number' ? file.size : null,
   };
-
-  // postJsonWithRetry 可能返回 JSON 或 Response，这里两种都兼容
-  const resp = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, options.retry ?? 1);
-  const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-
-  // 基本字段校验
-  if (!data || typeof data !== 'object') {
-    throw new Error('预签名接口返回异常：不是 JSON 对象');
-  }
-  const { key, put_url: putUrl, public_url: publicUrl } = data;
-  if (!key || !putUrl) {
-    throw new Error('预签名接口缺少必要字段（key 或 put_url）');
-  }
-
-  return { key, put_url: putUrl, public_url: publicUrl, content_type: contentType, size };
+  const response = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, 1);
+  return response.json();
 }
 
 
