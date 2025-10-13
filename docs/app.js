@@ -2974,31 +2974,59 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
 // ……前文保持不变
 
-function toPromptString(value) {
-  if (value == null) return '';
-  if (typeof value === 'string') return value.trim();
-  if (typeof value.text === 'string') return value.text.trim();
-  if (typeof value.prompt === 'string') return value.prompt.trim();
-  if (typeof value.positive === 'string') return value.positive.trim();
-  if (typeof value.preset === 'string' && typeof value.aspect === 'string') {
-    const preset = value.preset.trim();
-    const aspect = value.aspect.trim();
-    if (preset && aspect) return `${preset} (aspect ${aspect})`;
-  }
-  if (typeof value.preset === 'string') return value.preset.trim();
-  try {
-    return JSON.stringify(value);
-  } catch (error) {
-    console.warn('[toPromptString] fallback stringify failed', error);
-    return String(value);
-  }
-}
+const PROMPT_SLOT_ASPECT_DEFAULTS = {
+  scenario: '1:1',
+  product: '4:5',
+  gallery: '4:3',
+};
 
-function buildPromptBundleStrings(prompts = {}) {
+const PROMPT_ASPECT_OPTIONS = new Set(['1:1', '4:5', '4:3']);
+
+function normalisePromptSlotConfig(value, slot) {
+  const aspectFallback = PROMPT_SLOT_ASPECT_DEFAULTS[slot] || '1:1';
+
+  if (!value) {
+    return {
+      preset: null,
+      aspect: aspectFallback,
+      prompt: '',
+      negative_prompt: '',
+    };
+  }
+
+  if (typeof value === 'string') {
+    return {
+      preset: null,
+      aspect: aspectFallback,
+      prompt: value.trim(),
+      negative_prompt: '',
+    };
+  }
+
+  const presetRaw = typeof value.preset === 'string' ? value.preset.trim() : '';
+  const promptRaw =
+    typeof value.prompt === 'string'
+      ? value.prompt
+      : typeof value.positive === 'string'
+        ? value.positive
+        : typeof value.text === 'string'
+          ? value.text
+          : '';
+  const negativeRaw =
+    typeof value.negative_prompt === 'string'
+      ? value.negative_prompt
+      : typeof value.negative === 'string'
+        ? value.negative
+        : '';
+  const aspectRaw = typeof value.aspect === 'string' ? value.aspect.trim() : '';
+
+  const aspect = PROMPT_ASPECT_OPTIONS.has(aspectRaw) ? aspectRaw : aspectFallback;
+
   return {
-    scenario: toPromptString(prompts.scenario),
-    product: toPromptString(prompts.product),
-    gallery: toPromptString(prompts.gallery),
+    preset: presetRaw ? presetRaw : null,
+    aspect,
+    prompt: (promptRaw || '').trim(),
+    negative_prompt: (negativeRaw || '').trim(),
   };
 }
 
@@ -3085,28 +3113,34 @@ async function triggerGeneration(opts = {}) {
     }),
   };
 
-  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+  // 4) Prompt 组装 —— 将每个槽位规范为纯字符串（只取正向提示或常见字段），不要传 {preset, aspect} 等对象
   const reqFromInspector = promptManager?.buildRequest?.() || {};
-  if (forceVariants != null) reqFromInspector.variants = forceVariants;
+  if (forceVariants) reqFromInspector.variants = forceVariants;
 
-  const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
+  const promptBundle = {
+    scenario: normalisePromptSlotConfig(reqFromInspector.prompts?.scenario, 'scenario'),
+    product: normalisePromptSlotConfig(reqFromInspector.prompts?.product, 'product'),
+    gallery: normalisePromptSlotConfig(reqFromInspector.prompts?.gallery, 'gallery'),
+  };
 
-  const requestBase = {
+  // requestPayload 保留原先结构化 prompts 字段以便后端内部需要，但我们同时传入 prompt_bundle（纯字符串）
+  let requestPayload = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
+    prompt_bundle: promptBundle,
   };
 
-  const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-
   // 面板同步
-  updatePromptPanels?.({ bundle: payload.prompt_bundle });
+  updatePromptPanels?.({ bundle: requestPayload.prompt_bundle });
 
   // 5) 体积守护
-  const rawPayload = JSON.stringify(payload);
-  try { validatePayloadSize(rawPayload); } catch (e) {
+  const raw1 = JSON.stringify(requestPayload);
+  try {
+    validatePayloadSize(raw1);
+  } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
@@ -3188,26 +3222,25 @@ async function triggerGeneration(opts = {}) {
 
   // 7) 发送（健康探测 + 重试）
   await warmUp(apiCandidates);
-
-  let response;
+  let res;
   try {
-    response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
-  } catch (error) {
-    console.error('[generatePoster] prompt_bundle 请求失败', error);
-    setStatus(statusElement, error?.message || '生成失败', 'error');
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    return null;
+    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 1, raw1);
+  } catch (err) {
+    console.error('[generatePoster] 请求失败', {
+      payload: requestPayload,
+      response: err?.responseJson ?? err?.responseText ?? err?.message,
+      status: err?.status ?? null,
+    });
+    throw err;
   }
 
-  const data = await response.json();
+  const data = await res.json();
 
   // …这里沿用你原来的渲染/保存逻辑（保存到 sessionStorage、variants 展示、按钮状态恢复等）
   // 例如：
   // await saveStage2Result(data);
   // setStatus(statusElement, '已生成！可继续下一步。', 'success');
   // ...
-  return data;
 }
 
 
