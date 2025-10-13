@@ -3227,7 +3227,7 @@ async function triggerGeneration(opts) {
     if (regenerateButton) regenerateButton.disabled = false;
     return null;
   }
-
+}
 
 async function prepareTemplatePreviewAssets(stage1Data) {
   const result = {
