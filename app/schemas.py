@@ -244,10 +244,10 @@ def _coerce_prompt_slot(value: Any, slot: str) -> "PromptSlotConfig":
 
 
 class PromptSlotConfig(BaseModel):
-    preset: Optional[str] = None          # 可选预设
-    positive: str = ""                    # 正向提示词
-    negative: str = ""                    # 反向提示词（原 negative_prompt）
-    aspect: Aspect = "1:1"                # 画幅比例，默认 1:1
+    preset: Optional[str] = None
+    aspect: Aspect
+    prompt: str = ""
+    negative_prompt: str = ""
 
     @field_validator("preset", mode="before")
     @classmethod
@@ -257,16 +257,22 @@ class PromptSlotConfig(BaseModel):
         text = str(value).strip()
         return text or None
 
-    @field_validator("prompt", "negative_prompt", mode="before")
+    @field_validator("prompt", mode="before")
     @classmethod
     def _clean_prompt(cls, value: Any) -> str:
         if value is None:
             return ""
         return str(value).strip()
 
+    @field_validator("negative_prompt", mode="before")
+    @classmethod
+    def _clean_negative_prompt(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
     class Config:  # pragma: no cover - compatibility shim
         extra = "ignore"
-
 
 def _default_scenario_slot() -> PromptSlotConfig:
     return PromptSlotConfig(aspect=PROMPT_SLOT_DEFAULT_ASPECT["scenario"])
