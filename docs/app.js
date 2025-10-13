@@ -289,6 +289,14 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   // 组包（外部已给字符串就不再二次 JSON.stringify）
   const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
 
+  const logPrefix = `[postJsonWithRetry] ${path}`;
+  const previewSnippet = (() => {
+    if (typeof bodyRaw !== 'string') return '';
+    const limit = 512;
+    if (bodyRaw.length <= limit) return bodyRaw;
+    return `${bodyRaw.slice(0, limit)}…(+${bodyRaw.length - limit} chars)`;
+  })();
+
   // 粗略体积 & dataURL 防御
   if (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000) {
     throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传 key/url。');
@@ -301,12 +309,12 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   let lastErr = null;
 
   for (let attempt = 0; attempt <= retry; attempt += 1) {
-    // ！！！这里以前写成了 tryOrder，导致未定义
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
+      const url = urlFor(b);
       try {
-        const res = await fetch(urlFor(b), {
+        const res = await fetch(url, {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
@@ -314,21 +322,46 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           headers: { 'Content-Type': 'application/json' },
           body: bodyRaw,
         });
+        console.info(`${logPrefix} -> ${url}`, {
+          attempt: attempt + 1,
+          candidateIndex: order.indexOf(b),
+          bodyBytes: bodyRaw.length,
+          bodyPreview: previewSnippet,
+          status: res.status,
+        });
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          throw new Error(text || `HTTP ${res.status}`);
+          let json = null;
+          if (text) {
+            try { json = JSON.parse(text); } catch {}
+          }
+          const detail = (json && (json.detail || json.message))
+            || text
+            || `HTTP ${res.status}`;
+          const error = new Error(detail);
+          error.status = res.status;
+          error.responseText = text;
+          error.responseJson = json;
+          error.url = url;
+          error.requestBody = bodyRaw;
+          throw error;
         }
-        // 兼容占位缓存：存在才更新，避免 _healthCache 未定义再报错
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
         return res;
       } catch (e) {
+        console.warn(`${logPrefix} failed`, {
+          attempt: attempt + 1,
+          url,
+          message: e?.message,
+          status: e?.status,
+          bodyPreview: previewSnippet,
+        });
         lastErr = e;
         if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
         base = null; // 该轮失败，下一轮重新挑
       }
     }
 
-    // 整轮失败后：热身 + 等待 + 重选
     try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
     await new Promise(r => setTimeout(r, 800));
     base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
@@ -2962,56 +2995,32 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
 // ……前文保持不变
 
-// 统一把各种“对象形态”的 prompt 收敛为字符串
-// 把各种对象/结构的 prompt 规范为纯字符串 —— 后端期望 string
-function toPromptString(x) {
-  if (x == null) return '';
-  if (typeof x === 'string') return x.trim();
-  if (typeof x.text === 'string') return x.text.trim();
-  if (typeof x.prompt === 'string') return x.prompt.trim();
-  // 带 preset/aspect 的对象，折叠成一句话，避免把对象直接发给后端
-  if (x.preset && x.aspect) return `${x.preset} (aspect ${x.aspect})`;
-  if (x.preset) return String(x.preset);
-  try { return JSON.stringify(x); } catch { return String(x); }
+function toPromptString(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value.text === 'string') return value.text.trim();
+  if (typeof value.prompt === 'string') return value.prompt.trim();
+  if (typeof value.positive === 'string') return value.positive.trim();
+  if (typeof value.preset === 'string' && typeof value.aspect === 'string') {
+    const preset = value.preset.trim();
+    const aspect = value.aspect.trim();
+    if (preset && aspect) return `${preset} (aspect ${aspect})`;
+  }
+  if (typeof value.preset === 'string') return value.preset.trim();
+  try {
+    return JSON.stringify(value);
+  } catch (error) {
+    console.warn('[toPromptString] fallback stringify failed', error);
+    return String(value);
+  }
 }
-// ------- 新增小工具：把 PromptInspector 的状态统一成字符串 -------
-function buildPromptBundleStrings(promptManager) {
-  // 优先使用 Inspector 的 buildRequest()
-  const req = typeof promptManager?.buildRequest === 'function'
-    ? (promptManager.buildRequest() || {})
-    : {};
-  const raw = req.prompts || {}; // 可能是对象/字符串混合
-  const toStr = (v) => {
-    if (v == null) return '';
-    if (typeof v === 'string') return v.trim();
-    if (typeof v.text === 'string') return v.text.trim();
-    if (typeof v.prompt === 'string') return v.prompt.trim();
-    if (v.preset && v.aspect) return `${v.preset} (aspect ${v.aspect})`;
-    if (v.preset) return String(v.preset);
-    try { return JSON.stringify(v); } catch { return String(v); }
-  };
+
+function buildPromptBundleStrings(prompts = {}) {
   return {
-    scenario: toStr(raw.scenario),
-    product:  toStr(raw.product),
-    gallery:  toStr(raw.gallery),
+    scenario: toPromptString(prompts.scenario),
+    product: toPromptString(prompts.product),
+    gallery: toPromptString(prompts.gallery),
   };
-}
-
-// ------- 新增小工具：从「字符串版」快速构造「字典版」 -------
-function bundleStringsToDict(bundleStr) {
-  const dict = {};
-  ['scenario', 'product', 'gallery'].forEach((k) => {
-    const v = bundleStr?.[k] || '';
-    dict[k] = { positive: v || '' }; // 最稳妥：只给正向描述，其他字段后端默认
-  });
-  return dict;
-}
-
-// ------- 新增小工具：根据 422 文案判断是否需要回退 -------
-function looksLikePromptConfigExpected(err) {
-  const msg = (err && (err.message || err.detail || '')) + '';
-  // 后端常见文案关键字
-  return /PromptSlotConfig|valid dictionary|input_type=dict/i.test(msg);
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
@@ -3082,47 +3091,44 @@ async function triggerGeneration(opts) {
     }),
   };
 
-  // 4) Prompt 组装 —— “结构化对象”是后端现在需要的格式
+  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
-  if (forceVariants) reqFromInspector.variants = forceVariants;
+  if (forceVariants != null) reqFromInspector.variants = forceVariants;
 
-  const normSlot = (v) => {
-    // 允许三种输入：对象 / 字符串 / 空
-    if (!v) return null;
-    if (typeof v === 'string') {
-      const s = v.trim();
-      return s ? { preset: null, positive: s, negative: null, aspect: null } : null;
-    }
-    // 对象：只拣标准字段，其他全部抛弃
-    return {
-      preset:   (typeof v.preset   === 'string' && v.preset.trim())   ? v.preset.trim()   : null,
-      positive: (typeof v.positive === 'string' && v.positive.trim()) ? v.positive.trim() : null,
-      negative: (typeof v.negative === 'string' && v.negative.trim()) ? v.negative.trim() : null,
-      aspect:   (typeof v.aspect   === 'string' && v.aspect.trim())   ? v.aspect.trim()   : null,
-    };
-  };
+  const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
 
-  const structuredPrompts = {
-    scenario: normSlot(reqFromInspector.prompts?.scenario),
-    product : normSlot(reqFromInspector.prompts?.product),
-    gallery : normSlot(reqFromInspector.prompts?.gallery),
-  };
-
-  let requestPayload = {
+  const requestBase = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
-    prompts: structuredPrompts, // ← 关键：对象！
   };
 
+  const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
+
+  const posterSummary = {
+    template_id: posterPayload.template_id,
+    scenario_mode: posterPayload.scenario_mode,
+    product_mode: posterPayload.product_mode,
+    feature_count: Array.isArray(posterPayload.features) ? posterPayload.features.length : 0,
+    gallery_count: Array.isArray(posterPayload.gallery_items) ? posterPayload.gallery_items.length : 0,
+  };
+  console.info('[triggerGeneration] prepared payload', {
+    apiCandidates,
+    poster: posterSummary,
+    prompt_bundle: payload.prompt_bundle,
+    variants: payload.variants,
+    seed: payload.seed,
+    lock_seed: payload.lock_seed,
+  });
+
   // 面板同步
-  updatePromptPanels?.({ bundle: requestPayload.prompts });
+  updatePromptPanels?.({ bundle: payload.prompt_bundle });
 
   // 5) 体积守护
-  const raw1 = JSON.stringify(requestPayload);
-  try { validatePayloadSize(raw1); } catch (e) {
+  const rawPayload = JSON.stringify(payload);
+  try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
@@ -3143,34 +3149,45 @@ async function triggerGeneration(opts) {
 
   // 7) 发送（健康探测 + 重试）
   await warmUp(apiCandidates);
-  let res;
-  try {
-    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 1, raw1);
-  } catch (err) {
-    // 如果后端是“旧版字符串格式”，会报 422，堆栈里常见 string_type/PromptSlotConfig 关键字
-    const msg = String(err?.message || '');
-    const mayNeedString = /422|Unprocessable|string_type|PromptSlotConfig/i.test(msg);
-    if (!mayNeedString) throw err;
 
-    // 回退：把 prompts 转成字符串再试一次
-    const toStringPrompts = (p) => ({
-      scenario: p.scenario ? (p.scenario.positive || p.scenario.preset || '') : '',
-      product : p.product  ? (p.product.positive  || p.product.preset  || '') : '',
-      gallery : p.gallery  ? (p.gallery.positive  || p.gallery.preset  || '') : '',
-    });
-    requestPayload = { ...requestPayload, prompts: toStringPrompts(structuredPrompts) };
-    const raw2 = JSON.stringify(requestPayload);
-    validatePayloadSize(raw2);
-    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 0, raw2);
+  let response;
+  try {
+    response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+  } catch (error) {
+    console.error('[generatePoster] prompt_bundle 请求失败', error);
+    setStatus(statusElement, error?.message || '生成失败', 'error');
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    return null;
   }
 
-  const data = await res.json();
+  let rawText = '';
+  let data;
+  try {
+    rawText = await response.text();
+    console.debug('[triggerGeneration] raw response', rawText);
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (error) {
+    console.error('[triggerGeneration] failed to parse response JSON', error, { raw: rawText });
+    setStatus(statusElement, '返回结果无法解析，请检查后端日志。', 'error');
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    return null;
+  }
+
+  console.info('[triggerGeneration] success', {
+    hasPoster: Boolean(data?.poster_image),
+    variants: Array.isArray(data?.variants) ? data.variants.length : 0,
+    seed: data?.seed ?? null,
+    lock_seed: data?.lock_seed ?? null,
+  });
 
   // …这里沿用你原来的渲染/保存逻辑（保存到 sessionStorage、variants 展示、按钮状态恢复等）
   // 例如：
   // await saveStage2Result(data);
   // setStatus(statusElement, '已生成！可继续下一步。', 'success');
   // ...
+  return data;
 }
 
 
