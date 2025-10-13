@@ -4,6 +4,17 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, constr
 
+try:  # pragma: no cover - available only on Pydantic v2
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover
+    ConfigDict = None  # type: ignore
+
+try:  # pragma: no cover - prefer Pydantic v2 APIs when available
+    from pydantic import model_validator
+except ImportError:  # pragma: no cover - fall back to v1 root validators
+    model_validator = None  # type: ignore
+    from pydantic import root_validator
+
 # ---- Pydantic v1/v2 兼容导入 -------------------------------------------------
 try:  # Pydantic v2
     from pydantic import field_validator  # type: ignore
@@ -178,6 +189,22 @@ def _normalise_aspect(value: Any, slot: str) -> Aspect:
     return PROMPT_SLOT_DEFAULT_ASPECT[slot]
 
 
+Aspect = Literal["1:1", "4:5", "4:3"]
+
+
+def _strip_optional_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _strip_required_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 class PromptSlotConfig(BaseModel):
     """统一的 prompt 槽结构（v1/v2 兼容校验器）"""
 
@@ -265,6 +292,73 @@ def _coerce_prompt_slot(value: Any, slot_name: str) -> PromptSlotConfig:
         positive=str(value).strip(),
         aspect=PROMPT_SLOT_DEFAULT_ASPECT[slot_name],
     )
+
+    @classmethod
+    def _normalise_payload(cls, value: Any) -> Any:
+        if isinstance(value, cls):
+            return value.model_dump(exclude_unset=False)
+
+        if value is None:
+            return {}
+
+        if isinstance(value, str):
+            text = value.strip()
+            return {"prompt": text}
+
+        if hasattr(value, "model_dump"):
+            value = value.model_dump(exclude_none=True)
+        elif hasattr(value, "dict"):
+            value = value.dict(exclude_none=True)
+
+        if isinstance(value, dict):
+            data = dict(value)
+            if "positive" in data and "prompt" not in data:
+                data["prompt"] = data.pop("positive")
+            if "negative" in data and "negative_prompt" not in data:
+                data["negative_prompt"] = data.pop("negative")
+            if "aspect_ratio" in data and "aspect" not in data:
+                data["aspect"] = data.pop("aspect_ratio")
+            return data
+
+        return value
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="before")
+        def _coerce_values(cls, values: Any) -> Any:
+            return cls._normalise_payload(values)
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=True)
+        def _coerce_values(cls, values: Any) -> Any:
+            return cls._normalise_payload(values)
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="after")
+        def _trim_strings(self) -> "PromptSlotConfig":
+            self.preset = _strip_optional_text(self.preset)
+            self.prompt = _strip_required_text(self.prompt)
+            self.negative_prompt = _strip_required_text(self.negative_prompt)
+            return self
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator
+        def _clean_fields(cls, values: dict[str, Any]) -> dict[str, Any]:
+            values = dict(values)
+            values["preset"] = _strip_optional_text(values.get("preset"))
+            values["prompt"] = _strip_required_text(values.get("prompt"))
+            values["negative_prompt"] = _strip_required_text(values.get("negative_prompt"))
+            return values
+
+    if ConfigDict:  # pragma: no cover - executed on Pydantic v2
+        model_config = ConfigDict(extra="ignore")
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        class Config:  # type: ignore[override]
+            extra = "ignore"
 
 
 class PromptBundle(BaseModel):
