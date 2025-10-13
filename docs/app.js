@@ -3013,7 +3013,7 @@ function looksLikePromptConfigExpected(err) {
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
-async function triggerGeneration(opts = {}) {
+async function triggerGeneration(opts) {
   const {
     stage1Data,
     statusElement,
@@ -3095,43 +3095,18 @@ async function triggerGeneration(opts = {}) {
     }),
   };
 
-  // 4) Prompt 组装 —— 将每个槽位规范为纯字符串（只取正向提示或常见字段），不要传 {preset, aspect} 等对象
+  // 4) Prompt 组装 —— “结构化对象”是后端现在需要的格式
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants) reqFromInspector.variants = forceVariants;
 
-  const slotToString = (v) => {
-    if (v == null) return null;
-    if (typeof v === 'string') {
-      const s = v.trim();
-      return s ? s : null;
-    }
-    if (typeof v.positive === 'string' && v.positive.trim()) return v.positive.trim();
-    if (typeof v.text === 'string' && v.text.trim()) return v.text.trim();
-    if (typeof v.prompt === 'string' && v.prompt.trim()) return v.prompt.trim();
-    // fallback: if preset+aspect exists, produce a readable string; otherwise stringify
-    if (v.preset && v.aspect) return `${String(v.preset)} (aspect ${String(v.aspect)})`;
-    if (v.preset) return String(v.preset);
-    try {
-      const j = JSON.stringify(v);
-      return j === '{}' ? null : j;
-    } catch {
-      return String(v);
-    }
-  };
-
-  const prompt_strings = {
-    scenario: slotToString(reqFromInspector.prompts?.scenario),
-    product:  slotToString(reqFromInspector.prompts?.product),
-    gallery:  slotToString(reqFromInspector.prompts?.gallery),
-  };
-
-  // 为了兼容原来的面板更新接口，仍把结构化对象传给内部面板（如果需要）
-  const normSlotForPanel = (v) => {
+  const normSlot = (v) => {
+    // 允许三种输入：对象 / 字符串 / 空
     if (!v) return null;
     if (typeof v === 'string') {
       const s = v.trim();
       return s ? { preset: null, positive: s, negative: null, aspect: null } : null;
     }
+    // 对象：只拣标准字段，其他全部抛弃
     return {
       preset:   (typeof v.preset   === 'string' && v.preset.trim())   ? v.preset.trim()   : null,
       positive: (typeof v.positive === 'string' && v.positive.trim()) ? v.positive.trim() : null,
@@ -3140,24 +3115,23 @@ async function triggerGeneration(opts = {}) {
     };
   };
 
-  const structuredPromptsForPanel = {
-    scenario: normSlotForPanel(reqFromInspector.prompts?.scenario),
-    product:  normSlotForPanel(reqFromInspector.prompts?.product),
-    gallery:  normSlotForPanel(reqFromInspector.prompts?.gallery),
+  const structuredPrompts = {
+    scenario: normSlot(reqFromInspector.prompts?.scenario),
+    product:  normSlot(reqFromInspector.prompts?.product),
+    gallery:  normSlot(reqFromInspector.prompts?.gallery),
   };
 
-  // requestPayload 保留原先结构化 prompts 字段以便后端内部需要，但我们同时传入 prompt_bundle（纯字符串）
   let requestPayload = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
-    prompts: structuredPromptsForPanel, // 供内部逻辑/面板使用
+    prompts: structuredPrompts, // ← 关键：对象！
   };
 
-  // 面板同步（保持 UI 展示结构化面板），同时显示纯字符串 bundle（如果需要）
-  updatePromptPanels?.({ bundle: requestPayload.prompts, bundleStrings: prompt_strings });
+  // 面板同步
+  updatePromptPanels?.({ bundle: requestPayload.prompts });
 
   // 5) 体积守护
   const raw1 = JSON.stringify(requestPayload);
@@ -3168,66 +3142,6 @@ async function triggerGeneration(opts = {}) {
     return null;
   }
 
-  // 6) 构造最终出站数据：保留结构化 prompts，同时附带 prompt_bundle（只含字符串）
-  const outbound = {
-    ...requestPayload,
-    prompt_bundle: prompt_strings,
-  };
-
-  // 7) 最终体积校验（包含 prompt_bundle）
-  const rawFinal = JSON.stringify(outbound);
-  try {
-    validatePayloadSize(rawFinal);
-  } catch (e) {
-    setStatus(statusElement, e.message, 'error');
-    return null;
-  }
-
-  // 8) 发送请求（使用 MPoster.postJsonWithRetry 优先）
-  try {
-    setStatus(statusElement, '正在生成海报，请稍候...', 'info');
-
-    const apiBase = apiCandidates.join(',');
-    let res;
-    if (window.MPoster && typeof window.MPoster.postJsonWithRetry === 'function') {
-      res = await window.MPoster.postJsonWithRetry(apiBase, '/api/generate-poster', outbound, 1);
-    } else {
-      const url = `${apiCandidates[0].replace(/\/$/, '')}/api/generate-poster`;
-      res = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(outbound),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-    }
-
-    const data = await res.json();
-
-    // 成功处理：渲染返回结果
-    setStatus(statusElement, '海报生成完成', 'success');
-    if (typeof applyGeneratedPosterToUI === 'function') {
-      applyGeneratedPosterToUI(data, {
-        posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
-        posterVisual, posterImage, variantsStrip,
-        promptGroup, emailGroup, promptTextarea, emailTextarea,
-        generateButton, regenerateButton, nextButton,
-      });
-    } else {
-      console.debug('generate-poster response', data);
-    }
-
-    return data;
-  } catch (err) {
-    console.error('triggerGeneration error', err);
-    setStatus(statusElement, `生成失败：${err.message || String(err)}`, 'error');
-    return null;
-  }
 
   // 6) UI 状态
   generateButton.disabled = true;
