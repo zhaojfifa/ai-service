@@ -2962,56 +2962,60 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
 // ……前文保持不变
 
-// 统一把各种“对象形态”的 prompt 收敛为字符串
-// 把各种对象/结构的 prompt 规范为纯字符串 —— 后端期望 string
-function toPromptString(x) {
-  if (x == null) return '';
-  if (typeof x === 'string') return x.trim();
-  if (typeof x.text === 'string') return x.text.trim();
-  if (typeof x.prompt === 'string') return x.prompt.trim();
-  // 带 preset/aspect 的对象，折叠成一句话，避免把对象直接发给后端
-  if (x.preset && x.aspect) return `${x.preset} (aspect ${x.aspect})`;
-  if (x.preset) return String(x.preset);
-  try { return JSON.stringify(x); } catch { return String(x); }
-}
-// ------- 新增小工具：把 PromptInspector 的状态统一成字符串 -------
-function buildPromptBundleStrings(promptManager) {
-  // 优先使用 Inspector 的 buildRequest()
-  const req = typeof promptManager?.buildRequest === 'function'
-    ? (promptManager.buildRequest() || {})
-    : {};
-  const raw = req.prompts || {}; // 可能是对象/字符串混合
-  const toStr = (v) => {
-    if (v == null) return '';
-    if (typeof v === 'string') return v.trim();
-    if (typeof v.text === 'string') return v.text.trim();
-    if (typeof v.prompt === 'string') return v.prompt.trim();
-    if (v.preset && v.aspect) return `${v.preset} (aspect ${v.aspect})`;
-    if (v.preset) return String(v.preset);
-    try { return JSON.stringify(v); } catch { return String(v); }
-  };
+const PROMPT_SLOT_ASPECT_DEFAULTS = {
+  scenario: '1:1',
+  product: '4:5',
+  gallery: '4:3',
+};
+
+const PROMPT_ASPECT_OPTIONS = new Set(['1:1', '4:5', '4:3']);
+
+function normalisePromptSlotConfig(value, slot) {
+  const aspectFallback = PROMPT_SLOT_ASPECT_DEFAULTS[slot] || '1:1';
+
+  if (!value) {
+    return {
+      preset: null,
+      aspect: aspectFallback,
+      prompt: '',
+      negative_prompt: '',
+    };
+  }
+
+  if (typeof value === 'string') {
+    return {
+      preset: null,
+      aspect: aspectFallback,
+      prompt: value.trim(),
+      negative_prompt: '',
+    };
+  }
+
+  const presetRaw = typeof value.preset === 'string' ? value.preset.trim() : '';
+  const promptRaw =
+    typeof value.prompt === 'string'
+      ? value.prompt
+      : typeof value.positive === 'string'
+        ? value.positive
+        : typeof value.text === 'string'
+          ? value.text
+          : '';
+  const negativeRaw =
+    typeof value.negative_prompt === 'string'
+      ? value.negative_prompt
+      : typeof value.negative === 'string'
+        ? value.negative
+        : '';
+  const aspectRaw = typeof value.aspect === 'string' ? value.aspect.trim() : '';
+
+  const aspect = PROMPT_ASPECT_OPTIONS.has(aspectRaw) ? aspectRaw : aspectFallback;
+
   return {
-    scenario: toStr(raw.scenario),
-    product:  toStr(raw.product),
-    gallery:  toStr(raw.gallery),
+    preset: presetRaw ? presetRaw : null,
+    aspect,
+    prompt: (promptRaw || '').trim(),
+    negative_prompt: (negativeRaw || '').trim(),
   };
-}
-
-// ------- 新增小工具：从「字符串版」快速构造「字典版」 -------
-function bundleStringsToDict(bundleStr) {
-  const dict = {};
-  ['scenario', 'product', 'gallery'].forEach((k) => {
-    const v = bundleStr?.[k] || '';
-    dict[k] = { positive: v || '' }; // 最稳妥：只给正向描述，其他字段后端默认
-  });
-  return dict;
-}
-
-// ------- 新增小工具：根据 422 文案判断是否需要回退 -------
-function looksLikePromptConfigExpected(err) {
-  const msg = (err && (err.message || err.detail || '')) + '';
-  // 后端常见文案关键字
-  return /PromptSlotConfig|valid dictionary|input_type=dict/i.test(msg);
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
@@ -3086,26 +3090,10 @@ async function triggerGeneration(opts) {
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants) reqFromInspector.variants = forceVariants;
 
-  const normSlot = (v) => {
-    // 允许三种输入：对象 / 字符串 / 空
-    if (!v) return null;
-    if (typeof v === 'string') {
-      const s = v.trim();
-      return s ? { preset: null, positive: s, negative: null, aspect: null } : null;
-    }
-    // 对象：只拣标准字段，其他全部抛弃
-    return {
-      preset:   (typeof v.preset   === 'string' && v.preset.trim())   ? v.preset.trim()   : null,
-      positive: (typeof v.positive === 'string' && v.positive.trim()) ? v.positive.trim() : null,
-      negative: (typeof v.negative === 'string' && v.negative.trim()) ? v.negative.trim() : null,
-      aspect:   (typeof v.aspect   === 'string' && v.aspect.trim())   ? v.aspect.trim()   : null,
-    };
-  };
-
   const structuredPrompts = {
-    scenario: normSlot(reqFromInspector.prompts?.scenario),
-    product : normSlot(reqFromInspector.prompts?.product),
-    gallery : normSlot(reqFromInspector.prompts?.gallery),
+    scenario: normalisePromptSlotConfig(reqFromInspector.prompts?.scenario, 'scenario'),
+    product: normalisePromptSlotConfig(reqFromInspector.prompts?.product, 'product'),
+    gallery: normalisePromptSlotConfig(reqFromInspector.prompts?.gallery, 'gallery'),
   };
 
   let requestPayload = {
@@ -3114,11 +3102,11 @@ async function triggerGeneration(opts) {
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
-    prompts: structuredPrompts, // ← 关键：对象！
+    prompt_bundle: structuredPrompts, // ← 关键：对象！
   };
 
   // 面板同步
-  updatePromptPanels?.({ bundle: requestPayload.prompts });
+  updatePromptPanels?.({ bundle: requestPayload.prompt_bundle });
 
   // 5) 体积守护
   const raw1 = JSON.stringify(requestPayload);
