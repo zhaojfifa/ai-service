@@ -494,9 +494,11 @@ async function r2PresignPut(folder, file, bases) {
     content_type: file?.type || 'application/octet-stream',
     size: typeof file?.size === 'number' ? file.size : null,
   };
-  const response = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, 1);
-  return response.json();
+  // postJsonWithRetry 已返回 JSON，这里不要再 .json()
+  const resp = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, 1);
+  return resp; // { key, put_url, public_url }
 }
+
 
 async function uploadFileToR2(folder, file, options = {}) {
   try {
