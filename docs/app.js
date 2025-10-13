@@ -307,6 +307,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   let lastErr = null;
 
   for (let attempt = 0; attempt <= retry; attempt += 1) {
+    // ！！！这里以前写成了 tryOrder，导致未定义
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
@@ -344,6 +345,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           error.requestBody = bodyRaw;
           throw error;
         }
+        // 兼容占位缓存：存在才更新，避免 _healthCache 未定义再报错
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
         return res;
       } catch (e) {
@@ -360,6 +362,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       }
     }
 
+    // 整轮失败后：热身 + 等待 + 重选
     try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
     await new Promise(r => setTimeout(r, 800));
     base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
@@ -3108,21 +3111,7 @@ async function triggerGeneration(opts) {
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
 
-  const normSlot = (v) => {
-    // 允许三种输入：对象 / 字符串 / 空
-    if (!v) return null;
-    if (typeof v === 'string') {
-      const s = v.trim();
-      return s ? { preset: null, positive: s, negative: null, aspect: null } : null;
-    }
-    // 对象：只拣标准字段，其他全部抛弃
-    return {
-      preset:   (typeof v.preset   === 'string' && v.preset.trim())   ? v.preset.trim()   : null,
-      positive: (typeof v.positive === 'string' && v.positive.trim()) ? v.positive.trim() : null,
-      negative: (typeof v.negative === 'string' && v.negative.trim()) ? v.negative.trim() : null,
-      aspect:   (typeof v.aspect   === 'string' && v.aspect.trim())   ? v.aspect.trim()   : null,
-    };
-  };
+  const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
 
   const structuredPrompts = {
     scenario: normSlot(reqFromInspector.prompts?.scenario),
@@ -3130,7 +3119,7 @@ async function triggerGeneration(opts) {
     gallery:  normSlot(reqFromInspector.prompts?.gallery),
   };
 
-  const requestBase = {
+  let requestPayload = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
