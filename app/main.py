@@ -230,7 +230,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
 
-@app.post("/api/generate-poster", response_model=GeneratePosterResponse)
+@router.post("/api/generate-poster", response_model=GeneratePosterResponse)
 async def generate_poster(request: Request) -> GeneratePosterResponse:
     try:
         raw_payload = await read_json_relaxed(request)
@@ -259,12 +259,17 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
             },
         )
+
         poster = payload.poster
         preview = render_layout_preview(poster)
+
+        # 构建 prompt
         prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
+
+        # 生成主图与变体
         result = generate_poster_asset(
             poster,
             prompt_text,
@@ -276,7 +281,10 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             seed=payload.seed,
             lock_seed=payload.lock_seed,
         )
+
         email_body = compose_marketing_email(poster, result.poster.filename)
+
+        # 转换 prompt_bundle 以便回传
         response_bundle: PromptBundle | None = None
         if prompt_bundle:
             converted: dict[str, Any] = {}
@@ -286,15 +294,15 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 converted[slot] = {
                     "preset": config.get("preset"),
                     "aspect": config.get("aspect"),
-                    "prompt": config.get("positive") or "",
-                    "negative_prompt": config.get("negative") or "",
+                    "positive": config.get("positive") or "",
+                    "negative": config.get("negative") or "",
                 }
             if converted:
                 if hasattr(PromptBundle, "model_validate"):
                     response_bundle = PromptBundle.model_validate(converted)
                 elif hasattr(PromptBundle, "parse_obj"):
                     response_bundle = PromptBundle.parse_obj(converted)
-                else:  # pragma: no cover - legacy Pydantic fallback
+                else:  # fallback
                     response_bundle = PromptBundle(**converted)
 
         logger.info(
@@ -312,19 +320,23 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 ),
             },
         )
+
+        # 返回时保持变量不变，优先用转换后的 response_bundle，否则直接回传请求里的
         return GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
             prompt_details=prompt_details,
-            prompt_bundle=response_bundle,
+            prompt_bundle=response_bundle or payload.prompt_bundle,
+            images=[getattr(result.poster, "url", None)] if hasattr(result.poster, "url") else [],
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,
             lock_seed=result.lock_seed,
         )
-    except Exception as exc:  # pragma: no cover - defensive logging
+
+    except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
