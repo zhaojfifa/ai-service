@@ -126,6 +126,81 @@ def _model_validate(model, data):
     return model(**data)
 
 
+def _preview_json(value: Any, limit: int = 512) -> str:
+    try:
+        text = json.dumps(value, ensure_ascii=False)
+    except Exception:  # pragma: no cover - defensive fallback
+        text = str(value)
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit]}…(+{len(text) - limit} chars)"
+
+
+def _summarise_prompt_bundle(bundle: PromptBundle | None) -> dict[str, Any]:
+    if not bundle:
+        return {}
+
+    if isinstance(bundle, PromptBundle):
+        data = bundle.model_dump(exclude_none=False)
+    elif hasattr(bundle, "model_dump"):
+        data = bundle.model_dump(exclude_none=False)
+    elif hasattr(bundle, "dict"):
+        data = bundle.dict(exclude_none=False)
+    elif isinstance(bundle, dict):
+        data = bundle
+    else:
+        return {}
+
+    summary: dict[str, Any] = {}
+    for slot in ("scenario", "product", "gallery"):
+        config = data.get(slot)
+        if not config:
+            continue
+
+        if isinstance(config, dict):
+            preset = config.get("preset")
+            aspect = config.get("aspect")
+            prompt = config.get("prompt") or ""
+            negative = config.get("negative_prompt") or ""
+        else:
+            preset = getattr(config, "preset", None)
+            aspect = getattr(config, "aspect", None)
+            prompt = getattr(config, "prompt", "") or ""
+            negative = getattr(config, "negative_prompt", "") or ""
+
+        summary[slot] = {
+            "preset": preset,
+            "aspect": aspect,
+            "prompt_len": len(str(prompt)),
+            "negative_len": len(str(negative)),
+        }
+
+    return summary
+
+
+def _summarise_poster(poster: Any) -> dict[str, Any]:
+    if poster is None:
+        return {}
+
+    try:
+        features = [item for item in getattr(poster, "features", []) if item]
+    except Exception:  # pragma: no cover - defensive fallback
+        features = []
+
+    try:
+        gallery_items = [item for item in getattr(poster, "gallery_items", []) if item]
+    except Exception:  # pragma: no cover - defensive fallback
+        gallery_items = []
+
+    return {
+        "template_id": getattr(poster, "template_id", None),
+        "scenario_mode": getattr(poster, "scenario_mode", None),
+        "product_mode": getattr(poster, "product_mode", None),
+        "feature_count": len(features),
+        "gallery_count": len(gallery_items),
+    }
+
+
 async def read_json_relaxed(request: Request) -> dict:
     try:
         payload = await request.json()
@@ -159,15 +234,31 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 async def generate_poster(request: Request) -> GeneratePosterResponse:
     try:
         raw_payload = await read_json_relaxed(request)
+        logger.info(
+            "generate_poster request received: %s",
+            _preview_json(raw_payload, limit=768),
+        )
         payload = _model_validate(GeneratePosterRequest, raw_payload)
     except ValidationError as exc:
+        logger.warning("generate_poster validation error: %s", exc.errors())
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except HTTPException:
         raise
     except Exception as exc:
+        logger.exception("generate_poster payload parsing failed")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
+        logger.info(
+            "generate_poster normalised payload: %s",
+            {
+                "poster": _summarise_poster(payload.poster),
+                "variants": payload.variants,
+                "seed": payload.seed,
+                "lock_seed": payload.lock_seed,
+                "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
+            },
+        )
         poster = payload.poster
         preview = render_layout_preview(poster)
         prompt_payload = _model_dump(payload.prompt_bundle)
@@ -206,6 +297,21 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 else:  # pragma: no cover - legacy Pydantic fallback
                     response_bundle = PromptBundle(**converted)
 
+        logger.info(
+            "generate_poster completed: %s",
+            {
+                "response": {
+                    "poster_filename": getattr(result.poster, "filename", None),
+                    "variant_count": len(result.variants or []),
+                    "has_scores": bool(result.scores),
+                    "seed": result.seed,
+                    "lock_seed": result.lock_seed,
+                },
+                "prompt_bundle": _summarise_prompt_bundle(
+                    response_bundle or payload.prompt_bundle
+                ),
+            },
+        )
         return GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,

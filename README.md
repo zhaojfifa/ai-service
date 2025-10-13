@@ -97,24 +97,34 @@ uvicorn app.main:app --reload
 
 ## 同步 GitHub 与 Codex 的 `main` 分支
 
-当项目同时托管在 GitHub 与 Codex 时，推荐使用 `scripts/check_main_sync.sh` 脚本确保两边的 `main` 分支保持一致：
+当项目同时托管在 GitHub 与 Codex 时，可使用 `scripts/check_main_sync.sh` 与 `scripts/sync_main.sh` 两个脚本确保 `main` 分支始终同步：
 
 ```bash
 # 1. 如仓库尚未配置远程地址，可先添加：
 git remote add origin <github 仓库地址>
 git remote add codex <codex 仓库地址>
 
-# 2. 执行同步检测
-scripts/check_main_sync.sh
+# 2. 执行同步检测或同步
+scripts/check_main_sync.sh        # 仅检测差异
+scripts/sync_main.sh --push       # 将本地/远端同步到指定来源（默认 origin）
 ```
 
-脚本会分别获取 `origin/main` 与 `codex/main` 的最新提交并对比：
+`check_main_sync.sh` 会分别获取 `origin/main` 与 `codex/main` 的最新提交并对比：
 
 - 若缺少任一远程，会给出示例命令提示先完成配置；
 - 若提交哈希一致，会输出“Remotes are in sync”；
 - 若不一致，则打印双方的最新哈希，便于你决定在哪一侧进行 fast-forward、合并或重新推送。
 
-在完成合并后，可再次运行脚本验证同步状态，然后使用 `git push origin main` 与 `git push codex main` 将最新结果分别推送到两个远端。
+`sync_main.sh` 在默认情况下会以 GitHub 上的 `origin/main` 作为权威来源：
+
+- 首先抓取两个远端的 `main` 提交并将本地 `main` 指向权威远端；
+- 若另一个远端落后，会提示需要执行的 `git push` 命令，传入 `--push` 参数可让脚本代为推送；
+- 可以通过 `--source codex` 改为以 Codex 为权威来源；
+- 如果两个远端出现分叉，脚本会中止并提示手动合并，避免误覆盖提交。
+
+在完成同步后，可再次运行 `check_main_sync.sh` 验证状态，然后根据提示执行 `git push origin main` 与 `git push codex main`。
+
+> 在受限网络（如沙箱环境）中运行脚本时，若看到 `CONNECT tunnel failed` 之类的报错，说明无法直接访问 GitHub。此时可改用 SSH 远端、配置 `HTTPS_PROXY/ALL_PROXY`，或在本地环境执行同步操作。
 
 ## 模板资源解码
 
