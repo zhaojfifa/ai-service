@@ -3117,7 +3117,7 @@ async function triggerGeneration(opts = {}) {
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants) reqFromInspector.variants = forceVariants;
 
-  const structuredPrompts = {
+  const promptBundle = {
     scenario: normalisePromptSlotConfig(reqFromInspector.prompts?.scenario, 'scenario'),
     product: normalisePromptSlotConfig(reqFromInspector.prompts?.product, 'product'),
     gallery: normalisePromptSlotConfig(reqFromInspector.prompts?.gallery, 'gallery'),
@@ -3130,7 +3130,7 @@ async function triggerGeneration(opts = {}) {
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
-    prompt_bundle: structuredPrompts, // ← 关键：对象！
+    prompt_bundle: promptBundle,
   };
 
   // 面板同步
