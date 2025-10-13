@@ -319,32 +319,31 @@ function validatePayloadSize(raw) {
 
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
+// 发送请求：始终 JSON/UTF-8，支持多基址与重试
 async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
-  // 规范化候选基址
+  // 1) 规范化候选基址
   const bases = (window.resolveApiBases?.(apiBaseOrBases))
     ?? (Array.isArray(apiBaseOrBases) ? apiBaseOrBases
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
-  // 组包（外部已给字符串就不再二次 JSON.stringify）
+  // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
   const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
 
   const logPrefix = `[postJsonWithRetry] ${path}`;
   const previewSnippet = (() => {
     if (typeof bodyRaw !== 'string') return '';
     const limit = 512;
-    if (bodyRaw.length <= limit) return bodyRaw;
-    return `${bodyRaw.slice(0, limit)}…(+${bodyRaw.length - limit} chars)`;
+    return bodyRaw.length <= limit ? bodyRaw : `${bodyRaw.slice(0, limit)}…(+${bodyRaw.length - limit} chars)`;
   })();
 
-  // 粗略体积 & dataURL 防御
-  if (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000) {
+  // 3) 粗略体积 & dataURL 防御
+  if (typeof bodyRaw === 'string' && (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000)) {
     throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传 key/url。');
   }
 
-  // 先挑健康基址，失败就先用第一个
+  // 4) 选择健康基址
   let base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
-
   const urlFor = (b) => `${String(b).replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
   let lastErr = null;
 
@@ -354,6 +353,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
     for (const b of order) {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
+      const url = urlFor(b);                               // ← 定义 url
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -364,36 +364,20 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           body: bodyRaw,
           signal: ctrl.signal,
         });
+
         console.info(`${logPrefix} -> ${url}`, {
           attempt: attempt + 1,
           candidateIndex: order.indexOf(b),
-          bodyBytes: bodyRaw.length,
-          bodyPreview: previewSnippet,
+          bodyBytes: typeof bodyRaw === 'string' ? bodyRaw.length : 0,
           status: res.status,
         });
-        console.info(`${logPrefix} -> ${url}`, {
-          attempt: attempt + 1,
-          candidateIndex: order.indexOf(b),
-          bodyBytes: bodyRaw.length,
-          bodyPreview: previewSnippet,
-          status: res.status,
-        });
-        console.info(`${logPrefix} -> ${url}`, {
-          attempt: attempt + 1,
-          candidateIndex: order.indexOf(b),
-          bodyBytes: bodyRaw.length,
-          bodyPreview: previewSnippet,
-          status: res.status,
-        });
+
+        const text = await res.text();
+        let json = null;
+        try { json = text ? JSON.parse(text) : null; } catch { /* 非 JSON */ }
+
         if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          let json = null;
-          if (text) {
-            try { json = JSON.parse(text); } catch {}
-          }
-          const detail = (json && (json.detail || json.message))
-            || text
-            || `HTTP ${res.status}`;
+          const detail = (json && (json.detail || json.message)) || text || `HTTP ${res.status}`;
           const error = new Error(detail);
           error.status = res.status;
           error.responseText = text;
@@ -402,8 +386,9 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           error.requestBody = bodyRaw;
           throw error;
         }
+
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
-        return await res.json(); // 保持旧版语义：直接返回 JSON
+        return json ?? {}; // 保持旧版语义：返回 JSON 对象
       } catch (e) {
         console.warn(`${logPrefix} failed`, {
           attempt: attempt + 1,
