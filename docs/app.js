@@ -18,8 +18,6 @@ function healthPathsFor(base) {
   return ['/api/health', '/health'];
 }
 // ===== 共享：模板资源助手（全局唯一出口） =====
-const App = (window.App ??= {});
-App.utils = App.utils ?? {};
 
 /** 从 templates/registry.json 读取模板清单（带缓存） */
 App.utils.loadTemplateRegistry = (() => {
@@ -44,7 +42,7 @@ App.utils.loadTemplateRegistry = (() => {
 /** 按模板 id 返回 { entry, spec, image }（带缓存） */
 App.utils.ensureTemplateAssets = (() => {
   const _cache = new Map();
-  return async function App.utils.ensureTemplateAssets(templateId) {
+  return async function ensureTemplateAssets(templateId) {
     if (_cache.has(templateId)) return _cache.get(templateId);
 
     const registry = await App.utils.loadTemplateRegistry();
@@ -3026,13 +3024,26 @@ function buildPromptBundleStrings(prompts = {}) {
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts) {
   const {
-    stage1Data, statusElement,
-    posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
-    posterVisual, posterImage, variantsStrip,
-    promptGroup, emailGroup, promptTextarea, emailTextarea,
-    generateButton, regenerateButton, nextButton,
-    promptManager, updatePromptPanels,
-    forceVariants = null, abTest = false,
+    stage1Data,
+    statusElement,
+    posterOutput,
+    aiPreview,
+    aiSpinner,
+    aiPreviewMessage,
+    posterVisual,
+    posterImage,
+    variantsStrip,
+    promptGroup,
+    emailGroup,
+    promptTextarea,
+    emailTextarea,
+    generateButton,
+    regenerateButton,
+    nextButton,
+    promptManager,
+    updatePromptPanels,
+    forceVariants = null,
+    abTest = false,
   } = opts;
 
   // 1) 选可用 API 基址
@@ -3048,7 +3059,7 @@ async function triggerGeneration(opts) {
   // 3) 主体 poster（关键：只把 key 传给后端；dataUrl 仅在 key 不存在时才传）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset  || null;
+  const pd = stage1Data.product_asset || null;
 
   const posterPayload = {
     brand_name: stage1Data.brand_name,
@@ -3071,9 +3082,11 @@ async function triggerGeneration(opts) {
     product_asset: (!pd?.r2Key && pd?.dataUrl?.startsWith('data:')) ? pd.dataUrl : null,
 
     scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-      : null,
+    scenario_prompt:
+      (stage1Data.scenario_mode === 'prompt')
+        ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
+        : null,
+
     product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
 
@@ -3095,7 +3108,27 @@ async function triggerGeneration(opts) {
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
 
-  const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
+  const normSlot = (v) => {
+    // 允许三种输入：对象 / 字符串 / 空
+    if (!v) return null;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      return s ? { preset: null, positive: s, negative: null, aspect: null } : null;
+    }
+    // 对象：只拣标准字段，其他全部抛弃
+    return {
+      preset:   (typeof v.preset   === 'string' && v.preset.trim())   ? v.preset.trim()   : null,
+      positive: (typeof v.positive === 'string' && v.positive.trim()) ? v.positive.trim() : null,
+      negative: (typeof v.negative === 'string' && v.negative.trim()) ? v.negative.trim() : null,
+      aspect:   (typeof v.aspect   === 'string' && v.aspect.trim())   ? v.aspect.trim()   : null,
+    };
+  };
+
+  const structuredPrompts = {
+    scenario: normSlot(reqFromInspector.prompts?.scenario),
+    product:  normSlot(reqFromInspector.prompts?.product),
+    gallery:  normSlot(reqFromInspector.prompts?.gallery),
+  };
 
   const requestBase = {
     poster: posterPayload,
@@ -3127,11 +3160,14 @@ async function triggerGeneration(opts) {
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
 
   // 5) 体积守护
-  const rawPayload = JSON.stringify(payload);
-  try { validatePayloadSize(rawPayload); } catch (e) {
+  const raw1 = JSON.stringify(requestPayload);
+  try {
+    validatePayloadSize(raw1);
+  } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
+
 
   // 6) UI 状态
   generateButton.disabled = true;

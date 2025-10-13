@@ -428,4 +428,3 @@ class SendEmailRequest(BaseModel):
 class SendEmailResponse(BaseModel):
     status: Literal["sent", "skipped"]
     detail: str
-

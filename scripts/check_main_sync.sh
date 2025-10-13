@@ -9,20 +9,6 @@ function remote_exists() {
   git remote get-url "$1" >/dev/null 2>&1
 }
 
-function fetch_branch() {
-  local remote="$1"
-  local branch="$2"
-  if ! output=$(git fetch "$remote" "$branch" 2>&1); then
-    echo "Failed to fetch $remote/$branch" >&2
-    if [[ "$output" == *"CONNECT tunnel failed"* ]]; then
-      echo "It looks like the environment blocked outbound HTTPS traffic (CONNECT tunnel failed)." >&2
-      echo "Try configuring HTTPS_PROXY/ALL_PROXY or use a GitHub token/SSH remote before retrying." >&2
-    fi
-    echo "$output" >&2
-    exit 1
-  fi
-}
-
 missing=()
 if ! remote_exists "$REMOTE_ORIGIN"; then
   missing+=("$REMOTE_ORIGIN")
@@ -39,15 +25,13 @@ if (( ${#missing[@]} > 0 )); then
   exit 1
 fi
 
-fetch_branch "$REMOTE_ORIGIN" "$BRANCH"
-fetch_branch "$REMOTE_CODEX" "$BRANCH"
-
-if ! git rev-parse --verify --quiet "$REMOTE_ORIGIN/$BRANCH"; then
-  echo "Remote $REMOTE_ORIGIN does not have branch $BRANCH" >&2
+# Fetch latest refs without merging
+if ! git fetch "$REMOTE_ORIGIN" "$BRANCH"; then
+  echo "Failed to fetch $REMOTE_ORIGIN/$BRANCH" >&2
   exit 1
 fi
-if ! git rev-parse --verify --quiet "$REMOTE_CODEX/$BRANCH"; then
-  echo "Remote $REMOTE_CODEX does not have branch $BRANCH" >&2
+if ! git fetch "$REMOTE_CODEX" "$BRANCH"; then
+  echo "Failed to fetch $REMOTE_CODEX/$BRANCH" >&2
   exit 1
 fi
 

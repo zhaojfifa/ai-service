@@ -3027,13 +3027,26 @@ function buildPromptBundleStrings(prompts = {}) {
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts) {
   const {
-    stage1Data, statusElement,
-    posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
-    posterVisual, posterImage, variantsStrip,
-    promptGroup, emailGroup, promptTextarea, emailTextarea,
-    generateButton, regenerateButton, nextButton,
-    promptManager, updatePromptPanels,
-    forceVariants = null, abTest = false,
+    stage1Data,
+    statusElement,
+    posterOutput,
+    aiPreview,
+    aiSpinner,
+    aiPreviewMessage,
+    posterVisual,
+    posterImage,
+    variantsStrip,
+    promptGroup,
+    emailGroup,
+    promptTextarea,
+    emailTextarea,
+    generateButton,
+    regenerateButton,
+    nextButton,
+    promptManager,
+    updatePromptPanels,
+    forceVariants = null,
+    abTest = false,
   } = opts;
 
   // 1) 选可用 API 基址
@@ -3049,7 +3062,7 @@ async function triggerGeneration(opts) {
   // 3) 主体 poster（关键：只把 key 传给后端；dataUrl 仅在 key 不存在时才传）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset  || null;
+  const pd = stage1Data.product_asset || null;
 
   const posterPayload = {
     brand_name: stage1Data.brand_name,
@@ -3072,9 +3085,11 @@ async function triggerGeneration(opts) {
     product_asset: (!pd?.r2Key && pd?.dataUrl?.startsWith('data:')) ? pd.dataUrl : null,
 
     scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-      : null,
+    scenario_prompt:
+      (stage1Data.scenario_mode === 'prompt')
+        ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
+        : null,
+
     product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
 
@@ -3098,7 +3113,13 @@ async function triggerGeneration(opts) {
 
   const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
 
-  const requestBase = {
+  const structuredPrompts = {
+    scenario: normSlot(reqFromInspector.prompts?.scenario),
+    product:  normSlot(reqFromInspector.prompts?.product),
+    gallery:  normSlot(reqFromInspector.prompts?.gallery),
+  };
+
+  let requestPayload = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
@@ -3128,11 +3149,14 @@ async function triggerGeneration(opts) {
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
 
   // 5) 体积守护
-  const rawPayload = JSON.stringify(payload);
-  try { validatePayloadSize(rawPayload); } catch (e) {
+  const raw1 = JSON.stringify(requestPayload);
+  try {
+    validatePayloadSize(raw1);
+  } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
+
 
   // 6) UI 状态
   generateButton.disabled = true;
