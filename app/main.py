@@ -230,7 +230,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
 
-@app.post("/api/generate-poster", response_model=GeneratePosterResponse)
+@router.post("/api/generate-poster", response_model=GeneratePosterResponse)
 async def generate_poster(request: Request) -> GeneratePosterResponse:
     try:
         raw_payload = await read_json_relaxed(request)
@@ -265,6 +265,8 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
+
+        # 生成主图与变体
         result = generate_poster_asset(
             poster,
             prompt_text,
@@ -276,7 +278,10 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             seed=payload.seed,
             lock_seed=payload.lock_seed,
         )
+
         email_body = compose_marketing_email(poster, result.poster.filename)
+
+        # 转换 prompt_bundle 以便回传
         response_bundle: PromptBundle | None = None
         if prompt_bundle:
             converted: dict[str, Any] = {}
@@ -318,13 +323,15 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             email_body=email_body,
             poster_image=result.poster,
             prompt_details=prompt_details,
-            prompt_bundle=response_bundle,
+            prompt_bundle=response_bundle or payload.prompt_bundle,
+            images=[getattr(result.poster, "url", None)] if hasattr(result.poster, "url") else [],
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,
             lock_seed=result.lock_seed,
         )
-    except Exception as exc:  # pragma: no cover - defensive logging
+
+    except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
