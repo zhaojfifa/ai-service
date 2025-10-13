@@ -3099,7 +3099,7 @@ async function triggerGeneration(opts = {}) {
     }),
   };
 
-  // 4) Prompt 组装 —— 优先发字符串，必要时再回退
+  // 4) Prompt 组装 —— 优先发送字符串，必要时再回退
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
 
