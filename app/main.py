@@ -238,7 +238,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
 
-@router.post("/api/generate-poster", response_model=GeneratePosterResponse)
+@app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 async def generate_poster(request: Request) -> GeneratePosterResponse:
     try:
         raw_payload = await read_json_relaxed(request)
