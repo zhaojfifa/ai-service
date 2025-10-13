@@ -4,13 +4,74 @@ import textwrap
 
 from typing import Any
 
-from app.schemas import PosterInput
+from app.schemas import PosterInput, PromptSlotConfig
 
 PROMPT_SLOT_LABELS = {
     "scenario": "场景背景",
     "product": "核心产品",
     "gallery": "底部系列小图",
 }
+
+
+def _normalise_prompt_config(config: Any) -> dict[str, Any] | None:
+    """Normalise legacy prompt payloads into a consistent dictionary."""
+
+    if config is None:
+        return None
+
+    if isinstance(config, PromptSlotConfig):
+        return config.model_dump(exclude_none=True)
+
+    if hasattr(config, "model_dump"):
+        config = config.model_dump(exclude_none=True)
+    elif hasattr(config, "dict"):
+        config = config.dict(exclude_none=True)
+
+    if isinstance(config, str):
+        text = config.strip()
+        if not text:
+            return None
+        return {
+            "preset": None,
+            "prompt": text,
+            "negative_prompt": None,
+            "aspect": None,
+        }
+
+    if isinstance(config, dict):
+        preset = (config.get("preset") or "").strip()
+        prompt_text = (
+            config.get("prompt")
+            or config.get("positive")
+            or config.get("text")
+            or ""
+        ).strip()
+        negative = (
+            config.get("negative_prompt")
+            or config.get("negative")
+            or ""
+        ).strip()
+        aspect = (config.get("aspect") or config.get("aspect_ratio") or "").strip()
+
+        if not any([preset, prompt_text, negative, aspect]):
+            return None
+
+        return {
+            "preset": preset or None,
+            "prompt": prompt_text or None,
+            "negative_prompt": negative or None,
+            "aspect": aspect or None,
+        }
+
+    text = str(config).strip()
+    if not text:
+        return None
+    return {
+        "preset": None,
+        "prompt": text,
+        "negative_prompt": None,
+        "aspect": None,
+    }
 
 
 def render_layout_preview(poster: PosterInput) -> str:
@@ -123,29 +184,31 @@ def build_glibatree_prompt(
     prompt_bundle: dict[str, Any] = {}
     if prompts:
         for slot, config in prompts.items():
-            if not isinstance(config, dict):
+            normalised = _normalise_prompt_config(config)
+            if not normalised:
                 continue
-            preset = (config.get("preset") or "").strip()
-            positive = (config.get("positive") or "").strip()
-            negative = (config.get("negative") or "").strip()
-            aspect = (config.get("aspect") or "").strip()
+
+            preset = normalised.get("preset") or ""
+            prompt_text = normalised.get("prompt") or normalised.get("positive") or ""
+            negative = (
+                normalised.get("negative_prompt")
+                or normalised.get("negative")
+                or ""
+            )
+            aspect = normalised.get("aspect") or ""
+
             lines = []
             if preset:
                 lines.append(f"Preset: {preset}")
             if aspect:
                 lines.append(f"Aspect: {aspect}")
-            if positive:
-                lines.append(f"Positive: {positive}")
+            if prompt_text:
+                lines.append(f"Prompt: {prompt_text}")
             if negative:
                 lines.append(f"Negative: {negative}")
             if lines:
                 prompt_details[slot] = "\n".join(lines)
-            prompt_bundle[slot] = {
-                "preset": preset or None,
-                "positive": positive or None,
-                "negative": negative or None,
-                "aspect": aspect or None,
-            }
+            prompt_bundle[slot] = normalised
 
     prompt = f"""
     You are an art director. You will receive a locked poster frame and a binary mask. Fill ONLY the transparent region of the mask. Do not modify or cover any existing pixels (logos, typography, callouts, product edges). Absolutely no new text or logos. No extra UI. Keep composition minimal and premium.
