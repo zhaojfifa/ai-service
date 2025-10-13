@@ -3002,20 +3002,6 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
-function bundleStringsToDict(bundle) {
-  const normalised = bundle || {};
-  return {
-    scenario: { positive: toPromptString(normalised.scenario) },
-    product: { positive: toPromptString(normalised.product) },
-    gallery: { positive: toPromptString(normalised.gallery) },
-  };
-}
-
-function looksLikePromptConfigExpected(error) {
-  const message = (error && (error.message || error.detail || error.responseText)) || '';
-  return /PromptSlotConfig|valid dictionary|prompt_bundle/i.test(String(message));
-}
-
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts = {}) {
   const {
@@ -3099,11 +3085,11 @@ async function triggerGeneration(opts = {}) {
     }),
   };
 
-  // 4) Prompt 组装 —— 优先发送字符串，必要时再回退
+  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
 
-  const promptStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
+  const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
 
   const requestBase = {
     poster: posterPayload,
@@ -3113,14 +3099,14 @@ async function triggerGeneration(opts = {}) {
     lock_seed: !!reqFromInspector.lockSeed,
   };
 
-  const payloadV1 = { ...requestBase, prompt_bundle: promptStrings };
+  const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
 
   // 面板同步
-  updatePromptPanels?.({ bundle: payloadV1.prompt_bundle });
+  updatePromptPanels?.({ bundle: payload.prompt_bundle });
 
   // 5) 体积守护
-  const raw1 = JSON.stringify(payloadV1);
-  try { validatePayloadSize(raw1); } catch (e) {
+  const rawPayload = JSON.stringify(payload);
+  try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
@@ -3205,34 +3191,13 @@ async function triggerGeneration(opts = {}) {
 
   let response;
   try {
-    response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payloadV1, 1, raw1);
-  } catch (errV1) {
-    console.error('[generatePoster] 字符串 prompt_bundle 请求失败', errV1);
-    if (!looksLikePromptConfigExpected(errV1)) {
-      setStatus(statusElement, errV1?.message || '生成失败', 'error');
-      generateButton.disabled = false;
-      if (regenerateButton) regenerateButton.disabled = false;
-      return null;
-    }
-
-    const payloadV2 = { ...requestBase, prompt_bundle: bundleStringsToDict(promptStrings) };
-    const raw2 = JSON.stringify(payloadV2);
-    try { validatePayloadSize(raw2); } catch (e) {
-      setStatus(statusElement, e.message, 'error');
-      generateButton.disabled = false;
-      if (regenerateButton) regenerateButton.disabled = false;
-      return null;
-    }
-
-    try {
-      response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payloadV2, 1, raw2);
-    } catch (errV2) {
-      console.error('[generatePoster] 字典 prompt_bundle 回退失败', errV2);
-      setStatus(statusElement, errV2?.message || '生成失败', 'error');
-      generateButton.disabled = false;
-      if (regenerateButton) regenerateButton.disabled = false;
-      return null;
-    }
+    response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+  } catch (error) {
+    console.error('[generatePoster] prompt_bundle 请求失败', error);
+    setStatus(statusElement, error?.message || '生成失败', 'error');
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    return null;
   }
 
   const data = await response.json();
