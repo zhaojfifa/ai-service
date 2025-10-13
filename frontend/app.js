@@ -303,8 +303,9 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
+      const url = urlFor(b);
       try {
-        const res = await fetch(urlFor(b), {
+        const res = await fetch(url, {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
@@ -314,7 +315,20 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         });
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          throw new Error(text || `HTTP ${res.status}`);
+          let json = null;
+          if (text) {
+            try { json = JSON.parse(text); } catch {}
+          }
+          const detail = (json && (json.detail || json.message))
+            || text
+            || `HTTP ${res.status}`;
+          const error = new Error(detail);
+          error.status = res.status;
+          error.responseText = text;
+          error.responseJson = json;
+          error.url = url;
+          error.requestBody = bodyRaw;
+          throw error;
         }
         // 兼容占位缓存：存在才更新，避免 _healthCache 未定义再报错
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
@@ -3249,21 +3263,12 @@ async function triggerGeneration(opts = {}) {
   try {
     res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 1, raw1);
   } catch (err) {
-    // 如果后端是“旧版字符串格式”，会报 422，堆栈里常见 string_type/PromptSlotConfig 关键字
-    const msg = String(err?.message || '');
-    const mayNeedString = /422|Unprocessable|string_type|PromptSlotConfig/i.test(msg);
-    if (!mayNeedString) throw err;
-
-    // 回退：把 prompts 转成字符串再试一次
-    const toStringPrompts = (p) => ({
-      scenario: p.scenario ? (p.scenario.positive || p.scenario.preset || '') : '',
-      product : p.product  ? (p.product.positive  || p.product.preset  || '') : '',
-      gallery : p.gallery  ? (p.gallery.positive  || p.gallery.preset  || '') : '',
+    console.error('[generatePoster] 请求失败', {
+      payload: requestPayload,
+      response: err?.responseJson ?? err?.responseText ?? err?.message,
+      status: err?.status ?? null,
     });
-    requestPayload = { ...requestPayload, prompts: toStringPrompts(structuredPrompts) };
-    const raw2 = JSON.stringify(requestPayload);
-    validatePayloadSize(raw2);
-    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 0, raw2);
+    throw err;
   }
 
   const data = await res.json();
