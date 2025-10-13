@@ -3113,11 +3113,7 @@ async function triggerGeneration(opts) {
 
   const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
 
-  const structuredPrompts = {
-    scenario: normSlot(reqFromInspector.prompts?.scenario),
-    product:  normSlot(reqFromInspector.prompts?.product),
-    gallery:  normSlot(reqFromInspector.prompts?.gallery),
-  };
+ 
 
   let requestPayload = {
     poster: posterPayload,
