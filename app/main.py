@@ -160,13 +160,21 @@ def _summarise_prompt_bundle(bundle: PromptBundle | None) -> dict[str, Any]:
         if isinstance(config, dict):
             preset = config.get("preset")
             aspect = config.get("aspect")
-            prompt = config.get("prompt") or ""
-            negative = config.get("negative_prompt") or ""
+            prompt = config.get("prompt") or config.get("positive") or ""
+            negative = (
+                config.get("negative_prompt")
+                or config.get("negative")
+                or ""
+            )
         else:
             preset = getattr(config, "preset", None)
             aspect = getattr(config, "aspect", None)
-            prompt = getattr(config, "prompt", "") or ""
-            negative = getattr(config, "negative_prompt", "") or ""
+            prompt = getattr(config, "prompt", "") or getattr(config, "positive", "") or ""
+            negative = (
+                getattr(config, "negative_prompt", "")
+                or getattr(config, "negative", "")
+                or ""
+            )
 
         summary[slot] = {
             "preset": preset,
@@ -280,8 +288,6 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
-
-        # 转换 prompt_bundle 以便回传
         response_bundle: PromptBundle | None = None
         if prompt_bundle:
             converted: dict[str, Any] = {}
@@ -291,8 +297,12 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 converted[slot] = {
                     "preset": config.get("preset"),
                     "aspect": config.get("aspect"),
-                    "prompt": config.get("positive") or "",
-                    "negative_prompt": config.get("negative") or "",
+                    "prompt": config.get("prompt")
+                    or config.get("positive")
+                    or "",
+                    "negative_prompt": config.get("negative_prompt")
+                    or config.get("negative")
+                    or "",
                 }
             if converted:
                 if hasattr(PromptBundle, "model_validate"):
@@ -323,8 +333,7 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             email_body=email_body,
             poster_image=result.poster,
             prompt_details=prompt_details,
-            prompt_bundle=response_bundle or payload.prompt_bundle,
-            images=[getattr(result.poster, "url", None)] if hasattr(result.poster, "url") else [],
+            prompt_bundle=response_bundle,
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,

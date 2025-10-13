@@ -352,8 +352,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
+      const url = urlFor(b);
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -363,6 +362,13 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           headers: { 'Content-Type': 'application/json; charset=UTF-8' },
           body: bodyRaw,
           signal: ctrl.signal,
+        });
+        console.info(`${logPrefix} -> ${url}`, {
+          attempt: attempt + 1,
+          candidateIndex: order.indexOf(b),
+          bodyBytes: bodyRaw.length,
+          bodyPreview: previewSnippet,
+          status: res.status,
         });
         console.info(`${logPrefix} -> ${url}`, {
           attempt: attempt + 1,
@@ -406,7 +412,6 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       }
     }
 
-    // 整轮失败后：热身 + 等待 + 重选
     try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
     await new Promise(r => setTimeout(r, 800));
     base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];

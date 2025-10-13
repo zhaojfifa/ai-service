@@ -371,6 +371,13 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           bodyPreview: previewSnippet,
           status: res.status,
         });
+        console.info(`${logPrefix} -> ${url}`, {
+          attempt: attempt + 1,
+          candidateIndex: order.indexOf(b),
+          bodyBytes: bodyRaw.length,
+          bodyPreview: previewSnippet,
+          status: res.status,
+        });
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           let json = null;

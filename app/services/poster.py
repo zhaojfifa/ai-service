@@ -4,7 +4,7 @@ import textwrap
 
 from typing import Any
 
-from app.schemas import PosterInput
+from app.schemas import PosterInput, PromptSlotConfig
 
 PROMPT_SLOT_LABELS = {
     "scenario": "场景背景",
@@ -19,6 +19,9 @@ def _normalise_prompt_config(config: Any) -> dict[str, Any] | None:
     if config is None:
         return None
 
+    if isinstance(config, PromptSlotConfig):
+        return config.model_dump(exclude_none=True)
+
     if hasattr(config, "model_dump"):
         config = config.model_dump(exclude_none=True)
     elif hasattr(config, "dict"):
@@ -30,33 +33,33 @@ def _normalise_prompt_config(config: Any) -> dict[str, Any] | None:
             return None
         return {
             "preset": None,
-            "positive": text,
-            "negative": None,
+            "prompt": text,
+            "negative_prompt": None,
             "aspect": None,
         }
 
     if isinstance(config, dict):
         preset = (config.get("preset") or "").strip()
-        positive = (
-            config.get("positive")
-            or config.get("prompt")
+        prompt_text = (
+            config.get("prompt")
+            or config.get("positive")
             or config.get("text")
             or ""
         ).strip()
         negative = (
-            config.get("negative")
-            or config.get("negative_prompt")
+            config.get("negative_prompt")
+            or config.get("negative")
             or ""
         ).strip()
         aspect = (config.get("aspect") or config.get("aspect_ratio") or "").strip()
 
-        if not any([preset, positive, negative, aspect]):
+        if not any([preset, prompt_text, negative, aspect]):
             return None
 
         return {
             "preset": preset or None,
-            "positive": positive or None,
-            "negative": negative or None,
+            "prompt": prompt_text or None,
+            "negative_prompt": negative or None,
             "aspect": aspect or None,
         }
 
@@ -65,8 +68,8 @@ def _normalise_prompt_config(config: Any) -> dict[str, Any] | None:
         return None
     return {
         "preset": None,
-        "positive": text,
-        "negative": None,
+        "prompt": text,
+        "negative_prompt": None,
         "aspect": None,
     }
 
@@ -186,8 +189,12 @@ def build_glibatree_prompt(
                 continue
 
             preset = normalised.get("preset") or ""
-            positive = normalised.get("positive") or ""
-            negative = normalised.get("negative") or ""
+            prompt_text = normalised.get("prompt") or normalised.get("positive") or ""
+            negative = (
+                normalised.get("negative_prompt")
+                or normalised.get("negative")
+                or ""
+            )
             aspect = normalised.get("aspect") or ""
 
             lines = []
@@ -195,8 +202,8 @@ def build_glibatree_prompt(
                 lines.append(f"Preset: {preset}")
             if aspect:
                 lines.append(f"Aspect: {aspect}")
-            if positive:
-                lines.append(f"Positive: {positive}")
+            if prompt_text:
+                lines.append(f"Prompt: {prompt_text}")
             if negative:
                 lines.append(f"Negative: {negative}")
             if lines:
