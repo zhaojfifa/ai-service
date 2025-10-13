@@ -287,14 +287,6 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   // 组包（外部已给字符串就不再二次 JSON.stringify）
   const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
 
-  const logPrefix = `[postJsonWithRetry] ${path}`;
-  const previewSnippet = (() => {
-    if (typeof bodyRaw !== 'string') return '';
-    const limit = 512;
-    if (bodyRaw.length <= limit) return bodyRaw;
-    return `${bodyRaw.slice(0, limit)}…(+${bodyRaw.length - limit} chars)`;
-  })();
-
   // 粗略体积 & dataURL 防御
   if (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000) {
     throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传 key/url。');
@@ -321,13 +313,6 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           headers: { 'Content-Type': 'application/json' },
           body: bodyRaw,
         });
-        console.info(`${logPrefix} -> ${url}`, {
-          attempt: attempt + 1,
-          candidateIndex: order.indexOf(b),
-          bodyBytes: bodyRaw.length,
-          bodyPreview: previewSnippet,
-          status: res.status,
-        });
         if (!res.ok) {
           const text = await res.text().catch(() => '');
           let json = null;
@@ -349,13 +334,6 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
         return res;
       } catch (e) {
-        console.warn(`${logPrefix} failed`, {
-          attempt: attempt + 1,
-          url,
-          message: e?.message,
-          status: e?.status,
-          bodyPreview: previewSnippet,
-        });
         lastErr = e;
         if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
         base = null; // 该轮失败，下一轮重新挑
@@ -3025,7 +3003,7 @@ function buildPromptBundleStrings(prompts = {}) {
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
-async function triggerGeneration(opts) {
+async function triggerGeneration(opts = {}) {
   const {
     stage1Data,
     statusElement,
@@ -3113,9 +3091,7 @@ async function triggerGeneration(opts) {
 
   const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
 
- 
-
-  let requestPayload = {
+  const requestBase = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
@@ -3125,34 +3101,76 @@ async function triggerGeneration(opts) {
 
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
 
-  const posterSummary = {
-    template_id: posterPayload.template_id,
-    scenario_mode: posterPayload.scenario_mode,
-    product_mode: posterPayload.product_mode,
-    feature_count: Array.isArray(posterPayload.features) ? posterPayload.features.length : 0,
-    gallery_count: Array.isArray(posterPayload.gallery_items) ? posterPayload.gallery_items.length : 0,
-  };
-  console.info('[triggerGeneration] prepared payload', {
-    apiCandidates,
-    poster: posterSummary,
-    prompt_bundle: payload.prompt_bundle,
-    variants: payload.variants,
-    seed: payload.seed,
-    lock_seed: payload.lock_seed,
-  });
-
   // 面板同步
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
 
   // 5) 体积守护
-  const raw1 = JSON.stringify(requestPayload);
+  const rawPayload = JSON.stringify(payload);
+  try { validatePayloadSize(rawPayload); } catch (e) {
+    setStatus(statusElement, e.message, 'error');
+    return null;
+  }
+
+  // 6) 构造最终出站数据：保留结构化 prompts，同时附带 prompt_bundle（只含字符串）
+  const outbound = {
+    ...requestPayload,
+    prompt_bundle: prompt_strings,
+  };
+
+  // 7) 最终体积校验（包含 prompt_bundle）
+  const rawFinal = JSON.stringify(outbound);
   try {
-    validatePayloadSize(raw1);
+    validatePayloadSize(rawFinal);
   } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
 
+  // 8) 发送请求（使用 MPoster.postJsonWithRetry 优先）
+  try {
+    setStatus(statusElement, '正在生成海报，请稍候...', 'info');
+
+    const apiBase = apiCandidates.join(',');
+    let res;
+    if (window.MPoster && typeof window.MPoster.postJsonWithRetry === 'function') {
+      res = await window.MPoster.postJsonWithRetry(apiBase, '/api/generate-poster', outbound, 1);
+    } else {
+      const url = `${apiCandidates[0].replace(/\/$/, '')}/api/generate-poster`;
+      res = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outbound),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+    }
+
+    const data = await res.json();
+
+    // 成功处理：渲染返回结果
+    setStatus(statusElement, '海报生成完成', 'success');
+    if (typeof applyGeneratedPosterToUI === 'function') {
+      applyGeneratedPosterToUI(data, {
+        posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
+        posterVisual, posterImage, variantsStrip,
+        promptGroup, emailGroup, promptTextarea, emailTextarea,
+        generateButton, regenerateButton, nextButton,
+      });
+    } else {
+      console.debug('generate-poster response', data);
+    }
+
+    return data;
+  } catch (err) {
+    console.error('triggerGeneration error', err);
+    setStatus(statusElement, `生成失败：${err.message || String(err)}`, 'error');
+    return null;
+  }
 
   // 6) UI 状态
   generateButton.disabled = true;
@@ -3182,26 +3200,7 @@ async function triggerGeneration(opts) {
     return null;
   }
 
-  let rawText = '';
-  let data;
-  try {
-    rawText = await response.text();
-    console.debug('[triggerGeneration] raw response', rawText);
-    data = rawText ? JSON.parse(rawText) : {};
-  } catch (error) {
-    console.error('[triggerGeneration] failed to parse response JSON', error, { raw: rawText });
-    setStatus(statusElement, '返回结果无法解析，请检查后端日志。', 'error');
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    return null;
-  }
-
-  console.info('[triggerGeneration] success', {
-    hasPoster: Boolean(data?.poster_image),
-    variants: Array.isArray(data?.variants) ? data.variants.length : 0,
-    seed: data?.seed ?? null,
-    lock_seed: data?.lock_seed ?? null,
-  });
+  const data = await response.json();
 
   // …这里沿用你原来的渲染/保存逻辑（保存到 sessionStorage、variants 展示、按钮状态恢复等）
   // 例如：
