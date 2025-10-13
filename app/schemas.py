@@ -244,10 +244,10 @@ def _coerce_prompt_slot(value: Any, slot: str) -> "PromptSlotConfig":
 
 
 class PromptSlotConfig(BaseModel):
-    preset: Optional[str] = None
-    aspect: Aspect
-    prompt: str = ""
-    negative_prompt: str = ""
+    preset: Optional[str] = None          # 可选预设
+    positive: str = ""                    # 正向提示词
+    negative: str = ""                    # 反向提示词（原 negative_prompt）
+    aspect: Aspect = "1:1"                # 画幅比例，默认 1:1
 
     @field_validator("preset", mode="before")
     @classmethod
@@ -280,10 +280,32 @@ def _default_gallery_slot() -> PromptSlotConfig:
     return PromptSlotConfig(aspect=PROMPT_SLOT_DEFAULT_ASPECT["gallery"])
 
 
+# 默认工厂函数
+def _default_scenario_slot() -> "PromptSlotConfig":
+    return PromptSlotConfig()
+
+def _default_product_slot() -> "PromptSlotConfig":
+    return PromptSlotConfig()
+
+def _default_gallery_slot() -> "PromptSlotConfig":
+    return PromptSlotConfig()
+
+# 通用的 slot 归一化函数
+def _coerce_prompt_slot(value: Any, slot_name: str) -> "PromptSlotConfig":
+    if isinstance(value, PromptSlotConfig):
+        return value
+    if isinstance(value, dict):
+        return PromptSlotConfig(**value)
+    if isinstance(value, str):
+        # 如果传的是字符串，默认放到 positive 字段
+        return PromptSlotConfig(positive=value.strip())
+    # 其他情况：直接构造一个默认
+    return PromptSlotConfig()
+
 class PromptBundle(BaseModel):
     scenario: PromptSlotConfig = Field(default_factory=_default_scenario_slot)
-    product: PromptSlotConfig = Field(default_factory=_default_product_slot)
-    gallery: PromptSlotConfig = Field(default_factory=_default_gallery_slot)
+    product:  PromptSlotConfig = Field(default_factory=_default_product_slot)
+    gallery:  PromptSlotConfig = Field(default_factory=_default_gallery_slot)
 
     @field_validator("scenario", mode="before")
     @classmethod
@@ -300,7 +322,7 @@ class PromptBundle(BaseModel):
     def _coerce_gallery(cls, value: Any) -> PromptSlotConfig:
         return _coerce_prompt_slot(value, "gallery")
 
-    class Config:  # pragma: no cover - compatibility shim
+    class Config:  # 兼容性设置
         extra = "ignore"
 
 
@@ -328,22 +350,34 @@ class R2PresignPutResponse(BaseModel):
 
 class GeneratePosterRequest(BaseModel):
     poster: PosterInput
+
     render_mode: Literal["locked", "hybrid", "free"] = "locked"
-    variants: int = Field(1, ge=1, le=3)
+
+    variants: int = Field(
+        1, ge=1, le=3,
+        description="Number of variants to generate (1–3)."
+    )
+
     seed: Optional[int] = Field(
         None,
         ge=0,
         description="Optional seed value used when invoking the image backend.",
     )
+
     lock_seed: bool = Field(
-        False, description="Whether the provided seed should be respected across runs."
+        False,
+        description="Whether the provided seed should be respected across runs."
     )
+
     prompt_bundle: PromptBundle = Field(
         default_factory=PromptBundle,
         description="Structured prompt overrides for each template slot.",
     )
 
-    if model_validator:  # pragma: no cover - executed only on Pydantic v2
+    # 兼容旧字段名 "prompts"
+    if "model_validator" in globals():  # pragma: no cover - Pydantic v2
+        from pydantic import model_validator
+
         @model_validator(mode="before")
         @classmethod
         def _prompts_alias(cls, data: Any) -> Any:
@@ -351,7 +385,7 @@ class GeneratePosterRequest(BaseModel):
                 data = dict(data)
                 data["prompt_bundle"] = data.pop("prompts")
             return data
-    else:  # pragma: no cover - executed only on Pydantic v1
+    else:  # pragma: no cover - Pydantic v1
         @root_validator(pre=True)
         def _prompts_alias(cls, values: dict[str, Any]) -> dict[str, Any]:
             if "prompt_bundle" not in values and "prompts" in values:
@@ -364,13 +398,19 @@ class GeneratePosterResponse(BaseModel):
     """Aggregated response after preparing all marketing assets."""
 
     layout_preview: str
+
+    # 新增的详细字段
     prompt: str
     email_body: str
-    poster_image: PosterImage
+    poster_image: "PosterImage"
+
     prompt_details: dict[str, str] | None = Field(
-        None, description="Per-slot prompt summary returned by the backend."
+        None,
+        description="Per-slot prompt summary returned by the backend."
     )
-    prompt_bundle: PromptBundle | None = Field(
+
+    # prompt_bundle：结构化对象，可选
+    prompt_bundle: "PromptBundle" | None = Field(
         None,
         description=(
             "Optional combined prompt bundle for inspector display. When provided "
@@ -378,16 +418,33 @@ class GeneratePosterResponse(BaseModel):
             "objects so the UI can repopulate the inspector overrides."
         ),
     )
-    variants: list[PosterImage] = Field(
+
+    # 兼容最初的 images 列表（例如直接返回图片 URL）
+    images: list[str] = Field(
         default_factory=list,
-        description="Optional collection of variant posters for A/B comparison.",
+        description="Optional list of image URLs (legacy/simple mode)."
     )
+
+    # 变体集合
+    variants: list["PosterImage"] = Field(
+        default_factory=list,
+        description="Optional collection of variant posters for A/B comparison."
+    )
+
+    # 可选评分
     scores: dict[str, float] | None = Field(
-        None, description="Optional quality metrics calculated for the generated poster."
+        None,
+        description="Optional quality metrics calculated for the generated poster."
     )
-    seed: Optional[int] = Field(None, description="Seed echoed back from the backend.")
+
+    # 随机种子与锁定标志
+    seed: Optional[int] = Field(
+        None,
+        description="Seed echoed back from the backend."
+    )
     lock_seed: Optional[bool] = Field(
-        None, description="Whether the backend honoured the locked seed request."
+        None,
+        description="Whether the backend honoured the locked seed request."
     )
 
     @field_validator("prompt_bundle", mode="before")
