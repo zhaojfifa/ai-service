@@ -95,6 +95,27 @@ uvicorn app.main:app --reload
 
 > 如需在本地调试，可直接通过 `file://` 打开 `frontend/index.html` 或使用任意静态服务器（例如 `python -m http.server`）。
 
+## 同步 GitHub 与 Codex 的 `main` 分支
+
+当项目同时托管在 GitHub 与 Codex 时，推荐使用 `scripts/check_main_sync.sh` 脚本确保两边的 `main` 分支保持一致：
+
+```bash
+# 1. 如仓库尚未配置远程地址，可先添加：
+git remote add origin <github 仓库地址>
+git remote add codex <codex 仓库地址>
+
+# 2. 执行同步检测
+scripts/check_main_sync.sh
+```
+
+脚本会分别获取 `origin/main` 与 `codex/main` 的最新提交并对比：
+
+- 若缺少任一远程，会给出示例命令提示先完成配置；
+- 若提交哈希一致，会输出“Remotes are in sync”；
+- 若不一致，则打印双方的最新哈希，便于你决定在哪一侧进行 fast-forward、合并或重新推送。
+
+在完成合并后，可再次运行脚本验证同步状态，然后使用 `git push origin main` 与 `git push codex main` 将最新结果分别推送到两个远端。
+
 ## 模板资源解码
 
 由于 GitHub 不再直接存储二进制模板图片，`frontend/templates/` 中的 `*.b64` 文件保存了 Base64 文本。需要在本地或流水线中执行
