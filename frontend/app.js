@@ -416,6 +416,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
 
 App.utils.postJsonWithRetry = postJsonWithRetry;
 
+
 const STORAGE_KEYS = {
   apiBase: 'marketing-poster-api-base',
   stage1: 'marketing-poster-stage1-data',
@@ -487,16 +488,33 @@ function assignPosterImage(element, image, altText) {
   return true;
 }
 
-async function r2PresignPut(folder, file, bases) {
+// 预签名上传：向后端申请 R2 PUT 地址，返回 {key, put_url, public_url}
+async function r2PresignPut(folder, file, bases, options = {}) {
+  if (!file) throw new Error('没有可上传的文件');
+  const contentType = file.type || 'application/octet-stream';
+  const size = (typeof file.size === 'number') ? file.size : null;
+
   const payload = {
     folder: folder || 'uploads',
-    filename: file?.name || 'upload.bin',
-    content_type: file?.type || 'application/octet-stream',
-    size: typeof file?.size === 'number' ? file.size : null,
+    filename: file.name || 'upload.bin',
+    content_type: contentType,
+    size,
   };
-  // postJsonWithRetry 已返回 JSON，这里不要再 .json()
-  const resp = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, 1);
-  return resp; // { key, put_url, public_url }
+
+  // postJsonWithRetry 可能返回 JSON 或 Response，这里两种都兼容
+  const resp = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, options.retry ?? 1);
+  const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+  // 基本字段校验
+  if (!data || typeof data !== 'object') {
+    throw new Error('预签名接口返回异常：不是 JSON 对象');
+  }
+  const { key, put_url: putUrl, public_url: publicUrl } = data;
+  if (!key || !putUrl) {
+    throw new Error('预签名接口缺少必要字段（key 或 put_url）');
+  }
+
+  return { key, put_url: putUrl, public_url: publicUrl, content_type: contentType, size };
 }
 
 
@@ -3090,7 +3108,7 @@ async function triggerGeneration(opts) {
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
 
-  // 3) 主体 poster（关键：只把 key 传给后端；dataUrl 仅在 key 不存在时才传）
+  // 3) 主体 poster（只把 key 传给后端；没有 key 才发 dataUrl）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
   const pd = stage1Data.product_asset  || null;
@@ -3108,7 +3126,6 @@ async function triggerGeneration(opts) {
 
     brand_logo: stage1Data.brand_logo?.dataUrl || null, // logo 允许内嵌（小图）
 
-    // 场景/产品图：优先走 R2 key；没有 key 再给 dataUrl（小心体积）
     scenario_key: sc?.r2Key || null,
     scenario_asset: (!sc?.r2Key && sc?.dataUrl?.startsWith('data:')) ? sc.dataUrl : null,
 
@@ -3180,31 +3197,44 @@ async function triggerGeneration(opts) {
 
   // 6) UI 状态
   generateButton.disabled = true;
-  regenerateButton && (regenerateButton.disabled = true);
+  if (regenerateButton) regenerateButton.disabled = true;
   setStatus(statusElement, abTest ? '正在进行 A/B 提示词生成…' : '正在生成海报与文案…', 'info');
   posterOutput?.classList.remove('hidden');
-  aiPreview && aiPreview.classList.remove('complete');
-  aiSpinner && aiSpinner.classList.remove('hidden');
-  aiPreviewMessage && (aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…');
-  posterVisual && posterVisual.classList.add('hidden');
-  promptGroup && promptGroup.classList.add('hidden');
-  emailGroup && emailGroup.classList.add('hidden');
-  nextButton && (nextButton.disabled = true);
-  variantsStrip && (variantsStrip.innerHTML = '', variantsStrip.classList.add('hidden'));
+  if (aiPreview) aiPreview.classList.remove('complete');
+  if (aiSpinner) aiSpinner.classList.remove('hidden');
+  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
+  if (posterVisual) posterVisual.classList.add('hidden');
+  if (promptGroup) promptGroup.classList.add('hidden');
+  if (emailGroup) emailGroup.classList.add('hidden');
+  if (nextButton) nextButton.disabled = true;
+  if (variantsStrip) { variantsStrip.innerHTML = ''; variantsStrip.classList.add('hidden'); }
 
   // 7) 发送（健康探测 + 重试）
   await warmUp(apiCandidates);
 
-  let response;
   try {
-    response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+    // ✅ 正确调用：用 apiCandidates / payload / rawPayload
+    const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+
+    // 兼容两种返回形态：Response 或已解析 JSON
+    const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+    // 后续处理（这里仅返回，外层按原有流程渲染）
+    setStatus(statusElement, '生成完成', 'success');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (nextButton) nextButton.disabled = false;
+
+    return data;
   } catch (error) {
-    console.error('[generatePoster] prompt_bundle 请求失败', error);
+    console.error('[generatePoster] 请求失败', error);
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     return null;
   }
+}
+
 
   let rawText = '';
   let data;
