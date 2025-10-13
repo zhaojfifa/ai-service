@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, EmailStr, Field, constr
-from typing import List, Literal, Optional
+try:  # pragma: no cover - fallback for Pydantic v1 deployments
+    from pydantic import field_validator
+except ImportError:  # pragma: no cover
+    from pydantic import validator as field_validator
+from typing import Any, Literal, Optional
 
 
 class PosterGalleryItem(BaseModel):
@@ -41,7 +45,9 @@ class PosterInput(BaseModel):
         description="Identifier of the locked layout template to use when rendering.",
     )
     features: list[constr(strip_whitespace=True, min_length=1)] = Field(
-        ..., min_items=3, max_items=4
+        ...,
+        min_length=3,
+        max_length=4,
     )
     title: constr(strip_whitespace=True, min_length=1)
     series_description: constr(strip_whitespace=True, min_length=1)
@@ -68,7 +74,7 @@ class PosterInput(BaseModel):
     )
     gallery_items: list[PosterGalleryItem] = Field(
         default_factory=list,
-        max_items=4,
+        max_length=4,
         description="Bottom gallery entries paired with captions for the series strip.",
     )
     gallery_label: Optional[str] = Field(
@@ -125,25 +131,62 @@ class PosterImage(BaseModel):
     height: int = Field(..., gt=0)
 
 
-class PromptSlotConfig(BaseModel):
-    preset: Optional[str] = Field(
-        None, description="Identifier of the preset chosen in the inspector"
-    )
-    positive: Optional[str] = Field(
-        None, description="Positive prompt text provided by the inspector"
-    )
-    negative: Optional[str] = Field(
-        None, description="Negative prompt text provided by the inspector"
-    )
-    aspect: Optional[str] = Field(
-        None, description="Aspect ratio guidance associated with the slot"
-    )
+def _coerce_prompt_text(value: Any) -> str | None:
+    """Convert rich prompt slot payloads into trimmed strings.
+
+    The legacy UI used to send dictionaries shaped like ``PromptSlotConfig``
+    while the backend schema expected bare strings. Render still runs that
+    schema, so we need to collapse any structured payloads into a single
+    positive prompt string.
+    """
+
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+
+    # PromptSlotConfig-like objects expose the fields as attributes.
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(exclude_none=True)
+    elif hasattr(value, "dict"):
+        value = value.dict(exclude_none=True)
+
+    if isinstance(value, dict):
+        positive = value.get("positive") or value.get("prompt") or value.get("text")
+        preset = value.get("preset")
+        aspect = value.get("aspect")
+        parts: list[str] = []
+
+        if isinstance(positive, str) and positive.strip():
+            parts.append(positive.strip())
+        if isinstance(preset, str) and preset.strip():
+            parts.append(f"Preset: {preset.strip()}")
+        if isinstance(aspect, str) and aspect.strip():
+            parts.append(f"Aspect: {aspect.strip()}")
+
+        if parts:
+            return " | ".join(parts)
+
+    try:
+        text = str(value)
+    except Exception:  # pragma: no cover - defensive fallback
+        return None
+
+    stripped = text.strip()
+    return stripped or None
 
 
 class PromptBundle(BaseModel):
-    scenario: Optional[PromptSlotConfig] = None
-    product: Optional[PromptSlotConfig] = None
-    gallery: Optional[PromptSlotConfig] = None
+    scenario: Optional[str] = None
+    product: Optional[str] = None
+    gallery: Optional[str] = None
+
+    @field_validator("scenario", "product", "gallery", mode="before")
+    @classmethod
+    def _normalise_slot(cls, value: Any) -> str | None:
+        return _coerce_prompt_text(value)
 
 
 class R2PresignPutRequest(BaseModel):
@@ -196,8 +239,13 @@ class GeneratePosterResponse(BaseModel):
     prompt_details: dict[str, str] | None = Field(
         None, description="Per-slot prompt summary returned by the backend."
     )
-    prompt_bundle: dict[str, str] | None = Field(
-        None, description="Optional combined prompt bundle for inspector display."
+    prompt_bundle: PromptBundle | None = Field(
+        None,
+        description=(
+            "Optional combined prompt bundle for inspector display. When provided "
+            "it mirrors the PromptBundle schema so the UI can repopulate the "
+            "inspector overrides."
+        ),
     )
     variants: list[PosterImage] = Field(
         default_factory=list,
@@ -210,6 +258,27 @@ class GeneratePosterResponse(BaseModel):
     lock_seed: Optional[bool] = Field(
         None, description="Whether the backend honoured the locked seed request."
     )
+
+    @field_validator("prompt_bundle", mode="before")
+    @classmethod
+    def _coerce_prompt_bundle(
+        cls, value: PromptBundle | dict[str, Any] | None
+    ) -> PromptBundle | None:
+        """Normalise prompt bundles coming from external services."""
+
+        if value is None or isinstance(value, PromptBundle):
+            return value
+
+        if isinstance(value, dict):
+            if hasattr(PromptBundle, "model_validate"):
+                return PromptBundle.model_validate(value)
+            if hasattr(PromptBundle, "parse_obj"):
+                return PromptBundle.parse_obj(value)
+            return PromptBundle(**value)
+
+        raise TypeError(
+            "prompt_bundle must be a PromptBundle, dictionary, or None"
+        )
 
 
 class SendEmailRequest(BaseModel):
