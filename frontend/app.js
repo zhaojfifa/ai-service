@@ -3215,9 +3215,9 @@ async function triggerGeneration(opts) {
     if (aiPreview) aiPreview.classList.add('complete');
     if (nextButton) nextButton.disabled = false;
   
-    // TODO: 在此处继续你的渲染/保存逻辑
+    // 这里做渲染/保存
     // await saveStage2Result(data);
-    // renderPosterAndVariants(data, { posterImage, variantsStrip, posterVisual, ... });
+    // renderPosterAndVariants(data, { posterImage, variantsStrip, posterVisual });
   
     return data;
   } catch (error) {
@@ -3227,35 +3227,6 @@ async function triggerGeneration(opts) {
     if (regenerateButton) regenerateButton.disabled = false;
     return null;
   }
-
-  let rawText = '';
-  let data;
-  try {
-    rawText = await response.text();
-    console.debug('[triggerGeneration] raw response', rawText);
-    data = rawText ? JSON.parse(rawText) : {};
-  } catch (error) {
-    console.error('[triggerGeneration] failed to parse response JSON', error, { raw: rawText });
-    setStatus(statusElement, '返回结果无法解析，请检查后端日志。', 'error');
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    return null;
-  }
-
-  console.info('[triggerGeneration] success', {
-    hasPoster: Boolean(data?.poster_image),
-    variants: Array.isArray(data?.variants) ? data.variants.length : 0,
-    seed: data?.seed ?? null,
-    lock_seed: data?.lock_seed ?? null,
-  });
-
-  // …这里沿用你原来的渲染/保存逻辑（保存到 sessionStorage、variants 展示、按钮状态恢复等）
-  // 例如：
-  // await saveStage2Result(data);
-  // setStatus(statusElement, '已生成！可继续下一步。', 'success');
-  // ...
-  return data;
-}
 
 
 async function prepareTemplatePreviewAssets(stage1Data) {
