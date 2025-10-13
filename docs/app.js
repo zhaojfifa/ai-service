@@ -3080,6 +3080,7 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
+  
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -3091,7 +3092,7 @@ async function triggerGeneration(opts) {
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
 
-  // 3) 主体 poster（关键：只把 key 传给后端；dataUrl 仅在 key 不存在时才传）
+ // 3) 主体 poster（只把 key 传给后端；没有 key 才发 dataUrl）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
   const pd = stage1Data.product_asset  || null;
@@ -3109,7 +3110,6 @@ async function triggerGeneration(opts) {
 
     brand_logo: stage1Data.brand_logo?.dataUrl || null, // logo 允许内嵌（小图）
 
-    // 场景/产品图：优先走 R2 key；没有 key 再给 dataUrl（小心体积）
     scenario_key: sc?.r2Key || null,
     scenario_asset: (!sc?.r2Key && sc?.dataUrl?.startsWith('data:')) ? sc.dataUrl : null,
 
@@ -3136,7 +3136,7 @@ async function triggerGeneration(opts) {
       };
     }),
   };
-
+  
   // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
@@ -3197,10 +3197,22 @@ async function triggerGeneration(opts) {
   await warmUp(apiCandidates);
 
   let response;
-  try {
-    response = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+   try {
+    // ✅ 正确调用：用 apiCandidates / payload / rawPayload
+    const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+
+    // 兼容两种返回形态：Response 或已解析 JSON
+    const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+    // 后续处理（这里仅返回，外层按原有流程渲染）
+    setStatus(statusElement, '生成完成', 'success');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (nextButton) nextButton.disabled = false;
+
+    return data;
   } catch (error) {
-    console.error('[generatePoster] prompt_bundle 请求失败', error);
+    console.error('[generatePoster] 请求失败', error);
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
