@@ -3003,15 +3003,28 @@ function buildPromptBundleStrings(prompts = {}) {
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
-async function triggerGeneration(opts) {
+async function triggerGeneration(opts = {}) {
   const {
-    stage1Data, statusElement,
-    posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
-    posterVisual, posterImage, variantsStrip,
-    promptGroup, emailGroup, promptTextarea, emailTextarea,
-    generateButton, regenerateButton, nextButton,
-    promptManager, updatePromptPanels,
-    forceVariants = null, abTest = false,
+    stage1Data,
+    statusElement,
+    posterOutput,
+    aiPreview,
+    aiSpinner,
+    aiPreviewMessage,
+    posterVisual,
+    posterImage,
+    variantsStrip,
+    promptGroup,
+    emailGroup,
+    promptTextarea,
+    emailTextarea,
+    generateButton,
+    regenerateButton,
+    nextButton,
+    promptManager,
+    updatePromptPanels,
+    forceVariants = null,
+    abTest = false,
   } = opts;
 
   // 1) 选可用 API 基址
@@ -3027,7 +3040,7 @@ async function triggerGeneration(opts) {
   // 3) 主体 poster（关键：只把 key 传给后端；dataUrl 仅在 key 不存在时才传）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset  || null;
+  const pd = stage1Data.product_asset || null;
 
   const posterPayload = {
     brand_name: stage1Data.brand_name,
@@ -3050,9 +3063,11 @@ async function triggerGeneration(opts) {
     product_asset: (!pd?.r2Key && pd?.dataUrl?.startsWith('data:')) ? pd.dataUrl : null,
 
     scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-      : null,
+    scenario_prompt:
+      (stage1Data.scenario_mode === 'prompt')
+        ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
+        : null,
+
     product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
 
@@ -3093,6 +3108,67 @@ async function triggerGeneration(opts) {
   const rawPayload = JSON.stringify(payload);
   try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
+    return null;
+  }
+
+  // 6) 构造最终出站数据：保留结构化 prompts，同时附带 prompt_bundle（只含字符串）
+  const outbound = {
+    ...requestPayload,
+    prompt_bundle: prompt_strings,
+  };
+
+  // 7) 最终体积校验（包含 prompt_bundle）
+  const rawFinal = JSON.stringify(outbound);
+  try {
+    validatePayloadSize(rawFinal);
+  } catch (e) {
+    setStatus(statusElement, e.message, 'error');
+    return null;
+  }
+
+  // 8) 发送请求（使用 MPoster.postJsonWithRetry 优先）
+  try {
+    setStatus(statusElement, '正在生成海报，请稍候...', 'info');
+
+    const apiBase = apiCandidates.join(',');
+    let res;
+    if (window.MPoster && typeof window.MPoster.postJsonWithRetry === 'function') {
+      res = await window.MPoster.postJsonWithRetry(apiBase, '/api/generate-poster', outbound, 1);
+    } else {
+      const url = `${apiCandidates[0].replace(/\/$/, '')}/api/generate-poster`;
+      res = await fetch(url, {
+        method: 'POST',
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'omit',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outbound),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(txt || `HTTP ${res.status}`);
+      }
+    }
+
+    const data = await res.json();
+
+    // 成功处理：渲染返回结果
+    setStatus(statusElement, '海报生成完成', 'success');
+    if (typeof applyGeneratedPosterToUI === 'function') {
+      applyGeneratedPosterToUI(data, {
+        posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
+        posterVisual, posterImage, variantsStrip,
+        promptGroup, emailGroup, promptTextarea, emailTextarea,
+        generateButton, regenerateButton, nextButton,
+      });
+    } else {
+      console.debug('generate-poster response', data);
+    }
+
+    return data;
+  } catch (err) {
+    console.error('triggerGeneration error', err);
+    setStatus(statusElement, `生成失败：${err.message || String(err)}`, 'error');
     return null;
   }
 
