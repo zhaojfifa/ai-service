@@ -3137,12 +3137,13 @@ async function triggerGeneration(opts) {
     }),
   };
   
-  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+
+ // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
-
+  
   const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
-
+  
   const requestBase = {
     poster: posterPayload,
     render_mode: 'locked',
@@ -3150,9 +3151,9 @@ async function triggerGeneration(opts) {
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
   };
-
+  
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-
+  
   const posterSummary = {
     template_id: posterPayload.template_id,
     scenario_mode: posterPayload.scenario_mode,
@@ -3168,48 +3169,56 @@ async function triggerGeneration(opts) {
     seed: payload.seed,
     lock_seed: payload.lock_seed,
   });
-
+  
   // 面板同步
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
-
+  
   // 5) 体积守护
   const rawPayload = JSON.stringify(payload);
   try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
     return null;
   }
-
+  
   // 6) UI 状态
   generateButton.disabled = true;
-  regenerateButton && (regenerateButton.disabled = true);
+  if (regenerateButton) regenerateButton.disabled = true;
   setStatus(statusElement, abTest ? '正在进行 A/B 提示词生成…' : '正在生成海报与文案…', 'info');
   posterOutput?.classList.remove('hidden');
-  aiPreview && aiPreview.classList.remove('complete');
-  aiSpinner && aiSpinner.classList.remove('hidden');
-  aiPreviewMessage && (aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…');
-  posterVisual && posterVisual.classList.add('hidden');
-  promptGroup && promptGroup.classList.add('hidden');
-  emailGroup && emailGroup.classList.add('hidden');
-  nextButton && (nextButton.disabled = true);
-  variantsStrip && (variantsStrip.innerHTML = '', variantsStrip.classList.add('hidden'));
-
+  if (aiPreview) aiPreview.classList.remove('complete');
+  if (aiSpinner) aiSpinner.classList.remove('hidden');
+  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
+  if (posterVisual) posterVisual.classList.add('hidden');
+  if (promptGroup) promptGroup.classList.add('hidden');
+  if (emailGroup) emailGroup.classList.add('hidden');
+  if (nextButton) nextButton.disabled = true;
+  if (variantsStrip) { variantsStrip.innerHTML = ''; variantsStrip.classList.add('hidden'); }
+  
   // 7) 发送（健康探测 + 重试）
   await warmUp(apiCandidates);
-
-  let response;
-   try {
-    // ✅ 正确调用：用 apiCandidates / payload / rawPayload
+  
+  try {
+    // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
-
-    // 兼容两种返回形态：Response 或已解析 JSON
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-
-    // 后续处理（这里仅返回，外层按原有流程渲染）
+  
+    console.info('[triggerGeneration] success', {
+      hasPoster: Boolean(data?.poster_image),
+      variants: Array.isArray(data?.variants) ? data.variants.length : 0,
+      seed: data?.seed ?? null,
+      lock_seed: data?.lock_seed ?? null,
+    });
+  
+    // UI 恢复
     setStatus(statusElement, '生成完成', 'success');
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
     if (nextButton) nextButton.disabled = false;
-
+  
+    // TODO: 在此处继续你的渲染/保存逻辑
+    // await saveStage2Result(data);
+    // renderPosterAndVariants(data, { posterImage, variantsStrip, posterVisual, ... });
+  
     return data;
   } catch (error) {
     console.error('[generatePoster] 请求失败', error);
