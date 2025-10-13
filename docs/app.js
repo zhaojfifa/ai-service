@@ -420,6 +420,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       }
     }
 
+    // 整轮失败后：热身 + 等待 + 重选
     try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
     await new Promise(r => setTimeout(r, 800));
     base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
