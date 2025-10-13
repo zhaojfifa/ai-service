@@ -1,0 +1,97 @@
+diff --git a/app/schemas.py b/app/schemas.py
+index 0000000..1111111 100644
+--- a/app/schemas.py
++++ b/app/schemas.py
+@@
+-from pydantic import BaseModel, Field, validator
++from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+@@
+-Aspect = Literal["1:1", "4:5", "4:3", "16:9", "9:16"]
++Aspect = Literal["1:1", "4:5", "4:3", "16:9", "9:16"]
+@@
+-class PromptSlotConfig(BaseModel):
+-    preset: Optional[str] = None
+-    positive: str = ""
+-    negative: str = ""
+-    aspect: Aspect = "1:1"
+-
+-    # v1 style & wrong field name -> breaks on pydantic v2
+-    @validator("prompt", pre=True, always=True)
+-    def _clean_prompt(cls, v):
+-        return (v or "").strip()
++class PromptSlotConfig(BaseModel):
++    # pydantic v2 model config (replaces class Config)
++    model_config = ConfigDict(extra="ignore")
++
++    preset: Optional[str] = None
++    positive: str = ""
++    negative: str = ""
++    aspect: Aspect = "1:1"
++
++    # ---- field-level normalizers (only for existing fields) ----
++    @field_validator("positive", "negative", mode="before")
++    @classmethod
++    def _ensure_str(cls, v):
++        if v is None:
++            return ""
++        return str(v)
++
++    @field_validator("preset", mode="before")
++    @classmethod
++    def _normalize_preset(cls, v):
++        if v is None:
++            return None
++        v = str(v).strip()
++        return v or None
++
++    @field_validator("aspect", mode="before")
++    @classmethod
++    def _normalize_aspect(cls, v):
++        allowed = {"1:1", "4:5", "4:3", "16:9", "9:16"}
++        v = (v or "1:1")
++        return v if v in allowed else "1:1"
++
++    # ---- object-level cleanup (replaces any old _clean_prompt) ----
++    @model_validator(mode="before")
++    @classmethod
++    def _clean_prompt_bundle(cls, values):
++        if isinstance(values, dict):
++            for k in ("preset", "positive", "negative"):
++                if k in values and isinstance(values[k], str):
++                    values[k] = values[k].strip()
++                    if k == "preset" and values[k] == "":
++                        values[k] = None
++        return values
+@@
+ class PromptBundle(BaseModel):
+     scenario: PromptSlotConfig
+     product:  PromptSlotConfig
+     gallery:  PromptSlotConfig
+@@
+-class GeneratePosterRequest(BaseModel):
+-    poster: dict
+-    render_mode: Literal["locked", "random"] = "locked"
+-    variants: int = 2
+-    seed: Optional[int] = None
+-    lock_seed: bool = False
+-    prompts: dict
++class GeneratePosterRequest(BaseModel):
++    poster: dict
++    render_mode: Literal["locked", "random"] = "locked"
++    variants: int = 2
++    seed: Optional[int] = None
++    lock_seed: bool = False
++    prompts: PromptBundle
+@@
+-class GeneratePosterResponse(BaseModel):
+-    layout_preview: str
+-    prompt_bundle: str
+-    images: list[str] = []
+-    seed: Optional[int] = None
+-    lock_seed: bool = False
++class GeneratePosterResponse(BaseModel):
++    layout_preview: str
++    prompt_bundle: PromptBundle
++    images: list[str] = []
++    seed: Optional[int] = None
++    lock_seed: bool = False
