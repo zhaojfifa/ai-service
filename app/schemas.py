@@ -392,25 +392,77 @@ class GeneratePosterResponse(BaseModel):
 
     @field_validator("prompt_bundle", mode="before")
     @classmethod
-    def _coerce_prompt_bundle(
-        cls, value: PromptBundle | dict[str, Any] | None
-    ) -> PromptBundle | None:
-        """Normalise prompt bundles coming from external services."""
+@field_validator("prompt_bundle", mode="before")
+@classmethod
+def _coerce_prompt_bundle(
+    cls, value: PromptBundle | dict[str, Any] | None
+) -> PromptBundle | None:
+    """Normalize prompt bundles coming from external services.
 
-        if value is None or isinstance(value, PromptBundle):
-            return value
+    Accepts:
+    - None
+    - PromptBundle instance (pass-through)
+    - dict where each slot is either:
+      - a PromptSlotConfig-compatible dict
+      - a plain string (treated as the `prompt` field with sensible defaults)
+    The function ensures a PromptBundle instance is returned or raises TypeError.
+    """
+    if value is None or isinstance(value, PromptBundle):
+        return value
 
-        if isinstance(value, dict):
-            if hasattr(PromptBundle, "model_validate"):
-                return PromptBundle.model_validate(value)
-            if hasattr(PromptBundle, "parse_obj"):
-                return PromptBundle.parse_obj(value)
-            return PromptBundle(**value)
+    if not isinstance(value, dict):
+        raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
 
-        raise TypeError(
-            "prompt_bundle must be a PromptBundle, dictionary, or None"
-        )
+    # Helper to coerce a single slot value into a PromptSlotConfig-compatible dict
+    def coerce_slot(slot_val: Any) -> dict[str, Any]:
+        # If slot_val is a plain string, treat it as the prompt text
+        if isinstance(slot_val, str):
+            return {
+                "preset": None,
+                "aspect": "1:1",
+                "prompt": slot_val.strip(),
+                "negative_prompt": "",
+            }
+        # If already a dict-like object, pick expected fields with defaults
+        if isinstance(slot_val, dict):
+            return {
+                "preset": slot_val.get("preset"),
+                "aspect": slot_val.get("aspect") or "1:1",
+                "prompt": slot_val.get("prompt") or slot_val.get("positive") or slot_val.get("text") or "",
+                "negative_prompt": slot_val.get("negative_prompt") or slot_val.get("negative") or "",
+            }
+        # Fallback: stringify
+        return {
+            "preset": None,
+            "aspect": "1:1",
+            "prompt": str(slot_val),
+            "negative_prompt": "",
+        }
 
+    normalized: dict[str, Any] = {}
+
+    # Only keep expected slots; fill missing slots with defaults
+    for slot in ("scenario", "product", "gallery"):
+        raw = value.get(slot)
+        normalized[slot] = coerce_slot(raw) if raw is not None else {
+            "preset": None,
+            "aspect": "1:1",
+            "prompt": "",
+            "negative_prompt": "",
+        }
+
+    # Now validate/construct PromptBundle using available Pydantic API
+    try:
+        if hasattr(PromptBundle, "model_validate"):
+            return PromptBundle.model_validate(normalized)
+        if hasattr(PromptBundle, "parse_obj"):
+            return PromptBundle.parse_obj(normalized)
+        return PromptBundle(**normalized)
+    except Exception as exc:
+        raise TypeError(f"Invalid prompt_bundle structure: {exc}") from exc
+
+
+    
 
 class SendEmailRequest(BaseModel):
     """Payload expected when requesting the backend to send an email."""
