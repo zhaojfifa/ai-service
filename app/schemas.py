@@ -1,7 +1,19 @@
 from __future__ import annotations
 
+from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, EmailStr, Field, constr
-from typing import List, Literal, Optional
+
+try:  # pragma: no cover - available only on Pydantic v2
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover
+    ConfigDict = None  # type: ignore
+
+try:  # pragma: no cover - prefer Pydantic v2 APIs when available
+    from pydantic import model_validator
+except ImportError:  # pragma: no cover - fall back to v1 root validators
+    model_validator = None  # type: ignore
+    from pydantic import root_validator
 
 
 class PosterGalleryItem(BaseModel):
@@ -41,7 +53,7 @@ class PosterInput(BaseModel):
         description="Identifier of the locked layout template to use when rendering.",
     )
     features: list[constr(strip_whitespace=True, min_length=1)] = Field(
-        ..., min_items=3, max_items=4
+        ..., min_length=3, max_length=4
     )
     title: constr(strip_whitespace=True, min_length=1)
     series_description: constr(strip_whitespace=True, min_length=1)
@@ -68,7 +80,7 @@ class PosterInput(BaseModel):
     )
     gallery_items: list[PosterGalleryItem] = Field(
         default_factory=list,
-        max_items=4,
+        max_length=4,
         description="Bottom gallery entries paired with captions for the series strip.",
     )
     gallery_label: Optional[str] = Field(
@@ -125,25 +137,183 @@ class PosterImage(BaseModel):
     height: int = Field(..., gt=0)
 
 
+Aspect = Literal["1:1", "4:5", "4:3"]
+
+
+def _strip_optional_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _strip_required_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 class PromptSlotConfig(BaseModel):
+    """Structured prompt payload for a single template slot."""
+
     preset: Optional[str] = Field(
-        None, description="Identifier of the preset chosen in the inspector"
+        default=None,
+        description="Optional preset name applied before manual prompt overrides.",
     )
-    positive: Optional[str] = Field(
-        None, description="Positive prompt text provided by the inspector"
+    aspect: Aspect = Field(
+        default="1:1",
+        description="Aspect ratio hint expected by the downstream image backend.",
     )
-    negative: Optional[str] = Field(
-        None, description="Negative prompt text provided by the inspector"
+    prompt: str = Field(
+        default="",
+        description="Positive prompt instructions for the slot.",
     )
-    aspect: Optional[str] = Field(
-        None, description="Aspect ratio guidance associated with the slot"
+    negative_prompt: str = Field(
+        default="",
+        description="Negative prompt instructions for the slot.",
     )
+
+    @classmethod
+    def _normalise_payload(cls, value: Any) -> Any:
+        if isinstance(value, cls):
+            return value.model_dump(exclude_unset=False)
+
+        if value is None:
+            return {}
+
+        if isinstance(value, str):
+            text = value.strip()
+            return {"prompt": text}
+
+        if hasattr(value, "model_dump"):
+            value = value.model_dump(exclude_none=True)
+        elif hasattr(value, "dict"):
+            value = value.dict(exclude_none=True)
+
+        if isinstance(value, dict):
+            data = dict(value)
+            if "positive" in data and "prompt" not in data:
+                data["prompt"] = data.pop("positive")
+            if "negative" in data and "negative_prompt" not in data:
+                data["negative_prompt"] = data.pop("negative")
+            if "aspect_ratio" in data and "aspect" not in data:
+                data["aspect"] = data.pop("aspect_ratio")
+            return data
+
+        return value
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="before")
+        def _coerce_values(cls, values: Any) -> Any:
+            return cls._normalise_payload(values)
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=True)
+        def _coerce_values(cls, values: Any) -> Any:
+            return cls._normalise_payload(values)
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="after")
+        def _trim_strings(self) -> "PromptSlotConfig":
+            self.preset = _strip_optional_text(self.preset)
+            self.prompt = _strip_required_text(self.prompt)
+            self.negative_prompt = _strip_required_text(self.negative_prompt)
+            return self
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator
+        def _clean_fields(cls, values: dict[str, Any]) -> dict[str, Any]:
+            values = dict(values)
+            values["preset"] = _strip_optional_text(values.get("preset"))
+            values["prompt"] = _strip_required_text(values.get("prompt"))
+            values["negative_prompt"] = _strip_required_text(values.get("negative_prompt"))
+            return values
+
+    if ConfigDict:  # pragma: no cover - executed on Pydantic v2
+        model_config = ConfigDict(extra="ignore")
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        class Config:  # type: ignore[override]
+            extra = "ignore"
 
 
 class PromptBundle(BaseModel):
-    scenario: Optional[PromptSlotConfig] = None
-    product: Optional[PromptSlotConfig] = None
-    gallery: Optional[PromptSlotConfig] = None
+    scenario: PromptSlotConfig = Field(
+        default_factory=lambda: PromptSlotConfig(aspect="1:1"),
+        description="Prompt configuration for the scenario slot.",
+    )
+    product: PromptSlotConfig = Field(
+        default_factory=lambda: PromptSlotConfig(aspect="4:5"),
+        description="Prompt configuration for the product slot.",
+    )
+    gallery: PromptSlotConfig = Field(
+        default_factory=lambda: PromptSlotConfig(aspect="4:3"),
+        description="Prompt configuration for the gallery slot.",
+    )
+
+    @classmethod
+    def _normalise(cls, values: Any) -> Any:
+        if isinstance(values, cls):
+            return values.model_dump(exclude_unset=False)
+
+        if values is None:
+            return values
+
+        if hasattr(values, "model_dump"):
+            values = values.model_dump(exclude_none=False)
+        elif hasattr(values, "dict"):
+            values = values.dict(exclude_none=False)
+
+        if isinstance(values, dict):
+            data: dict[str, Any] = {}
+            for slot in ("scenario", "product", "gallery"):
+                if slot in values:
+                    data[slot] = values[slot]
+            return data
+
+        return values
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="before")
+        def _coerce_bundle(cls, values: Any) -> Any:
+            return cls._normalise(values)
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=True)
+        def _coerce_bundle(cls, values: dict[str, Any]) -> dict[str, Any]:
+            return cls._normalise(values)
+
+    if ConfigDict:  # pragma: no cover - executed on Pydantic v2
+        model_config = ConfigDict(extra="ignore")
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        class Config:  # type: ignore[override]
+            extra = "ignore"
+
+
+def _build_prompt_bundle(value: Any) -> PromptBundle | None:
+    if value is None or isinstance(value, PromptBundle):
+        return value
+
+    if hasattr(value, "model_dump"):
+        value = value.model_dump(exclude_none=True)
+    elif hasattr(value, "dict"):
+        value = value.dict(exclude_none=True)
+
+    if not isinstance(value, dict):
+        raise TypeError("prompt_bundle must be a mapping, PromptBundle, or None")
+
+    if hasattr(PromptBundle, "model_validate"):
+        return PromptBundle.model_validate(value)
+    if hasattr(PromptBundle, "parse_obj"):
+        return PromptBundle.parse_obj(value)
+    return PromptBundle(**value)
 
 
 class R2PresignPutRequest(BaseModel):
@@ -180,10 +350,35 @@ class GeneratePosterRequest(BaseModel):
     lock_seed: bool = Field(
         False, description="Whether the provided seed should be respected across runs."
     )
-    prompts: PromptBundle = Field(
+    prompt_bundle: PromptBundle = Field(
         default_factory=PromptBundle,
         description="Prompt inspector overrides for each template slot.",
     )
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="before")
+        def _alias_prompts(cls, values: Any) -> Any:
+            if isinstance(values, dict) and "prompt_bundle" not in values and "prompts" in values:
+                values = dict(values)
+                values["prompt_bundle"] = values.pop("prompts")
+            return values
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=True)
+        def _alias_prompts(cls, values: dict[str, Any]) -> dict[str, Any]:
+            if "prompt_bundle" not in values and "prompts" in values:
+                values = dict(values)
+                values["prompt_bundle"] = values.pop("prompts")
+            return values
+
+    if ConfigDict:  # pragma: no cover - executed on Pydantic v2
+        model_config = ConfigDict(populate_by_name=True)
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        class Config:  # type: ignore[override]
+            allow_population_by_field_name = True
 
 
 class GeneratePosterResponse(BaseModel):
@@ -196,8 +391,9 @@ class GeneratePosterResponse(BaseModel):
     prompt_details: dict[str, str] | None = Field(
         None, description="Per-slot prompt summary returned by the backend."
     )
-    prompt_bundle: dict[str, str] | None = Field(
-        None, description="Optional combined prompt bundle for inspector display."
+    prompt_bundle: PromptBundle | None = Field(
+        None,
+        description="Optional combined prompt bundle for inspector display.",
     )
     variants: list[PosterImage] = Field(
         default_factory=list,
@@ -210,6 +406,24 @@ class GeneratePosterResponse(BaseModel):
     lock_seed: Optional[bool] = Field(
         None, description="Whether the backend honoured the locked seed request."
     )
+
+    if model_validator:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="before")
+        def _coerce_bundle(cls, values: Any) -> Any:
+            if isinstance(values, dict) and "prompt_bundle" in values:
+                values = dict(values)
+                values["prompt_bundle"] = _build_prompt_bundle(values["prompt_bundle"])
+            return values
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=True)
+        def _coerce_bundle(cls, values: dict[str, Any]) -> dict[str, Any]:
+            if "prompt_bundle" in values:
+                values = dict(values)
+                values["prompt_bundle"] = _build_prompt_bundle(values["prompt_bundle"])
+            return values
 
 
 class SendEmailRequest(BaseModel):
