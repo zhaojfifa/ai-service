@@ -3218,6 +3218,31 @@ async function triggerGeneration(opts) {
     // 这里做渲染/保存
     // await saveStage2Result(data);
     // renderPosterAndVariants(data, { posterImage, variantsStrip, posterVisual });
+    // data 已获取：兼容 Response/JSON 的那两行之后
+    const p = (data && data.poster_image) || {};
+    
+    // 1) 主图：优先 url，回退 data_url
+    assignPosterImage(posterImage, p, '生成海报');   // posterImage: 你的 <img> 元素
+    posterVisual && posterVisual.classList.remove('hidden');
+    aiPreview && aiPreview.classList.add('complete');
+    aiSpinner && aiSpinner.classList.add('hidden');
+    
+    // 2) 变体（有则显示）
+    if (variantsStrip) {
+      variantsStrip.innerHTML = '';
+      (data.variants || []).forEach((v, i) => {
+        const img = document.createElement('img');
+        img.className = 'variant-thumb';
+        assignPosterImage(img, v, `Variant ${i + 1}`);
+        variantsStrip.appendChild(img);
+      });
+      if ((data.variants || []).length) variantsStrip.classList.remove('hidden');
+    }
+    
+    // 3) 旁路显示文案（可选）
+    if (emailTextarea)  emailTextarea.value  = data.email_body || '';
+    if (promptTextarea) promptTextarea.value = data.prompt      || '';
+
   
     return data;
   } catch (error) {
