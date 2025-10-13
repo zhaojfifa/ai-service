@@ -1,3 +1,4 @@
+
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
@@ -303,9 +304,8 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
-      const url = urlFor(b);
       try {
-        const res = await fetch(url, {
+        const res = await fetch(urlFor(b), {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
@@ -315,20 +315,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         });
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          let json = null;
-          if (text) {
-            try { json = JSON.parse(text); } catch {}
-          }
-          const detail = (json && (json.detail || json.message))
-            || text
-            || `HTTP ${res.status}`;
-          const error = new Error(detail);
-          error.status = res.status;
-          error.responseText = text;
-          error.responseJson = json;
-          error.url = url;
-          error.requestBody = bodyRaw;
-          throw error;
+          throw new Error(text || `HTTP ${res.status}`);
         }
         // 兼容占位缓存：存在才更新，避免 _healthCache 未定义再报错
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
@@ -2974,85 +2961,68 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
 // ……前文保持不变
 
-const PROMPT_SLOT_ASPECT_DEFAULTS = {
-  scenario: '1:1',
-  product: '4:5',
-  gallery: '4:3',
-};
-
-const PROMPT_ASPECT_OPTIONS = new Set(['1:1', '4:5', '4:3']);
-
-function normalisePromptSlotConfig(value, slot) {
-  const aspectFallback = PROMPT_SLOT_ASPECT_DEFAULTS[slot] || '1:1';
-
-  if (!value) {
-    return {
-      preset: null,
-      aspect: aspectFallback,
-      prompt: '',
-      negative_prompt: '',
-    };
-  }
-
-  if (typeof value === 'string') {
-    return {
-      preset: null,
-      aspect: aspectFallback,
-      prompt: value.trim(),
-      negative_prompt: '',
-    };
-  }
-
-  const presetRaw = typeof value.preset === 'string' ? value.preset.trim() : '';
-  const promptRaw =
-    typeof value.prompt === 'string'
-      ? value.prompt
-      : typeof value.positive === 'string'
-        ? value.positive
-        : typeof value.text === 'string'
-          ? value.text
-          : '';
-  const negativeRaw =
-    typeof value.negative_prompt === 'string'
-      ? value.negative_prompt
-      : typeof value.negative === 'string'
-        ? value.negative
-        : '';
-  const aspectRaw = typeof value.aspect === 'string' ? value.aspect.trim() : '';
-
-  const aspect = PROMPT_ASPECT_OPTIONS.has(aspectRaw) ? aspectRaw : aspectFallback;
-
+// 统一把各种“对象形态”的 prompt 收敛为字符串
+// 把各种对象/结构的 prompt 规范为纯字符串 —— 后端期望 string
+function toPromptString(x) {
+  if (x == null) return '';
+  if (typeof x === 'string') return x.trim();
+  if (typeof x.text === 'string') return x.text.trim();
+  if (typeof x.prompt === 'string') return x.prompt.trim();
+  // 带 preset/aspect 的对象，折叠成一句话，避免把对象直接发给后端
+  if (x.preset && x.aspect) return `${x.preset} (aspect ${x.aspect})`;
+  if (x.preset) return String(x.preset);
+  try { return JSON.stringify(x); } catch { return String(x); }
+}
+// ------- 新增小工具：把 PromptInspector 的状态统一成字符串 -------
+function buildPromptBundleStrings(promptManager) {
+  // 优先使用 Inspector 的 buildRequest()
+  const req = typeof promptManager?.buildRequest === 'function'
+    ? (promptManager.buildRequest() || {})
+    : {};
+  const raw = req.prompts || {}; // 可能是对象/字符串混合
+  const toStr = (v) => {
+    if (v == null) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v.text === 'string') return v.text.trim();
+    if (typeof v.prompt === 'string') return v.prompt.trim();
+    if (v.preset && v.aspect) return `${v.preset} (aspect ${v.aspect})`;
+    if (v.preset) return String(v.preset);
+    try { return JSON.stringify(v); } catch { return String(v); }
+  };
   return {
-    preset: presetRaw ? presetRaw : null,
-    aspect,
-    prompt: (promptRaw || '').trim(),
-    negative_prompt: (negativeRaw || '').trim(),
+    scenario: toStr(raw.scenario),
+    product:  toStr(raw.product),
+    gallery:  toStr(raw.gallery),
   };
 }
 
+// ------- 新增小工具：从「字符串版」快速构造「字典版」 -------
+function bundleStringsToDict(bundleStr) {
+  const dict = {};
+  ['scenario', 'product', 'gallery'].forEach((k) => {
+    const v = bundleStr?.[k] || '';
+    dict[k] = { positive: v || '' }; // 最稳妥：只给正向描述，其他字段后端默认
+  });
+  return dict;
+}
+
+// ------- 新增小工具：根据 422 文案判断是否需要回退 -------
+function looksLikePromptConfigExpected(err) {
+  const msg = (err && (err.message || err.detail || '')) + '';
+  // 后端常见文案关键字
+  return /PromptSlotConfig|valid dictionary|input_type=dict/i.test(msg);
+}
+
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
-async function triggerGeneration(opts = {}) {
+async function triggerGeneration(opts) {
   const {
-    stage1Data,
-    statusElement,
-    posterOutput,
-    aiPreview,
-    aiSpinner,
-    aiPreviewMessage,
-    posterVisual,
-    posterImage,
-    variantsStrip,
-    promptGroup,
-    emailGroup,
-    promptTextarea,
-    emailTextarea,
-    generateButton,
-    regenerateButton,
-    nextButton,
-    promptManager,
-    updatePromptPanels,
-    forceVariants = null,
-    abTest = false,
+    stage1Data, statusElement,
+    posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
+    posterVisual, posterImage, variantsStrip,
+    promptGroup, emailGroup, promptTextarea, emailTextarea,
+    generateButton, regenerateButton, nextButton,
+    promptManager, updatePromptPanels,
+    forceVariants = null, abTest = false,
   } = opts;
 
   // 1) 选可用 API 基址
@@ -3068,7 +3038,7 @@ async function triggerGeneration(opts = {}) {
   // 3) 主体 poster（关键：只把 key 传给后端；dataUrl 仅在 key 不存在时才传）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset || null;
+  const pd = stage1Data.product_asset  || null;
 
   const posterPayload = {
     brand_name: stage1Data.brand_name,
@@ -3091,11 +3061,9 @@ async function triggerGeneration(opts = {}) {
     product_asset: (!pd?.r2Key && pd?.dataUrl?.startsWith('data:')) ? pd.dataUrl : null,
 
     scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt:
-      (stage1Data.scenario_mode === 'prompt')
-        ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-        : null,
-
+    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
+      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
+      : null,
     product_mode: stage1Data.product_mode || 'upload',
     product_prompt: stage1Data.product_prompt || null,
 
@@ -3113,96 +3081,48 @@ async function triggerGeneration(opts = {}) {
     }),
   };
 
-  // 4) Prompt 组装 —— 将每个槽位规范为纯字符串（只取正向提示或常见字段），不要传 {preset, aspect} 等对象
+  // 4) Prompt 组装 —— “结构化对象”是后端现在需要的格式
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants) reqFromInspector.variants = forceVariants;
 
-  const promptBundle = {
-    scenario: normalisePromptSlotConfig(reqFromInspector.prompts?.scenario, 'scenario'),
-    product: normalisePromptSlotConfig(reqFromInspector.prompts?.product, 'product'),
-    gallery: normalisePromptSlotConfig(reqFromInspector.prompts?.gallery, 'gallery'),
+  const normSlot = (v) => {
+    // 允许三种输入：对象 / 字符串 / 空
+    if (!v) return null;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      return s ? { preset: null, positive: s, negative: null, aspect: null } : null;
+    }
+    // 对象：只拣标准字段，其他全部抛弃
+    return {
+      preset:   (typeof v.preset   === 'string' && v.preset.trim())   ? v.preset.trim()   : null,
+      positive: (typeof v.positive === 'string' && v.positive.trim()) ? v.positive.trim() : null,
+      negative: (typeof v.negative === 'string' && v.negative.trim()) ? v.negative.trim() : null,
+      aspect:   (typeof v.aspect   === 'string' && v.aspect.trim())   ? v.aspect.trim()   : null,
+    };
   };
 
-  // requestPayload 保留原先结构化 prompts 字段以便后端内部需要，但我们同时传入 prompt_bundle（纯字符串）
+  const structuredPrompts = {
+    scenario: normSlot(reqFromInspector.prompts?.scenario),
+    product : normSlot(reqFromInspector.prompts?.product),
+    gallery : normSlot(reqFromInspector.prompts?.gallery),
+  };
+
   let requestPayload = {
     poster: posterPayload,
     render_mode: 'locked',
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
-    prompt_bundle: promptBundle,
+    prompts: structuredPrompts, // ← 关键：对象！
   };
 
   // 面板同步
-  updatePromptPanels?.({ bundle: requestPayload.prompt_bundle });
+  updatePromptPanels?.({ bundle: requestPayload.prompts });
 
   // 5) 体积守护
   const raw1 = JSON.stringify(requestPayload);
-  try {
-    validatePayloadSize(raw1);
-  } catch (e) {
+  try { validatePayloadSize(raw1); } catch (e) {
     setStatus(statusElement, e.message, 'error');
-    return null;
-  }
-
-  // 6) 构造最终出站数据：保留结构化 prompts，同时附带 prompt_bundle（只含字符串）
-  const outbound = {
-    ...requestPayload,
-    prompt_bundle: prompt_strings,
-  };
-
-  // 7) 最终体积校验（包含 prompt_bundle）
-  const rawFinal = JSON.stringify(outbound);
-  try {
-    validatePayloadSize(rawFinal);
-  } catch (e) {
-    setStatus(statusElement, e.message, 'error');
-    return null;
-  }
-
-  // 8) 发送请求（使用 MPoster.postJsonWithRetry 优先）
-  try {
-    setStatus(statusElement, '正在生成海报，请稍候...', 'info');
-
-    const apiBase = apiCandidates.join(',');
-    let res;
-    if (window.MPoster && typeof window.MPoster.postJsonWithRetry === 'function') {
-      res = await window.MPoster.postJsonWithRetry(apiBase, '/api/generate-poster', outbound, 1);
-    } else {
-      const url = `${apiCandidates[0].replace(/\/$/, '')}/api/generate-poster`;
-      res = await fetch(url, {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-store',
-        credentials: 'omit',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(outbound),
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        throw new Error(txt || `HTTP ${res.status}`);
-      }
-    }
-
-    const data = await res.json();
-
-    // 成功处理：渲染返回结果
-    setStatus(statusElement, '海报生成完成', 'success');
-    if (typeof applyGeneratedPosterToUI === 'function') {
-      applyGeneratedPosterToUI(data, {
-        posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
-        posterVisual, posterImage, variantsStrip,
-        promptGroup, emailGroup, promptTextarea, emailTextarea,
-        generateButton, regenerateButton, nextButton,
-      });
-    } else {
-      console.debug('generate-poster response', data);
-    }
-
-    return data;
-  } catch (err) {
-    console.error('triggerGeneration error', err);
-    setStatus(statusElement, `生成失败：${err.message || String(err)}`, 'error');
     return null;
   }
 
@@ -3226,12 +3146,21 @@ async function triggerGeneration(opts = {}) {
   try {
     res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 1, raw1);
   } catch (err) {
-    console.error('[generatePoster] 请求失败', {
-      payload: requestPayload,
-      response: err?.responseJson ?? err?.responseText ?? err?.message,
-      status: err?.status ?? null,
+    // 如果后端是“旧版字符串格式”，会报 422，堆栈里常见 string_type/PromptSlotConfig 关键字
+    const msg = String(err?.message || '');
+    const mayNeedString = /422|Unprocessable|string_type|PromptSlotConfig/i.test(msg);
+    if (!mayNeedString) throw err;
+
+    // 回退：把 prompts 转成字符串再试一次
+    const toStringPrompts = (p) => ({
+      scenario: p.scenario ? (p.scenario.positive || p.scenario.preset || '') : '',
+      product : p.product  ? (p.product.positive  || p.product.preset  || '') : '',
+      gallery : p.gallery  ? (p.gallery.positive  || p.gallery.preset  || '') : '',
     });
-    throw err;
+    requestPayload = { ...requestPayload, prompts: toStringPrompts(structuredPrompts) };
+    const raw2 = JSON.stringify(requestPayload);
+    validatePayloadSize(raw2);
+    res = await postJsonWithRetry(apiCandidates, '/api/generate-poster', requestPayload, 0, raw2);
   }
 
   const data = await res.json();
