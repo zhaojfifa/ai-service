@@ -1,8 +1,48 @@
 from app.schemas import (
+    GeneratePosterRequest,
     GeneratePosterResponse,
     PosterImage,
     PromptBundle,
+    PromptSlotConfig,
 )
+
+
+def _base_poster_payload() -> dict:
+    return {
+        "brand_name": "Brand",
+        "agent_name": "Agent",
+        "scenario_image": "Scenario",
+        "product_name": "Product",
+        "features": ["F1", "F2", "F3"],
+        "title": "Headline",
+        "series_description": "Series",
+        "subtitle": "Tagline",
+    }
+
+
+def test_prompt_bundle_coerces_legacy_inputs() -> None:
+    bundle = PromptBundle.model_validate(
+        {
+            "scenario": "  cinematic lighting  ",
+            "product": {
+                "preset": "hero-white-bg",
+                "positive": "Floating bottle on white",
+                "negative": "no blur",
+                "aspect": "4:5",
+            },
+            "gallery": {
+                "prompt": "Flat lay",
+            },
+        }
+    )
+
+    assert isinstance(bundle.scenario, PromptSlotConfig)
+    assert bundle.scenario.aspect == "1:1"
+    assert bundle.scenario.prompt == "cinematic lighting"
+    assert bundle.product.preset == "hero-white-bg"
+    assert bundle.product.negative_prompt == "no blur"
+    assert bundle.gallery.aspect == "4:3"
+    assert bundle.gallery.prompt == "Flat lay"
 
 
 def test_generate_poster_response_accepts_prompt_bundle_dict() -> None:
@@ -19,61 +59,33 @@ def test_generate_poster_response_accepts_prompt_bundle_dict() -> None:
         prompt_bundle={
             "scenario": {
                 "preset": "scenario-closeup",
-                "positive": "bright lighting",
-                "negative": None,
+                "prompt": "Bright lighting",
+                "negative_prompt": "no crowds",
                 "aspect": "1:1",
             },
-            "product": None,
         },
     )
 
-    assert response.prompt_bundle is not None
-    assert (
-        response.prompt_bundle.scenario
-        == "bright lighting | Preset: scenario-closeup | Aspect: 1:1"
-    )
-    # Pydantic should coerce null entries to ``None`` when slot is missing.
-    assert response.prompt_bundle.product is None
+    assert isinstance(response.prompt_bundle, PromptBundle)
+    assert response.prompt_bundle.scenario.preset == "scenario-closeup"
+    assert response.prompt_bundle.scenario.prompt == "Bright lighting"
+    # Missing slots fall back to defaults
+    assert response.prompt_bundle.product.aspect == "4:5"
+    assert response.prompt_bundle.product.prompt == ""
 
 
-def test_generate_poster_response_model_validate_normalises_bundle() -> None:
+def test_generate_poster_request_aliases_prompts_field() -> None:
     payload = {
-        "layout_preview": "data:image/png;base64,preview",
-        "prompt": "make poster",
-        "email_body": "hello",
-        "poster_image": {
-            "filename": "poster.png",
-            "media_type": "image/png",
-            "width": 1024,
-            "height": 1024,
-        },
-        "prompt_bundle": {
-            "scenario": {
-                "preset": "scenario-closeup",
-                "positive": "sunny",
-                "negative": None,
-                "aspect": "1:1",
-            }
+        "poster": _base_poster_payload(),
+        "prompts": {
+            "scenario": {"prompt": "Moody", "aspect": "1:1"},
+            "product": {"prompt": "Floating", "aspect": "4:5"},
+            "gallery": {"prompt": "Angles", "aspect": "4:3"},
         },
     }
 
-    response = GeneratePosterResponse.model_validate(payload)
+    request = GeneratePosterRequest.model_validate(payload)
 
-    assert isinstance(response.prompt_bundle, PromptBundle)
-    assert response.prompt_bundle is not None
-    assert (
-        response.prompt_bundle.scenario
-        == "sunny | Preset: scenario-closeup | Aspect: 1:1"
-    )
-
-
-def test_prompt_bundle_accepts_plain_strings() -> None:
-    bundle = PromptBundle.model_validate({
-        "scenario": "  moody lighting   ",
-        "product": None,
-        "gallery": "",
-    })
-
-    assert bundle.scenario == "moody lighting"
-    assert bundle.product is None
-    assert bundle.gallery is None
+    assert request.prompt_bundle.scenario.prompt == "Moody"
+    assert request.prompt_bundle.product.aspect == "4:5"
+    assert request.prompt_bundle.gallery.aspect == "4:3"

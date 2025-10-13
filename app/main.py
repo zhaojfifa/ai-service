@@ -3,6 +3,7 @@ import os
 import sys
 import json                     # ← 你用了 json，但之前没导入
 import logging
+from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -169,7 +170,7 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
     try:
         poster = payload.poster
         preview = render_layout_preview(poster)
-        prompt_payload = _model_dump(payload.prompts)
+        prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
@@ -185,18 +186,33 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             lock_seed=payload.lock_seed,
         )
         email_body = compose_marketing_email(poster, result.poster.filename)
-        prompt_bundle_model = (
-            _model_validate(PromptBundle, prompt_bundle)
-            if prompt_bundle
-            else None
-        )
+        response_bundle: PromptBundle | None = None
+        if prompt_bundle:
+            converted: dict[str, Any] = {}
+            for slot, config in prompt_bundle.items():
+                if not config:
+                    continue
+                converted[slot] = {
+                    "preset": config.get("preset"),
+                    "aspect": config.get("aspect"),
+                    "prompt": config.get("positive") or "",
+                    "negative_prompt": config.get("negative") or "",
+                }
+            if converted:
+                if hasattr(PromptBundle, "model_validate"):
+                    response_bundle = PromptBundle.model_validate(converted)
+                elif hasattr(PromptBundle, "parse_obj"):
+                    response_bundle = PromptBundle.parse_obj(converted)
+                else:  # pragma: no cover - legacy Pydantic fallback
+                    response_bundle = PromptBundle(**converted)
+
         return GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
             prompt_details=prompt_details,
-            prompt_bundle=prompt_bundle_model,
+            prompt_bundle=response_bundle,
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,

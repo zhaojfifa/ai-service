@@ -37,9 +37,18 @@ def _normalise_prompt_config(config: Any) -> dict[str, Any] | None:
 
     if isinstance(config, dict):
         preset = (config.get("preset") or "").strip()
-        positive = (config.get("positive") or config.get("prompt") or "").strip()
-        negative = (config.get("negative") or "").strip()
-        aspect = (config.get("aspect") or "").strip()
+        positive = (
+            config.get("positive")
+            or config.get("prompt")
+            or config.get("text")
+            or ""
+        ).strip()
+        negative = (
+            config.get("negative")
+            or config.get("negative_prompt")
+            or ""
+        ).strip()
+        aspect = (config.get("aspect") or config.get("aspect_ratio") or "").strip()
 
         if not any([preset, positive, negative, aspect]):
             return None
