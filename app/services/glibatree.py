@@ -1,4 +1,3 @@
-_ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 from __future__ import annotations
 
 import base64
@@ -23,6 +22,7 @@ from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.services.s3_client import get_bytes, put_bytes
 
+_ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 logger = logging.getLogger(__name__)
 
 OPENAI_IMAGE_SIZE = "1024x1024"
