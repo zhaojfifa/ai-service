@@ -519,72 +519,79 @@ def _request_glibatree_openai_edit(
     locked_frame: Image.Image,
     template: TemplateResources,
 ) -> PosterImage:
+    """Request a poster asset via the OpenAI 1.x image edit API."""
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
+    # 1) 只收集 OpenAI 支持的入参
     client_kwargs: dict[str, Any] = {"api_key": config.api_key}
     if config.api_url:
-        client_kwargs["base_url"] = config.api_url
+        client_kwargs["base_url"] = config.api_url  # 例如 https://api.openai.com/v1
 
-    # ✅ 仅在 httpx.Client 里设置代理，不要把 proxies 直接放进 OpenAI(**kwargs)
+    # 2) 代理要放到 httpx.Client 里，再作为 http_client 传给 OpenAI
     http_client: httpx.Client | None = None
     if config.proxy:
         timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        transport = httpx.HTTPTransport(retries=3)
-        http_client = httpx.Client(
-            proxies=config.proxy,
-            timeout=timeout,
-            transport=transport,
-        )
+        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
         client_kwargs["http_client"] = http_client
 
     base_bytes = _image_to_png_bytes(locked_frame)
     mask_bytes = _image_to_png_bytes(template.mask_background)
 
+    from contextlib import ExitStack
     with ExitStack() as stack:
         if http_client is not None:
             stack.callback(http_client.close)
 
-        client = OpenAI(**client_kwargs)   # ✅ 这里不会再带 proxies / proxy
+        # !!! 不要传 proxies=xxx 到 OpenAI(...) !!!
+        client = OpenAI(**client_kwargs)
 
-        # OpenAI v1 的 images.edit（edits）接口
-        resp = client.images.edit(
+        # OpenAI v1 的 images.edit
+        response = client.images.edit(
             model=config.model or "gpt-image-1",
             image=base_bytes,
             mask=mask_bytes,
             prompt=prompt,
-            size=OPENAI_IMAGE_SIZE,
+            size=OPENAI_IMAGE_SIZE,        # 例如 "1024x1024"
             response_format="b64_json",
         )
 
-    if not resp.data:
+    if not response.data:
         raise ValueError("Glibatree API 未返回任何图像数据。")
 
-    image = resp.data[0]
-    b64 = getattr(image, "b64_json", None)
-    if not b64:
+    image = response.data[0]
+    b64_data = getattr(image, "b64_json", None)
+    if not b64_data:
         raise ValueError("Glibatree API 响应缺少 b64_json 字段。")
 
-    decoded = base64.b64decode(b64)
+    decoded = base64.b64decode(b64_data)
+
     try:
         generated = Image.open(BytesIO(decoded)).convert("RGBA")
     except UnidentifiedImageError:
-        # 兜底：保留 data_url 返回
-        w, h = _parse_size(OPENAI_IMAGE_SIZE)
-        sz = template.spec.get("size", {})
-        w = int(sz.get("width") or w)
-        h = int(sz.get("height") or h)
+        # 异常时返回 data_url，前端仍可预览
+        width, height = _parse_size(OPENAI_IMAGE_SIZE)
+        size = template.spec.get("size", {})
+        width = int(size.get("width") or width)
+        height = int(size.get("height") or height)
         media_type = getattr(image, "mime_type", None) or "image/png"
         filename = getattr(image, "filename", None) or "poster.png"
-        data_url = f"data:{media_type};base64,{b64}"
-        return PosterImage(filename=filename, media_type=media_type, data_url=data_url, width=w, height=h)
+        data_url = f"data:{media_type};base64,{b64_data}"
+        return PosterImage(
+            filename=filename,
+            media_type=media_type,
+            data_url=data_url,
+            width=width,
+            height=height,
+        )
 
-    # 把锁定框合回去
+    # 把锁定的 UI 框叠回去
     mask_alpha = template.mask_background.split()[3]
     generated.paste(locked_frame, mask=mask_alpha)
 
     filename = getattr(image, "filename", None) or "poster.png"
     return _poster_image_from_pillow(generated, filename)
+
 
 
 
