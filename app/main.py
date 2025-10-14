@@ -37,6 +37,16 @@ from app.services.template_variants import (
     save_template_poster,
 )
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+logging.basicConfig(
+    level=LOG_LEVEL,  # 全局等级
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+    force=True,       # 覆盖第三方/默认配置，关键！
+)
+
 
 def _configure_logging() -> logging.Logger:
     level = os.getenv("LOG_LEVEL", "INFO").upper()
