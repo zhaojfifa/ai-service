@@ -1,3 +1,4 @@
+# app/services/s3_client.py
 from __future__ import annotations
 
 import datetime as _dt
@@ -6,7 +7,6 @@ import re
 import uuid
 from functools import lru_cache
 from typing import Optional
-from urllib.parse import quote
 
 import boto3
 from botocore.client import BaseClient
@@ -14,11 +14,11 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 
 def _env(name: str) -> str | None:
-    value = os.getenv(name)
-    if value is None:
+    v = os.getenv(name)
+    if v is None:
         return None
-    stripped = value.strip()
-    return stripped or None
+    s = v.strip()
+    return s or None
 
 
 @lru_cache(maxsize=1)
@@ -47,7 +47,6 @@ def _client() -> BaseClient | None:
 
 def get_client() -> BaseClient | None:
     """Return a cached boto3 client when credentials are available."""
-
     return _client()
 
 
@@ -59,13 +58,20 @@ def make_key(folder: str, filename: str) -> str:
 
 
 def public_url_for(key: str) -> str | None:
-    base = os.getenv("S3_PUBLIC_BASE")  # 必填：用 r2.dev 或自定义域
+    """
+    Build a public URL using S3_PUBLIC_BASE (必须配置为 R2 的 public 域，比如 r2.dev 或你的自定义域)。
+    未配置则返回 None（让调用方回退 base64）。
+    """
+    base = _env("S3_PUBLIC_BASE")
     if base:
-        return f"{base.rstrip('/')}/{key}"
-    # 没配就返回 None（不要拼 S3_ENDPOINT），避免给出不可用直链
+        return f"{base.rstrip('/')}/{key.lstrip('/')}"
     return None
 
+
 def presigned_put_url(key: str, content_type: str, expires: int = 900) -> str:
+    """
+    生成 PUT 预签名，确保带上 ContentType，浏览器上传时对象会保存正确的 Content-Type。
+    """
     client = _client()
     bucket = _env("S3_BUCKET")
     if not (client and bucket):
@@ -73,35 +79,39 @@ def presigned_put_url(key: str, content_type: str, expires: int = 900) -> str:
     try:
         return client.generate_presigned_url(
             ClientMethod="put_object",
-            Params={"Bucket": bucket, "Key": key, "ContentType": content_type},
+            Params={
+                "Bucket": bucket,
+                "Key": key,
+                "ContentType": content_type,
+                # R2 通常忽略 ACL，但保留无害；如无需要可移除
+                # "ACL": "public-read",
+            },
             ExpiresIn=max(int(expires), 60),
+            HttpMethod="PUT",
         )
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError("Failed to generate upload URL") from exc
 
 
 def presigned_get_url(key: str, expires: int | None = None) -> str:
+    """
+    生成 GET 预签名（下载/私有读取用）。默认 TTL 来自 S3_SIGNED_GET_TTL（秒），否则 900。
+    """
     client = _client()
     bucket = _env("S3_BUCKET")
     if not (client and bucket):
         raise RuntimeError("R2 storage is not configured")
-    ttl = expires
-    if ttl is None:
-        ttl_raw = _env("S3_SIGNED_GET_TTL")
-        ttl = int(ttl_raw) if ttl_raw and ttl_raw.isdigit() else 0
-    ttl = ttl or 900
+
+    ttl_raw = _env("S3_SIGNED_GET_TTL")
+    ttl = int(ttl_raw) if (ttl_raw and ttl_raw.isdigit()) else 0
+    ttl = expires or ttl or 900
+
     try:
         return client.generate_presigned_url(
             ClientMethod="get_object",
-             Params={
-                "Bucket": bucket,
-                "Key": key,
-                "ContentType": content_type,  # 必须
-                "ACL": "public-read",         # R2 会忽略 ACL，但保留无害
-            },
-            ExpiresIn=3600,
-            HttpMethod="PUT",
-          
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=max(int(ttl), 60),
+            HttpMethod="GET",
         )
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError("Failed to generate download URL") from exc
@@ -113,16 +123,19 @@ def get_bytes(key: str) -> bytes:
     if not (client and bucket):
         raise RuntimeError("R2 storage is not configured")
     try:
-        response = client.get_object(Bucket=bucket, Key=key)
+        resp = client.get_object(Bucket=bucket, Key=key)
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError(f"Failed to fetch object {key}") from exc
-    body = response.get("Body")
+    body = resp.get("Body")
     if body is None:
         raise RuntimeError(f"Object {key} has no body")
     return body.read()
 
 
-def put_bytes(key: str, data: bytes, *, content_type: str = "image/webp") -> Optional[str]:
+def put_bytes(key: str, data: bytes, *, content_type: str = "image/png") -> Optional[str]:
+    """
+    直接由后端上传对象，返回 public URL（若配置了 S3_PUBLIC_BASE），否则返回 None。
+    """
     client = _client()
     bucket = _env("S3_BUCKET")
     if not (client and bucket):
@@ -133,17 +146,14 @@ def put_bytes(key: str, data: bytes, *, content_type: str = "image/webp") -> Opt
             Key=key,
             Body=data,
             ContentType=content_type,
-            ACL="public-read",
+            # R2 一般忽略 ACL；如桶为 public，则匿名可读
+            # "ACL": "public-read",
         )
     except (ClientError, BotoCoreError):
         return None
-    public = public_url_for(key)
-    if public:
-        return public
-    endpoint = _env("S3_ENDPOINT")
-    if not endpoint:
-        return None
-    return f"{endpoint.rstrip('/')}/{bucket}/{quote(key)}"
+
+    # 只用 S3_PUBLIC_BASE 生成对外直链；未配置时返回 None，让上层回退 base64
+    return public_url_for(key)
 
 
 __all__ = [
