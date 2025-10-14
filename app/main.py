@@ -1,132 +1,127 @@
 # app/main.py
 from __future__ import annotations
-
 import os
 import sys
-import json
+import json                     # ← 你用了 json，但之前没导入
 import logging
 from typing import Any
-
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from pydantic import ValidationError
 from app.schemas import TemplatePosterCollection
+
 
 from app.config import get_settings
 from app.schemas import (
-    GeneratePosterRequest, GeneratePosterResponse, PromptBundle,
-    R2PresignPutRequest, R2PresignPutResponse,
-    SendEmailRequest, SendEmailResponse,
-    TemplatePosterCollection, TemplatePosterEntry, TemplatePosterUploadRequest,
+    GeneratePosterRequest,
+    GeneratePosterResponse,
+    PromptBundle,
+    R2PresignPutRequest,
+    R2PresignPutResponse,
+    SendEmailRequest,
+    SendEmailResponse,
 )
 from app.services.email_sender import send_email
 from app.services.glibatree import generate_poster_asset
-from app.services.poster import build_glibatree_prompt, compose_marketing_email, render_layout_preview
+from app.services.poster import (
+    build_glibatree_prompt,
+    compose_marketing_email,
+    render_layout_preview,
+)
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
-from app.services.template_variants import list_poster_entries, poster_entry_from_record, save_template_poster
 
-# ---------------- Logging（强制覆盖） ----------------
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
 logging.basicConfig(
-    level=LOG_LEVEL,
+    level=LOG_LEVEL,  # 全局等级
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     datefmt="%H:%M:%S",
     stream=sys.stdout,
-    force=True,
+    force=True,       # 覆盖第三方/默认配置，关键！
 )
+
+# 可选：单独把 uvicorn/fastapi 相关 logger 也调成同级别
 for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
     logging.getLogger(name).setLevel(LOG_LEVEL)
+
 logger = logging.getLogger("ai-service")
 logger.info("Logging initialized. level=%s", LOG_LEVEL)
 
-# ---------------- App ----------------
 settings = get_settings()
+
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
-# ---------------- CORS 允许来源 ----------------
-def _normalize_allowed_origins(value: Any) -> list[str]:
+UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
+UPLOAD_ALLOWED_MIME = {
+    item.strip()
+    for item in os.getenv("UPLOAD_ALLOWED_MIME", "image/png,image/jpeg,image/webp").split(",")
+    if item.strip()
+}
+
+
+def _normalize_allowed_origins(value):
+    # 支持 None / "" / "*" / CSV / JSON / list
     if not value:
         return ["*"]
     if isinstance(value, list):
         items = value
     elif isinstance(value, str):
         s = value.strip()
-        if s.startswith("["):
+        if s.startswith("["):  # JSON
             try:
                 items = json.loads(s)
             except Exception:
                 items = s.split(",")
-        else:
+        else:                   # CSV
             items = s.split(",")
     else:
         items = [str(value)]
 
     def clean(x: str) -> str:
-        return str(x).strip().strip('"').strip("'").rstrip("/")
+        s = str(x).strip().strip('"').strip("'").rstrip("/")
+        return s
 
     out = [clean(x) for x in items if clean(x)]
     return out or ["*"]
 
-raw_allowed = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
-allow_origins = _normalize_allowed_origins(raw_allowed)
+raw = (
+    getattr(settings, "allowed_origins", None)
+    or os.getenv("ALLOWED_ORIGINS")
+)
+allow_origins = _normalize_allowed_origins(raw)
 
-# 建议：明确你的前端来源（无路径/无末斜杠）；如需通配，用环境变量改成 "*"
-if allow_origins == ["*"]:
-    allow_origins = ["https://zhaojfifa.github.io"]
+allow_credentials = "*" not in allow_origins
 
-logger.info("CORS allow_origins=%s", allow_origins)
+# 建议明确写你的前端域名（更安全）
+allow_origins = [
+    "https://zhaojfifa.github.io",
+    "https://zhaojfifa.github.io/ai-service/"
+    # 或调试用： "*"
+]
 
-# 先挂官方 CORS 中间件（正常路径用）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    max_age=86400,
+    allow_methods=["*"],   # GET, POST, OPTIONS...
+    allow_headers=["*"],   # Content-Type, Authorization, x-api-key...
+    expose_headers=[],     # 如需要可暴露自定义响应头
+    max_age=86400,         # 预检缓存
 )
 
-# -------- 兜底 CORS 中间件（关键补丁）--------
-@app.middleware("http")
-async def cors_fallback_middleware(request: Request, call_next):
-    origin = request.headers.get("origin")
-    # 计算允许
-    is_wildcard = False
-    allow_this_origin = False
-    if "*" in allow_origins:
-        is_wildcard = True
-        allow_this_origin = True
-    elif origin:
-        allow_this_origin = (origin.rstrip("/") in allow_origins)
+# 若你路由里对 OPTIONS 会 405/400，可加兜底（通常 CORSMiddleware 已处理）
+from fastapi.responses import Response
+@app.options("/{path:path}")
+async def cors_preflight(path: str):
+    return Response(status_code=204)
 
-    # 预检：无条件 204 放行，并写齐头
-    if request.method.upper() == "OPTIONS":
-        resp = Response(status_code=204)
-        # 预检必须回写头，否则浏览器阻断
-        if is_wildcard:
-            resp.headers["Access-Control-Allow-Origin"] = "*"  # 允许任何源（配合 allow_credentials=False）
-        elif origin and allow_this_origin:
-            resp.headers["Access-Control-Allow-Origin"] = origin
-            resp.headers["Vary"] = "Origin"
-        # 方法/头一律放开（或读取请求头原样回写）
-        req_method = request.headers.get("Access-Control-Request-Method") or "POST"
-        req_headers = request.headers.get("Access-Control-Request-Headers") or "*"
-        resp.headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,PATCH,DELETE,OPTIONS," + req_method
-        resp.headers["Access-Control-Allow-Headers"] = req_headers
-        resp.headers["Access-Control-Max-Age"] = "86400"
-        return resp
+@app.options("/{rest_of_path:path}")
+def cors_preflight_handler(rest_of_path: str) -> Response:
+    """Ensure any CORS preflight request receives an immediate 204 response."""
+    return Response(status_code=204)
 
-    # 非预检：让下游处理；无论成功失败，都补 CORS 头（避免错误响应缺头）
-    response = await call_next(request)
-    if is_wildcard:
-        response.headers["Access-Control-Allow-Origin"] = "*"
-    elif origin and allow_this_origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Vary"] = "Origin"
-    return response
 
-# 注：如你之前写了 @app.options(...) 通配路由，删掉，避免路由冲突。
-# ---- 健康检查 ----
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
