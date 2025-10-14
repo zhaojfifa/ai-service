@@ -519,97 +519,73 @@ def _request_glibatree_openai_edit(
     locked_frame: Image.Image,
     template: TemplateResources,
 ) -> PosterImage:
-    """Request a poster asset via the OpenAI 1.x image *edits* API."""
-
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
-    if template.mask_background is None:
-        # 我们依赖 mask_background 来指示“可绘制区域”
-        raise ValueError("模板缺少 mask_background，无法进行 OpenAI 编辑合成。")
 
-    # ---- 组建 OpenAI 客户端 ----
     client_kwargs: dict[str, Any] = {"api_key": config.api_key}
     if config.api_url:
         client_kwargs["base_url"] = config.api_url
 
+    # ✅ 仅在 httpx.Client 里设置代理，不要把 proxies 直接放进 OpenAI(**kwargs)
     http_client: httpx.Client | None = None
     if config.proxy:
         timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
+        transport = httpx.HTTPTransport(retries=3)
+        http_client = httpx.Client(
+            proxies=config.proxy,
+            timeout=timeout,
+            transport=transport,
+        )
         client_kwargs["http_client"] = http_client
 
-    # ---- 把 PIL 图像转为带文件名的 BytesIO 句柄（SDK 偏好 BinaryIO）----
-    class _NamedBytesIO(BytesIO):
-        # OpenAI SDK 会尝试读取 .name 用于 multipart
-        def __init__(self, data: bytes, name: str):
-            super().__init__(data)
-            self.name = name
-
-    base_png = _image_to_png_bytes(locked_frame)
-    mask_png = _image_to_png_bytes(template.mask_background)
-
-    base_io = _NamedBytesIO(base_png, "base.png")
-    mask_io = _NamedBytesIO(mask_png, "mask.png")
-
-    # ---- 调用 images.edits（注意是 edits 复数）----
-    from openai import OpenAI
+    base_bytes = _image_to_png_bytes(locked_frame)
+    mask_bytes = _image_to_png_bytes(template.mask_background)
 
     with ExitStack() as stack:
         if http_client is not None:
             stack.callback(http_client.close)
 
-        client = OpenAI(**client_kwargs)
+        client = OpenAI(**client_kwargs)   # ✅ 这里不会再带 proxies / proxy
 
-        logger.info(
-            "OpenAI edits call: model=%s size=%s base=%s mask=%s",
-            config.model or "gpt-image-1",
-            OPENAI_IMAGE_SIZE,
-            getattr(base_io, "name", "base.png"),
-            getattr(mask_io, "name", "mask.png"),
-        )
-
-        # v1 SDK：images.edits，传 BinaryIO
-        resp = client.images.edits(
+        # OpenAI v1 的 images.edit（edits）接口
+        resp = client.images.edit(
             model=config.model or "gpt-image-1",
-            image=base_io,
-            mask=mask_io,
+            image=base_bytes,
+            mask=mask_bytes,
             prompt=prompt,
             size=OPENAI_IMAGE_SIZE,
             response_format="b64_json",
         )
 
-    if not resp or not getattr(resp, "data", None):
-        raise ValueError("OpenAI 未返回图像数据（data 为空）。")
+    if not resp.data:
+        raise ValueError("Glibatree API 未返回任何图像数据。")
 
-    item = resp.data[0]
-    b64_data = getattr(item, "b64_json", None)
-    if not b64_data:
-        raise ValueError("OpenAI 响应缺少 b64_json 字段。")
+    image = resp.data[0]
+    b64 = getattr(image, "b64_json", None)
+    if not b64:
+        raise ValueError("Glibatree API 响应缺少 b64_json 字段。")
 
-    # ---- 将生成内容贴回锁定模板（把非透明区域保持不变）----
-    decoded = base64.b64decode(b64_data)
+    decoded = base64.b64decode(b64)
     try:
         generated = Image.open(BytesIO(decoded)).convert("RGBA")
     except UnidentifiedImageError:
-        logger.exception("OpenAI 图像解码失败，返回 data-url 形式给前端。")
-        # 尺寸回退
-        w_def, h_def = (int(x) for x in OPENAI_IMAGE_SIZE.split("x"))
-        size_spec = template.spec.get("size", {})
-        width = int(size_spec.get("width") or w_def)
-        height = int(size_spec.get("height") or h_def)
-        media_type = getattr(item, "mime_type", None) or "image/png"
-        filename = getattr(item, "filename", None) or "poster.png"
-        data_url = f"data:{media_type};base64,{b64_data}"
-        return PosterImage(filename=filename, media_type=media_type,
-                           data_url=data_url, width=width, height=height)
+        # 兜底：保留 data_url 返回
+        w, h = _parse_size(OPENAI_IMAGE_SIZE)
+        sz = template.spec.get("size", {})
+        w = int(sz.get("width") or w)
+        h = int(sz.get("height") or h)
+        media_type = getattr(image, "mime_type", None) or "image/png"
+        filename = getattr(image, "filename", None) or "poster.png"
+        data_url = f"data:{media_type};base64,{b64}"
+        return PosterImage(filename=filename, media_type=media_type, data_url=data_url, width=w, height=h)
 
-    # 保留模板非透明区域（alpha）——仅把透明区替换为 AI 结果
+    # 把锁定框合回去
     mask_alpha = template.mask_background.split()[3]
-    composed = generated.copy()
-    composed.paste(locked_frame, mask=mask_alpha)
+    generated.paste(locked_frame, mask=mask_alpha)
 
-    filename = getattr(item, "filename", None) or "poster.png"
-    return _poster_image_from_pillow(composed, filename)
+    filename = getattr(image, "filename", None) or "poster.png"
+    return _poster_image_from_pillow(generated, filename)
+
 
 
 def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
