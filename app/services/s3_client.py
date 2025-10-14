@@ -56,7 +56,15 @@ def make_key(folder: str, filename: str) -> str:
     safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", filename or "asset")
     return f"{folder}/{date_part}/{uuid.uuid4().hex}/{safe_name}"
 
-
+# 新增：规范化 public_base，自动补桶名，避免“漏桶名/双斜杠”
+def _normalize_public_base() -> str | None:
+    base = _normalize_public_base()
+    if base:
+        # key 里可能有中文/空格，按需编码；你如果全是安全字符，可不编码
+        from urllib.parse import quote
+        return f"{base}/{quote(key)}"
+    return None
+    
 def public_url_for(key: str) -> str | None:
     """
     Build a public URL using S3_PUBLIC_BASE (必须配置为 R2 的 public 域，比如 r2.dev 或你的自定义域)。
@@ -133,9 +141,6 @@ def get_bytes(key: str) -> bytes:
 
 
 def put_bytes(key: str, data: bytes, *, content_type: str = "image/png") -> Optional[str]:
-    """
-    直接由后端上传对象，返回 public URL（若配置了 S3_PUBLIC_BASE），否则返回 None。
-    """
     client = _client()
     bucket = _env("S3_BUCKET")
     if not (client and bucket):
@@ -146,14 +151,21 @@ def put_bytes(key: str, data: bytes, *, content_type: str = "image/png") -> Opti
             Key=key,
             Body=data,
             ContentType=content_type,
-            # R2 一般忽略 ACL；如桶为 public，则匿名可读
-            # "ACL": "public-read",
+            ACL="public-read",  # R2 会忽略 ACL，但无害
         )
-    except (ClientError, BotoCoreError):
+        # 关键：确认一下对象真的在桶里
+        client.head_object(Bucket=bucket, Key=key)
+
+    except (ClientError, BotoCoreError) as exc:
+        # 打清楚一点，便于你在 Render 日志里搜
+        import logging
+        logging.getLogger(__name__).warning("R2 put/head failed: bucket=%s key=%s err=%s", bucket, key, exc)
         return None
 
-    # 只用 S3_PUBLIC_BASE 生成对外直链；未配置时返回 None，让上层回退 base64
-    return public_url_for(key)
+    public = public_url_for(key)
+    import logging
+    logging.getLogger(__name__).info("R2 uploaded ok: bucket=%s key=%s url=%s", bucket, key, public)
+    return public
 
 
 __all__ = [
