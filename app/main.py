@@ -381,4 +381,3 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 
 __all__ = ["app"]
-
