@@ -22,7 +22,6 @@ from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.services.s3_client import get_bytes, put_bytes
 
-
 logger = logging.getLogger(__name__)
 
 OPENAI_IMAGE_SIZE = "1024x1024"
@@ -39,7 +38,6 @@ GUIDE_GREY = (203, 210, 217)
 
 def _copy_model(instance, **update):
     """Compatibility helper for cloning Pydantic v1/v2 models with updates."""
-
     if hasattr(instance, "model_copy"):
         return instance.model_copy(update=update, deep=True)  # type: ignore[attr-defined]
     data = instance.dict()
@@ -69,7 +67,6 @@ class PosterGenerationResult:
 @lru_cache(maxsize=8)
 def _load_template_resources(template_id: str) -> TemplateResources:
     """Load template spec, locked frame and masks for the given template id."""
-
     candidate = TEMPLATE_ROOT / f"{template_id}_spec.json"
     if not candidate.exists():
         logger.warning("Template %s not found, falling back to %s", template_id, DEFAULT_TEMPLATE_ID)
@@ -99,7 +96,6 @@ def _load_template_resources(template_id: str) -> TemplateResources:
 
 def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Image | None:
     """Load a template asset from PNG or its Base64-encoded fallback."""
-
     if not asset_name:
         if required:
             raise FileNotFoundError("Template asset name is empty")
@@ -125,7 +121,6 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
 
 def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:
     """Attempt to load a sans-serif font while gracefully falling back to default."""
-
     font_candidates = [
         "SourceSansPro-Semibold.ttf" if weight != "regular" else "SourceSansPro-Regular.ttf",
         "NotoSansCJKsc-Bold.otf" if weight != "regular" else "NotoSansCJKsc-Regular.otf",
@@ -133,13 +128,11 @@ def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:
         "PingFang.ttc",
         "Microsoft YaHei.ttf",
     ]
-
     for candidate in font_candidates:
         try:
             return ImageFont.truetype(candidate, size=size)
         except Exception:
             continue
-
     return ImageFont.load_default()
 
 
@@ -154,7 +147,6 @@ def _draw_wrapped_text(
     align: str = "left",
 ) -> None:
     """Render multiline text constrained within the provided box."""
-
     left, top, width, height = box
     right = left + width
     bottom = top + height
@@ -218,7 +210,6 @@ def _render_template_frame(
     fill_background: bool = False,
 ) -> Image.Image:
     """Render the locked template frame with all deterministic elements applied."""
-
     spec = template.spec
     size = spec.get("size", {})
     width = int(size.get("width", template.template.width))
@@ -414,12 +405,12 @@ def generate_poster_asset(
     lock_seed: bool = False,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
-
     template = _load_template_resources(poster.template_id)
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     settings = get_settings()
     primary: PosterImage | None = None
+
     if settings.glibatree.is_configured:
         try:
             if settings.glibatree.use_openai_client:
@@ -447,6 +438,7 @@ def generate_poster_asset(
         mock_frame = _render_template_frame(poster, template, fill_background=True)
         primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
 
+    # 生成变体（仅重命名，不重复上传）
     variant_images: list[PosterImage] = []
     desired_variants = max(1, variants)
     if desired_variants > 1:
@@ -458,12 +450,7 @@ def generate_poster_asset(
                 filename = f"{stem}{suffix}.{ext}"
             else:
                 filename = f"{filename}{suffix}"
-            variant_images.append(
-                _copy_model(
-                    primary,
-                    filename=filename,
-                )
-            )
+            variant_images.append(_copy_model(primary, filename=filename))
 
     return PosterGenerationResult(
         poster=primary,
@@ -483,7 +470,6 @@ def _request_glibatree_http(
     template: TemplateResources,
 ) -> PosterImage:
     """Call the remote Glibatree API and transform the result into PosterImage."""
-
     response = requests.post(
         api_url,
         headers={"Authorization": f"Bearer {api_key}"},
@@ -492,9 +478,10 @@ def _request_glibatree_http(
     )
     try:
         response.raise_for_status()
-    except requests.HTTPError as exc:  # pragma: no cover - relies on remote API failures
+    except requests.HTTPError as exc:
         detail = exc.response.text if exc.response is not None else str(exc)
         raise RuntimeError(f"Glibatree API 请求失败：{detail}") from exc
+
     payload: dict[str, Any] = response.json()
 
     if "data_url" in payload:
@@ -532,7 +519,6 @@ def _request_glibatree_openai_edit(
     template: TemplateResources,
 ) -> PosterImage:
     """Request a poster asset via the OpenAI 1.x image edit API."""
-
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
@@ -577,9 +563,10 @@ def _request_glibatree_openai_edit(
         generated = Image.open(BytesIO(decoded)).convert("RGBA")
     except UnidentifiedImageError:
         logger.exception("Failed to decode OpenAI image payload; returning raw data")
+        width, height = _parse_size(OPENAI_IMAGE_SIZE)
         size = template.spec.get("size", {})
-        width = int(size.get("width") or _parse_size(OPENAI_IMAGE_SIZE)[0])
-        height = int(size.get("height") or _parse_size(OPENAI_IMAGE_SIZE)[1])
+        width = int(size.get("width") or width)
+        height = int(size.get("height") or height)
         media_type = getattr(image, "mime_type", None) or "image/png"
         filename = getattr(image, "filename", None) or "poster.png"
         data_url = f"data:{media_type};base64,{b64_data}"
@@ -600,7 +587,6 @@ def _request_glibatree_openai_edit(
 
 def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
     """Decode a base64 data URL into a Pillow image, returning ``None`` on error."""
-
     if not data_url:
         return None
     if "," not in data_url:
@@ -632,7 +618,7 @@ def _load_image_from_key(key: str | None) -> Image.Image | None:
         return None
     try:
         payload = get_bytes(key)
-    except Exception as exc:  # pragma: no cover - depends on network configuration
+    except Exception as exc:
         logger.warning("Unable to download object %s from R2: %s", key, exc)
         return None
 
@@ -650,9 +636,9 @@ def _load_image_asset(data_url: str | None, key: str | None) -> Image.Image | No
     return _load_image_from_data_url(data_url)
 
 
-try:  # Pillow >= 10 exposes resampling filters on ``Image.Resampling``
+try:
     RESAMPLE_LANCZOS = Image.Resampling.LANCZOS  # type: ignore[attr-defined]
-except AttributeError:  # pragma: no cover - fallback for older Pillow versions
+except AttributeError:
     RESAMPLE_LANCZOS = Image.LANCZOS
 
 
@@ -664,7 +650,6 @@ def _paste_image(
     mode: str = "contain",
 ) -> None:
     """Paste ``asset`` into ``box`` on ``canvas`` while preserving aspect ratio."""
-
     left, top, right, bottom = box
     target_size = (max(right - left, 1), max(bottom - top, 1))
 
@@ -688,6 +673,7 @@ def _image_to_png_bytes(image: Image.Image) -> bytes:
 
 
 def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
+    """将 Pillow 图片上传到 R2；失败时回退 base64，并统一记录 key/url 以便排查。"""
     if image.mode != "RGBA":
         image = image.convert("RGBA")
 
@@ -706,6 +692,11 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
     key = f"posters/{timestamp}-{digest}-{slug}"
 
     url = put_bytes(key, image_bytes, content_type="image/png")
+    if url:
+        logger.info("R2 upload ok key=%s url=%s", key, url)
+    else:
+        logger.warning("R2 upload failed; will return data_url instead (key=%s)", key)
+
     data_url: str | None = None
     if not url:
         encoded = base64.b64encode(image_bytes).decode("ascii")
@@ -719,6 +710,15 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
         width=output.width,
         height=output.height,
     )
+
+
+def _parse_size(size_str: str) -> tuple[int, int]:
+    """Parse '1024x1024' into (1024, 1024) with safe fallback."""
+    try:
+        w, h = str(size_str).lower().split("x", 1)
+        return int(w), int(h)
+    except Exception:
+        return 1024, 1024
 
 
 def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
@@ -761,7 +761,6 @@ def _enforce_template_materials(
     poster: PosterInput, template: TemplateResources
 ) -> tuple[PosterInput, dict[str, Any]]:
     """Ensure poster inputs respect the selected template's material constraints."""
-
     materials = template.spec.get("materials", {})
 
     def _interpret_flag(raw_value: Any, default: bool) -> bool:
@@ -791,10 +790,7 @@ def _enforce_template_materials(
         if material_type == "text":
             allows_upload = False
 
-        allows_prompt = _interpret_flag(
-            material.get("allowsPrompt"),
-            True,
-        )
+        allows_prompt = _interpret_flag(material.get("allowsPrompt"), True)
         if not allows_upload:
             allows_prompt = True
 
@@ -833,11 +829,7 @@ def _enforce_template_materials(
     elif desired_scenario_mode == "prompt" and not scenario_allows_prompt:
         desired_scenario_mode = "upload"
     if desired_scenario_mode != poster.scenario_mode:
-        logger.info(
-            "Template %s enforces scenario mode %s.",
-            template.id,
-            desired_scenario_mode,
-        )
+        logger.info("Template %s enforces scenario mode %s.", template.id, desired_scenario_mode)
         updates["scenario_mode"] = desired_scenario_mode
     if not scenario_allows_upload and (poster.scenario_asset or poster.scenario_key):
         updates["scenario_asset"] = None
@@ -849,11 +841,7 @@ def _enforce_template_materials(
     elif desired_product_mode == "prompt" and not product_allows_prompt:
         desired_product_mode = "upload"
     if desired_product_mode != poster.product_mode:
-        logger.info(
-            "Template %s enforces product mode %s.",
-            template.id,
-            desired_product_mode,
-        )
+        logger.info("Template %s enforces product mode %s.", template.id, desired_product_mode)
         updates["product_mode"] = desired_product_mode
     if not product_allows_upload and (poster.product_asset or poster.product_key):
         updates["product_asset"] = None
@@ -879,9 +867,7 @@ def _enforce_template_materials(
         if desired_mode != item.mode:
             updates_for_item["mode"] = desired_mode
 
-        sanitised_item = (
-            item if not updates_for_item else _copy_model(item, **updates_for_item)
-        )
+        sanitised_item = item if not updates_for_item else _copy_model(item, **updates_for_item)
         sanitised_gallery.append(sanitised_item)
         if sanitised_item is not item:
             gallery_changed = True
@@ -919,7 +905,6 @@ def _enforce_template_materials(
 
 def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     """Resolve AI-generated assets for scenario, product, and gallery slots."""
-
     template = _load_template_resources(poster.template_id)
     poster, material_flags = _enforce_template_materials(poster, template)
 
@@ -943,7 +928,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
             try:
                 scenario_asset = _generate_image_from_openai(config, prompt_text, ASSET_IMAGE_SIZE)
                 updates["scenario_asset"] = scenario_asset
-            except Exception:  # pragma: no cover - network failure paths
+            except Exception:
                 logger.exception("Failed to generate scenario asset from prompt: %s", prompt_text)
 
     product_allows_prompt = material_flags["product"].get("allows_prompt", False)
@@ -958,7 +943,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
             try:
                 product_asset = _generate_image_from_openai(config, prompt_text, ASSET_IMAGE_SIZE)
                 updates["product_asset"] = product_asset
-            except Exception:  # pragma: no cover - network failure paths
+            except Exception:
                 logger.exception("Failed to generate product asset from prompt: %s", prompt_text)
 
     gallery_flags = material_flags["gallery"]
@@ -981,7 +966,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
                 asset_url = _generate_image_from_openai(config, item.prompt, GALLERY_IMAGE_SIZE)
                 gallery_updates.append(_copy_model(item, asset=asset_url))
                 gallery_changed = True
-            except Exception:  # pragma: no cover - network failure paths
+            except Exception:
                 logger.exception("Failed to generate gallery asset from prompt: %s", item.prompt)
                 gallery_updates.append(item)
         else:
@@ -993,4 +978,3 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     if updates:
         return _copy_model(poster, **updates)
     return poster
-
