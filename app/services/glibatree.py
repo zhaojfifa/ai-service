@@ -570,7 +570,6 @@ def _request_glibatree_openai_edit(
                 mask=mask_bytes,
                 prompt=prompt,
                 size=OPENAI_IMAGE_SIZE,          # "1024x1024"
-                response_format="b64_json",
             )
             if not resp.data:
                 raise ValueError("OpenAI images.edit 空响应")
@@ -760,7 +759,6 @@ def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str)
                 model=config.model or "gpt-image-1",
                 prompt=prompt,
                 size=size,
-                response_format="b64_json",
             )
             if not resp.data:
                 raise ValueError("OpenAI images.generate 空响应")
@@ -784,7 +782,6 @@ def _openai_images_generate_via_httpx(config: GlibatreeConfig, prompt: str, size
         "model": config.model or "gpt-image-1",
         "prompt": prompt,
         "size": size,
-        "response_format": "b64_json",
     }
     timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
     with httpx.Client(proxies=config.proxy, timeout=timeout) as cli:
@@ -958,8 +955,7 @@ def _openai_images_edit_via_httpx(config: GlibatreeConfig, prompt: str,
     files = {
         "prompt": (None, prompt),
         "size": (None, size),
-        "response_format": (None, "b64_json"),
-        "image": ("image.png", image_png, "image/png"),
+          "image": ("image.png", image_png, "image/png"),
         "mask": ("mask.png", mask_png, "image/png"),
     }
     timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
