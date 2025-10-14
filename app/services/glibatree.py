@@ -11,7 +11,7 @@ from datetime import datetime
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any, Tuple, Optional
 
 import httpx
 import requests
@@ -63,18 +63,12 @@ class PosterGenerationResult:
     seed: int | None = None
     lock_seed: bool = False
 
-def _build_openai_client(config: GlibatreeConfig) -> Tuple[OpenAI, Optional[httpx.Client]]:
-    """
-    统一构建 OpenAI 客户端：
-    - 只传 OpenAI 支持的关键字（api_key, base_url, http_client）
-    - 代理走 httpx.Client(proxies=...)，再通过 http_client 注入
-    - 返回 (client, http_client)；由调用方负责关闭 http_client
-    """
+def _build_openai_client(config: GlibatreeConfig) -> tuple[OpenAI, Optional[httpx.Client]]:
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
     kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:                     # e.g. https://api.openai.com/v1
+    if config.api_url:              # 例如 https://api.openai.com/v1
         kwargs["base_url"] = config.api_url
 
     http_client: httpx.Client | None = None
@@ -83,8 +77,8 @@ def _build_openai_client(config: GlibatreeConfig) -> Tuple[OpenAI, Optional[http
         http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
         kwargs["http_client"] = http_client
 
-    client = OpenAI(**kwargs)
-    return client, http_client
+    return OpenAI(**kwargs), http_client
+
 
 
 @lru_cache(maxsize=8)
@@ -756,11 +750,6 @@ def _parse_size(size_str: str) -> tuple[int, int]:
 
 
 def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
-    """
-    用 OpenAI 直接生成一张图，返回 data URL（base64）。
-    - 使用统一工厂创建 OpenAI 客户端
-    - 通过 ExitStack 关闭 http_client，避免连接泄露
-    """
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置，无法调用 OpenAI 生成素材。")
 
@@ -770,22 +759,18 @@ def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str)
         if http_client is not None:
             stack.callback(http_client.close)
 
-        # v1 images.generate
         response = client.images.generate(
             model=config.model or "gpt-image-1",
             prompt=prompt,
-            size=size,                # 例如 "1024x1024"
+            size=size,
         )
 
     if not response.data:
         raise ValueError("OpenAI 未返回任何图像数据。")
-
-    image = response.data[0]
-    b64_data = getattr(image, "b64_json", None)
-    if not b64_data:
+    b64 = getattr(response.data[0], "b64_json", None)
+    if not b64:
         raise ValueError("OpenAI 响应缺少 b64_json 字段。")
-
-    return f"data:image/png;base64,{b64_data}"
+    return f"data:image/png;base64,{b64}"
 
 
 
