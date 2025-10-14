@@ -58,12 +58,12 @@ def make_key(folder: str, filename: str) -> str:
     return f"{folder}/{date_part}/{uuid.uuid4().hex}/{safe_name}"
 
 
-def public_url_for(key: str) -> Optional[str]:
-    base = _env("S3_PUBLIC_BASE")
-    if not (base and key):
-        return None
-    return f"{base.rstrip('/')}/{quote(key)}"
-
+def public_url_for(key: str) -> str | None:
+    base = os.getenv("S3_PUBLIC_BASE")  # 必填：用 r2.dev 或自定义域
+    if base:
+        return f"{base.rstrip('/')}/{key}"
+    # 没配就返回 None（不要拼 S3_ENDPOINT），避免给出不可用直链
+    return None
 
 def presigned_put_url(key: str, content_type: str, expires: int = 900) -> str:
     client = _client()
@@ -93,8 +93,15 @@ def presigned_get_url(key: str, expires: int | None = None) -> str:
     try:
         return client.generate_presigned_url(
             ClientMethod="get_object",
-            Params={"Bucket": bucket, "Key": key},
-            ExpiresIn=max(int(ttl), 60),
+             Params={
+                "Bucket": bucket,
+                "Key": key,
+                "ContentType": content_type,  # 必须
+                "ACL": "public-read",         # R2 会忽略 ACL，但保留无害
+            },
+            ExpiresIn=3600,
+            HttpMethod="PUT",
+          
         )
     except (ClientError, BotoCoreError) as exc:
         raise RuntimeError("Failed to generate download URL") from exc
