@@ -488,16 +488,46 @@ function assignPosterImage(element, image, altText) {
   return true;
 }
 
-// 预签名上传：向后端申请 R2 PUT 地址，返回 {key, put_url, public_url}
-async function r2PresignPut(folder, file, bases) {
+// 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
+// 返回 { key, put_url, public_url, etag, content_type, size }
+async function r2PresignPut(folder, file, bases, options = {}) {
+  if (!file) throw new Error('没有可上传的文件');
+
+  const retry = options.retry ?? 1;
+  const contentType = file.type || 'image/png'; // 图片默认 image/png 更稳
+  const size = (typeof file.size === 'number') ? file.size : null;
+
+  // 1) 申请预签名
   const payload = {
     folder: folder || 'uploads',
-    filename: file?.name || 'upload.bin',
-    content_type: file?.type || 'application/octet-stream',
-    size: typeof file?.size === 'number' ? file.size : null,
+    filename: file.name || 'upload.bin',
+    content_type: contentType,
+    size,
   };
-  const response = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, 1);
-  return response.json();
+  const resp = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, retry);
+  const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+  if (!data || typeof data !== 'object') throw new Error('预签名接口返回异常');
+  const { key, put_url: putUrl, public_url: publicUrl } = data;
+  if (!key || !putUrl) throw new Error('预签名接口缺少 key 或 put_url');
+
+  // 2) 直接上传到 R2（options.upload === false 可只要签名不上传）
+  if (options.upload !== false) {
+    const putRes = await fetch(putUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': contentType }, // 关键：写入正确 Content-Type
+      body: file,
+    });
+    if (!putRes.ok) {
+      const txt = await putRes.text().catch(() => '');
+      throw new Error(`R2 上传失败：HTTP ${putRes.status} ${putRes.statusText} ${txt || ''}`.trim());
+    }
+    const etag = putRes.headers.get('etag') || null;
+    return { key, put_url: putUrl, public_url: publicUrl, etag, content_type: contentType, size };
+  }
+
+  // 仅返回签名信息
+  return { key, put_url: putUrl, public_url: publicUrl, content_type: contentType, size };
 }
 
 
