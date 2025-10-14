@@ -8,7 +8,6 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
 
@@ -40,6 +39,8 @@ from app.services.template_variants import (
 )
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() in {"1", "true", "yes"}
+allowed_origins = ["*"] if allow_all else DEFAULT_ALLOWED_ORIGINS + DEV_EXTRA_ORIGINS
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -59,7 +60,10 @@ def _configure_logging() -> logging.Logger:
     logger.debug("Logging configured at %s", level)
     return logger
 
-
+# 兜底：某些反向代理/中间件不转发 OPTIONS 时，显式给个 204
+@app.options("/{rest_of_path:path}")
+def any_options(rest_of_path: str):
+    return Response(status_code=204)
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
@@ -70,11 +74,16 @@ UPLOAD_ALLOWED_MIME = {
     for item in os.getenv("UPLOAD_ALLOWED_MIME", "image/png,image/jpeg,image/webp").split(",")
     if item.strip()
 }
-ALLOWED_ORIGINS = [
+# 生产：只放行你的前端来源
+DEFAULT_ALLOWED_ORIGINS = [
     "https://zhaojiffa.github.io",
-    "http://localhost",
+]
+# 本地调试也放行（可按需删掉）
+DEV_EXTRA_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost",
+    "http://127.0.0.1",
 ]
 
 def _normalise_allowed_origins(value: Any) -> list[str]:
@@ -114,7 +123,6 @@ app.add_middleware(
     expose_headers=["Content-Type", "Link"],
     max_age=86400,                    # 预检缓存一天
 )
-
 
 @app.options("/{path:path}")
 async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
