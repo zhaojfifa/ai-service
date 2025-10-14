@@ -379,37 +379,6 @@ class TemplatePosterCollection(_CompatModel):
     posters: list[TemplatePosterEntry] = Field(default_factory=list)
 
 # ------------------------------------------------------------------------------
-# 模板海报上传
-# ------------------------------------------------------------------------------
-
-
-class TemplatePosterUploadRequest(BaseModel):
-    slot: Literal["variant_a", "variant_b"] = Field(
-        ..., description="Target slot for the uploaded template poster variant.",
-    )
-    filename: constr(strip_whitespace=True, min_length=1)
-    content_type: constr(strip_whitespace=True, min_length=1)
-    data: constr(strip_whitespace=True, min_length=1)
-
-    class Config:  # v1
-        extra = "ignore"
-
-
-class TemplatePosterEntry(BaseModel):
-    slot: Literal["variant_a", "variant_b"]
-    poster: PosterImage
-
-    class Config:  # v1
-        extra = "ignore"
-
-
-class TemplatePosterCollection(BaseModel):
-    posters: list[TemplatePosterEntry] = Field(default_factory=list)
-
-    class Config:  # v1
-        extra = "ignore"
-
-# ------------------------------------------------------------------------------
 # 生成请求 / 响应
 # ------------------------------------------------------------------------------
 
