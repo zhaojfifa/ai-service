@@ -544,33 +544,37 @@ def _request_glibatree_http(
 
 
 
+
+
+
+
 def _request_glibatree_openai_edit(
     config: GlibatreeConfig,
     prompt: str,
     locked_frame: Image.Image,
     template: TemplateResources,
 ) -> PosterImage:
+    """用 OpenAI v1 images.edit 生成背景，再叠回锁定 UI 并上传到 R2。"""
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
-    # 1) 组装客户端（可带代理）
+    # 1) OpenAI 客户端（可带代理，但绝对不要传 proxies=xxx 给 OpenAI(...)）
     client_kwargs: dict[str, Any] = {"api_key": config.api_key}
     if config.api_url:
-        client_kwargs["base_url"] = config.api_url  # e.g. https://api.openai.com/v1
+        client_kwargs["base_url"] = config.api_url  # 例如 https://api.openai.com/v1
+
     http_client: httpx.Client | None = None
     if config.proxy:
         timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
         http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
         client_kwargs["http_client"] = http_client
 
-    # 2) 准备文件 —— 关键点：BytesIO 要有 .name 才能推断出 image/png
+    # 2) 准备“文件”——一定要让 BytesIO 带上 .name，SDK 才会按 image/png 发送
     base_png = _image_to_png_bytes(locked_frame)                 # PNG bytes
     mask_png = _image_to_png_bytes(template.mask_background)     # PNG bytes
 
-    base_file = BytesIO(base_png)
-    base_file.name = "base.png"          # <= 非常重要：告诉 SDK 这是 png
-    mask_file = BytesIO(mask_png)
-    mask_file.name = "mask.png"          # <= 同上
+    base_file = BytesIO(base_png); base_file.name = "base.png"   # 关键
+    mask_file = BytesIO(mask_png); mask_file.name = "mask.png"   # 关键
 
     from contextlib import ExitStack
     with ExitStack() as stack:
@@ -579,46 +583,53 @@ def _request_glibatree_openai_edit(
 
         client = OpenAI(**client_kwargs)
 
-        # 3) 调用 edits；不要再传 response_format
-        resp = client.images.edit(
-            model=config.model or "gpt-image-1",
-            image=base_file,              # file-like 对象
-            mask=mask_file,               # file-like 对象
-            prompt=prompt,
-            size=OPENAI_IMAGE_SIZE,       # 如 "1024x1024"
-        )
+        # 3) 调用 edits —— 切记不要再传 response_format
+        try:
+            resp = client.images.edit(
+                model=config.model or "gpt-image-1",
+                image=base_file,
+                mask=mask_file,
+                prompt=prompt,
+                size=OPENAI_IMAGE_SIZE,   # e.g. "1024x1024"
+            )
+        except Exception as e:
+            # 打印出错详情，方便快速定位是否还有 4xx
+            logger.exception("OpenAI images.edit failed: %s", e)
+            raise
 
     if not resp.data:
         raise ValueError("OpenAI 未返回任何图像数据。")
 
     b64 = getattr(resp.data[0], "b64_json", None)
     if not b64:
-        # 个别环境可能给 url，这里也做下兜底（可选）
+        # 个别情况下会返回 url；如需兼容，可在这里补下载逻辑
         url = getattr(resp.data[0], "url", None)
         if url:
-            # 如果你已经有 http_client，可以用它拉取；此处略
-            raise ValueError("返回的是 url，按需补充下载逻辑")
+            logger.error("OpenAI 返回 url 而非 b64_json，当前未实现下载分支：%s", url)
+            raise ValueError("OpenAI 响应缺少 b64_json 字段。")
         raise ValueError("OpenAI 响应缺少 b64_json 字段。")
 
-    # 解码、叠回锁定 UI 并上传
-    decoded = base64.b64decode(b64)
+    # 4) 解码、叠回锁定 UI，再上传到 R2
     try:
-        generated = Image.open(BytesIO(decoded)).convert("RGBA")
+        generated = Image.open(BytesIO(base64.b64decode(b64))).convert("RGBA")
     except UnidentifiedImageError:
-        # 解码异常就直接返回 data URL，前端仍可预览
+        # 解码失败就直接回传 data_url 让前端先可视
         w, h = _parse_size(OPENAI_IMAGE_SIZE)
         size = template.spec.get("size", {})
         w = int(size.get("width") or w); h = int(size.get("height") or h)
         return PosterImage(
-            filename="poster.png",
+            filename="openai_edit.png",
             media_type="image/png",
             data_url=f"data:image/png;base64,{b64}",
-            width=w, height=h
+            width=w, height=h,
         )
 
+    # 只把透明区交给模型生成，非透明区保留 → 这里把锁定 UI 贴回去
     mask_alpha = template.mask_background.split()[3]
     generated.paste(locked_frame, mask=mask_alpha)
-    return _poster_image_from_pillow(generated, "poster.png")
+
+    # 给个容易识别的文件名，方便你在 R2/日志中确认“不是 mock”
+    return _poster_image_from_pillow(generated, f"{template.id}_openai.png")
 
 
 
