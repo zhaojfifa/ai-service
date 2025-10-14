@@ -63,6 +63,29 @@ class PosterGenerationResult:
     seed: int | None = None
     lock_seed: bool = False
 
+def _build_openai_client(config: GlibatreeConfig) -> Tuple[OpenAI, Optional[httpx.Client]]:
+    """
+    统一构建 OpenAI 客户端：
+    - 只传 OpenAI 支持的关键字（api_key, base_url, http_client）
+    - 代理走 httpx.Client(proxies=...)，再通过 http_client 注入
+    - 返回 (client, http_client)；由调用方负责关闭 http_client
+    """
+    if not config.api_key:
+        raise ValueError("GLIBATREE_API_KEY 未配置。")
+
+    kwargs: dict[str, Any] = {"api_key": config.api_key}
+    if config.api_url:                     # e.g. https://api.openai.com/v1
+        kwargs["base_url"] = config.api_url
+
+    http_client: httpx.Client | None = None
+    if config.proxy:
+        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
+        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
+        kwargs["http_client"] = http_client
+
+    client = OpenAI(**kwargs)
+    return client, http_client
+
 
 @lru_cache(maxsize=8)
 def _load_template_resources(template_id: str) -> TemplateResources:
@@ -523,12 +546,12 @@ def _request_glibatree_openai_edit(
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
-    # 1) 只收集 OpenAI 支持的入参
+    # 1) 仅传 OpenAI 支持的参数
     client_kwargs: dict[str, Any] = {"api_key": config.api_key}
     if config.api_url:
         client_kwargs["base_url"] = config.api_url  # 例如 https://api.openai.com/v1
 
-    # 2) 代理要放到 httpx.Client 里，再作为 http_client 传给 OpenAI
+    # 2) 代理放入 httpx.Client，再通过 http_client 传给 OpenAI
     http_client: httpx.Client | None = None
     if config.proxy:
         timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
@@ -543,7 +566,7 @@ def _request_glibatree_openai_edit(
         if http_client is not None:
             stack.callback(http_client.close)
 
-        # !!! 不要传 proxies=xxx 到 OpenAI(...) !!!
+        # 切记：不要向 OpenAI 传 proxies=xxx
         client = OpenAI(**client_kwargs)
 
         # OpenAI v1 的 images.edit
@@ -552,7 +575,7 @@ def _request_glibatree_openai_edit(
             image=base_bytes,
             mask=mask_bytes,
             prompt=prompt,
-            size=OPENAI_IMAGE_SIZE,        # 例如 "1024x1024"
+            size=OPENAI_IMAGE_SIZE,      # e.g. "1024x1024"
             response_format="b64_json",
         )
 
@@ -569,7 +592,7 @@ def _request_glibatree_openai_edit(
     try:
         generated = Image.open(BytesIO(decoded)).convert("RGBA")
     except UnidentifiedImageError:
-        # 异常时返回 data_url，前端仍可预览
+        # 解码失败时返回 data_url，前端仍可预览
         width, height = _parse_size(OPENAI_IMAGE_SIZE)
         size = template.spec.get("size", {})
         width = int(size.get("width") or width)
@@ -585,12 +608,13 @@ def _request_glibatree_openai_edit(
             height=height,
         )
 
-    # 把锁定的 UI 框叠回去
+    # 把锁定的 UI 框叠回去（只覆盖透明区）
     mask_alpha = template.mask_background.split()[3]
     generated.paste(locked_frame, mask=mask_alpha)
 
     filename = getattr(image, "filename", None) or "poster.png"
     return _poster_image_from_pillow(generated, filename)
+
 
 
 
@@ -732,28 +756,25 @@ def _parse_size(size_str: str) -> tuple[int, int]:
 
 
 def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
+    """
+    用 OpenAI 直接生成一张图，返回 data URL（base64）。
+    - 使用统一工厂创建 OpenAI 客户端
+    - 通过 ExitStack 关闭 http_client，避免连接泄露
+    """
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置，无法调用 OpenAI 生成素材。")
 
-    client_kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:
-        client_kwargs["base_url"] = config.api_url
-
-    http_client: httpx.Client | None = None
-    if config.proxy:
-        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
-        client_kwargs["http_client"] = http_client
-
+    from contextlib import ExitStack
     with ExitStack() as stack:
+        client, http_client = _build_openai_client(config)
         if http_client is not None:
             stack.callback(http_client.close)
 
-        client = OpenAI(**client_kwargs)
+        # v1 images.generate
         response = client.images.generate(
             model=config.model or "gpt-image-1",
             prompt=prompt,
-            size=size,
+            size=size,                # 例如 "1024x1024"
         )
 
     if not response.data:
@@ -765,6 +786,7 @@ def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str)
         raise ValueError("OpenAI 响应缺少 b64_json 字段。")
 
     return f"data:image/png;base64,{b64_data}"
+
 
 
 def _enforce_template_materials(
