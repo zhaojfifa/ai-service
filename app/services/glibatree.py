@@ -586,6 +586,7 @@ def _request_glibatree_openai_edit(
                 mask=mask_file,
                 prompt=prompt,
                 size=OPENAI_IMAGE_SIZE,   # e.g. "1024x1024"
+                response_format="b64_json",
             )
         except Exception as e:
             # 打印出错详情，方便快速定位是否还有 4xx
@@ -595,10 +596,15 @@ def _request_glibatree_openai_edit(
     if not resp.data:
         raise ValueError("OpenAI 未返回任何图像数据。")
 
-    b64 = getattr(resp.data[0], "b64_json", None)
+    first_image = resp.data[0]
+    filename = getattr(first_image, "filename", None) or "poster.png"
+    media_type = getattr(first_image, "mime_type", None) or "image/png"
+    size_hint = getattr(first_image, "size", None)
+
+    b64 = getattr(first_image, "b64_json", None)
     if not b64:
         # 个别情况下会返回 url；如需兼容，可在这里补下载逻辑
-        url = getattr(resp.data[0], "url", None)
+        url = getattr(first_image, "url", None)
         if url:
             logger.error("OpenAI 返回 url 而非 b64_json，当前未实现下载分支：%s", url)
             raise ValueError("OpenAI 响应缺少 b64_json 字段。")
@@ -609,12 +615,15 @@ def _request_glibatree_openai_edit(
         generated = Image.open(BytesIO(base64.b64decode(b64))).convert("RGBA")
     except UnidentifiedImageError:
         # 解码失败就直接回传 data_url 让前端先可视
-        w, h = _parse_size(OPENAI_IMAGE_SIZE)
+        if size_hint:
+            w, h = _parse_size(size_hint)
+        else:
+            w, h = _parse_size(OPENAI_IMAGE_SIZE)
         size = template.spec.get("size", {})
         w = int(size.get("width") or w); h = int(size.get("height") or h)
         return PosterImage(
-            filename="openai_edit.png",
-            media_type="image/png",
+            filename=filename or "openai_edit.png",
+            media_type=media_type or "image/png",
             data_url=f"data:image/png;base64,{b64}",
             width=w, height=h,
         )
@@ -624,7 +633,8 @@ def _request_glibatree_openai_edit(
     generated.paste(locked_frame, mask=mask_alpha)
 
     # 给个容易识别的文件名，方便你在 R2/日志中确认“不是 mock”
-    return _poster_image_from_pillow(generated, f"{template.id}_openai.png")
+    safe_name = filename or f"{template.id}_openai.png"
+    return _poster_image_from_pillow(generated, safe_name)
 
 def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Image.Image, b64_data: str) -> PosterImage:
     decoded = base64.b64decode(b64_data)
