@@ -29,7 +29,22 @@ from app.services.poster import (
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
 
-logger = logging.getLogger(__name__)
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+logging.basicConfig(
+    level=LOG_LEVEL,  # 全局等级
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+    force=True,       # 覆盖第三方/默认配置，关键！
+)
+
+# 可选：单独把 uvicorn/fastapi 相关 logger 也调成同级别
+for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
+    logging.getLogger(name).setLevel(LOG_LEVEL)
+
+logger = logging.getLogger("ai-service")
+logger.info("Logging initialized. level=%s", LOG_LEVEL)
 
 settings = get_settings()
 
