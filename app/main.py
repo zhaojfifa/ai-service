@@ -8,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
 
@@ -69,7 +70,12 @@ UPLOAD_ALLOWED_MIME = {
     for item in os.getenv("UPLOAD_ALLOWED_MIME", "image/png,image/jpeg,image/webp").split(",")
     if item.strip()
 }
-
+ALLOWED_ORIGINS = [
+    "https://zhaojiffa.github.io",
+    "http://localhost",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
 
 def _normalise_allowed_origins(value: Any) -> list[str]:
     if not value:
@@ -101,11 +107,12 @@ allow_origins = _normalise_allowed_origins(raw_origins)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=False,
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,          # 一般不需要带 cookie
+    allow_methods=["*"],              # 预检关心的是这里
     allow_headers=["*"],
-    max_age=86400,
+    expose_headers=["Content-Type", "Link"],
+    max_age=86400,                    # 预检缓存一天
 )
 
 
