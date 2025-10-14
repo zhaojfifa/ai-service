@@ -543,11 +543,6 @@ def _request_glibatree_http(
     )
 
 
-
-
-
-
-
 def _request_glibatree_openai_edit(
     config: GlibatreeConfig,
     prompt: str,
@@ -630,8 +625,6 @@ def _request_glibatree_openai_edit(
 
     # 给个容易识别的文件名，方便你在 R2/日志中确认“不是 mock”
     return _poster_image_from_pillow(generated, f"{template.id}_openai.png")
-
-
 
 def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Image.Image, b64_data: str) -> PosterImage:
     decoded = base64.b64decode(b64_data)
