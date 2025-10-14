@@ -550,39 +550,75 @@ def _request_glibatree_openai_edit(
     locked_frame: Image.Image,
     template: TemplateResources,
 ) -> PosterImage:
-    """通过 OpenAI 1.x images.edit 生成，并与 locked_frame 叠合。"""
     if not config.api_key:
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
-    base_bytes = _image_to_png_bytes(locked_frame)
-    mask_bytes = _image_to_png_bytes(template.mask_background)
+    # 1) 组装客户端（可带代理）
+    client_kwargs: dict[str, Any] = {"api_key": config.api_key}
+    if config.api_url:
+        client_kwargs["base_url"] = config.api_url  # e.g. https://api.openai.com/v1
+    http_client: httpx.Client | None = None
+    if config.proxy:
+        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
+        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
+        client_kwargs["http_client"] = http_client
+
+    # 2) 准备文件 —— 关键点：BytesIO 要有 .name 才能推断出 image/png
+    base_png = _image_to_png_bytes(locked_frame)                 # PNG bytes
+    mask_png = _image_to_png_bytes(template.mask_background)     # PNG bytes
+
+    base_file = BytesIO(base_png)
+    base_file.name = "base.png"          # <= 非常重要：告诉 SDK 这是 png
+    mask_file = BytesIO(mask_png)
+    mask_file.name = "mask.png"          # <= 同上
 
     from contextlib import ExitStack
     with ExitStack() as stack:
-        client, http_client = _build_openai_client(config)
         if http_client is not None:
             stack.callback(http_client.close)
 
-        try:
-            resp = client.images.edit(
-                model=config.model or "gpt-image-1",
-                image=base_bytes,
-                mask=mask_bytes,
-                prompt=prompt,
-                size=OPENAI_IMAGE_SIZE,          # "1024x1024"
-            )
-            if not resp.data:
-                raise ValueError("OpenAI images.edit 空响应")
-            b64 = getattr(resp.data[0], "b64_json", None)
-            if not b64:
-                raise ValueError("OpenAI images.edit 缺少 b64_json")
-            return _compose_and_upload_from_b64(template, locked_frame, b64)
+        client = OpenAI(**client_kwargs)
 
-        except TypeError as e:
-            # 万一 SDK 仍因参数问题报错，走 HTTP 直连兜底
-            logger.exception("OpenAI SDK images.edit failed, fallback to raw HTTP: %s", e)
-            b64 = _openai_images_edit_via_httpx(config, prompt, base_bytes, mask_bytes, OPENAI_IMAGE_SIZE)
-            return _compose_and_upload_from_b64(template, locked_frame, b64)
+        # 3) 调用 edits；不要再传 response_format
+        resp = client.images.edit(
+            model=config.model or "gpt-image-1",
+            image=base_file,              # file-like 对象
+            mask=mask_file,               # file-like 对象
+            prompt=prompt,
+            size=OPENAI_IMAGE_SIZE,       # 如 "1024x1024"
+        )
+
+    if not resp.data:
+        raise ValueError("OpenAI 未返回任何图像数据。")
+
+    b64 = getattr(resp.data[0], "b64_json", None)
+    if not b64:
+        # 个别环境可能给 url，这里也做下兜底（可选）
+        url = getattr(resp.data[0], "url", None)
+        if url:
+            # 如果你已经有 http_client，可以用它拉取；此处略
+            raise ValueError("返回的是 url，按需补充下载逻辑")
+        raise ValueError("OpenAI 响应缺少 b64_json 字段。")
+
+    # 解码、叠回锁定 UI 并上传
+    decoded = base64.b64decode(b64)
+    try:
+        generated = Image.open(BytesIO(decoded)).convert("RGBA")
+    except UnidentifiedImageError:
+        # 解码异常就直接返回 data URL，前端仍可预览
+        w, h = _parse_size(OPENAI_IMAGE_SIZE)
+        size = template.spec.get("size", {})
+        w = int(size.get("width") or w); h = int(size.get("height") or h)
+        return PosterImage(
+            filename="poster.png",
+            media_type="image/png",
+            data_url=f"data:image/png;base64,{b64}",
+            width=w, height=h
+        )
+
+    mask_alpha = template.mask_background.split()[3]
+    generated.paste(locked_frame, mask=mask_alpha)
+    return _poster_image_from_pillow(generated, "poster.png")
 
 
 
