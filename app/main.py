@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from app.schemas import TemplatePosterCollection
 
 from app.config import get_settings
 from app.schemas import (
