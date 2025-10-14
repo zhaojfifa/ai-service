@@ -77,7 +77,7 @@ class EmailConfig:
     def is_configured(self) -> bool:
         return bool(self.host and self.sender)
 
-
+@dataclass
 class GlibatreeConfig:
     api_url: str | None = None
     api_key: str | None = None
