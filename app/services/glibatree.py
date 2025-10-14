@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.services.s3_client import get_bytes, put_bytes
+from app.services.template_variants import generation_overrides
 
 _ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 logger = logging.getLogger(__name__)
@@ -436,6 +437,20 @@ def generate_poster_asset(
     lock_seed: bool = False,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
+    desired_variants = max(1, variants)
+    override_posters = generation_overrides(desired_variants)
+    if override_posters:
+        primary_override = override_posters[0]
+        variant_overrides = override_posters[1:]
+        return PosterGenerationResult(
+            poster=primary_override,
+            prompt_details=prompt_details or {},
+            variants=variant_overrides,
+            scores=None,
+            seed=None,
+            lock_seed=bool(lock_seed),
+        )
+
     template = _load_template_resources(poster.template_id)
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
