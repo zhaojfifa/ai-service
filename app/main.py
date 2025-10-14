@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import os
+import sys
 import json
 import logging
-import os
-import sys  # ← 新增这一行
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -38,97 +38,97 @@ from app.services.template_variants import (
     save_template_poster,
 )
 
+# -------------------- 日志初始化（保留原有逻辑） --------------------
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-allow_all = os.getenv("CORS_ALLOW_ALL", "false").lower() in {"1", "true", "yes"}
-allowed_origins = ["*"] if allow_all else DEFAULT_ALLOWED_ORIGINS + DEV_EXTRA_ORIGINS
-
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=LOG_LEVEL,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    stream=sys.stdout,  # 这里才不会 NameError
+    datefmt="%H:%M:%S",
+    stream=sys.stdout,
+    force=True,  # 覆盖第三方默认 logger
 )
+for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
+    logging.getLogger(name).setLevel(LOG_LEVEL)
 
+logger = logging.getLogger("ai-service")
+logger.info("Logging initialized. level=%s", LOG_LEVEL)
 
-
-def _configure_logging() -> logging.Logger:
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    logger = logging.getLogger("ai-service")
-    logger.debug("Logging configured at %s", level)
-    return logger
-
-# 兜底：某些反向代理/中间件不转发 OPTIONS 时，显式给个 204
-@app.options("/{rest_of_path:path}")
-def any_options(rest_of_path: str):
-    return Response(status_code=204)
-logger = _configure_logging()
+# -------------------- FastAPI 实例 --------------------
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
+# -------------------- 上传限制（保持你现有逻辑） --------------------
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
 UPLOAD_ALLOWED_MIME = {
     item.strip()
     for item in os.getenv("UPLOAD_ALLOWED_MIME", "image/png,image/jpeg,image/webp").split(",")
     if item.strip()
 }
-# 生产：只放行你的前端来源
-DEFAULT_ALLOWED_ORIGINS = [
-    "https://zhaojiffa.github.io",
-]
-# 本地调试也放行（可按需删掉）
-DEV_EXTRA_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost",
-    "http://127.0.0.1",
-]
 
-def _normalise_allowed_origins(value: Any) -> list[str]:
+# -------------------- CORS 配置 --------------------
+def _normalize_allowed_origins(value: Any) -> list[str]:
+    """
+    支持 None / "" / "*" / CSV / JSON(list) / list；并去除尾部斜杠。
+    """
     if not value:
         return ["*"]
     if isinstance(value, list):
         items = value
     elif isinstance(value, str):
-        text = value.strip()
-        if text.startswith("["):
+        s = value.strip()
+        if s.startswith("["):  # JSON 数组
             try:
-                items = json.loads(text)
-            except (TypeError, ValueError):
-                items = text.split(",")
-        else:
-            items = text.split(",")
+                items = json.loads(s)
+            except Exception:
+                items = s.split(",")
+        else:  # CSV
+            items = s.split(",")
     else:
         items = [str(value)]
 
-    cleaned = []
-    for item in items:
-        candidate = str(item).strip().strip('"').strip("'").rstrip("/")
-        if candidate:
-            cleaned.append(candidate)
-    return cleaned or ["*"]
+    def clean(x: str) -> str:
+        s = str(x).strip().strip('"').strip("'").rstrip("/")
+        return s
 
+    out = [clean(x) for x in items if clean(x)]
+    return out or ["*"]
 
-raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
-allow_origins = _normalise_allowed_origins(raw_origins)
+# 1) 支持从 settings / 环境变量读取
+raw_allowed = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
 
+# 2) 默认放行你的前端；为避免误拼写，同时包含常见两种地址写法
+default_origins = [
+    "https://zhaojiffa.github.io",
+    "https://zhaojiffa.github.io/ai-service",
+    # 若你的域名曾写成 zhaojfifa（少个 i），临时兼容一下，避免 404 调试困难
+    "https://zhaojfifa.github.io",
+    "https://zhaojfifa.github.io/ai-service",
+]
+
+allow_origins = _normalize_allowed_origins(raw_allowed) if raw_allowed else default_origins
+
+# 注意：若 allow_credentials=True，allow_origins 不能包含 "*"，否则浏览器拒绝
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,          # 一般不需要带 cookie
-    allow_methods=["*"],              # 预检关心的是这里
-    allow_headers=["*"],
-    expose_headers=["Content-Type", "Link"],
-    max_age=86400,                    # 预检缓存一天
+    allow_origins=allow_origins,
+    allow_credentials=False,     # 保持 False，更宽松
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],         # 放行 Content-Type / Authorization / x-api-key 等
+    expose_headers=["*"],
+    max_age=86400,               # 预检缓存
 )
 
+# 兜底：在某些反向代理不转发 OPTIONS 时，主动给 204
 @app.options("/{path:path}")
-async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
+async def cors_preflight(path: str) -> Response:
     return Response(status_code=204)
 
+# 你原先写的第二个 OPTIONS 兜底接口（保持兼容；不冲突）
+@app.options("/{rest_of_path:path}")
+def cors_preflight_handler(rest_of_path: str) -> Response:
+    return Response(status_code=204)
 
+# 健康检查（保留）
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
