@@ -78,23 +78,40 @@ class EmailConfig:
         return bool(self.host and self.sender)
 
 
-@dataclass
 class GlibatreeConfig:
-    api_url: str | None
-    api_key: str | None
-    model: str | None
-    proxy: str | None
-    client: str  # "http" | "openai"
+    api_url: str | None = None
+    api_key: str | None = None
+    model:   str | None = None
+    proxy:   str | None = None
+    client:  str       = "http"   # "http" | "openai"
 
     @property
     def use_openai_client(self) -> bool:
-        return self.client == "openai"
+        return (self.client or "").strip().lower() == "openai"
 
     @property
     def is_configured(self) -> bool:
         if self.use_openai_client:
             return bool(self.api_key)
         return bool(self.api_url and self.api_key)
+
+    @classmethod
+    def from_env(cls) -> "GlibatreeConfig":
+        def truthy(name: str) -> bool:
+            v = os.getenv(name)
+            return str(v).strip().lower() in {"1","true","yes","on"}
+
+        api_key = os.getenv("GLIBATREE_API_KEY") or os.getenv("OPENAI_API_KEY")
+        api_url = os.getenv("GLIBATREE_BASE_URL") or os.getenv("OPENAI_BASE_URL")
+        model   = os.getenv("GLIBATREE_MODEL")    or os.getenv("OPENAI_MODEL")
+        proxy   = os.getenv("GLIBATREE_PROXY")    or os.getenv("OPENAI_PROXY")
+
+        client  = (
+            os.getenv("GLIBATREE_CLIENT") or
+            ("openai" if truthy("GLIBATREE_USE") or truthy("OPENAI_USE") else "http")
+        )
+
+        return cls(api_url=api_url, api_key=api_key, model=model, proxy=proxy, client=client)
 
 
 @dataclass
@@ -139,38 +156,60 @@ def _parse_allowed_origins(raw: str) -> List[str]:
 
 @lru_cache()
 def get_settings() -> Settings:
-    environment = os.getenv("ENVIRONMENT", "development")
-    origins_raw = os.getenv("ALLOWED_ORIGINS", "*")
+    def _get(name: str, default: str | None = None) -> str | None:
+        v = os.getenv(name)
+        return v if v is not None else default
+
+    def _truthy(v: str | None) -> bool:
+        return str(v).strip().lower() in {"1", "true", "yes", "on"}
+
+    environment = _get("ENVIRONMENT", "development")
+    origins_raw = _get("ALLOWED_ORIGINS", "*")
     allowed_origins = _parse_allowed_origins(origins_raw)
 
     email = EmailConfig(
-        host=os.getenv("SMTP_HOST"),
-        port=int(os.getenv("SMTP_PORT", "587")),
-        username=os.getenv("SMTP_USERNAME"),
-        password=os.getenv("SMTP_PASSWORD"),
-        sender=os.getenv("EMAIL_SENDER"),
-        use_tls=_as_bool(os.getenv("SMTP_USE_TLS"), True),
-        use_ssl=_as_bool(os.getenv("SMTP_USE_SSL"), False),
+        host=_get("SMTP_HOST"),
+        port=int(_get("SMTP_PORT", "587")),
+        username=_get("SMTP_USERNAME"),
+        password=_get("SMTP_PASSWORD"),
+        sender=_get("EMAIL_SENDER"),
+        use_tls=_as_bool(_get("SMTP_USE_TLS"), True),
+        use_ssl=_as_bool(_get("SMTP_USE_SSL"), False),
     )
 
-    api_url = os.getenv("GLIBATREE_API_URL")
-    raw_client = os.getenv("GLIBATREE_CLIENT")
+    # ---------- 兼容两套变量：优先 GLIBATREE_*，否则回退 OPENAI_* ----------
+    api_url = (
+        _get("GLIBATREE_API_URL")
+        or _get("GLIBATREE_BASE_URL")
+        or _get("OPENAI_BASE_URL")
+    )
+    api_key = _get("GLIBATREE_API_KEY") or _get("OPENAI_API_KEY")
+    model   = _get("GLIBATREE_MODEL")    or _get("OPENAI_MODEL") or "gpt-image-1"
+    proxy   = _get("GLIBATREE_PROXY")    or _get("OPENAI_PROXY")
+
+    # 选择客户端：显式 client > USE 开关 > 根据 url/是否仅有 key 推断
+    raw_client = _get("GLIBATREE_CLIENT")
+    use_flag   = _truthy(_get("GLIBATREE_USE")) or _truthy(_get("OPENAI_USE"))
+
     if raw_client:
         client = raw_client.strip().lower()
         if client not in {"http", "openai"}:
             client = "openai" if (api_url and "openai" in api_url.lower()) else "http"
-    elif api_url and "openai" in api_url.lower():
+    elif use_flag:
         client = "openai"
-    elif api_url:
-        client = "http"
+    elif api_url and any(x in api_url.lower() for x in ("openai", "openrouter")):
+        client = "openai"
+    elif api_key and not api_url:
+        # 只有 Key 时也默认走 OpenAI（SDK 默认 base_url）
+        client = "openai"
     else:
-        client = "openai"
+        client = "http"
 
     glibatree = GlibatreeConfig(
         api_url=api_url,
-        api_key=os.getenv("GLIBATREE_API_KEY"),
-        model=os.getenv("GLIBATREE_MODEL", "gpt-image-1"),
-        proxy=os.getenv("GLIBATREE_PROXY"),
+        api_key=api_key,
+        model=model,
+        proxy=proxy,
         client=client,
     )
 
@@ -179,11 +218,11 @@ def get_settings() -> Settings:
         allowed_origins=allowed_origins,
         email=email,
         glibatree=glibatree,
-        s3_endpoint=os.getenv("S3_ENDPOINT"),
-        s3_access_key=os.getenv("S3_ACCESS_KEY"),
-        s3_secret_key=os.getenv("S3_SECRET_KEY"),
-        s3_region=os.getenv("S3_REGION", "auto"),
-        s3_bucket=os.getenv("S3_BUCKET"),
-        s3_public_base=os.getenv("S3_PUBLIC_BASE"),
+        s3_endpoint=_get("S3_ENDPOINT"),
+        s3_access_key=_get("S3_ACCESS_KEY"),
+        s3_secret_key=_get("S3_SECRET_KEY"),
+        s3_region=_get("S3_REGION", "auto"),
+        s3_bucket=_get("S3_BUCKET"),
+        s3_public_base=_get("S3_PUBLIC_BASE"),
     )
 
