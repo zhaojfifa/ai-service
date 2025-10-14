@@ -1,15 +1,12 @@
-# app/main.py
 from __future__ import annotations
 import os
 import sys
 import json                     # ← 你用了 json，但之前没导入
 import logging
-from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
-from app.schemas import TemplatePosterCollection
 
 
 from app.config import get_settings
@@ -31,22 +28,7 @@ from app.services.poster import (
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
 
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
-logging.basicConfig(
-    level=LOG_LEVEL,  # 全局等级
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
-    stream=sys.stdout,
-    force=True,       # 覆盖第三方/默认配置，关键！
-)
-
-# 可选：单独把 uvicorn/fastapi 相关 logger 也调成同级别
-for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
-    logging.getLogger(name).setLevel(LOG_LEVEL)
-
-logger = logging.getLogger("ai-service")
-logger.info("Logging initialized. level=%s", LOG_LEVEL)
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
