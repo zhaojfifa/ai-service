@@ -1,3 +1,4 @@
+_ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 from __future__ import annotations
 
 import base64
@@ -64,14 +65,11 @@ class PosterGenerationResult:
     lock_seed: bool = False
 
 def _sanitize_openai_kwargs(kw: dict[str, Any]) -> dict[str, Any]:
-    """仅保留 SDK 支持的参数，防止把 proxies 等莫名其妙的键塞进去。"""
     cleaned = {k: v for k, v in kw.items() if k in _ALLOWED_OPENAI_KWARGS}
-    # 若不小心混入不支持的键（如 proxies），这里会被过滤掉，并打印警告，便于排查
-    for k in set(kw) - _ALLOWED_OPENAI_KWARGS:
-        if k.lower() == "proxies":
-            logger.warning("Removed unsupported OpenAI kwarg 'proxies' from client kwargs")
-        else:
-            logger.debug("Removed unsupported OpenAI kwarg '%s' from client kwargs", k)
+    extra = set(kw) - _ALLOWED_OPENAI_KWARGS
+    if extra:
+        # 关键：把多余键（尤其 proxies）打到日志里，方便你在 Render 日志里定位来源
+        logger.warning("Stripping unsupported OpenAI kwargs: %s", sorted(extra))
     return cleaned
 
 def _build_openai_client(config: GlibatreeConfig) -> tuple[OpenAI, Optional[httpx.Client]]:
@@ -79,7 +77,7 @@ def _build_openai_client(config: GlibatreeConfig) -> tuple[OpenAI, Optional[http
         raise ValueError("GLIBATREE_API_KEY 未配置。")
 
     kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:              # 例如 https://api.openai.com/v1
+    if config.api_url:
         kwargs["base_url"] = config.api_url
 
     http_client: httpx.Client | None = None
@@ -87,6 +85,11 @@ def _build_openai_client(config: GlibatreeConfig) -> tuple[OpenAI, Optional[http
         timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
         http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
         kwargs["http_client"] = http_client
+
+    # >>> 关键改动：白名单过滤 + 断言
+    kwargs = _sanitize_openai_kwargs(kwargs)
+    assert "proxies" not in kwargs, f"proxies leaked into OpenAI kwargs: {kwargs.keys()}"
+    logger.info("OpenAI client kwargs keys: %s", sorted(kwargs.keys()))
 
     return OpenAI(**kwargs), http_client
 
