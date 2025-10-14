@@ -4,37 +4,38 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, constr
 
-try:  # pragma: no cover - available only on Pydantic v2
-    from pydantic import ConfigDict
-except ImportError:  # pragma: no cover
-    ConfigDict = None  # type: ignore
+try:  # pragma: no cover - available on Pydantic v2
+    from pydantic import ConfigDict  # type: ignore
+except ImportError:  # pragma: no cover - Pydantic v1
+    ConfigDict = None  # type: ignore[assignment]
 
-try:  # pragma: no cover - prefer Pydantic v2 APIs when available
-    from pydantic import model_validator
-except ImportError:  # pragma: no cover - fall back to v1 root validators
-    model_validator = None  # type: ignore
-    from pydantic import root_validator
-
-# ---- Pydantic v1/v2 兼容导入 -------------------------------------------------
-try:  # Pydantic v2
+try:  # pragma: no cover - prefer v2 validators when available
     from pydantic import field_validator  # type: ignore
-except ImportError:  # Pydantic v1
+except ImportError:  # pragma: no cover - Pydantic v1 fallback
     from pydantic import validator as field_validator  # type: ignore
 
-try:  # Pydantic v2
+try:  # pragma: no cover - only defined on Pydantic v2
     from pydantic import model_validator  # type: ignore
-except ImportError:  # Pydantic v1
+except ImportError:  # pragma: no cover - use root_validator on v1
     model_validator = None  # type: ignore
     from pydantic import root_validator  # type: ignore
+else:  # pragma: no cover - v2 runtime keeps attribute for completeness
+    root_validator = None  # type: ignore
 
-IS_PYDANTIC_V2 = hasattr(BaseModel, "model_validate")
 
-# ------------------------------------------------------------------------------
-# 基础结构
-# ------------------------------------------------------------------------------
+class _CompatModel(BaseModel):
+    """Base model that ignores unknown fields across Pydantic versions."""
 
-class PosterGalleryItem(BaseModel):
-    """Represents a single grayscale gallery image with an optional caption."""
+    if ConfigDict is not None:  # pragma: no cover - executed on Pydantic v2
+        model_config = ConfigDict(extra="ignore")
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        class Config:  # type: ignore[override]
+            extra = "ignore"
+
+
+class PosterGalleryItem(_CompatModel):
+    """Represents a single gallery thumbnail and its optional metadata."""
 
     caption: constr(strip_whitespace=True, min_length=1) | None = Field(
         None,
@@ -42,7 +43,7 @@ class PosterGalleryItem(BaseModel):
     )
     asset: Optional[str] = Field(
         None,
-        description="Data URL of the uploaded gallery image (before灰度转换).",
+        description="Data URL of the uploaded gallery image before processing.",
     )
     key: Optional[str] = Field(
         None,
@@ -57,11 +58,8 @@ class PosterGalleryItem(BaseModel):
         description="Optional text prompt when the gallery item is AI generated.",
     )
 
-    class Config:  # v1
-        extra = "ignore"
 
-
-class PosterInput(BaseModel):
+class PosterInput(_CompatModel):
     """Data structure describing all poster inputs for the workflow."""
 
     brand_name: constr(strip_whitespace=True, min_length=1)
@@ -90,11 +88,11 @@ class PosterInput(BaseModel):
     )
     scenario_asset: Optional[str] = Field(
         None,
-        description="Optional data URL for the scenario image displayed on the left column.",
+        description="Optional data URL for the scenario image displayed in the hero column.",
     )
     product_asset: Optional[str] = Field(
         None,
-        description="Optional data URL for the 45° product render showcased in the focal area.",
+        description="Optional data URL for the primary product render shown on the poster.",
     )
     scenario_key: Optional[str] = Field(
         None,
@@ -146,15 +144,14 @@ class PosterInput(BaseModel):
         description="Prompt text used when generating the product asset via AI.",
     )
 
-    class Config:  # v1
-        extra = "ignore"
 
-
-class PosterImage(BaseModel):
+class PosterImage(_CompatModel):
     """Represents the generated poster asset returned to the client."""
 
     filename: str = Field(..., description="Suggested filename for the poster image")
-    media_type: str = Field("image/png", description="MIME type of the generated poster image")
+    media_type: str = Field(
+        "image/png", description="MIME type of the generated poster image"
+    )
     data_url: Optional[str] = Field(
         None,
         description="Embedded data URL (base64) fallback when object storage is unavailable",
@@ -164,9 +161,6 @@ class PosterImage(BaseModel):
     )
     width: int = Field(..., gt=0)
     height: int = Field(..., gt=0)
-
-    class Config:  # v1
-        extra = "ignore"
 
 # ------------------------------------------------------------------------------
 # Prompt 归一化工具
@@ -187,9 +181,6 @@ def _normalise_aspect(value: Any, slot: str) -> Aspect:
         if candidate in {"1:1", "4:5", "4:3"}:
             return candidate  # type: ignore[return-value]
     return PROMPT_SLOT_DEFAULT_ASPECT[slot]
-
-
-Aspect = Literal["1:1", "4:5", "4:3"]
 
 
 def _strip_optional_text(value: Any) -> Optional[str]:
@@ -240,15 +231,15 @@ def _normalise_prompt_slot_payload(value: Any) -> dict[str, Any]:
     return data
 
 
-class PromptSlotConfig(BaseModel):
-    """统一的 prompt 槽结构（v1/v2 兼容校验器）"""
+class PromptSlotConfig(_CompatModel):
+    """Normalised configuration for a single prompt slot."""
 
     preset: Optional[str] = None
     prompt: str = ""
     negative_prompt: str = ""
     aspect: str = ""
 
-    if model_validator:  # pragma: no cover - executed on Pydantic v2
+    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
 
         @model_validator(mode="before")
         @classmethod
@@ -257,8 +248,8 @@ class PromptSlotConfig(BaseModel):
 
     else:  # pragma: no cover - executed on Pydantic v1
 
-        @root_validator(pre=True)
-        def _coerce_input(cls, values: Any) -> Any:  # type: ignore[misc]
+        @root_validator(pre=True)  # type: ignore[misc]
+        def _coerce_input(cls, values: Any) -> Any:
             return _normalise_prompt_slot_payload(values)
 
     @field_validator("preset", mode="before")
@@ -277,13 +268,6 @@ class PromptSlotConfig(BaseModel):
         if value is None:
             return ""
         return str(value).strip()
-
-    if ConfigDict:  # pragma: no cover - executed on Pydantic v2
-        model_config = ConfigDict(extra="ignore")
-    else:  # pragma: no cover - executed on Pydantic v1
-
-        class Config:  # type: ignore[override]
-            extra = "ignore"
 
 
 def _clone_prompt_slot(slot: PromptSlotConfig, **updates: Any) -> PromptSlotConfig:
@@ -329,7 +313,7 @@ def _coerce_prompt_slot(value: Any, slot_name: str) -> PromptSlotConfig:
     return slot
 
 
-class PromptBundle(BaseModel):
+class PromptBundle(_CompatModel):
     scenario: PromptSlotConfig = Field(default_factory=_default_scenario_slot)
     product: PromptSlotConfig = Field(default_factory=_default_product_slot)
     gallery: PromptSlotConfig = Field(default_factory=_default_gallery_slot)
@@ -350,14 +334,11 @@ class PromptBundle(BaseModel):
     def _coerce_gallery(cls, v: Any) -> PromptSlotConfig:
         return _coerce_prompt_slot(v, "gallery")
 
-    class Config:  # v1
-        extra = "ignore"
-
 # ------------------------------------------------------------------------------
 # 直传 / 预签名
 # ------------------------------------------------------------------------------
 
-class R2PresignPutRequest(BaseModel):
+class R2PresignPutRequest(_CompatModel):
     folder: str = Field(
         default="uploads",
         description="Logical directory such as scenario / product / gallery",
@@ -370,19 +351,32 @@ class R2PresignPutRequest(BaseModel):
         description="Optional byte size reported by the browser for validation",
     )
 
-    class Config:  # v1
-        extra = "ignore"
-
-
-class R2PresignPutResponse(BaseModel):
+class R2PresignPutResponse(_CompatModel):
     key: str
     put_url: str
     public_url: Optional[str] = Field(
         None, description="Public URL when the bucket exposes a static endpoint"
     )
 
-    class Config:  # v1
-        extra = "ignore"
+# ------------------------------------------------------------------------------
+# 模板海报上传
+# ------------------------------------------------------------------------------
+
+
+class TemplatePosterUploadRequest(_CompatModel):
+    slot: Literal["variant_a", "variant_b"] = Field(
+        ..., description="Target slot for the uploaded template poster variant.",
+    )
+    filename: constr(strip_whitespace=True, min_length=1)
+    content_type: constr(strip_whitespace=True, min_length=1)
+    data: constr(strip_whitespace=True, min_length=1)
+
+class TemplatePosterEntry(_CompatModel):
+    slot: Literal["variant_a", "variant_b"]
+    poster: PosterImage
+
+class TemplatePosterCollection(_CompatModel):
+    posters: list[TemplatePosterEntry] = Field(default_factory=list)
 
 # ------------------------------------------------------------------------------
 # 模板海报上传
@@ -419,7 +413,7 @@ class TemplatePosterCollection(BaseModel):
 # 生成请求 / 响应
 # ------------------------------------------------------------------------------
 
-class GeneratePosterRequest(BaseModel):
+class GeneratePosterRequest(_CompatModel):
     poster: PosterInput
 
     render_mode: Literal["locked", "hybrid", "free"] = "locked"
@@ -441,7 +435,7 @@ class GeneratePosterRequest(BaseModel):
     )
 
     # 兼容旧字段名 "prompts" -> prompt_bundle
-    if model_validator:  # Pydantic v2
+    if model_validator is not None:  # Pydantic v2
         @model_validator(mode="before")
         @classmethod
         def _prompts_alias(cls, data: Any) -> Any:
@@ -450,18 +444,15 @@ class GeneratePosterRequest(BaseModel):
                 data["prompt_bundle"] = data.pop("prompts")
             return data
     else:  # Pydantic v1
-        @root_validator(pre=True)
-        def _prompts_alias(cls, values: dict[str, Any]) -> dict[str, Any]:  # type: ignore[misc]
+        @root_validator(pre=True)  # type: ignore[misc]
+        def _prompts_alias(cls, values: dict[str, Any]) -> dict[str, Any]:
             if "prompt_bundle" not in values and "prompts" in values:
                 values = dict(values)
                 values["prompt_bundle"] = values.pop("prompts")
             return values
 
-    class Config:  # v1
-        extra = "ignore"
 
-
-class GeneratePosterResponse(BaseModel):
+class GeneratePosterResponse(_CompatModel):
     """Aggregated response after preparing all marketing assets."""
 
     layout_preview: str
@@ -520,14 +511,11 @@ class GeneratePosterResponse(BaseModel):
             return PromptBundle(**v)
         raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
 
-    class Config:  # v1
-        extra = "ignore"
-
 # ------------------------------------------------------------------------------
 # 邮件
 # ------------------------------------------------------------------------------
 
-class SendEmailRequest(BaseModel):
+class SendEmailRequest(_CompatModel):
     """Payload expected when requesting the backend to send an email."""
 
     recipient: EmailStr
@@ -538,16 +526,9 @@ class SendEmailRequest(BaseModel):
         description="Optional poster attachment. When omitted the email will be sent without attachments.",
     )
 
-    class Config:  # v1
-        extra = "ignore"
-
-
-class SendEmailResponse(BaseModel):
+class SendEmailResponse(_CompatModel):
     status: Literal["sent", "skipped"]
     detail: str
-
-    class Config:  # v1
-        extra = "ignore"
 
 # ------------------------------------------------------------------------------
 # 前向引用修复（v1 与 v2）
