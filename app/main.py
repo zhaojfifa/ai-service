@@ -19,6 +19,9 @@ from app.schemas import (
     R2PresignPutResponse,
     SendEmailRequest,
     SendEmailResponse,
+    TemplatePosterCollection,
+    TemplatePosterEntry,
+    TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
 from app.services.glibatree import generate_poster_asset
@@ -28,6 +31,11 @@ from app.services.poster import (
     render_layout_preview,
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
+from app.services.template_variants import (
+    list_poster_entries,
+    poster_entry_from_record,
+    save_template_poster,
+)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
@@ -251,6 +259,33 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)

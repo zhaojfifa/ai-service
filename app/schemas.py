@@ -205,153 +205,78 @@ def _strip_required_text(value: Any) -> str:
     return str(value).strip()
 
 
+def _normalise_prompt_slot_payload(value: Any) -> dict[str, Any]:
+    """Convert loose payloads into a PromptSlotConfig-compatible dict."""
+
+    if value is None:
+        return {}
+
+    if isinstance(value, str):
+        return {"prompt": value}
+
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump(exclude_none=False)  # type: ignore[attr-defined]
+        except TypeError:  # pragma: no cover - defensive
+            return value.model_dump()  # type: ignore[attr-defined]
+
+    if hasattr(value, "dict"):
+        return value.dict(exclude_none=False)  # type: ignore[attr-defined]
+
+    if isinstance(value, dict):
+        data = dict(value)
+    else:
+        return {"prompt": str(value)}
+
+    if "positive" in data and "prompt" not in data:
+        data["prompt"] = data.pop("positive")
+    if "text" in data and "prompt" not in data:
+        data["prompt"] = data.pop("text")
+    if "negative" in data and "negative_prompt" not in data:
+        data["negative_prompt"] = data.pop("negative")
+    if "aspect_ratio" in data and "aspect" not in data:
+        data["aspect"] = data.pop("aspect_ratio")
+
+    return data
+
+
 class PromptSlotConfig(BaseModel):
     """统一的 prompt 槽结构（v1/v2 兼容校验器）"""
 
-    preset: Optional[str] = None           # 可选预设
-    positive: str = ""                     # 正向提示词
-    negative: str = ""                     # 反向提示词
-    aspect: Aspect = "1:1"                 # 画幅比例
-
-    # ---- 字段清洗（注意：字段名必须与定义一致） ----
-    @field_validator("preset", mode="before")
-    @classmethod
-    def _clean_preset(cls, v: Any) -> Optional[str]:
-        if v is None:
-            return None
-        s = str(v).strip()
-        return s or None
-
-    @field_validator("positive", "negative", mode="before")
-    @classmethod
-    def _clean_text(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        return str(v).strip()
-
-    @field_validator("aspect", mode="before")
-    @classmethod
-    def _clean_aspect(cls, v: Any) -> Aspect:
-        return _normalise_aspect(v, slot="scenario")  # 这里先统一规范，具体默认由 Bundle 决定
-
-    class Config:  # v1
-        extra = "ignore"
-
-
-# 默认工厂：依据不同槽位给到不同默认画幅
-def _default_scenario_slot() -> PromptSlotConfig:
-    return PromptSlotConfig(aspect=PROMPT_SLOT_DEFAULT_ASPECT["scenario"])
-
-
-def _default_product_slot() -> PromptSlotConfig:
-    return PromptSlotConfig(aspect=PROMPT_SLOT_DEFAULT_ASPECT["product"])
-
-
-def _default_gallery_slot() -> PromptSlotConfig:
-    return PromptSlotConfig(aspect=PROMPT_SLOT_DEFAULT_ASPECT["gallery"])
-
-
-# 通用的 slot 归一化函数（支持 str / dict / PromptSlotConfig）
-def _coerce_prompt_slot(value: Any, slot_name: str) -> PromptSlotConfig:
-    if isinstance(value, PromptSlotConfig):
-        # 如果 aspect 非法或为空，补回默认
-        asp = value.aspect or PROMPT_SLOT_DEFAULT_ASPECT[slot_name]
-        return PromptSlotConfig(
-            preset=value.preset,
-            positive=value.positive,
-            negative=value.negative,
-            aspect=_normalise_aspect(asp, slot_name),
-        )
-
-    if isinstance(value, str):
-        return PromptSlotConfig(
-            positive=value.strip(),
-            aspect=PROMPT_SLOT_DEFAULT_ASPECT[slot_name],
-        )
-
-    if hasattr(value, "model_dump"):
-        value = value.model_dump(exclude_none=True)
-    elif hasattr(value, "dict"):
-        value = value.dict(exclude_none=True)
-
-    if isinstance(value, dict):
-        preset = value.get("preset")
-        # 兼容旧字段 prompt / positive
-        positive = value.get("positive") or value.get("prompt") or value.get("text") or ""
-        negative = value.get("negative") or value.get("negative_prompt") or ""
-        aspect = value.get("aspect") or value.get("aspect_ratio")
-        return PromptSlotConfig(
-            preset=preset if (preset or "") else None,
-            positive=str(positive).strip(),
-            negative=str(negative).strip(),
-            aspect=_normalise_aspect(aspect, slot_name),
-        )
-
-    # 其他类型：兜底
-    return PromptSlotConfig(
-        positive=str(value).strip(),
-        aspect=PROMPT_SLOT_DEFAULT_ASPECT[slot_name],
-    )
-
-    @classmethod
-    def _normalise_payload(cls, value: Any) -> Any:
-        if isinstance(value, cls):
-            return value.model_dump(exclude_unset=False)
-
-        if value is None:
-            return {}
-
-        if isinstance(value, str):
-            text = value.strip()
-            return {"prompt": text}
-
-        if hasattr(value, "model_dump"):
-            value = value.model_dump(exclude_none=True)
-        elif hasattr(value, "dict"):
-            value = value.dict(exclude_none=True)
-
-        if isinstance(value, dict):
-            data = dict(value)
-            if "positive" in data and "prompt" not in data:
-                data["prompt"] = data.pop("positive")
-            if "negative" in data and "negative_prompt" not in data:
-                data["negative_prompt"] = data.pop("negative")
-            if "aspect_ratio" in data and "aspect" not in data:
-                data["aspect"] = data.pop("aspect_ratio")
-            return data
-
-        return value
+    preset: Optional[str] = None
+    prompt: str = ""
+    negative_prompt: str = ""
+    aspect: str = ""
 
     if model_validator:  # pragma: no cover - executed on Pydantic v2
 
         @model_validator(mode="before")
-        def _coerce_values(cls, values: Any) -> Any:
-            return cls._normalise_payload(values)
+        @classmethod
+        def _coerce_input(cls, value: Any) -> Any:
+            return _normalise_prompt_slot_payload(value)
 
     else:  # pragma: no cover - executed on Pydantic v1
 
         @root_validator(pre=True)
-        def _coerce_values(cls, values: Any) -> Any:
-            return cls._normalise_payload(values)
+        def _coerce_input(cls, values: Any) -> Any:  # type: ignore[misc]
+            return _normalise_prompt_slot_payload(values)
 
-    if model_validator:  # pragma: no cover - executed on Pydantic v2
+    @field_validator("preset", mode="before")
+    @classmethod
+    def _clean_preset(cls, value: Any) -> Optional[str]:
+        return _strip_optional_text(value)
 
-        @model_validator(mode="after")
-        def _trim_strings(self) -> "PromptSlotConfig":
-            self.preset = _strip_optional_text(self.preset)
-            self.prompt = _strip_required_text(self.prompt)
-            self.negative_prompt = _strip_required_text(self.negative_prompt)
-            return self
+    @field_validator("prompt", "negative_prompt", mode="before")
+    @classmethod
+    def _clean_prompt_text(cls, value: Any) -> str:
+        return _strip_required_text(value)
 
-    else:  # pragma: no cover - executed on Pydantic v1
-
-        @root_validator
-        def _clean_fields(cls, values: dict[str, Any]) -> dict[str, Any]:
-            values = dict(values)
-            values["preset"] = _strip_optional_text(values.get("preset"))
-            values["prompt"] = _strip_required_text(values.get("prompt"))
-            values["negative_prompt"] = _strip_required_text(values.get("negative_prompt"))
-            return values
+    @field_validator("aspect", mode="before")
+    @classmethod
+    def _clean_aspect(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
 
     if ConfigDict:  # pragma: no cover - executed on Pydantic v2
         model_config = ConfigDict(extra="ignore")
@@ -359,6 +284,49 @@ def _coerce_prompt_slot(value: Any, slot_name: str) -> PromptSlotConfig:
 
         class Config:  # type: ignore[override]
             extra = "ignore"
+
+
+def _clone_prompt_slot(slot: PromptSlotConfig, **updates: Any) -> PromptSlotConfig:
+    if hasattr(slot, "model_dump"):
+        data = slot.model_dump(exclude_none=False)
+    else:  # pragma: no cover - legacy Pydantic v1
+        data = slot.dict(exclude_none=False)
+    data.update(updates)
+    if hasattr(PromptSlotConfig, "model_validate"):
+        return PromptSlotConfig.model_validate(data)
+    return PromptSlotConfig.parse_obj(data)  # type: ignore[no-any-return]
+
+
+# 默认工厂：依据不同槽位给到不同默认画幅
+def _default_scenario_slot() -> PromptSlotConfig:
+    return _clone_prompt_slot(PromptSlotConfig(), aspect=PROMPT_SLOT_DEFAULT_ASPECT["scenario"])
+
+
+def _default_product_slot() -> PromptSlotConfig:
+    return _clone_prompt_slot(PromptSlotConfig(), aspect=PROMPT_SLOT_DEFAULT_ASPECT["product"])
+
+
+def _default_gallery_slot() -> PromptSlotConfig:
+    return _clone_prompt_slot(PromptSlotConfig(), aspect=PROMPT_SLOT_DEFAULT_ASPECT["gallery"])
+
+
+# 通用的 slot 归一化函数（支持 str / dict / PromptSlotConfig）
+def _coerce_prompt_slot(value: Any, slot_name: str) -> PromptSlotConfig:
+    if isinstance(value, PromptSlotConfig):
+        slot = value
+    else:
+        payload = _normalise_prompt_slot_payload(value)
+        if hasattr(PromptSlotConfig, "model_validate"):
+            slot = PromptSlotConfig.model_validate(payload)
+        else:
+            slot = PromptSlotConfig.parse_obj(payload)  # type: ignore[assignment]
+
+    desired_aspect = _normalise_aspect(slot.aspect, slot_name)
+    if slot.aspect != desired_aspect:
+        slot = _clone_prompt_slot(slot, aspect=desired_aspect)
+    if slot.preset == "":
+        slot = _clone_prompt_slot(slot, preset=None)
+    return slot
 
 
 class PromptBundle(BaseModel):
@@ -412,6 +380,37 @@ class R2PresignPutResponse(BaseModel):
     public_url: Optional[str] = Field(
         None, description="Public URL when the bucket exposes a static endpoint"
     )
+
+    class Config:  # v1
+        extra = "ignore"
+
+# ------------------------------------------------------------------------------
+# 模板海报上传
+# ------------------------------------------------------------------------------
+
+
+class TemplatePosterUploadRequest(BaseModel):
+    slot: Literal["variant_a", "variant_b"] = Field(
+        ..., description="Target slot for the uploaded template poster variant.",
+    )
+    filename: constr(strip_whitespace=True, min_length=1)
+    content_type: constr(strip_whitespace=True, min_length=1)
+    data: constr(strip_whitespace=True, min_length=1)
+
+    class Config:  # v1
+        extra = "ignore"
+
+
+class TemplatePosterEntry(BaseModel):
+    slot: Literal["variant_a", "variant_b"]
+    poster: PosterImage
+
+    class Config:  # v1
+        extra = "ignore"
+
+
+class TemplatePosterCollection(BaseModel):
+    posters: list[TemplatePosterEntry] = Field(default_factory=list)
 
     class Config:  # v1
         extra = "ignore"
