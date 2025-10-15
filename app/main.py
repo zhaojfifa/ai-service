@@ -237,6 +237,8 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
+
+from app.schemas import TemplatePosterUploadRequest
 @app.post("/api/template-posters", response_model=TemplatePosterEntry)
 def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
     try:
