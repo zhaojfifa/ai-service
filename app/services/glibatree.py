@@ -439,23 +439,16 @@ def generate_poster_asset(
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
-    if override_posters:
-        primary_override = override_posters[0]
-        variant_overrides = override_posters[1:]
-        return PosterGenerationResult(
-            poster=primary_override,
-            prompt_details=prompt_details or {},
-            variants=variant_overrides,
-            scores=None,
-            seed=None,
-            lock_seed=bool(lock_seed),
-        )
+    override_primary = override_posters[0] if override_posters else None
+    override_variants = override_posters[1:] if len(override_posters) > 1 else []
+    used_override_primary = False
 
     template = _load_template_resources(poster.template_id)
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     settings = get_settings()
     primary: PosterImage | None = None
+    variant_images: list[PosterImage] = []
 
     if settings.glibatree.is_configured:
         try:
@@ -480,14 +473,18 @@ def generate_poster_asset(
             logger.exception("Glibatree request failed, falling back to mock poster")
 
     if primary is None:
-        logger.debug("Falling back to local template renderer")
-        mock_frame = _render_template_frame(poster, template, fill_background=True)
-        primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
+        if override_primary is not None:
+            logger.debug("Using uploaded template poster override for primary result")
+            primary = override_primary
+            variant_images = list(override_variants)
+            used_override_primary = True
+        else:
+            logger.debug("Falling back to local template renderer")
+            mock_frame = _render_template_frame(poster, template, fill_background=True)
+            primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
 
     # 生成变体（仅重命名，不重复上传）
-    variant_images: list[PosterImage] = []
-    desired_variants = max(1, variants)
-    if desired_variants > 1:
+    if not used_override_primary and desired_variants > 1:
         for index in range(1, desired_variants):
             suffix = f"_v{index + 1}"
             filename = primary.filename
@@ -497,6 +494,9 @@ def generate_poster_asset(
             else:
                 filename = f"{filename}{suffix}"
             variant_images.append(_copy_model(primary, filename=filename))
+
+    if not used_override_primary and override_variants:
+        variant_images.extend(override_variants)
 
     return PosterGenerationResult(
         poster=primary,

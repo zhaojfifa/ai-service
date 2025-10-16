@@ -37,7 +37,7 @@ from app.services.template_variants import (
     save_template_poster,
 )
 
-# ✅ 更灵活的日志配置
+
 def _configure_logging() -> logging.Logger:
     level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
@@ -47,6 +47,7 @@ def _configure_logging() -> logging.Logger:
     logger = logging.getLogger("ai-service")
     logger.debug("Logging configured at %s", level)
     return logger
+
 
 logger = _configure_logging()
 settings = get_settings()
@@ -60,8 +61,8 @@ UPLOAD_ALLOWED_MIME = {
     if item.strip()
 }
 
-# ✅ CORS 配置（统一为 normalize）
-def _normalize_allowed_origins(value: Any) -> list[str]:
+
+def _normalise_allowed_origins(value: Any) -> list[str]:
     if not value:
         return ["*"]
     if isinstance(value, list):
@@ -101,8 +102,9 @@ app.add_middleware(
     max_age=86400,
 )
 
-@app.options("/{rest_of_path:path}")
-def cors_preflight_handler(rest_of_path: str) -> Response:
+
+@app.options("/{path:path}")
+async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
     return Response(status_code=204)
 
 # ✅ 健康检查
@@ -265,6 +267,33 @@ def fetch_template_posters() -> TemplatePosterCollection:
         logger.exception("Failed to load template posters")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return TemplatePosterCollection(posters=entries)
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
