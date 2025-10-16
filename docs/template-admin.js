@@ -315,11 +315,12 @@
 
     try {
       const dataUrl = await fileToDataUrl(file);
+      const base64 = dataUrl.split(',')[1]; // 只保留逗号后的纯base64字符串
       const payload = {
         slot,
         filename: file.name || `${slot}.png`,
         content_type: contentType,
-        data: dataUrl,
+        data: base64,
       };
       await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
