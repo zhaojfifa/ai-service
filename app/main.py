@@ -89,20 +89,21 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
 raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
 allow_origins = _normalise_allowed_origins(raw_origins)
 
-cors_origins = {origin.rstrip("/") for origin in allow_origins}
-cors_origins.update(
-    {
-        "https://zhaojfifa.github.io",
-        "https://zhaojfifa.github.io/ai-service",
-    }
-)
+DEFAULT_CORS_ORIGINS = {
+    "https://zhaojfifa.github.io",
+    "https://zhaojfifa.github.io/ai-service",
+}
 
-if "*" in cors_origins:
-    cors_allow_origins = ["*"]
-    cors_allow_credentials = False
-else:
-    cors_allow_origins = sorted(cors_origins)
-    cors_allow_credentials = True
+cors_origins = {origin.rstrip("/") for origin in allow_origins}
+cors_origins.update(DEFAULT_CORS_ORIGINS)
+
+allow_all = "*" in cors_origins
+explicit_origins = sorted(origin for origin in cors_origins if origin != "*")
+if allow_all and explicit_origins:
+    allow_all = False
+
+cors_allow_origins = explicit_origins or ["*"]
+cors_allow_credentials = not allow_all
 
 app.add_middleware(
     CORSMiddleware,
@@ -276,7 +277,7 @@ def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePost
             "template poster upload rejected",
             extra={
                 "slot": payload.slot,
-                "filename": payload.filename,
+                "poster_filename": payload.filename,
                 "content_type": payload.content_type,
             },
         )
@@ -286,7 +287,7 @@ def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePost
             "Failed to store template poster",
             extra={
                 "slot": payload.slot,
-                "filename": payload.filename,
+                "poster_filename": payload.filename,
                 "content_type": payload.content_type,
             },
         )
