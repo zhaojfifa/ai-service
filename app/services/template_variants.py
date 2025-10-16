@@ -5,16 +5,20 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 
 from PIL import Image
 
 from app.schemas import PosterImage
+from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
 DEFAULT_SLOTS = ("variant_a", "variant_b")
@@ -25,9 +29,10 @@ class TemplatePosterRecord:
     slot: str
     filename: str
     content_type: str
-    path: Path
+    path: Path | None
     width: int
     height: int
+    key: str | None = None
     url: str | None = None
 
 
@@ -109,9 +114,19 @@ def _remove_existing_slot_files(slot: str) -> None:
 
 
 def _poster_from_record(record: TemplatePosterRecord) -> PosterImage:
-    with record.path.open("rb") as handle:
-        raw = handle.read()
-    data_url = f"data:{record.content_type};base64,{base64.b64encode(raw).decode()}"
+    raw: bytes | None = None
+    if record.path and record.path.exists():
+        with record.path.open("rb") as handle:
+            raw = handle.read()
+    elif record.key:
+        try:
+            raw = get_bytes(record.key)
+        except Exception:  # pragma: no cover - network/config failure fallback
+            logger.warning("Failed to fetch template poster %s from R2", record.key)
+
+    data_url: str | None = None
+    if raw:
+        data_url = f"data:{record.content_type};base64,{base64.b64encode(raw).decode()}"
     payload = {
         "filename": record.filename,
         "media_type": record.content_type,
@@ -136,13 +151,23 @@ def _load_record(slot: str, meta: dict[str, dict[str, str]]) -> TemplatePosterRe
     except ValueError:
         ext = ".png"
     directory = _ensure_storage_dir()
-    path = directory / entry.get("path", f"{slot}{ext}")
-    if not path.exists():
+    path_value = entry.get("path") or f"{slot}{ext}"
+    path = directory / path_value if path_value else None
+    if path and not path.exists():
+        path = None
+
+    width = int(entry.get("width") or 0)
+    height = int(entry.get("height") or 0)
+
+    if (width <= 0 or height <= 0) and path and path.exists():
+        with path.open("rb") as handle:
+            raw = handle.read()
+        with Image.open(BytesIO(raw)) as image:
+            width, height = image.size
+
+    if width <= 0 or height <= 0:
         return None
-    with path.open("rb") as handle:
-        raw = handle.read()
-    with Image.open(BytesIO(raw)) as image:
-        width, height = image.size
+
     return TemplatePosterRecord(
         slot=slot,
         filename=filename,
@@ -150,6 +175,7 @@ def _load_record(slot: str, meta: dict[str, dict[str, str]]) -> TemplatePosterRe
         path=path,
         width=width,
         height=height,
+        key=entry.get("key"),
         url=entry.get("url"),
     )
 
@@ -171,6 +197,29 @@ def iter_template_records() -> Iterable[TemplatePosterRecord]:
         record = _load_record(slot, meta)
         if record:
             yield record
+
+
+def _upload_to_cloudflare(
+    raw: bytes, *, filename: str, content_type: str
+) -> Tuple[str | None, str | None]:
+    """Store poster bytes in Cloudflare R2 when configured."""
+
+    try:
+        key = make_key("template-posters", filename)
+    except Exception:  # pragma: no cover - defensive sanitising
+        logger.exception("Failed to build storage key for template poster")
+        return None, None
+
+    try:
+        url = put_bytes(key, raw, content_type=content_type)
+    except Exception:  # pragma: no cover - networking/runtime failure
+        logger.exception("Failed to upload template poster to R2", extra={"key": key})
+        return None, None
+
+    if url is None:
+        url = public_url_for(key)
+
+    return key, url
 
 
 def save_template_poster(
@@ -210,12 +259,26 @@ def save_template_poster(
     with path.open("wb") as handle:
         handle.write(raw)
 
+    key: str | None = None
+    url: str | None = None
+    try:
+        key, url = _upload_to_cloudflare(raw, filename=safe_filename, content_type=content_type)
+    except Exception:  # pragma: no cover - unexpected failure already logged
+        logger.exception("Unexpected error while uploading template poster to R2")
+        key, url = None, None
+
     metadata = _read_metadata()
     metadata[slot] = {
         "filename": safe_filename,
         "content_type": content_type,
         "path": path.name,
+        "width": width,
+        "height": height,
     }
+    if key:
+        metadata[slot]["key"] = key
+    if url:
+        metadata[slot]["url"] = url
     _write_metadata(metadata)
 
     return TemplatePosterRecord(
@@ -225,6 +288,8 @@ def save_template_poster(
         path=path,
         width=width,
         height=height,
+        key=key,
+        url=url,
     )
 
 

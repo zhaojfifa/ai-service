@@ -37,12 +37,43 @@ def test_template_poster_upload_and_fetch(template_tmpdir):
     assert data["poster"]["width"] == 64
     assert data["poster"]["height"] == 64
     assert data["poster"]["data_url"].startswith("data:image/png;base64,")
+    assert data["poster"].get("url") is None
 
     response = client.get("/api/template-posters")
     assert response.status_code == 200
     listing = response.json()
     assert listing["posters"], "Expected uploaded poster to be listed"
     assert listing["posters"][0]["slot"] == "variant_a"
+
+
+def test_template_poster_uploads_to_cloudflare(monkeypatch, template_tmpdir):
+    import app.services.template_variants as template_variants
+
+    uploaded = {}
+
+    def fake_upload(raw: bytes, *, filename: str, content_type: str):
+        uploaded["raw_len"] = len(raw)
+        uploaded["filename"] = filename
+        uploaded["content_type"] = content_type
+        return "template-posters/test/key.png", "https://cdn.example.com/template-posters/test/key.png"
+
+    monkeypatch.setattr(template_variants, "_upload_to_cloudflare", fake_upload)
+
+    record = template_variants.save_template_poster(
+        slot="variant_a",
+        filename="Cloud.png",
+        content_type="image/png",
+        data=_encode_png((128, 64, 32)),
+    )
+
+    assert record.key == "template-posters/test/key.png"
+    assert record.url == "https://cdn.example.com/template-posters/test/key.png"
+    assert uploaded["filename"] == "Cloud.png"
+    assert uploaded["content_type"] == "image/png"
+    assert uploaded["raw_len"] > 0
+
+    posters = template_variants.list_template_posters()
+    assert posters[0].url == "https://cdn.example.com/template-posters/test/key.png"
 
 
 def test_generate_poster_uses_template_overrides(template_tmpdir):

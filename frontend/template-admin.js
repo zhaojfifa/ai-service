@@ -126,11 +126,20 @@
     if (!entry || !entry.meta) return;
     const meta = entry.meta;
     meta.innerHTML = '';
-    const addItem = (label, value) => {
+    const addItem = (label, value, options = {}) => {
       const dt = document.createElement('dt');
       dt.textContent = label;
       const dd = document.createElement('dd');
-      dd.textContent = value ?? '—';
+      if (options.isLink && value) {
+        const link = document.createElement('a');
+        link.href = value;
+        link.textContent = value;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        dd.appendChild(link);
+      } else {
+        dd.textContent = value ?? '—';
+      }
       meta.appendChild(dt);
       meta.appendChild(dd);
     };
@@ -143,6 +152,9 @@
     addItem('文件名', poster.filename || '—');
     addItem('格式', poster.media_type || '—');
     addItem('尺寸', formatDimensions(poster.width, poster.height));
+    if (poster.url) {
+      addItem('访问链接', poster.url, { isLink: true });
+    }
   };
 
   const updateSlotPreview = (slot, poster) => {
