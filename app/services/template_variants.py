@@ -236,7 +236,7 @@ def save_template_poster(
         "[poster-upload] Start processing",
         extra={
             "slot": slot,
-            "filename": filename,
+            "poster_filename": filename,
             "content_type": content_type,
             "payload_length": len(data or ""),
         },
