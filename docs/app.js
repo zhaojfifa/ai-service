@@ -3003,8 +3003,7 @@ function initStage2() {
 
     void loadTemplatePosters({ silent: true, force: true });
 
-    const templatePlaceholderDefault =
-      posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
+  
     const generatedPlaceholderDefault =
       posterGeneratedPlaceholder?.textContent?.trim() || '生成结果将在此展示。';
 
