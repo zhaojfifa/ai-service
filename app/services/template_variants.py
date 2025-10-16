@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from PIL import Image
 
@@ -77,6 +77,7 @@ def _decode_image_payload(data: str) -> bytes:
         except ValueError as exc:
             raise ValueError("Invalid data URL payload") from exc
         data = encoded
+    data = "".join(str(data).split())
     try:
         return base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError) as exc:  # pragma: no cover - defensive
@@ -231,27 +232,44 @@ def save_template_poster(
     allowed_mime: Optional[set[str]] = None,
 ) -> TemplatePosterRecord:
     slot = slot.strip()
-    logger.info(f"[poster-upload] Start processing slot={slot}, filename={filename}, content_type={content_type}")
+    logger.info(
+        "[poster-upload] Start processing",
+        extra={
+            "slot": slot,
+            "filename": filename,
+            "content_type": content_type,
+            "payload_length": len(data or ""),
+        },
+    )
 
     if slot not in DEFAULT_SLOTS:
-        logger.warning(f"[poster-upload] Invalid slot: {slot}")
+        logger.warning("[poster-upload] Invalid slot", extra={"slot": slot})
         raise ValueError("slot must be one of variant_a or variant_b")
 
     content_type = content_type.strip().lower()
     allowed = allowed_mime or DEFAULT_ALLOWED_MIME
     if content_type not in allowed:
-        logger.warning(f"[poster-upload] Unsupported content type: {content_type}")
+        logger.warning(
+            "[poster-upload] Unsupported content type",
+            extra={"slot": slot, "content_type": content_type},
+        )
         raise ValueError("Unsupported image content type")
 
     # Decode base64
     try:
         raw = _decode_image_payload(data)
     except Exception as exc:
-        logger.exception("[poster-upload] Failed to decode base64 image data")
+        logger.exception(
+            "[poster-upload] Failed to decode base64 image data",
+            extra={"slot": slot, "content_type": content_type},
+        )
         raise ValueError("Invalid base64 image payload") from exc
 
     if not raw:
-        logger.warning("[poster-upload] Image payload is empty after decoding")
+        logger.warning(
+            "[poster-upload] Image payload is empty after decoding",
+            extra={"slot": slot, "content_type": content_type},
+        )
         raise ValueError("Empty image payload")
 
     # Open and verify image
@@ -260,10 +278,16 @@ def save_template_poster(
             image.load()
             width, height = image.size
     except UnidentifiedImageError as exc:
-        logger.error("[poster-upload] Cannot identify image file (possibly corrupted)")
+        logger.error(
+            "[poster-upload] Cannot identify image file (possibly corrupted)",
+            extra={"slot": slot, "content_type": content_type},
+        )
         raise ValueError("Invalid image payload") from exc
     except Exception as exc:
-        logger.exception("[poster-upload] Unexpected error while opening image")
+        logger.exception(
+            "[poster-upload] Unexpected error while opening image",
+            extra={"slot": slot, "content_type": content_type},
+        )
         raise ValueError("Invalid image payload") from exc
 
     # Filename sanitization
@@ -277,9 +301,15 @@ def save_template_poster(
     try:
         with path.open("wb") as handle:
             handle.write(raw)
-        logger.info(f"[poster-upload] Image written to {path}")
+        logger.info(
+            "[poster-upload] Image written",
+            extra={"slot": slot, "path": str(path), "width": width, "height": height},
+        )
     except Exception as exc:
-        logger.exception("[poster-upload] Failed to write image to disk")
+        logger.exception(
+            "[poster-upload] Failed to write image to disk",
+            extra={"slot": slot, "path": str(path)},
+        )
         raise
 
     # Upload to cloud
@@ -287,9 +317,12 @@ def save_template_poster(
     url: Optional[str] = None
     try:
         key, url = _upload_to_cloudflare(raw, filename=safe_filename, content_type=content_type)
-        logger.info(f"[poster-upload] Uploaded to R2 - key={key}, url={url}")
+        logger.info(
+            "[poster-upload] Uploaded to R2",
+            extra={"slot": slot, "key": key, "url": url},
+        )
     except Exception:
-        logger.exception("[poster-upload] Error uploading to R2")
+        logger.exception("[poster-upload] Error uploading to R2", extra={"slot": slot})
         key, url = None, None
 
     # Update metadata
@@ -307,7 +340,7 @@ def save_template_poster(
         metadata[slot]["url"] = url
 
     _write_metadata(metadata)
-    logger.info(f"[poster-upload] Metadata updated for slot={slot}")
+    logger.info("[poster-upload] Metadata updated", extra={"slot": slot})
 
     return TemplatePosterRecord(
         slot=slot,
