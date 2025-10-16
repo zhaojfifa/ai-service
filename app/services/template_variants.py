@@ -228,45 +228,72 @@ def save_template_poster(
     filename: str,
     content_type: str,
     data: str,
-    allowed_mime: set[str] | None = None,
+    allowed_mime: Optional[set[str]] = None,
 ) -> TemplatePosterRecord:
     slot = slot.strip()
+    logger.info(f"[poster-upload] Start processing slot={slot}, filename={filename}, content_type={content_type}")
+
     if slot not in DEFAULT_SLOTS:
+        logger.warning(f"[poster-upload] Invalid slot: {slot}")
         raise ValueError("slot must be one of variant_a or variant_b")
 
     content_type = content_type.strip().lower()
     allowed = allowed_mime or DEFAULT_ALLOWED_MIME
     if content_type not in allowed:
+        logger.warning(f"[poster-upload] Unsupported content type: {content_type}")
         raise ValueError("Unsupported image content type")
 
-    raw = _decode_image_payload(data)
+    # Decode base64
+    try:
+        raw = _decode_image_payload(data)
+    except Exception as exc:
+        logger.exception("[poster-upload] Failed to decode base64 image data")
+        raise ValueError("Invalid base64 image payload") from exc
+
     if not raw:
+        logger.warning("[poster-upload] Image payload is empty after decoding")
         raise ValueError("Empty image payload")
 
+    # Open and verify image
     try:
         with Image.open(BytesIO(raw)) as image:
             image.load()
             width, height = image.size
-    except Exception as exc:  # pragma: no cover - invalid image
+            logger.info(f"[poster-upload] Image opened successfully: {width}x{height}")
+    except UnidentifiedImageError as exc:
+        logger.error("[poster-upload] Cannot identify image file (possibly corrupted)")
+        raise ValueError("Invalid image payload") from exc
+    except Exception as exc:
+        logger.exception("[poster-upload] Unexpected error while opening image")
         raise ValueError("Invalid image payload") from exc
 
+    # Filename sanitization
     safe_filename = _clean_filename(filename)
     ext = _extension_for(content_type)
 
+    # Save to local path
     directory = _ensure_storage_dir()
     _remove_existing_slot_files(slot)
     path = directory / f"{slot}{ext}"
-    with path.open("wb") as handle:
-        handle.write(raw)
+    try:
+        with path.open("wb") as handle:
+            handle.write(raw)
+        logger.info(f"[poster-upload] Image written to {path}")
+    except Exception as exc:
+        logger.exception("[poster-upload] Failed to write image to disk")
+        raise
 
-    key: str | None = None
-    url: str | None = None
+    # Upload to cloud
+    key: Optional[str] = None
+    url: Optional[str] = None
     try:
         key, url = _upload_to_cloudflare(raw, filename=safe_filename, content_type=content_type)
-    except Exception:  # pragma: no cover - unexpected failure already logged
-        logger.exception("Unexpected error while uploading template poster to R2")
+        logger.info(f"[poster-upload] Uploaded to R2 - key={key}, url={url}")
+    except Exception:
+        logger.exception("[poster-upload] Error uploading to R2")
         key, url = None, None
 
+    # Update metadata
     metadata = _read_metadata()
     metadata[slot] = {
         "filename": safe_filename,
@@ -279,7 +306,9 @@ def save_template_poster(
         metadata[slot]["key"] = key
     if url:
         metadata[slot]["url"] = url
+
     _write_metadata(metadata)
+    logger.info(f"[poster-upload] Metadata updated for slot={slot}")
 
     return TemplatePosterRecord(
         slot=slot,
