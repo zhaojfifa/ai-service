@@ -4152,49 +4152,51 @@ function initStage3() {
     emailRecipient.value = stage1Data.default_recipient || DEFAULT_EMAIL_RECIPIENT;
     emailBody.value = stage2Result.email_body || '';
 
-    sendButton.addEventListener('click', async () => {
-      const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
-      if (!apiCandidates.length) {
-        setStatus(statusElement, '未找到可用的后端基址，无法发送邮件。', 'warning');
-        return;
-      }
+   sendButton.addEventListener('click', async () => {
+  const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+  if (!apiCandidates.length) {
+    setStatus(statusElement, '未找到可用的后端基址，无法发送邮件。', 'warning');
+    return;
+  }
 
-      const recipient = emailRecipient.value.trim();
-      const subject = emailSubject.value.trim();
-      const body = emailBody.value.trim();
+  const recipient = emailRecipient.value.trim();
+  const subject = emailSubject.value.trim();
+  const body = emailBody.value.trim();
 
-      if (!recipient || !subject || !body) {
-        setStatus(statusElement, '请完整填写收件邮箱、主题与正文。', 'error');
-        return;
-      }
+  if (!recipient || !subject || !body) {
+    setStatus(statusElement, '请完整填写收件邮箱、主题与正文。', 'error');
+    return;
+  }
 
-      sendButton.disabled = true;
-      setStatus(statusElement, '正在发送营销邮件…', 'info');
+  sendButton.disabled = true;
+  setStatus(statusElement, '正在发送营销邮件…', 'info');
 
-      try {
-        await warmUp(apiCandidates);
-        const response = await postJsonWithRetry(
-          apiCandidates,
-          '/api/send-email',
-          {
-            recipient,
-            subject,
-            body,
-            attachment: stage2Result.poster_image,
-          },
-          1
-        );
+  try {
+    await warmUp(apiCandidates);
 
-        await response.json().catch(() => ({}));
-        setStatus(statusElement, '营销邮件发送成功！', 'success');
-      } catch (error) {
-        console.error(error);
-        setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
-      } finally {
-        sendButton.disabled = false;
-      }
-    });
-  })();
+    const response = await postJsonWithRetry(
+      apiCandidates,
+      '/api/send-email',
+      {
+        recipient,
+        subject,
+        body,
+        attachment: stage2Result.poster_image,
+      },
+      1
+    );
+
+    // ✅ 修复：不再调用 response.json()
+    // 假设 postJsonWithRetry 已返回解析后的对象或成功标志
+    console.log('邮件发送 response:', response);
+    setStatus(statusElement, '营销邮件发送成功！', 'success');
+  } catch (error) {
+    console.error('[邮件发送失败]', error);
+    setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
+  } finally {
+    sendButton.disabled = false;
+  }
+});
 }
 
 function buildEmailSubject(stage1Data) {
