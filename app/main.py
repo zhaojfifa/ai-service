@@ -1,14 +1,14 @@
 from __future__ import annotations
-import os
-import sys
-import json                     # ← 你用了 json，但之前没导入
+
+import json
 import logging
+import os
 from typing import Any
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
-
 
 from app.config import get_settings
 from app.schemas import (
@@ -19,6 +19,9 @@ from app.schemas import (
     R2PresignPutResponse,
     SendEmailRequest,
     SendEmailResponse,
+    TemplatePosterCollection,
+    TemplatePosterEntry,
+    TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
 from app.services.glibatree import generate_poster_asset
@@ -28,26 +31,26 @@ from app.services.poster import (
     render_layout_preview,
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
-
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
-
-logging.basicConfig(
-    level=LOG_LEVEL,  # 全局等级
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
-    stream=sys.stdout,
-    force=True,       # 覆盖第三方/默认配置，关键！
+from app.services.template_variants import (
+    list_poster_entries,
+    poster_entry_from_record,
+    save_template_poster,
 )
 
-# 可选：单独把 uvicorn/fastapi 相关 logger 也调成同级别
-for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
-    logging.getLogger(name).setLevel(LOG_LEVEL)
 
-logger = logging.getLogger("ai-service")
-logger.info("Logging initialized. level=%s", LOG_LEVEL)
+def _configure_logging() -> logging.Logger:
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    logger = logging.getLogger("ai-service")
+    logger.debug("Logging configured at %s", level)
+    return logger
 
+
+logger = _configure_logging()
 settings = get_settings()
-
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
@@ -58,65 +61,46 @@ UPLOAD_ALLOWED_MIME = {
 }
 
 
-def _normalize_allowed_origins(value):
-    # 支持 None / "" / "*" / CSV / JSON / list
+def _normalize_allowed_origins(value: Any) -> list[str]:
     if not value:
         return ["*"]
     if isinstance(value, list):
         items = value
     elif isinstance(value, str):
-        s = value.strip()
-        if s.startswith("["):  # JSON
+        text = value.strip()
+        if text.startswith("["):
             try:
-                items = json.loads(s)
-            except Exception:
-                items = s.split(",")
-        else:                   # CSV
-            items = s.split(",")
+                items = json.loads(text)
+            except (TypeError, ValueError):
+                items = text.split(",")
+        else:
+            items = text.split(",")
     else:
         items = [str(value)]
 
-    def clean(x: str) -> str:
-        s = str(x).strip().strip('"').strip("'").rstrip("/")
-        return s
+    cleaned = []
+    for item in items:
+        candidate = str(item).strip().strip('"').strip("'").rstrip("/")
+        if candidate:
+            cleaned.append(candidate)
+    return cleaned or ["*"]
 
-    out = [clean(x) for x in items if clean(x)]
-    return out or ["*"]
 
-raw = (
-    getattr(settings, "allowed_origins", None)
-    or os.getenv("ALLOWED_ORIGINS")
-)
-allow_origins = _normalize_allowed_origins(raw)
-
-allow_credentials = "*" not in allow_origins
-
-# 建议明确写你的前端域名（更安全）
-allow_origins = [
-    "https://zhaojfifa.github.io",
-    "https://zhaojfifa.github.io/ai-service/"
-    # 或调试用： "*"
-]
+raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
+allow_origins = _normalize_allowed_origins(raw_origins)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
     allow_credentials=False,
-    allow_methods=["*"],   # GET, POST, OPTIONS...
-    allow_headers=["*"],   # Content-Type, Authorization, x-api-key...
-    expose_headers=[],     # 如需要可暴露自定义响应头
-    max_age=86400,         # 预检缓存
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=86400,
 )
 
-# 若你路由里对 OPTIONS 会 405/400，可加兜底（通常 CORSMiddleware 已处理）
-from fastapi.responses import Response
-@app.options("/{path:path}")
-async def cors_preflight(path: str):
-    return Response(status_code=204)
 
-@app.options("/{rest_of_path:path}")
-def cors_preflight_handler(rest_of_path: str) -> Response:
-    """Ensure any CORS preflight request receives an immediate 204 response."""
+@app.options("/{path:path}")
+async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
     return Response(status_code=204)
 
 
@@ -251,6 +235,33 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)

@@ -188,8 +188,48 @@
           </div>
           <div class="output-group hidden" id="poster-visual">
             <h3>海报预览</h3>
-            <img id="poster-image" alt="海报预览" />
-            <div id="poster-variants" class="variant-strip hidden" aria-live="polite"></div>
+            <div class="poster-preview-grid" id="poster-preview-grid">
+              <figure class="poster-preview" data-role="template">
+                <header class="poster-preview-header">
+                  <div class="poster-preview-title">
+                    <span class="poster-chip">海报 A</span>
+                    <span class="poster-preview-label">模板海报</span>
+                  </div>
+                  <a
+                    id="poster-template-link"
+                    class="poster-preview-link hidden"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >查看原图</a>
+                </header>
+                <img
+                  id="poster-template-image"
+                  alt="模板海报预览"
+                  class="hidden"
+                  decoding="async"
+                />
+                <div id="poster-template-placeholder" class="poster-preview-placeholder">
+                  后台尚未上传模板海报。
+                </div>
+              </figure>
+              <figure class="poster-preview" data-role="generated">
+                <header class="poster-preview-header">
+                  <div class="poster-preview-title">
+                    <span class="poster-chip poster-chip-secondary">海报 B</span>
+                    <span class="poster-preview-label">最新生成结果</span>
+                  </div>
+                </header>
+                <img
+                  id="poster-generated-image"
+                  alt="生成海报预览"
+                  class="hidden"
+                  decoding="async"
+                />
+                <div id="poster-generated-placeholder" class="poster-preview-placeholder">
+                  生成结果将在此展示。
+                </div>
+              </figure>
+            </div>
           </div>
           <div class="output-group hidden" id="prompt-group">
             <h3>实际 OpenAI 提示词</h3>
