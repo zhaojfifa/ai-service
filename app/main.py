@@ -87,7 +87,7 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
     return cleaned or ["*"]
 
 raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
-allow_origins = _normalize_allowed_origins(raw_origins)
+allow_origins = _normalise_allowed_origins(raw_origins)
 allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
