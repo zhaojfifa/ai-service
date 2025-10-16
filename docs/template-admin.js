@@ -1,10 +1,133 @@
 (function () {
+  const globalScope = typeof window !== 'undefined' ? window : globalThis;
+
+  const ensureGlobalFileToDataUrl = () => {
+    if (
+      globalScope &&
+      typeof globalScope.fileToDataUrl !== 'function'
+    ) {
+      globalScope.fileToDataUrl = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const value = typeof reader.result === 'string' ? reader.result : '';
+            resolve(value);
+          };
+          reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+          reader.readAsDataURL(file);
+        });
+    }
+    return globalScope?.fileToDataUrl || null;
+  };
+
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const value = typeof reader.result === 'string' ? reader.result : '';
+        resolve(value);
+      };
+      reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+      reader.readAsDataURL(file);
+    });
+
+  const safeFileToDataUrl = (file) => {
+    if (!file) return Promise.resolve('');
+
+    const globalFn = ensureGlobalFileToDataUrl();
+
+    if (typeof globalFn === 'function') {
+      try {
+        const result = globalFn(file);
+        if (result && typeof result.then === 'function') {
+          return result
+            .then((value) => (typeof value === 'string' ? value : ''))
+            .catch(() => readFileAsDataUrl(file));
+        }
+        if (typeof result === 'string') {
+          return Promise.resolve(result);
+        }
+      } catch (error) {
+        console.warn('[template-admin] global fileToDataUrl failed', error);
+      }
+    }
+
+    return readFileAsDataUrl(file);
+  };
+
+  const extractBase64Payload = (dataUrl) => {
+    if (typeof dataUrl !== 'string') return null;
+    const trimmed = dataUrl.trim();
+    const commaIndex = trimmed.indexOf(',');
+    if (commaIndex === -1) return null;
+    const payload = trimmed.slice(commaIndex + 1).replace(/\s+/g, '');
+    return payload || null;
+  };
+
   const grid = document.getElementById('template-poster-grid');
   if (!grid) return;
 
   const statusElement = document.getElementById('template-status');
   const refreshButton = document.getElementById('refresh-posters');
   const apiBaseInput = document.getElementById('api-base');
+  const AppContext =
+    typeof window !== 'undefined' &&
+    window.App &&
+    typeof window.App === 'object'
+      ? window.App
+      : null;
+  const AppUtils =
+    AppContext && typeof AppContext.utils === 'object'
+      ? AppContext.utils
+      : null;
+  const joinBasePath =
+    AppUtils?.joinBasePath ||
+    ((base, path) => {
+      if (!base) return null;
+      const baseString = String(base).trim();
+      if (!baseString) return null;
+      const cleanBase = baseString.replace(/\/+$/, '');
+      if (!path) return cleanBase;
+      const pathString = String(path).trim();
+      if (!pathString) return cleanBase;
+      const cleanPath = pathString.startsWith('/')
+        ? pathString
+        : `/${pathString}`;
+      return `${cleanBase}${cleanPath}`;
+    });
+
+  const normaliseBase = (value) => {
+    if (!value) return null;
+    const stringValue = typeof value === 'string' ? value : `${value}`;
+    const trimmed = stringValue.trim();
+    if (!trimmed) return null;
+    return trimmed.replace(/\/+$/, '');
+  };
+
+  const readInputBase = () => normaliseBase(apiBaseInput?.value || '');
+
+  const collectCandidates = () => {
+    const sources = [];
+    const utilCandidates = AppUtils?.getApiCandidates?.() || [];
+    if (Array.isArray(utilCandidates)) {
+      sources.push(...utilCandidates);
+    } else if (utilCandidates) {
+      sources.push(utilCandidates);
+    }
+    const appBase = normaliseBase(AppContext?.apiBase || '');
+    const inputBase = readInputBase();
+    if (appBase) sources.push(appBase);
+    if (inputBase) sources.push(inputBase);
+    const unique = [];
+    const seen = new Set();
+    sources.forEach((item) => {
+      const base = normaliseBase(item);
+      if (!base || seen.has(base)) return;
+      seen.add(base);
+      unique.push(base);
+    });
+    return unique;
+  };
 
   const slotLabels = {
     variant_a: '海报 A',
@@ -210,20 +333,20 @@
 
   const ensureBase = async ({ force = false, warmup = false } = {}) => {
     if (!force && state.base) return state.base;
-    const candidates = App?.utils?.getApiCandidates?.() || [];
+    const candidates = collectCandidates();
     if (!candidates.length) {
       throw new Error('请先填写后端 API 地址。');
     }
-    if (warmup && App?.utils?.warmUp) {
+    if (warmup && AppUtils?.warmUp) {
       try {
-        await App.utils.warmUp(candidates, { force: true });
+        await AppUtils.warmUp(candidates, { force: true });
       } catch (error) {
         console.warn('[template-admin] warmUp failed', error);
       }
     }
     let base = null;
-    if (App?.utils?.pickHealthyBase) {
-      base = await App.utils.pickHealthyBase(candidates);
+    if (AppUtils?.pickHealthyBase) {
+      base = await AppUtils.pickHealthyBase(candidates);
     }
     state.base = base || candidates[0] || null;
     if (!state.base) {
@@ -314,14 +437,18 @@
     setGlobalStatus(`正在上传 ${slotLabels[slot] || slot}…`, 'info');
 
     try {
-      const dataUrl = await fileToDataUrl(file);
-      const base64 = dataUrl.split(',')[1]; // 只保留逗号后的纯base64字符串
+      const dataUrl = await safeFileToDataUrl(file);
+      const base64 = extractBase64Payload(dataUrl);
+      if (!base64) {
+        throw new Error('图片编码失败，请重试。');
+      }
       const payload = {
         slot,
         filename: file.name || `${slot}.png`,
         content_type: contentType,
         data: base64,
       };
+      console.log(payload);
       await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
@@ -376,8 +503,14 @@
   }
 
   if (apiBaseInput) {
+    if (AppContext?.apiBase && !apiBaseInput.value) {
+      apiBaseInput.value = AppContext.apiBase;
+    }
     apiBaseInput.addEventListener('change', () => {
       state.base = null;
+      if (AppContext) {
+        AppContext.apiBase = apiBaseInput.value?.trim() || '';
+      }
       fetchPosters({ silent: true });
     });
   }
