@@ -71,7 +71,63 @@
   const refreshButton = document.getElementById('refresh-posters');
   const apiBaseInput = document.getElementById('api-base');
   const AppContext =
-    (typeof window !== 'undefined' && window.App) || null;
+    typeof window !== 'undefined' &&
+    window.App &&
+    typeof window.App === 'object'
+      ? window.App
+      : null;
+  const AppUtils =
+    AppContext && typeof AppContext.utils === 'object'
+      ? AppContext.utils
+      : null;
+  const joinBasePath =
+    AppUtils?.joinBasePath ||
+    ((base, path) => {
+      if (!base) return null;
+      const baseString = String(base).trim();
+      if (!baseString) return null;
+      const cleanBase = baseString.replace(/\/+$/, '');
+      if (!path) return cleanBase;
+      const pathString = String(path).trim();
+      if (!pathString) return cleanBase;
+      const cleanPath = pathString.startsWith('/')
+        ? pathString
+        : `/${pathString}`;
+      return `${cleanBase}${cleanPath}`;
+    });
+
+  const normaliseBase = (value) => {
+    if (!value) return null;
+    const stringValue = typeof value === 'string' ? value : `${value}`;
+    const trimmed = stringValue.trim();
+    if (!trimmed) return null;
+    return trimmed.replace(/\/+$/, '');
+  };
+
+  const readInputBase = () => normaliseBase(apiBaseInput?.value || '');
+
+  const collectCandidates = () => {
+    const sources = [];
+    const utilCandidates = AppUtils?.getApiCandidates?.() || [];
+    if (Array.isArray(utilCandidates)) {
+      sources.push(...utilCandidates);
+    } else if (utilCandidates) {
+      sources.push(utilCandidates);
+    }
+    const appBase = normaliseBase(AppContext?.apiBase || '');
+    const inputBase = readInputBase();
+    if (appBase) sources.push(appBase);
+    if (inputBase) sources.push(inputBase);
+    const unique = [];
+    const seen = new Set();
+    sources.forEach((item) => {
+      const base = normaliseBase(item);
+      if (!base || seen.has(base)) return;
+      seen.add(base);
+      unique.push(base);
+    });
+    return unique;
+  };
 
   const slotLabels = {
     variant_a: '海报 A',
@@ -277,20 +333,20 @@
 
   const ensureBase = async ({ force = false, warmup = false } = {}) => {
     if (!force && state.base) return state.base;
-    const candidates = AppContext?.utils?.getApiCandidates?.() || [];
+    const candidates = collectCandidates();
     if (!candidates.length) {
       throw new Error('请先填写后端 API 地址。');
     }
-    if (warmup && AppContext?.utils?.warmUp) {
+    if (warmup && AppUtils?.warmUp) {
       try {
-        await AppContext.utils.warmUp(candidates, { force: true });
+        await AppUtils.warmUp(candidates, { force: true });
       } catch (error) {
         console.warn('[template-admin] warmUp failed', error);
       }
     }
     let base = null;
-    if (AppContext?.utils?.pickHealthyBase) {
-      base = await AppContext.utils.pickHealthyBase(candidates);
+    if (AppUtils?.pickHealthyBase) {
+      base = await AppUtils.pickHealthyBase(candidates);
     }
     state.base = base || candidates[0] || null;
     if (!state.base) {
@@ -447,8 +503,14 @@
   }
 
   if (apiBaseInput) {
+    if (AppContext?.apiBase && !apiBaseInput.value) {
+      apiBaseInput.value = AppContext.apiBase;
+    }
     apiBaseInput.addEventListener('change', () => {
       state.base = null;
+      if (AppContext) {
+        AppContext.apiBase = apiBaseInput.value?.trim() || '';
+      }
       fetchPosters({ silent: true });
     });
   }
