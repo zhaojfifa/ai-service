@@ -241,9 +241,17 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
-from app.schemas import TemplatePosterUploadRequest
 @app.post("/api/template-posters", response_model=TemplatePosterEntry)
 def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    logger.info(
+        "template poster upload received",
+        extra={
+            "slot": payload.slot,
+            "filename": payload.filename,
+            "content_type": payload.content_type,
+            "size_bytes": len(payload.data or ""),
+        },
+    )
     try:
         record = save_template_poster(
             slot=payload.slot,
@@ -253,47 +261,25 @@ def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePost
         )
         return poster_entry_from_record(record)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to store template poster")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.get("/api/template-posters", response_model=TemplatePosterCollection)
-def fetch_template_posters() -> TemplatePosterCollection:
-    try:
-        entries = list_poster_entries()
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to load template posters")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return TemplatePosterCollection(posters=entries)
-
-
-@app.get("/api/template-posters", response_model=TemplatePosterCollection)
-def fetch_template_posters() -> TemplatePosterCollection:
-    try:
-        entries = list_poster_entries()
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to load template posters")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return TemplatePosterCollection(posters=entries)
-
-
-@app.post("/api/template-posters", response_model=TemplatePosterEntry)
-def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
-    try:
-        record = save_template_poster(
-            slot=payload.slot,
-            filename=payload.filename,
-            content_type=payload.content_type,
-            data=payload.data,
+        logger.warning(
+            "template poster upload rejected",
+            extra={
+                "slot": payload.slot,
+                "filename": payload.filename,
+                "content_type": payload.content_type,
+            },
         )
-        return poster_entry_from_record(record)
-    except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to store template poster")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.exception(
+            "Failed to store template poster",
+            extra={
+                "slot": payload.slot,
+                "filename": payload.filename,
+                "content_type": payload.content_type,
+            },
+        )
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试。") from exc
 
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
@@ -302,52 +288,8 @@ def fetch_template_posters() -> TemplatePosterCollection:
         entries = list_poster_entries()
     except Exception as exc:  # pragma: no cover - unexpected IO failure
         logger.exception("Failed to load template posters")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail="无法加载模板列表，请稍后重试。") from exc
     return TemplatePosterCollection(posters=entries)
-
-
-@app.post("/api/template-posters", response_model=TemplatePosterEntry)
-def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
-    try:
-        record = save_template_poster(
-            slot=payload.slot,
-            filename=payload.filename,
-            content_type=payload.content_type,
-            data=payload.data,
-        )
-        return poster_entry_from_record(record)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to store template poster")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-
-@app.get("/api/template-posters", response_model=TemplatePosterCollection)
-def fetch_template_posters() -> TemplatePosterCollection:
-    try:
-        entries = list_poster_entries()
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to load template posters")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return TemplatePosterCollection(posters=entries)
-
-
-@app.post("/api/template-posters", response_model=TemplatePosterEntry)
-def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
-    try:
-        record = save_template_poster(
-            slot=payload.slot,
-            filename=payload.filename,
-            content_type=payload.content_type,
-            data=payload.data,
-        )
-        return poster_entry_from_record(record)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to store template poster")
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
