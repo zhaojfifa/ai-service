@@ -1,10 +1,77 @@
 (function () {
+  const globalScope = typeof window !== 'undefined' ? window : globalThis;
+
+  const ensureGlobalFileToDataUrl = () => {
+    if (
+      globalScope &&
+      typeof globalScope.fileToDataUrl !== 'function'
+    ) {
+      globalScope.fileToDataUrl = (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const value = typeof reader.result === 'string' ? reader.result : '';
+            resolve(value);
+          };
+          reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+          reader.readAsDataURL(file);
+        });
+    }
+    return globalScope?.fileToDataUrl || null;
+  };
+
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const value = typeof reader.result === 'string' ? reader.result : '';
+        resolve(value);
+      };
+      reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+      reader.readAsDataURL(file);
+    });
+
+  const safeFileToDataUrl = (file) => {
+    if (!file) return Promise.resolve('');
+
+    const globalFn = ensureGlobalFileToDataUrl();
+
+    if (typeof globalFn === 'function') {
+      try {
+        const result = globalFn(file);
+        if (result && typeof result.then === 'function') {
+          return result
+            .then((value) => (typeof value === 'string' ? value : ''))
+            .catch(() => readFileAsDataUrl(file));
+        }
+        if (typeof result === 'string') {
+          return Promise.resolve(result);
+        }
+      } catch (error) {
+        console.warn('[template-admin] global fileToDataUrl failed', error);
+      }
+    }
+
+    return readFileAsDataUrl(file);
+  };
+
+  const extractBase64Payload = (dataUrl) => {
+    if (typeof dataUrl !== 'string') return null;
+    const trimmed = dataUrl.trim();
+    const commaIndex = trimmed.indexOf(',');
+    if (commaIndex === -1) return null;
+    const payload = trimmed.slice(commaIndex + 1).replace(/\s+/g, '');
+    return payload || null;
+  };
+
   const grid = document.getElementById('template-poster-grid');
   if (!grid) return;
 
   const statusElement = document.getElementById('template-status');
   const refreshButton = document.getElementById('refresh-posters');
   const apiBaseInput = document.getElementById('api-base');
+  const AppContext =
+    (typeof window !== 'undefined' && window.App) || null;
 
   const slotLabels = {
     variant_a: '海报 A',
@@ -210,20 +277,20 @@
 
   const ensureBase = async ({ force = false, warmup = false } = {}) => {
     if (!force && state.base) return state.base;
-    const candidates = App?.utils?.getApiCandidates?.() || [];
+    const candidates = AppContext?.utils?.getApiCandidates?.() || [];
     if (!candidates.length) {
       throw new Error('请先填写后端 API 地址。');
     }
-    if (warmup && App?.utils?.warmUp) {
+    if (warmup && AppContext?.utils?.warmUp) {
       try {
-        await App.utils.warmUp(candidates, { force: true });
+        await AppContext.utils.warmUp(candidates, { force: true });
       } catch (error) {
         console.warn('[template-admin] warmUp failed', error);
       }
     }
     let base = null;
-    if (App?.utils?.pickHealthyBase) {
-      base = await App.utils.pickHealthyBase(candidates);
+    if (AppContext?.utils?.pickHealthyBase) {
+      base = await AppContext.utils.pickHealthyBase(candidates);
     }
     state.base = base || candidates[0] || null;
     if (!state.base) {
@@ -314,14 +381,18 @@
     setGlobalStatus(`正在上传 ${slotLabels[slot] || slot}…`, 'info');
 
     try {
-      const dataUrl = await fileToDataUrl(file);
-      const base64 = dataUrl.split(',')[1]; // 只保留逗号后的纯base64字符串
+      const dataUrl = await safeFileToDataUrl(file);
+      const base64 = extractBase64Payload(dataUrl);
+      if (!base64) {
+        throw new Error('图片编码失败，请重试。');
+      }
       const payload = {
         slot,
         filename: file.name || `${slot}.png`,
         content_type: contentType,
         data: base64,
       };
+      console.log(payload);
       await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
