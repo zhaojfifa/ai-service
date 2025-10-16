@@ -477,6 +477,21 @@ function getPosterImageSource(image) {
   return dataUrl;
 }
 
+function inferImageMediaType(src) {
+  if (typeof src !== 'string') return null;
+  const value = src.split('?')[0].trim().toLowerCase();
+  if (!value) return null;
+  if (value.startsWith('data:image/')) {
+    const match = value.match(/^data:(image\/[a-z0-9.+-]+);/);
+    return match ? match[1] : null;
+  }
+  if (value.endsWith('.png')) return 'image/png';
+  if (value.endsWith('.jpg') || value.endsWith('.jpeg')) return 'image/jpeg';
+  if (value.endsWith('.webp')) return 'image/webp';
+  if (value.endsWith('.gif')) return 'image/gif';
+  return null;
+}
+
 function assignPosterImage(element, image, altText) {
   if (!element) return false;
   const src = getPosterImageSource(image);
@@ -2769,7 +2784,6 @@ function initStage2() {
     const posterTemplateLink = document.getElementById('poster-template-link');
     const posterGeneratedImage = document.getElementById('poster-generated-image');
     const posterGeneratedPlaceholder = document.getElementById('poster-generated-placeholder');
-    const variantsStrip = document.getElementById('poster-variants');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
@@ -2807,6 +2821,187 @@ function initStage2() {
     let currentTemplateAssets = null;
     let latestPromptState = null;
     let promptPresets = null;
+    let activeTemplatePoster = null;
+
+    const templatePlaceholderDefault =
+      posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
+    const generatedPlaceholderDefault =
+      posterGeneratedPlaceholder?.textContent?.trim() || '生成结果将在此展示。';
+
+    const templateState = {
+      loaded: false,
+      poster: null,
+    };
+
+    const normalisePosterRecord = (poster) => {
+      if (!poster) return null;
+      const source = getPosterImageSource(poster);
+      if (!source) return null;
+      const filename =
+        typeof poster.filename === 'string' && poster.filename.trim()
+          ? poster.filename.trim()
+          : `${stage1Data.template_id || 'template'}-poster-a`;
+      const mediaType =
+        typeof poster.media_type === 'string' && poster.media_type
+          ? poster.media_type
+          : inferImageMediaType(source) || 'image/png';
+      const width = typeof poster.width === 'number' ? poster.width : null;
+      const height = typeof poster.height === 'number' ? poster.height : null;
+      return {
+        filename,
+        media_type: mediaType,
+        width,
+        height,
+        url: typeof poster.url === 'string' ? poster.url : null,
+        data_url: typeof poster.data_url === 'string' ? poster.data_url : null,
+      };
+    };
+
+    const computeTemplatePoster = () => {
+      const uploadedPoster = normalisePosterRecord(templateState.poster);
+      if (uploadedPoster) {
+        return uploadedPoster;
+      }
+
+      const templateImage = currentTemplateAssets?.image || null;
+      const entryPreview = currentTemplateAssets?.entry?.preview || null;
+      const fallbackSrc =
+        templateImage?.currentSrc ||
+        templateImage?.src ||
+        (entryPreview
+          ? App.utils.assetUrl?.(`templates/${entryPreview}`) ||
+            `templates/${entryPreview}`
+          : null);
+
+      if (!fallbackSrc) {
+        return null;
+      }
+
+      const width =
+        typeof templateImage?.naturalWidth === 'number' && templateImage.naturalWidth > 0
+          ? templateImage.naturalWidth
+          : typeof templateImage?.width === 'number'
+          ? templateImage.width
+          : null;
+      const height =
+        typeof templateImage?.naturalHeight === 'number' && templateImage.naturalHeight > 0
+          ? templateImage.naturalHeight
+          : typeof templateImage?.height === 'number'
+          ? templateImage.height
+          : null;
+
+      return {
+        filename: `${stage1Data.template_id || 'template'}-poster-a`,
+        media_type: inferImageMediaType(fallbackSrc) || 'image/png',
+        width,
+        height,
+        url: fallbackSrc,
+        data_url: null,
+      };
+    };
+
+    const updateTemplatePosterDisplay = (message) => {
+      const poster = computeTemplatePoster();
+      activeTemplatePoster = poster ? { ...poster } : null;
+      const displayMessage = message || templatePlaceholderDefault;
+      if (
+        poster &&
+        posterTemplateImage &&
+        assignPosterImage(
+          posterTemplateImage,
+          poster,
+          `${stage1Data.product_name || '模板'} 默认模板海报`
+        )
+      ) {
+        posterTemplateImage.classList.remove('hidden');
+        if (posterTemplatePlaceholder) {
+          posterTemplatePlaceholder.textContent = templatePlaceholderDefault;
+          posterTemplatePlaceholder.classList.add('hidden');
+        }
+      } else {
+        if (posterTemplateImage) {
+          posterTemplateImage.classList.add('hidden');
+          posterTemplateImage.removeAttribute('src');
+        }
+        if (posterTemplatePlaceholder) {
+          posterTemplatePlaceholder.textContent = displayMessage;
+          posterTemplatePlaceholder.classList.remove('hidden');
+        }
+      }
+      if (posterTemplateLink) {
+        const linkSrc = poster ? getPosterImageSource(poster) : null;
+        if (linkSrc) {
+          posterTemplateLink.href = linkSrc;
+          posterTemplateLink.classList.remove('hidden');
+        } else {
+          posterTemplateLink.classList.add('hidden');
+          posterTemplateLink.removeAttribute('href');
+        }
+      }
+    };
+
+    const loadTemplatePosters = async ({ silent = false, force = false } = {}) => {
+      if (!force && templateState.loaded) {
+        return Boolean(templateState.poster);
+      }
+
+      const candidates = getApiCandidates();
+      if (!candidates.length) {
+        templateState.loaded = false;
+        templateState.poster = null;
+        updateTemplatePosterDisplay('请先填写后端 API 地址以加载模板海报。');
+        if (!silent) {
+          setStatus(statusElement, '请先填写后端 API 地址以加载模板海报。', 'info');
+        }
+        return false;
+      }
+
+      try {
+        await warmUp(candidates);
+      } catch (error) {
+        console.warn('模板海报 warm up 失败', error);
+      }
+
+      for (const base of candidates) {
+        const url = joinBasePath(base, '/api/template-posters');
+        if (!url) continue;
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            mode: 'cors',
+            cache: 'no-store',
+            credentials: 'omit',
+          });
+          if (!response.ok) {
+            continue;
+          }
+          const payload = await response.json().catch(() => ({ posters: [] }));
+          const posters = Array.isArray(payload?.posters) ? payload.posters : [];
+          const variantA = posters.find((item) => item?.slot === 'variant_a')?.poster || null;
+          templateState.poster = variantA;
+          templateState.loaded = true;
+          updateTemplatePosterDisplay();
+          if (!silent) {
+            setStatus(statusElement, '模板海报已同步。', 'success');
+          }
+          return Boolean(variantA);
+        } catch (error) {
+          console.warn('加载模板海报失败', base, error);
+        }
+      }
+
+      if (!templateState.poster) {
+        updateTemplatePosterDisplay('无法加载模板海报，请稍后重试。');
+      }
+      if (!silent) {
+        setStatus(statusElement, '模板海报加载失败，请稍后重试。', 'warning');
+      }
+      templateState.loaded = false;
+      return false;
+    };
+
+    void loadTemplatePosters({ silent: true, force: true });
 
     const templatePlaceholderDefault =
       posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
@@ -2980,6 +3175,10 @@ function initStage2() {
 
       const execute = async () => {
         await loadTemplatePosters({ silent: true, force: true });
+        updateTemplatePosterDisplay();
+        const fallbackPoster = activeTemplatePoster
+          ? { ...activeTemplatePoster }
+          : null;
         return triggerGeneration({
           stage1Data,
           statusElement,
@@ -2989,11 +3188,10 @@ function initStage2() {
           aiSpinner,
           aiPreviewMessage,
           posterVisual,
-          templateVariant: templateState.variantB,
+          templatePoster: fallbackPoster,
           generatedImage: posterGeneratedImage,
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
-          variantsStrip,
           promptGroup,
           emailGroup,
           promptTextarea,
@@ -3003,6 +3201,7 @@ function initStage2() {
           nextButton,
           promptManager,
           updatePromptPanels,
+          forceVariants: extra.forceVariants ?? 1,
           ...extra,
         });
       };
@@ -3074,6 +3273,7 @@ function initStage2() {
         const previewAssets = await prepareTemplatePreviewAssets(stage1Data);
         drawTemplatePreview(templateCanvas, assets, stage1Data, previewAssets);
         updatePromptPanels({ spec: assets.spec });
+        updateTemplatePosterDisplay();
       } catch (error) {
         console.error(error);
         currentTemplateAssets = null;
@@ -3090,6 +3290,7 @@ function initStage2() {
           ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
           ctx.fillText('模板预览加载失败', 40, 40);
         }
+        updateTemplatePosterDisplay('模板预览加载失败');
       }
     }
 
@@ -3157,6 +3358,8 @@ function initStage2() {
     if (apiBaseInput) {
       apiBaseInput.addEventListener('change', () => {
         templateState.loaded = false;
+        templateState.poster = null;
+        updateTemplatePosterDisplay('正在重新加载模板海报…');
         void loadTemplatePosters({ silent: true, force: true });
       });
     }
@@ -3265,8 +3468,7 @@ async function triggerGeneration(opts) {
     generatedImage,
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
-    templateVariant = null,
-    variantsStrip,
+    templatePoster = null,
     promptGroup, emailGroup, promptTextarea, emailTextarea,
     generateButton, regenerateButton, nextButton,
     promptManager, updatePromptPanels,
@@ -3399,8 +3601,62 @@ async function triggerGeneration(opts) {
   if (promptGroup) promptGroup.classList.add('hidden');
   if (emailGroup) emailGroup.classList.add('hidden');
   if (nextButton) nextButton.disabled = true;
-  if (variantsStrip) { variantsStrip.innerHTML = ''; variantsStrip.classList.add('hidden'); }
-  
+
+  let fallbackTriggered = false;
+  let fallbackTimerId = null;
+
+  const clearFallbackTimer = () => {
+    if (fallbackTimerId) {
+      clearTimeout(fallbackTimerId);
+      fallbackTimerId = null;
+    }
+  };
+
+  const enableTemplateFallback = async (message, options = {}) => {
+    if (fallbackTriggered) return;
+    fallbackTriggered = true;
+    clearFallbackTimer();
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (generatedImage) {
+      generatedImage.classList.add('hidden');
+      generatedImage.removeAttribute('src');
+    }
+    resetGeneratedPlaceholder('AI 生成超时，已回退到模板海报。');
+    if (nextButton) nextButton.disabled = false;
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    if (templatePoster) {
+      try {
+        await saveStage2Result({
+          poster_image: { ...templatePoster },
+          prompt: typeof options.prompt === 'string' ? options.prompt : '',
+          email_body: typeof options.email === 'string' ? options.email : '',
+          variants: [],
+          seed: null,
+          lock_seed: false,
+          template_fallback: true,
+          template_id: stage1Data.template_id || null,
+        });
+      } catch (error) {
+        console.error('保存模板海报失败', error);
+      }
+    }
+    const statusLevel = templatePoster ? 'warning' : 'error';
+    const statusMessage =
+      message ||
+      (templatePoster
+        ? 'AI 生成超时，已回退到模板海报，可前往环节 3。'
+        : 'AI 生成超时，且没有可用的模板海报。');
+    setStatus(statusElement, statusMessage, statusLevel);
+  };
+
+  if (templatePoster) {
+    fallbackTimerId = setTimeout(() => {
+      void enableTemplateFallback();
+    }, 60_000);
+  }
+
   // 7) 发送（健康探测 + 重试）
   await warmUp(apiCandidates);
   
@@ -3416,72 +3672,53 @@ async function triggerGeneration(opts) {
       lock_seed: data?.lock_seed ?? null,
     });
   
-    // UI 恢复
-    setStatus(statusElement, '生成完成', 'success');
-    if (aiSpinner) aiSpinner.classList.add('hidden');
-    if (aiPreview) aiPreview.classList.add('complete');
-    if (nextButton) nextButton.disabled = false;
-  
-    // 这里做渲染/保存
-    // await saveStage2Result(data);
-    // renderPosterAndVariants(data, { posterImage, variantsStrip, posterVisual });
-    // data 已获取：兼容 Response/JSON 的那两行之后
-    const p = (data && data.poster_image) || {};
+    clearFallbackTimer();
 
-    // 1) 主图：优先 url，回退 data_url
+    const posterData = (data && data.poster_image) || null;
     const generatedAlt = `${stage1Data.product_name || '生成'} 海报`;
-    if (generatedImage && assignPosterImage(generatedImage, p, generatedAlt)) {
+    const hasPosterSource = posterData ? getPosterImageSource(posterData) : '';
+    let assigned = false;
+    if (generatedImage && hasPosterSource && assignPosterImage(generatedImage, posterData, generatedAlt)) {
       generatedImage.classList.remove('hidden');
       hideGeneratedPlaceholder();
+      assigned = true;
     } else {
+      if (generatedImage) {
+        generatedImage.classList.add('hidden');
+        generatedImage.removeAttribute('src');
+      }
       resetGeneratedPlaceholder('生成结果缺少可预览图片。');
     }
+
     posterVisual && posterVisual.classList.remove('hidden');
-    aiPreview && aiPreview.classList.add('complete');
-    aiSpinner && aiSpinner.classList.add('hidden');
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
 
-    // 2) 变体（有则显示）
-    if (variantsStrip) {
-      variantsStrip.innerHTML = '';
-      const appendVariant = (poster, label) => {
-        if (!poster) return false;
-        const item = document.createElement('figure');
-        item.className = 'variant-thumb';
-        const img = document.createElement('img');
-        if (!assignPosterImage(img, poster, label)) {
-          return false;
-        }
-        img.decoding = 'async';
-        img.alt = label;
-        const caption = document.createElement('figcaption');
-        caption.textContent = label;
-        item.appendChild(img);
-        item.appendChild(caption);
-        variantsStrip.appendChild(item);
-        return true;
-      };
+    if (emailTextarea) emailTextarea.value = data.email_body || '';
+    if (promptTextarea) promptTextarea.value = data.prompt || '';
 
-      const variantItems = Array.isArray(data.variants) ? data.variants : [];
-      let hasVariant = false;
-      variantItems.forEach((v, i) => {
-        const label = templateVariant && isSamePosterImage(v, templateVariant)
-          ? '模板海报 B'
-          : `变体 ${i + 1}`;
-        hasVariant = appendVariant(v, label) || hasVariant;
-      });
-      if (
-        templateVariant &&
-        !variantItems.some((item) => isSamePosterImage(item, templateVariant))
-      ) {
-        hasVariant = appendVariant(templateVariant, '模板海报 B') || hasVariant;
+    if (assigned) {
+      setStatus(statusElement, '生成完成', 'success');
+      if (nextButton) nextButton.disabled = false;
+      generateButton.disabled = false;
+      if (regenerateButton) regenerateButton.disabled = false;
+      try {
+        const dataToStore = {
+          ...data,
+          template_poster: templatePoster ? { ...templatePoster } : null,
+        };
+        await saveStage2Result(dataToStore);
+      } catch (error) {
+        console.error('保存环节 2 结果失败。', error);
       }
-      variantsStrip.classList.toggle('hidden', !hasVariant);
+    } else if (templatePoster) {
+      await enableTemplateFallback('生成结果缺少可预览图片，已回退到模板海报，可直接前往环节 3。', {
+        prompt: data?.prompt || '',
+        email: data?.email_body || '',
+      });
+    } else {
+      setStatus(statusElement, '生成完成但缺少可预览图片，请稍后重试。', 'warning');
     }
-
-    // 3) 旁路显示文案（可选）
-    if (emailTextarea)  emailTextarea.value  = data.email_body || '';
-    if (promptTextarea) promptTextarea.value = data.prompt      || '';
-
 
     return data;
   } catch (error) {
@@ -3489,15 +3726,13 @@ async function triggerGeneration(opts) {
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+    if (aiPreview) aiPreview.classList.add('complete');
     if (generatedImage) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
     resetGeneratedPlaceholder(error?.message || generatedPlaceholderDefault);
-    if (variantsStrip) {
-      variantsStrip.innerHTML = '';
-      variantsStrip.classList.add('hidden');
-    }
     return null;
   }
 }
