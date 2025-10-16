@@ -426,7 +426,7 @@
       return;
     }
 
-    const contentType = guessContentType(file);
+    const contentType = file.type || guessContentType(file);
     if (!contentType) {
       updateSlotStatus(slot, '无法识别文件格式，请上传 PNG/JPEG/WebP 图片。', 'error');
       return;
@@ -445,7 +445,7 @@
       const payload = {
         slot,
         filename: file.name || `${slot}.png`,
-        content_type: contentType,
+        content_type: file.type || contentType,
         data: base64,
       };
       console.log(payload);
