@@ -91,17 +91,15 @@ allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
-    allow_credentials=allow_credentials,
+    allow_origins=[
+        "https://zhaojfifa.github.io",
+        "https://zhaojfifa.github.io/ai-service"
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     max_age=86400,
 )
-
-# ✅ OPTIONS 兜底
-@app.options("/{path:path}")
-async def cors_preflight(path: str) -> Response:
-    return Response(status_code=204)
 
 @app.options("/{rest_of_path:path}")
 def cors_preflight_handler(rest_of_path: str) -> Response:
