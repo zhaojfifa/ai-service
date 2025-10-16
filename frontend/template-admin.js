@@ -2,9 +2,40 @@
   const grid = document.getElementById('template-poster-grid');
   if (!grid) return;
 
+  const appContext = window.App ?? (window.App = { apiBaseUrl: '' });
+  if (typeof appContext.apiBaseUrl !== 'string') {
+    appContext.apiBaseUrl = '';
+  }
+  const appUtils = appContext.utils ?? {};
+  const joinBase =
+    typeof window.joinBasePath === 'function'
+      ? window.joinBasePath
+      : (base, path) => {
+          const url = new URL(path, base);
+          return url.toString();
+        };
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const extractBase64Payload = (value) => {
+    if (typeof value !== 'string') return '';
+    return value.replace(/^data:[^,]+,/, '');
+  };
+
   const statusElement = document.getElementById('template-status');
   const refreshButton = document.getElementById('refresh-posters');
   const apiBaseInput = document.getElementById('api-base');
+
+  if (apiBaseInput && !apiBaseInput.value && appContext.apiBaseUrl) {
+    apiBaseInput.value = appContext.apiBaseUrl;
+  }
 
   const slotLabels = {
     variant_a: '海报 A',
@@ -208,34 +239,73 @@
     });
   };
 
+  const getApiCandidates = () => {
+    const seen = new Set();
+    const push = (value) => {
+      if (typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      seen.add(trimmed);
+    };
+
+    if (apiBaseInput?.value) {
+      push(apiBaseInput.value);
+    }
+
+    push(appContext.apiBaseUrl);
+
+    const candidatesFromUtils =
+      typeof appUtils.getApiCandidates === 'function'
+        ? appUtils.getApiCandidates()
+        : [];
+    if (Array.isArray(candidatesFromUtils)) {
+      candidatesFromUtils.forEach((entry) => push(entry));
+    }
+
+    return Array.from(seen);
+  };
+
   const ensureBase = async ({ force = false, warmup = false } = {}) => {
     if (!force && state.base) return state.base;
-    const candidates = App?.utils?.getApiCandidates?.() || [];
+    const candidates = getApiCandidates();
     if (!candidates.length) {
       throw new Error('请先填写后端 API 地址。');
     }
-    if (warmup && App?.utils?.warmUp) {
+    if (warmup && typeof appUtils.warmUp === 'function') {
       try {
-        await App.utils.warmUp(candidates, { force: true });
+        await appUtils.warmUp(candidates, { force: true });
       } catch (error) {
         console.warn('[template-admin] warmUp failed', error);
       }
     }
     let base = null;
-    if (App?.utils?.pickHealthyBase) {
-      base = await App.utils.pickHealthyBase(candidates);
+    if (typeof appUtils.pickHealthyBase === 'function') {
+      try {
+        base = await appUtils.pickHealthyBase(candidates);
+      } catch (error) {
+        console.warn('[template-admin] pickHealthyBase failed', error);
+      }
     }
     state.base = base || candidates[0] || null;
     if (!state.base) {
       throw new Error('未找到可用的后端 API 地址。');
+    }
+    appContext.apiBaseUrl = state.base;
+    if (apiBaseInput && !apiBaseInput.value) {
+      apiBaseInput.value = state.base;
     }
     return state.base;
   };
 
   const requestJson = async (method, path, payload) => {
     const base = await ensureBase({ warmup: method !== 'GET' });
-    const url = joinBasePath ? joinBasePath(base, path) : null;
-    if (!url) throw new Error('API 地址无效。');
+    let url;
+    try {
+      url = joinBase(base, path);
+    } catch (error) {
+      console.error('[template-admin] joinBase failed', error);
+      throw new Error('API 地址无效。');
+    }
     const body = payload ? JSON.stringify(payload) : undefined;
     const response = await fetch(url, {
       method,
@@ -315,12 +385,15 @@
 
     try {
       const dataUrl = await fileToDataUrl(file);
-      const base64 = dataUrl.split(',')[1]; // 只保留逗号后的纯base64字符串
+      const base64Data = extractBase64Payload(dataUrl);
+      if (!base64Data) {
+        throw new Error('图片数据解析失败，请重试。');
+      }
       const payload = {
         slot,
         filename: file.name || `${slot}.png`,
         content_type: contentType,
-        data: base64,
+        data: base64Data,
       };
       await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
@@ -377,6 +450,7 @@
 
   if (apiBaseInput) {
     apiBaseInput.addEventListener('change', () => {
+      appContext.apiBaseUrl = apiBaseInput.value?.trim() || '';
       state.base = null;
       fetchPosters({ silent: true });
     });
