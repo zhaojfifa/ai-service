@@ -88,15 +88,26 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
 
 raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
 allow_origins = _normalise_allowed_origins(raw_origins)
-allow_credentials = "*" not in allow_origins
+
+cors_origins = {origin.rstrip("/") for origin in allow_origins}
+cors_origins.update(
+    {
+        "https://zhaojfifa.github.io",
+        "https://zhaojfifa.github.io/ai-service",
+    }
+)
+
+if "*" in cors_origins:
+    cors_allow_origins = ["*"]
+    cors_allow_credentials = False
+else:
+    cors_allow_origins = sorted(cors_origins)
+    cors_allow_credentials = True
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://zhaojfifa.github.io",
-        "https://zhaojfifa.github.io/ai-service"
-    ],
-    allow_credentials=False,
+    allow_origins=cors_allow_origins,
+    allow_credentials=cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
     max_age=86400,
