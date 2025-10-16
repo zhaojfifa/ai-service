@@ -9,6 +9,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
+from app.schemas import TemplatePosterCollection,TemplatePosterEntry
+
 
 from app.config import get_settings
 from app.schemas import (
@@ -236,6 +238,33 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
+from app.schemas import TemplatePosterUploadRequest
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
 def fetch_template_posters() -> TemplatePosterCollection:
@@ -381,4 +410,3 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 
 __all__ = ["app"]
-
