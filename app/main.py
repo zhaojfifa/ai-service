@@ -9,8 +9,6 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import ValidationError
-from app.schemas import TemplatePosterCollection,TemplatePosterEntry
-
 
 from app.config import get_settings
 from app.schemas import (
@@ -39,7 +37,7 @@ from app.services.template_variants import (
     save_template_poster,
 )
 
-
+# ✅ 更灵活的日志配置
 def _configure_logging() -> logging.Logger:
     level = os.getenv("LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
@@ -50,11 +48,11 @@ def _configure_logging() -> logging.Logger:
     logger.debug("Logging configured at %s", level)
     return logger
 
-
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
+# ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
 UPLOAD_ALLOWED_MIME = {
     item.strip()
@@ -62,8 +60,8 @@ UPLOAD_ALLOWED_MIME = {
     if item.strip()
 }
 
-
-def _normalise_allowed_origins(value: Any) -> list[str]:
+# ✅ CORS 配置（统一为 normalize）
+def _normalize_allowed_origins(value: Any) -> list[str]:
     if not value:
         return ["*"]
     if isinstance(value, list):
@@ -87,28 +85,33 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
             cleaned.append(candidate)
     return cleaned or ["*"]
 
-
 raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
-allow_origins = _normalise_allowed_origins(raw_origins)
+allow_origins = _normalize_allowed_origins(raw_origins)
+allow_credentials = "*" not in allow_origins
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allow_origins,
-    allow_credentials=False,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
     max_age=86400,
 )
 
-
+# ✅ OPTIONS 兜底
 @app.options("/{path:path}")
-async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
+async def cors_preflight(path: str) -> Response:
     return Response(status_code=204)
 
+@app.options("/{rest_of_path:path}")
+def cors_preflight_handler(rest_of_path: str) -> Response:
+    return Response(status_code=204)
 
+# ✅ 健康检查
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
 
 
 def _model_dump(model):
