@@ -474,18 +474,6 @@ main {
   justify-content: flex-end;
 }
 
-.variant-strip {
-  margin-top: 1rem;
-  display: grid;
-  gap: 0.75rem;
-}
-
-@media (min-width: 768px) {
-  .variant-strip {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-}
-
 .poster-preview-grid {
   margin-top: 1rem;
   display: grid;
@@ -572,49 +560,6 @@ main {
   color: #64748b;
   font-size: 0.9rem;
   background: #ffffff;
-}
-
-.variant-thumb {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #ffffff;
-  padding: 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.variant-thumb img {
-  width: 100%;
-  border-radius: 8px;
-  border: 1px solid #dbe2f0;
-  background: #f8fafc;
-}
-
-.variant-thumb figcaption {
-  font-size: 0.85rem;
-  color: #475569;
-}
-
-.variant-card {
-  border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  padding: 0.75rem;
-  background: #ffffff;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.variant-card img {
-  width: 100%;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-}
-
-.variant-card button {
-  align-self: flex-end;
 }
 
 .stage-summary h3 {
