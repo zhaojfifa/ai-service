@@ -258,7 +258,7 @@ def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePost
         "template poster upload received",
         extra={
             "slot": payload.slot,
-            "filename": payload.filename,
+            "poster_filename": payload.filename,
             "content_type": payload.content_type,
             "size_bytes": len(payload.data or ""),
         },
