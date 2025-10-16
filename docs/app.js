@@ -4197,7 +4197,7 @@ function initStage3() {
     sendButton.disabled = false;
   }
 });
-}
+
 
 function buildEmailSubject(stage1Data) {
   const brand = stage1Data.brand_name || '品牌';
