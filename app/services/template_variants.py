@@ -221,7 +221,7 @@ def _upload_to_cloudflare(
 
     return key, url
 
-
+from PIL import UnidentifiedImageError
 def save_template_poster(
     *,
     slot: str,
@@ -259,7 +259,6 @@ def save_template_poster(
         with Image.open(BytesIO(raw)) as image:
             image.load()
             width, height = image.size
-            logger.info(f"[poster-upload] Image opened successfully: {width}x{height}")
     except UnidentifiedImageError as exc:
         logger.error("[poster-upload] Cannot identify image file (possibly corrupted)")
         raise ValueError("Invalid image payload") from exc
