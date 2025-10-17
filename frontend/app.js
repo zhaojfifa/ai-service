@@ -4173,6 +4173,7 @@ function initStage3() {
 
       try {
         await warmUp(apiCandidates);
+
         const response = await postJsonWithRetry(
           apiCandidates,
           '/api/send-email',
@@ -4185,31 +4186,10 @@ function initStage3() {
           1
         );
 
-        if (!response.ok) {
-          let errorMessage = `发送邮件失败（HTTP ${response.status}）`;
-          try {
-            const result = await response.json();
-            console.error('邮件发送失败 response JSON:', result);
-            errorMessage = result?.message || result?.detail || errorMessage;
-          } catch (parseError) {
-            try {
-              const text = await response.text();
-              if (text) {
-                console.error('邮件发送失败 response text:', text);
-                errorMessage = text;
-              }
-            } catch (textError) {
-              console.error('读取邮件发送失败响应内容时出错:', textError);
-            }
-          }
-
-          throw new Error(errorMessage);
-        }
-
         console.log('邮件发送 response:', response);
         setStatus(statusElement, '营销邮件发送成功！', 'success');
       } catch (error) {
-        console.error(error);
+        console.error('[邮件发送失败]', error);
         setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
       } finally {
         sendButton.disabled = false;
@@ -4218,13 +4198,13 @@ function initStage3() {
   })();
 }
 
+// ✉️ 构造邮件标题
 function buildEmailSubject(stage1Data) {
   const brand = stage1Data.brand_name || '品牌';
   const agent = stage1Data.agent_name ? `（${stage1Data.agent_name}）` : '';
   const product = stage1Data.product_name || '产品';
   return `${brand}${agent} ${product} 市场推广海报`;
 }
-
 function setStatus(element, message, level = 'info') {
   if (!element) return;
   element.textContent = message;
