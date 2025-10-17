@@ -254,31 +254,36 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
     return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
 
 @app.post("/api/template-posters", response_model=TemplatePosterEntry)
-def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+def upload_template_poster(request_data: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    slot = request_data.slot
+    filename = request_data.filename
+    content_type = request_data.content_type
+    data = request_data.data
+
     logger.info(
         "template poster upload received",
         extra={
-            "slot": payload.slot,
-            "poster_filename": payload.filename,
-            "content_type": payload.content_type,
-            "size_bytes": len(payload.data or ""),
+            "slot": slot,
+            "poster_filename": filename,
+            "content_type": content_type,
+            "size_bytes": len(data or ""),
         },
     )
     try:
         record = save_template_poster(
-            slot=payload.slot,
-            filename=payload.filename,
-            content_type=payload.content_type,
-            data=payload.data,
+            slot=slot,
+            filename=filename,
+            content_type=content_type,
+            data=data,
         )
         return poster_entry_from_record(record)
     except ValueError as exc:
         logger.warning(
             "template poster upload rejected",
             extra={
-                "slot": payload.slot,
-                "poster_filename": payload.filename,
-                "content_type": payload.content_type,
+                "slot": slot,
+                "poster_filename": filename,
+                "content_type": content_type,
             },
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -286,9 +291,9 @@ def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePost
         logger.exception(
             "Failed to store template poster",
             extra={
-                "slot": payload.slot,
-                "poster_filename": payload.filename,
-                "content_type": payload.content_type,
+                "slot": slot,
+                "poster_filename": filename,
+                "content_type": content_type,
             },
         )
         raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试。") from exc
