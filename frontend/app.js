@@ -2831,6 +2831,8 @@ function initStage2() {
     const templateState = {
       loaded: false,
       poster: null,
+      variantA: null,
+      variantB: null,
     };
 
     const normalisePosterRecord = (poster) => {
@@ -2949,6 +2951,8 @@ function initStage2() {
       if (!candidates.length) {
         templateState.loaded = false;
         templateState.poster = null;
+        templateState.variantA = null;
+        templateState.variantB = null;
         updateTemplatePosterDisplay('请先填写后端 API 地址以加载模板海报。');
         if (!silent) {
           setStatus(statusElement, '请先填写后端 API 地址以加载模板海报。', 'info');
@@ -2979,7 +2983,10 @@ function initStage2() {
           const payload = await response.json().catch(() => ({ posters: [] }));
           const posters = Array.isArray(payload?.posters) ? payload.posters : [];
           const variantA = posters.find((item) => item?.slot === 'variant_a')?.poster || null;
+          const variantB = posters.find((item) => item?.slot === 'variant_b')?.poster || null;
           templateState.poster = variantA;
+          templateState.variantA = variantA;
+          templateState.variantB = variantB;
           templateState.loaded = true;
           updateTemplatePosterDisplay();
           if (!silent) {
@@ -2998,119 +3005,8 @@ function initStage2() {
         setStatus(statusElement, '模板海报加载失败，请稍后重试。', 'warning');
       }
       templateState.loaded = false;
-      return false;
-    };
-
-    void loadTemplatePosters({ silent: true, force: true });
-
-  
-    const generatedPlaceholderDefault =
-      posterGeneratedPlaceholder?.textContent?.trim() || '生成结果将在此展示。';
-
-    const templateState = {
-      loaded: false,
-      variantA: null,
-      variantB: null,
-    };
-
-    const showTemplatePoster = (poster, message) => {
-      const displayMessage = message || templatePlaceholderDefault;
-      if (
-        poster &&
-        posterTemplateImage &&
-        assignPosterImage(
-          posterTemplateImage,
-          poster,
-          `${stage1Data.product_name || '模板'} 默认模板海报`
-        )
-      ) {
-        posterTemplateImage.classList.remove('hidden');
-        if (posterTemplatePlaceholder) {
-          posterTemplatePlaceholder.textContent = templatePlaceholderDefault;
-          posterTemplatePlaceholder.classList.add('hidden');
-        }
-      } else {
-        if (posterTemplateImage) {
-          posterTemplateImage.classList.add('hidden');
-          posterTemplateImage.removeAttribute('src');
-        }
-        if (posterTemplatePlaceholder) {
-          posterTemplatePlaceholder.textContent = displayMessage;
-          posterTemplatePlaceholder.classList.remove('hidden');
-        }
-      }
-      if (posterTemplateLink) {
-        if (poster?.url) {
-          posterTemplateLink.href = poster.url;
-          posterTemplateLink.classList.remove('hidden');
-        } else {
-          posterTemplateLink.classList.add('hidden');
-          posterTemplateLink.removeAttribute('href');
-        }
-      }
-    };
-
-    const loadTemplatePosters = async ({ silent = false, force = false } = {}) => {
-      if (!force && templateState.loaded) {
-        return Boolean(templateState.variantA);
-      }
-
-      const candidates = getApiCandidates();
-      if (!candidates.length) {
-        templateState.loaded = false;
-        templateState.variantA = null;
-        templateState.variantB = null;
-        showTemplatePoster(null, '请先填写后端 API 地址以加载模板海报。');
-        if (!silent) {
-          setStatus(statusElement, '请先填写后端 API 地址以加载模板海报。', 'info');
-        }
-        return false;
-      }
-
-      try {
-        await warmUp(candidates);
-      } catch (error) {
-        console.warn('模板海报 warm up 失败', error);
-      }
-
-      for (const base of candidates) {
-        const url = joinBasePath(base, '/api/template-posters');
-        if (!url) continue;
-        try {
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-            mode: 'cors',
-            cache: 'no-store',
-            credentials: 'omit',
-          });
-          if (!response.ok) {
-            continue;
-          }
-          const payload = await response.json().catch(() => ({ posters: [] }));
-          const posters = Array.isArray(payload?.posters) ? payload.posters : [];
-          const variantA = posters.find((item) => item?.slot === 'variant_a')?.poster || null;
-          const variantB = posters.find((item) => item?.slot === 'variant_b')?.poster || null;
-          templateState.variantA = variantA;
-          templateState.variantB = variantB;
-          templateState.loaded = true;
-          showTemplatePoster(variantA, templatePlaceholderDefault);
-          if (!silent) {
-            setStatus(statusElement, '模板海报已同步。', 'success');
-          }
-          return Boolean(variantA);
-        } catch (error) {
-          console.warn('加载模板海报失败', base, error);
-        }
-      }
-
-      if (!templateState.variantA) {
-        showTemplatePoster(null, '无法加载模板海报，请稍后重试。');
-      }
-      if (!silent) {
-        setStatus(statusElement, '模板海报加载失败，请稍后重试。', 'warning');
-      }
-      templateState.loaded = false;
+      templateState.variantA = null;
+      templateState.variantB = null;
       return false;
     };
 
@@ -4289,7 +4185,28 @@ function initStage3() {
           1
         );
 
-        await response.json().catch(() => ({}));
+        if (!response.ok) {
+          let errorMessage = `发送邮件失败（HTTP ${response.status}）`;
+          try {
+            const result = await response.json();
+            console.error('邮件发送失败 response JSON:', result);
+            errorMessage = result?.message || result?.detail || errorMessage;
+          } catch (parseError) {
+            try {
+              const text = await response.text();
+              if (text) {
+                console.error('邮件发送失败 response text:', text);
+                errorMessage = text;
+              }
+            } catch (textError) {
+              console.error('读取邮件发送失败响应内容时出错:', textError);
+            }
+          }
+
+          throw new Error(errorMessage);
+        }
+
+        console.log('邮件发送 response:', response);
         setStatus(statusElement, '营销邮件发送成功！', 'success');
       } catch (error) {
         console.error(error);
