@@ -24,7 +24,7 @@ from app.schemas import (
     TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
-from app.services.glibatree import generate_poster_asset
+from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
@@ -36,6 +36,7 @@ from app.services.template_variants import (
     poster_entry_from_record,
     save_template_poster,
 )
+from app.services.vertex_imagen import VertexImagen3
 
 
 def _configure_logging() -> logging.Logger:
@@ -52,6 +53,30 @@ def _configure_logging() -> logging.Logger:
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
+try:
+    imagen_client = VertexImagen3()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    imagen_client = None
+    logger.warning("VertexImagen3 initialization failed: %s", exc)
+else:
+    configure_vertex_imagen(imagen_client)
+    print(
+        "[VertexImagen3]",
+        f"project={imagen_client.project}",
+        f"location={imagen_client.location}",
+        f"gen_model={imagen_client.model_generate}",
+        f"edit_model={imagen_client.model_edit}",
+    )
+    logger.info(
+        "VertexImagen3 ready",
+        extra={
+            "project": imagen_client.project,
+            "location": imagen_client.location,
+            "generate_model": imagen_client.model_generate,
+            "edit_model": imagen_client.model_edit,
+        },
+    )
 
 # ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
