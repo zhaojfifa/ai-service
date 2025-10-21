@@ -8,3 +8,19 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.5
+      - key: GCP_PROJECT_ID
+        value: your-gcp-project-id
+      - key: GCP_LOCATION
+        value: us-central1
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
+      - key: VERTEX_IMAGEN_MODEL_GENERATE
+        value: imagen-3.0-generate
+      - key: VERTEX_IMAGEN_MODEL_EDIT
+        value: imagen-3.0-edit
+      - key: VERTEX_TIMEOUT_SECONDS
+        value: "60"
+      - key: VERTEX_SAFETY_FILTER_LEVEL
+        value: block_some
+      - key: VERTEX_SEED
+        value: "0"

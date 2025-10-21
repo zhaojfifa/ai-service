@@ -127,6 +127,46 @@ class PosterInput(_CompatModel):
         description="Whether the template allows uploading gallery assets.",
     )
 
+    size: Optional[str] = Field(
+        None,
+        description="Optional image size hint (e.g. 1024x1024) forwarded to Imagen3.",
+    )
+    width: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Explicit width in pixels for Imagen3 requests.",
+    )
+    height: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Explicit height in pixels for Imagen3 requests.",
+    )
+    aspect_ratio: Optional[str] = Field(
+        None,
+        description="Optional aspect ratio string forwarded to Imagen3.",
+    )
+    negative_prompt: Optional[str] = Field(
+        None,
+        description="Optional negative prompt to steer Imagen3 generations.",
+    )
+    guidance: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Optional Imagen3 guidance scale value.",
+    )
+    base_image_b64: Optional[str] = Field(
+        None,
+        description="Base image (base64) used when performing Imagen3 edits.",
+    )
+    mask_b64: Optional[str] = Field(
+        None,
+        description="Mask image (base64) where white regions will be edited by Imagen3.",
+    )
+    region_rect: Optional[dict[str, int]] = Field(
+        None,
+        description="Rectangular edit region for Imagen3 inpainting (keys: x,y,width,height).",
+    )
+
     scenario_mode: Literal["upload", "prompt"] = Field(
         "upload",
         description="How the scenario asset should be sourced (upload or prompt).",
