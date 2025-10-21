@@ -20,11 +20,14 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.services.image_provider import ImageProvider
 from app.services.s3_client import get_bytes, put_bytes
 from app.services.template_variants import generation_overrides
 
 _ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 logger = logging.getLogger(__name__)
+
+image_provider = ImageProvider()
 
 OPENAI_IMAGE_SIZE = "1024x1024"
 ASSET_IMAGE_SIZE = os.getenv("OPENAI_ASSET_SIZE", OPENAI_IMAGE_SIZE)
@@ -809,33 +812,23 @@ def _parse_size(size_str: str) -> tuple[int, int]:
 
 
 def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
-    """用 OpenAI 直接生成一张图，返回 data:image/png;base64,..."""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置，无法调用 OpenAI 生成素材。")
+    """使用统一图片服务生成图片，并转换为 PNG data URL。"""
+    del config  # 保留兼容签名
 
-    from contextlib import ExitStack
-    with ExitStack() as stack:
-        client, http_client = _build_openai_client(config)
-        if http_client is not None:
-            stack.callback(http_client.close)
+    try:
+        image_bytes = image_provider.generate(prompt=prompt, size=size)
+    except Exception as exc:  # pragma: no cover - 网络或配置异常
+        raise RuntimeError(f"image provider error: {exc}") from exc
 
-        try:
-            resp = client.images.generate(
-                model=config.model or "gpt-image-1",
-                prompt=prompt,
-                size=size,
-            )
-            if not resp.data:
-                raise ValueError("OpenAI images.generate 空响应")
-            b64 = getattr(resp.data[0], "b64_json", None)
-            if not b64:
-                raise ValueError("OpenAI images.generate 缺少 b64_json")
-            return f"data:image/png;base64,{b64}"
+    try:
+        image = Image.open(BytesIO(image_bytes))
+    except Exception as exc:  # pragma: no cover - 非法图像
+        raise RuntimeError(f"invalid image payload: {exc}") from exc
 
-        except TypeError as e:
-            logger.exception("OpenAI SDK images.generate failed, fallback to raw HTTP: %s", e)
-            b64 = _openai_images_generate_via_httpx(config, prompt, size)
-            return f"data:image/png;base64,{b64}"
+    buffer = BytesIO()
+    image.convert("RGBA").save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 def _openai_images_generate_via_httpx(config: GlibatreeConfig, prompt: str, size: str) -> str:
     """直接调 REST /v1/images/generations，返回 b64_json。"""
