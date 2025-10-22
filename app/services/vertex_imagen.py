@@ -1,175 +1,114 @@
-from __future__ import annotations
-
-import base64
-import io
-import json
 import os
-import tempfile
-from typing import Any, Dict, Optional, Tuple
+import inspect
+import logging
+from typing import Optional, Tuple
 
-from PIL import Image as PILImage, ImageDraw
-from google.cloud import aiplatform
-from vertexai import init as vertex_init
-from vertexai.preview.vision_models import (
-    ImageGenerationModel,
-    Image as VImage,
-)
+import vertexai
+from vertexai.preview.vision_models import ImageGenerationModel
+
+log = logging.getLogger("ai-service")
 
 
-def _ensure_gcp_auth_via_json_env() -> None:
-    """若提供 GOOGLE_APPLICATION_CREDENTIALS_JSON，则写临时文件并设置 GAC 路径。"""
+def _ensure_credentials_from_b64():
+    """
+    如果设置了 GCP_KEY_B64，则把它写到 /opt/render/project/src/gcp-key.json
+    并设置 GOOGLE_APPLICATION_CREDENTIALS 指向该路径。
+    """
+    key_b64 = os.getenv("GCP_KEY_B64")
+    if not key_b64:
+        return
 
-    gac_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
-    if gac_json:
-        try:
-            data = json.loads(gac_json)
-        except Exception:
-            data = json.loads(gac_json.encode("utf-8").decode("unicode_escape"))
-        fd, path = tempfile.mkstemp(prefix="gac-", suffix=".json")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f)
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = path
-
-
-def _parse_size(size: Optional[str], width: Optional[int], height: Optional[int], default: str) -> Tuple[int, int]:
-    if width and height:
-        return int(width), int(height)
-    s = (size or default or "1024x1024").lower().replace("×", "x").strip()
+    out_path = "/opt/render/project/src/gcp-key.json"
     try:
-        w, h = [int(x) for x in s.split("x")]
-        return max(64, w), max(64, h)
+        import base64
+        import pathlib
+
+        pathlib.Path(out_path).write_bytes(base64.b64decode(key_b64))
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = out_path
+        log.info("Wrote service account key to %s from GCP_KEY_B64", out_path)
+    except Exception as e:  # pragma: no cover - startup diagnostics
+        log.exception("Failed to write key from GCP_KEY_B64: %s", e)
+
+
+def init_vertex():
+    """
+    初始化 Vertex AI（与 ai-vertex 项目一致）：
+    - 从环境变量读取 GCP_PROJECT_ID / GCP_LOCATION（默认 us-central1）
+    - 如果设置了 GCP_KEY_B64，则自动落盘并设置 GOOGLE_APPLICATION_CREDENTIALS
+    """
+    _ensure_credentials_from_b64()
+
+    project = os.getenv("GCP_PROJECT_ID")
+    location = os.getenv("GCP_LOCATION", "us-central1")
+    if not project:
+        raise RuntimeError("Missing env GCP_PROJECT_ID")
+
+    vertexai.init(project=project, location=location)
+    log.info("[VertexImagen3] project=%s location=%s", project, location)
+
+
+def _parse_size(size: str) -> Tuple[int, int]:
+    # 允许 "1024x1024" 形式，异常则回退 1024x1024
+    try:
+        w, h = [int(x) for x in size.lower().split("x")]
+        if w <= 0 or h <= 0:
+            raise ValueError
+        return w, h
     except Exception:
         return 1024, 1024
 
 
-def _pil_to_bytes(img: PILImage.Image, fmt: str = "JPEG") -> bytes:
-    bio = io.BytesIO()
-    img.save(bio, fmt, quality=92)
-    return bio.getvalue()
+class VertexImagen:
+    """
+    只负责【生成】能力，使用 imagen-3.0-generate-001。
+    """
 
+    def __init__(self, model_name: str = "imagen-3.0-generate-001") -> None:
+        self.model_name = model_name
+        self._model = ImageGenerationModel.from_pretrained(self.model_name)
+        # 读取 generate_images 的参数签名以做兼容
+        self._sig_params = set(inspect.signature(self._model.generate_images).parameters.keys())
+        log.info(
+            "VertexImagen ready with %s; generate_images params=%s",
+            self.model_name,
+            sorted(self._sig_params),
+        )
 
-def _rect_mask_bytes(w: int, h: int, x: int, y: int, rw: int, rh: int) -> bytes:
-    """白=编辑；黑=保留。"""
-
-    mask = PILImage.new("L", (w, h), color=0)  # 黑=不编辑
-    draw = ImageDraw.Draw(mask)
-    draw.rectangle([x, y, x + rw, y + rh], fill=255)  # 白=编辑
-    bio = io.BytesIO()
-    mask.save(bio, "PNG")
-    return bio.getvalue()
-
-
-class VertexImagen3:
-    """Google Vertex AI Imagen3 适配层：生图 + 局部编辑。"""
-
-    def __init__(self) -> None:
-        _ensure_gcp_auth_via_json_env()
-
-        self.project = os.getenv("GCP_PROJECT_ID") or ""
-        self.location = os.getenv("GCP_LOCATION", "us-central1")
-        self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate")
-        self.model_edit = os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-edit")
-        self.timeout = int(os.getenv("VERTEX_TIMEOUT_SECONDS", "60") or "60")
-        self.safety = os.getenv("VERTEX_SAFETY_FILTER_LEVEL", "block_some")  # block_few|block_some|block_most
-        seed_env = os.getenv("VERTEX_SEED", "0")
-        self.seed = int(seed_env) if str(seed_env).isdigit() and int(seed_env) != 0 else None
-
-        if not self.project:
-            raise RuntimeError("GCP_PROJECT_ID is required for Vertex Imagen3")
-
-        aiplatform.init(project=self.project, location=self.location)
-        vertex_init(project=self.project, location=self.location)
-
-    # ---------- 生图 ----------
     def generate_bytes(
         self,
-        *,
         prompt: str,
-        size: Optional[str] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
+        size: str = "1024x1024",
         negative_prompt: Optional[str] = None,
-        aspect_ratio: Optional[str] = None,  # 兼容上层，无需强制
-        number_of_images: int = 1,
-        guidance: Optional[float] = None,
+        safety_filter_level: str = "block_few",
+        seed: Optional[int] = None,
     ) -> bytes:
-        w, h = _parse_size(size, width, height, default="1024x1024")
+        """
+        生成一张图片并返回字节（JPEG/PNG）；
+        兼容不同 SDK 版本的参数：size / image_dimensions / aspect_ratio。
+        """
+        w, h = _parse_size(size)
 
-        model = ImageGenerationModel.from_pretrained(self.model_generate)
-        kwargs: Dict[str, Any] = {
-            "prompt": prompt,
-            "number_of_images": max(1, number_of_images),
-            "image_dimensions": {"width": w, "height": h},
-            "safety_filter_level": self.safety,
-            "negative_prompt": negative_prompt,
-            "seed": self.seed,
-        }
-        if guidance is not None:
-            kwargs["guidance"] = guidance
+        kwargs = dict(
+            prompt=prompt,
+            number_of_images=1,
+            safety_filter_level=safety_filter_level,
+        )
+        if negative_prompt and "negative_prompt" in self._sig_params:
+            kwargs["negative_prompt"] = negative_prompt
+        if seed is not None and "seed" in self._sig_params:
+            kwargs["seed"] = seed
 
-        images = model.generate_images(**kwargs, request_timeout=self.timeout)
-        if not images:
-            raise RuntimeError("Vertex Imagen3 generate_images returned empty list")
+        if "size" in self._sig_params:
+            kwargs["size"] = f"{w}x{h}"
+        elif "image_dimensions" in self._sig_params:
+            kwargs["image_dimensions"] = (w, h)
+        elif "aspect_ratio" in self._sig_params:
+            # 回退到比例（仅支持常见值）
+            ratio = f"{w}:{h}"
+            allowed = {"1:1", "16:9", "9:16", "4:3", "3:4"}
+            kwargs["aspect_ratio"] = ratio if ratio in allowed else "1:1"
+        # 否则用 SDK 默认尺寸
 
-        img0 = images[0]
-        if hasattr(img0, "image_bytes") and img0.image_bytes:
-            return img0.image_bytes
-        return _pil_to_bytes(img0._pil_image)  # type: ignore[attr-defined]
-
-    # ---------- 局部编辑 / Inpainting ----------
-    def edit_bytes(
-        self,
-        *,
-        base_image_b64: Optional[str] = None,
-        base_image_bytes: Optional[bytes] = None,
-        prompt: str,
-        mask_b64: Optional[str] = None,
-        region_rect: Optional[Dict[str, int]] = None,  # {x,y,width,height}
-        size: Optional[str] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        negative_prompt: Optional[str] = None,
-        guidance: Optional[float] = None,
-    ) -> bytes:
-        if not base_image_bytes and base_image_b64:
-            base_image_bytes = base64.b64decode(base_image_b64)
-        if not base_image_bytes:
-            raise RuntimeError("edit_bytes requires base_image (bytes or b64)")
-
-        base_vimg = VImage.load_from_bytes(base_image_bytes)
-        w, h = _parse_size(size, width, height, default="1024x1024")
-
-        vmask: Optional[VImage] = None
-        if mask_b64:
-            vmask = VImage.load_from_bytes(base64.b64decode(mask_b64))
-        elif region_rect:
-            rx = int(region_rect.get("x", 0))
-            ry = int(region_rect.get("y", 0))
-            rw = int(region_rect.get("width", w))
-            rh = int(region_rect.get("height", h))
-            m_bytes = _rect_mask_bytes(w, h, rx, ry, rw, rh)
-            vmask = VImage.load_from_bytes(m_bytes)
-
-        model = ImageGenerationModel.from_pretrained(self.model_edit)
-        kwargs: Dict[str, Any] = {
-            "base_image": base_vimg,
-            "prompt": prompt,
-            "number_of_images": 1,
-            "image_dimensions": {"width": w, "height": h},
-            "safety_filter_level": self.safety,
-            "negative_prompt": negative_prompt,
-            "seed": self.seed,
-        }
-        if vmask:
-            kwargs["mask"] = vmask
-        if guidance is not None:
-            kwargs["guidance"] = guidance
-
-        images = model.edit_image(**kwargs, request_timeout=self.timeout)
-        if not images:
-            raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
-
-        img0 = images[0]
-        if hasattr(img0, "image_bytes") and img0.image_bytes:
-            return img0.image_bytes
-        return _pil_to_bytes(img0._pil_image)  # type: ignore[attr-defined]
+        res = self._model.generate_images(**kwargs)
+        # 官方对象通常是 res.images[0]._image_bytes
+        return res.images[0]._image_bytes

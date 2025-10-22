@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
-from app.services.vertex_imagen import VertexImagen3
+from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, put_bytes
 from app.services.template_variants import generation_overrides
 

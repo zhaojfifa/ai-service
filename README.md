@@ -74,7 +74,7 @@ uvicorn app.main:app --reload
 
 `requirements.txt` 已添加（关键）：
 
-- `google-cloud-aiplatform>=1.66.0,<2.0.0`
+- `google-cloud-aiplatform>=1.115.0,<2.0.0`
 - `google-auth>=2.33.0`
 - `google-auth-oauthlib>=1.2.1`
 - `Pillow==10.4.0`
@@ -84,14 +84,30 @@ uvicorn app.main:app --reload
 
 - `GCP_PROJECT_ID`：GCP 项目 ID
 - `GCP_LOCATION=us-central1`（或实际区域）
-- `GOOGLE_APPLICATION_CREDENTIALS_JSON`：服务账号 JSON 原文（推荐粘贴到 Render Secret）
-  - 代码会在启动时将其落地为临时文件并设置 `GOOGLE_APPLICATION_CREDENTIALS`，无需额外上传文件
-- （可选）`VERTEX_IMAGEN_MODEL_GENERATE=imagen-3.0-generate`
+- `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/service-account.json`：Render Secret Files 推荐写法
+- `GCP_KEY_B64`：若无法挂载文件，可直接注入 Base64，启动时会自动写入 `/opt/render/project/src/gcp-key.json`
+- （可选）`VERTEX_IMAGEN_MODEL_GENERATE=imagen-3.0-generate-001`
 - （可选）`VERTEX_IMAGEN_MODEL_EDIT=imagen-3.0-edit`
 - （可选）`VERTEX_TIMEOUT_SECONDS=60`、`VERTEX_SAFETY_FILTER_LEVEL=block_some`、`VERTEX_SEED=0`
 - 权限：服务账号需有 Vertex AI User 角色。
 
-### API 使用（与原 /api/generate-poster 一致）
+### API 使用
+
+#### `/api/imagen/generate`（简易生图接口）
+
+```bash
+curl -X POST https://<your-api>/api/imagen/generate \
+  -H 'Content-Type: application/json' \
+  -o out.jpg \
+  -d '{
+        "prompt": "A watercolor hummingbird, 4k, intricate, trending on artstation",
+        "size": "1024x1024"
+      }'
+```
+
+接口直接返回 JPEG/PNG 二进制内容，可搭配 `curl -o` 保存测试。
+
+#### `/api/generate-poster`（保持原有协议）
 
 **生图**
 
@@ -150,6 +166,18 @@ POST /api/generate-poster
 ### 快速验收
 
 ```bash
+# 健康检查
+curl -s https://<your-api>/health
+
+# 简易生图接口
+curl -X POST https://<your-api>/api/imagen/generate \
+  -H 'Content-Type: application/json' \
+  -o out.jpg \
+  -d '{
+        "prompt": "A watercolor hummingbird, 4k, intricate, trending on artstation",
+        "size": "1024x1024"
+      }'
+
 # 生图
 curl -s -X POST https://<your-api>/api/generate-poster   -H 'Content-Type: application/json'   -d '{"poster":{"prompt":"minimal product render, soft light","size":"1024x1024"}}'   | jq '.poster.b64 | length'
 
@@ -168,7 +196,7 @@ curl -s -X POST https://<your-api>/api/generate-poster   -H 'Content-Type: appli
 ### 常见问题
 
 - `ImportError: cannot import name Mask` → 使用 `Image` 作为 mask 类型（本项目已修复）。
-- 权限/鉴权失败：检查服务账号与 `GOOGLE_APPLICATION_CREDENTIALS_JSON`。
+- 权限/鉴权失败：检查 `GOOGLE_APPLICATION_CREDENTIALS` 或 `GCP_KEY_B64` 是否正确配置，以及服务账号是否具备 Vertex AI User 权限。
 - 区域/超时：调整 `GCP_LOCATION` 与 `VERTEX_TIMEOUT_SECONDS`。
 - 复现性：设置 `VERTEX_SEED` 为非 0 整数。
 
