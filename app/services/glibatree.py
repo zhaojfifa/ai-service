@@ -5,7 +5,6 @@ import hashlib
 import json
 import logging
 import os
-from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
@@ -13,18 +12,25 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Tuple, Optional
 
-import httpx
 import requests
-from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, put_bytes
 from app.services.template_variants import generation_overrides
 
-_ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 logger = logging.getLogger(__name__)
+
+vertex_imagen_client: VertexImagen3 | None = None
+
+
+def configure_vertex_imagen(client: VertexImagen3 | None) -> None:
+    """Configure the shared Vertex Imagen3 client used for poster generation."""
+
+    global vertex_imagen_client
+    vertex_imagen_client = client
 
 OPENAI_IMAGE_SIZE = "1024x1024"
 ASSET_IMAGE_SIZE = os.getenv("OPENAI_ASSET_SIZE", OPENAI_IMAGE_SIZE)
@@ -65,34 +71,107 @@ class PosterGenerationResult:
     seed: int | None = None
     lock_seed: bool = False
 
-def _sanitize_openai_kwargs(kw: dict[str, Any]) -> dict[str, Any]:
-    cleaned = {k: v for k, v in kw.items() if k in _ALLOWED_OPENAI_KWARGS}
-    extra = set(kw) - _ALLOWED_OPENAI_KWARGS
-    if extra:
-        # 关键：把多余键（尤其 proxies）打到日志里，方便你在 Render 日志里定位来源
-        logger.warning("Stripping unsupported OpenAI kwargs: %s", sorted(extra))
-    return cleaned
 
-def _build_openai_client(config: GlibatreeConfig) -> tuple[OpenAI, Optional[httpx.Client]]:
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
+def _template_dimensions(
+    template: TemplateResources, locked_frame: Image.Image
+) -> tuple[int, int]:
+    size_spec = template.spec.get("size", {})
+    width = int(size_spec.get("width") or locked_frame.width)
+    height = int(size_spec.get("height") or locked_frame.height)
+    return max(width, 64), max(height, 64)
 
-    kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:
-        kwargs["base_url"] = config.api_url
 
-    http_client: httpx.Client | None = None
-    if config.proxy:
-        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
-        kwargs["http_client"] = http_client
+def _default_mask_b64(template: TemplateResources) -> str | None:
+    mask = template.mask_background
+    if not mask:
+        return None
 
-    # >>> 关键改动：白名单过滤 + 断言
-    kwargs = _sanitize_openai_kwargs(kwargs)
-    assert "proxies" not in kwargs, f"proxies leaked into OpenAI kwargs: {kwargs.keys()}"
-    logger.info("OpenAI client kwargs keys: %s", sorted(kwargs.keys()))
+    alpha = mask.split()[3]
+    inverted = ImageOps.invert(alpha)
+    buffer = BytesIO()
+    inverted.convert("L").save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    return OpenAI(**kwargs), http_client
+
+def _generate_poster_with_vertex(
+    client: VertexImagen3,
+    poster: PosterInput,
+    prompt: str,
+    locked_frame: Image.Image,
+    template: TemplateResources,
+    *,
+    prompt_details: dict[str, str] | None = None,
+) -> PosterImage:
+    width_default, height_default = _template_dimensions(template, locked_frame)
+
+    requested_size = getattr(poster, "size", None)
+    width = int(getattr(poster, "width", None) or width_default)
+    height = int(getattr(poster, "height", None) or height_default)
+    width = max(width, 64)
+    height = max(height, 64)
+    size_arg = requested_size or f"{width}x{height}"
+
+    negative_prompt = getattr(poster, "negative_prompt", None)
+    if not negative_prompt and prompt_details:
+        negative_prompt = prompt_details.get("negative_prompt")
+
+    guidance = getattr(poster, "guidance", None)
+    aspect_ratio = getattr(poster, "aspect_ratio", None)
+
+    base_image_b64 = getattr(poster, "base_image_b64", None)
+    mask_b64 = getattr(poster, "mask_b64", None)
+    region_rect = getattr(poster, "region_rect", None)
+
+    should_edit = bool(base_image_b64 or mask_b64 or region_rect)
+
+    if should_edit:
+        base_bytes = (
+            base64.b64decode(base_image_b64)
+            if base_image_b64
+            else _image_to_png_bytes(locked_frame)
+        )
+        mask_arg = mask_b64 or _default_mask_b64(template)
+        image_bytes = client.edit_bytes(
+            base_image_bytes=base_bytes,
+            prompt=prompt,
+            mask_b64=mask_arg,
+            region_rect=region_rect,
+            size=size_arg,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            guidance=guidance,
+        )
+    else:
+        image_bytes = client.generate_bytes(
+            prompt=prompt,
+            size=size_arg,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
+            guidance=guidance,
+        )
+
+    try:
+        generated = Image.open(BytesIO(image_bytes)).convert("RGBA")
+    except UnidentifiedImageError as exc:
+        raise RuntimeError(f"Vertex Imagen3 returned invalid image: {exc}") from exc
+
+    if template.mask_background:
+        mask_alpha = template.mask_background.split()[3]
+        generated.paste(locked_frame, mask=mask_alpha)
+    else:
+        generated.alpha_composite(locked_frame)
+
+    safe_name = f"{template.id}_vertex.png"
+    logger.info(
+        "Vertex Imagen3 poster generated (edit=%s, size=%sx%s)",
+        should_edit,
+        width,
+        height,
+    )
+    return _poster_image_from_pillow(generated, safe_name)
 
 
 
@@ -450,25 +529,32 @@ def generate_poster_asset(
     primary: PosterImage | None = None
     variant_images: list[PosterImage] = []
 
-    if settings.glibatree.is_configured:
+    if vertex_imagen_client is not None:
         try:
-            if settings.glibatree.use_openai_client:
-                logger.debug("Requesting Glibatree asset via OpenAI edit pipeline")
-                primary = _request_glibatree_openai_edit(
-                    settings.glibatree, prompt, locked_frame, template
-                )
-            else:
-                logger.debug(
-                    "Requesting Glibatree asset via HTTP endpoint %s",
-                    settings.glibatree.api_url,
-                )
-                primary = _request_glibatree_http(
-                    settings.glibatree.api_url or "",
-                    settings.glibatree.api_key or "",
-                    prompt,
-                    locked_frame,
-                    template,
-                )
+            primary = _generate_poster_with_vertex(
+                vertex_imagen_client,
+                poster,
+                prompt,
+                locked_frame,
+                template,
+                prompt_details=prompt_details,
+            )
+        except Exception:
+            logger.exception("Vertex Imagen3 generation failed; falling back")
+
+    if primary is None and settings.glibatree.is_configured:
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
         except Exception:
             logger.exception("Glibatree request failed, falling back to mock poster")
 
@@ -557,99 +643,6 @@ def _request_glibatree_http(
         height=height,
     )
 
-
-def _request_glibatree_openai_edit(
-    config: GlibatreeConfig,
-    prompt: str,
-    locked_frame: Image.Image,
-    template: TemplateResources,
-) -> PosterImage:
-    """用 OpenAI v1 images.edit 生成背景，再叠回锁定 UI 并上传到 R2。"""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
-
-    # 1) OpenAI 客户端（可带代理，但绝对不要传 proxies=xxx 给 OpenAI(...)）
-    client_kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:
-        client_kwargs["base_url"] = config.api_url  # 例如 https://api.openai.com/v1
-
-    http_client: httpx.Client | None = None
-    if config.proxy:
-        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
-        client_kwargs["http_client"] = http_client
-
-    # 2) 准备“文件”——一定要让 BytesIO 带上 .name，SDK 才会按 image/png 发送
-    base_png = _image_to_png_bytes(locked_frame)                 # PNG bytes
-    mask_png = _image_to_png_bytes(template.mask_background)     # PNG bytes
-
-    base_file = BytesIO(base_png); base_file.name = "base.png"   # 关键
-    mask_file = BytesIO(mask_png); mask_file.name = "mask.png"   # 关键
-
-    from contextlib import ExitStack
-    with ExitStack() as stack:
-        if http_client is not None:
-            stack.callback(http_client.close)
-
-        client = OpenAI(**client_kwargs)
-
-        # 3) 调用 edits —— 切记不要再传 response_format
-        try:
-            resp = client.images.edit(
-                model=config.model or "gpt-image-1",
-                image=base_file,
-                mask=mask_file,
-                prompt=prompt,
-                size=OPENAI_IMAGE_SIZE,   # e.g. "1024x1024"
-                response_format="b64_json",
-            )
-        except Exception as e:
-            # 打印出错详情，方便快速定位是否还有 4xx
-            logger.exception("OpenAI images.edit failed: %s", e)
-            raise
-
-    if not resp.data:
-        raise ValueError("OpenAI 未返回任何图像数据。")
-
-    first_image = resp.data[0]
-    filename = getattr(first_image, "filename", None) or "poster.png"
-    media_type = getattr(first_image, "mime_type", None) or "image/png"
-    size_hint = getattr(first_image, "size", None)
-
-    b64 = getattr(first_image, "b64_json", None)
-    if not b64:
-        # 个别情况下会返回 url；如需兼容，可在这里补下载逻辑
-        url = getattr(first_image, "url", None)
-        if url:
-            logger.error("OpenAI 返回 url 而非 b64_json，当前未实现下载分支：%s", url)
-            raise ValueError("OpenAI 响应缺少 b64_json 字段。")
-        raise ValueError("OpenAI 响应缺少 b64_json 字段。")
-
-    # 4) 解码、叠回锁定 UI，再上传到 R2
-    try:
-        generated = Image.open(BytesIO(base64.b64decode(b64))).convert("RGBA")
-    except UnidentifiedImageError:
-        # 解码失败就直接回传 data_url 让前端先可视
-        if size_hint:
-            w, h = _parse_size(size_hint)
-        else:
-            w, h = _parse_size(OPENAI_IMAGE_SIZE)
-        size = template.spec.get("size", {})
-        w = int(size.get("width") or w); h = int(size.get("height") or h)
-        return PosterImage(
-            filename=filename or "openai_edit.png",
-            media_type=media_type or "image/png",
-            data_url=f"data:image/png;base64,{b64}",
-            width=w, height=h,
-        )
-
-    # 只把透明区交给模型生成，非透明区保留 → 这里把锁定 UI 贴回去
-    mask_alpha = template.mask_background.split()[3]
-    generated.paste(locked_frame, mask=mask_alpha)
-
-    # 给个容易识别的文件名，方便你在 R2/日志中确认“不是 mock”
-    safe_name = filename or f"{template.id}_openai.png"
-    return _poster_image_from_pillow(generated, safe_name)
 
 def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Image.Image, b64_data: str) -> PosterImage:
     decoded = base64.b64decode(b64_data)
@@ -809,60 +802,34 @@ def _parse_size(size_str: str) -> tuple[int, int]:
 
 
 def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
-    """用 OpenAI 直接生成一张图，返回 data:image/png;base64,..."""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置，无法调用 OpenAI 生成素材。")
+    """使用 Vertex Imagen3 生成 PNG data URL（兼容旧签名）。"""
 
-    from contextlib import ExitStack
-    with ExitStack() as stack:
-        client, http_client = _build_openai_client(config)
-        if http_client is not None:
-            stack.callback(http_client.close)
+    del config  # 保留兼容签名
 
-        try:
-            resp = client.images.generate(
-                model=config.model or "gpt-image-1",
-                prompt=prompt,
-                size=size,
-            )
-            if not resp.data:
-                raise ValueError("OpenAI images.generate 空响应")
-            b64 = getattr(resp.data[0], "b64_json", None)
-            if not b64:
-                raise ValueError("OpenAI images.generate 缺少 b64_json")
-            return f"data:image/png;base64,{b64}"
+    if vertex_imagen_client is None:
+        raise RuntimeError("Vertex Imagen3 未配置，无法生成图像。")
 
-        except TypeError as e:
-            logger.exception("OpenAI SDK images.generate failed, fallback to raw HTTP: %s", e)
-            b64 = _openai_images_generate_via_httpx(config, prompt, size)
-            return f"data:image/png;base64,{b64}"
+    width, height = _parse_size(size)
 
-def _openai_images_generate_via_httpx(config: GlibatreeConfig, prompt: str, size: str) -> str:
-    """直接调 REST /v1/images/generations，返回 b64_json。"""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
-    base_url = (config.api_url or "https://api.openai.com/v1").rstrip("/")
-
-    payload = {
-        "model": config.model or "gpt-image-1",
-        "prompt": prompt,
-        "size": size,
-    }
-    timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-    with httpx.Client(proxies=config.proxy, timeout=timeout) as cli:
-        r = cli.post(
-            f"{base_url}/images/generations",
-            headers={
-                "Authorization": f"Bearer {config.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
+    try:
+        image_bytes = vertex_imagen_client.generate_bytes(
+            prompt=prompt,
+            size=size,
+            width=width,
+            height=height,
         )
-        r.raise_for_status()
-        data = r.json()
-        if not data.get("data"):
-            raise RuntimeError(f"OpenAI images/generations empty response: {data}")
-        return data["data"][0]["b64_json"]
+    except Exception as exc:  # pragma: no cover - 网络或配置异常
+        raise RuntimeError(f"vertex imagen generate error: {exc}") from exc
+
+    try:
+        image = Image.open(BytesIO(image_bytes)).convert("RGBA")
+    except Exception as exc:  # pragma: no cover - 非法图像
+        raise RuntimeError(f"invalid image payload: {exc}") from exc
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def _enforce_template_materials(
@@ -1010,31 +977,6 @@ def _enforce_template_materials(
 
     return poster, material_flags
 
-def _openai_images_edit_via_httpx(config: GlibatreeConfig, prompt: str,
-                                  image_png: bytes, mask_png: bytes, size: str) -> str:
-    """直接调 REST /v1/images/edits，返回 b64_json（不含 data: 前缀）。"""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
-    base_url = (config.api_url or "https://api.openai.com/v1").rstrip("/")
-
-    files = {
-        "prompt": (None, prompt),
-        "size": (None, size),
-          "image": ("image.png", image_png, "image/png"),
-        "mask": ("mask.png", mask_png, "image/png"),
-    }
-    timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-    with httpx.Client(proxies=config.proxy, timeout=timeout) as cli:
-        r = cli.post(
-            f"{base_url}/images/edits",
-            headers={"Authorization": f"Bearer {config.api_key}"},
-            files=files,
-        )
-        r.raise_for_status()
-        data = r.json()
-        if not data.get("data"):
-            raise RuntimeError(f"OpenAI images/edits empty response: {data}")
-        return data["data"][0]["b64_json"]
 
 def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     """Resolve AI-generated assets for scenario, product, and gallery slots."""

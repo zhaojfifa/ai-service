@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 from app.schemas import (
@@ -24,7 +24,7 @@ from app.schemas import (
     TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
-from app.services.glibatree import generate_poster_asset
+from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
@@ -36,6 +36,8 @@ from app.services.template_variants import (
     poster_entry_from_record,
     save_template_poster,
 )
+from app.services.vertex_imagen import VertexImagen, init_vertex
+from app.services.vertex_imagen3 import VertexImagen3
 
 
 def _configure_logging() -> logging.Logger:
@@ -52,6 +54,44 @@ def _configure_logging() -> logging.Logger:
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
 
 # ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
@@ -123,6 +163,31 @@ async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+
+class ImagenGenerateRequest(BaseModel):
+    prompt: str = Field(..., description="文生图提示词")
+    size: str = Field("1024x1024", description="尺寸, 例如 1024x1024")
+    negative: str | None = Field(None, description="反向提示词")
+
+
+@app.post("/api/imagen/generate")
+def api_imagen_generate(request_data: ImagenGenerateRequest):
+    if imagen_endpoint_client is None:
+        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
+
+    try:
+        image_bytes = imagen_endpoint_client.generate_bytes(
+            prompt=request_data.prompt,
+            size=request_data.size,
+            negative_prompt=request_data.negative,
+        )
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Imagen generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
+
+    return Response(content=image_bytes, media_type="image/jpeg")
 
 
 
