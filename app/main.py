@@ -36,7 +36,8 @@ from app.services.template_variants import (
     poster_entry_from_record,
     save_template_poster,
 )
-from app.services.vertex_imagen import VertexImagen3
+from app.services.vertex_imagen import VertexImagen, init_vertex
+from app.services.vertex_imagen3 import VertexImagen3
 
 
 def _configure_logging() -> logging.Logger:
@@ -54,37 +55,43 @@ logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
-imagen_endpoint_client: VertexImagen3 | None = None
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
 
-if settings.gcp.is_configured:
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
     try:
-        shared_vertex_client = VertexImagen3(
-            project=settings.gcp.project_id or "",
-            location=settings.gcp.location,
-            model_name=settings.vertex.imagen_generate_model,
-        )
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
     except Exception as exc:  # pragma: no cover - startup diagnostics
-        shared_vertex_client = None
-        logger.warning("Vertex Imagen3 initialization failed: %s", exc)
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
     else:
-        imagen_endpoint_client = shared_vertex_client
-        configure_vertex_imagen(shared_vertex_client)
+        configure_vertex_imagen(vertex_poster_client)
         print(
             "[VertexImagen3]",
-            f"project={shared_vertex_client.project}",
-            f"location={shared_vertex_client.location}",
-            f"gen_model={shared_vertex_client.model_name}",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
         )
         logger.info(
             "VertexImagen3 ready",
             extra={
-                "project": shared_vertex_client.project,
-                "location": shared_vertex_client.location,
-                "generate_model": shared_vertex_client.model_name,
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
             },
         )
-else:
-    logger.warning("GCP_PROJECT_ID missing; Vertex Imagen disabled")
 
 # ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
