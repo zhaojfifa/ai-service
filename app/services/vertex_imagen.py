@@ -1,19 +1,20 @@
-import os
 import inspect
 import logging
+import os
+import time
+import uuid
 from typing import Optional, Tuple
 
 import vertexai
+from google.api_core.exceptions import GoogleAPICallError, NotFound, PermissionDenied
 from vertexai.preview.vision_models import ImageGenerationModel
 
 log = logging.getLogger("ai-service")
 
 
-def _ensure_credentials_from_b64():
-    """
-    如果设置了 GCP_KEY_B64，则把它写到 /opt/render/project/src/gcp-key.json
-    并设置 GOOGLE_APPLICATION_CREDENTIALS 指向该路径。
-    """
+def _ensure_credentials_from_b64() -> None:
+    """Write credentials from ``GCP_KEY_B64`` to disk if present."""
+
     key_b64 = os.getenv("GCP_KEY_B64")
     if not key_b64:
         return
@@ -25,17 +26,14 @@ def _ensure_credentials_from_b64():
 
         pathlib.Path(out_path).write_bytes(base64.b64decode(key_b64))
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = out_path
-        log.info("Wrote service account key to %s from GCP_KEY_B64", out_path)
-    except Exception as e:  # pragma: no cover - startup diagnostics
-        log.exception("Failed to write key from GCP_KEY_B64: %s", e)
+        log.info("[creds] wrote service account key to %s from GCP_KEY_B64", out_path)
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        log.exception("[creds] failed to write key from GCP_KEY_B64: %s", exc)
 
 
-def init_vertex():
-    """
-    初始化 Vertex AI（与 ai-vertex 项目一致）：
-    - 从环境变量读取 GCP_PROJECT_ID / GCP_LOCATION（默认 us-central1）
-    - 如果设置了 GCP_KEY_B64，则自动落盘并设置 GOOGLE_APPLICATION_CREDENTIALS
-    """
+def init_vertex() -> None:
+    """Initialise Vertex AI with environment configuration."""
+
     _ensure_credentials_from_b64()
 
     project = os.getenv("GCP_PROJECT_ID")
@@ -44,11 +42,10 @@ def init_vertex():
         raise RuntimeError("Missing env GCP_PROJECT_ID")
 
     vertexai.init(project=project, location=location)
-    log.info("[VertexImagen3] project=%s location=%s", project, location)
+    log.info("[vertex.init] project=%s location=%s", project, location)
 
 
 def _parse_size(size: str) -> Tuple[int, int]:
-    # 允许 "1024x1024" 形式，异常则回退 1024x1024
     try:
         w, h = [int(x) for x in size.lower().split("x")]
         if w <= 0 or h <= 0:
@@ -59,40 +56,46 @@ def _parse_size(size: str) -> Tuple[int, int]:
 
 
 class VertexImagen:
-    """
-    只负责【生成】能力，使用 imagen-3.0-generate-001。
-    """
+    """Thin wrapper over ``ImageGenerationModel`` with trace-aware logging."""
 
     def __init__(self, model_name: str = "imagen-3.0-generate-001") -> None:
         self.model_name = model_name
+        start = time.time()
         self._model = ImageGenerationModel.from_pretrained(self.model_name)
-        # 读取 generate_images 的参数签名以做兼容
-        self._sig_params = set(inspect.signature(self._model.generate_images).parameters.keys())
+        self._sig_params = set(
+            inspect.signature(self._model.generate_images).parameters.keys()
+        )
         log.info(
-            "VertexImagen ready with %s; generate_images params=%s",
+            "[vertex.model] loaded name=%s in %.0fms; params=%s",
             self.model_name,
+            (time.time() - start) * 1000,
             sorted(self._sig_params),
         )
 
     def generate_bytes(
         self,
+        *,
         prompt: str,
         size: str = "1024x1024",
         negative_prompt: Optional[str] = None,
         safety_filter_level: str = "block_few",
         seed: Optional[int] = None,
-    ) -> bytes:
+        return_trace: bool = False,
+    ) -> bytes | tuple[bytes, str]:
+        """Generate a single image and return the binary payload.
+
+        When ``return_trace`` is true the trace id is returned alongside the
+        bytes to allow upstream callers to expose it in responses.
         """
-        生成一张图片并返回字节（JPEG/PNG）；
-        兼容不同 SDK 版本的参数：size / image_dimensions / aspect_ratio。
-        """
+
+        trace_id = uuid.uuid4().hex[:8]
         w, h = _parse_size(size)
 
-        kwargs = dict(
-            prompt=prompt,
-            number_of_images=1,
-            safety_filter_level=safety_filter_level,
-        )
+        kwargs = {
+            "prompt": prompt,
+            "number_of_images": 1,
+            "safety_filter_level": safety_filter_level,
+        }
         if negative_prompt and "negative_prompt" in self._sig_params:
             kwargs["negative_prompt"] = negative_prompt
         if seed is not None and "seed" in self._sig_params:
@@ -103,12 +106,45 @@ class VertexImagen:
         elif "image_dimensions" in self._sig_params:
             kwargs["image_dimensions"] = (w, h)
         elif "aspect_ratio" in self._sig_params:
-            # 回退到比例（仅支持常见值）
             ratio = f"{w}:{h}"
             allowed = {"1:1", "16:9", "9:16", "4:3", "3:4"}
             kwargs["aspect_ratio"] = ratio if ratio in allowed else "1:1"
-        # 否则用 SDK 默认尺寸
 
-        res = self._model.generate_images(**kwargs)
-        # 官方对象通常是 res.images[0]._image_bytes
-        return res.images[0]._image_bytes
+        log.info(
+            "[vertex.call>%s] model=%s size=%s neg=%s len(prompt)=%d kwargs=%s",
+            trace_id,
+            self.model_name,
+            size,
+            bool(negative_prompt),
+            len(prompt),
+            {k: v for k, v in kwargs.items() if k != "prompt"},
+        )
+
+        start = time.time()
+        try:
+            response = self._model.generate_images(**kwargs)
+            elapsed_ms = (time.time() - start) * 1000
+            img_bytes = response.images[0]._image_bytes
+            log.info(
+                "[vertex.done>%s] ok bytes=%d time=%.0fms",
+                trace_id,
+                len(img_bytes),
+                elapsed_ms,
+            )
+            if return_trace:
+                return img_bytes, trace_id
+            return img_bytes
+        except NotFound as exc:
+            log.error(
+                "[vertex.err>%s] NOT_FOUND model=%s: %s", trace_id, self.model_name, exc
+            )
+            raise
+        except PermissionDenied as exc:
+            log.error("[vertex.err>%s] PERMISSION_DENIED: %s", trace_id, exc)
+            raise
+        except GoogleAPICallError as exc:
+            log.error("[vertex.err>%s] API_CALL_ERROR: %s", trace_id, exc)
+            raise
+        except Exception as exc:  # pragma: no cover - diagnostics only
+            log.exception("[vertex.err>%s] UNKNOWN: %s", trace_id, exc)
+            raise

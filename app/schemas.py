@@ -507,6 +507,16 @@ class GeneratePosterResponse(_CompatModel):
     seed: Optional[int] = Field(None, description="Seed echoed back from the backend.")
     lock_seed: Optional[bool] = Field(None, description="Whether the backend honoured the locked seed request.")
 
+    # Vertex 追踪
+    vertex_trace_ids: list[str] | None = Field(
+        None,
+        description="Trace identifiers recorded during Vertex image generation attempts.",
+    )
+    fallback_used: Optional[bool] = Field(
+        None,
+        description="Indicates whether the backend fell back to non-Vertex image generation.",
+    )
+
     @field_validator("prompt_bundle", mode="before")
     @classmethod
     def _coerce_prompt_bundle(cls, v: PromptBundle | dict[str, Any] | None) -> PromptBundle | None:

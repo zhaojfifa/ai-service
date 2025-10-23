@@ -3,8 +3,11 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
 import os
 import tempfile
+import time
+import uuid
 from typing import Any, Dict, Optional, Tuple
 
 from PIL import Image as PILImage, ImageDraw
@@ -16,6 +19,9 @@ from vertexai.preview.vision_models import (
 )
 
 from app.services.vertex_imagen import _ensure_credentials_from_b64
+
+
+logger = logging.getLogger("ai-service")
 
 
 def _ensure_gcp_auth_via_json_env() -> None:
@@ -95,9 +101,11 @@ class VertexImagen3:
         aspect_ratio: Optional[str] = None,  # 兼容上层，无需强制
         number_of_images: int = 1,
         guidance: Optional[float] = None,
-    ) -> bytes:
+        return_trace: bool = False,
+    ) -> bytes | tuple[bytes, str]:
         w, h = _parse_size(size, width, height, default="1024x1024")
 
+        trace_id = uuid.uuid4().hex[:8]
         model = ImageGenerationModel.from_pretrained(self.model_generate)
         kwargs: Dict[str, Any] = {
             "prompt": prompt,
@@ -110,14 +118,35 @@ class VertexImagen3:
         if guidance is not None:
             kwargs["guidance"] = guidance
 
+        logger.info(
+            "[vertex3.call>%s] mode=generate size=%sx%s neg=%s guidance=%s",
+            trace_id,
+            w,
+            h,
+            bool(negative_prompt),
+            guidance,
+        )
+        start = time.time()
         images = model.generate_images(**kwargs, request_timeout=self.timeout)
         if not images:
             raise RuntimeError("Vertex Imagen3 generate_images returned empty list")
 
         img0 = images[0]
         if hasattr(img0, "image_bytes") and img0.image_bytes:
-            return img0.image_bytes
-        return _pil_to_bytes(img0._pil_image)  # type: ignore[attr-defined]
+            data = img0.image_bytes
+        else:
+            data = _pil_to_bytes(img0._pil_image)  # type: ignore[attr-defined]
+
+        elapsed_ms = (time.time() - start) * 1000
+        logger.info(
+            "[vertex3.done>%s] mode=generate bytes=%d time=%.0fms",
+            trace_id,
+            len(data),
+            elapsed_ms,
+        )
+        if return_trace:
+            return data, trace_id
+        return data
 
     # ---------- 局部编辑 / Inpainting ----------
     def edit_bytes(
@@ -133,7 +162,8 @@ class VertexImagen3:
         height: Optional[int] = None,
         negative_prompt: Optional[str] = None,
         guidance: Optional[float] = None,
-    ) -> bytes:
+        return_trace: bool = False,
+    ) -> bytes | tuple[bytes, str]:
         if not base_image_bytes and base_image_b64:
             base_image_bytes = base64.b64decode(base_image_b64)
         if not base_image_bytes:
@@ -142,6 +172,7 @@ class VertexImagen3:
         base_vimg = VImage.load_from_bytes(base_image_bytes)
         w, h = _parse_size(size, width, height, default="1024x1024")
 
+        trace_id = uuid.uuid4().hex[:8]
         vmask: Optional[VImage] = None
         if mask_b64:
             vmask = VImage.load_from_bytes(base64.b64decode(mask_b64))
@@ -168,11 +199,32 @@ class VertexImagen3:
         if guidance is not None:
             kwargs["guidance"] = guidance
 
+        logger.info(
+            "[vertex3.call>%s] mode=edit size=%sx%s mask=%s guidance=%s",
+            trace_id,
+            w,
+            h,
+            bool(vmask),
+            guidance,
+        )
+        start = time.time()
         images = model.edit_image(**kwargs, request_timeout=self.timeout)
         if not images:
             raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
 
         img0 = images[0]
         if hasattr(img0, "image_bytes") and img0.image_bytes:
-            return img0.image_bytes
-        return _pil_to_bytes(img0._pil_image)  # type: ignore[attr-defined]
+            data = img0.image_bytes
+        else:
+            data = _pil_to_bytes(img0._pil_image)  # type: ignore[attr-defined]
+
+        elapsed_ms = (time.time() - start) * 1000
+        logger.info(
+            "[vertex3.done>%s] mode=edit bytes=%d time=%.0fms",
+            trace_id,
+            len(data),
+            elapsed_ms,
+        )
+        if return_trace:
+            return data, trace_id
+        return data

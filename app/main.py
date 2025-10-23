@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
@@ -163,6 +163,84 @@ async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/debug/vertex/ping")
+def vertex_ping() -> JSONResponse:
+    """Probe publisher model availability for debugging."""
+
+    try:
+        from google.cloud.aiplatform_v1.services.model_garden_service import (
+            ModelGardenServiceClient,
+        )
+
+        client = ModelGardenServiceClient()
+        name = "publishers/google/models/imagen-3.0-generate-001"
+        model = client.get_publisher_model(name=name)
+        payload = {
+            "ok": True,
+            "name": model.name,
+            "version_id": getattr(model, "version_id", None),
+        }
+        return JSONResponse(payload)
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Vertex ping failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.get("/debug/vertex/generate")
+def vertex_generate_debug() -> Response:
+    """Create a tiny diagnostic image directly from Vertex."""
+
+    if imagen_endpoint_client is None:
+        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
+
+    try:
+        payload = imagen_endpoint_client.generate_bytes(
+            prompt="a tiny watercolor hummingbird, diagnostic",
+            size="512x512",
+            return_trace=True,
+        )
+        if isinstance(payload, tuple):
+            image_bytes, trace_id = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, trace_id = payload, None
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Vertex tiny generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
+
+    headers = {"X-Vertex-Trace": trace_id} if trace_id else None
+    return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
+
+
+class ImagenGenerateRequest(BaseModel):
+    prompt: str = Field(..., description="文生图提示词")
+    size: str = Field("1024x1024", description="尺寸, 例如 1024x1024")
+    negative: str | None = Field(None, description="反向提示词")
+
+
+@app.post("/api/imagen/generate")
+def api_imagen_generate(request_data: ImagenGenerateRequest):
+    if imagen_endpoint_client is None:
+        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
+
+    try:
+        payload = imagen_endpoint_client.generate_bytes(
+            prompt=request_data.prompt,
+            size=request_data.size,
+            negative_prompt=request_data.negative,
+            return_trace=True,
+        )
+        if isinstance(payload, tuple):
+            image_bytes, trace_id = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, trace_id = payload, None
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Imagen generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
+
+    headers = {"X-Vertex-Trace": trace_id} if trace_id else None
+    return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
 
 
 
@@ -375,7 +453,7 @@ def fetch_template_posters() -> TemplatePosterCollection:
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
-async def generate_poster(request: Request) -> GeneratePosterResponse:
+async def generate_poster(request: Request) -> JSONResponse:
     try:
         raw_payload = await read_json_relaxed(request)
         logger.info(
@@ -461,20 +539,30 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 "prompt_bundle": _summarise_prompt_bundle(
                     response_bundle or payload.prompt_bundle
                 ),
+                "vertex_traces": result.trace_ids,
+                "fallback_used": result.fallback_used,
             },
         )
-        return GeneratePosterResponse(
+        response_payload = GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
-            prompt_details=prompt_details,
+            prompt_details=result.prompt_details,
             prompt_bundle=response_bundle,
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,
             lock_seed=result.lock_seed,
+            vertex_trace_ids=result.trace_ids or None,
+            fallback_used=result.fallback_used if result.fallback_used else None,
         )
+        headers: dict[str, str] = {}
+        if result.trace_ids:
+            headers["X-Vertex-Trace"] = ",".join(result.trace_ids)
+        if result.fallback_used:
+            headers["X-Vertex-Fallback"] = "1"
+        return JSONResponse(content=_model_dump(response_payload), headers=headers)
 
     except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster")
