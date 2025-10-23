@@ -19,8 +19,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
-from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
-from app.services.vertex_imagen3 import VertexImagen3
+from app.services.vertex_imagen import VertexImagen3
 from app.services.s3_client import get_bytes, put_bytes
 from app.services.template_variants import generation_overrides
 
@@ -86,18 +85,6 @@ def _template_dimensions(
     return max(width, 64), max(height, 64)
 
 
-def _default_mask_b64(template: TemplateResources) -> str | None:
-    mask = template.mask_background
-    if not mask:
-        return None
-
-    alpha = mask.split()[3]
-    inverted = ImageOps.invert(alpha)
-    buffer = BytesIO()
-    inverted.convert("L").save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("ascii")
-
-
 def _generate_poster_with_vertex(
     client: VertexImagen3,
     poster: PosterInput,
@@ -123,62 +110,26 @@ def _generate_poster_with_vertex(
     guidance = getattr(poster, "guidance", None)
     aspect_ratio = getattr(poster, "aspect_ratio", None)
 
-    base_image_b64 = getattr(poster, "base_image_b64", None)
-    mask_b64 = getattr(poster, "mask_b64", None)
-    region_rect = getattr(poster, "region_rect", None)
-
-    should_edit = bool(base_image_b64 or mask_b64 or region_rect)
     request_trace = uuid.uuid4().hex[:8]
     telemetry: dict[str, Any] = {
         "request_trace": request_trace,
-        "mode": "edit" if should_edit else "generate",
+        "mode": "generate",
         "size": f"{width}x{height}",
         "template": template.id,
     }
 
-    params = getattr(
-        client,
-        "_edit_params" if should_edit else "_generate_params",
-        None,
-    )
-    ratio_hint = aspect_ratio or _aspect_from_dims(width, height)
-    if isinstance(params, set):
-        _, size_mode = _select_dimension_kwargs(params, width, height, ratio_hint)
-        telemetry["size_mode"] = size_mode
-
-    vertex_trace: str | None = None
     start = time.time()
     try:
-        if should_edit:
-            base_bytes = (
-                base64.b64decode(base_image_b64)
-                if base_image_b64
-                else _image_to_png_bytes(locked_frame)
-            )
-            mask_arg = mask_b64 or _default_mask_b64(template)
-            payload = client.edit_bytes(
-                base_image_bytes=base_bytes,
-                prompt=prompt,
-                mask_b64=mask_arg,
-                region_rect=region_rect,
-                size=size_arg,
-                width=width,
-                height=height,
-                negative_prompt=negative_prompt,
-                guidance=guidance,
-                return_trace=True,
-            )
-        else:
-            payload = client.generate_bytes(
-                prompt=prompt,
-                size=size_arg,
-                width=width,
-                height=height,
-                negative_prompt=negative_prompt,
-                aspect_ratio=aspect_ratio,
-                guidance=guidance,
-                return_trace=True,
-            )
+        payload = client.generate_bytes(
+            prompt=prompt,
+            size=size_arg,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
+            guidance=guidance,
+            return_trace=True,
+        )
         if isinstance(payload, tuple):
             image_bytes, vertex_trace = payload
         else:  # pragma: no cover - defensive fallback
@@ -189,14 +140,13 @@ def _generate_poster_with_vertex(
             {
                 "status": "error",
                 "elapsed_ms": round(elapsed, 2),
-                "vertex_trace": vertex_trace,
+                "vertex_trace": None,
                 "error": str(exc),
             }
         )
         logger.exception(
-            "Vertex Imagen3 %s failed",
-            telemetry["mode"],
-            extra={"request_trace": request_trace, "vertex_trace": vertex_trace},
+            "Vertex Imagen3 generation failed",
+            extra={"request_trace": request_trace},
         )
         raise
 
@@ -577,7 +527,16 @@ def generate_poster_asset(
     seed: int | None = None,
     lock_seed: bool = False,
 ) -> PosterGenerationResult:
-    """Generate a poster image using locked templates with an OpenAI edit fallback."""
+    """Generate a poster image, preferring Vertex Imagen3 with optional HTTP fallback."""
+    request_trace = uuid.uuid4().hex[:8]
+    logger.info(
+        "generate_poster request received",
+        extra={
+            "request_trace": request_trace,
+            "template": poster.template_id,
+            "variants": variants,
+        },
+    )
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
@@ -592,6 +551,7 @@ def generate_poster_asset(
     variant_images: list[PosterImage] = []
     vertex_traces: list[str] = []
     fallback_used = vertex_imagen_client is None
+    vertex_telemetry: dict[str, Any] | None = None
 
     if vertex_imagen_client is not None:
         try:
@@ -603,12 +563,16 @@ def generate_poster_asset(
                 template,
                 prompt_details=prompt_details,
             )
+            vertex_telemetry = telemetry
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
         except Exception:
             fallback_used = True
-            logger.exception("Vertex Imagen3 generation failed; falling back")
+            logger.exception(
+                "Vertex Imagen3 generation failed; falling back",
+                extra={"request_trace": request_trace},
+            )
 
     if primary is None and settings.glibatree.is_configured:
         fallback_used = True
@@ -625,7 +589,22 @@ def generate_poster_asset(
                 template,
             )
         except Exception:
-            logger.exception("Glibatree request failed, falling back to mock poster")
+            logger.exception(
+                "Glibatree request failed, falling back to mock poster",
+                extra={"request_trace": request_trace},
+            )
+
+    if primary is None and not settings.glibatree.is_configured:
+        if vertex_imagen_client is None:
+            logger.warning(
+                "Vertex Imagen3 unavailable and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
+        else:
+            logger.warning(
+                "Vertex Imagen3 failed and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
 
     if primary is None:
         fallback_used = True
@@ -654,7 +633,7 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
-    return PosterGenerationResult(
+    result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
         variants=variant_images,
@@ -664,6 +643,20 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
     )
+
+    logger.info(
+        "generate_poster completed",
+        extra={
+            "request_trace": request_trace,
+            "fallback_used": fallback_used,
+            "vertex_trace": vertex_traces[0] if vertex_traces else None,
+            "poster_filename": primary.filename if primary else None,
+            "vertex_elapsed_ms": (vertex_telemetry or {}).get("elapsed_ms"),
+            "vertex_bytes": (vertex_telemetry or {}).get("bytes"),
+        },
+    )
+
+    return result
 
 
 def _request_glibatree_http(

@@ -1,17 +1,21 @@
+import base64
 import inspect
+import json
 import logging
 import os
+import tempfile
 import time
 import uuid
+from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import vertexai
 from google.api_core.exceptions import GoogleAPICallError, NotFound, PermissionDenied
 from vertexai.preview.vision_models import ImageGenerationModel
 
-log = logging.getLogger("ai-service")
+logger = logging.getLogger("ai-service")
 
-DEFAULT_MODEL = os.getenv("VERTEX_IMAGEN_MODEL", "imagen-3.0-generate-001")
+DEFAULT_MODEL = "imagen-3.0-generate-001"
 _ALLOWED_ASPECTS = {"1:1", "16:9", "9:16", "4:3", "3:4"}
 
 
@@ -22,30 +26,38 @@ def _ensure_credentials_from_b64() -> None:
     if not key_b64:
         return
 
-    out_path = "/opt/render/project/src/gcp-key.json"
+    out_path = Path("/opt/render/project/src/gcp-key.json")
     try:
-        import base64
-        import pathlib
-
-        pathlib.Path(out_path).write_bytes(base64.b64decode(key_b64))
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = out_path
-        log.info("[creds] wrote service account key to %s from GCP_KEY_B64", out_path)
+        out_path.write_bytes(base64.b64decode(key_b64))
     except Exception as exc:  # pragma: no cover - diagnostics only
-        log.exception("[creds] failed to write key from GCP_KEY_B64: %s", exc)
+        logger.exception("[creds] failed to write key from GCP_KEY_B64: %s", exc)
+        return
+
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(out_path)
+    logger.info("[creds] wrote service account key to %s from GCP_KEY_B64", out_path)
 
 
-def init_vertex() -> None:
-    """Initialise Vertex AI with environment configuration."""
+def _ensure_credentials_from_json_env() -> None:
+    """Persist ``GOOGLE_APPLICATION_CREDENTIALS_JSON`` into a temp file if present."""
 
-    _ensure_credentials_from_b64()
+    gac_json = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_JSON", "").strip()
+    if not gac_json:
+        return
 
-    project = os.getenv("GCP_PROJECT_ID")
-    location = os.getenv("GCP_LOCATION", "us-central1")
-    if not project:
-        raise RuntimeError("Missing env GCP_PROJECT_ID")
+    try:
+        try:
+            data = json.loads(gac_json)
+        except json.JSONDecodeError:
+            data = json.loads(gac_json.encode("utf-8").decode("unicode_escape"))
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.exception("[creds] invalid GOOGLE_APPLICATION_CREDENTIALS_JSON: %s", exc)
+        return
 
-    vertexai.init(project=project, location=location)
-    log.info("[vertex.init] project=%s location=%s", project, location)
+    fd, path = tempfile.mkstemp(prefix="gac-", suffix=".json")
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(data, handle)
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = path
+    logger.info("[creds] wrote temporary GOOGLE_APPLICATION_CREDENTIALS to %s", path)
 
 
 def _normalise_dimensions(
@@ -54,7 +66,7 @@ def _normalise_dimensions(
     height: Optional[int],
     default: str = "1024x1024",
 ) -> Tuple[int, int, str]:
-    """Normalise size arguments into integer width/height with sane defaults."""
+    """Normalise size arguments into integer width/height with safe defaults."""
 
     if width and height:
         w, h = int(width), int(height)
@@ -103,27 +115,43 @@ def _select_dimension_kwargs(
     if "size" in params:
         return {"size": size_token}, "size"
     if "image_dimensions" in params:
-        return {"image_dimensions": {"width": width, "height": height}}, "image_dimensions"
+        return {"image_dimensions": (width, height)}, "image_dimensions"
     if "aspect_ratio" in params:
         return {"aspect_ratio": canonical_ratio}, "aspect_ratio"
     return {}, "default"
 
 
-class VertexImagenClient:
-    """Thin wrapper over ``ImageGenerationModel`` with trace-aware logging."""
+class VertexImagen3:
+    """Google Vertex AI Imagen3 generation adapter with SDK compatibility helpers."""
 
-    def __init__(self, model_name: str = DEFAULT_MODEL) -> None:
-        self.model_name = model_name
+    def __init__(self, project: str, location: str = "us-central1", model_name: str = DEFAULT_MODEL):
+        if not project:
+            raise RuntimeError("GCP_PROJECT_ID is required for Vertex Imagen3")
+
+        self.project = project
+        self.location = location or "us-central1"
+        self.model_name = model_name or DEFAULT_MODEL
+
+        _ensure_credentials_from_b64()
+        _ensure_credentials_from_json_env()
+
+        vertexai.init(project=self.project, location=self.location)
+
         start = time.time()
         self._model = ImageGenerationModel.from_pretrained(self.model_name)
         self._generate_params = set(
             inspect.signature(self._model.generate_images).parameters.keys()
         )
-        log.info(
-            "[vertex.model] loaded name=%s in %.0fms; params=%s",
+        logger.info(
+            "[vertex.model] loaded name=%s in %.0fms", 
             self.model_name,
             (time.time() - start) * 1000,
-            sorted(self._generate_params),
+            extra={
+                "project": self.project,
+                "location": self.location,
+                "model": self.model_name,
+                "params": sorted(self._generate_params),
+            },
         )
 
     def generate_bytes(
@@ -163,14 +191,14 @@ class VertexImagenClient:
             kwargs["guidance"] = guidance
         kwargs.update(size_kwargs)
 
-        log.info(
-            "[vertex.call>%s] model=%s size=%s mode=%s neg=%s seed=%s guidance=%s len(prompt)=%d",
+        logger.info(
+            "[vertex.call] trace=%s model=%s size=%s mode=%s neg=%s seed=%s guidance=%s len_prompt=%d",
             trace_id,
             self.model_name,
             size_token,
             size_mode,
             bool(negative_prompt),
-            seed is not None,
+            seed if seed is not None else None,
             guidance,
             len(prompt),
         )
@@ -180,8 +208,8 @@ class VertexImagenClient:
             response = self._model.generate_images(**kwargs)
             elapsed_ms = (time.time() - start) * 1000
             image_bytes = response.images[0]._image_bytes
-            log.info(
-                "[vertex.done>%s] ok bytes=%d time=%.0fms",
+            logger.info(
+                "[vertex.done] trace=%s bytes=%d time=%.0fms",
                 trace_id,
                 len(image_bytes),
                 elapsed_ms,
@@ -190,20 +218,18 @@ class VertexImagenClient:
                 return image_bytes, trace_id
             return image_bytes
         except NotFound as exc:
-            log.error(
-                "[vertex.err>%s] NOT_FOUND model=%s: %s", trace_id, self.model_name, exc
-            )
+            logger.error("[vertex.err] trace=%s NOT_FOUND model=%s", trace_id, self.model_name)
             raise
         except PermissionDenied as exc:
-            log.error("[vertex.err>%s] PERMISSION_DENIED: %s", trace_id, exc)
+            logger.error("[vertex.err] trace=%s PERMISSION_DENIED: %s", trace_id, exc)
             raise
         except GoogleAPICallError as exc:
-            log.error("[vertex.err>%s] API_CALL_ERROR: %s", trace_id, exc)
+            logger.error("[vertex.err] trace=%s API_CALL_ERROR: %s", trace_id, exc)
             raise
         except Exception as exc:  # pragma: no cover - diagnostics only
-            log.exception("[vertex.err>%s] UNKNOWN: %s", trace_id, exc)
+            logger.exception("[vertex.err] trace=%s UNKNOWN: %s", trace_id, exc)
             raise
 
 
-# Backwards compatibility alias for existing imports
-VertexImagen = VertexImagenClient
+# Backwards compatibility alias for legacy imports
+VertexImagen = VertexImagen3
