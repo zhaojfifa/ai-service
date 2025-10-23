@@ -64,7 +64,7 @@ except Exception as exc:  # pragma: no cover - startup diagnostics
     logger.warning("Vertex init failed: %s", exc)
 else:
     try:
-        imagen_endpoint_client = VertexImagen()
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
     except Exception as exc:  # pragma: no cover - startup diagnostics
         imagen_endpoint_client = None
         logger.warning("VertexImagen initialization failed: %s", exc)
@@ -196,11 +196,15 @@ def vertex_generate_debug() -> Response:
         raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
 
     try:
-        image_bytes = imagen_endpoint_client.generate_bytes(
+        payload = imagen_endpoint_client.generate_bytes(
             prompt="a tiny watercolor hummingbird, diagnostic",
             size="512x512",
+            return_trace=True,
         )
-        trace_id = None
+        if isinstance(payload, tuple):
+            image_bytes, trace_id = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, trace_id = payload, None
     except Exception as exc:  # pragma: no cover - remote dependency
         logger.exception("Vertex tiny generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
@@ -221,12 +225,16 @@ def api_imagen_generate(request_data: ImagenGenerateRequest):
         raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
 
     try:
-        image_bytes = imagen_endpoint_client.generate_bytes(
+        payload = imagen_endpoint_client.generate_bytes(
             prompt=request_data.prompt,
             size=request_data.size,
-            guidance=None,
+            negative_prompt=request_data.negative,
+            return_trace=True,
         )
-        trace_id = None
+        if isinstance(payload, tuple):
+            image_bytes, trace_id = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, trace_id = payload, None
     except Exception as exc:  # pragma: no cover - remote dependency
         logger.exception("Imagen generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
