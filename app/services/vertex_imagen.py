@@ -1,18 +1,17 @@
+from __future__ import annotations
+
+import base64
 import inspect
 import logging
 import os
-import time
-import uuid
+import pathlib
 from typing import Any, Optional, Tuple
 
 import vertexai
-from google.api_core.exceptions import GoogleAPICallError, NotFound, PermissionDenied
 from vertexai.preview.vision_models import ImageGenerationModel
 
 log = logging.getLogger("ai-service")
-
-DEFAULT_MODEL = os.getenv("VERTEX_IMAGEN_MODEL", "imagen-3.0-generate-001")
-_ALLOWED_ASPECTS = {"1:1", "16:9", "9:16", "4:3", "3:4"}
+_DEFAULT_ASPECTS = {"1:1", "16:9", "9:16", "4:3", "3:4"}
 
 
 def _ensure_credentials_from_b64() -> None:
@@ -24,9 +23,6 @@ def _ensure_credentials_from_b64() -> None:
 
     out_path = "/opt/render/project/src/gcp-key.json"
     try:
-        import base64
-        import pathlib
-
         pathlib.Path(out_path).write_bytes(base64.b64decode(key_b64))
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = out_path
         log.info("[creds] wrote service account key to %s from GCP_KEY_B64", out_path)
@@ -97,7 +93,7 @@ def _select_dimension_kwargs(
     """Choose the appropriate size argument compatible with the SDK version."""
 
     ratio = (aspect_ratio or "").replace("×", "x").strip().lower()
-    canonical_ratio = ratio if ratio in _ALLOWED_ASPECTS else _aspect_from_dims(width, height)
+    canonical_ratio = ratio if ratio in _DEFAULT_ASPECTS else _aspect_from_dims(width, height)
     size_token = f"{width}x{height}"
 
     if "size" in params:
@@ -109,101 +105,63 @@ def _select_dimension_kwargs(
     return {}, "default"
 
 
-class VertexImagenClient:
-    """Thin wrapper over ``ImageGenerationModel`` with trace-aware logging."""
+class VertexImagen3:
+    """Lazy, generate-only Imagen client (no edit model)."""
 
-    def __init__(self, model_name: str = DEFAULT_MODEL) -> None:
-        self.model_name = model_name
-        start = time.time()
-        self._model = ImageGenerationModel.from_pretrained(self.model_name)
-        self._generate_params = set(
-            inspect.signature(self._model.generate_images).parameters.keys()
-        )
-        log.info(
-            "[vertex.model] loaded name=%s in %.0fms; params=%s",
-            self.model_name,
-            (time.time() - start) * 1000,
-            sorted(self._generate_params),
-        )
+    def __init__(self, project: str | None = None, location: str | None = None):
+        _ensure_credentials_from_b64()
+
+        project = project or os.getenv("GCP_PROJECT_ID")
+        location = location or os.getenv("GCP_LOCATION", "us-central1")
+        if not project:
+            raise RuntimeError("GCP_PROJECT_ID is required for Vertex Imagen")
+
+        vertexai.init(project=project, location=location)
+        self.project = project
+        self.location = location
+        self._gen = None
+        self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate-001")
+
+    def _ensure_gen(self):
+        if self._gen is None:
+            self._gen = ImageGenerationModel.from_pretrained(self.model_generate)
+
+    def edit_bytes(self, *_, **__):
+        raise NotImplementedError("Imagen edit is not available in this service")
 
     def generate_bytes(
         self,
-        *,
         prompt: str,
-        size: Optional[str] = None,
-        width: Optional[int] = None,
-        height: Optional[int] = None,
-        negative_prompt: Optional[str] = None,
-        safety_filter_level: str = "block_few",
-        seed: Optional[int] = None,
-        guidance: Optional[float] = None,
-        aspect_ratio: Optional[str] = None,
-        return_trace: bool = False,
-    ) -> bytes | tuple[bytes, str]:
-        """Generate a single image and return the binary payload."""
+        size: str | None = None,
+        guidance: float | None = None,
+    ) -> bytes:
+        self._ensure_gen()
 
-        trace_id = uuid.uuid4().hex[:8]
-        width_px, height_px, size_token = _normalise_dimensions(size, width, height)
-        ratio_value = aspect_ratio or _aspect_from_dims(width_px, height_px)
-        size_kwargs, size_mode = _select_dimension_kwargs(
-            self._generate_params, width_px, height_px, ratio_value
-        )
+        # size parsing
+        w, h = 1024, 1024
+        if size:
+            try:
+                w, h = [int(x) for x in size.lower().split("x")]
+            except Exception:
+                pass
 
-        kwargs: dict[str, Any] = {
-            "prompt": prompt,
-            "number_of_images": 1,
-        }
-        if "safety_filter_level" in self._generate_params:
-            kwargs["safety_filter_level"] = safety_filter_level
-        if negative_prompt and "negative_prompt" in self._generate_params:
-            kwargs["negative_prompt"] = negative_prompt
-        if seed is not None and "seed" in self._generate_params:
-            kwargs["seed"] = seed
-        if guidance is not None and "guidance" in self._generate_params:
-            kwargs["guidance"] = guidance
-        kwargs.update(size_kwargs)
+        kwargs = dict(prompt=prompt, number_of_images=1, safety_filter_level="block_few")
 
-        log.info(
-            "[vertex.call>%s] model=%s size=%s mode=%s neg=%s seed=%s guidance=%s len(prompt)=%d",
-            trace_id,
-            self.model_name,
-            size_token,
-            size_mode,
-            bool(negative_prompt),
-            seed is not None,
-            guidance,
-            len(prompt),
-        )
+        # Prefer 'size', fallback to 'image_dimensions'
+        sig = ImageGenerationModel.generate_images.__signature__.parameters
+        if "size" in sig:
+            kwargs["size"] = f"{w}x{h}"
+        elif "image_dimensions" in sig:
+            kwargs["image_dimensions"] = (w, h)
 
-        start = time.time()
-        try:
-            response = self._model.generate_images(**kwargs)
-            elapsed_ms = (time.time() - start) * 1000
-            image_bytes = response.images[0]._image_bytes
-            log.info(
-                "[vertex.done>%s] ok bytes=%d time=%.0fms",
-                trace_id,
-                len(image_bytes),
-                elapsed_ms,
-            )
-            if return_trace:
-                return image_bytes, trace_id
-            return image_bytes
-        except NotFound as exc:
-            log.error(
-                "[vertex.err>%s] NOT_FOUND model=%s: %s", trace_id, self.model_name, exc
-            )
-            raise
-        except PermissionDenied as exc:
-            log.error("[vertex.err>%s] PERMISSION_DENIED: %s", trace_id, exc)
-            raise
-        except GoogleAPICallError as exc:
-            log.error("[vertex.err>%s] API_CALL_ERROR: %s", trace_id, exc)
-            raise
-        except Exception as exc:  # pragma: no cover - diagnostics only
-            log.exception("[vertex.err>%s] UNKNOWN: %s", trace_id, exc)
-            raise
+        if guidance is not None:
+            if "guidance" in sig:
+                kwargs["guidance"] = guidance
+            elif "guidance_scale" in sig:
+                kwargs["guidance_scale"] = guidance
+
+        res = self._gen.generate_images(**kwargs)
+        return res.images[0]._image_bytes
 
 
-# Backwards compatibility alias for existing imports
-VertexImagen = VertexImagenClient
+VertexImagen = VertexImagen3

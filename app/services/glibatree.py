@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -17,6 +18,8 @@ from typing import Any, Optional, Tuple
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
+from fastapi import HTTPException
+
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
@@ -27,6 +30,67 @@ from app.services.template_variants import generation_overrides
 logger = logging.getLogger(__name__)
 
 vertex_imagen_client: VertexImagen3 | None = None
+
+R2_PUBLIC = re.compile(r"^https://.+\.r2\.dev/.+")
+R2_KEY = re.compile(r"^r2://.+")
+
+
+def _iter_candidate_strings(value: Any):
+    if value is None:
+        return
+    if isinstance(value, str):
+        yield value
+        return
+    if hasattr(value, "dict"):
+        value = value.dict()
+    if isinstance(value, dict):
+        for key in ("asset", "key", "url", "data", "value"):
+            candidate = value.get(key)
+            if isinstance(candidate, str):
+                yield candidate
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _iter_candidate_strings(item)
+
+
+def _is_r2_ref(v: str | None) -> bool:
+    return bool(v and (R2_PUBLIC.match(v) or R2_KEY.match(v)))
+
+
+def _reject_base64(s: str | None) -> None:
+    if not s:
+        return
+    if s.strip().startswith("data:image/"):
+        raise HTTPException(
+            status_code=413,
+            detail="Request body contains Base64 image. Upload to R2 first and pass key/url.",
+        )
+
+
+def _assert_assets_use_r2(poster: PosterInput | dict[str, Any] | None) -> None:
+    if poster is None:
+        return
+
+    if hasattr(poster, "dict"):
+        payload = poster.dict()
+    else:
+        payload = poster
+
+    fields: list[Any] = []
+    fields.append(payload.get("scenario_asset") or payload.get("scenario_key"))
+    fields.append(payload.get("product_asset") or payload.get("product_key"))
+
+    for item in payload.get("gallery_items", []):
+        fields.append(item)
+
+    for raw in fields:
+        for text in _iter_candidate_strings(raw):
+            _reject_base64(text)
+            if text and not _is_r2_ref(text):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Assets must be R2 references (r2://key or https://...r2.dev/...).",
+                )
 
 
 def configure_vertex_imagen(client: VertexImagen3 | None) -> None:
@@ -577,16 +641,9 @@ def generate_poster_asset(
     seed: int | None = None,
     lock_seed: bool = False,
 ) -> PosterGenerationResult:
-    """Generate a poster image, preferring Vertex Imagen3 with optional HTTP fallback."""
-    request_trace = uuid.uuid4().hex[:8]
-    logger.info(
-        "generate_poster request received",
-        extra={
-            "request_trace": request_trace,
-            "template": poster.template_id,
-            "variants": variants,
-        },
-    )
+    """Generate a poster image using locked templates with an OpenAI edit fallback."""
+    _assert_assets_use_r2(poster)
+
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
@@ -618,27 +675,6 @@ def generate_poster_asset(
         except Exception:
             fallback_used = True
             logger.exception("Vertex Imagen3 generation failed; falling back")
-
-    if primary is None and settings.glibatree.is_configured:
-        fallback_used = True
-        try:
-            logger.debug(
-                "Requesting Glibatree asset via HTTP endpoint %s",
-                settings.glibatree.api_url,
-            )
-            primary = _request_glibatree_http(
-                settings.glibatree.api_url or "",
-                settings.glibatree.api_key or "",
-                prompt,
-                locked_frame,
-                template,
-            )
-        except Exception:
-            fallback_used = True
-            logger.exception(
-                "Vertex Imagen3 generation failed; falling back",
-                extra={"request_trace": request_trace},
-            )
 
     if primary is None and settings.glibatree.is_configured:
         fallback_used = True
