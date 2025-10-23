@@ -230,38 +230,6 @@ function getApiCandidates(extra) {
 
 App.utils.getApiCandidates = getApiCandidates;
 
-const QUICK_LAYOUTS = [
-  { id: 'template_dual', title: 'Dual Panel', aspect: '1:1' },
-  { id: 'template_full', title: 'Full Hero', aspect: '4:5' },
-  { id: 'template_grid', title: 'Grid x4', aspect: '4:3' },
-];
-
-const QUICK_LAYOUT_DEFAULTS = {
-  brandName: 'ChefCraft',
-  agentName: 'Global Distributor',
-  productName: 'Smart Steam Oven',
-  scenarioImage: 'Modern kitchen countertop with premium lighting',
-  seriesDescription: 'Chef-inspired steam roasting lineup',
-  title: 'Refresh your kitchen efficiency',
-  subtitle: 'Smart steam-roast • Chef-grade results at home',
-  features: [
-    'One-tap steam & roast with precise flavor lock',
-    '360° smart hot-air circulation for even heating',
-    'High-temperature self-clean cavity',
-    'Wi-Fi remote control with guided recipes',
-  ],
-};
-
-const QUICK_LAYOUT_SIZES = {
-  '1:1': { size: '1024x1024', width: 1024, height: 1024 },
-  '4:5': { size: '1024x1280', width: 1024, height: 1280 },
-  '5:4': { size: '1280x1024', width: 1280, height: 1024 },
-  '4:3': { size: '1200x900', width: 1200, height: 900 },
-  '3:4': { size: '900x1200', width: 900, height: 1200 },
-  '16:9': { size: '1344x756', width: 1344, height: 756 },
-  '9:16': { size: '756x1344', width: 756, height: 1344 },
-};
-
 async function probeBase(base, { force } = {}) {
   const now = Date.now();
   const cached = HEALTH_CACHE.get(base);
@@ -2849,8 +2817,6 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
-    setupQuickLayoutPreview(stage1Data);
-
     let promptManager = null;
     let currentTemplateAssets = null;
     let latestPromptState = null;
@@ -4310,151 +4276,6 @@ async function buildAsset(file, dataUrl, previousAsset, options = {}) {
         ? previousAsset.lastModified
         : Date.now(),
   };
-}
-
-function buildQuickLayoutPayload(templateId, aspect, stage1Data = {}) {
-  const meta = QUICK_LAYOUT_SIZES[aspect] || QUICK_LAYOUT_SIZES['1:1'];
-  const poster = {
-    lang: 'en',
-    template_id: templateId,
-    brand_name: (stage1Data.brand_name && stage1Data.brand_name.trim()) || QUICK_LAYOUT_DEFAULTS.brandName,
-    agent_name: (stage1Data.agent_name && stage1Data.agent_name.trim()) || QUICK_LAYOUT_DEFAULTS.agentName,
-    product_name: (stage1Data.product_name && stage1Data.product_name.trim()) || QUICK_LAYOUT_DEFAULTS.productName,
-    scenario_image:
-      (stage1Data.scenario_image && stage1Data.scenario_image.trim()) || QUICK_LAYOUT_DEFAULTS.scenarioImage,
-    series_description:
-      (stage1Data.series_description && stage1Data.series_description.trim()) || QUICK_LAYOUT_DEFAULTS.seriesDescription,
-    title: QUICK_LAYOUT_DEFAULTS.title,
-    subtitle: QUICK_LAYOUT_DEFAULTS.subtitle,
-    features: QUICK_LAYOUT_DEFAULTS.features.slice(0, 4),
-    scenario_mode: 'upload',
-    product_mode: 'upload',
-    gallery_items: [],
-    gallery_label: stage1Data.gallery_label || null,
-    size: meta.size,
-    width: meta.width,
-    height: meta.height,
-    aspect_ratio: aspect,
-  };
-
-  return {
-    poster,
-    render_mode: 'locked',
-    variants: 1,
-    seed: null,
-    lock_seed: false,
-    prompt_bundle: {},
-  };
-}
-
-function setupQuickLayoutPreview(stage1Data) {
-  const grid = document.getElementById('layoutGrid');
-  const select = document.getElementById('layoutSelect');
-  const refreshBtn = document.getElementById('refreshLayouts');
-  const previewImg = document.getElementById('posterPreview');
-  const statusElement = document.getElementById('stage2-status');
-
-  if (!grid || !select) {
-    return;
-  }
-
-  const renderCards = () => {
-    const chosen = select.value || QUICK_LAYOUTS[0].id;
-    grid.innerHTML = '';
-
-    QUICK_LAYOUTS.forEach((layout) => {
-      const active = layout.id === chosen ? 'active' : '';
-      grid.insertAdjacentHTML(
-        'beforeend',
-        `
-          <article class="layout-card ${active}" data-layout-card="${layout.id}">
-            <div class="preview">
-              <span>${layout.title}</span>
-            </div>
-            <div class="meta">
-              <div class="title">${layout.title}</div>
-              <div class="actions">
-                <button class="btn tiny" type="button" data-layout="${layout.id}" data-aspect="${layout.aspect}">Use</button>
-                <button class="btn tiny ghost" type="button" data-preview="${layout.id}">Preview</button>
-              </div>
-            </div>
-          </article>
-        `
-      );
-    });
-  };
-
-  const runLayoutGeneration = async (templateId, aspect) => {
-    const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
-    if (!apiCandidates.length) {
-      setStatus(statusElement, '请先配置后端 API 地址。', 'warning');
-      return;
-    }
-
-    try {
-      if (previewImg) {
-        previewImg.classList.add('loading');
-        previewImg.removeAttribute('src');
-      }
-      setStatus(statusElement, '正在生成布局预览…', 'info');
-      await warmUp(apiCandidates);
-      const payload = buildQuickLayoutPayload(templateId, aspect, stage1Data || {});
-      const rawPayload = JSON.stringify(payload);
-      const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
-      const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-      const posterData = data?.poster_image || null;
-      const src = posterData ? getPosterImageSource(posterData) : '';
-      if (previewImg) {
-        if (src) {
-          previewImg.src = src;
-        }
-        previewImg.classList.remove('loading');
-      }
-      if (posterData) {
-        setStatus(statusElement, '布局预览生成完成。', 'success');
-      } else {
-        setStatus(statusElement, '生成完成但没有返回图片。', 'warning');
-      }
-    } catch (error) {
-      console.error('[layoutPreview] failed', error);
-      setStatus(statusElement, error?.message || '布局预览生成失败', 'error');
-      if (previewImg) {
-        previewImg.classList.remove('loading');
-      }
-    }
-  };
-
-  renderCards();
-
-  select.addEventListener('change', () => {
-    renderCards();
-  });
-
-  refreshBtn?.addEventListener('click', () => {
-    renderCards();
-  });
-
-  grid.addEventListener('click', (event) => {
-    const previewBtn = event.target.closest('button[data-preview]');
-    if (previewBtn) {
-      const templateId = previewBtn.dataset.preview || QUICK_LAYOUTS[0].id;
-      select.value = templateId;
-      renderCards();
-      return;
-    }
-
-    const useBtn = event.target.closest('button[data-layout]');
-    if (!useBtn) return;
-    const templateId = useBtn.dataset.layout || QUICK_LAYOUTS[0].id;
-    const aspect = useBtn.dataset.aspect || '1:1';
-    select.value = templateId;
-    renderCards();
-    void runLayoutGeneration(templateId, aspect);
-  });
-
-  if (!select.value && QUICK_LAYOUTS[0]) {
-    select.value = QUICK_LAYOUTS[0].id;
-  }
 }
 
 async function prepareAssetFromFile(

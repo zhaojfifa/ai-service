@@ -28,7 +28,6 @@ from app.services.glibatree import configure_vertex_imagen, generate_poster_asse
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
-    normalise_poster_copy,
     render_layout_preview,
 )
 from app.services.s3_client import make_key, presigned_put_url, public_url_for
@@ -440,17 +439,17 @@ async def generate_poster(request: Request) -> JSONResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
-        poster, _ = normalise_poster_copy(payload.poster)
         logger.info(
             "generate_poster normalised payload: %s",
             {
-                "poster": _summarise_poster(poster),
+                "poster": _summarise_poster(payload.poster),
                 "variants": payload.variants,
                 "seed": payload.seed,
                 "lock_seed": payload.lock_seed,
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
             },
         )
+        poster = payload.poster
         preview = render_layout_preview(poster)
         prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
