@@ -244,31 +244,6 @@ def api_imagen_generate(request_data: ImagenGenerateRequest):
 
 
 
-class ImagenGenerateRequest(BaseModel):
-    prompt: str = Field(..., description="文生图提示词")
-    size: str = Field("1024x1024", description="尺寸, 例如 1024x1024")
-    negative: str | None = Field(None, description="反向提示词")
-
-
-@app.post("/api/imagen/generate")
-def api_imagen_generate(request_data: ImagenGenerateRequest):
-    if imagen_endpoint_client is None:
-        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
-
-    try:
-        image_bytes = imagen_endpoint_client.generate_bytes(
-            prompt=request_data.prompt,
-            size=request_data.size,
-            negative_prompt=request_data.negative,
-        )
-    except Exception as exc:  # pragma: no cover - remote dependency
-        logger.exception("Imagen generate failed: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
-
-    return Response(content=image_bytes, media_type="image/jpeg")
-
-
-
 def _model_dump(model):
     if hasattr(model, "model_dump"):
         return model.model_dump(exclude_none=True)

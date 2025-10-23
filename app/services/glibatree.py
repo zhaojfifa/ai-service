@@ -19,6 +19,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, put_bytes
 from app.services.template_variants import generation_overrides
@@ -134,6 +135,16 @@ def _generate_poster_with_vertex(
         "size": f"{width}x{height}",
         "template": template.id,
     }
+
+    params = getattr(
+        client,
+        "_edit_params" if should_edit else "_generate_params",
+        None,
+    )
+    ratio_hint = aspect_ratio or _aspect_from_dims(width, height)
+    if isinstance(params, set):
+        _, size_mode = _select_dimension_kwargs(params, width, height, ratio_hint)
+        telemetry["size_mode"] = size_mode
 
     vertex_trace: str | None = None
     start = time.time()

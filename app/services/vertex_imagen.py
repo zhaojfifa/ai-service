@@ -3,13 +3,16 @@ import logging
 import os
 import time
 import uuid
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import vertexai
 from google.api_core.exceptions import GoogleAPICallError, NotFound, PermissionDenied
 from vertexai.preview.vision_models import ImageGenerationModel
 
 log = logging.getLogger("ai-service")
+
+DEFAULT_MODEL = os.getenv("VERTEX_IMAGEN_MODEL", "imagen-3.0-generate-001")
+_ALLOWED_ASPECTS = {"1:1", "16:9", "9:16", "4:3", "3:4"}
 
 
 def _ensure_credentials_from_b64() -> None:
@@ -45,95 +48,147 @@ def init_vertex() -> None:
     log.info("[vertex.init] project=%s location=%s", project, location)
 
 
-def _parse_size(size: str) -> Tuple[int, int]:
-    try:
-        w, h = [int(x) for x in size.lower().split("x")]
-        if w <= 0 or h <= 0:
-            raise ValueError
-        return w, h
-    except Exception:
-        return 1024, 1024
+def _normalise_dimensions(
+    size: Optional[str],
+    width: Optional[int],
+    height: Optional[int],
+    default: str = "1024x1024",
+) -> Tuple[int, int, str]:
+    """Normalise size arguments into integer width/height with sane defaults."""
+
+    if width and height:
+        w, h = int(width), int(height)
+    else:
+        token = (size or default or "1024x1024").lower().replace("×", "x").strip()
+        try:
+            w_str, h_str = token.split("x", 1)
+            w, h = int(w_str), int(h_str)
+        except Exception:
+            try:
+                w_str, h_str = default.lower().replace("×", "x").split("x", 1)
+                w, h = int(w_str), int(h_str)
+            except Exception:
+                w, h = 1024, 1024
+    w = max(64, w)
+    h = max(64, h)
+    return w, h, f"{w}x{h}"
 
 
-class VertexImagen:
+def _aspect_from_dims(width: int, height: int) -> str:
+    if width == height:
+        return "1:1"
+    if width * 9 == height * 16:
+        return "16:9"
+    if width * 16 == height * 9:
+        return "9:16"
+    if width * 3 == height * 4:
+        return "4:3"
+    if width * 4 == height * 3:
+        return "3:4"
+    return "1:1"
+
+
+def _select_dimension_kwargs(
+    params: set[str],
+    width: int,
+    height: int,
+    aspect_ratio: Optional[str],
+) -> tuple[dict[str, Any], str]:
+    """Choose the appropriate size argument compatible with the SDK version."""
+
+    ratio = (aspect_ratio or "").replace("×", "x").strip().lower()
+    canonical_ratio = ratio if ratio in _ALLOWED_ASPECTS else _aspect_from_dims(width, height)
+    size_token = f"{width}x{height}"
+
+    if "size" in params:
+        return {"size": size_token}, "size"
+    if "image_dimensions" in params:
+        return {"image_dimensions": {"width": width, "height": height}}, "image_dimensions"
+    if "aspect_ratio" in params:
+        return {"aspect_ratio": canonical_ratio}, "aspect_ratio"
+    return {}, "default"
+
+
+class VertexImagenClient:
     """Thin wrapper over ``ImageGenerationModel`` with trace-aware logging."""
 
-    def __init__(self, model_name: str = "imagen-3.0-generate-001") -> None:
+    def __init__(self, model_name: str = DEFAULT_MODEL) -> None:
         self.model_name = model_name
         start = time.time()
         self._model = ImageGenerationModel.from_pretrained(self.model_name)
-        self._sig_params = set(
+        self._generate_params = set(
             inspect.signature(self._model.generate_images).parameters.keys()
         )
         log.info(
             "[vertex.model] loaded name=%s in %.0fms; params=%s",
             self.model_name,
             (time.time() - start) * 1000,
-            sorted(self._sig_params),
+            sorted(self._generate_params),
         )
 
     def generate_bytes(
         self,
         *,
         prompt: str,
-        size: str = "1024x1024",
+        size: Optional[str] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         negative_prompt: Optional[str] = None,
         safety_filter_level: str = "block_few",
         seed: Optional[int] = None,
+        guidance: Optional[float] = None,
+        aspect_ratio: Optional[str] = None,
         return_trace: bool = False,
     ) -> bytes | tuple[bytes, str]:
-        """Generate a single image and return the binary payload.
-
-        When ``return_trace`` is true the trace id is returned alongside the
-        bytes to allow upstream callers to expose it in responses.
-        """
+        """Generate a single image and return the binary payload."""
 
         trace_id = uuid.uuid4().hex[:8]
-        w, h = _parse_size(size)
+        width_px, height_px, size_token = _normalise_dimensions(size, width, height)
+        ratio_value = aspect_ratio or _aspect_from_dims(width_px, height_px)
+        size_kwargs, size_mode = _select_dimension_kwargs(
+            self._generate_params, width_px, height_px, ratio_value
+        )
 
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "prompt": prompt,
             "number_of_images": 1,
-            "safety_filter_level": safety_filter_level,
         }
-        if negative_prompt and "negative_prompt" in self._sig_params:
+        if "safety_filter_level" in self._generate_params:
+            kwargs["safety_filter_level"] = safety_filter_level
+        if negative_prompt and "negative_prompt" in self._generate_params:
             kwargs["negative_prompt"] = negative_prompt
-        if seed is not None and "seed" in self._sig_params:
+        if seed is not None and "seed" in self._generate_params:
             kwargs["seed"] = seed
-
-        if "size" in self._sig_params:
-            kwargs["size"] = f"{w}x{h}"
-        elif "image_dimensions" in self._sig_params:
-            kwargs["image_dimensions"] = (w, h)
-        elif "aspect_ratio" in self._sig_params:
-            ratio = f"{w}:{h}"
-            allowed = {"1:1", "16:9", "9:16", "4:3", "3:4"}
-            kwargs["aspect_ratio"] = ratio if ratio in allowed else "1:1"
+        if guidance is not None and "guidance" in self._generate_params:
+            kwargs["guidance"] = guidance
+        kwargs.update(size_kwargs)
 
         log.info(
-            "[vertex.call>%s] model=%s size=%s neg=%s len(prompt)=%d kwargs=%s",
+            "[vertex.call>%s] model=%s size=%s mode=%s neg=%s seed=%s guidance=%s len(prompt)=%d",
             trace_id,
             self.model_name,
-            size,
+            size_token,
+            size_mode,
             bool(negative_prompt),
+            seed is not None,
+            guidance,
             len(prompt),
-            {k: v for k, v in kwargs.items() if k != "prompt"},
         )
 
         start = time.time()
         try:
             response = self._model.generate_images(**kwargs)
             elapsed_ms = (time.time() - start) * 1000
-            img_bytes = response.images[0]._image_bytes
+            image_bytes = response.images[0]._image_bytes
             log.info(
                 "[vertex.done>%s] ok bytes=%d time=%.0fms",
                 trace_id,
-                len(img_bytes),
+                len(image_bytes),
                 elapsed_ms,
             )
             if return_trace:
-                return img_bytes, trace_id
-            return img_bytes
+                return image_bytes, trace_id
+            return image_bytes
         except NotFound as exc:
             log.error(
                 "[vertex.err>%s] NOT_FOUND model=%s: %s", trace_id, self.model_name, exc
@@ -148,3 +203,7 @@ class VertexImagen:
         except Exception as exc:  # pragma: no cover - diagnostics only
             log.exception("[vertex.err>%s] UNKNOWN: %s", trace_id, exc)
             raise
+
+
+# Backwards compatibility alias for existing imports
+VertexImagen = VertexImagenClient

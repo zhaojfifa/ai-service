@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import inspect
 import logging
 import os
 import tempfile
@@ -18,7 +19,12 @@ from vertexai.preview.vision_models import (
     Image as VImage,
 )
 
-from app.services.vertex_imagen import _ensure_credentials_from_b64
+from app.services.vertex_imagen import (
+    _aspect_from_dims,
+    _ensure_credentials_from_b64,
+    _normalise_dimensions,
+    _select_dimension_kwargs,
+)
 
 
 logger = logging.getLogger("ai-service")
@@ -37,17 +43,6 @@ def _ensure_gcp_auth_via_json_env() -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f)
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = path
-
-
-def _parse_size(size: Optional[str], width: Optional[int], height: Optional[int], default: str) -> Tuple[int, int]:
-    if width and height:
-        return int(width), int(height)
-    s = (size or default or "1024x1024").lower().replace("×", "x").strip()
-    try:
-        w, h = [int(x) for x in s.split("x")]
-        return max(64, w), max(64, h)
-    except Exception:
-        return 1024, 1024
 
 
 def _pil_to_bytes(img: PILImage.Image, fmt: str = "JPEG") -> bytes:
@@ -89,6 +84,20 @@ class VertexImagen3:
         aiplatform.init(project=self.project, location=self.location)
         vertex_init(project=self.project, location=self.location)
 
+        self._generate_model = ImageGenerationModel.from_pretrained(self.model_generate)
+        self._generate_params = set(
+            inspect.signature(self._generate_model.generate_images).parameters.keys()
+        )
+        self._edit_model = ImageGenerationModel.from_pretrained(self.model_edit)
+        self._edit_params = set(
+            inspect.signature(self._edit_model.edit_image).parameters.keys()
+        )
+        logger.info(
+            "[vertex3.model] params generate=%s edit=%s",
+            sorted(self._generate_params),
+            sorted(self._edit_params),
+        )
+
     # ---------- 生图 ----------
     def generate_bytes(
         self,
@@ -103,31 +112,42 @@ class VertexImagen3:
         guidance: Optional[float] = None,
         return_trace: bool = False,
     ) -> bytes | tuple[bytes, str]:
-        w, h = _parse_size(size, width, height, default="1024x1024")
+        width_px, height_px, size_token = _normalise_dimensions(
+            size, width, height, default="1024x1024"
+        )
 
         trace_id = uuid.uuid4().hex[:8]
-        model = ImageGenerationModel.from_pretrained(self.model_generate)
+        ratio_value = aspect_ratio or _aspect_from_dims(width_px, height_px)
+        size_kwargs, size_mode = _select_dimension_kwargs(
+            self._generate_params, width_px, height_px, ratio_value
+        )
+
         kwargs: Dict[str, Any] = {
             "prompt": prompt,
             "number_of_images": max(1, number_of_images),
-            "image_dimensions": {"width": w, "height": h},
-            "safety_filter_level": self.safety,
-            "negative_prompt": negative_prompt,
-            "seed": self.seed,
         }
-        if guidance is not None:
+        if "safety_filter_level" in self._generate_params:
+            kwargs["safety_filter_level"] = self.safety
+        if negative_prompt and "negative_prompt" in self._generate_params:
+            kwargs["negative_prompt"] = negative_prompt
+        if self.seed is not None and "seed" in self._generate_params:
+            kwargs["seed"] = self.seed
+        if guidance is not None and "guidance" in self._generate_params:
             kwargs["guidance"] = guidance
+        kwargs.update(size_kwargs)
 
         logger.info(
-            "[vertex3.call>%s] mode=generate size=%sx%s neg=%s guidance=%s",
+            "[vertex3.call>%s] mode=generate size=%s mode=%s neg=%s guidance=%s",
             trace_id,
-            w,
-            h,
+            size_token,
+            size_mode,
             bool(negative_prompt),
             guidance,
         )
         start = time.time()
-        images = model.generate_images(**kwargs, request_timeout=self.timeout)
+        images = self._generate_model.generate_images(
+            **kwargs, request_timeout=self.timeout
+        )
         if not images:
             raise RuntimeError("Vertex Imagen3 generate_images returned empty list")
 
@@ -170,7 +190,9 @@ class VertexImagen3:
             raise RuntimeError("edit_bytes requires base_image (bytes or b64)")
 
         base_vimg = VImage.load_from_bytes(base_image_bytes)
-        w, h = _parse_size(size, width, height, default="1024x1024")
+        width_px, height_px, size_token = _normalise_dimensions(
+            size, width, height, default="1024x1024"
+        )
 
         trace_id = uuid.uuid4().hex[:8]
         vmask: Optional[VImage] = None
@@ -179,36 +201,41 @@ class VertexImagen3:
         elif region_rect:
             rx = int(region_rect.get("x", 0))
             ry = int(region_rect.get("y", 0))
-            rw = int(region_rect.get("width", w))
-            rh = int(region_rect.get("height", h))
-            m_bytes = _rect_mask_bytes(w, h, rx, ry, rw, rh)
+            rw = int(region_rect.get("width", width_px))
+            rh = int(region_rect.get("height", height_px))
+            m_bytes = _rect_mask_bytes(width_px, height_px, rx, ry, rw, rh)
             vmask = VImage.load_from_bytes(m_bytes)
 
-        model = ImageGenerationModel.from_pretrained(self.model_edit)
+        size_kwargs, size_mode = _select_dimension_kwargs(
+            self._edit_params, width_px, height_px, _aspect_from_dims(width_px, height_px)
+        )
         kwargs: Dict[str, Any] = {
             "base_image": base_vimg,
             "prompt": prompt,
             "number_of_images": 1,
-            "image_dimensions": {"width": w, "height": h},
-            "safety_filter_level": self.safety,
-            "negative_prompt": negative_prompt,
-            "seed": self.seed,
         }
-        if vmask:
+        if "safety_filter_level" in self._edit_params:
+            kwargs["safety_filter_level"] = self.safety
+        if negative_prompt and "negative_prompt" in self._edit_params:
+            kwargs["negative_prompt"] = negative_prompt
+        if self.seed is not None and "seed" in self._edit_params:
+            kwargs["seed"] = self.seed
+        if vmask and "mask" in self._edit_params:
             kwargs["mask"] = vmask
-        if guidance is not None:
+        if guidance is not None and "guidance" in self._edit_params:
             kwargs["guidance"] = guidance
+        kwargs.update(size_kwargs)
 
         logger.info(
-            "[vertex3.call>%s] mode=edit size=%sx%s mask=%s guidance=%s",
+            "[vertex3.call>%s] mode=edit size=%s mode=%s mask=%s guidance=%s",
             trace_id,
-            w,
-            h,
+            size_token,
+            size_mode,
             bool(vmask),
             guidance,
         )
         start = time.time()
-        images = model.edit_image(**kwargs, request_timeout=self.timeout)
+        images = self._edit_model.edit_image(**kwargs, request_timeout=self.timeout)
         if not images:
             raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
 
