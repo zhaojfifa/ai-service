@@ -62,6 +62,10 @@ class PosterGalleryItem(_CompatModel):
 class PosterInput(_CompatModel):
     """Data structure describing all poster inputs for the workflow."""
 
+    lang: Literal["en", "zh"] = Field(
+        "en",
+        description="Language for generated copy and prompt defaults.",
+    )
     brand_name: constr(strip_whitespace=True, min_length=1)
     agent_name: constr(strip_whitespace=True, min_length=1)
     scenario_image: constr(strip_whitespace=True, min_length=1)
@@ -126,6 +130,16 @@ class PosterInput(_CompatModel):
         None,
         description="Whether the template allows uploading gallery assets.",
     )
+
+    @field_validator("lang", mode="before")
+    @classmethod
+    def _coerce_lang(cls, value: Any) -> str:
+        if value is None:
+            return "en"
+        text = str(value).strip().lower()
+        if text.startswith("zh"):
+            return "zh"
+        return "en"
 
     size: Optional[str] = Field(
         None,
