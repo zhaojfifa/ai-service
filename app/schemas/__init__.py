@@ -62,6 +62,10 @@ class PosterGalleryItem(_CompatModel):
 class PosterInput(_CompatModel):
     """Data structure describing all poster inputs for the workflow."""
 
+    lang: Literal["en", "zh"] = Field(
+        "en",
+        description="Language for generated copy and prompt defaults.",
+    )
     brand_name: constr(strip_whitespace=True, min_length=1)
     agent_name: constr(strip_whitespace=True, min_length=1)
     scenario_image: constr(strip_whitespace=True, min_length=1)
@@ -125,6 +129,56 @@ class PosterInput(_CompatModel):
     gallery_allows_upload: Optional[bool] = Field(
         None,
         description="Whether the template allows uploading gallery assets.",
+    )
+
+    @field_validator("lang", mode="before")
+    @classmethod
+    def _coerce_lang(cls, value: Any) -> str:
+        if value is None:
+            return "en"
+        text = str(value).strip().lower()
+        if text.startswith("zh"):
+            return "zh"
+        return "en"
+
+    size: Optional[str] = Field(
+        None,
+        description="Optional image size hint (e.g. 1024x1024) forwarded to Imagen3.",
+    )
+    width: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Explicit width in pixels for Imagen3 requests.",
+    )
+    height: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Explicit height in pixels for Imagen3 requests.",
+    )
+    aspect_ratio: Optional[str] = Field(
+        None,
+        description="Optional aspect ratio string forwarded to Imagen3.",
+    )
+    negative_prompt: Optional[str] = Field(
+        None,
+        description="Optional negative prompt to steer Imagen3 generations.",
+    )
+    guidance: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Optional Imagen3 guidance scale value.",
+    )
+    base_image_b64: Optional[str] = Field(
+        None,
+        description="Base image (base64) used when performing Imagen3 edits.",
+    )
+    mask_b64: Optional[str] = Field(
+        None,
+        description="Mask image (base64) where white regions will be edited by Imagen3.",
+    )
+    region_rect: Optional[dict[str, int]] = Field(
+        None,
+        description="Rectangular edit region for Imagen3 inpainting (keys: x,y,width,height).",
     )
 
     scenario_mode: Literal["upload", "prompt"] = Field(
@@ -466,6 +520,16 @@ class GeneratePosterResponse(_CompatModel):
     # 随机种子与锁定标志
     seed: Optional[int] = Field(None, description="Seed echoed back from the backend.")
     lock_seed: Optional[bool] = Field(None, description="Whether the backend honoured the locked seed request.")
+
+    # Vertex 追踪
+    vertex_trace_ids: list[str] | None = Field(
+        None,
+        description="Trace identifiers recorded during Vertex image generation attempts.",
+    )
+    fallback_used: Optional[bool] = Field(
+        None,
+        description="Indicates whether the backend fell back to non-Vertex image generation.",
+    )
 
     @field_validator("prompt_bundle", mode="before")
     @classmethod

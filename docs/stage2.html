@@ -44,6 +44,34 @@
           <dl id="stage1-overview"></dl>
         </div>
 
+        <div class="layout-preview-wrapper">
+          <!-- Layout Preview (replaces 素材预览) -->
+          <section class="section-card">
+            <header class="section-head">
+              <h3>Layout Preview</h3>
+              <div class="section-actions">
+                <select id="layoutSelect" class="select">
+                  <option value="template_dual">Dual Panel (Hero + Product)</option>
+                  <option value="template_full">Full Hero</option>
+                  <option value="template_grid">Grid x4</option>
+                </select>
+                <button id="refreshLayouts" class="btn ghost" type="button">Refresh</button>
+              </div>
+            </header>
+
+            <div id="layoutGrid" class="layout-grid"></div>
+          </section>
+
+          <div class="poster-preview-panel">
+            <img
+              id="posterPreview"
+              src=""
+              alt="Generated Poster"
+              class="poster-preview-image"
+            />
+          </div>
+        </div>
+
         <div class="template-picker">
           <div class="template-picker-control">
             <label for="template-select">锁版模板</label>
