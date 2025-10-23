@@ -577,7 +577,16 @@ def generate_poster_asset(
     seed: int | None = None,
     lock_seed: bool = False,
 ) -> PosterGenerationResult:
-    """Generate a poster image using locked templates with an OpenAI edit fallback."""
+    """Generate a poster image, preferring Vertex Imagen3 with optional HTTP fallback."""
+    request_trace = uuid.uuid4().hex[:8]
+    logger.info(
+        "generate_poster request received",
+        extra={
+            "request_trace": request_trace,
+            "template": poster.template_id,
+            "variants": variants,
+        },
+    )
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
@@ -625,7 +634,43 @@ def generate_poster_asset(
                 template,
             )
         except Exception:
-            logger.exception("Glibatree request failed, falling back to mock poster")
+            fallback_used = True
+            logger.exception(
+                "Vertex Imagen3 generation failed; falling back",
+                extra={"request_trace": request_trace},
+            )
+
+    if primary is None and settings.glibatree.is_configured:
+        fallback_used = True
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
+        except Exception:
+            logger.exception(
+                "Glibatree request failed, falling back to mock poster",
+                extra={"request_trace": request_trace},
+            )
+
+    if primary is None and not settings.glibatree.is_configured:
+        if vertex_imagen_client is None:
+            logger.warning(
+                "Vertex Imagen3 unavailable and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
+        else:
+            logger.warning(
+                "Vertex Imagen3 failed and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
 
     if primary is None:
         fallback_used = True
@@ -654,7 +699,7 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
-    return PosterGenerationResult(
+    result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
         variants=variant_images,
@@ -664,6 +709,8 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
     )
+
+    return result
 
 
 def _request_glibatree_http(
