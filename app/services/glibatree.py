@@ -691,7 +691,22 @@ def generate_poster_asset(
                 template,
             )
         except Exception:
-            logger.exception("Glibatree request failed, falling back to mock poster")
+            logger.exception(
+                "Glibatree request failed, falling back to mock poster",
+                extra={"request_trace": request_trace},
+            )
+
+    if primary is None and not settings.glibatree.is_configured:
+        if vertex_imagen_client is None:
+            logger.warning(
+                "Vertex Imagen3 unavailable and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
+        else:
+            logger.warning(
+                "Vertex Imagen3 failed and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
 
     if primary is None:
         fallback_used = True
@@ -720,7 +735,7 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
-    return PosterGenerationResult(
+    result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
         variants=variant_images,
@@ -730,6 +745,8 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
     )
+
+    return result
 
 
 def _request_glibatree_http(
