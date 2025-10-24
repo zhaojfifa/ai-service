@@ -45,7 +45,10 @@ def init_vertex() -> None:
         raise RuntimeError("Missing env GCP_PROJECT_ID")
 
     vertexai.init(project=project, location=location)
-    log.info("[vertex.init] project=%s location=%s", project, location)
+    log.info(
+        "vertex.init",
+        extra={"project": project, "location": location},
+    )
 
 
 def _normalise_dimensions(
@@ -120,10 +123,13 @@ class VertexImagenClient:
             inspect.signature(self._model.generate_images).parameters.keys()
         )
         log.info(
-            "[vertex.model] loaded name=%s in %.0fms; params=%s",
-            self.model_name,
-            (time.time() - start) * 1000,
-            sorted(self._generate_params),
+            "vertex.model.loaded",
+            extra={
+                "model": self.model_name,
+                "mode": "generate",
+                "elapsed_ms": round((time.time() - start) * 1000, 2),
+                "params": sorted(self._generate_params),
+            },
         )
 
     def generate_bytes(
@@ -164,15 +170,18 @@ class VertexImagenClient:
         kwargs.update(size_kwargs)
 
         log.info(
-            "[vertex.call>%s] model=%s size=%s mode=%s neg=%s seed=%s guidance=%s len(prompt)=%d",
-            trace_id,
-            self.model_name,
-            size_token,
-            size_mode,
-            bool(negative_prompt),
-            seed is not None,
-            guidance,
-            len(prompt),
+            "vertex.call",
+            extra={
+                "trace": trace_id,
+                "mode": "generate",
+                "model": self.model_name,
+                "size": size_token,
+                "size_mode": size_mode,
+                "negative_prompt": bool(negative_prompt),
+                "guidance": guidance,
+                "seed": seed if "seed" in self._generate_params else None,
+                "prompt_length": len(prompt),
+            },
         )
 
         start = time.time()
@@ -181,27 +190,64 @@ class VertexImagenClient:
             elapsed_ms = (time.time() - start) * 1000
             image_bytes = response.images[0]._image_bytes
             log.info(
-                "[vertex.done>%s] ok bytes=%d time=%.0fms",
-                trace_id,
-                len(image_bytes),
-                elapsed_ms,
+                "vertex.done",
+                extra={
+                    "trace": trace_id,
+                    "mode": "generate",
+                    "model": self.model_name,
+                    "bytes": len(image_bytes),
+                    "elapsed_ms": round(elapsed_ms, 2),
+                },
             )
             if return_trace:
                 return image_bytes, trace_id
             return image_bytes
         except NotFound as exc:
             log.error(
-                "[vertex.err>%s] NOT_FOUND model=%s: %s", trace_id, self.model_name, exc
+                "vertex.error",
+                extra={
+                    "trace": trace_id,
+                    "mode": "generate",
+                    "model": self.model_name,
+                    "error": "not_found",
+                    "message": str(exc),
+                },
             )
             raise
         except PermissionDenied as exc:
-            log.error("[vertex.err>%s] PERMISSION_DENIED: %s", trace_id, exc)
+            log.error(
+                "vertex.error",
+                extra={
+                    "trace": trace_id,
+                    "mode": "generate",
+                    "model": self.model_name,
+                    "error": "permission_denied",
+                    "message": str(exc),
+                },
+            )
             raise
         except GoogleAPICallError as exc:
-            log.error("[vertex.err>%s] API_CALL_ERROR: %s", trace_id, exc)
+            log.error(
+                "vertex.error",
+                extra={
+                    "trace": trace_id,
+                    "mode": "generate",
+                    "model": self.model_name,
+                    "error": "api_call_error",
+                    "message": str(exc),
+                },
+            )
             raise
         except Exception as exc:  # pragma: no cover - diagnostics only
-            log.exception("[vertex.err>%s] UNKNOWN: %s", trace_id, exc)
+            log.exception(
+                "vertex.error",
+                extra={
+                    "trace": trace_id,
+                    "mode": "generate",
+                    "model": self.model_name,
+                    "error": "unknown",
+                },
+            )
             raise
 
 
