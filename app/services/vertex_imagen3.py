@@ -19,6 +19,8 @@ from vertexai.preview.vision_models import (
     Image as VImage,
 )
 
+from app.config import get_settings
+
 from app.services.vertex_imagen import (
     _aspect_from_dims,
     _ensure_credentials_from_b64,
@@ -69,12 +71,37 @@ class VertexImagen3:
         _ensure_credentials_from_b64()
         _ensure_gcp_auth_via_json_env()
 
-        self.project = os.getenv("GCP_PROJECT_ID") or ""
-        self.location = os.getenv("GCP_LOCATION", "us-central1")
-        self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate-001")
+        try:
+            settings = get_settings()
+        except Exception:  # pragma: no cover - defensive
+            settings = None
+
+        self.project = (
+            (settings.gcp.project_id if settings else None)
+            or os.getenv("GCP_PROJECT_ID")
+            or ""
+        )
+        self.location = (
+            (settings.gcp.location if settings else None)
+            or os.getenv("GCP_LOCATION", "us-central1")
+        )
+        self.model_generate = (
+            (settings.vertex.imagen_generate_model if settings else None)
+            or os.getenv("VERTEX_IMAGEN_MODEL_GENERATE")
+            or "imagen-3.0-generate-001"
+        )
+        raw_edit_flag = (
+            os.getenv("VERTEX_ENABLE_EDIT")
+            or os.getenv("VERTEX_IMAGEN_ENABLE_EDIT")
+        )
+        enable_edit_default = settings.vertex.enable_edit if settings else False
+        if raw_edit_flag is None:
+            self.enable_edit = enable_edit_default
+        else:
+            self.enable_edit = raw_edit_flag.strip().lower() in {"1", "true", "yes", "on"}
         self.model_edit_name = os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-edit")
-        self.enable_edit = os.getenv("VERTEX_IMAGEN_ENABLE_EDIT", "").lower() in {"1", "true", "yes"}
-        self.model_edit = self.model_edit_name if self.enable_edit else None
+        self.model_edit: ImageGenerationModel | None = None
+        self._edit_model: ImageGenerationModel | None = None
         self.timeout = int(os.getenv("VERTEX_TIMEOUT_SECONDS", "60") or "60")
         self.safety = os.getenv("VERTEX_SAFETY_FILTER_LEVEL", "block_some")  # block_few|block_some|block_most
         seed_env = os.getenv("VERTEX_SEED", "0")
@@ -86,24 +113,42 @@ class VertexImagen3:
         aiplatform.init(project=self.project, location=self.location)
         vertex_init(project=self.project, location=self.location)
 
+        load_start = time.time()
         self._generate_model = ImageGenerationModel.from_pretrained(self.model_generate)
         self._generate_params = set(
             inspect.signature(self._generate_model.generate_images).parameters.keys()
         )
-        if self.enable_edit:
-            self._edit_model = ImageGenerationModel.from_pretrained(self.model_edit_name)
-            self._edit_params = set(
-                inspect.signature(self._edit_model.edit_image).parameters.keys()
-            )
-        else:
-            self._edit_model = None
-            self._edit_params = set()
-
+        self._edit_params: set[str] = set()
         logger.info(
-            "[vertex3.model] params generate=%s edit=%s enabled=%s",
-            sorted(self._generate_params),
-            sorted(self._edit_params) if self._edit_params else [],
-            self.enable_edit,
+            "vertex.model.loaded",
+            extra={
+                "model": self.model_generate,
+                "mode": "generate",
+                "elapsed_ms": round((time.time() - load_start) * 1000, 2),
+                "params": sorted(self._generate_params),
+                "edit_enabled": self.enable_edit,
+            },
+        )
+
+    def _ensure_edit_model(self) -> None:
+        if not self.enable_edit or self.model_edit is not None:
+            return
+
+        load_start = time.time()
+        self.model_edit = ImageGenerationModel.from_pretrained(self.model_edit_name)
+        self._edit_model = self.model_edit
+        self._edit_params = set(
+            inspect.signature(self.model_edit.edit_image).parameters.keys()
+        )
+        logger.info(
+            "vertex.model.loaded",
+            extra={
+                "model": self.model_edit_name,
+                "mode": "edit",
+                "elapsed_ms": round((time.time() - load_start) * 1000, 2),
+                "params": sorted(self._edit_params),
+                "edit_enabled": self.enable_edit,
+            },
         )
 
     # ---------- 生图 ----------
@@ -145,12 +190,18 @@ class VertexImagen3:
         kwargs.update(size_kwargs)
 
         logger.info(
-            "[vertex3.call>%s] mode=generate size=%s mode=%s neg=%s guidance=%s",
-            trace_id,
-            size_token,
-            size_mode,
-            bool(negative_prompt),
-            guidance,
+            "vertex.call",
+            extra={
+                "trace": trace_id,
+                "mode": "generate",
+                "model": self.model_generate,
+                "size": size_token,
+                "size_mode": size_mode,
+                "negative_prompt": bool(negative_prompt),
+                "guidance": guidance,
+                "seed": self.seed if "seed" in self._generate_params else None,
+                "prompt_length": len(prompt),
+            },
         )
         start = time.time()
         images = self._generate_model.generate_images(
@@ -167,10 +218,14 @@ class VertexImagen3:
 
         elapsed_ms = (time.time() - start) * 1000
         logger.info(
-            "[vertex3.done>%s] mode=generate bytes=%d time=%.0fms",
-            trace_id,
-            len(data),
-            elapsed_ms,
+            "vertex.done",
+            extra={
+                "trace": trace_id,
+                "mode": "generate",
+                "model": self.model_generate,
+                "bytes": len(data),
+                "elapsed_ms": round(elapsed_ms, 2),
+            },
         )
         if return_trace:
             return data, trace_id
@@ -192,10 +247,14 @@ class VertexImagen3:
         guidance: Optional[float] = None,
         return_trace: bool = False,
     ) -> bytes | tuple[bytes, str]:
-        if not self.enable_edit or self._edit_model is None:
+        if not self.enable_edit:
             raise RuntimeError(
-                "Vertex Imagen3 edit support is disabled. Set VERTEX_IMAGEN_ENABLE_EDIT=1 to enable."
+                "Vertex Imagen3 edit support is disabled. Set VERTEX_ENABLE_EDIT=1 to enable."
             )
+
+        self._ensure_edit_model()
+        if self._edit_model is None:
+            raise RuntimeError("Vertex Imagen3 edit model is unavailable")
 
         if not base_image_bytes and base_image_b64:
             base_image_bytes = base64.b64decode(base_image_b64)
@@ -240,12 +299,18 @@ class VertexImagen3:
         kwargs.update(size_kwargs)
 
         logger.info(
-            "[vertex3.call>%s] mode=edit size=%s mode=%s mask=%s guidance=%s",
-            trace_id,
-            size_token,
-            size_mode,
-            bool(vmask),
-            guidance,
+            "vertex.call",
+            extra={
+                "trace": trace_id,
+                "mode": "edit",
+                "model": self.model_edit_name,
+                "size": size_token,
+                "size_mode": size_mode,
+                "mask": bool(vmask),
+                "guidance": guidance,
+                "seed": self.seed if "seed" in self._edit_params else None,
+                "prompt_length": len(prompt),
+            },
         )
         start = time.time()
         images = self._edit_model.edit_image(**kwargs, request_timeout=self.timeout)
@@ -260,10 +325,14 @@ class VertexImagen3:
 
         elapsed_ms = (time.time() - start) * 1000
         logger.info(
-            "[vertex3.done>%s] mode=edit bytes=%d time=%.0fms",
-            trace_id,
-            len(data),
-            elapsed_ms,
+            "vertex.done",
+            extra={
+                "trace": trace_id,
+                "mode": "edit",
+                "model": self.model_edit_name,
+                "bytes": len(data),
+                "elapsed_ms": round(elapsed_ms, 2),
+            },
         )
         if return_trace:
             return data, trace_id
