@@ -93,6 +93,24 @@ class VertexConfig:
 
 
 @dataclass
+class GuardConfig:
+    max_body_bytes: int
+    disallow_base64: bool
+
+    @classmethod
+    def from_env(cls) -> "GuardConfig":
+        raw_max = os.getenv("UPLOAD_MAX_BYTES", "4194304")
+        try:
+            max_bytes = max(int(raw_max), 0)
+        except (TypeError, ValueError):
+            max_bytes = 4 * 1024 * 1024
+
+        disallow_raw = os.getenv("DISALLOW_BASE64_IN_JSON", "true")
+        disallow = str(disallow_raw).strip().lower() in {"1", "true", "yes", "on"}
+        return cls(max_body_bytes=max_bytes, disallow_base64=disallow)
+
+
+@dataclass
 class OpenAIConfig:
     api_key: str | None = None
     base_url: str | None = None
@@ -133,6 +151,7 @@ class Settings:
     email: EmailConfig
     gcp: GCPConfig
     vertex: VertexConfig
+    guard: GuardConfig
     glibatree: GlibatreeConfig
     openai: OpenAIConfig
     s3_endpoint: str | None
@@ -202,6 +221,8 @@ def get_settings() -> Settings:
         or "imagen-3.0-generate-001",
     )
 
+    guard = GuardConfig.from_env()
+
     openai_cfg = OpenAIConfig(
         api_key=_get("OPENAI_API_KEY"),
         base_url=_get("OPENAI_BASE_URL"),
@@ -215,6 +236,7 @@ def get_settings() -> Settings:
         email=email,
         gcp=gcp,
         vertex=vertex,
+        guard=guard,
         glibatree=glibatree,
         openai=openai_cfg,
         s3_endpoint=_get("S3_ENDPOINT"),
