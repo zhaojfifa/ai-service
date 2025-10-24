@@ -1,11 +1,12 @@
 """Backward compatible wrapper for legacy imports.
 
-The new Cloudflare R2 helpers live in :mod:`app.services.s3_client`.
-This module simply re-exports ``put_bytes`` so existing imports keep working.
+The Cloudflare R2 helpers now live in :mod:`app.services.r2_client`.  This
+module continues to expose ``put_bytes`` for older call-sites that still import
+from ``app.services.storage_r2``.
 """
 
 from __future__ import annotations
 
-from app.services.s3_client import put_bytes
+from app.services.r2_client import put_bytes
 
 __all__ = ["put_bytes"]
