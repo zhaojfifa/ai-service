@@ -56,6 +56,138 @@ def _configure_logging() -> logging.Logger:
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+app.add_middleware(RejectHugeOrBase64)
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
+
+body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
+try:
+    body_guard_bytes = max(int(body_guard_limit), 0)
+except (TypeError, ValueError):  # pragma: no cover - defensive parsing
+    body_guard_bytes = 200_000
+
+app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
+
+body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
+try:
+    body_guard_bytes = max(int(body_guard_limit), 0)
+except (TypeError, ValueError):  # pragma: no cover - defensive parsing
+    body_guard_bytes = 200_000
+
+app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
+logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
 
 body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
 try:
