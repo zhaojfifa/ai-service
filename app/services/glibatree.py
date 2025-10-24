@@ -100,6 +100,49 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def _shorten_asset_value(value: str) -> str:
+    text = value.strip()
+    if len(text) <= 64:
+        return text
+    return f"{text[:32]}…{text[-16:]}"
+
+
+def _poster_asset_summary(poster: PosterInput) -> dict[str, Any]:
+    keys: list[str] = []
+    urls: list[str] = []
+
+    def _record(candidate: str | None) -> None:
+        if not candidate:
+            return
+        trimmed = candidate.strip()
+        if not trimmed:
+            return
+        if trimmed.lower().startswith("http"):
+            urls.append(_shorten_asset_value(trimmed))
+        else:
+            keys.append(_shorten_asset_value(trimmed))
+
+    _record(getattr(poster, "brand_logo", None))
+    _record(getattr(poster, "scenario_asset", None))
+    _record(getattr(poster, "product_asset", None))
+    _record(getattr(poster, "scenario_key", None))
+    _record(getattr(poster, "product_key", None))
+
+    for item in getattr(poster, "gallery_items", []) or []:
+        if isinstance(item, PosterGalleryItem):
+            _record(getattr(item, "key", None))
+            _record(getattr(item, "asset", None))
+        elif isinstance(item, dict):
+            _record(str(item.get("key")) if item.get("key") else None)
+            _record(str(item.get("asset")) if item.get("asset") else None)
+
+    return {
+        "keys": keys[:8],
+        "urls": urls[:3],
+        "count": len(keys) + len(urls),
+    }
+
+
 def _generate_poster_with_vertex(
     client: VertexImagen3,
     poster: PosterInput,
@@ -108,6 +151,7 @@ def _generate_poster_with_vertex(
     template: TemplateResources,
     *,
     prompt_details: dict[str, str] | None = None,
+    trace_id: str | None = None,
 ) -> tuple[PosterImage, dict[str, Any]]:
     width_default, height_default = _template_dimensions(template, locked_frame)
 
@@ -130,7 +174,7 @@ def _generate_poster_with_vertex(
     region_rect = getattr(poster, "region_rect", None)
 
     should_edit = bool(base_image_b64 or mask_b64 or region_rect)
-    request_trace = uuid.uuid4().hex[:8]
+    request_trace = trace_id or uuid.uuid4().hex[:8]
     telemetry: dict[str, Any] = {
         "request_trace": request_trace,
         "mode": "edit" if should_edit else "generate",
@@ -578,6 +622,7 @@ def generate_poster_asset(
     variants: int = 1,
     seed: int | None = None,
     lock_seed: bool = False,
+    trace_id: str | None = None,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
     _assert_assets_use_r2(poster)
@@ -597,6 +642,20 @@ def generate_poster_asset(
     vertex_traces: list[str] = []
     fallback_used = vertex_imagen_client is None
 
+    logger.info(
+        "poster.asset.start",
+        extra={
+            "trace": trace_id,
+            "template": template.id,
+            "scenario_mode": getattr(poster, "scenario_mode", None),
+            "product_mode": getattr(poster, "product_mode", None),
+            "variants": variants,
+            "seed": seed,
+            "lock_seed": lock_seed,
+            "asset_summary": _poster_asset_summary(poster),
+        },
+    )
+
     if vertex_imagen_client is not None:
         try:
             primary, telemetry = _generate_poster_with_vertex(
@@ -606,13 +665,17 @@ def generate_poster_asset(
                 locked_frame,
                 template,
                 prompt_details=prompt_details,
+                trace_id=trace_id,
             )
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
         except Exception:
             fallback_used = True
-            logger.exception("Vertex Imagen3 generation failed; falling back")
+            logger.exception(
+                "Vertex Imagen3 generation failed; falling back",
+                extra={"trace": trace_id},
+            )
 
     if (
         primary is None
@@ -624,64 +687,7 @@ def generate_poster_asset(
             logger.debug(
                 "Requesting Glibatree asset via HTTP endpoint %s",
                 settings.glibatree.api_url,
-            )
-            primary = _request_glibatree_http(
-                settings.glibatree.api_url or "",
-                settings.glibatree.api_key or "",
-                prompt,
-                locked_frame,
-                template,
-            )
-        except Exception:
-            fallback_used = True
-            logger.exception("Vertex Imagen3 generation failed; falling back")
-
-    if (
-        primary is None
-        and settings.glibatree.is_configured
-        and settings.glibatree.api_url
-    ):
-        fallback_used = True
-        try:
-            logger.debug(
-                "Requesting Glibatree asset via HTTP endpoint %s",
-                settings.glibatree.api_url,
-            )
-            primary = _request_glibatree_http(
-                settings.glibatree.api_url or "",
-                settings.glibatree.api_key or "",
-                prompt,
-                locked_frame,
-                template,
-            )
-        except Exception:
-            fallback_used = True
-            logger.exception("Vertex Imagen3 generation failed; falling back")
-
-    if primary is None and settings.glibatree.is_configured:
-        fallback_used = True
-        try:
-            logger.debug(
-                "Requesting Glibatree asset via HTTP endpoint %s",
-                settings.glibatree.api_url,
-            )
-            primary = _request_glibatree_http(
-                settings.glibatree.api_url or "",
-                settings.glibatree.api_key or "",
-                prompt,
-                locked_frame,
-                template,
-            )
-        except Exception:
-            fallback_used = True
-            logger.exception("Vertex Imagen3 generation failed; falling back")
-
-    if primary is None and settings.glibatree.is_configured:
-        fallback_used = True
-        try:
-            logger.debug(
-                "Requesting Glibatree asset via HTTP endpoint %s",
-                settings.glibatree.api_url,
+                extra={"trace": trace_id},
             )
             primary = _request_glibatree_http(
                 settings.glibatree.api_url or "",
@@ -693,30 +699,24 @@ def generate_poster_asset(
         except Exception:
             logger.exception(
                 "Glibatree request failed, falling back to mock poster",
-                extra={"request_trace": request_trace},
-            )
-
-    if primary is None and not settings.glibatree.is_configured:
-        if vertex_imagen_client is None:
-            logger.warning(
-                "Vertex Imagen3 unavailable and no fallback configured; using mock",
-                extra={"request_trace": request_trace},
-            )
-        else:
-            logger.warning(
-                "Vertex Imagen3 failed and no fallback configured; using mock",
-                extra={"request_trace": request_trace},
+                extra={"trace": trace_id},
             )
 
     if primary is None:
         fallback_used = True
         if override_primary is not None:
-            logger.debug("Using uploaded template poster override for primary result")
+            logger.debug(
+                "Using uploaded template poster override for primary result",
+                extra={"trace": trace_id},
+            )
             primary = override_primary
             variant_images = list(override_variants)
             used_override_primary = True
         else:
-            logger.debug("Falling back to local template renderer")
+            logger.debug(
+                "Falling back to local template renderer",
+                extra={"trace": trace_id},
+            )
             mock_frame = _render_template_frame(poster, template, fill_background=True)
             primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
 

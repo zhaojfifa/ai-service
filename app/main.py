@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -23,7 +24,7 @@ from app.schemas import (
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
 )
-from app.middlewares.body_guard import RejectHugeOrBase64
+from app.middleware.body_limit import BodyGuardMiddleware
 from app.services.email_sender import send_email
 from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
 from app.services.poster import (
@@ -56,6 +57,52 @@ logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 app.add_middleware(RejectHugeOrBase64)
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
+
+body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
+try:
+    body_guard_bytes = max(int(body_guard_limit), 0)
+except (TypeError, ValueError):  # pragma: no cover - defensive parsing
+    body_guard_bytes = 200_000
+
+app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
 
 imagen_endpoint_client: VertexImagen | None = None
 vertex_poster_client: VertexImagen3 | None = None
@@ -345,6 +392,81 @@ def _summarise_poster(poster: Any) -> dict[str, Any]:
     }
 
 
+def _shorten_asset_value(value: str) -> str:
+    text = value.strip()
+    if len(text) <= 64:
+        return text
+    return f"{text[:32]}…{text[-16:]}"
+
+
+def _summarise_assets(payload: Any) -> dict[str, Any]:
+    keys: list[str] = []
+    urls: list[str] = []
+
+    def _record(candidate: Any) -> None:
+        if candidate is None:
+            return
+        if isinstance(candidate, str):
+            trimmed = candidate.strip()
+            if not trimmed:
+                return
+            if trimmed.lower().startswith("http"):
+                urls.append(_shorten_asset_value(trimmed))
+            else:
+                keys.append(_shorten_asset_value(trimmed))
+            return
+        if isinstance(candidate, dict):
+            _record(candidate.get("key"))
+            _record(candidate.get("url"))
+            _record(candidate.get("asset"))
+            return
+        if hasattr(candidate, "key"):
+            _record(getattr(candidate, "key"))
+        if hasattr(candidate, "url"):
+            _record(getattr(candidate, "url"))
+        if hasattr(candidate, "asset"):
+            _record(getattr(candidate, "asset"))
+
+    source = payload
+    if hasattr(payload, "model_dump"):
+        try:
+            source = payload.model_dump(exclude_none=True)
+        except TypeError:  # pragma: no cover - defensive fallback
+            source = payload.model_dump()
+    elif hasattr(payload, "dict"):
+        source = payload.dict(exclude_none=True)
+
+    if isinstance(source, dict):
+        for key in (
+            "brand_logo",
+            "logo",
+            "scenario_asset",
+            "product_asset",
+            "scenario_key",
+            "product_key",
+            "scenario_image",
+            "product_image",
+        ):
+            _record(source.get(key))
+        gallery_candidates = source.get("gallery_items") or source.get("gallery") or []
+        for entry in gallery_candidates:
+            _record(entry)
+
+    return {
+        "keys": keys[:8],
+        "urls": urls[:3],
+        "count": len(keys) + len(urls),
+    }
+
+
+def _ensure_trace_id(request: Request) -> str:
+    trace = getattr(request.state, "trace_id", None)
+    if not trace:
+        trace = uuid.uuid4().hex[:8]
+        request.state.trace_id = trace
+    return trace
+
+
 async def read_json_relaxed(request: Request) -> dict:
     try:
         payload = await request.json()
@@ -431,34 +553,54 @@ def fetch_template_posters() -> TemplatePosterCollection:
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 async def generate_poster(request: Request) -> JSONResponse:
+    trace = _ensure_trace_id(request)
+    guard_info = getattr(request.state, "guard_info", {})
+    content_length = request.headers.get("content-length")
+
     try:
         raw_payload = await read_json_relaxed(request)
+        raw_assets = _summarise_assets(raw_payload.get("poster", {})) if isinstance(raw_payload, dict) else {}
         logger.info(
-            "generate_poster request received: %s",
-            _preview_json(raw_payload, limit=768),
+            "generate_poster request received",
+            extra={
+                "trace": trace,
+                "content_length": content_length,
+                "body_bytes": guard_info.get("bytes"),
+                "body_has_base64": guard_info.get("has_base64"),
+                "asset_summary": raw_assets,
+            },
         )
         payload = _model_validate(GeneratePosterRequest, raw_payload)
     except ValidationError as exc:
-        logger.warning("generate_poster validation error: %s", exc.errors())
+        logger.warning(
+            "generate_poster validation error",
+            extra={"trace": trace, "errors": exc.errors()},
+        )
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("generate_poster payload parsing failed")
+        logger.exception(
+            "generate_poster payload parsing failed",
+            extra={"trace": trace},
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
+        poster = payload.poster
+        normalised_assets = _summarise_assets(poster)
         logger.info(
-            "generate_poster normalised payload: %s",
-            {
-                "poster": _summarise_poster(payload.poster),
+            "generate_poster normalised payload",
+            extra={
+                "trace": trace,
+                "poster": _summarise_poster(poster),
                 "variants": payload.variants,
                 "seed": payload.seed,
                 "lock_seed": payload.lock_seed,
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
+                "asset_summary": normalised_assets,
             },
         )
-        poster = payload.poster
         preview = render_layout_preview(poster)
         prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
@@ -476,6 +618,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             variants=payload.variants,
             seed=payload.seed,
             lock_seed=payload.lock_seed,
+            trace_id=trace,
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
@@ -504,8 +647,9 @@ async def generate_poster(request: Request) -> JSONResponse:
                     response_bundle = PromptBundle(**converted)
 
         logger.info(
-            "generate_poster completed: %s",
-            {
+            "generate_poster completed",
+            extra={
+                "trace": trace,
                 "response": {
                     "poster_filename": getattr(result.poster, "filename", None),
                     "variant_count": len(result.variants or []),
@@ -539,10 +683,11 @@ async def generate_poster(request: Request) -> JSONResponse:
             headers["X-Vertex-Trace"] = ",".join(result.trace_ids)
         if result.fallback_used:
             headers["X-Vertex-Fallback"] = "1"
+        headers["X-Request-Trace"] = trace
         return JSONResponse(content=_model_dump(response_payload), headers=headers)
 
     except Exception as exc:  # defensive logging
-        logger.exception("Failed to generate poster")
+        logger.exception("Failed to generate poster", extra={"trace": trace})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
