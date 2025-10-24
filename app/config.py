@@ -90,6 +90,43 @@ class GCPConfig:
 @dataclass
 class VertexConfig:
     imagen_generate_model: str = "imagen-3.0-generate-001"
+    enable_edit: bool = False
+
+
+@dataclass
+class GuardConfig:
+    max_body_bytes: int
+    disallow_base64: bool
+
+    @property
+    def allow_base64(self) -> bool:
+        """Legacy helper to keep previous attribute access working."""
+
+        return not self.disallow_base64
+
+    @property
+    def check_base64(self) -> bool:
+        """Return whether inline base64 should be rejected."""
+
+        return self.disallow_base64
+
+    @classmethod
+    def from_env(cls) -> "GuardConfig":
+        raw_max = os.getenv("UPLOAD_MAX_BYTES", "4194304")
+        try:
+            max_bytes = max(int(raw_max), 0)
+        except (TypeError, ValueError):
+            max_bytes = 4 * 1024 * 1024
+
+        allow_raw = os.getenv("ALLOW_BASE64_UPLOADS")
+        if allow_raw is not None:
+            disallow_base64 = not _as_bool(allow_raw, False)
+        else:
+            # Backwards compatibility with DISALLOW_BASE64_IN_JSON
+            disallow_raw = os.getenv("DISALLOW_BASE64_IN_JSON", "true")
+            disallow_base64 = _as_bool(disallow_raw, True)
+
+        return cls(max_body_bytes=max_bytes, disallow_base64=disallow_base64)
 
 
 @dataclass
@@ -133,6 +170,7 @@ class Settings:
     email: EmailConfig
     gcp: GCPConfig
     vertex: VertexConfig
+    guard: GuardConfig
     glibatree: GlibatreeConfig
     openai: OpenAIConfig
     s3_endpoint: str | None
@@ -200,7 +238,14 @@ def get_settings() -> Settings:
     vertex = VertexConfig(
         imagen_generate_model=_get("VERTEX_IMAGEN_GENERATE_MODEL", "imagen-3.0-generate-001")
         or "imagen-3.0-generate-001",
+        enable_edit=_as_bool(
+            _get("VERTEX_ENABLE_EDIT")
+            or _get("VERTEX_IMAGEN_ENABLE_EDIT"),
+            False,
+        ),
     )
+
+    guard = GuardConfig.from_env()
 
     openai_cfg = OpenAIConfig(
         api_key=_get("OPENAI_API_KEY"),
@@ -215,6 +260,7 @@ def get_settings() -> Settings:
         email=email,
         gcp=gcp,
         vertex=vertex,
+        guard=guard,
         glibatree=glibatree,
         openai=openai_cfg,
         s3_endpoint=_get("S3_ENDPOINT"),
