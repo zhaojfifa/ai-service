@@ -57,18 +57,17 @@ logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
-app.add_middleware(
-    RejectHugeOrBase64,
-    max_bytes=settings.guard.max_body_bytes,
-    allow_base64=settings.guard.allow_base64,
-)
-logger.info(
-    "Request guard configured",
-    extra={
-        "max_body_bytes": settings.guard.max_body_bytes,
-        "allow_base64": settings.guard.allow_base64,
-    },
-)
+try:
+    from app.middlewares.huge_or_b64_guard import RejectHugeOrBase64
+
+    app.add_middleware(
+        RejectHugeOrBase64,
+        max_bytes=settings.guard.max_body_bytes,
+        check_base64=settings.guard.check_base64,
+    )
+    print("[guard] RejectHugeOrBase64 enabled")
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    print(f"[guard] disabled (import/add failed): {exc}")
 
 imagen_endpoint_client: VertexImagen | None = None
 vertex_poster_client: VertexImagen3 | None = None
@@ -181,7 +180,7 @@ def _health_payload(verbose: bool) -> dict[str, Any]:
         payload.update(
             guard={
                 "max_body_bytes": settings.guard.max_body_bytes,
-                "allow_base64": settings.guard.allow_base64,
+                "disallow_base64": settings.guard.disallow_base64,
             },
             cors={
                 "allow_credentials": cors_allow_credentials,

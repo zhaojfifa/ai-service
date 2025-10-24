@@ -96,7 +96,19 @@ class VertexConfig:
 @dataclass
 class GuardConfig:
     max_body_bytes: int
-    allow_base64: bool
+    disallow_base64: bool
+
+    @property
+    def allow_base64(self) -> bool:
+        """Legacy helper to keep previous attribute access working."""
+
+        return not self.disallow_base64
+
+    @property
+    def check_base64(self) -> bool:
+        """Return whether inline base64 should be rejected."""
+
+        return self.disallow_base64
 
     @classmethod
     def from_env(cls) -> "GuardConfig":
@@ -108,31 +120,13 @@ class GuardConfig:
 
         allow_raw = os.getenv("ALLOW_BASE64_UPLOADS")
         if allow_raw is not None:
-            allow_base64 = _as_bool(allow_raw, False)
+            disallow_base64 = not _as_bool(allow_raw, False)
         else:
             # Backwards compatibility with DISALLOW_BASE64_IN_JSON
             disallow_raw = os.getenv("DISALLOW_BASE64_IN_JSON", "true")
-            allow_base64 = not _as_bool(disallow_raw, True)
+            disallow_base64 = _as_bool(disallow_raw, True)
 
-        return cls(max_body_bytes=max_bytes, allow_base64=allow_base64)
-
-
-@dataclass
-class GuardConfig:
-    max_body_bytes: int
-    disallow_base64: bool
-
-    @classmethod
-    def from_env(cls) -> "GuardConfig":
-        raw_max = os.getenv("UPLOAD_MAX_BYTES", "4194304")
-        try:
-            max_bytes = max(int(raw_max), 0)
-        except (TypeError, ValueError):
-            max_bytes = 4 * 1024 * 1024
-
-        disallow_raw = os.getenv("DISALLOW_BASE64_IN_JSON", "true")
-        disallow = str(disallow_raw).strip().lower() in {"1", "true", "yes", "on"}
-        return cls(max_body_bytes=max_bytes, disallow_base64=disallow)
+        return cls(max_body_bytes=max_bytes, disallow_base64=disallow_base64)
 
 
 @dataclass
