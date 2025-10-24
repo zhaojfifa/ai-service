@@ -959,11 +959,28 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
     digest = hashlib.sha1(image_bytes).hexdigest()[:10]
     key = f"posters/{timestamp}-{digest}-{slug}"
 
+    upload_start = time.time()
     url = put_bytes(key, image_bytes, content_type="image/png")
+    elapsed_ms = round((time.time() - upload_start) * 1000, 2)
     if url:
-        logger.info("R2 upload ok key=%s url=%s", key, url)
+        logger.info(
+            "poster.r2.upload",
+            extra={
+                "key": key,
+                "bytes": len(image_bytes),
+                "elapsed_ms": elapsed_ms,
+                "url": url,
+            },
+        )
     else:
-        logger.warning("R2 upload failed; will return data_url instead (key=%s)", key)
+        logger.warning(
+            "poster.r2.upload.failed",
+            extra={
+                "key": key,
+                "bytes": len(image_bytes),
+                "elapsed_ms": elapsed_ms,
+            },
+        )
 
     data_url: str | None = None
     if not url:
@@ -1174,7 +1191,8 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     settings = get_settings()
     config = settings.glibatree
 
-    if not config.use_openai_client or not (config.api_key and config.api_url):
+    if vertex_imagen_client is None:
+        logger.debug("Vertex Imagen3 unavailable; skip prompt asset generation")
         return poster
 
     updates: dict[str, Any] = {}
