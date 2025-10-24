@@ -6,7 +6,7 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, ValidationError
@@ -60,13 +60,13 @@ app = FastAPI(title="Marketing Poster API", version="1.0.0")
 app.add_middleware(
     RejectHugeOrBase64,
     max_bytes=settings.guard.max_body_bytes,
-    check_base64=settings.guard.disallow_base64,
+    allow_base64=settings.guard.allow_base64,
 )
 logger.info(
     "Request guard configured",
     extra={
         "max_body_bytes": settings.guard.max_body_bytes,
-        "disallow_base64": settings.guard.disallow_base64,
+        "allow_base64": settings.guard.allow_base64,
     },
 )
 
@@ -175,14 +175,34 @@ async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised
     return Response(status_code=204)
 
 # ✅ 健康检查
+def _health_payload(verbose: bool) -> dict[str, Any]:
+    payload: dict[str, Any] = {"ok": True}
+    if verbose:
+        payload.update(
+            guard={
+                "max_body_bytes": settings.guard.max_body_bytes,
+                "allow_base64": settings.guard.allow_base64,
+            },
+            cors={
+                "allow_credentials": cors_allow_credentials,
+                "origins": cors_allow_origins,
+            },
+        )
+    return payload
+
+
 @app.get("/healthz")
-def healthz() -> dict[str, bool]:
-    return {"ok": True}
+def healthz(verbose: bool = Query(False, description="Return guard and CORS details.")) -> dict[str, Any]:
+    return _health_payload(verbose)
 
 
 @app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
+def health_check(verbose: bool = Query(False)) -> dict[str, Any]:
+    payload = _health_payload(verbose)
+    payload["status"] = "ok"
+    if not verbose:
+        payload.pop("ok", None)
+    return payload
 
 
 @app.get("/debug/vertex/ping")
