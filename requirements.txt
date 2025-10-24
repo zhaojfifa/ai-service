@@ -13,9 +13,12 @@ requests==2.32.3
 email-validator==2.2.0
 python-multipart==0.0.9
 Pillow==10.4.0
+google-cloud-aiplatform>=1.115.0,<2.0.0
+google-auth>=2.33.0
+google-auth-oauthlib>=1.2.1
 
 # 如果你使用官方 SDK 走 OpenAI 路线（而不是自己 requests 调接口），保留它
 openai>=1.40.0,<2
 boto3>=1.35.0        # ← 你接入 R2 需要它（别忘了加）
-httpx>=0.27.0,<1
+httpx==0.27.2
 

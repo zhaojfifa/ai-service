@@ -34,6 +34,12 @@ class _CompatModel(BaseModel):
             extra = "ignore"
 
 
+def _reject_data_uri(value: str | None) -> str | None:
+    if value and value.strip().lower().startswith("data:image"):
+        raise ValueError("Base64 images are not allowed. Upload to R2 first.")
+    return value
+
+
 class PosterGalleryItem(_CompatModel):
     """Represents a single gallery thumbnail and its optional metadata."""
 
@@ -43,7 +49,7 @@ class PosterGalleryItem(_CompatModel):
     )
     asset: Optional[str] = Field(
         None,
-        description="Data URL of the uploaded gallery image before processing.",
+        description="Reference to an uploaded gallery image (key or URL).",
     )
     key: Optional[str] = Field(
         None,
@@ -57,6 +63,11 @@ class PosterGalleryItem(_CompatModel):
         None,
         description="Optional text prompt when the gallery item is AI generated.",
     )
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def _validate_asset(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 
 class PosterInput(_CompatModel):
@@ -84,15 +95,15 @@ class PosterInput(_CompatModel):
 
     brand_logo: Optional[str] = Field(
         None,
-        description="Optional data URL for the brand logo shown in the top banner.",
+        description="Optional reference to the brand logo stored in R2.",
     )
     scenario_asset: Optional[str] = Field(
         None,
-        description="Optional data URL for the scenario image displayed in the hero column.",
+        description="Optional reference to the scenario image stored in R2.",
     )
     product_asset: Optional[str] = Field(
         None,
-        description="Optional data URL for the primary product render shown on the poster.",
+        description="Optional reference to the product render stored in R2.",
     )
     scenario_key: Optional[str] = Field(
         None,
@@ -127,6 +138,46 @@ class PosterInput(_CompatModel):
         description="Whether the template allows uploading gallery assets.",
     )
 
+    size: Optional[str] = Field(
+        None,
+        description="Optional image size hint (e.g. 1024x1024) forwarded to Imagen3.",
+    )
+    width: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Explicit width in pixels for Imagen3 requests.",
+    )
+    height: Optional[int] = Field(
+        None,
+        gt=0,
+        description="Explicit height in pixels for Imagen3 requests.",
+    )
+    aspect_ratio: Optional[str] = Field(
+        None,
+        description="Optional aspect ratio string forwarded to Imagen3.",
+    )
+    negative_prompt: Optional[str] = Field(
+        None,
+        description="Optional negative prompt to steer Imagen3 generations.",
+    )
+    guidance: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Optional Imagen3 guidance scale value.",
+    )
+    base_image_b64: Optional[str] = Field(
+        None,
+        description="Base image (base64) used when performing Imagen3 edits.",
+    )
+    mask_b64: Optional[str] = Field(
+        None,
+        description="Mask image (base64) where white regions will be edited by Imagen3.",
+    )
+    region_rect: Optional[dict[str, int]] = Field(
+        None,
+        description="Rectangular edit region for Imagen3 inpainting (keys: x,y,width,height).",
+    )
+
     scenario_mode: Literal["upload", "prompt"] = Field(
         "upload",
         description="How the scenario asset should be sourced (upload or prompt).",
@@ -143,6 +194,11 @@ class PosterInput(_CompatModel):
         None,
         description="Prompt text used when generating the product asset via AI.",
     )
+
+    @field_validator("brand_logo", "scenario_asset", "product_asset", mode="before")
+    @classmethod
+    def _validate_inline_assets(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 
 class PosterImage(_CompatModel):
@@ -466,6 +522,16 @@ class GeneratePosterResponse(_CompatModel):
     # 随机种子与锁定标志
     seed: Optional[int] = Field(None, description="Seed echoed back from the backend.")
     lock_seed: Optional[bool] = Field(None, description="Whether the backend honoured the locked seed request.")
+
+    # Vertex 追踪
+    vertex_trace_ids: list[str] | None = Field(
+        None,
+        description="Trace identifiers recorded during Vertex image generation attempts.",
+    )
+    fallback_used: Optional[bool] = Field(
+        None,
+        description="Indicates whether the backend fell back to non-Vertex image generation.",
+    )
 
     @field_validator("prompt_bundle", mode="before")
     @classmethod
