@@ -17,6 +17,8 @@ from typing import Any, Optional, Tuple
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
+from fastapi import HTTPException
+
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
@@ -578,6 +580,8 @@ def generate_poster_asset(
     lock_seed: bool = False,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
+    _assert_assets_use_r2(poster)
+
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
@@ -629,7 +633,80 @@ def generate_poster_asset(
                 template,
             )
         except Exception:
-            logger.exception("Glibatree request failed, falling back to mock poster")
+            fallback_used = True
+            logger.exception("Vertex Imagen3 generation failed; falling back")
+
+    if (
+        primary is None
+        and settings.glibatree.is_configured
+        and settings.glibatree.api_url
+    ):
+        fallback_used = True
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
+        except Exception:
+            fallback_used = True
+            logger.exception("Vertex Imagen3 generation failed; falling back")
+
+    if primary is None and settings.glibatree.is_configured:
+        fallback_used = True
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
+        except Exception:
+            fallback_used = True
+            logger.exception("Vertex Imagen3 generation failed; falling back")
+
+    if primary is None and settings.glibatree.is_configured:
+        fallback_used = True
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
+        except Exception:
+            logger.exception(
+                "Glibatree request failed, falling back to mock poster",
+                extra={"request_trace": request_trace},
+            )
+
+    if primary is None and not settings.glibatree.is_configured:
+        if vertex_imagen_client is None:
+            logger.warning(
+                "Vertex Imagen3 unavailable and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
+        else:
+            logger.warning(
+                "Vertex Imagen3 failed and no fallback configured; using mock",
+                extra={"request_trace": request_trace},
+            )
 
     if primary is None:
         fallback_used = True
@@ -658,7 +735,7 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
-    return PosterGenerationResult(
+    result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
         variants=variant_images,
@@ -668,6 +745,8 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
     )
+
+    return result
 
 
 def _request_glibatree_http(
