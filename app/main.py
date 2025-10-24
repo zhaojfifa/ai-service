@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
+from app.middlewares.huge_or_b64_guard import RejectHugeOrBase64
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
