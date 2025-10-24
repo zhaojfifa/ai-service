@@ -17,6 +17,8 @@ from typing import Any, Optional, Tuple
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
+from fastapi import HTTPException
+
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
@@ -623,6 +625,8 @@ def generate_poster_asset(
     trace_id: str | None = None,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
+    _assert_assets_use_r2(poster)
+
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
@@ -731,7 +735,7 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
-    return PosterGenerationResult(
+    result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
         variants=variant_images,
@@ -741,6 +745,8 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
     )
+
+    return result
 
 
 def _request_glibatree_http(
