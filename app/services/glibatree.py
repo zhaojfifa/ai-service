@@ -614,6 +614,28 @@ def generate_poster_asset(
             fallback_used = True
             logger.exception("Vertex Imagen3 generation failed; falling back")
 
+    if (
+        primary is None
+        and settings.glibatree.is_configured
+        and settings.glibatree.api_url
+    ):
+        fallback_used = True
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
+        except Exception:
+            fallback_used = True
+            logger.exception("Vertex Imagen3 generation failed; falling back")
+
     if primary is None and settings.glibatree.is_configured:
         fallback_used = True
         try:
@@ -807,6 +829,8 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
 def _load_image_from_key(key: str | None) -> Image.Image | None:
     if not key:
         return None
+    if key.startswith("r2://"):
+        key = key[5:]
     try:
         payload = get_bytes(key)
     except Exception as exc:
@@ -820,11 +844,42 @@ def _load_image_from_key(key: str | None) -> Image.Image | None:
         return None
 
 
-def _load_image_asset(data_url: str | None, key: str | None) -> Image.Image | None:
+def _load_image_from_url(url: str) -> Image.Image | None:
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+    except Exception as exc:
+        logger.warning("Failed to download asset %s: %s", url, exc)
+        return None
+
+    try:
+        return Image.open(BytesIO(response.content)).convert("RGBA")
+    except Exception as exc:
+        logger.warning("Downloaded asset %s is not a valid image: %s", url, exc)
+        return None
+
+
+def _load_image_asset(source: str | None, key: str | None) -> Image.Image | None:
     image = _load_image_from_key(key)
     if image is not None:
         return image
-    return _load_image_from_data_url(data_url)
+
+    if not source:
+        return None
+
+    if not isinstance(source, str):
+        return None
+
+    token = source.strip()
+    if token.startswith("r2://"):
+        return _load_image_from_key(token)
+    if token.lower().startswith("data:image"):
+        logger.warning("Ignoring inline data URL asset; upload to R2 first")
+        return None
+    if token.lower().startswith("http://") or token.lower().startswith("https://"):
+        return _load_image_from_url(token)
+
+    return None
 
 
 try:
@@ -1097,7 +1152,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     settings = get_settings()
     config = settings.glibatree
 
-    if not config.use_openai_client or not config.api_key:
+    if not config.use_openai_client or not (config.api_key and config.api_url):
         return poster
 
     updates: dict[str, Any] = {}

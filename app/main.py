@@ -23,6 +23,7 @@ from app.schemas import (
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
 )
+from app.middlewares.body_guard import RejectHugeOrBase64
 from app.services.email_sender import send_email
 from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
 from app.services.poster import (
@@ -30,7 +31,7 @@ from app.services.poster import (
     compose_marketing_email,
     render_layout_preview,
 )
-from app.services.s3_client import make_key, presigned_put_url, public_url_for
+from app.services.r2_client import make_key, presign_put_url, public_url_for
 from app.services.template_variants import (
     list_poster_entries,
     poster_entry_from_record,
@@ -54,6 +55,45 @@ def _configure_logging() -> logging.Logger:
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+app.add_middleware(RejectHugeOrBase64)
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
 
 imagen_endpoint_client: VertexImagen | None = None
 vertex_poster_client: VertexImagen3 | None = None
@@ -365,7 +405,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 
     try:
         key = make_key(request.folder, request.filename)
-        put_url = presigned_put_url(key, request.content_type)
+        put_url = presign_put_url(key, request.content_type)
     except RuntimeError as exc:  # pragma: no cover - configuration issue
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

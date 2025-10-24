@@ -34,6 +34,12 @@ class _CompatModel(BaseModel):
             extra = "ignore"
 
 
+def _reject_data_uri(value: str | None) -> str | None:
+    if value and value.strip().lower().startswith("data:image"):
+        raise ValueError("Base64 images are not allowed. Upload to R2 first.")
+    return value
+
+
 class PosterGalleryItem(_CompatModel):
     """Represents a single gallery thumbnail and its optional metadata."""
 
@@ -43,7 +49,7 @@ class PosterGalleryItem(_CompatModel):
     )
     asset: Optional[str] = Field(
         None,
-        description="Data URL of the uploaded gallery image before processing.",
+        description="Reference to an uploaded gallery image (key or URL).",
     )
     key: Optional[str] = Field(
         None,
@@ -57,6 +63,11 @@ class PosterGalleryItem(_CompatModel):
         None,
         description="Optional text prompt when the gallery item is AI generated.",
     )
+
+    @field_validator("asset", mode="before")
+    @classmethod
+    def _validate_asset(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 
 class PosterInput(_CompatModel):
@@ -84,15 +95,15 @@ class PosterInput(_CompatModel):
 
     brand_logo: Optional[str] = Field(
         None,
-        description="Optional data URL for the brand logo shown in the top banner.",
+        description="Optional reference to the brand logo stored in R2.",
     )
     scenario_asset: Optional[str] = Field(
         None,
-        description="Optional data URL for the scenario image displayed in the hero column.",
+        description="Optional reference to the scenario image stored in R2.",
     )
     product_asset: Optional[str] = Field(
         None,
-        description="Optional data URL for the primary product render shown on the poster.",
+        description="Optional reference to the product render stored in R2.",
     )
     scenario_key: Optional[str] = Field(
         None,
@@ -183,6 +194,11 @@ class PosterInput(_CompatModel):
         None,
         description="Prompt text used when generating the product asset via AI.",
     )
+
+    @field_validator("brand_logo", "scenario_asset", "product_asset", mode="before")
+    @classmethod
+    def _validate_inline_assets(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 
 class PosterImage(_CompatModel):
