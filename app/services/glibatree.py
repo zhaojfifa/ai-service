@@ -1174,7 +1174,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     settings = get_settings()
     config = settings.glibatree
 
-    if not config.use_openai_client or not (config.api_key and config.api_url):
+    if not config.use_openai_client or vertex_imagen_client is None:
         return poster
 
     updates: dict[str, Any] = {}
