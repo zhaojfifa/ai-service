@@ -636,6 +636,28 @@ def generate_poster_asset(
             fallback_used = True
             logger.exception("Vertex Imagen3 generation failed; falling back")
 
+    if (
+        primary is None
+        and settings.glibatree.is_configured
+        and settings.glibatree.api_url
+    ):
+        fallback_used = True
+        try:
+            logger.debug(
+                "Requesting Glibatree asset via HTTP endpoint %s",
+                settings.glibatree.api_url,
+            )
+            primary = _request_glibatree_http(
+                settings.glibatree.api_url or "",
+                settings.glibatree.api_key or "",
+                prompt,
+                locked_frame,
+                template,
+            )
+        except Exception:
+            fallback_used = True
+            logger.exception("Vertex Imagen3 generation failed; falling back")
+
     if primary is None and settings.glibatree.is_configured:
         fallback_used = True
         try:
