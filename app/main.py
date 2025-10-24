@@ -57,17 +57,39 @@ logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
 
+# --- 可选导入中间件（失败不崩溃） ---
+RejectHugeOrBase64 = None
 try:
-    from app.middlewares.huge_or_b64_guard import RejectHugeOrBase64
+    from app.middlewares.huge_or_b64_guard import RejectHugeOrBase64  # type: ignore[attr-defined]
 
-    app.add_middleware(
-        RejectHugeOrBase64,
-        max_bytes=settings.guard.max_body_bytes,
-        check_base64=settings.guard.check_base64,
-    )
-    print("[guard] RejectHugeOrBase64 enabled")
+    print("[guard] import ok: app.middlewares.huge_or_b64_guard.RejectHugeOrBase64")
 except Exception as exc:  # pragma: no cover - startup diagnostics
-    print(f"[guard] disabled (import/add failed): {exc}")
+    print(f"[guard] import disabled: {exc!r}")
+
+if RejectHugeOrBase64:
+    try:
+        guard_config = getattr(settings, "guard", None)
+        if guard_config is not None:
+            max_body_bytes = getattr(guard_config, "max_body_bytes", 4 * 1024 * 1024)
+            disallow_base64 = getattr(guard_config, "disallow_base64", True)
+        else:
+            raw_max = getattr(settings, "UPLOAD_MAX_BYTES", 4 * 1024 * 1024)
+            try:
+                max_body_bytes = int(raw_max)
+            except (TypeError, ValueError):
+                max_body_bytes = 4 * 1024 * 1024
+            disallow_base64 = True
+
+        app.add_middleware(
+            RejectHugeOrBase64,
+            max_bytes=max_body_bytes,
+            check_base64=disallow_base64,
+        )
+        print("[guard] middleware enabled")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        print(f"[guard] add_middleware failed: {exc!r}")
+else:
+    print("[guard] middleware NOT installed")
 
 imagen_endpoint_client: VertexImagen | None = None
 vertex_poster_client: VertexImagen3 | None = None
