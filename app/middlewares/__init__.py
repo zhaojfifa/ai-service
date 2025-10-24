@@ -1,3 +1,3 @@
-from .huge_or_b64_guard import BodyGuardMiddleware, RejectHugeOrBase64
+from .body_guard import BodyGuardMiddleware, RejectHugeOrBase64
 
-__all__ = ["BodyGuardMiddleware", "RejectHugeOrBase64"]
+__all__ = ["RejectHugeOrBase64", "BodyGuardMiddleware"]
