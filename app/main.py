@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import uuid
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from pydantic import ValidationError
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
 from app.schemas import (
@@ -23,19 +24,22 @@ from app.schemas import (
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
 )
+from app.middleware.body_limit import BodyGuardMiddleware
 from app.services.email_sender import send_email
-from app.services.glibatree import generate_poster_asset
+from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
     render_layout_preview,
 )
-from app.services.s3_client import make_key, presigned_put_url, public_url_for
+from app.services.r2_client import make_key, presign_put_url, public_url_for
 from app.services.template_variants import (
     list_poster_entries,
     poster_entry_from_record,
     save_template_poster,
 )
+from app.services.vertex_imagen import VertexImagen, init_vertex
+from app.services.vertex_imagen3 import VertexImagen3
 
 
 def _configure_logging() -> logging.Logger:
@@ -52,6 +56,53 @@ def _configure_logging() -> logging.Logger:
 logger = _configure_logging()
 settings = get_settings()
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
+body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
+try:
+    body_guard_bytes = max(int(body_guard_limit), 0)
+except (TypeError, ValueError):  # pragma: no cover - defensive parsing
+    body_guard_bytes = 200_000
+
+app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
+logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
+
+imagen_endpoint_client: VertexImagen | None = None
+vertex_poster_client: VertexImagen3 | None = None
+
+try:
+    init_vertex()
+except Exception as exc:  # pragma: no cover - startup diagnostics
+    logger.warning("Vertex init failed: %s", exc)
+else:
+    try:
+        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        imagen_endpoint_client = None
+        logger.warning("VertexImagen initialization failed: %s", exc)
+
+    try:
+        vertex_poster_client = VertexImagen3()
+    except Exception as exc:  # pragma: no cover - startup diagnostics
+        vertex_poster_client = None
+        logger.warning("VertexImagen3 initialization failed: %s", exc)
+    else:
+        configure_vertex_imagen(vertex_poster_client)
+        print(
+            "[VertexImagen3]",
+            f"project={vertex_poster_client.project}",
+            f"location={vertex_poster_client.location}",
+            f"gen_model={vertex_poster_client.model_generate}",
+            f"edit_model={vertex_poster_client.model_edit}",
+        )
+        logger.info(
+            "VertexImagen3 ready",
+            extra={
+                "project": vertex_poster_client.project,
+                "location": vertex_poster_client.location,
+                "generate_model": vertex_poster_client.model_generate,
+                "edit_model": vertex_poster_client.model_edit,
+            },
+        )
 
 # ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
@@ -123,6 +174,84 @@ async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised
 @app.get("/health")
 def health_check() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/debug/vertex/ping")
+def vertex_ping() -> JSONResponse:
+    """Probe publisher model availability for debugging."""
+
+    try:
+        from google.cloud.aiplatform_v1.services.model_garden_service import (
+            ModelGardenServiceClient,
+        )
+
+        client = ModelGardenServiceClient()
+        name = "publishers/google/models/imagen-3.0-generate-001"
+        model = client.get_publisher_model(name=name)
+        payload = {
+            "ok": True,
+            "name": model.name,
+            "version_id": getattr(model, "version_id", None),
+        }
+        return JSONResponse(payload)
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Vertex ping failed: %s", exc)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
+@app.get("/debug/vertex/generate")
+def vertex_generate_debug() -> Response:
+    """Create a tiny diagnostic image directly from Vertex."""
+
+    if imagen_endpoint_client is None:
+        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
+
+    try:
+        payload = imagen_endpoint_client.generate_bytes(
+            prompt="a tiny watercolor hummingbird, diagnostic",
+            size="512x512",
+            return_trace=True,
+        )
+        if isinstance(payload, tuple):
+            image_bytes, trace_id = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, trace_id = payload, None
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Vertex tiny generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
+
+    headers = {"X-Vertex-Trace": trace_id} if trace_id else None
+    return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
+
+
+class ImagenGenerateRequest(BaseModel):
+    prompt: str = Field(..., description="文生图提示词")
+    size: str = Field("1024x1024", description="尺寸, 例如 1024x1024")
+    negative: str | None = Field(None, description="反向提示词")
+
+
+@app.post("/api/imagen/generate")
+def api_imagen_generate(request_data: ImagenGenerateRequest):
+    if imagen_endpoint_client is None:
+        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
+
+    try:
+        payload = imagen_endpoint_client.generate_bytes(
+            prompt=request_data.prompt,
+            size=request_data.size,
+            negative_prompt=request_data.negative,
+            return_trace=True,
+        )
+        if isinstance(payload, tuple):
+            image_bytes, trace_id = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, trace_id = payload, None
+    except Exception as exc:  # pragma: no cover - remote dependency
+        logger.exception("Imagen generate failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
+
+    headers = {"X-Vertex-Trace": trace_id} if trace_id else None
+    return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
 
 
 
@@ -225,6 +354,81 @@ def _summarise_poster(poster: Any) -> dict[str, Any]:
     }
 
 
+def _shorten_asset_value(value: str) -> str:
+    text = value.strip()
+    if len(text) <= 64:
+        return text
+    return f"{text[:32]}…{text[-16:]}"
+
+
+def _summarise_assets(payload: Any) -> dict[str, Any]:
+    keys: list[str] = []
+    urls: list[str] = []
+
+    def _record(candidate: Any) -> None:
+        if candidate is None:
+            return
+        if isinstance(candidate, str):
+            trimmed = candidate.strip()
+            if not trimmed:
+                return
+            if trimmed.lower().startswith("http"):
+                urls.append(_shorten_asset_value(trimmed))
+            else:
+                keys.append(_shorten_asset_value(trimmed))
+            return
+        if isinstance(candidate, dict):
+            _record(candidate.get("key"))
+            _record(candidate.get("url"))
+            _record(candidate.get("asset"))
+            return
+        if hasattr(candidate, "key"):
+            _record(getattr(candidate, "key"))
+        if hasattr(candidate, "url"):
+            _record(getattr(candidate, "url"))
+        if hasattr(candidate, "asset"):
+            _record(getattr(candidate, "asset"))
+
+    source = payload
+    if hasattr(payload, "model_dump"):
+        try:
+            source = payload.model_dump(exclude_none=True)
+        except TypeError:  # pragma: no cover - defensive fallback
+            source = payload.model_dump()
+    elif hasattr(payload, "dict"):
+        source = payload.dict(exclude_none=True)
+
+    if isinstance(source, dict):
+        for key in (
+            "brand_logo",
+            "logo",
+            "scenario_asset",
+            "product_asset",
+            "scenario_key",
+            "product_key",
+            "scenario_image",
+            "product_image",
+        ):
+            _record(source.get(key))
+        gallery_candidates = source.get("gallery_items") or source.get("gallery") or []
+        for entry in gallery_candidates:
+            _record(entry)
+
+    return {
+        "keys": keys[:8],
+        "urls": urls[:3],
+        "count": len(keys) + len(urls),
+    }
+
+
+def _ensure_trace_id(request: Request) -> str:
+    trace = getattr(request.state, "trace_id", None)
+    if not trace:
+        trace = uuid.uuid4().hex[:8]
+        request.state.trace_id = trace
+    return trace
+
+
 async def read_json_relaxed(request: Request) -> dict:
     try:
         payload = await request.json()
@@ -247,7 +451,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 
     try:
         key = make_key(request.folder, request.filename)
-        put_url = presigned_put_url(key, request.content_type)
+        put_url = presign_put_url(key, request.content_type)
     except RuntimeError as exc:  # pragma: no cover - configuration issue
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -310,35 +514,55 @@ def fetch_template_posters() -> TemplatePosterCollection:
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
-async def generate_poster(request: Request) -> GeneratePosterResponse:
+async def generate_poster(request: Request) -> JSONResponse:
+    trace = _ensure_trace_id(request)
+    guard_info = getattr(request.state, "guard_info", {})
+    content_length = request.headers.get("content-length")
+
     try:
         raw_payload = await read_json_relaxed(request)
+        raw_assets = _summarise_assets(raw_payload.get("poster", {})) if isinstance(raw_payload, dict) else {}
         logger.info(
-            "generate_poster request received: %s",
-            _preview_json(raw_payload, limit=768),
+            "generate_poster request received",
+            extra={
+                "trace": trace,
+                "content_length": content_length,
+                "body_bytes": guard_info.get("bytes"),
+                "body_has_base64": guard_info.get("has_base64"),
+                "asset_summary": raw_assets,
+            },
         )
         payload = _model_validate(GeneratePosterRequest, raw_payload)
     except ValidationError as exc:
-        logger.warning("generate_poster validation error: %s", exc.errors())
+        logger.warning(
+            "generate_poster validation error",
+            extra={"trace": trace, "errors": exc.errors()},
+        )
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("generate_poster payload parsing failed")
+        logger.exception(
+            "generate_poster payload parsing failed",
+            extra={"trace": trace},
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
+        poster = payload.poster
+        normalised_assets = _summarise_assets(poster)
         logger.info(
-            "generate_poster normalised payload: %s",
-            {
-                "poster": _summarise_poster(payload.poster),
+            "generate_poster normalised payload",
+            extra={
+                "trace": trace,
+                "poster": _summarise_poster(poster),
                 "variants": payload.variants,
                 "seed": payload.seed,
                 "lock_seed": payload.lock_seed,
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
+                "asset_summary": normalised_assets,
             },
         )
-        poster = payload.poster
         preview = render_layout_preview(poster)
         prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
@@ -356,6 +580,7 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
             variants=payload.variants,
             seed=payload.seed,
             lock_seed=payload.lock_seed,
+            trace_id=trace,
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
@@ -384,8 +609,9 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                     response_bundle = PromptBundle(**converted)
 
         logger.info(
-            "generate_poster completed: %s",
-            {
+            "generate_poster completed",
+            extra={
+                "trace": trace,
                 "response": {
                     "poster_filename": getattr(result.poster, "filename", None),
                     "variant_count": len(result.variants or []),
@@ -396,23 +622,34 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 "prompt_bundle": _summarise_prompt_bundle(
                     response_bundle or payload.prompt_bundle
                 ),
+                "vertex_traces": result.trace_ids,
+                "fallback_used": result.fallback_used,
             },
         )
-        return GeneratePosterResponse(
+        response_payload = GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
-            prompt_details=prompt_details,
+            prompt_details=result.prompt_details,
             prompt_bundle=response_bundle,
             variants=result.variants,
             scores=result.scores,
             seed=result.seed,
             lock_seed=result.lock_seed,
+            vertex_trace_ids=result.trace_ids or None,
+            fallback_used=result.fallback_used if result.fallback_used else None,
         )
+        headers: dict[str, str] = {}
+        if result.trace_ids:
+            headers["X-Vertex-Trace"] = ",".join(result.trace_ids)
+        if result.fallback_used:
+            headers["X-Vertex-Fallback"] = "1"
+        headers["X-Request-Trace"] = trace
+        return JSONResponse(content=_model_dump(response_payload), headers=headers)
 
     except Exception as exc:  # defensive logging
-        logger.exception("Failed to generate poster")
+        logger.exception("Failed to generate poster", extra={"trace": trace})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
