@@ -83,3 +83,9 @@ class BodyGuardMiddleware(BaseHTTPMiddleware):
             guard_info.setdefault("too_big", False)
 
         return await call_next(request)
+
+
+class RejectHugeOrBase64(BodyGuardMiddleware):
+    """Backwards-compatible alias for legacy imports."""
+
+    pass

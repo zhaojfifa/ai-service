@@ -72,7 +72,9 @@ class VertexImagen3:
         self.project = os.getenv("GCP_PROJECT_ID") or ""
         self.location = os.getenv("GCP_LOCATION", "us-central1")
         self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate-001")
-        self.model_edit = os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-edit")
+        self.model_edit_name = os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-edit")
+        self.enable_edit = os.getenv("VERTEX_IMAGEN_ENABLE_EDIT", "").lower() in {"1", "true", "yes"}
+        self.model_edit = self.model_edit_name if self.enable_edit else None
         self.timeout = int(os.getenv("VERTEX_TIMEOUT_SECONDS", "60") or "60")
         self.safety = os.getenv("VERTEX_SAFETY_FILTER_LEVEL", "block_some")  # block_few|block_some|block_most
         seed_env = os.getenv("VERTEX_SEED", "0")
@@ -88,14 +90,20 @@ class VertexImagen3:
         self._generate_params = set(
             inspect.signature(self._generate_model.generate_images).parameters.keys()
         )
-        self._edit_model = ImageGenerationModel.from_pretrained(self.model_edit)
-        self._edit_params = set(
-            inspect.signature(self._edit_model.edit_image).parameters.keys()
-        )
+        if self.enable_edit:
+            self._edit_model = ImageGenerationModel.from_pretrained(self.model_edit_name)
+            self._edit_params = set(
+                inspect.signature(self._edit_model.edit_image).parameters.keys()
+            )
+        else:
+            self._edit_model = None
+            self._edit_params = set()
+
         logger.info(
-            "[vertex3.model] params generate=%s edit=%s",
+            "[vertex3.model] params generate=%s edit=%s enabled=%s",
             sorted(self._generate_params),
-            sorted(self._edit_params),
+            sorted(self._edit_params) if self._edit_params else [],
+            self.enable_edit,
         )
 
     # ---------- 生图 ----------
@@ -184,6 +192,11 @@ class VertexImagen3:
         guidance: Optional[float] = None,
         return_trace: bool = False,
     ) -> bytes | tuple[bytes, str]:
+        if not self.enable_edit or self._edit_model is None:
+            raise RuntimeError(
+                "Vertex Imagen3 edit support is disabled. Set VERTEX_IMAGEN_ENABLE_EDIT=1 to enable."
+            )
+
         if not base_image_bytes and base_image_b64:
             base_image_bytes = base64.b64decode(base_image_b64)
         if not base_image_bytes:
