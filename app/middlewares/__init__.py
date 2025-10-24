@@ -1,1 +1,3 @@
-from .huge_or_b64_guard import RejectHugeOrBase64  # noqa: F401
+from .body_guard import BodyGuardMiddleware, RejectHugeOrBase64
+
+__all__ = ["RejectHugeOrBase64", "BodyGuardMiddleware"]
