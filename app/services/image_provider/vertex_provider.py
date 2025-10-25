@@ -41,13 +41,23 @@ class VertexImagen3:
         seed: Optional[int] = None,
         guidance_scale: Optional[float] = None,
     ) -> bytes:
-        response = self.model.generate_images(
-            prompt=prompt,
-            number_of_images=1,
-            negative_prompt=negative_prompt,
-            guidance=guidance_scale,
-            seed=seed,
-        )
+        params: dict[str, object] = {
+            "prompt": prompt,
+            "number_of_images": 1,
+            "aspect_ratio": self._to_aspect_ratio(width, height),
+            "add_watermark": True,
+        }
+
+        if negative_prompt:
+            params["negative_prompt"] = negative_prompt
+        if guidance_scale is not None:
+            params["guidance_scale"] = guidance_scale
+        if seed is not None:
+            params["seed"] = seed
+
+        log.debug("[vertex.generate] params=%s", {k: v for k, v in params.items() if k != "prompt"})
+
+        response = self.model.generate_images(**params)
 
         if not response.images:
             raise RuntimeError("Vertex Imagen returned no images")
@@ -62,3 +72,21 @@ class VertexImagen3:
             return bytes(image.as_bytes())
 
         raise RuntimeError("Unable to extract image bytes from Vertex Imagen response")
+
+    @staticmethod
+    def _to_aspect_ratio(width: Optional[int], height: Optional[int]) -> str:
+        """Translate width/height inputs into the closest supported aspect ratio."""
+
+        if not width or not height:
+            return "1:1"
+
+        ratio = width / height
+        candidates = {
+            "1:1": 1.0,
+            "16:9": 16 / 9,
+            "9:16": 9 / 16,
+            "4:3": 4 / 3,
+            "3:4": 3 / 4,
+        }
+
+        return min(candidates, key=lambda key: abs(candidates[key] - ratio))

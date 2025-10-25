@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, root_validator
 
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
@@ -270,7 +270,7 @@ class ImagenGenerateRequest(BaseModel):
     width: int | None = Field(None, gt=0, description="覆盖宽度 (像素)")
     height: int | None = Field(None, gt=0, description="覆盖高度 (像素)")
     seed: int | None = Field(None, ge=0, description="可选种子")
-    guidance: float | None = Field(
+    guidance_scale: float | None = Field(
         None, ge=0.0, description="Imagen 指导系数"
     )
     store: bool | None = Field(
@@ -279,6 +279,13 @@ class ImagenGenerateRequest(BaseModel):
             "是否强制写入对象存储。当显式传 false 时若 RETURN_BINARY_DEFAULT=0 将被拒绝。"
         ),
     )
+
+    @root_validator(pre=True)
+    def _alias_guidance(cls, values: dict[str, object]) -> dict[str, object]:
+        # 兼容历史字段 guidance
+        if "guidance_scale" not in values and "guidance" in values:
+            values["guidance_scale"] = values["guidance"]
+        return values
 
 
 class ImagenGenerateResponse(BaseModel):
@@ -320,7 +327,7 @@ def api_imagen_generate(request_data: ImagenGenerateRequest) -> Response:
             height=height,
             negative_prompt=request_data.negative,
             seed=request_data.seed,
-            guidance_scale=request_data.guidance,
+            guidance_scale=request_data.guidance_scale,
         )
     except HTTPException:
         raise
