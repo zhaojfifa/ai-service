@@ -1,58 +1,38 @@
-"""Request body guards for API endpoints."""
+"""Backward-compatible body guard middleware wrappers."""
 from __future__ import annotations
 
 import logging
-import os
+from typing import Any
 
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import JSONResponse
-
-DEFAULT_MAX_BYTES = int(os.getenv("MAX_JSON_BODY", "1048576"))  # 1 MiB default
+from .reject_huge_or_base64 import RejectHugeOrBase64
 
 logger = logging.getLogger("ai-service.body-guard")
 
 
-class RejectHugeOrBase64(BaseHTTPMiddleware):
-    """Reject oversized requests or inline base64 images on API routes."""
+class BodyGuardMiddleware(RejectHugeOrBase64):
+    """Compatibility shim that exposes the legacy middleware name."""
 
-    def __init__(self, app, max_bytes: int | None = None) -> None:  # type: ignore[override]
-        super().__init__(app)
-        self.max_bytes = max_bytes if max_bytes is not None else DEFAULT_MAX_BYTES
+    def __init__(
+        self,
+        app,
+        *,
+        max_bytes: int | None = None,
+        max_inline_base64_bytes: int | None = None,
+        **kwargs: Any,
+    ) -> None:  # type: ignore[override]
+        super().__init__(
+            app,
+            max_body_bytes=max_bytes,
+            max_inline_base64_bytes=max_inline_base64_bytes,
+            **kwargs,
+        )
+        logger.debug(
+            "BodyGuardMiddleware configured",
+            extra={
+                "max_body_bytes": self.max_body_bytes,
+                "max_inline_base64_bytes": self.max_inline_base64_bytes,
+            },
+        )
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        if request.url.path.startswith("/api/"):
-            body = await request.body()
-            body_len = len(body)
 
-            if self.max_bytes and body_len > self.max_bytes:
-                logger.warning(
-                    "Rejecting oversized request", extra={
-                        "path": request.url.path,
-                        "method": request.method,
-                        "bytes": body_len,
-                        "limit": self.max_bytes,
-                    }
-                )
-                detail = (
-                    "请求体过大（实际 %d bytes，上限 %d bytes）。请先上传素材到 R2，仅传输 key/url。"
-                    % (body_len, self.max_bytes)
-                )
-                return JSONResponse({"detail": detail}, status_code=413)
-
-            lowered = body.lower()
-            if b"data:image" in lowered or b"base64," in lowered:
-                logger.warning(
-                    "Rejecting base64 payload", extra={
-                        "path": request.url.path,
-                        "method": request.method,
-                        "bytes": body_len,
-                    }
-                )
-                detail = (
-                    "检测到 base64 图片（%d bytes）。请先上传素材到 R2，仅传输 key/url。"
-                    % body_len
-                )
-                return JSONResponse({"detail": detail}, status_code=422)
-
-        return await call_next(request)
+__all__ = ["BodyGuardMiddleware"]
