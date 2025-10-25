@@ -8,6 +8,33 @@
 
 前端推荐部署在 GitHub Pages，后端部署在 Render，二者通过 HTTP API 协作完成整个流程。
 
+> Render 部署请将 Start Command 设为 `bash ./.render-start.sh`，并注入 `COMMIT_SHA` 环境变量以便在 `/healthz` 结果与日志中确认实际上线版本。
+
+> ℹ️ **默认安全策略**：后端会拒绝超过 `UPLOAD_MAX_BYTES`（默认 20MB）的请求体，并在 `ALLOW_BASE64_UPLOADS` 未开启时拦截任何包含 `data:image/...;base64,` 的字段。请使用 `/api/r2/presign-put` 直传文件，再在业务请求里仅携带对象 `key` 或公开 `url`。
+
+### 请求体体积 & Base64 约束
+
+为避免浏览器直接把图片以 Base64 内联发送而拖垮后端，服务端启用了中间件 **RejectHugeOrBase64**：
+
+- `MAX_BODY_BYTES`（默认 2 MiB）：超过该体积的请求将被拒绝（HTTP 413）。
+- `MAX_INLINE_BASE64_BYTES`（默认 128 KiB）：请求体中出现大块 Base64 或 `data:image/*;base64,` 字样将被拒绝。
+- 失败时返回 JSON：
+
+  ```json
+  {
+    "detail": "请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url。",
+    "hints": { "upload": "将图片先上传到 R2，提交 key/url" }
+  }
+  ```
+
+正确姿势：
+
+1. 前端先把素材（PNG/JPEG/WEBP）上传到 Cloudflare R2（或任意对象存储）。
+2. 后端接口仅接收 key / url，不接收 Base64 字符串。
+3. 若需私有桶，前端/后端根据需要生成预签名 URL，再交给渲染链路使用。
+
+> Render 环境变量示例：`MAX_BODY_BYTES=2097152`、`MAX_INLINE_BASE64_BYTES=131072`。
+
 ## 项目结构
 
 ```
@@ -47,7 +74,7 @@ uvicorn app.main:app --reload
 - `POST /api/generate-poster`：接收素材参数，返回版式预览、Glibatree 提示词、占位海报图（或真实 API 响应）及营销邮件草稿。
 - `POST /api/send-email`：将邮件发送请求交给 SMTP 服务执行；未配置 SMTP 时返回 `status=skipped`。
 - `POST /api/r2/presign-put`：在配置 Cloudflare R2 后，为前端生成直传所需的预签名 PUT URL 与对象 Key。
-- `GET /health`：健康检查。
+- `GET /health`：健康检查；加上 `?verbose=1` 可查看实际生效的 CORS 白名单与请求体守卫配置。
 
 ### 可选环境变量
 
@@ -61,11 +88,42 @@ uvicorn app.main:app --reload
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_SENDER` | 配置后端通过指定 SMTP 账号发送邮件。|
 | `SMTP_USE_TLS`, `SMTP_USE_SSL` | 控制 TLS/SSL 行为（默认启用 TLS）。|
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
-| `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
+| `UPLOAD_MAX_BYTES` | （可选）限制直传文件大小，默认 `20000000` 字节。|
+| `UPLOAD_ALLOWED_MIME` | （可选）允许的 MIME 类型，默认 `image/png,image/jpeg,image/webp`。|
+| `ALLOW_BASE64_UPLOADS` | 默认为 `false`。后端会拒绝任何携带 `data:image/...;base64,` 的 JSON 字段，请优先走 R2 直传，仅在 demo 场景下开启此开关。|
+
+### R2 直传端到端示例
+
+```js
+// 1. 向后端请求预签名 URL
+const presign = await fetch('/api/r2/presign-put', {
+  method: 'POST',
+  headers: {'content-type': 'application/json'},
+  body: JSON.stringify({filename: file.name, content_type: file.type})
+}).then(r => r.json());
+
+// 2. 将文件直接 PUT 到 R2
+await fetch(presign.url, {
+  method: 'PUT',
+  headers: presign.headers,
+  body: file,
+});
+
+// 3. 在业务请求中仅携带对象 key（或公开 URL）
+await fetch('/api/generate-poster', {
+  method: 'POST',
+  headers: {'content-type': 'application/json'},
+  body: JSON.stringify({ poster: { product_key: presign.key } })
+});
+```
+
+> 提示：若需要公有访问，可使用响应中的 `public_url` 或结合 `/health?verbose=1` 查看当前 R2/CORS 配置。
 
 ## ✨ Vertex Imagen3 原生集成（Generate & Edit/Inpaint）
 
 本服务支持 Google Vertex AI Imagen 3 生图与（可选）局部编辑能力，默认与 /api/generate-poster 保持协议兼容：
+
+> 默认仅初始化 `imagen-3.0-generate-001`。若所在地区已开放 Imagen Edit/Inpaint，请设置 `VERTEX_ENABLE_EDIT=true`，服务将在首次编辑请求时懒加载 `imagen-3.0-edit`。
 
 - 不改变：提示词组装、返回结构（poster.b64）、R2 上传、邮件逻辑
 - 只替换：出图能力为 Imagen3
@@ -87,7 +145,8 @@ uvicorn app.main:app --reload
 - `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/service-account.json`：Render Secret Files 推荐写法
 - `GCP_KEY_B64`：若无法挂载文件，可直接注入 Base64，启动时会自动写入 `/opt/render/project/src/gcp-key.json`
 - （可选）`VERTEX_IMAGEN_MODEL_GENERATE=imagen-3.0-generate-001`
-- （可选）`VERTEX_IMAGEN_MODEL_EDIT=imagen-3.0-edit`
+- （可选）`VERTEX_IMAGEN_MODEL_EDIT=imagen-3.0-edit`（仅在启用编辑模式时懒加载）
+- （可选）`VERTEX_ENABLE_EDIT=false`：按需开启 Imagen3 Edit/Inpaint，默认关闭避免因地区不支持导致启动失败。
 - （可选）`VERTEX_TIMEOUT_SECONDS=60`、`VERTEX_SAFETY_FILTER_LEVEL=block_some`、`VERTEX_SEED=0`
 - 权限：服务账号需有 Vertex AI User 角色。
 
@@ -198,6 +257,7 @@ curl -s -X POST https://<your-api>/api/generate-poster   -H 'Content-Type: appli
 - `ImportError: cannot import name Mask` → 使用 `Image` 作为 mask 类型（本项目已修复）。
 - 权限/鉴权失败：检查 `GOOGLE_APPLICATION_CREDENTIALS` 或 `GCP_KEY_B64` 是否正确配置，以及服务账号是否具备 Vertex AI User 权限。
 - 区域/超时：调整 `GCP_LOCATION` 与 `VERTEX_TIMEOUT_SECONDS`。
+- 明明传了 prompt 却返回占位图：查看 `poster.asset.start` / `vertex.call` / `poster.r2.upload` 三条结构化日志。如果 Vertex 调用失败且未配置 Glibatree/OpenAI 后备，则会直接返回业务错误；若日志提示 `fallback_used=true`，说明已退回到模板预览。
 - 复现性：设置 `VERTEX_SEED` 为非 0 整数。
 
 

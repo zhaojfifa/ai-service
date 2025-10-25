@@ -1,3 +1,1 @@
-from .huge_or_b64_guard import BodyGuardMiddleware, RejectHugeOrBase64
-
-__all__ = ["BodyGuardMiddleware", "RejectHugeOrBase64"]
+# 仅占位，保证包可导入
