@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from app.config import get_settings
+from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
@@ -24,7 +25,6 @@ from app.schemas import (
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
 )
-from app.middlewares import BodyGuardMiddleware
 from app.services.email_sender import send_email
 from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
 from app.services.poster import (
@@ -41,6 +41,24 @@ from app.services.template_variants import (
 from app.services.vertex_imagen import VertexImagen, init_vertex
 from app.services.vertex_imagen3 import VertexImagen3
 
+log = logging.getLogger("ai-service")
+app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
+# ------------- 关键修复：安全导入 + 条件注册（防止 NameError） -------------
+RejectHugeOrBase64 = None  # 先占位，避免后续引用未定义
+
+try:
+    # 绝对导入，要求 app 是包；配合 __init__.py（见下文）
+    from app.middlewares.reject_huge_or_base64 import RejectHugeOrBase64  # type: ignore
+    log.info("Loaded middleware: RejectHugeOrBase64")
+except Exception as e:  # noqa: BLE001
+    log.error("Failed to import RejectHugeOrBase64: %r; service will run without it.", e)
+    RejectHugeOrBase64 = None
+
+if RejectHugeOrBase64 is not None:
+    app.add_middleware(RejectHugeOrBase64)
+# -----------------------------------------------------------------------
+
 
 def _configure_logging() -> logging.Logger:
     level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -55,101 +73,14 @@ def _configure_logging() -> logging.Logger:
 
 logger = _configure_logging()
 settings = get_settings()
-app = FastAPI(title="Marketing Poster API", version="1.0.0")
-app.add_middleware(RejectHugeOrBase64)
 
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
 
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
+# 健康检查，确保 Render 能检测端口开放
+@app.get("/health")
+def health() -> dict[str, bool]:
+    return {"ok": True}
 
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
 
-body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
-try:
-    body_guard_bytes = max(int(body_guard_limit), 0)
-except (TypeError, ValueError):  # pragma: no cover - defensive parsing
-    body_guard_bytes = 200_000
-
-app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
-
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
-
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
-
-body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
-try:
-    body_guard_bytes = max(int(body_guard_limit), 0)
-except (TypeError, ValueError):  # pragma: no cover - defensive parsing
-    body_guard_bytes = 200_000
-
-app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
-logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
 
 imagen_endpoint_client: VertexImagen | None = None
 vertex_poster_client: VertexImagen3 | None = None
@@ -197,91 +128,6 @@ except (TypeError, ValueError):  # pragma: no cover - defensive parsing
 
 app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
 logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
-
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
-
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
-
-body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
-try:
-    body_guard_bytes = max(int(body_guard_limit), 0)
-except (TypeError, ValueError):  # pragma: no cover - defensive parsing
-    body_guard_bytes = 200_000
-
-app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
-logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
-
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
-
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
 
 # ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
@@ -348,12 +194,6 @@ app.add_middleware(
 @app.options("/{path:path}")
 async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
     return Response(status_code=204)
-
-# ✅ 健康检查
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
-
 
 @app.get("/debug/vertex/ping")
 def vertex_ping() -> JSONResponse:
