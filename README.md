@@ -63,6 +63,28 @@ uvicorn app.main:app --reload
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
+## 供应商抽象与 Vertex SDK 迁移
+
+本项目为图片生成功能引入了统一 Provider 抽象（`app/services/image_provider`）并默认使用 `google-genai` SDK（`IMAGE_PROVIDER=genai`），以规避 Vertex AI 路线的弃用风险（官方公告：2025-06-24 宣布弃用，2026-06-24 移除）。
+如需临时回退到旧实现：设置 `IMAGE_PROVIDER=vertex`。未来会完全移除旧实现。
+
+环境变量：
+
+- `IMAGE_PROVIDER`: 取值 `genai`（默认）或 `vertex`
+- `GOOGLE_API_KEY`: 使用 google-genai 时的 API Key（亦可改为 ADC/SA）
+- `VERTEX_IMAGEN_MODEL`: 旧实现使用的模型名，默认 `imagen-3.0-generate-001`
+- `LOG_LEVEL`: 统一控制 uvicorn/应用日志级别，默认 `INFO`
+
+接口约定：
+
+- 大图片/内联 base64 会被 `BodyGuardMiddleware` 拦截并返回 413。建议将素材直传对象存储（R2/GCS），接口仅传 Key/URL。
+
+健康与首页：
+
+- `GET /` / `HEAD /` → 200，用于探活
+- `GET /health` → 200
+- `GET /docs` / `GET /openapi.json` → 在线调试与文档
+
 ## ✨ Vertex Imagen3 原生集成（Generate & Edit/Inpaint）
 
 本服务支持 Google Vertex AI Imagen 3 生图与（可选）局部编辑能力，默认与 /api/generate-poster 保持协议兼容：
