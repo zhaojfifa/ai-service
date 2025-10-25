@@ -8,6 +8,8 @@
 
 前端推荐部署在 GitHub Pages，后端部署在 Render，二者通过 HTTP API 协作完成整个流程。
 
+> Render 部署请将 Start Command 设为 `bash ./.render-start.sh`，并注入 `COMMIT_SHA` 环境变量以便在 `/healthz` 结果与日志中确认实际上线版本。
+
 > ℹ️ **默认安全策略**：后端会拒绝超过 `UPLOAD_MAX_BYTES`（默认 20MB）的请求体，并在 `ALLOW_BASE64_UPLOADS` 未开启时拦截任何包含 `data:image/...;base64,` 的字段。请使用 `/api/r2/presign-put` 直传文件，再在业务请求里仅携带对象 `key` 或公开 `url`。
 
 ## 项目结构

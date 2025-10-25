@@ -10,7 +10,12 @@ import importlib
 import os
 import time
 import traceback
+from typing import TYPE_CHECKING, Any
+
 from fastapi import FastAPI
+
+if TYPE_CHECKING:  # pragma: no cover - hints only
+    from starlette.middleware.base import BaseHTTPMiddleware
 
 BOOT_TS = str(int(time.time()))
 COMMIT = os.getenv("COMMIT_SHA", "local")
@@ -22,21 +27,28 @@ def create_app() -> FastAPI:
     def healthz():
         return {"ok": True, "boot": BOOT_TS, "commit": COMMIT}
 
-    # 可选中间件：仅当模块和类均存在时启用；可用 env 临时禁用
-    if os.getenv("DISABLE_GUARD", "").lower() not in {"1", "true", "yes"}:
+    guard_cls: Any = None
+    guard_disabled = os.getenv("DISABLE_GUARD", "").lower() in {"1", "true", "yes"}
+
+    if guard_disabled:
+        print(f"[guard] disabled by env (commit={COMMIT})", flush=True)
+    else:
         try:
-            mod = importlib.import_module("app.middlewares.huge_or_b64_guard")
-            Guard = getattr(mod, "RejectHugeOrBase64", None)
-            if Guard:
-                app.add_middleware(Guard, max_bytes=4 * 1024 * 1024, check_base64=True)
-                print(f"[guard] enabled (commit={COMMIT})", flush=True)
-            else:
-                print(f"[guard] not present (commit={COMMIT})", flush=True)
+            module = importlib.import_module("app.middlewares.huge_or_b64_guard")
+            guard_cls = getattr(module, "RejectHugeOrBase64", None)
         except Exception:
             print(f"[guard] import error (commit={COMMIT})", flush=True)
             traceback.print_exc()
-    else:
-        print(f"[guard] disabled by env (commit={COMMIT})", flush=True)
+        else:
+            if guard_cls:
+                try:
+                    app.add_middleware(guard_cls, max_bytes=4 * 1024 * 1024, check_base64=True)
+                    print(f"[guard] enabled (commit={COMMIT})", flush=True)
+                except Exception:
+                    print(f"[guard] add_middleware failed (commit={COMMIT})", flush=True)
+                    traceback.print_exc()
+            else:
+                print(f"[guard] not present (commit={COMMIT})", flush=True)
 
     print(f"[boot] app created (commit={COMMIT}, ts={BOOT_TS})", flush=True)
     return app
