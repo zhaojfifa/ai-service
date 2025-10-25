@@ -273,6 +273,10 @@ class ImagenGenerateRequest(BaseModel):
     guidance_scale: float | None = Field(
         None, ge=0.0, description="Imagen 指导系数"
     )
+    add_watermark: bool | None = Field(
+        True,
+        description="是否在生成图片中嵌入水印，默认为 True，与 Vertex 默认保持一致"
+    )
     store: bool | None = Field(
         None,
         description=(
@@ -328,6 +332,7 @@ def api_imagen_generate(request_data: ImagenGenerateRequest) -> Response:
             negative_prompt=request_data.negative,
             seed=request_data.seed,
             guidance_scale=request_data.guidance_scale,
+            add_watermark=request_data.add_watermark,
         )
     except HTTPException:
         raise

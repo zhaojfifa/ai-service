@@ -35,17 +35,25 @@ class VertexImagen3:
         self,
         prompt: str,
         *,
-        width: int = 1024,
-        height: int = 1024,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
         negative_prompt: Optional[str] = None,
         seed: Optional[int] = None,
         guidance_scale: Optional[float] = None,
+        add_watermark: Optional[bool] = True,
     ) -> bytes:
+        aspect_ratio = self._to_aspect_ratio(width, height)
+
+        effective_add_watermark = True if add_watermark is None else bool(add_watermark)
+        if seed is not None and effective_add_watermark:
+            log.info("vertex_provider: seed ignored because add_watermark=True")
+            seed = None
+
         params: dict[str, object] = {
             "prompt": prompt,
             "number_of_images": 1,
-            "aspect_ratio": self._to_aspect_ratio(width, height),
-            "add_watermark": True,
+            "aspect_ratio": aspect_ratio,
+            "add_watermark": effective_add_watermark,
         }
 
         if negative_prompt:
