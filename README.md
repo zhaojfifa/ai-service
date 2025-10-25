@@ -63,21 +63,54 @@ uvicorn app.main:app --reload
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
-## 供应商抽象与 Vertex SDK 迁移
+## 图像生成（Vertex Only）与对象存储直传
 
-本项目为图片生成功能引入了统一 Provider 抽象（`app/services/image_provider`）并默认使用 `google-genai` SDK（`IMAGE_PROVIDER=genai`），以规避 Vertex AI 路线的弃用风险（官方公告：2025-06-24 宣布弃用，2026-06-24 移除）。
-如需临时回退到旧实现：设置 `IMAGE_PROVIDER=vertex`。未来会完全移除旧实现。
+服务端固定使用 Vertex Imagen 3：
 
-环境变量：
+```
+IMAGE_PROVIDER=vertex
+GCP_KEY_B64=...
+VERTEX_PROJECT_ID=...
+VERTEX_LOCATION=europe-west4
+VERTEX_IMAGEN_MODEL=imagen-3.0-generate-001
+```
 
-- `IMAGE_PROVIDER`: 取值 `genai`（默认）或 `vertex`
-- `GOOGLE_API_KEY`: 使用 google-genai 时的 API Key（亦可改为 ADC/SA）
-- `VERTEX_IMAGEN_MODEL`: 旧实现使用的模型名，默认 `imagen-3.0-generate-001`
+生成接口默认写入对象存储并仅返回 URL/Key：
+
+```
+POST /api/imagen/generate
+{
+  "prompt": "a cute corgi in space suit",
+  "width": 1024,
+  "height": 1024
+}
+→ 200 OK
+{
+  "ok": true,
+  "key": "imagen/2025/10/25/xxxx.png",
+  "url": "https://cdn.example.com/imagen/2025/10/25/xxxx.png",
+  "width": 1024,
+  "height": 1024,
+  "content_type": "image/png"
+}
+```
+
+需要直传 R2（Cloudflare）：
+
+```
+STORAGE_BACKEND=s3
+S3_BUCKET=ai-service
+S3_PUBLIC_BASE=https://你的CDN域名
+```
+
+全项目规范：后续接口仅传 `url` 或 `key` 字段，不再上送二进制/BASE64。
+
+推荐的环境变量补充：
+
 - `LOG_LEVEL`: 统一控制 uvicorn/应用日志级别，默认 `INFO`
+- `RETURN_BINARY_DEFAULT`: 设为 `0`（默认）表示禁止返回图片二进制；调试时可设置 `1`
 
-接口约定：
-
-- 大图片/内联 base64 会被 `BodyGuardMiddleware` 拦截并返回 413。建议将素材直传对象存储（R2/GCS），接口仅传 Key/URL。
+大图片/内联 base64 会被 `BodyGuardMiddleware` 拦截并返回 413。请将素材直传对象存储（R2/GCS），接口仅传 Key/URL。
 
 健康与首页：
 
@@ -85,135 +118,21 @@ uvicorn app.main:app --reload
 - `GET /health` → 200
 - `GET /docs` / `GET /openapi.json` → 在线调试与文档
 
-## ✨ Vertex Imagen3 原生集成（Generate & Edit/Inpaint）
-
-本服务支持 Google Vertex AI Imagen 3 生图与（可选）局部编辑能力，默认与 /api/generate-poster 保持协议兼容：
-
-- 不改变：提示词组装、返回结构（poster.b64）、R2 上传、邮件逻辑
-- 只替换：出图能力为 Imagen3
-
-### 依赖
-
-`requirements.txt` 已添加（关键）：
-
-- `google-cloud-aiplatform>=1.115.0,<2.0.0`
-- `google-auth>=2.33.0`
-- `google-auth-oauthlib>=1.2.1`
-- `Pillow==10.4.0`
-- `httpx==0.27.2`
-
-### 环境变量（Render 推荐）
-
-- `GCP_PROJECT_ID`：GCP 项目 ID
-- `GCP_LOCATION=us-central1`（或实际区域）
-- `GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/service-account.json`：Render Secret Files 推荐写法
-- `GCP_KEY_B64`：若无法挂载文件，可直接注入 Base64，启动时会自动写入 `/opt/render/project/src/gcp-key.json`
-- （可选）`VERTEX_IMAGEN_MODEL_GENERATE=imagen-3.0-generate-001`
-- （可选）`VERTEX_IMAGEN_MODEL_EDIT=imagen-3.0-edit`
-- （可选）`VERTEX_TIMEOUT_SECONDS=60`、`VERTEX_SAFETY_FILTER_LEVEL=block_some`、`VERTEX_SEED=0`
-- 权限：服务账号需有 Vertex AI User 角色。
-
-### API 使用
-
-#### `/api/imagen/generate`（简易生图接口）
-
-```bash
-curl -X POST https://<your-api>/api/imagen/generate \
-  -H 'Content-Type: application/json' \
-  -o out.jpg \
-  -d '{
-        "prompt": "A watercolor hummingbird, 4k, intricate, trending on artstation",
-        "size": "1024x1024"
-      }'
-```
-
-接口直接返回 JPEG/PNG 二进制内容，可搭配 `curl -o` 保存测试。
-
-#### `/api/generate-poster`（保持原有协议）
-
-**生图**
-
-```bash
-POST /api/generate-poster
-{
-  "poster": {
-    "prompt": "premium kitchen appliance hero, soft daylight",
-    "size": "1024x1024",
-    "negative_prompt": "text, watermark, logo",
-    "guidance": 8.0
-  }
-}
-```
-
-**局部编辑（矩形 inpaint）**
-
-```bash
-POST /api/generate-poster
-{
-  "poster": {
-    "prompt": "replace the cup with a glass of orange juice",
-    "width": 1280,
-    "height": 720,
-    "base_image_b64": "<BASE64 of JPEG/PNG>",
-    "region_rect": {"x": 640, "y": 220, "width": 220, "height": 260}
-  }
-}
-```
-
-**局部编辑（自带 Mask）**
-
-```bash
-POST /api/generate-poster
-{
-  "poster": {
-    "prompt": "refine product gloss, remove scratches",
-    "size": "1024x1024",
-    "base_image_b64": "<BASE64>",
-    "mask_b64": "<BASE64 of PNG; white=edit, black=keep>"
-  }
-}
-```
-
-**响应**
-
-```json
-{
-  "poster": {
-    "content_type": "image/jpeg",
-    "b64": "<base64>"
-  }
-}
-```
-
 ### 快速验收
 
 ```bash
 # 健康检查
 curl -s https://<your-api>/health
 
-# 简易生图接口
-curl -X POST https://<your-api>/api/imagen/generate \
+# 简易生图接口（响应为 JSON，包含存储的 URL/Key）
+curl -s https://<your-api>/api/imagen/generate \
   -H 'Content-Type: application/json' \
-  -o out.jpg \
   -d '{
         "prompt": "A watercolor hummingbird, 4k, intricate, trending on artstation",
         "size": "1024x1024"
       }'
-
-# 生图
-curl -s -X POST https://<your-api>/api/generate-poster   -H 'Content-Type: application/json'   -d '{"poster":{"prompt":"minimal product render, soft light","size":"1024x1024"}}'   | jq '.poster.b64 | length'
-
-# 局部编辑
-BASE64_IMG="$(base64 -w0 demo.jpg)"
-curl -s -X POST https://<your-api>/api/generate-poster   -H 'Content-Type: application/json'   -d "{
-        "poster": {
-          "prompt":"replace cup with orange juice",
-          "width":1024, "height":1024,
-          "base_image_b64":"$BASE64_IMG",
-          "region_rect":{"x":420,"y":280,"width":220,"height":220}
-        }
-      }" | jq '.poster.b64 | length'
 ```
+
 
 ### 常见问题
 

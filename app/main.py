@@ -28,11 +28,7 @@ from app.schemas import (
 )
 from app.services.email_sender import send_email
 from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
-from app.services.image_provider.base import ImageProvider
-from app.services.image_provider.genai_provider import GenAIGoogleImagen
-from app.services.image_provider.vertex_provider import (
-    VertexImagen3 as VertexImagenProvider,
-)
+from app.services.image_provider.factory import get_provider
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
@@ -45,6 +41,7 @@ from app.services.template_variants import (
     save_template_poster,
 )
 from app.services.vertex_imagen import init_vertex
+from app.services.storage_bridge import store_image_and_url
 from app.services.vertex_imagen3 import VertexImagen3
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -133,36 +130,18 @@ else:
         )
 
 
-def _image_provider_name() -> str:
-    return (os.getenv("IMAGE_PROVIDER", "genai") or "genai").strip().lower()
+IMAGE_PROVIDER_NAME = "vertex"
 
 
 @lru_cache(maxsize=1)
-def _build_image_provider() -> ImageProvider:
-    name = _image_provider_name()
-    if name == "vertex":
-        logger.info("Using Vertex image provider for imagen endpoint")
-        return VertexImagenProvider()
-
-    logger.info("Using google-genai image provider for imagen endpoint")
-    return GenAIGoogleImagen()
-
-
-def _get_image_provider() -> ImageProvider:
+def _get_image_provider():
     try:
-        return _build_image_provider()
-    except KeyError as exc:
-        missing_key = exc.args[0] if exc.args else "GOOGLE_API_KEY"
-        logger.error("Image provider configuration missing environment: %s", missing_key)
-        raise HTTPException(
-            status_code=503,
-            detail=f"Image provider misconfigured: missing {missing_key}",
-        ) from exc
-    except HTTPException:
-        raise
+        provider = get_provider()
     except Exception as exc:  # pragma: no cover - remote dependency init
         logger.exception("Failed to initialise image provider: %s", exc)
         raise HTTPException(status_code=503, detail="Image provider unavailable") from exc
+    logger.info("Using %s image provider for imagen endpoint", IMAGE_PROVIDER_NAME)
+    return provider
 
 body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
 try:
@@ -280,7 +259,7 @@ def vertex_generate_debug() -> Response:
         logger.exception("Imagen debug generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
 
-    headers = {"X-Image-Provider": _image_provider_name()}
+    headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME}
     return Response(content=image_bytes, media_type="image/png", headers=headers)
 
 
@@ -288,6 +267,28 @@ class ImagenGenerateRequest(BaseModel):
     prompt: str = Field(..., description="文生图提示词")
     size: str = Field("1024x1024", description="尺寸, 例如 1024x1024")
     negative: str | None = Field(None, description="反向提示词")
+    width: int | None = Field(None, gt=0, description="覆盖宽度 (像素)")
+    height: int | None = Field(None, gt=0, description="覆盖高度 (像素)")
+    seed: int | None = Field(None, ge=0, description="可选种子")
+    guidance: float | None = Field(
+        None, ge=0.0, description="Imagen 指导系数"
+    )
+    store: bool | None = Field(
+        None,
+        description=(
+            "是否强制写入对象存储。当显式传 false 时若 RETURN_BINARY_DEFAULT=0 将被拒绝。"
+        ),
+    )
+
+
+class ImagenGenerateResponse(BaseModel):
+    ok: bool = Field(True, description="调用是否成功")
+    key: str = Field(..., description="存储键")
+    url: str = Field(..., description="公开或签名 URL")
+    width: int = Field(..., gt=0)
+    height: int = Field(..., gt=0)
+    content_type: str = Field("image/png", description="MIME 类型")
+    provider: str = Field(IMAGE_PROVIDER_NAME, description="生成后端标识")
 
 
 def _resolve_dimensions(size: str) -> tuple[int, int]:
@@ -305,10 +306,12 @@ def _resolve_dimensions(size: str) -> tuple[int, int]:
     return width, height
 
 
-@app.post("/api/imagen/generate")
-def api_imagen_generate(request_data: ImagenGenerateRequest):
+@app.post("/api/imagen/generate", response_model=ImagenGenerateResponse)
+def api_imagen_generate(request_data: ImagenGenerateRequest) -> Response:
     provider = _get_image_provider()
-    width, height = _resolve_dimensions(request_data.size)
+    base_width, base_height = _resolve_dimensions(request_data.size)
+    width = request_data.width or base_width
+    height = request_data.height or base_height
 
     try:
         image_bytes = provider.generate(
@@ -316,6 +319,8 @@ def api_imagen_generate(request_data: ImagenGenerateRequest):
             width=width,
             height=height,
             negative_prompt=request_data.negative,
+            seed=request_data.seed,
+            guidance_scale=request_data.guidance,
         )
     except HTTPException:
         raise
@@ -323,8 +328,38 @@ def api_imagen_generate(request_data: ImagenGenerateRequest):
         logger.exception("Imagen generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
 
-    headers = {"X-Image-Provider": _image_provider_name()}
-    return Response(content=image_bytes, media_type="image/png", headers=headers)
+    allow_binary = os.getenv("RETURN_BINARY_DEFAULT", "0") == "1"
+    if request_data.store is False and not allow_binary:
+        raise HTTPException(
+            status_code=403,
+            detail="Binary responses are disabled; only URL/Key responses are permitted.",
+        )
+
+    do_store = True if request_data.store is None else request_data.store
+    if not do_store:
+        logger.info(
+            "Imagen binary response allowed by configuration",
+            extra={"provider": IMAGE_PROVIDER_NAME},
+        )
+        headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME}
+        return Response(content=image_bytes, media_type="image/png", headers=headers)  # type: ignore[return-value]
+
+    meta = store_image_and_url(image_bytes, ext="png", content_type="image/png")
+    logger.info(
+        "Imagen output stored to R2",
+        extra={"provider": IMAGE_PROVIDER_NAME, "key": meta["key"], "url": meta["url"]},
+    )
+
+    payload = ImagenGenerateResponse(
+        ok=True,
+        key=meta["key"],
+        url=meta["url"],
+        width=width,
+        height=height,
+        content_type=meta["content_type"],
+        provider=IMAGE_PROVIDER_NAME,
+    )
+    return JSONResponse(payload.model_dump())
 
 
 
