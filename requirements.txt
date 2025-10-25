@@ -1,7 +1,7 @@
 # Web & ASGI
-fastapi==0.115.0
-starlette==0.38.2
-uvicorn[standard]==0.30.6
+fastapi>=0.115.0
+starlette>=0.38.2
+uvicorn[standard]>=0.30.0
 
 # Pydantic v2 & settings
 pydantic==2.8.2
