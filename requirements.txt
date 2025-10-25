@@ -1,7 +1,7 @@
 # Web & ASGI
-fastapi==0.115.0
-starlette==0.38.2
-uvicorn[standard]==0.30.6
+fastapi>=0.115.0
+starlette>=0.38.2
+uvicorn[standard]>=0.30.0
 
 # Pydantic v2 & settings
 pydantic==2.8.2
@@ -21,4 +21,6 @@ google-auth-oauthlib>=1.2.1
 openai>=1.40.0,<2
 boto3>=1.35.0        # ← 你接入 R2 需要它（别忘了加）
 httpx==0.27.2
+
+typing_extensions>=4.15.0
 
