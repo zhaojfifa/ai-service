@@ -12,6 +12,29 @@
 
 > ℹ️ **默认安全策略**：后端会拒绝超过 `UPLOAD_MAX_BYTES`（默认 20MB）的请求体，并在 `ALLOW_BASE64_UPLOADS` 未开启时拦截任何包含 `data:image/...;base64,` 的字段。请使用 `/api/r2/presign-put` 直传文件，再在业务请求里仅携带对象 `key` 或公开 `url`。
 
+### 请求体体积 & Base64 约束
+
+为避免浏览器直接把图片以 Base64 内联发送而拖垮后端，服务端启用了中间件 **RejectHugeOrBase64**：
+
+- `MAX_BODY_BYTES`（默认 2 MiB）：超过该体积的请求将被拒绝（HTTP 413）。
+- `MAX_INLINE_BASE64_BYTES`（默认 128 KiB）：请求体中出现大块 Base64 或 `data:image/*;base64,` 字样将被拒绝。
+- 失败时返回 JSON：
+
+  ```json
+  {
+    "detail": "请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url。",
+    "hints": { "upload": "将图片先上传到 R2，提交 key/url" }
+  }
+  ```
+
+正确姿势：
+
+1. 前端先把素材（PNG/JPEG/WEBP）上传到 Cloudflare R2（或任意对象存储）。
+2. 后端接口仅接收 key / url，不接收 Base64 字符串。
+3. 若需私有桶，前端/后端根据需要生成预签名 URL，再交给渲染链路使用。
+
+> Render 环境变量示例：`MAX_BODY_BYTES=2097152`、`MAX_INLINE_BASE64_BYTES=131072`。
+
 ## 项目结构
 
 ```
