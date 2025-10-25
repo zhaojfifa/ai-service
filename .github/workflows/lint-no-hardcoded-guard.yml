@@ -1,0 +1,12 @@
+name: no-hardcoded-guard
+on: [push, pull_request]
+jobs:
+  grep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject hardcoded RejectHugeOrBase64 usage
+        run: |
+          set -e
+          ! git grep -n "add_middleware(RejectHugeOrBase64" || (echo "Do not hardcode guard in app startup"; exit 1)
+          ! git grep -n "from app.middlewares.huge_or_b64_guard import RejectHugeOrBase64" || (echo "Do not hardcode guard import in entry"; exit 1)
