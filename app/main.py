@@ -4,17 +4,20 @@ import json
 import logging
 import os
 import uuid
+from functools import lru_cache
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel, Field, ValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError, root_validator
 
 from app.config import get_settings
+from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    ImageRef,
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
@@ -24,9 +27,9 @@ from app.schemas import (
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
 )
-from app.middlewares import BodyGuardMiddleware
 from app.services.email_sender import send_email
 from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
+from app.services.image_provider.factory import get_provider
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
@@ -38,27 +41,64 @@ from app.services.template_variants import (
     poster_entry_from_record,
     save_template_poster,
 )
-from app.services.vertex_imagen import VertexImagen, init_vertex
+from app.services.vertex_imagen import init_vertex
+from app.services.storage_bridge import store_image_and_url
 from app.services.vertex_imagen3 import VertexImagen3
 
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
-def _configure_logging() -> logging.Logger:
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    logger = logging.getLogger("ai-service")
-    logger.debug("Logging configured at %s", level)
-    return logger
+# uvicorn 日志级别统一
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("uvicorn").setLevel(LOG_LEVEL)
+logging.getLogger("uvicorn.error").setLevel(LOG_LEVEL)
+logging.getLogger("uvicorn.access").setLevel(LOG_LEVEL)
+logging.getLogger("ai-service").setLevel(LOG_LEVEL)
 
-
-logger = _configure_logging()
-settings = get_settings()
+log = logging.getLogger("ai-service")
+logger = log
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
-app.add_middleware(RejectHugeOrBase64)
 
-imagen_endpoint_client: VertexImagen | None = None
+# ------------- 关键修复：安全导入 + 条件注册（防止 NameError） -------------
+RejectHugeOrBase64 = None  # 先占位，避免后续引用未定义
+
+try:
+    # 绝对导入，要求 app 是包；配合 __init__.py（见下文）
+    from app.middlewares.reject_huge_or_base64 import RejectHugeOrBase64  # type: ignore
+    log.info("Loaded middleware: RejectHugeOrBase64")
+except Exception as e:  # noqa: BLE001
+    log.error("Failed to import RejectHugeOrBase64: %r; service will run without it.", e)
+    RejectHugeOrBase64 = None
+
+if RejectHugeOrBase64 is not None:
+    app.add_middleware(RejectHugeOrBase64)
+# -----------------------------------------------------------------------
+
+
+# 首页：GET/HEAD 200（修复 405）
+@app.get("/", include_in_schema=False)
+def root() -> dict[str, Any]:
+    return {"service": "ai-service", "ok": True}
+
+
+@app.head("/", include_in_schema=False)
+def root_head() -> Response:
+    # HEAD 按规范不返回 body
+    return Response(status_code=200)
+
+
+settings = get_settings()
+
+
+# 健康检查，确保 Render 能检测端口开放
+@app.get("/health")
+def health() -> dict[str, bool]:
+    return {"ok": True}
+
+
+
 vertex_poster_client: VertexImagen3 | None = None
 
 try:
@@ -66,12 +106,6 @@ try:
 except Exception as exc:  # pragma: no cover - startup diagnostics
     logger.warning("Vertex init failed: %s", exc)
 else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
     try:
         vertex_poster_client = VertexImagen3()
     except Exception as exc:  # pragma: no cover - startup diagnostics
@@ -96,98 +130,19 @@ else:
             },
         )
 
-body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
-try:
-    body_guard_bytes = max(int(body_guard_limit), 0)
-except (TypeError, ValueError):  # pragma: no cover - defensive parsing
-    body_guard_bytes = 200_000
 
-app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
+IMAGE_PROVIDER_NAME = "vertex"
 
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
 
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
+@lru_cache(maxsize=1)
+def _get_image_provider():
     try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
-
-body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
-try:
-    body_guard_bytes = max(int(body_guard_limit), 0)
-except (TypeError, ValueError):  # pragma: no cover - defensive parsing
-    body_guard_bytes = 200_000
-
-app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
-logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
-
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
-
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
+        provider = get_provider()
+    except Exception as exc:  # pragma: no cover - remote dependency init
+        logger.exception("Failed to initialise image provider: %s", exc)
+        raise HTTPException(status_code=503, detail="Image provider unavailable") from exc
+    logger.info("Using %s image provider for imagen endpoint", IMAGE_PROVIDER_NAME)
+    return provider
 
 body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
 try:
@@ -197,91 +152,6 @@ except (TypeError, ValueError):  # pragma: no cover - defensive parsing
 
 app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
 logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
-
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
-
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
-
-body_guard_limit = os.getenv("MAX_JSON_BYTES") or os.getenv("UPLOAD_MAX_BYTES") or "200000"
-try:
-    body_guard_bytes = max(int(body_guard_limit), 0)
-except (TypeError, ValueError):  # pragma: no cover - defensive parsing
-    body_guard_bytes = 200_000
-
-app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
-logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
-
-imagen_endpoint_client: VertexImagen | None = None
-vertex_poster_client: VertexImagen3 | None = None
-
-try:
-    init_vertex()
-except Exception as exc:  # pragma: no cover - startup diagnostics
-    logger.warning("Vertex init failed: %s", exc)
-else:
-    try:
-        imagen_endpoint_client = VertexImagen("imagen-3.0-generate-001")
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        imagen_endpoint_client = None
-        logger.warning("VertexImagen initialization failed: %s", exc)
-
-    try:
-        vertex_poster_client = VertexImagen3()
-    except Exception as exc:  # pragma: no cover - startup diagnostics
-        vertex_poster_client = None
-        logger.warning("VertexImagen3 initialization failed: %s", exc)
-    else:
-        configure_vertex_imagen(vertex_poster_client)
-        print(
-            "[VertexImagen3]",
-            f"project={vertex_poster_client.project}",
-            f"location={vertex_poster_client.location}",
-            f"gen_model={vertex_poster_client.model_generate}",
-            f"edit_model={vertex_poster_client.model_edit}",
-        )
-        logger.info(
-            "VertexImagen3 ready",
-            extra={
-                "project": vertex_poster_client.project,
-                "location": vertex_poster_client.location,
-                "generate_model": vertex_poster_client.model_generate,
-                "edit_model": vertex_poster_client.model_edit,
-            },
-        )
 
 # ✅ 上传配置
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
@@ -349,12 +219,6 @@ app.add_middleware(
 async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
     return Response(status_code=204)
 
-# ✅ 健康检查
-@app.get("/health")
-def health_check() -> dict[str, str]:
-    return {"status": "ok"}
-
-
 @app.get("/debug/vertex/ping")
 def vertex_ping() -> JSONResponse:
     """Probe publisher model availability for debugging."""
@@ -380,57 +244,152 @@ def vertex_ping() -> JSONResponse:
 
 @app.get("/debug/vertex/generate")
 def vertex_generate_debug() -> Response:
-    """Create a tiny diagnostic image directly from Vertex."""
+    """Create a tiny diagnostic image with the active provider."""
 
-    if imagen_endpoint_client is None:
-        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
-
+    provider = _get_image_provider()
     try:
-        payload = imagen_endpoint_client.generate_bytes(
+        image_bytes = provider.generate(
             prompt="a tiny watercolor hummingbird, diagnostic",
-            size="512x512",
-            return_trace=True,
+            width=512,
+            height=512,
+            negative_prompt=None,
         )
-        if isinstance(payload, tuple):
-            image_bytes, trace_id = payload
-        else:  # pragma: no cover - defensive fallback
-            image_bytes, trace_id = payload, None
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - remote dependency
-        logger.exception("Vertex tiny generate failed: %s", exc)
+        logger.exception("Imagen debug generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
 
-    headers = {"X-Vertex-Trace": trace_id} if trace_id else None
-    return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
+    headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME}
+    return Response(content=image_bytes, media_type="image/png", headers=headers)
 
 
 class ImagenGenerateRequest(BaseModel):
     prompt: str = Field(..., description="文生图提示词")
     size: str = Field("1024x1024", description="尺寸, 例如 1024x1024")
     negative: str | None = Field(None, description="反向提示词")
+    width: int | None = Field(None, gt=0, description="覆盖宽度 (像素)")
+    height: int | None = Field(None, gt=0, description="覆盖高度 (像素)")
+    seed: int | None = Field(None, ge=0, description="可选种子")
+    guidance_scale: float | None = Field(
+        None, ge=0.0, description="Imagen 指导系数"
+    )
+    add_watermark: bool | None = Field(
+        True,
+        description="是否在生成图片中嵌入水印，默认为 True，与 Vertex 默认保持一致"
+    )
+    input_image: ImageRef | None = Field(
+        None,
+        description="可选参考图像，仅接受对象存储 URL 或 Key"
+    )
+    store: bool | None = Field(
+        None,
+        description=(
+            "是否强制写入对象存储。当显式传 false 时若 RETURN_BINARY_DEFAULT=0 将被拒绝。"
+        ),
+    )
+
+    @root_validator(pre=True)
+    def _alias_guidance(cls, values: dict[str, object]) -> dict[str, object]:
+        # 兼容历史字段 guidance
+        if "guidance_scale" not in values and "guidance" in values:
+            values["guidance_scale"] = values["guidance"]
+        return values
 
 
-@app.post("/api/imagen/generate")
-def api_imagen_generate(request_data: ImagenGenerateRequest):
-    if imagen_endpoint_client is None:
-        raise HTTPException(status_code=503, detail="Vertex Imagen not configured")
+class ImagenGenerateResponse(BaseModel):
+    ok: bool = Field(True, description="调用是否成功")
+    key: str = Field(..., description="存储键")
+    url: str = Field(..., description="公开或签名 URL")
+    width: int = Field(..., gt=0)
+    height: int = Field(..., gt=0)
+    content_type: str = Field("image/png", description="MIME 类型")
+    provider: str = Field(IMAGE_PROVIDER_NAME, description="生成后端标识")
+
+
+def _resolve_dimensions(size: str) -> tuple[int, int]:
+    text = (size or "1024x1024").lower().strip()
+    try:
+        width_str, height_str = text.split("x", 1)
+        width = int(width_str)
+        height = int(height_str)
+    except Exception:
+        logger.warning("Invalid size value '%s', falling back to 1024x1024", size)
+        return 1024, 1024
+
+    width = max(width, 1)
+    height = max(height, 1)
+    return width, height
+
+
+@app.post("/api/imagen/generate", response_model=ImagenGenerateResponse)
+def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -> Response:
+    provider = _get_image_provider()
+    base_width, base_height = _resolve_dimensions(request_data.size)
+    width = request_data.width or base_width
+    height = request_data.height or base_height
+
+    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
+    logger.info(
+        "[payload] rid=%s prompt_len=%s neg_len=%s has_seed=%s add_watermark=%s w=%s h=%s guidance=%s",
+        rid,
+        len(request_data.prompt or ""),
+        len(request_data.negative or ""),
+        request_data.seed is not None,
+        request_data.add_watermark,
+        width,
+        height,
+        request_data.guidance_scale,
+    )
 
     try:
-        payload = imagen_endpoint_client.generate_bytes(
+        image_bytes = provider.generate(
             prompt=request_data.prompt,
-            size=request_data.size,
+            width=width,
+            height=height,
             negative_prompt=request_data.negative,
-            return_trace=True,
+            seed=request_data.seed,
+            guidance_scale=request_data.guidance_scale,
+            add_watermark=request_data.add_watermark,
         )
-        if isinstance(payload, tuple):
-            image_bytes, trace_id = payload
-        else:  # pragma: no cover - defensive fallback
-            image_bytes, trace_id = payload, None
+    except HTTPException:
+        raise
     except Exception as exc:  # pragma: no cover - remote dependency
         logger.exception("Imagen generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
 
-    headers = {"X-Vertex-Trace": trace_id} if trace_id else None
-    return Response(content=image_bytes, media_type="image/jpeg", headers=headers)
+    allow_binary = os.getenv("RETURN_BINARY_DEFAULT", "0") == "1"
+    if request_data.store is False and not allow_binary:
+        raise HTTPException(
+            status_code=403,
+            detail="Binary responses are disabled; only URL/Key responses are permitted.",
+        )
+
+    do_store = True if request_data.store is None else request_data.store
+    if not do_store:
+        logger.info(
+            "Imagen binary response allowed by configuration",
+            extra={"provider": IMAGE_PROVIDER_NAME},
+        )
+        headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME}
+        return Response(content=image_bytes, media_type="image/png", headers=headers)  # type: ignore[return-value]
+
+    meta = store_image_and_url(image_bytes, ext="png", content_type="image/png")
+    logger.info(
+        "Imagen output stored to R2",
+        extra={"provider": IMAGE_PROVIDER_NAME, "key": meta["key"], "url": meta["url"]},
+    )
+
+    payload = ImagenGenerateResponse(
+        ok=True,
+        key=meta["key"],
+        url=meta["url"],
+        width=width,
+        height=height,
+        content_type=meta["content_type"],
+        provider=IMAGE_PROVIDER_NAME,
+    )
+    return JSONResponse(payload.model_dump())
 
 
 
