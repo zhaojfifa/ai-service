@@ -17,6 +17,7 @@ from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    ImageRef,
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
@@ -277,6 +278,10 @@ class ImagenGenerateRequest(BaseModel):
         True,
         description="是否在生成图片中嵌入水印，默认为 True，与 Vertex 默认保持一致"
     )
+    input_image: ImageRef | None = Field(
+        None,
+        description="可选参考图像，仅接受对象存储 URL 或 Key"
+    )
     store: bool | None = Field(
         None,
         description=(
@@ -318,11 +323,24 @@ def _resolve_dimensions(size: str) -> tuple[int, int]:
 
 
 @app.post("/api/imagen/generate", response_model=ImagenGenerateResponse)
-def api_imagen_generate(request_data: ImagenGenerateRequest) -> Response:
+def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -> Response:
     provider = _get_image_provider()
     base_width, base_height = _resolve_dimensions(request_data.size)
     width = request_data.width or base_width
     height = request_data.height or base_height
+
+    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
+    logger.info(
+        "[payload] rid=%s prompt_len=%s neg_len=%s has_seed=%s add_watermark=%s w=%s h=%s guidance=%s",
+        rid,
+        len(request_data.prompt or ""),
+        len(request_data.negative or ""),
+        request_data.seed is not None,
+        request_data.add_watermark,
+        width,
+        height,
+        request_data.guidance_scale,
+    )
 
     try:
         image_bytes = provider.generate(
