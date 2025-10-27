@@ -148,6 +148,31 @@ main {
   object-fit: contain;
 }
 
+.asset-url {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #52606d;
+  word-break: break-all;
+}
+
+.asset-url a {
+  color: #1f7aec;
+  text-decoration: none;
+}
+
+.asset-url a:hover {
+  text-decoration: underline;
+}
+
+.asset-url .asset-url-label {
+  font-weight: 600;
+  margin-right: 0.35rem;
+}
+
+.asset-url .asset-url-empty {
+  color: #9aa5b1;
+}
+
 .image-zones {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
