@@ -536,8 +536,12 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
+  const inspection = ensureUploadedAndLog(path, payload, rawPayload);
+
   // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
-  const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
+  const bodyRaw = (typeof rawPayload === 'string')
+    ? rawPayload
+    : inspection.bodyString ?? JSON.stringify(payload);
 
   const logPrefix = `[postJsonWithRetry] ${path}`;
   const previewSnippet = (() => {
@@ -564,12 +568,17 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
       const url = urlFor(b);                               // ← 定义 url
       try {
+        const headers = {
+          'Content-Type': 'application/json; charset=UTF-8',
+          ...(inspection?.headers || {}),
+        };
+
         const res = await fetch(url, {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
           credentials: 'omit',
-          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          headers,
           body: bodyRaw,
           signal: ctrl.signal,
         });
@@ -3845,7 +3854,16 @@ async function triggerGeneration(opts) {
   };
   
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-  
+
+  const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
+  if (negativeSummary) {
+    payload.negatives = negativeSummary;
+  }
+
+  if (abTest) {
+    payload.variants = Math.max(2, payload.variants || 2);
+  }
+
   const posterSummary = {
     template_id: posterPayload.template_id,
     scenario_mode: posterPayload.scenario_mode,
@@ -3853,6 +3871,29 @@ async function triggerGeneration(opts) {
     feature_count: Array.isArray(posterPayload.features) ? posterPayload.features.length : 0,
     gallery_count: Array.isArray(posterPayload.gallery_items) ? posterPayload.gallery_items.length : 0,
   };
+  const assetAudit = {
+    brand_logo: {
+      key: brandLogoRef?.key || null,
+      url: posterPayload.brand_logo || null,
+    },
+    scenario: {
+      mode: posterPayload.scenario_mode,
+      key: posterPayload.scenario_key || null,
+      url: posterPayload.scenario_asset || null,
+    },
+    product: {
+      mode: posterPayload.product_mode,
+      key: posterPayload.product_key || null,
+      url: posterPayload.product_asset || null,
+    },
+    gallery: posterPayload.gallery_items.map((item, index) => ({
+      index,
+      mode: item.mode,
+      key: item.key || null,
+      url: item.asset || null,
+    })),
+  };
+
   console.info('[triggerGeneration] prepared payload', {
     apiCandidates,
     poster: posterSummary,
@@ -3860,6 +3901,7 @@ async function triggerGeneration(opts) {
     variants: payload.variants,
     seed: payload.seed,
     lock_seed: payload.lock_seed,
+    negatives: negativeSummary || null,
   });
   console.info('[triggerGeneration] asset audit', {
     brand_logo: { key: brandLogoRef?.key || null, url: posterPayload.brand_logo || null },
