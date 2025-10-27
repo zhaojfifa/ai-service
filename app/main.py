@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
 import logging
 import os
@@ -248,11 +249,12 @@ def vertex_generate_debug() -> Response:
 
     provider = _get_image_provider()
     try:
-        image_bytes = provider.generate(
+        images = provider.generate(
             prompt="a tiny watercolor hummingbird, diagnostic",
             width=512,
             height=512,
             negative_prompt=None,
+            number_of_images=1,
         )
     except HTTPException:
         raise
@@ -260,8 +262,10 @@ def vertex_generate_debug() -> Response:
         logger.exception("Imagen debug generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
 
+    image_bytes = images[0]
     headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME}
     return Response(content=image_bytes, media_type="image/png", headers=headers)
+
 
 
 class ImagenGenerateRequest(BaseModel):
@@ -276,11 +280,17 @@ class ImagenGenerateRequest(BaseModel):
     )
     add_watermark: bool | None = Field(
         True,
-        description="是否在生成图片中嵌入水印，默认为 True，与 Vertex 默认保持一致"
+        description="是否在生成图片中嵌入水印，默认为 True，与 Vertex 默认保持一致",
     )
     input_image: ImageRef | None = Field(
         None,
-        description="可选参考图像，仅接受对象存储 URL 或 Key"
+        description="可选参考图像，仅接受对象存储 URL 或 Key",
+    )
+    variants: int | None = Field(
+        1,
+        ge=1,
+        le=8,
+        description="一次生成的图片数量，默认 1，允许范围 1-8",
     )
     store: bool | None = Field(
         None,
@@ -294,17 +304,42 @@ class ImagenGenerateRequest(BaseModel):
         # 兼容历史字段 guidance
         if "guidance_scale" not in values and "guidance" in values:
             values["guidance_scale"] = values["guidance"]
+        if values.get("variants") is None:
+            values.pop("variants", None)
         return values
+
+
+class ImagenVariant(BaseModel):
+    key: str = Field(..., description="存储键")
+    url: str = Field(..., description="公开或签名 URL")
+    content_type: str = Field("image/png", description="MIME 类型")
 
 
 class ImagenGenerateResponse(BaseModel):
     ok: bool = Field(True, description="调用是否成功")
-    key: str = Field(..., description="存储键")
-    url: str = Field(..., description="公开或签名 URL")
+    variants: int = Field(..., ge=1, description="返回的图片数量")
     width: int = Field(..., gt=0)
     height: int = Field(..., gt=0)
-    content_type: str = Field("image/png", description="MIME 类型")
     provider: str = Field(IMAGE_PROVIDER_NAME, description="生成后端标识")
+    results: list[ImagenVariant] = Field(
+        ..., description="已写入对象存储的图片列表"
+    )
+    key: str | None = Field(
+        None,
+        description="首张图片的存储键，兼容旧版客户端",
+    )
+    url: str | None = Field(
+        None,
+        description="首张图片的公开或签名 URL，兼容旧版客户端",
+    )
+    content_type: str | None = Field(
+        None,
+        description="首张图片的 MIME 类型，兼容旧版客户端",
+    )
+    meta: dict[str, Any] = Field(
+        default_factory=dict,
+        description="额外元信息，例如种子、水印状态等",
+    )
 
 
 def _resolve_dimensions(size: str) -> tuple[int, int]:
@@ -322,6 +357,7 @@ def _resolve_dimensions(size: str) -> tuple[int, int]:
     return width, height
 
 
+
 @app.post("/api/imagen/generate", response_model=ImagenGenerateResponse)
 def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -> Response:
     provider = _get_image_provider()
@@ -330,20 +366,25 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
     height = request_data.height or base_height
 
     rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
+    requested_variants = int(request_data.variants or 1)
+    variants = max(1, min(requested_variants, 8))
+    watermark_flag = True if request_data.add_watermark is None else bool(request_data.add_watermark)
+
     logger.info(
-        "[payload] rid=%s prompt_len=%s neg_len=%s has_seed=%s add_watermark=%s w=%s h=%s guidance=%s",
+        "[payload] rid=%s prompt_len=%s neg_len=%s has_seed=%s add_watermark=%s variants=%s w=%s h=%s guidance=%s",
         rid,
         len(request_data.prompt or ""),
         len(request_data.negative or ""),
         request_data.seed is not None,
         request_data.add_watermark,
+        variants,
         width,
         height,
         request_data.guidance_scale,
     )
 
     try:
-        image_bytes = provider.generate(
+        images = provider.generate(
             prompt=request_data.prompt,
             width=width,
             height=height,
@@ -351,12 +392,16 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
             seed=request_data.seed,
             guidance_scale=request_data.guidance_scale,
             add_watermark=request_data.add_watermark,
+            number_of_images=variants,
         )
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - remote dependency
         logger.exception("Imagen generate failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Imagen error: {exc}") from exc
+
+    if not images:
+        raise HTTPException(status_code=502, detail="Imagen returned no data")
 
     allow_binary = os.getenv("RETURN_BINARY_DEFAULT", "0") == "1"
     if request_data.store is False and not allow_binary:
@@ -367,29 +412,68 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
 
     do_store = True if request_data.store is None else request_data.store
     if not do_store:
+        if variants != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Binary responses only support a single image. Omit variants or enable storage.",
+            )
         logger.info(
             "Imagen binary response allowed by configuration",
             extra={"provider": IMAGE_PROVIDER_NAME},
         )
-        headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME}
-        return Response(content=image_bytes, media_type="image/png", headers=headers)  # type: ignore[return-value]
+        headers = {"X-Image-Provider": IMAGE_PROVIDER_NAME, "X-Image-Variants": str(variants)}
+        return Response(content=images[0], media_type="image/png", headers=headers)
 
-    meta = store_image_and_url(image_bytes, ext="png", content_type="image/png")
-    logger.info(
-        "Imagen output stored to R2",
-        extra={"provider": IMAGE_PROVIDER_NAME, "key": meta["key"], "url": meta["url"]},
-    )
+    timestamp = dt.datetime.utcnow().strftime("%Y/%m/%d")
+    base_prefix = f"imagen/{timestamp}/{rid}"
+    variant_models: list[ImagenVariant] = []
+
+    for index, data in enumerate(images):
+        key = f"{base_prefix}/{index}.png"
+        meta = store_image_and_url(
+            data,
+            ext="png",
+            content_type="image/png",
+            key=key,
+        )
+        logger.info(
+            "Imagen output stored to R2",
+            extra={
+                "provider": IMAGE_PROVIDER_NAME,
+                "key": meta["key"],
+                "url": meta["url"],
+                "variant_index": index,
+                "rid": rid,
+            },
+        )
+        variant_models.append(ImagenVariant(**meta))
+
+    if not variant_models:
+        raise HTTPException(status_code=500, detail="Failed to persist generated images")
+
+    primary = variant_models[0]
+    seed_used = request_data.seed if (not watermark_flag and request_data.seed is not None) else None
 
     payload = ImagenGenerateResponse(
         ok=True,
-        key=meta["key"],
-        url=meta["url"],
+        variants=len(variant_models),
         width=width,
         height=height,
-        content_type=meta["content_type"],
         provider=IMAGE_PROVIDER_NAME,
+        results=variant_models,
+        key=primary.key,
+        url=primary.url,
+        content_type=primary.content_type,
+        meta={
+            "add_watermark": watermark_flag,
+            "seed_requested": request_data.seed,
+            "seed_used": seed_used,
+            "guidance_scale": request_data.guidance_scale,
+            "requested_variants": requested_variants,
+        },
     )
-    return JSONResponse(payload.model_dump())
+    return JSONResponse(payload.model_dump(exclude_none=True))
+
 
 
 

@@ -82,16 +82,37 @@ POST /api/imagen/generate
 {
   "prompt": "a cute corgi in space suit",
   "width": 1024,
-  "height": 1024
+  "height": 1024,
+  "variants": 2
 }
 → 200 OK
 {
   "ok": true,
-  "key": "imagen/2025/10/25/xxxx.png",
-  "url": "https://cdn.example.com/imagen/2025/10/25/xxxx.png",
+  "variants": 2,
   "width": 1024,
   "height": 1024,
-  "content_type": "image/png"
+  "provider": "vertex",
+  "results": [
+    {
+      "key": "imagen/2025/10/25/req123/0.png",
+      "url": "https://cdn.example.com/imagen/2025/10/25/req123/0.png",
+      "content_type": "image/png"
+    },
+    {
+      "key": "imagen/2025/10/25/req123/1.png",
+      "url": "https://cdn.example.com/imagen/2025/10/25/req123/1.png",
+      "content_type": "image/png"
+    }
+  ],
+  "key": "imagen/2025/10/25/req123/0.png",
+  "url": "https://cdn.example.com/imagen/2025/10/25/req123/0.png",
+  "content_type": "image/png",
+  "meta": {
+    "add_watermark": true,
+    "seed_requested": null,
+    "seed_used": null,
+    "requested_variants": 2
+  }
 }
 ```
 

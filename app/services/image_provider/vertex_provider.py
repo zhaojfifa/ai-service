@@ -41,8 +41,10 @@ class VertexImagen3:
         seed: Optional[int] = None,
         guidance_scale: Optional[float] = None,
         add_watermark: Optional[bool] = True,
-    ) -> bytes:
+        number_of_images: int = 1,
+    ) -> list[bytes]:
         aspect_ratio = self._to_aspect_ratio(width, height)
+        requested = max(int(number_of_images or 1), 1)
 
         effective_add_watermark = True if add_watermark is None else bool(add_watermark)
         if seed is not None and effective_add_watermark:
@@ -51,7 +53,7 @@ class VertexImagen3:
 
         params: dict[str, object] = {
             "prompt": prompt,
-            "number_of_images": 1,
+            "number_of_images": requested,
             "aspect_ratio": aspect_ratio,
             "add_watermark": effective_add_watermark,
         }
@@ -63,23 +65,35 @@ class VertexImagen3:
         if seed is not None:
             params["seed"] = seed
 
-        log.debug("[vertex.generate] params=%s", {k: v for k, v in params.items() if k != "prompt"})
+        log.debug(
+            "[vertex.generate] params=%s",
+            {k: v for k, v in params.items() if k != "prompt"},
+        )
 
         response = self.model.generate_images(**params)
 
         if not response.images:
             raise RuntimeError("Vertex Imagen returned no images")
 
-        image = response.images[0]
-        for attr in ("_image_bytes", "image_bytes"):
-            data = getattr(image, attr, None)
-            if isinstance(data, (bytes, bytearray)):
-                return bytes(data)
+        images: list[bytes] = []
+        for image in response.images[:requested]:
+            for attr in ("_image_bytes", "image_bytes"):
+                data = getattr(image, attr, None)
+                if isinstance(data, (bytes, bytearray)):
+                    images.append(bytes(data))
+                    break
+            else:
+                if hasattr(image, "as_bytes"):
+                    images.append(bytes(image.as_bytes()))
+                else:
+                    raise RuntimeError(
+                        "Unable to extract image bytes from Vertex Imagen response"
+                    )
 
-        if hasattr(image, "as_bytes"):
-            return bytes(image.as_bytes())
+        if not images:
+            raise RuntimeError("Vertex Imagen returned no usable image bytes")
 
-        raise RuntimeError("Unable to extract image bytes from Vertex Imagen response")
+        return images
 
     @staticmethod
     def _to_aspect_ratio(width: Optional[int], height: Optional[int]) -> str:
