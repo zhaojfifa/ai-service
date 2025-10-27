@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, constr
+from pydantic import BaseModel, EmailStr, Field, HttpUrl, constr
 
 try:  # pragma: no cover - available on Pydantic v2
     from pydantic import ConfigDict  # type: ignore
@@ -34,10 +35,60 @@ class _CompatModel(BaseModel):
             extra = "ignore"
 
 
+DATA_URL_RX = re.compile(r"^data:image/[^;]+;base64,", re.IGNORECASE)
+
+
 def _reject_data_uri(value: str | None) -> str | None:
-    if value and value.strip().lower().startswith("data:image"):
+    if value and DATA_URL_RX.match(value.strip()):
         raise ValueError("Base64 images are not allowed. Upload to R2 first.")
     return value
+
+
+class ImageRef(_CompatModel):
+    """Reference to an image stored in R2/GCS via URL or key."""
+
+    url: HttpUrl | None = Field(
+        None,
+        description="Publicly accessible URL pointing to the stored image.",
+    )
+    key: str | None = Field(
+        None,
+        description="Object storage key referencing the stored image.",
+    )
+
+    @field_validator("url", "key", mode="before")
+    @classmethod
+    def _reject_inline_data(cls, value: Any) -> Any:
+        if isinstance(value, str) and DATA_URL_RX.match(value.strip()):
+            raise ValueError("base64 data-url is not allowed; upload to R2/GCS first")
+        return value
+
+    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="after")
+        @classmethod
+        def _ensure_reference(cls, value: "ImageRef") -> "ImageRef":
+            if not (value.url or value.key):
+                raise ValueError("one of url/key is required")
+            return value
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=False)  # type: ignore[misc]
+        def _ensure_reference(cls, values: dict[str, Any]) -> dict[str, Any]:
+            if not (values.get("url") or values.get("key")):
+                raise ValueError("one of url/key is required")
+            return values
+
+
+class StoredImage(_CompatModel):
+    """Metadata returned after writing an image to object storage."""
+
+    key: str = Field(..., description="Object storage key for the stored image.")
+    url: HttpUrl = Field(..., description="Public URL that can be used to access the image.")
+    content_type: str = Field("image/png", description="Stored MIME type.")
+    width: int | None = Field(None, ge=0, description="Width in pixels, when known.")
+    height: int | None = Field(None, ge=0, description="Height in pixels, when known.")
 
 
 class PosterGalleryItem(_CompatModel):
@@ -207,6 +258,10 @@ class PosterImage(_CompatModel):
     filename: str = Field(..., description="Suggested filename for the poster image")
     media_type: str = Field(
         "image/png", description="MIME type of the generated poster image"
+    )
+    key: Optional[str] = Field(
+        None,
+        description="Object storage key for the generated poster image (when stored).",
     )
     data_url: Optional[str] = Field(
         None,
@@ -487,6 +542,15 @@ class GeneratePosterResponse(_CompatModel):
     email_body: str
     poster_image: PosterImage
 
+    poster_url: Optional[str] = Field(
+        None,
+        description="Primary poster URL stored in R2/GCS for downstream consumers.",
+    )
+    poster_key: Optional[str] = Field(
+        None,
+        description="Storage key associated with the primary poster URL.",
+    )
+
     prompt_details: dict[str, str] | None = Field(
         None,
         description="Per-slot prompt summary returned by the backend.",
@@ -511,6 +575,11 @@ class GeneratePosterResponse(_CompatModel):
     variants: list[PosterImage] = Field(
         default_factory=list,
         description="Optional collection of variant posters for A/B comparison.",
+    )
+
+    results: list[StoredImage] = Field(
+        default_factory=list,
+        description="Normalised storage metadata for generated posters (key/url).",
     )
 
     # 可选评分
