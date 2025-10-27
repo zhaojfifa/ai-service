@@ -17,10 +17,12 @@ from typing import Any, Optional, Tuple
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
-from fastapi import HTTPException
+from fastapi import HTTPException, status
+from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.schemas.poster import PosterPayload
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, put_bytes
@@ -107,7 +109,7 @@ def _shorten_asset_value(value: str) -> str:
     return f"{text[:32]}…{text[-16:]}"
 
 
-def _poster_asset_summary(poster: PosterInput) -> dict[str, Any]:
+def _poster_asset_summary(poster: PosterInput | dict[str, Any]) -> dict[str, Any]:
     keys: list[str] = []
     urls: list[str] = []
 
@@ -141,6 +143,64 @@ def _poster_asset_summary(poster: PosterInput) -> dict[str, Any]:
         "urls": urls[:3],
         "count": len(keys) + len(urls),
     }
+
+
+def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
+    """Ensure poster assets reference stored objects rather than base64 blobs."""
+
+    if hasattr(poster, "model_dump"):
+        try:
+            payload = poster.model_dump(exclude_none=False)
+        except TypeError:  # pragma: no cover - defensive
+            payload = poster.model_dump()
+    elif hasattr(poster, "dict"):
+        payload = poster.dict(exclude_none=False)
+    elif isinstance(poster, dict):
+        payload = dict(poster)
+    else:  # pragma: no cover - extremely rare
+        payload = {
+            key: getattr(poster, key)
+            for key in dir(poster)
+            if not key.startswith("__") and not callable(getattr(poster, key))
+        }
+
+    gallery = payload.get("gallery_items") or payload.get("gallery") or []
+    normalised_gallery: list[Any] = []
+    for entry in gallery:
+        if hasattr(entry, "model_dump"):
+            normalised_gallery.append(entry.model_dump(exclude_none=False))
+        elif hasattr(entry, "dict"):
+            normalised_gallery.append(entry.dict(exclude_none=False))
+        else:
+            normalised_gallery.append(entry)
+    if normalised_gallery:
+        payload["gallery_items"] = normalised_gallery
+
+    try:
+        if hasattr(PosterPayload, "model_validate"):
+            PosterPayload.model_validate(payload)
+        elif hasattr(PosterPayload, "parse_obj"):
+            PosterPayload.parse_obj(payload)
+        else:  # pragma: no cover - ultra legacy
+            PosterPayload(**payload)
+    except ValidationError as exc:
+        issues = []
+        for error in exc.errors():
+            location = ".".join(str(item) for item in error.get("loc", ()))
+            message = error.get("msg") or error.get("type") or "invalid"
+            issues.append(f"{location}:{message}")
+        logger.warning(
+            "poster.asset.invalid",
+            extra={"issues": issues, "template": payload.get("template_id")},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": "ASSET_REFERENCE_INVALID",
+                "issues": issues,
+                "hint": "请先上传到 R2/GCS，仅传输 key/url。",
+            },
+        ) from exc
 
 
 def _generate_poster_with_vertex(
@@ -625,7 +685,7 @@ def generate_poster_asset(
     trace_id: str | None = None,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
-    _assert_assets_use_r2(poster)
+    _assert_assets_use_ref_only(poster)
 
     desired_variants = max(1, variants)
     override_posters = generation_overrides(desired_variants)
