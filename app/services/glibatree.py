@@ -148,6 +148,40 @@ def _public_base_override() -> str | None:
     return None
 
 
+def coerce_asset_ref_to_url(
+    value: str | None, *, key: str | None = None
+) -> tuple[str | None, str | None]:
+    """Normalise loose asset references into allowed URL formats."""
+
+    candidate = (value or "").strip()
+    key_candidate = key.strip() if isinstance(key, str) else ""
+
+    if not candidate and key_candidate:
+        candidate = key_candidate
+
+    if not candidate:
+        return None, key_candidate or None
+
+    if candidate.lower().startswith("data:"):
+        raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
+
+    if candidate.startswith(_ALLOWED_REF_PREFIXES):
+        return candidate, key_candidate.lstrip("/") or None
+
+    fallback_key = key_candidate or candidate
+    fallback_key = fallback_key.lstrip("/")
+    if fallback_key and _BARE_KEY_PATTERN.match(fallback_key):
+        bucket = _default_asset_bucket()
+        scheme = _default_asset_scheme(bucket)
+        public_base = _public_base_override()
+        if bucket and scheme:
+            return f"{scheme}://{bucket}/{fallback_key}", fallback_key
+        if public_base:
+            return f"{public_base}/{fallback_key}", fallback_key
+
+    raise ValueError("invalid url; expected r2://, s3://, gs:// or http(s)")
+
+
 def _normalise_asset_reference(label: str, value: Any) -> Any:
     """Coerce loose asset references into URL/Key pairs when possible."""
 
@@ -170,32 +204,29 @@ def _normalise_asset_reference(label: str, value: Any) -> Any:
         candidate = raw_url.strip()
         normalised["url"] = candidate
 
-        if candidate and not candidate.startswith(_ALLOWED_REF_PREFIXES):
-            key_candidate = normalised.get("key")
-            if isinstance(key_candidate, str):
-                key_candidate = key_candidate.strip().lstrip("/")
-            else:
-                key_candidate = candidate.lstrip("/")
+    key_candidate = normalised.get("key")
+    if isinstance(key_candidate, str):
+        cleaned_key = key_candidate.strip().lstrip("/")
+    else:
+        cleaned_key = None
+    if cleaned_key:
+        normalised["key"] = cleaned_key
+    elif "key" in normalised:
+        normalised["key"] = None
 
-            if key_candidate and _BARE_KEY_PATTERN.match(key_candidate):
-                bucket = _default_asset_bucket()
-                scheme = _default_asset_scheme(bucket)
-                public_base = _public_base_override()
-
-                if bucket and scheme:
-                    normalised["key"] = key_candidate
-                    normalised["url"] = f"{scheme}://{bucket}/{key_candidate}"
-                    logger.debug(
-                        "poster.asset.autonormalised",
-                        extra={"field": label, "key": key_candidate, "scheme": scheme},
-                    )
-                elif public_base:
-                    normalised["key"] = key_candidate
-                    normalised["url"] = f"{public_base}/{key_candidate}"
-                    logger.debug(
-                        "poster.asset.autonormalised",
-                        extra={"field": label, "key": key_candidate, "scheme": "public"},
-                    )
+    try:
+        url_value, derived_key = coerce_asset_ref_to_url(
+            normalised.get("url"), key=cleaned_key
+        )
+    except ValueError as exc:
+        logger.debug(
+            "poster.asset.invalid_ref",
+            extra={"field": label, "value": normalised.get("url"), "error": str(exc)},
+        )
+        raise
+    normalised["url"] = url_value
+    if derived_key and not cleaned_key:
+        normalised["key"] = derived_key
 
     return normalised
 
@@ -238,60 +269,6 @@ def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
                 setattr(target, key_field, key_value)
             except Exception:  # pragma: no cover - defensive
                 pass
-
-
-def r2_public_url_from_ref(ref: str) -> str:
-    """Resolve a storage reference into a publicly accessible URL."""
-
-    if not ref:
-        raise ValueError("empty storage reference")
-
-    value = ref.strip()
-    if value.startswith(("http://", "https://")):
-        return value
-
-    if value.startswith(("r2://", "s3://")):
-        _, path = value.split("://", 1)
-        if "/" not in path:
-            raise ValueError(f"invalid storage reference: {value}")
-        _, key = path.split("/", 1)
-        url = public_url_for(key)
-        return url or value
-
-    if value.startswith("gs://"):
-        # Vertex output written to GCS can be served directly or proxied.
-        return value
-
-    raise ValueError(f"unsupported storage reference: {value}")
-
-
-def upload_bytes_to_r2_return_ref(
-    data: bytes,
-    *,
-    key: str | None = None,
-    ext: str = ".png",
-    content_type: str = "image/png",
-) -> tuple[str, str]:
-    """Persist ``data`` to R2/S3 and return (r2://bucket/key, public_url)."""
-
-    if not isinstance(data, (bytes, bytearray)):
-        raise TypeError("image payload must be bytes")
-
-    bucket = (os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET") or "").strip()
-    if not bucket:
-        raise RuntimeError("R2/S3 bucket is not configured")
-
-    if key:
-        storage_key = key.lstrip("/")
-    else:
-        filename = f"{uuid.uuid4().hex}{ext if ext.startswith('.') else f'.{ext}'}"
-        storage_key = make_key("posters", filename)
-
-    url = put_bytes(storage_key, bytes(data), content_type=content_type)
-    if not url:
-        raise RuntimeError(f"Failed to upload object {storage_key}")
-
-    return f"r2://{bucket}/{storage_key}", url
 
 
 def _copy_model(instance, **update):
@@ -421,7 +398,19 @@ def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
 
     for field in ("scenario_image", "brand_logo"):
         if field in payload:
-            normalised_value = _normalise_asset_reference(field, payload.get(field))
+            try:
+                normalised_value = _normalise_asset_reference(field, payload.get(field))
+            except ValueError as exc:
+                message = str(exc)
+                detail = (
+                    "请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url"
+                    if "base64" in message.lower()
+                    else f"{message}; field={field}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=detail,
+                ) from exc
             payload[field] = normalised_value
             _apply_asset_reference(poster, field, normalised_value)
 

@@ -319,6 +319,43 @@ function validatePayloadSize(raw) {
 
 const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
 const HTTP_URL_RX = /^https?:\/\//i;
+const URL_SCHEMES = ['http://', 'https://', 'r2://', 's3://', 'gs://'];
+
+const DEFAULT_ASSET_BUCKET =
+  window.__ASSET_BUCKET__ || window.__R2_BUCKET__ || window.__S3_BUCKET__ || 'poster-assets';
+const DEFAULT_ASSET_SCHEME =
+  window.__ASSET_SCHEME__ || (window.__S3_BUCKET__ ? 's3' : 'r2');
+const PUBLIC_ASSET_BASE =
+  window.__ASSET_PUBLIC_BASE__ || window.__R2_PUBLIC_BASE__ || window.__S3_PUBLIC_BASE__ || '';
+
+function isUrlLike(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return URL_SCHEMES.some((scheme) => trimmed.startsWith(scheme));
+}
+
+function toAssetUrl(input) {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  if (isUrlLike(trimmed)) return trimmed;
+  const sanitised = trimmed.replace(/^\/+/, '');
+  if (PUBLIC_ASSET_BASE) {
+    const base = PUBLIC_ASSET_BASE.replace(/\/$/, '');
+    return `${base}/${sanitised}`;
+  }
+  if (DEFAULT_ASSET_BUCKET && DEFAULT_ASSET_SCHEME) {
+    return `${DEFAULT_ASSET_SCHEME}://${DEFAULT_ASSET_BUCKET.replace(/\/$/, '')}/${sanitised}`;
+  }
+  return sanitised;
+}
+
+function assertAssetUrl(fieldLabel, value) {
+  if (!value || !isUrlLike(value)) {
+    throw new Error(`${fieldLabel} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+  }
+}
 
 function estimatePayloadBytes(data) {
   try {
@@ -367,49 +404,68 @@ function normaliseAssetReference(asset, { field = 'asset', requireUploaded = fal
       }
       return { key: null, url: null };
     }
-    if (HTTP_URL_RX.test(trimmed)) {
-      return { key: null, url: trimmed };
+    const resolved = toAssetUrl(trimmed);
+    if (!isUrlLike(resolved)) {
+      if (requireUploaded) {
+        throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+      }
+      return { key: null, url: null };
     }
-    return { key: trimmed, url: null };
+    return { key: HTTP_URL_RX.test(trimmed) ? null : trimmed.replace(/^\/+/, ''), url: resolved };
   }
 
-  const keyCandidate = asset.r2Key || asset.key || null;
+  const keyCandidate = ensureNoInline(asset.r2Key || asset.key || null);
   let sawInlineData = false;
   const candidateSources = [
-    asset.remoteUrl,
-    asset.url,
-    asset.publicUrl,
-    asset.cdnUrl,
-    asset.dataUrl,
+    ensureNoInline(asset.remoteUrl),
+    ensureNoInline(asset.url),
+    ensureNoInline(asset.publicUrl),
+    ensureNoInline(asset.cdnUrl),
+    ensureNoInline(asset.dataUrl),
   ];
 
   let urlCandidate = null;
   for (const candidate of candidateSources) {
-    if (typeof candidate !== 'string') continue;
-    const trimmed = candidate.trim();
-    if (!trimmed) continue;
-    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+    if (!candidate) continue;
+    if (DATA_URL_PAYLOAD_RX.test(candidate)) {
       sawInlineData = true;
       continue;
     }
-    if (HTTP_URL_RX.test(trimmed)) {
-      urlCandidate = trimmed;
+    if (isUrlLike(candidate)) {
+      urlCandidate = candidate;
       break;
     }
   }
 
-  if (!urlCandidate && !keyCandidate) {
+  let resolvedUrl = null;
+  if (urlCandidate) {
+    resolvedUrl = toAssetUrl(urlCandidate);
+  } else if (keyCandidate) {
+    resolvedUrl = toAssetUrl(keyCandidate);
+  }
+
+  if (!resolvedUrl) {
     if (requireUploaded || sawInlineData) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
-    return { key: null, url: null };
+    return { key: keyCandidate || null, url: null };
+  }
+
+  if (!isUrlLike(resolvedUrl)) {
+    if (requireUploaded) {
+      throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+    }
+    return { key: keyCandidate || null, url: null };
   }
 
   if (sawInlineData && urlCandidate) {
     console.info(`[normaliseAssetReference] 已忽略 ${field} 的 base64 预览，仅使用远程 URL。`);
   }
 
-  return { key: keyCandidate || null, url: urlCandidate || null };
+  return {
+    key: keyCandidate ? keyCandidate.replace(/^\/+/, '') : null,
+    url: resolvedUrl,
+  };
 }
 
 function summariseNegativePrompts(prompts) {
@@ -3615,7 +3671,7 @@ async function triggerGeneration(opts) {
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
 
- // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
+  // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
   const pd = stage1Data.product_asset || null;
@@ -3624,23 +3680,27 @@ async function triggerGeneration(opts) {
   const productMode = stage1Data.product_mode || 'upload';
 
   let posterPayload;
+  let brandLogoRef;
+  let scenarioRef;
+  let productRef;
+  let galleryItems;
   try {
-    const brandLogoRef = normaliseAssetReference(stage1Data.brand_logo, {
+    brandLogoRef = normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
       requireUploaded: false,
     });
 
-    const scenarioRef = normaliseAssetReference(sc, {
-      field: 'poster.scenario_asset',
-      requireUploaded: scenarioMode !== 'prompt',
+    scenarioRef = normaliseAssetReference(sc, {
+      field: 'poster.scenario_image',
+      requireUploaded: true,
     });
 
-    const productRef = normaliseAssetReference(pd, {
-      field: 'poster.product_asset',
-      requireUploaded: productMode !== 'prompt',
+    productRef = normaliseAssetReference(pd, {
+      field: 'poster.product_image',
+      requireUploaded: true,
     });
 
-    const galleryItems = [];
+    galleryItems = [];
     (stage1Data.gallery_entries || []).forEach((entry, index) => {
       if (!entry) return;
       const mode = entry.mode || 'upload';
@@ -3678,10 +3738,24 @@ async function triggerGeneration(opts) {
       ? stage1Data.features.filter(Boolean)
       : [];
 
+    const brandLogoUrl = brandLogoRef.url || null;
+    const scenarioUrl = scenarioRef.url || null;
+    const productUrl = productRef.url || null;
+
+    if (scenarioUrl) {
+      assertAssetUrl('场景图', scenarioUrl);
+    }
+    if (productUrl) {
+      assertAssetUrl('主产品图', productUrl);
+    }
+    if (brandLogoUrl) {
+      assertAssetUrl('品牌 Logo', brandLogoUrl);
+    }
+
     posterPayload = {
       brand_name: stage1Data.brand_name,
       agent_name: stage1Data.agent_name,
-      scenario_image: stage1Data.scenario_image,
+      scenario_image: scenarioUrl,
       product_name: stage1Data.product_name,
       template_id: templateId,
       features,
@@ -3689,22 +3763,21 @@ async function triggerGeneration(opts) {
       subtitle: stage1Data.subtitle,
       series_description: stage1Data.series_description,
 
-      brand_logo: brandLogoRef.url || brandLogoRef.key || null,
+      brand_logo: brandLogoUrl,
 
       scenario_key: scenarioRef.key,
-      scenario_asset: scenarioRef.url,
+      scenario_asset: scenarioUrl,
 
       product_key: productRef.key,
-      product_asset: productRef.url,
+      product_asset: productUrl,
 
       scenario_mode: scenarioMode,
-      scenario_prompt: scenarioMode === 'prompt'
-        ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-        : null,
+      scenario_prompt:
+        scenarioMode === 'prompt'
+          ? stage1Data.scenario_prompt || stage1Data.scenario_image || null
+          : null,
       product_mode: productMode,
-      product_prompt: productMode === 'prompt'
-        ? stage1Data.product_prompt || null
-        : null,
+      product_prompt: productMode === 'prompt' ? stage1Data.product_prompt || null : null,
 
       gallery_items: galleryItems,
       gallery_label: stage1Data.gallery_label || null,
@@ -3757,23 +3830,24 @@ async function triggerGeneration(opts) {
   };
   const assetAudit = {
     brand_logo: {
-      uploaded: Boolean(posterPayload.brand_logo),
+      key: brandLogoRef?.key || null,
+      url: posterPayload.brand_logo || null,
     },
     scenario: {
       mode: posterPayload.scenario_mode,
-      has_key: Boolean(posterPayload.scenario_key),
-      has_url: Boolean(posterPayload.scenario_asset),
+      key: posterPayload.scenario_key || null,
+      url: posterPayload.scenario_asset || null,
     },
     product: {
       mode: posterPayload.product_mode,
-      has_key: Boolean(posterPayload.product_key),
-      has_url: Boolean(posterPayload.product_asset),
+      key: posterPayload.product_key || null,
+      url: posterPayload.product_asset || null,
     },
     gallery: posterPayload.gallery_items.map((item, index) => ({
       index,
       mode: item.mode,
-      has_key: Boolean(item.key),
-      has_url: Boolean(item.asset),
+      key: item.key || null,
+      url: item.asset || null,
     })),
   };
 
