@@ -87,6 +87,17 @@ uvicorn app.main:app --reload
 
 根据实际部署域名增减 `AllowedOrigin` 即可。配置完成后，前端的直传流程会使用响应中返回的 `headers` 字段（通常仅包含 `Content-Type`）发起 PUT 请求；后续业务接口只需传递 `r2://bucket/key` 或公开的 HTTP URL，而不会再携带预签名上传地址。
 
+> **快速验证 CORS**
+>
+> ```bash
+> curl -X OPTIONS \
+>   -H "Origin: https://zhaojifa.github.io" \
+>   -H "Access-Control-Request-Method: PUT" \
+>   "https://<your-r2-account-id>.r2.cloudflarestorage.com/<bucket>/<test-object>"
+> ```
+>
+> 响应头中若包含 `Access-Control-Allow-Origin` 与 `Access-Control-Allow-Methods: PUT`，即可确认规则已生效；否则浏览器仍会在预检阶段拦截上传。
+
 ## 图像生成（Vertex Only）与对象存储直传
 
 服务端固定使用 Vertex Imagen 3：

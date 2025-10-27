@@ -921,7 +921,13 @@ async function uploadFileToR2(folder, file, options = {}) {
   } catch (error) {
     console.error('[uploadFileToR2] 直传失败', error);
     if (error instanceof TypeError) {
-      throw new Error('R2 上传失败：请检查对象存储的 CORS 配置是否允许当前域名执行 PUT。');
+      const origin = (typeof window !== 'undefined' && window.location)
+        ? window.location.origin
+        : '当前站点';
+      const message = `R2 上传失败：请确认对象存储的 CORS 规则已允许 ${origin} 执行 PUT 请求。`;
+      const corsError = new Error(message);
+      corsError.code = 'R2_CORS_BLOCKED';
+      throw corsError;
     }
     if (error instanceof Error) {
       throw error;
