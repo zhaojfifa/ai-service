@@ -357,6 +357,30 @@ function assertAssetUrl(fieldLabel, value) {
   }
 }
 
+function guessExtensionFromMime(mime) {
+  if (!mime) return 'png';
+  const normalised = mime.toLowerCase();
+  if (normalised.includes('png')) return 'png';
+  if (normalised.includes('jpeg') || normalised.includes('jpg')) return 'jpg';
+  if (normalised.includes('webp')) return 'webp';
+  if (normalised.includes('gif')) return 'gif';
+  return 'png';
+}
+
+async function dataUrlToFile(dataUrl, nameHint = 'asset') {
+  const response = await fetch(dataUrl);
+  if (!response.ok) {
+    throw new Error('无法解析内联图片，请重新上传素材。');
+  }
+  const blob = await response.blob();
+  const mime = blob.type || inferImageMediaType(dataUrl) || 'image/png';
+  const extension = guessExtensionFromMime(mime);
+  const safeHint = nameHint.toString().trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'asset';
+  const filename = `${safeHint}.${extension}`;
+  const file = new File([blob], filename, { type: mime });
+  return { file, mime, extension, filename };
+}
+
 function estimatePayloadBytes(data) {
   try {
     if (typeof data === 'string') {
@@ -378,15 +402,56 @@ function payloadContainsDataUrl(value) {
   return false;
 }
 
-function normaliseAssetReference(asset, { field = 'asset', requireUploaded = false } = {}) {
-  const ensureNoInline = (value) => {
+async function normaliseAssetReference(
+  asset,
+  {
+    field = 'asset',
+    requireUploaded = false,
+    apiCandidates = [],
+    folder = 'uploads',
+  } = {}
+) {
+  const candidates = Array.isArray(apiCandidates) ? apiCandidates.filter(Boolean) : [];
+
+  const ensureUploaderAvailable = () => {
+    if (!candidates.length) {
+      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
+    }
+  };
+
+  const ensureNotInline = (value) => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     if (!trimmed) return null;
     if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
-      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
+      return null;
     }
     return trimmed;
+  };
+
+  const normaliseKey = (value) => {
+    const trimmed = ensureNotInline(value);
+    if (!trimmed) return null;
+    return trimmed.replace(/^\/+/, '');
+  };
+
+  const uploadInlineAsset = async (dataUrl) => {
+    if (!dataUrl || !DATA_URL_PAYLOAD_RX.test(dataUrl)) return null;
+    ensureUploaderAvailable();
+    const safeHint = field.replace(/[^a-z0-9]+/gi, '_') || 'asset';
+    const { file } = await dataUrlToFile(dataUrl, safeHint);
+    const result = await uploadFileToR2(folder, file, { bases: candidates });
+    if (!result.uploaded || (!result.url && !result.key)) {
+      throw new Error(`${field} 上传失败，请稍后重试。`);
+    }
+    const finalUrl = result.url || toAssetUrl(result.key);
+    if (!finalUrl || !isUrlLike(finalUrl)) {
+      throw new Error(`${field} 上传失败，无法解析生成的 URL。`);
+    }
+    return {
+      key: result.key ? result.key.replace(/^\/+/, '') : null,
+      url: finalUrl,
+    };
   };
 
   if (!asset) {
@@ -397,55 +462,73 @@ function normaliseAssetReference(asset, { field = 'asset', requireUploaded = fal
   }
 
   if (typeof asset === 'string') {
-    const trimmed = ensureNoInline(asset);
+    const trimmed = asset.trim();
     if (!trimmed) {
       if (requireUploaded) {
         throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
       }
       return { key: null, url: null };
     }
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      const uploaded = await uploadInlineAsset(trimmed);
+      if (uploaded) {
+        return uploaded;
+      }
+    }
     const resolved = toAssetUrl(trimmed);
     if (!isUrlLike(resolved)) {
       if (requireUploaded) {
         throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
       }
-      return { key: null, url: null };
     }
-    return { key: HTTP_URL_RX.test(trimmed) ? null : trimmed.replace(/^\/+/, ''), url: resolved };
+    return { key: HTTP_URL_RX.test(trimmed) ? null : trimmed.replace(/^\/+/, ''), url: isUrlLike(resolved) ? resolved : null };
   }
 
-  const keyCandidate = ensureNoInline(asset.r2Key || asset.key || null);
-  let sawInlineData = false;
-  const candidateSources = [
-    ensureNoInline(asset.remoteUrl),
-    ensureNoInline(asset.url),
-    ensureNoInline(asset.publicUrl),
-    ensureNoInline(asset.cdnUrl),
-    ensureNoInline(asset.dataUrl),
-  ];
+  let keyCandidate = normaliseKey(asset.r2Key || asset.key || asset.storage_key || null);
+  let resolvedUrl = null;
+  let inlineCandidate = null;
 
-  let urlCandidate = null;
-  for (const candidate of candidateSources) {
-    if (!candidate) continue;
-    if (DATA_URL_PAYLOAD_RX.test(candidate)) {
-      sawInlineData = true;
+  const sourceCandidates = [asset.remoteUrl, asset.url, asset.publicUrl, asset.cdnUrl, asset.dataUrl];
+  for (const candidate of sourceCandidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      inlineCandidate = inlineCandidate || trimmed;
       continue;
     }
-    if (isUrlLike(candidate)) {
-      urlCandidate = candidate;
+    if (isUrlLike(trimmed)) {
+      resolvedUrl = toAssetUrl(trimmed);
       break;
+    }
+    if (!HTTP_URL_RX.test(trimmed) && !keyCandidate) {
+      keyCandidate = normaliseKey(trimmed) || keyCandidate;
     }
   }
 
-  let resolvedUrl = null;
-  if (urlCandidate) {
-    resolvedUrl = toAssetUrl(urlCandidate);
-  } else if (keyCandidate) {
-    resolvedUrl = toAssetUrl(keyCandidate);
+  if (!resolvedUrl && inlineCandidate) {
+    const uploaded = await uploadInlineAsset(inlineCandidate);
+    if (uploaded) {
+      resolvedUrl = uploaded.url;
+      keyCandidate = uploaded.key || keyCandidate;
+      if (typeof asset === 'object') {
+        asset.r2Key = uploaded.key || asset.r2Key || null;
+        asset.remoteUrl = uploaded.url;
+        asset.dataUrl = uploaded.url;
+      }
+      console.info(`[normaliseAssetReference] 已将 ${field} 的 base64 预览上传至 R2/GCS。`);
+    }
+  }
+
+  if (!resolvedUrl && keyCandidate) {
+    const derivedUrl = toAssetUrl(keyCandidate);
+    if (isUrlLike(derivedUrl)) {
+      resolvedUrl = derivedUrl;
+    }
   }
 
   if (!resolvedUrl) {
-    if (requireUploaded || sawInlineData) {
+    if (requireUploaded) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: keyCandidate || null, url: null };
@@ -456,10 +539,6 @@ function normaliseAssetReference(asset, { field = 'asset', requireUploaded = fal
       throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
     }
     return { key: keyCandidate || null, url: null };
-  }
-
-  if (sawInlineData && urlCandidate) {
-    console.info(`[normaliseAssetReference] 已忽略 ${field} 的 base64 预览，仅使用远程 URL。`);
   }
 
   return {
@@ -3685,24 +3764,30 @@ async function triggerGeneration(opts) {
   let productRef;
   let galleryItems;
   try {
-    brandLogoRef = normaliseAssetReference(stage1Data.brand_logo, {
+    brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
       requireUploaded: false,
+      apiCandidates,
+      folder: 'brand-logo',
     });
 
-    scenarioRef = normaliseAssetReference(sc, {
+    scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
       requireUploaded: true,
+      apiCandidates,
+      folder: 'scenario',
     });
 
-    productRef = normaliseAssetReference(pd, {
+    productRef = await normaliseAssetReference(pd, {
       field: 'poster.product_image',
       requireUploaded: true,
+      apiCandidates,
+      folder: 'product',
     });
 
     galleryItems = [];
-    (stage1Data.gallery_entries || []).forEach((entry, index) => {
-      if (!entry) return;
+    for (const [index, entry] of (stage1Data.gallery_entries || []).entries()) {
+      if (!entry) continue;
       const mode = entry.mode || 'upload';
       const caption = entry.caption?.trim() || null;
       const promptText = entry.prompt?.trim() || null;
@@ -3717,12 +3802,14 @@ async function triggerGeneration(opts) {
             prompt: promptText,
           });
         }
-        return;
+        continue;
       }
 
-      const ref = normaliseAssetReference(entry.asset, {
+      const ref = await normaliseAssetReference(entry.asset, {
         field: `poster.gallery_items[${index}]`,
         requireUploaded: true,
+        apiCandidates,
+        folder: 'gallery',
       });
 
       galleryItems.push({
@@ -3732,7 +3819,7 @@ async function triggerGeneration(opts) {
         mode,
         prompt: promptText,
       });
-    });
+    }
 
     const features = Array.isArray(stage1Data.features)
       ? stage1Data.features.filter(Boolean)
