@@ -320,6 +320,153 @@ function validatePayloadSize(raw) {
 const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
 const HTTP_URL_RX = /^https?:\/\//i;
 
+function estimatePayloadBytes(data) {
+  try {
+    if (typeof data === 'string') {
+      return new Blob([data]).size;
+    }
+    return new Blob([JSON.stringify(data)]).size;
+  } catch (error) {
+    console.warn('[client] unable to estimate payload size', error);
+    return -1;
+  }
+}
+
+function payloadContainsDataUrl(value) {
+  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
+  if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(payloadContainsDataUrl);
+  }
+  return false;
+}
+
+function normaliseAssetReference(asset, { field = 'asset', requireUploaded = false } = {}) {
+  const ensureNoInline = (value) => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
+    }
+    return trimmed;
+  };
+
+  if (!asset) {
+    if (requireUploaded) {
+      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+    }
+    return { key: null, url: null };
+  }
+
+  if (typeof asset === 'string') {
+    const trimmed = ensureNoInline(asset);
+    if (!trimmed) {
+      if (requireUploaded) {
+        throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+      }
+      return { key: null, url: null };
+    }
+    if (HTTP_URL_RX.test(trimmed)) {
+      return { key: null, url: trimmed };
+    }
+    return { key: trimmed, url: null };
+  }
+
+  const keyCandidate = asset.r2Key || asset.key || null;
+  let sawInlineData = false;
+  const candidateSources = [
+    asset.remoteUrl,
+    asset.url,
+    asset.publicUrl,
+    asset.cdnUrl,
+    asset.dataUrl,
+  ];
+
+  let urlCandidate = null;
+  for (const candidate of candidateSources) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      sawInlineData = true;
+      continue;
+    }
+    if (HTTP_URL_RX.test(trimmed)) {
+      urlCandidate = trimmed;
+      break;
+    }
+  }
+
+  if (!urlCandidate && !keyCandidate) {
+    if (requireUploaded || sawInlineData) {
+      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+    }
+    return { key: null, url: null };
+  }
+
+  if (sawInlineData && urlCandidate) {
+    console.info(`[normaliseAssetReference] 已忽略 ${field} 的 base64 预览，仅使用远程 URL。`);
+  }
+
+  return { key: keyCandidate || null, url: urlCandidate || null };
+}
+
+function summariseNegativePrompts(prompts) {
+  if (!prompts || typeof prompts !== 'object') return null;
+  const values = [];
+  Object.values(prompts).forEach((entry) => {
+    if (!entry) return;
+    const negative = typeof entry.negative === 'string' ? entry.negative.trim() : '';
+    if (negative) values.push(negative);
+  });
+  if (!values.length) return null;
+  return Array.from(new Set(values)).join(' | ');
+}
+
+function ensureUploadedAndLog(path, payload, rawPayload) {
+  const MAX = 512 * 1024;
+  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(16).slice(2, 10);
+  let bodyString = null;
+  if (typeof rawPayload === 'string') {
+    bodyString = rawPayload;
+  } else if (payload !== undefined) {
+    try {
+      bodyString = JSON.stringify(payload);
+    } catch (error) {
+      console.warn('[client] stringify payload failed', error);
+    }
+  }
+
+  const size = estimatePayloadBytes(bodyString ?? payload);
+  const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
+  const preview = typeof bodyString === 'string'
+    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
+    : null;
+
+  console.log(`[client] pre-check ${path}`, {
+    requestId,
+    size,
+    hasBase64,
+    preview,
+  });
+
+  if (hasBase64) {
+    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
+  }
+  if (MAX > 0 && size > MAX) {
+    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
+  }
+
+  return {
+    headers: { 'X-Request-ID': requestId },
+    bodyString,
+    size,
+  };
+}
+
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
@@ -746,7 +893,12 @@ function initStage1() {
       if (typeof asset === 'string') {
         if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
       } else if (typeof asset === 'object') {
-        const { remoteUrl, url, publicUrl, dataUrl } = asset;
+        const {
+          remoteUrl,
+          url,
+          publicUrl,
+          dataUrl,
+        } = asset;
         [remoteUrl, url, publicUrl].forEach((candidate) => {
           if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
             urlCandidates.push(candidate);
