@@ -240,6 +240,60 @@ def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
                 pass
 
 
+def r2_public_url_from_ref(ref: str) -> str:
+    """Resolve a storage reference into a publicly accessible URL."""
+
+    if not ref:
+        raise ValueError("empty storage reference")
+
+    value = ref.strip()
+    if value.startswith(("http://", "https://")):
+        return value
+
+    if value.startswith(("r2://", "s3://")):
+        _, path = value.split("://", 1)
+        if "/" not in path:
+            raise ValueError(f"invalid storage reference: {value}")
+        _, key = path.split("/", 1)
+        url = public_url_for(key)
+        return url or value
+
+    if value.startswith("gs://"):
+        # Vertex output written to GCS can be served directly or proxied.
+        return value
+
+    raise ValueError(f"unsupported storage reference: {value}")
+
+
+def upload_bytes_to_r2_return_ref(
+    data: bytes,
+    *,
+    key: str | None = None,
+    ext: str = ".png",
+    content_type: str = "image/png",
+) -> tuple[str, str]:
+    """Persist ``data`` to R2/S3 and return (r2://bucket/key, public_url)."""
+
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("image payload must be bytes")
+
+    bucket = (os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET") or "").strip()
+    if not bucket:
+        raise RuntimeError("R2/S3 bucket is not configured")
+
+    if key:
+        storage_key = key.lstrip("/")
+    else:
+        filename = f"{uuid.uuid4().hex}{ext if ext.startswith('.') else f'.{ext}'}"
+        storage_key = make_key("posters", filename)
+
+    url = put_bytes(storage_key, bytes(data), content_type=content_type)
+    if not url:
+        raise RuntimeError(f"Failed to upload object {storage_key}")
+
+    return f"r2://{bucket}/{storage_key}", url
+
+
 def _copy_model(instance, **update):
     """Compatibility helper for cloning Pydantic v1/v2 models with updates."""
     if hasattr(instance, "model_copy"):
