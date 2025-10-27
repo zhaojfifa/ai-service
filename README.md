@@ -63,6 +63,30 @@ uvicorn app.main:app --reload
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
+### R2 CORS 配置
+
+前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若 R2 桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 错误并终止上传。因此需要在 R2 控制台（或 API）为目标桶配置 CORS，典型规则如下：
+
+```xml
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://zhaojifa.github.io</AllowedOrigin>
+    <AllowedOrigin>https://ai-service-x758.onrender.com</AllowedOrigin>
+    <AllowedOrigin>http://localhost:5173</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <ExposeHeader>x-amz-request-id</ExposeHeader>
+    <MaxAgeSeconds>86400</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>
+```
+
+根据实际部署域名增减 `AllowedOrigin` 即可。配置完成后，前端的直传流程会使用响应中返回的 `headers` 字段（通常仅包含 `Content-Type`）发起 PUT 请求；后续业务接口只需传递 `r2://bucket/key` 或公开的 HTTP URL，而不会再携带预签名上传地址。
+
 ## 图像生成（Vertex Only）与对象存储直传
 
 服务端固定使用 Vertex Imagen 3：

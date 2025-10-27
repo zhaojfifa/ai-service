@@ -477,6 +477,10 @@ class R2PresignPutResponse(_CompatModel):
         None,
         description="Deprecated alias for get_url kept for backward compatibility.",
     )
+    headers: dict[str, str] = Field(
+        default_factory=dict,
+        description="Headers that must be supplied when issuing the presigned PUT request.",
+    )
 
     if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
 

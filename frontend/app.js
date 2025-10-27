@@ -895,10 +895,15 @@ async function uploadFileToR2(folder, file, options = {}) {
       upload: false,
     });
     if (shouldUpload) {
+      const headers = (presign.headers && Object.keys(presign.headers).length)
+        ? presign.headers
+        : { 'Content-Type': file?.type || 'application/octet-stream' };
+
       const putResponse = await fetch(presign.put_url, {
         method: 'PUT',
-        headers: { 'Content-Type': file?.type || 'application/octet-stream' },
+        headers,
         body: file,
+        mode: 'cors',
       });
       if (!putResponse.ok) {
         const detail = await putResponse.text();
@@ -914,15 +919,14 @@ async function uploadFileToR2(folder, file, options = {}) {
       presign,
     };
   } catch (error) {
-    console.warn('[uploadFileToR2] 直传失败，回退本地预览', error);
-    const dataUrl = file ? await fileToDataUrl(file) : null;
-    return {
-      key: null,
-      url: null,
-      uploaded: false,
-      dataUrl,
-      error,
-    };
+    console.error('[uploadFileToR2] 直传失败', error);
+    if (error instanceof TypeError) {
+      throw new Error('R2 上传失败：请检查对象存储的 CORS 配置是否允许当前域名执行 PUT。');
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('上传到 R2 失败，请稍后重试。');
   }
 }
 

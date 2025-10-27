@@ -751,6 +751,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
     r2_url = f"r2://{bucket}/{key}" if bucket else None
     public_url = public_url_for(key)
     get_url = public_url
+    headers: dict[str, str] = {"Content-Type": request.content_type}
     if not get_url:
         try:
             get_url = presign_get_url(key)
@@ -763,6 +764,7 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
         get_url=get_url,
         r2_url=r2_url,
         public_url=public_url,
+        headers=headers,
     )
 
 @app.post("/api/template-posters", response_model=TemplatePosterEntry)

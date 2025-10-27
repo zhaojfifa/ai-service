@@ -7,6 +7,7 @@ from app.schemas import (
     PosterImage,
     PromptBundle,
     PromptSlotConfig,
+    R2PresignPutResponse,
 )
 from app.services.glibatree import _assert_assets_use_ref_only
 
@@ -139,3 +140,18 @@ def test_asset_validator_rejects_plain_text_reference(monkeypatch) -> None:
         _assert_assets_use_ref_only(payload)
 
     assert exc.value.status_code == 422
+
+
+def test_presign_response_populates_headers() -> None:
+    response = R2PresignPutResponse(
+        key="brand/logo.png",
+        put_url="https://r2.example.com/upload",
+        get_url="https://cdn.example.com/brand/logo.png",
+        r2_url="r2://bucket/brand/logo.png",
+        public_url=None,
+        headers={"Content-Type": "image/png"},
+    )
+
+    assert response.headers["Content-Type"] == "image/png"
+    # legacy alias syncing still works
+    assert response.get_url == "https://cdn.example.com/brand/logo.png"
