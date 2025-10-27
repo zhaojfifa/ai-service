@@ -318,6 +318,7 @@ function validatePayloadSize(raw) {
 }
 
 const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const HTTP_URL_RX = /^https?:\/\//i;
 
 function estimatePayloadBytes(data) {
   try {
@@ -338,6 +339,73 @@ function payloadContainsDataUrl(value) {
     return Object.values(value).some(payloadContainsDataUrl);
   }
   return false;
+}
+
+function normaliseAssetReference(asset, { field = 'asset', requireUploaded = false } = {}) {
+  const ensureNoInline = (value) => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
+    }
+    return trimmed;
+  };
+
+  if (!asset) {
+    if (requireUploaded) {
+      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+    }
+    return { key: null, url: null };
+  }
+
+  if (typeof asset === 'string') {
+    const trimmed = ensureNoInline(asset);
+    if (!trimmed) {
+      if (requireUploaded) {
+        throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+      }
+      return { key: null, url: null };
+    }
+    if (HTTP_URL_RX.test(trimmed)) {
+      return { key: null, url: trimmed };
+    }
+    return { key: trimmed, url: null };
+  }
+
+  const keyCandidate = asset.r2Key || asset.key || null;
+
+  const candidates = [asset.remoteUrl, asset.url, asset.dataUrl].map((candidate) => {
+    if (candidate == null) return null;
+    if (typeof candidate !== 'string') return null;
+    const trimmed = ensureNoInline(candidate);
+    if (!trimmed) return null;
+    if (!HTTP_URL_RX.test(trimmed)) return null;
+    return trimmed;
+  });
+
+  const urlCandidate = candidates.find((value) => typeof value === 'string' && value);
+
+  if (!urlCandidate && !keyCandidate) {
+    if (requireUploaded) {
+      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+    }
+    return { key: null, url: null };
+  }
+
+  return { key: keyCandidate || null, url: urlCandidate || null };
+}
+
+function summariseNegativePrompts(prompts) {
+  if (!prompts || typeof prompts !== 'object') return null;
+  const values = [];
+  Object.values(prompts).forEach((entry) => {
+    if (!entry) return;
+    const negative = typeof entry.negative === 'string' ? entry.negative.trim() : '';
+    if (negative) values.push(negative);
+  });
+  if (!values.length) return null;
+  return Array.from(new Set(values)).join(' | ');
 }
 
 function ensureUploadedAndLog(path, payload, rawPayload) {
@@ -3456,50 +3524,112 @@ async function triggerGeneration(opts) {
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
 
- // 3) 主体 poster（只把 key 传给后端；没有 key 才发 dataUrl）
+ // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset  || null;
+  const pd = stage1Data.product_asset || null;
 
-  const posterPayload = {
-    brand_name: stage1Data.brand_name,
-    agent_name: stage1Data.agent_name,
-    scenario_image: stage1Data.scenario_image,
-    product_name: stage1Data.product_name,
-    template_id: templateId,
-    features: stage1Data.features,
-    title: stage1Data.title,
-    subtitle: stage1Data.subtitle,
-    series_description: stage1Data.series_description,
+  const scenarioMode = stage1Data.scenario_mode || 'upload';
+  const productMode = stage1Data.product_mode || 'upload';
 
-    brand_logo: stage1Data.brand_logo?.dataUrl || null, // logo 允许内嵌（小图）
+  let posterPayload;
+  try {
+    const brandLogoRef = normaliseAssetReference(stage1Data.brand_logo, {
+      field: 'poster.brand_logo',
+      requireUploaded: false,
+    });
 
-    scenario_key: sc?.r2Key || null,
-    scenario_asset: (!sc?.r2Key && sc?.dataUrl?.startsWith('data:')) ? sc.dataUrl : null,
+    const scenarioRef = normaliseAssetReference(sc, {
+      field: 'poster.scenario_asset',
+      requireUploaded: scenarioMode !== 'prompt',
+    });
 
-    product_key: pd?.r2Key || null,
-    product_asset: (!pd?.r2Key && pd?.dataUrl?.startsWith('data:')) ? pd.dataUrl : null,
+    const productRef = normaliseAssetReference(pd, {
+      field: 'poster.product_asset',
+      requireUploaded: productMode !== 'prompt',
+    });
 
-    scenario_mode: stage1Data.scenario_mode || 'upload',
-    scenario_prompt: (stage1Data.scenario_mode === 'prompt')
-      ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
-      : null,
-    product_mode: stage1Data.product_mode || 'upload',
-    product_prompt: stage1Data.product_prompt || null,
+    const galleryItems = [];
+    (stage1Data.gallery_entries || []).forEach((entry, index) => {
+      if (!entry) return;
+      const mode = entry.mode || 'upload';
+      const caption = entry.caption?.trim() || null;
+      const promptText = entry.prompt?.trim() || null;
 
-    gallery_items: (stage1Data.gallery_entries || []).map(e => {
-      const a = e.asset || null;
-      const dataUrl = a?.dataUrl;
-      const key = a?.r2Key || null;
-      return {
-        caption: e.caption?.trim() || null,
-        key,
-        asset: key ? null : (typeof dataUrl === 'string' && dataUrl.startsWith('data:') ? dataUrl : null),
-        mode: e.mode || 'upload',
-        prompt: e.prompt?.trim() || null,
-      };
-    }),
-  };
+      if (mode === 'prompt') {
+        if (promptText) {
+          galleryItems.push({
+            caption,
+            key: null,
+            asset: null,
+            mode,
+            prompt: promptText,
+          });
+        }
+        return;
+      }
+
+      const ref = normaliseAssetReference(entry.asset, {
+        field: `poster.gallery_items[${index}]`,
+        requireUploaded: true,
+      });
+
+      galleryItems.push({
+        caption,
+        key: ref.key,
+        asset: ref.url,
+        mode,
+        prompt: promptText,
+      });
+    });
+
+    const features = Array.isArray(stage1Data.features)
+      ? stage1Data.features.filter(Boolean)
+      : [];
+
+    posterPayload = {
+      brand_name: stage1Data.brand_name,
+      agent_name: stage1Data.agent_name,
+      scenario_image: stage1Data.scenario_image,
+      product_name: stage1Data.product_name,
+      template_id: templateId,
+      features,
+      title: stage1Data.title,
+      subtitle: stage1Data.subtitle,
+      series_description: stage1Data.series_description,
+
+      brand_logo: brandLogoRef.url || brandLogoRef.key || null,
+
+      scenario_key: scenarioRef.key,
+      scenario_asset: scenarioRef.url,
+
+      product_key: productRef.key,
+      product_asset: productRef.url,
+
+      scenario_mode: scenarioMode,
+      scenario_prompt: scenarioMode === 'prompt'
+        ? (stage1Data.scenario_prompt || stage1Data.scenario_image || null)
+        : null,
+      product_mode: productMode,
+      product_prompt: productMode === 'prompt'
+        ? stage1Data.product_prompt || null
+        : null,
+
+      gallery_items: galleryItems,
+      gallery_label: stage1Data.gallery_label || null,
+      gallery_limit: stage1Data.gallery_limit ?? null,
+      gallery_allows_prompt: stage1Data.gallery_allows_prompt !== false,
+      gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
+    };
+  } catch (error) {
+    console.error('[triggerGeneration] asset normalisation failed', error);
+    setStatus(
+      statusElement,
+      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+      'error',
+    );
+    return null;
+  }
   
 
  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
@@ -3517,7 +3647,16 @@ async function triggerGeneration(opts) {
   };
   
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-  
+
+  const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
+  if (negativeSummary) {
+    payload.negatives = negativeSummary;
+  }
+
+  if (abTest) {
+    payload.variants = Math.max(2, payload.variants || 2);
+  }
+
   const posterSummary = {
     template_id: posterPayload.template_id,
     scenario_mode: posterPayload.scenario_mode,
@@ -3525,6 +3664,28 @@ async function triggerGeneration(opts) {
     feature_count: Array.isArray(posterPayload.features) ? posterPayload.features.length : 0,
     gallery_count: Array.isArray(posterPayload.gallery_items) ? posterPayload.gallery_items.length : 0,
   };
+  const assetAudit = {
+    brand_logo: {
+      uploaded: Boolean(posterPayload.brand_logo),
+    },
+    scenario: {
+      mode: posterPayload.scenario_mode,
+      has_key: Boolean(posterPayload.scenario_key),
+      has_url: Boolean(posterPayload.scenario_asset),
+    },
+    product: {
+      mode: posterPayload.product_mode,
+      has_key: Boolean(posterPayload.product_key),
+      has_url: Boolean(posterPayload.product_asset),
+    },
+    gallery: posterPayload.gallery_items.map((item, index) => ({
+      index,
+      mode: item.mode,
+      has_key: Boolean(item.key),
+      has_url: Boolean(item.asset),
+    })),
+  };
+
   console.info('[triggerGeneration] prepared payload', {
     apiCandidates,
     poster: posterSummary,
@@ -3532,7 +3693,9 @@ async function triggerGeneration(opts) {
     variants: payload.variants,
     seed: payload.seed,
     lock_seed: payload.lock_seed,
+    negatives: negativeSummary || null,
   });
+  console.info('[triggerGeneration] asset audit', assetAudit);
   
   // 面板同步
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
