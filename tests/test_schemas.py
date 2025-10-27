@@ -1,3 +1,6 @@
+import pytest
+from fastapi import HTTPException
+
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
@@ -5,6 +8,7 @@ from app.schemas import (
     PromptBundle,
     PromptSlotConfig,
 )
+from app.services.glibatree import _assert_assets_use_ref_only
 
 
 def _base_poster_payload() -> dict:
@@ -91,3 +95,47 @@ def test_generate_poster_request_aliases_prompts_field() -> None:
     assert request.prompt_bundle.scenario.prompt == "Moody"
     assert request.prompt_bundle.product.aspect == "4:5"
     assert request.prompt_bundle.gallery.aspect == "4:3"
+
+
+def test_asset_validator_accepts_bare_keys(monkeypatch) -> None:
+    monkeypatch.setenv("R2_BUCKET", "ai-service")
+    payload = {
+        "brand_name": "Brand",
+        "scenario_image": {"url": "posters/demo.png"},
+    }
+
+    _assert_assets_use_ref_only(payload)
+
+    assert payload["scenario_image"]["url"] == "r2://ai-service/posters/demo.png"
+    assert payload["scenario_image"]["key"] == "posters/demo.png"
+
+
+def test_asset_validator_rejects_base64_payload() -> None:
+    payload = {
+        "brand_name": "Brand",
+        "scenario_image": {
+            "url": "data:image/png;base64,AAAABBBB",
+        },
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        _assert_assets_use_ref_only(payload)
+
+    assert exc.value.status_code == 422
+    assert "base64" in str(exc.value.detail).lower()
+
+
+def test_asset_validator_rejects_plain_text_reference(monkeypatch) -> None:
+    monkeypatch.delenv("R2_BUCKET", raising=False)
+    monkeypatch.delenv("S3_BUCKET", raising=False)
+    payload = {
+        "brand_name": "Brand",
+        "scenario_image": {
+            "url": "现代开放式厨房背景图",
+        },
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        _assert_assets_use_ref_only(payload)
+
+    assert exc.value.status_code == 422

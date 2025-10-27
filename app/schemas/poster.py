@@ -14,6 +14,10 @@ class AssetUrl(_CompatModel):
     """Reference to an asset that must already live in object storage."""
 
     url: str = Field(..., description="Pointer to an uploaded asset (R2/GCS/HTTP).")
+    key: Optional[str] = Field(
+        None,
+        description="Optional object storage key associated with the asset reference.",
+    )
 
     @field_validator("url", mode="before")
     @classmethod
@@ -21,12 +25,25 @@ class AssetUrl(_CompatModel):
         if isinstance(value, cls):  # pragma: no cover - defensive
             return value.url
         if isinstance(value, dict):
-            candidate = value.get("url")
+            candidate = value.get("url") or value.get("key")
             if isinstance(candidate, str):
                 return candidate
         if isinstance(value, str):
             return value
-        raise TypeError("asset url must be provided as string or dict with url")
+        raise TypeError("asset url must be provided as string or dict with url/key")
+
+    @field_validator("key", mode="before")
+    @classmethod
+    def _coerce_key(cls, value: Any) -> Optional[str]:
+        if isinstance(value, cls):  # pragma: no cover - defensive
+            return value.key
+        if isinstance(value, dict):
+            candidate = value.get("key")
+            if isinstance(candidate, str):
+                return candidate
+        if isinstance(value, str):
+            return value
+        return value
 
     @field_validator("url")
     @classmethod
@@ -38,6 +55,18 @@ class AssetUrl(_CompatModel):
             raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
         if not text.startswith(_ALLOWED_URL_PREFIXES):
             raise ValueError("invalid url; expected r2://, s3://, gs:// or http(s)")
+        return text
+
+    @field_validator("key")
+    @classmethod
+    def _validate_key(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        text = value.strip()
+        if not text:
+            return None
+        if DATA_URL_RX.match(text):
+            raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
         return text
 
 
@@ -72,6 +101,8 @@ class PosterPayload(_CompatModel):
         if isinstance(value, AssetUrl):
             return value
         if isinstance(value, dict):
+            if "url" not in value and isinstance(value.get("key"), str):
+                return {"url": value["key"], "key": value["key"]}
             return value
         if isinstance(value, str):
             return {"url": value}

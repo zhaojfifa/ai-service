@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -49,6 +50,194 @@ BRAND_RED = (239, 76, 84)
 INK_BLACK = (31, 41, 51)
 SILVER = (244, 245, 247)
 GUIDE_GREY = (203, 210, 217)
+
+_ALLOWED_REF_PREFIXES = ("r2://", "s3://", "gs://", "https://", "http://")
+_BARE_KEY_PATTERN = re.compile(r"^[0-9A-Za-z._/-]+$")
+
+
+def r2_public_url_from_ref(ref: str) -> str:
+    """Resolve a storage reference into a publicly accessible URL."""
+
+    if not ref:
+        raise ValueError("empty storage reference")
+
+    value = ref.strip()
+    if value.startswith(("http://", "https://")):
+        return value
+
+    if value.startswith(("r2://", "s3://")):
+        _, path = value.split("://", 1)
+        if "/" not in path:
+            raise ValueError(f"invalid storage reference: {value}")
+        _, key = path.split("/", 1)
+        url = public_url_for(key)
+        return url or value
+
+    if value.startswith("gs://"):
+        # Vertex output written to GCS can be served directly or proxied.
+        return value
+
+    raise ValueError(f"unsupported storage reference: {value}")
+
+
+def upload_bytes_to_r2_return_ref(
+    data: bytes,
+    *,
+    key: str | None = None,
+    ext: str = ".png",
+    content_type: str = "image/png",
+) -> tuple[str, str]:
+    """Persist ``data`` to R2/S3 and return (r2://bucket/key, public_url)."""
+
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("image payload must be bytes")
+
+    bucket = (os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET") or "").strip()
+    if not bucket:
+        raise RuntimeError("R2/S3 bucket is not configured")
+
+    if key:
+        storage_key = key.lstrip("/")
+    else:
+        filename = f"{uuid.uuid4().hex}{ext if ext.startswith('.') else f'.{ext}'}"
+        storage_key = make_key("posters", filename)
+
+    url = put_bytes(storage_key, bytes(data), content_type=content_type)
+    if not url:
+        raise RuntimeError(f"Failed to upload object {storage_key}")
+
+    return f"r2://{bucket}/{storage_key}", url
+
+
+def _default_asset_bucket() -> str | None:
+    return (
+        os.getenv("POSTER_ASSET_BUCKET")
+        or os.getenv("R2_BUCKET")
+        or os.getenv("S3_BUCKET")
+    )
+
+
+def _default_asset_scheme(bucket: str | None) -> str | None:
+    scheme = os.getenv("POSTER_ASSET_SCHEME") or os.getenv("ASSET_SCHEME")
+    if scheme:
+        return scheme.rstrip(":/")
+
+    r2_bucket = os.getenv("R2_BUCKET")
+    s3_bucket = os.getenv("S3_BUCKET")
+    if bucket and bucket == r2_bucket:
+        return "r2"
+    if bucket and bucket == s3_bucket:
+        return "s3"
+
+    if r2_bucket:
+        return "r2"
+    if s3_bucket:
+        return "s3"
+    return None
+
+
+def _public_base_override() -> str | None:
+    base = (
+        os.getenv("POSTER_ASSET_PUBLIC_BASE")
+        or os.getenv("ASSETS_PUBLIC_BASE")
+        or os.getenv("R2_PUBLIC_BASE")
+        or os.getenv("S3_PUBLIC_BASE")
+    )
+    if base:
+        return base.rstrip("/")
+    return None
+
+
+def _normalise_asset_reference(label: str, value: Any) -> Any:
+    """Coerce loose asset references into URL/Key pairs when possible."""
+
+    if value is None:
+        return None
+
+    if hasattr(value, "model_dump"):
+        normalised = value.model_dump(exclude_none=False)
+    elif hasattr(value, "dict"):
+        normalised = value.dict(exclude_none=False)
+    elif isinstance(value, dict):
+        normalised = dict(value)
+    elif isinstance(value, str):
+        normalised = {"url": value}
+    else:
+        return value
+
+    raw_url = normalised.get("url")
+    if isinstance(raw_url, str):
+        candidate = raw_url.strip()
+        normalised["url"] = candidate
+
+        if candidate and not candidate.startswith(_ALLOWED_REF_PREFIXES):
+            key_candidate = normalised.get("key")
+            if isinstance(key_candidate, str):
+                key_candidate = key_candidate.strip().lstrip("/")
+            else:
+                key_candidate = candidate.lstrip("/")
+
+            if key_candidate and _BARE_KEY_PATTERN.match(key_candidate):
+                bucket = _default_asset_bucket()
+                scheme = _default_asset_scheme(bucket)
+                public_base = _public_base_override()
+
+                if bucket and scheme:
+                    normalised["key"] = key_candidate
+                    normalised["url"] = f"{scheme}://{bucket}/{key_candidate}"
+                    logger.debug(
+                        "poster.asset.autonormalised",
+                        extra={"field": label, "key": key_candidate, "scheme": scheme},
+                    )
+                elif public_base:
+                    normalised["key"] = key_candidate
+                    normalised["url"] = f"{public_base}/{key_candidate}"
+                    logger.debug(
+                        "poster.asset.autonormalised",
+                        extra={"field": label, "key": key_candidate, "scheme": "public"},
+                    )
+
+    return normalised
+
+
+def _key_field_for_asset(field: str) -> str | None:
+    overrides = {
+        "scenario_image": "scenario_key",
+        "product_image": "product_key",
+    }
+    return overrides.get(field)
+
+
+def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
+    """Propagate normalised asset references back to the original payload."""
+
+    if isinstance(target, dict):
+        target[field] = value
+        if isinstance(value, dict):
+            key_field = _key_field_for_asset(field)
+            if key_field:
+                target[key_field] = value.get("key") or target.get(key_field)
+        return
+
+    if isinstance(value, dict):
+        url_value = value.get("url")
+    else:
+        url_value = value
+
+    if isinstance(url_value, str) and url_value:
+        try:
+            setattr(target, field, url_value)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    if isinstance(value, dict):
+        key_value = value.get("key")
+        key_field = _key_field_for_asset(field)
+        if key_field and key_value and hasattr(target, key_field):
+            try:
+                setattr(target, key_field, key_value)
+            except Exception:  # pragma: no cover - defensive
+                pass
 
 
 def r2_public_url_from_ref(ref: str) -> str:
@@ -229,6 +418,12 @@ def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
             normalised_gallery.append(entry)
     if normalised_gallery:
         payload["gallery_items"] = normalised_gallery
+
+    for field in ("scenario_image", "brand_logo"):
+        if field in payload:
+            normalised_value = _normalise_asset_reference(field, payload.get(field))
+            payload[field] = normalised_value
+            _apply_asset_reference(poster, field, normalised_value)
 
     try:
         if hasattr(PosterPayload, "model_validate"):
