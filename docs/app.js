@@ -320,137 +320,6 @@ function validatePayloadSize(raw) {
 const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
 const HTTP_URL_RX = /^https?:\/\//i;
 
-function estimatePayloadBytes(data) {
-  try {
-    if (typeof data === 'string') {
-      return new Blob([data]).size;
-    }
-    return new Blob([JSON.stringify(data)]).size;
-  } catch (error) {
-    console.warn('[client] unable to estimate payload size', error);
-    return -1;
-  }
-}
-
-function payloadContainsDataUrl(value) {
-  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
-  if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
-  if (value && typeof value === 'object') {
-    return Object.values(value).some(payloadContainsDataUrl);
-  }
-  return false;
-}
-
-function normaliseAssetReference(asset, { field = 'asset', requireUploaded = false } = {}) {
-  const ensureNoInline = (value) => {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
-      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
-    }
-    return trimmed;
-  };
-
-  if (!asset) {
-    if (requireUploaded) {
-      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
-    }
-    return { key: null, url: null };
-  }
-
-  if (typeof asset === 'string') {
-    const trimmed = ensureNoInline(asset);
-    if (!trimmed) {
-      if (requireUploaded) {
-        throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
-      }
-      return { key: null, url: null };
-    }
-    if (HTTP_URL_RX.test(trimmed)) {
-      return { key: null, url: trimmed };
-    }
-    return { key: trimmed, url: null };
-  }
-
-  const keyCandidate = asset.r2Key || asset.key || null;
-
-  const candidates = [asset.remoteUrl, asset.url, asset.dataUrl].map((candidate) => {
-    if (candidate == null) return null;
-    if (typeof candidate !== 'string') return null;
-    const trimmed = ensureNoInline(candidate);
-    if (!trimmed) return null;
-    if (!HTTP_URL_RX.test(trimmed)) return null;
-    return trimmed;
-  });
-
-  const urlCandidate = candidates.find((value) => typeof value === 'string' && value);
-
-  if (!urlCandidate && !keyCandidate) {
-    if (requireUploaded) {
-      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
-    }
-    return { key: null, url: null };
-  }
-
-  return { key: keyCandidate || null, url: urlCandidate || null };
-}
-
-function summariseNegativePrompts(prompts) {
-  if (!prompts || typeof prompts !== 'object') return null;
-  const values = [];
-  Object.values(prompts).forEach((entry) => {
-    if (!entry) return;
-    const negative = typeof entry.negative === 'string' ? entry.negative.trim() : '';
-    if (negative) values.push(negative);
-  });
-  if (!values.length) return null;
-  return Array.from(new Set(values)).join(' | ');
-}
-
-function ensureUploadedAndLog(path, payload, rawPayload) {
-  const MAX = 512 * 1024;
-  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(16).slice(2, 10);
-  let bodyString = null;
-  if (typeof rawPayload === 'string') {
-    bodyString = rawPayload;
-  } else if (payload !== undefined) {
-    try {
-      bodyString = JSON.stringify(payload);
-    } catch (error) {
-      console.warn('[client] stringify payload failed', error);
-    }
-  }
-
-  const size = estimatePayloadBytes(bodyString ?? payload);
-  const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
-  const preview = typeof bodyString === 'string'
-    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
-    : null;
-
-  console.log(`[client] pre-check ${path}`, {
-    requestId,
-    size,
-    hasBase64,
-    preview,
-  });
-
-  if (hasBase64) {
-    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
-  }
-  if (MAX > 0 && size > MAX) {
-    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
-  }
-
-  return {
-    headers: { 'X-Request-ID': requestId },
-    bodyString,
-    size,
-  };
-}
-
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
@@ -863,6 +732,56 @@ function initStage1() {
     product_asset: document.querySelector('[data-inline-preview="product_asset"]'),
   };
 
+  const materialUrlDisplays = {
+    brand_logo: document.querySelector('[data-material-url="brand_logo"]'),
+  };
+
+  function updateMaterialUrlDisplay(field, asset) {
+    const container = materialUrlDisplays[field];
+    if (!container) return;
+    const label = container.dataset.label || '素材 URL：';
+    const prefix = label.endsWith('：') ? label : `${label}：`;
+    const urlCandidates = [];
+    if (asset) {
+      if (typeof asset === 'string') {
+        if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
+      } else if (typeof asset === 'object') {
+        const { remoteUrl, url, publicUrl, dataUrl } = asset;
+        [remoteUrl, url, publicUrl].forEach((candidate) => {
+          if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
+            urlCandidates.push(candidate);
+          }
+        });
+        if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
+          urlCandidates.push(dataUrl);
+        }
+      }
+    }
+
+    const url = urlCandidates.find(Boolean) || null;
+    container.textContent = '';
+    const labelSpan = document.createElement('span');
+    labelSpan.classList.add('asset-url-label');
+    labelSpan.textContent = prefix;
+    container.appendChild(labelSpan);
+
+    if (url) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = url;
+      container.appendChild(link);
+      container.classList.add('has-url');
+    } else {
+      const placeholder = document.createElement('span');
+      placeholder.classList.add('asset-url-empty');
+      placeholder.textContent = '尚未上传';
+      container.appendChild(placeholder);
+      container.classList.remove('has-url');
+    }
+  }
+
   const state = {
     brandLogo: null,
     scenario: null,
@@ -886,6 +805,8 @@ function initStage1() {
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
     galleryType: 'image',
   };
+
+  updateMaterialUrlDisplay('brand_logo', state.brandLogo);
 
   let currentLayoutPreview = '';
   let templateRegistry = [];
@@ -1693,6 +1614,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   }
 
   state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
+  updateMaterialUrlDisplay('brand_logo', state.brandLogo);
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
   state.galleryEntries = Array.isArray(data.gallery_entries)
@@ -1754,6 +1676,9 @@ function attachSingleImageHandler(
             : placeholderImages.product;
         inlinePreview.src = placeholder;
       }
+      if (key === 'brandLogo') {
+        updateMaterialUrlDisplay('brand_logo', state[key]);
+      }
       refreshPreview();
       return;
     }
@@ -1764,13 +1689,20 @@ function attachSingleImageHandler(
         product: 'product',
       };
       const folder = folderMap[key] || 'uploads';
-      const forceDataUrl = key === 'brandLogo';
+      const requireUploadOptions =
+        key === 'brandLogo'
+          ? {
+              requireUpload: true,
+              requireUploadMessage:
+                '品牌 Logo 必须上传到 R2/GCS，仅传递 URL 或 Key。',
+            }
+          : {};
       state[key] = await prepareAssetFromFile(
         folder,
         file,
         state[key],
         statusElement,
-        { forceDataUrl }
+        requireUploadOptions
       );
       if (inlinePreview) {
         inlinePreview.src = state[key]?.dataUrl ||
@@ -1780,11 +1712,18 @@ function attachSingleImageHandler(
             ? placeholderImages.scenario
             : placeholderImages.product);
       }
+      if (key === 'brandLogo') {
+        updateMaterialUrlDisplay('brand_logo', state[key]);
+      }
       state.previewBuilt = false;
       refreshPreview();
     } catch (error) {
       console.error(error);
-      setStatus(statusElement, '处理图片素材时发生错误，请重试。', 'error');
+      const message =
+        error instanceof Error
+          ? error.message || '处理图片素材时发生错误，请重试。'
+          : '处理图片素材时发生错误，请重试。';
+      setStatus(statusElement, message, 'error');
     }
   });
 }
@@ -4523,24 +4462,44 @@ async function prepareAssetFromFile(
   statusElement,
   options = {}
 ) {
-  const { forceDataUrl = false } = options;
+  const {
+    forceDataUrl = false,
+    requireUpload = false,
+    requireUploadMessage,
+  } = options;
   const candidates = getApiCandidates(apiBaseInput?.value || null);
   let uploadResult = null;
 
   if (candidates.length) {
     uploadResult = await uploadFileToR2(folder, file, { bases: candidates });
-    if (!uploadResult.uploaded && statusElement) {
-      const message =
-        uploadResult.error instanceof Error
-          ? uploadResult.error.message
-          : '上传到 R2 失败，已回退至本地预览。';
-      setStatus(statusElement, message, 'warning');
+    if (!uploadResult.uploaded) {
+      if (requireUpload) {
+        throw new Error(
+          requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+        );
+      }
+      if (statusElement) {
+        const message =
+          uploadResult.error instanceof Error
+            ? uploadResult.error.message
+            : '上传到 R2 失败，已回退至本地预览。';
+        setStatus(statusElement, message, 'warning');
+      }
     }
+  } else if (requireUpload) {
+    throw new Error(
+      requireUploadMessage || '请先配置后端基址以启用对象存储上传。'
+    );
   } else if (statusElement) {
     setStatus(statusElement, '未配置后端基址，素材将仅保存在本地预览。', 'warning');
   }
 
   const remoteUrl = uploadResult?.url || null;
+  if (requireUpload && !remoteUrl) {
+    throw new Error(
+      requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+    );
+  }
   let dataUrl = uploadResult?.dataUrl || null;
   if (!dataUrl || (!forceDataUrl && remoteUrl)) {
     dataUrl = !remoteUrl || forceDataUrl ? await fileToDataUrl(file) : remoteUrl;

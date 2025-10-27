@@ -374,23 +374,39 @@ function normaliseAssetReference(asset, { field = 'asset', requireUploaded = fal
   }
 
   const keyCandidate = asset.r2Key || asset.key || null;
+  let sawInlineData = false;
+  const candidateSources = [
+    asset.remoteUrl,
+    asset.url,
+    asset.publicUrl,
+    asset.cdnUrl,
+    asset.dataUrl,
+  ];
 
-  const candidates = [asset.remoteUrl, asset.url, asset.dataUrl].map((candidate) => {
-    if (candidate == null) return null;
-    if (typeof candidate !== 'string') return null;
-    const trimmed = ensureNoInline(candidate);
-    if (!trimmed) return null;
-    if (!HTTP_URL_RX.test(trimmed)) return null;
-    return trimmed;
-  });
-
-  const urlCandidate = candidates.find((value) => typeof value === 'string' && value);
+  let urlCandidate = null;
+  for (const candidate of candidateSources) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      sawInlineData = true;
+      continue;
+    }
+    if (HTTP_URL_RX.test(trimmed)) {
+      urlCandidate = trimmed;
+      break;
+    }
+  }
 
   if (!urlCandidate && !keyCandidate) {
-    if (requireUploaded) {
+    if (requireUploaded || sawInlineData) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: null, url: null };
+  }
+
+  if (sawInlineData && urlCandidate) {
+    console.info(`[normaliseAssetReference] 已忽略 ${field} 的 base64 预览，仅使用远程 URL。`);
   }
 
   return { key: keyCandidate || null, url: urlCandidate || null };
@@ -863,6 +879,61 @@ function initStage1() {
     product_asset: document.querySelector('[data-inline-preview="product_asset"]'),
   };
 
+  const materialUrlDisplays = {
+    brand_logo: document.querySelector('[data-material-url="brand_logo"]'),
+  };
+
+  function updateMaterialUrlDisplay(field, asset) {
+    const container = materialUrlDisplays[field];
+    if (!container) return;
+    const label = container.dataset.label || '素材 URL：';
+    const prefix = label.endsWith('：') ? label : `${label}：`;
+    const urlCandidates = [];
+    if (asset) {
+      if (typeof asset === 'string') {
+        if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
+      } else if (typeof asset === 'object') {
+        const {
+          remoteUrl,
+          url,
+          publicUrl,
+          dataUrl,
+        } = asset;
+        [remoteUrl, url, publicUrl].forEach((candidate) => {
+          if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
+            urlCandidates.push(candidate);
+          }
+        });
+        if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
+          urlCandidates.push(dataUrl);
+        }
+      }
+    }
+
+    const url = urlCandidates.find(Boolean) || null;
+    container.textContent = '';
+    const labelSpan = document.createElement('span');
+    labelSpan.classList.add('asset-url-label');
+    labelSpan.textContent = prefix;
+    container.appendChild(labelSpan);
+
+    if (url) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = url;
+      container.appendChild(link);
+      container.classList.add('has-url');
+    } else {
+      const placeholder = document.createElement('span');
+      placeholder.classList.add('asset-url-empty');
+      placeholder.textContent = '尚未上传';
+      container.appendChild(placeholder);
+      container.classList.remove('has-url');
+    }
+  }
+
   const state = {
     brandLogo: null,
     scenario: null,
@@ -886,6 +957,8 @@ function initStage1() {
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
     galleryType: 'image',
   };
+
+  updateMaterialUrlDisplay('brand_logo', state.brandLogo);
 
   let currentLayoutPreview = '';
   let templateRegistry = [];
@@ -1693,6 +1766,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   }
 
   state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
+  updateMaterialUrlDisplay('brand_logo', state.brandLogo);
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
   state.galleryEntries = Array.isArray(data.gallery_entries)
@@ -1754,6 +1828,9 @@ function attachSingleImageHandler(
             : placeholderImages.product;
         inlinePreview.src = placeholder;
       }
+      if (key === 'brandLogo') {
+        updateMaterialUrlDisplay('brand_logo', state[key]);
+      }
       refreshPreview();
       return;
     }
@@ -1764,13 +1841,20 @@ function attachSingleImageHandler(
         product: 'product',
       };
       const folder = folderMap[key] || 'uploads';
-      const forceDataUrl = key === 'brandLogo';
+      const requireUploadOptions =
+        key === 'brandLogo'
+          ? {
+              requireUpload: true,
+              requireUploadMessage:
+                '品牌 Logo 必须上传到 R2/GCS，仅传递 URL 或 Key。',
+            }
+          : {};
       state[key] = await prepareAssetFromFile(
         folder,
         file,
         state[key],
         statusElement,
-        { forceDataUrl }
+        requireUploadOptions
       );
       if (inlinePreview) {
         inlinePreview.src = state[key]?.dataUrl ||
@@ -1780,11 +1864,18 @@ function attachSingleImageHandler(
             ? placeholderImages.scenario
             : placeholderImages.product);
       }
+      if (key === 'brandLogo') {
+        updateMaterialUrlDisplay('brand_logo', state[key]);
+      }
       state.previewBuilt = false;
       refreshPreview();
     } catch (error) {
       console.error(error);
-      setStatus(statusElement, '处理图片素材时发生错误，请重试。', 'error');
+      const message =
+        error instanceof Error
+          ? error.message || '处理图片素材时发生错误，请重试。'
+          : '处理图片素材时发生错误，请重试。';
+      setStatus(statusElement, message, 'error');
     }
   });
 }
@@ -4523,24 +4614,44 @@ async function prepareAssetFromFile(
   statusElement,
   options = {}
 ) {
-  const { forceDataUrl = false } = options;
+  const {
+    forceDataUrl = false,
+    requireUpload = false,
+    requireUploadMessage,
+  } = options;
   const candidates = getApiCandidates(apiBaseInput?.value || null);
   let uploadResult = null;
 
   if (candidates.length) {
     uploadResult = await uploadFileToR2(folder, file, { bases: candidates });
-    if (!uploadResult.uploaded && statusElement) {
-      const message =
-        uploadResult.error instanceof Error
-          ? uploadResult.error.message
-          : '上传到 R2 失败，已回退至本地预览。';
-      setStatus(statusElement, message, 'warning');
+    if (!uploadResult.uploaded) {
+      if (requireUpload) {
+        throw new Error(
+          requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+        );
+      }
+      if (statusElement) {
+        const message =
+          uploadResult.error instanceof Error
+            ? uploadResult.error.message
+            : '上传到 R2 失败，已回退至本地预览。';
+        setStatus(statusElement, message, 'warning');
+      }
     }
+  } else if (requireUpload) {
+    throw new Error(
+      requireUploadMessage || '请先配置后端基址以启用对象存储上传。'
+    );
   } else if (statusElement) {
     setStatus(statusElement, '未配置后端基址，素材将仅保存在本地预览。', 'warning');
   }
 
   const remoteUrl = uploadResult?.url || null;
+  if (requireUpload && !remoteUrl) {
+    throw new Error(
+      requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+    );
+  }
   let dataUrl = uploadResult?.dataUrl || null;
   if (!dataUrl || (!forceDataUrl && remoteUrl)) {
     dataUrl = !remoteUrl || forceDataUrl ? await fileToDataUrl(file) : remoteUrl;
