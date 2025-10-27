@@ -317,6 +317,72 @@ function validatePayloadSize(raw) {
   }
 }
 
+const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
+
+function estimatePayloadBytes(data) {
+  try {
+    if (typeof data === 'string') {
+      return new Blob([data]).size;
+    }
+    return new Blob([JSON.stringify(data)]).size;
+  } catch (error) {
+    console.warn('[client] unable to estimate payload size', error);
+    return -1;
+  }
+}
+
+function payloadContainsDataUrl(value) {
+  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
+  if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(payloadContainsDataUrl);
+  }
+  return false;
+}
+
+function ensureUploadedAndLog(path, payload, rawPayload) {
+  const MAX = 512 * 1024;
+  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(16).slice(2, 10);
+  let bodyString = null;
+  if (typeof rawPayload === 'string') {
+    bodyString = rawPayload;
+  } else if (payload !== undefined) {
+    try {
+      bodyString = JSON.stringify(payload);
+    } catch (error) {
+      console.warn('[client] stringify payload failed', error);
+    }
+  }
+
+  const size = estimatePayloadBytes(bodyString ?? payload);
+  const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
+  const preview = typeof bodyString === 'string'
+    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
+    : null;
+
+  console.log(`[client] pre-check ${path}`, {
+    requestId,
+    size,
+    hasBase64,
+    preview,
+  });
+
+  if (hasBase64) {
+    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
+  }
+  if (MAX > 0 && size > MAX) {
+    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
+  }
+
+  return {
+    headers: { 'X-Request-ID': requestId },
+    bodyString,
+    size,
+  };
+}
+
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
@@ -327,8 +393,12 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
+  const inspection = ensureUploadedAndLog(path, payload, rawPayload);
+
   // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
-  const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
+  const bodyRaw = (typeof rawPayload === 'string')
+    ? rawPayload
+    : inspection.bodyString ?? JSON.stringify(payload);
 
   const logPrefix = `[postJsonWithRetry] ${path}`;
   const previewSnippet = (() => {
@@ -355,12 +425,17 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
       const url = urlFor(b);                               // ← 定义 url
       try {
+        const headers = {
+          'Content-Type': 'application/json; charset=UTF-8',
+          ...(inspection?.headers || {}),
+        };
+
         const res = await fetch(url, {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
           credentials: 'omit',
-          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          headers,
           body: bodyRaw,
           signal: ctrl.signal,
         });
