@@ -259,6 +259,10 @@ class PosterImage(_CompatModel):
     media_type: str = Field(
         "image/png", description="MIME type of the generated poster image"
     )
+    key: Optional[str] = Field(
+        None,
+        description="Object storage key for the generated poster image (when stored).",
+    )
     data_url: Optional[str] = Field(
         None,
         description="Embedded data URL (base64) fallback when object storage is unavailable",
@@ -538,6 +542,15 @@ class GeneratePosterResponse(_CompatModel):
     email_body: str
     poster_image: PosterImage
 
+    poster_url: Optional[str] = Field(
+        None,
+        description="Primary poster URL stored in R2/GCS for downstream consumers.",
+    )
+    poster_key: Optional[str] = Field(
+        None,
+        description="Storage key associated with the primary poster URL.",
+    )
+
     prompt_details: dict[str, str] | None = Field(
         None,
         description="Per-slot prompt summary returned by the backend.",
@@ -562,6 +575,11 @@ class GeneratePosterResponse(_CompatModel):
     variants: list[PosterImage] = Field(
         default_factory=list,
         description="Optional collection of variant posters for A/B comparison.",
+    )
+
+    results: list[StoredImage] = Field(
+        default_factory=list,
+        description="Normalised storage metadata for generated posters (key/url).",
     )
 
     # 可选评分

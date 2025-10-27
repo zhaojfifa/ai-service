@@ -11,7 +11,7 @@ def _base_poster_payload() -> dict:
     return {
         "brand_name": "Brand",
         "agent_name": "Agent",
-        "scenario_image": "Scenario",
+        "scenario_image": "https://cdn.example.com/scenario.png",
         "product_name": "Product",
         "features": ["F1", "F2", "F3"],
         "title": "Headline",
@@ -72,6 +72,8 @@ def test_generate_poster_response_accepts_prompt_bundle_dict() -> None:
     # Missing slots fall back to defaults
     assert response.prompt_bundle.product.aspect == "4:5"
     assert response.prompt_bundle.product.prompt == ""
+    assert response.results == []
+    assert response.poster_url is None
 
 
 def test_generate_poster_request_aliases_prompts_field() -> None:
