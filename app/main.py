@@ -40,7 +40,12 @@ from app.services.poster import (
     compose_marketing_email,
     render_layout_preview,
 )
-from app.services.r2_client import make_key, presign_put_url, public_url_for
+from app.services.r2_client import (
+    make_key,
+    presign_get_url,
+    presign_put_url,
+    public_url_for,
+)
 from app.services.template_variants import (
     list_poster_entries,
     poster_entry_from_record,
@@ -742,7 +747,23 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
     except RuntimeError as exc:  # pragma: no cover - configuration issue
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
+    bucket = os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET")
+    r2_url = f"r2://{bucket}/{key}" if bucket else None
+    public_url = public_url_for(key)
+    get_url = public_url
+    if not get_url:
+        try:
+            get_url = presign_get_url(key)
+        except RuntimeError:
+            get_url = None
+
+    return R2PresignPutResponse(
+        key=key,
+        put_url=put_url,
+        get_url=get_url,
+        r2_url=r2_url,
+        public_url=public_url,
+    )
 
 @app.post("/api/template-posters", response_model=TemplatePosterEntry)
 def upload_template_poster(request_data: TemplatePosterUploadRequest) -> TemplatePosterEntry:

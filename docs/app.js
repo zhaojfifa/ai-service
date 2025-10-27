@@ -381,27 +381,6 @@ async function dataUrlToFile(dataUrl, nameHint = 'asset') {
   return { file, mime, extension, filename };
 }
 
-function estimatePayloadBytes(data) {
-  try {
-    if (typeof data === 'string') {
-      return new Blob([data]).size;
-    }
-    return new Blob([JSON.stringify(data)]).size;
-  } catch (error) {
-    console.warn('[client] unable to estimate payload size', error);
-    return -1;
-  }
-}
-
-function payloadContainsDataUrl(value) {
-  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
-  if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
-  if (value && typeof value === 'object') {
-    return Object.values(value).some(payloadContainsDataUrl);
-  }
-  return false;
-}
-
 async function normaliseAssetReference(
   asset,
   {
@@ -419,9 +398,9 @@ async function normaliseAssetReference(
     }
   };
 
-  const ensureNotInline = (value) => {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
+  const ensureNotInline = (candidate) => {
+    if (typeof candidate !== 'string') return null;
+    const trimmed = candidate.trim();
     if (!trimmed) return null;
     if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
       return null;
@@ -429,8 +408,8 @@ async function normaliseAssetReference(
     return trimmed;
   };
 
-  const normaliseKey = (value) => {
-    const trimmed = ensureNotInline(value);
+  const normaliseKey = (candidate) => {
+    const trimmed = ensureNotInline(candidate);
     if (!trimmed) return null;
     return trimmed.replace(/^\/+/, '');
   };
@@ -544,61 +523,6 @@ async function normaliseAssetReference(
   return {
     key: keyCandidate ? keyCandidate.replace(/^\/+/, '') : null,
     url: resolvedUrl,
-  };
-}
-
-function summariseNegativePrompts(prompts) {
-  if (!prompts || typeof prompts !== 'object') return null;
-  const values = [];
-  Object.values(prompts).forEach((entry) => {
-    if (!entry) return;
-    const negative = typeof entry.negative === 'string' ? entry.negative.trim() : '';
-    if (negative) values.push(negative);
-  });
-  if (!values.length) return null;
-  return Array.from(new Set(values)).join(' | ');
-}
-
-function ensureUploadedAndLog(path, payload, rawPayload) {
-  const MAX = 512 * 1024;
-  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(16).slice(2, 10);
-  let bodyString = null;
-  if (typeof rawPayload === 'string') {
-    bodyString = rawPayload;
-  } else if (payload !== undefined) {
-    try {
-      bodyString = JSON.stringify(payload);
-    } catch (error) {
-      console.warn('[client] stringify payload failed', error);
-    }
-  }
-
-  const size = estimatePayloadBytes(bodyString ?? payload);
-  const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
-  const preview = typeof bodyString === 'string'
-    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
-    : null;
-
-  console.log(`[client] pre-check ${path}`, {
-    requestId,
-    size,
-    hasBase64,
-    preview,
-  });
-
-  if (hasBase64) {
-    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
-  }
-  if (MAX > 0 && size > MAX) {
-    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
-  }
-
-  return {
-    headers: { 'X-Request-ID': requestId },
-    bodyString,
-    size,
   };
 }
 
@@ -821,7 +745,7 @@ function isSamePosterImage(a, b) {
 }
 
 // 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
-// 返回 { key, put_url, public_url, etag, content_type, size }
+// 返回 { key, put_url, get_url, r2_url, public_url, etag, content_type, size }
 async function r2PresignPut(folder, file, bases, options = {}) {
   if (!file) throw new Error('没有可上传的文件');
 
@@ -840,8 +764,16 @@ async function r2PresignPut(folder, file, bases, options = {}) {
   const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
 
   if (!data || typeof data !== 'object') throw new Error('预签名接口返回异常');
-  const { key, put_url: putUrl, public_url: publicUrl } = data;
+  const {
+    key,
+    put_url: putUrl,
+    get_url: getUrl,
+    r2_url: r2Url,
+    public_url: legacyPublicUrl,
+  } = data;
   if (!key || !putUrl) throw new Error('预签名接口缺少 key 或 put_url');
+  const normalizedR2 = r2Url || null;
+  const readableUrl = getUrl || legacyPublicUrl || null;
 
   // 2) 直接上传到 R2（options.upload === false 可只要签名不上传）
   if (options.upload !== false) {
@@ -855,29 +787,53 @@ async function r2PresignPut(folder, file, bases, options = {}) {
       throw new Error(`R2 上传失败：HTTP ${putRes.status} ${putRes.statusText} ${txt || ''}`.trim());
     }
     const etag = putRes.headers.get('etag') || null;
-    return { key, put_url: putUrl, public_url: publicUrl, etag, content_type: contentType, size };
+    return {
+      key,
+      put_url: putUrl,
+      get_url: readableUrl,
+      r2_url: normalizedR2,
+      public_url: readableUrl,
+      etag,
+      content_type: contentType,
+      size,
+    };
   }
 
   // 仅返回签名信息
-  return { key, put_url: putUrl, public_url: publicUrl, content_type: contentType, size };
+  return {
+    key,
+    put_url: putUrl,
+    get_url: readableUrl,
+    r2_url: normalizedR2,
+    public_url: readableUrl,
+    content_type: contentType,
+    size,
+  };
 }
 
 
 async function uploadFileToR2(folder, file, options = {}) {
   try {
-    const presign = await r2PresignPut(folder, file, options?.bases);
-    const putResponse = await fetch(presign.put_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': file?.type || 'application/octet-stream' },
-      body: file,
+    const shouldUpload = options?.upload !== false;
+    const presign = await r2PresignPut(folder, file, options?.bases, {
+      upload: false,
     });
-    if (!putResponse.ok) {
-      const detail = await putResponse.text();
-      throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+    if (shouldUpload) {
+      const putResponse = await fetch(presign.put_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file?.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putResponse.ok) {
+        const detail = await putResponse.text();
+        throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+      }
     }
+    const accessibleUrl = presign.get_url || presign.public_url || null;
+    const referenceUrl = presign.r2_url || accessibleUrl || toAssetUrl(presign.key);
     return {
       key: presign.key,
-      url: presign.public_url || null,
+      url: referenceUrl,
       uploaded: true,
       presign,
     };
@@ -1028,12 +984,7 @@ function initStage1() {
       if (typeof asset === 'string') {
         if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
       } else if (typeof asset === 'object') {
-        const {
-          remoteUrl,
-          url,
-          publicUrl,
-          dataUrl,
-        } = asset;
+        const { remoteUrl, url, publicUrl, dataUrl } = asset;
         [remoteUrl, url, publicUrl].forEach((candidate) => {
           if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
             urlCandidates.push(candidate);
@@ -3754,7 +3705,6 @@ async function triggerGeneration(opts) {
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
   const pd = stage1Data.product_asset || null;
-
   const scenarioMode = stage1Data.scenario_mode || 'upload';
   const productMode = stage1Data.product_mode || 'upload';
 
@@ -3873,10 +3823,12 @@ async function triggerGeneration(opts) {
       gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
     };
   } catch (error) {
-    console.error('[triggerGeneration] asset normalisation failed', error);
+    console.error('[triggerGeneration] asset normalization failed', error);
     setStatus(
       statusElement,
-      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+      error instanceof Error
+        ? error.message
+        : '素材未完成上传，请先上传至 R2/GCS。',
       'error',
     );
     return null;
@@ -3947,7 +3899,25 @@ async function triggerGeneration(opts) {
     lock_seed: payload.lock_seed,
     negatives: negativeSummary || null,
   });
-  console.info('[triggerGeneration] asset audit', assetAudit);
+  console.info('[triggerGeneration] asset audit', {
+    brand_logo: { key: brandLogoRef?.key || null, url: posterPayload.brand_logo || null },
+    scenario: {
+      key: posterPayload.scenario_key || null,
+      url: posterPayload.scenario_asset || null,
+      mode: posterPayload.scenario_mode,
+    },
+    product: {
+      key: posterPayload.product_key || null,
+      url: posterPayload.product_asset || null,
+      mode: posterPayload.product_mode,
+    },
+    gallery: posterPayload.gallery_items.map((item, index) => ({
+      index,
+      key: item.key || null,
+      url: item.asset || null,
+      mode: item.mode,
+    })),
+  });
   
   // 面板同步
   updatePromptPanels?.({ bundle: payload.prompt_bundle });

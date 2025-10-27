@@ -465,9 +465,39 @@ class R2PresignPutRequest(_CompatModel):
 class R2PresignPutResponse(_CompatModel):
     key: str
     put_url: str
-    public_url: Optional[str] = Field(
-        None, description="Public URL when the bucket exposes a static endpoint"
+    get_url: Optional[str] = Field(
+        None,
+        description="HTTP(S) URL that can be used to read the object after upload.",
     )
+    r2_url: Optional[str] = Field(
+        None,
+        description="r2:// (or s3://) reference pointing at the stored object.",
+    )
+    public_url: Optional[str] = Field(
+        None,
+        description="Deprecated alias for get_url kept for backward compatibility.",
+    )
+
+    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
+
+        @model_validator(mode="after")
+        @classmethod
+        def _sync_urls(cls, value: "R2PresignPutResponse") -> "R2PresignPutResponse":
+            if value.get_url and not value.public_url:
+                value.public_url = value.get_url
+            if value.public_url and not value.get_url:
+                value.get_url = value.public_url
+            return value
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @root_validator(pre=False)  # type: ignore[misc]
+        def _sync_urls(cls, values: dict[str, Any]) -> dict[str, Any]:
+            get_url = values.get("get_url") or values.get("public_url")
+            if get_url:
+                values["get_url"] = get_url
+                values["public_url"] = get_url
+            return values
 
 # ------------------------------------------------------------------------------
 # 模板海报上传

@@ -821,7 +821,7 @@ function isSamePosterImage(a, b) {
 }
 
 // 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
-// 返回 { key, put_url, public_url, etag, content_type, size }
+// 返回 { key, put_url, get_url, r2_url, public_url, etag, content_type, size }
 async function r2PresignPut(folder, file, bases, options = {}) {
   if (!file) throw new Error('没有可上传的文件');
 
@@ -840,8 +840,16 @@ async function r2PresignPut(folder, file, bases, options = {}) {
   const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
 
   if (!data || typeof data !== 'object') throw new Error('预签名接口返回异常');
-  const { key, put_url: putUrl, public_url: publicUrl } = data;
+  const {
+    key,
+    put_url: putUrl,
+    get_url: getUrl,
+    r2_url: r2Url,
+    public_url: legacyPublicUrl,
+  } = data;
   if (!key || !putUrl) throw new Error('预签名接口缺少 key 或 put_url');
+  const normalizedR2 = r2Url || null;
+  const readableUrl = getUrl || legacyPublicUrl || null;
 
   // 2) 直接上传到 R2（options.upload === false 可只要签名不上传）
   if (options.upload !== false) {
@@ -855,29 +863,53 @@ async function r2PresignPut(folder, file, bases, options = {}) {
       throw new Error(`R2 上传失败：HTTP ${putRes.status} ${putRes.statusText} ${txt || ''}`.trim());
     }
     const etag = putRes.headers.get('etag') || null;
-    return { key, put_url: putUrl, public_url: publicUrl, etag, content_type: contentType, size };
+    return {
+      key,
+      put_url: putUrl,
+      get_url: readableUrl,
+      r2_url: normalizedR2,
+      public_url: readableUrl,
+      etag,
+      content_type: contentType,
+      size,
+    };
   }
 
   // 仅返回签名信息
-  return { key, put_url: putUrl, public_url: publicUrl, content_type: contentType, size };
+  return {
+    key,
+    put_url: putUrl,
+    get_url: readableUrl,
+    r2_url: normalizedR2,
+    public_url: readableUrl,
+    content_type: contentType,
+    size,
+  };
 }
 
 
 async function uploadFileToR2(folder, file, options = {}) {
   try {
-    const presign = await r2PresignPut(folder, file, options?.bases);
-    const putResponse = await fetch(presign.put_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': file?.type || 'application/octet-stream' },
-      body: file,
+    const shouldUpload = options?.upload !== false;
+    const presign = await r2PresignPut(folder, file, options?.bases, {
+      upload: false,
     });
-    if (!putResponse.ok) {
-      const detail = await putResponse.text();
-      throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+    if (shouldUpload) {
+      const putResponse = await fetch(presign.put_url, {
+        method: 'PUT',
+        headers: { 'Content-Type': file?.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putResponse.ok) {
+        const detail = await putResponse.text();
+        throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+      }
     }
+    const accessibleUrl = presign.get_url || presign.public_url || null;
+    const referenceUrl = presign.r2_url || accessibleUrl || toAssetUrl(presign.key);
     return {
       key: presign.key,
-      url: presign.public_url || null,
+      url: referenceUrl,
       uploaded: true,
       presign,
     };
