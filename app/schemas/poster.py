@@ -1,151 +1,81 @@
-"""Lightweight poster payload schemas for asset validation."""
+"""Poster request/response helpers enforcing URL/Key asset usage."""
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import Field
 
-from app.schemas import DATA_URL_RX, _CompatModel, field_validator, model_validator, root_validator
+from app.schemas import DATA_URL_RX, _CompatModel, field_validator
 
 _ALLOWED_URL_PREFIXES = ("r2://", "s3://", "gs://", "https://", "http://")
 
 
-class AssetRef(_CompatModel):
-    """Reference to an uploaded asset (by key and/or URL)."""
+class AssetUrl(_CompatModel):
+    """Reference to an asset that must already live in object storage."""
 
-    url: Optional[str] = None
-    key: Optional[str] = None
+    url: str = Field(..., description="Pointer to an uploaded asset (R2/GCS/HTTP).")
 
-    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
-
-        @model_validator(mode="before")
-        @classmethod
-        def _coerce(cls, value: Any) -> Any:
-            if value is None or isinstance(value, cls):
-                return value
-            if isinstance(value, str):
-                return {"url": value}
-            if isinstance(value, dict):
-                return value
-            data: dict[str, Any] = {}
-            for attr in (
-                "url",
-                "asset",
-                "public_url",
-                "publicUrl",
-                "remote_url",
-                "remoteUrl",
-                "cdn_url",
-                "cdnUrl",
-                "data_url",
-                "dataUrl",
-            ):
-                candidate = getattr(value, attr, None)
-                if isinstance(candidate, str):
-                    data.setdefault("url", candidate)
-            for attr in ("key", "r2Key"):
-                candidate = getattr(value, attr, None)
-                if isinstance(candidate, str):
-                    data.setdefault("key", candidate)
-            return data or value
-    else:  # pragma: no cover - executed on Pydantic v1
-
-        @root_validator(pre=True)
-        def _coerce(cls, values: Any) -> Any:  # type: ignore[override]
-            value = values
-            if value is None or isinstance(value, cls):
-                return value
-            if isinstance(value, str):
-                return {"url": value}
-            if isinstance(value, dict):
-                return value
-            data: dict[str, Any] = {}
-            for attr in (
-                "url",
-                "asset",
-                "public_url",
-                "publicUrl",
-                "remote_url",
-                "remoteUrl",
-                "cdn_url",
-                "cdnUrl",
-                "data_url",
-                "dataUrl",
-            ):
-                candidate = getattr(value, attr, None)
-                if isinstance(candidate, str):
-                    data.setdefault("url", candidate)
-            for attr in ("key", "r2Key"):
-                candidate = getattr(value, attr, None)
-                if isinstance(candidate, str):
-                    data.setdefault("key", candidate)
-            return data or values
-
-    @field_validator("url", "key", mode="before")
+    @field_validator("url", mode="before")
     @classmethod
-    def _strip_and_reject_base64(cls, value: Any) -> Any:
-        if not isinstance(value, str):
+    def _coerce(cls, value: Any) -> str:
+        if isinstance(value, cls):  # pragma: no cover - defensive
+            return value.url
+        if isinstance(value, dict):
+            candidate = value.get("url")
+            if isinstance(candidate, str):
+                return candidate
+        if isinstance(value, str):
             return value
+        raise TypeError("asset url must be provided as string or dict with url")
+
+    @field_validator("url")
+    @classmethod
+    def _validate(cls, value: str) -> str:
         text = value.strip()
         if not text:
-            return None
+            raise ValueError("asset url cannot be empty")
         if DATA_URL_RX.match(text):
-            raise ValueError("base64 not allowed; upload to R2/GCS first")
-        return text
-
-    @field_validator("url", mode="after")
-    @classmethod
-    def _validate_url_scheme(cls, value: Optional[str]) -> Optional[str]:
-        if value is None:
-            return value
-        if value.startswith(_ALLOWED_URL_PREFIXES):
-            return value
-        if "://" in value:
+            raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
+        if not text.startswith(_ALLOWED_URL_PREFIXES):
             raise ValueError("invalid url; expected r2://, s3://, gs:// or http(s)")
-        return value
-
-
-class GalleryItemRef(_CompatModel):
-    """Subset of gallery metadata focusing on stored assets."""
-
-    asset: Optional[AssetRef] = None
-    key: Optional[str] = None
-    mode: Optional[str] = None
-
-    @field_validator("key", mode="before")
-    @classmethod
-    def _strip_key(cls, value: Any) -> Any:
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
-        if DATA_URL_RX.match(text):
-            raise ValueError("base64 not allowed; upload to R2/GCS first")
-        return text or None
+        return text
 
 
 class PosterPayload(_CompatModel):
-    """Lean representation that enforces asset references."""
+    """Minimal poster payload required by the simplified poster API."""
 
-    brand_logo: Optional[AssetRef] = None
-    scenario_asset: Optional[AssetRef] = None
-    product_asset: Optional[AssetRef] = None
-    scenario_key: Optional[str] = None
-    product_key: Optional[str] = None
-    scenario_image: Optional[str] = None
-    product_image: Optional[str] = None
-    gallery_items: List[GalleryItemRef] = Field(default_factory=list)
+    brand_name: str = Field(..., description="Brand displayed on the poster.")
+    agent_name: Optional[str] = Field(
+        None, description="Agency or channel partner name (optional)."
+    )
+    product_name: Optional[str] = Field(
+        None, description="Product name rendered on the poster (optional)."
+    )
+    scenario_image: AssetUrl = Field(
+        ..., description="Primary background image reference (URL/Key)."
+    )
+    brand_logo: Optional[AssetUrl] = Field(
+        None, description="Optional brand logo reference stored in R2/GCS."
+    )
+    template_id: Optional[str] = Field(
+        None, description="Template identifier controlling the poster layout."
+    )
+    size: Optional[Literal["1024x1024", "1080x1350", "1080x1920", "1920x1080"]] = Field(
+        "1024x1024", description="Target render size in WIDTHxHEIGHT format."
+    )
 
-    @field_validator("scenario_key", "product_key", "scenario_image", "product_image", mode="before")
+    @field_validator("scenario_image", "brand_logo", mode="before")
     @classmethod
-    def _reject_base64_strings(cls, value: Any) -> Any:
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
-        if not text:
+    def _coerce_assets(cls, value: Any) -> Any:
+        if value is None:
             return None
-        if DATA_URL_RX.match(text):
-            raise ValueError("base64 not allowed; upload to R2/GCS first")
-        return text
+        if isinstance(value, AssetUrl):
+            return value
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            return {"url": value}
+        raise TypeError("asset reference must be string or mapping with url")
 
 
 class GeneratePosterReq(_CompatModel):
@@ -159,10 +89,4 @@ class GeneratePosterResp(_CompatModel):
     template_id: Optional[str] = None
 
 
-__all__ = [
-    "AssetRef",
-    "GalleryItemRef",
-    "PosterPayload",
-    "GeneratePosterReq",
-    "GeneratePosterResp",
-]
+__all__ = ["AssetUrl", "PosterPayload", "GeneratePosterReq", "GeneratePosterResp"]

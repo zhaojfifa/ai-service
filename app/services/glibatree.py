@@ -25,7 +25,7 @@ from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.schemas.poster import PosterPayload
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
 from app.services.vertex_imagen3 import VertexImagen3
-from app.services.s3_client import get_bytes, put_bytes
+from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
 from app.services.template_variants import generation_overrides
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,60 @@ BRAND_RED = (239, 76, 84)
 INK_BLACK = (31, 41, 51)
 SILVER = (244, 245, 247)
 GUIDE_GREY = (203, 210, 217)
+
+
+def r2_public_url_from_ref(ref: str) -> str:
+    """Resolve a storage reference into a publicly accessible URL."""
+
+    if not ref:
+        raise ValueError("empty storage reference")
+
+    value = ref.strip()
+    if value.startswith(("http://", "https://")):
+        return value
+
+    if value.startswith(("r2://", "s3://")):
+        _, path = value.split("://", 1)
+        if "/" not in path:
+            raise ValueError(f"invalid storage reference: {value}")
+        _, key = path.split("/", 1)
+        url = public_url_for(key)
+        return url or value
+
+    if value.startswith("gs://"):
+        # Vertex output written to GCS can be served directly or proxied.
+        return value
+
+    raise ValueError(f"unsupported storage reference: {value}")
+
+
+def upload_bytes_to_r2_return_ref(
+    data: bytes,
+    *,
+    key: str | None = None,
+    ext: str = ".png",
+    content_type: str = "image/png",
+) -> tuple[str, str]:
+    """Persist ``data`` to R2/S3 and return (r2://bucket/key, public_url)."""
+
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("image payload must be bytes")
+
+    bucket = (os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET") or "").strip()
+    if not bucket:
+        raise RuntimeError("R2/S3 bucket is not configured")
+
+    if key:
+        storage_key = key.lstrip("/")
+    else:
+        filename = f"{uuid.uuid4().hex}{ext if ext.startswith('.') else f'.{ext}'}"
+        storage_key = make_key("posters", filename)
+
+    url = put_bytes(storage_key, bytes(data), content_type=content_type)
+    if not url:
+        raise RuntimeError(f"Failed to upload object {storage_key}")
+
+    return f"r2://{bucket}/{storage_key}", url
 
 
 def _copy_model(instance, **update):
@@ -193,13 +247,12 @@ def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
             "poster.asset.invalid",
             extra={"issues": issues, "template": payload.get("template_id")},
         )
+        detail = "请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url"
+        if issues:
+            detail = f"{detail}; bad={','.join(issues)}"
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={
-                "error": "ASSET_REFERENCE_INVALID",
-                "issues": issues,
-                "hint": "请先上传到 R2/GCS，仅传输 key/url。",
-            },
+            detail=detail,
         ) from exc
 
 
@@ -1017,24 +1070,40 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
     slug = safe_filename.replace(" ", "_").replace("/", "_")
     timestamp = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
     digest = hashlib.sha1(image_bytes).hexdigest()[:10]
-    key = f"posters/{timestamp}-{digest}-{slug}"
+    storage_key = f"posters/{timestamp}-{digest}-{slug}"
 
-    url = put_bytes(key, image_bytes, content_type="image/png")
-    if url:
-        logger.info("R2 upload ok key=%s url=%s", key, url)
-    else:
-        logger.warning("R2 upload failed; will return data_url instead (key=%s)", key)
+    storage_ref: str | None = None
+    url: str | None = None
+    try:
+        storage_ref, url = upload_bytes_to_r2_return_ref(
+            image_bytes,
+            key=storage_key,
+            content_type="image/png",
+        )
+        logger.info("R2 upload ok key=%s url=%s", storage_key, url)
+    except Exception as exc:  # pragma: no cover - storage fallback
+        logger.warning(
+            "R2 upload failed; will return data_url instead", extra={"key": storage_key, "error": str(exc)}
+        )
 
     data_url: str | None = None
     if not url:
         encoded = base64.b64encode(image_bytes).decode("ascii")
         data_url = f"data:image/png;base64,{encoded}"
 
+    key_value: str | None = None
+    if storage_ref and "://" in storage_ref:
+        _, path = storage_ref.split("://", 1)
+        key_value = path.split("/", 1)[1] if "/" in path else storage_key
+    elif url:
+        key_value = storage_key
+
     return PosterImage(
         filename=safe_filename,
         media_type="image/png",
         data_url=data_url,
         url=url,
+        key=key_value,
         width=output.width,
         height=output.height,
     )

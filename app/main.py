@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import datetime as dt
 import json
 import logging
@@ -19,9 +21,11 @@ from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
     ImageRef,
+    PosterImage,
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
+    StoredImage,
     SendEmailRequest,
     SendEmailResponse,
     TemplatePosterCollection,
@@ -393,6 +397,7 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
             guidance_scale=request_data.guidance_scale,
             add_watermark=request_data.add_watermark,
             number_of_images=variants,
+            trace_id=rid,
         )
     except HTTPException:
         raise
@@ -491,6 +496,66 @@ def _model_validate(model, data):
     if hasattr(model, "parse_obj"):
         return model.parse_obj(data)
     return model(**data)
+
+
+def _decode_data_url_to_bytes(data_url: str) -> bytes:
+    if "," not in data_url:
+        raise ValueError("Invalid data URL: missing comma separator")
+    header, encoded = data_url.split(",", 1)
+    header_lower = header.lower()
+    if not header_lower.startswith("data:") or ";base64" not in header_lower:
+        raise ValueError("Only base64-encoded data URLs are supported")
+    try:
+        return base64.b64decode(encoded)
+    except (binascii.Error, ValueError) as exc:  # pragma: no cover - defensive
+        raise ValueError("Failed to decode data URL") from exc
+
+
+def _infer_key_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    base = (os.getenv("R2_PUBLIC_BASE") or os.getenv("S3_PUBLIC_BASE") or "").rstrip("/")
+    if base and url.startswith(f"{base}/"):
+        return url[len(base) + 1 :]
+    return None
+
+
+def _poster_image_to_stored(image: PosterImage | None) -> StoredImage | None:
+    if image is None:
+        return None
+
+    media_type = getattr(image, "media_type", "image/png") or "image/png"
+    width = getattr(image, "width", None)
+    height = getattr(image, "height", None)
+
+    url = getattr(image, "url", None)
+    key = getattr(image, "key", None)
+    if url:
+        key = key or _infer_key_from_url(url) or image.filename
+        return StoredImage(
+            key=key or image.filename,
+            url=url,
+            content_type=media_type,
+            width=width,
+            height=height,
+        )
+
+    data_url = getattr(image, "data_url", None)
+    if data_url:
+        stored = store_image_and_url(
+            _decode_data_url_to_bytes(data_url),
+            ext="png",
+            content_type=media_type,
+        )
+        return StoredImage(
+            key=stored["key"],
+            url=stored["url"],
+            content_type=stored["content_type"],
+            width=width,
+            height=height,
+        )
+
+    return None
 
 
 def _preview_json(value: Any, limit: int = 512) -> str:
@@ -862,6 +927,42 @@ async def generate_poster(request: Request) -> JSONResponse:
             vertex_trace_ids=result.trace_ids or None,
             fallback_used=result.fallback_used if result.fallback_used else None,
         )
+
+        stored_images: list[StoredImage] = []
+        try:
+            primary_stored = _poster_image_to_stored(result.poster)
+            if primary_stored:
+                stored_images.append(primary_stored)
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception(
+                "Failed to normalise primary poster storage",
+                extra={"trace": trace, "error": str(exc)},
+            )
+            raise HTTPException(status_code=500, detail="Poster storage failed") from exc
+
+        for variant in result.variants or []:
+            try:
+                variant_stored = _poster_image_to_stored(variant)
+            except Exception as exc:  # pragma: no cover - keep best-effort variants
+                logger.warning(
+                    "Skipping variant storage normalisation",
+                    extra={"trace": trace, "error": str(exc)},
+                )
+                continue
+            if variant_stored:
+                stored_images.append(variant_stored)
+
+        update_kwargs: dict[str, Any] = {"results": stored_images}
+        if stored_images:
+            update_kwargs["poster_url"] = stored_images[0].url
+            update_kwargs["poster_key"] = stored_images[0].key
+
+        if hasattr(response_payload, "model_copy"):
+            response_payload = response_payload.model_copy(update=update_kwargs)  # type: ignore[attr-defined]
+        else:  # pragma: no cover - Pydantic v1 fallback
+            payload_dict = response_payload.dict()
+            payload_dict.update(update_kwargs)
+            response_payload = GeneratePosterResponse(**payload_dict)
         headers: dict[str, str] = {}
         if result.trace_ids:
             headers["X-Vertex-Trace"] = ",".join(result.trace_ids)

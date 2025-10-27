@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import uuid
 from typing import Optional
 
 from vertexai.vision_models import ImageGenerationModel
@@ -25,6 +26,7 @@ class VertexImagen3:
         self.project = os.getenv("VERTEX_PROJECT_ID")
         self.location = os.getenv("VERTEX_LOCATION")
         name = os.getenv("VERTEX_IMAGEN_MODEL", "imagen-3.0-generate-001")
+        self.output_gcs_uri = os.getenv("VERTEX_OUTPUT_GCS_URI")
 
         # The Imagen SDK resolves project/location from ADC; name identifies the
         # pre-trained model variant.
@@ -42,6 +44,7 @@ class VertexImagen3:
         guidance_scale: Optional[float] = None,
         add_watermark: Optional[bool] = True,
         number_of_images: int = 1,
+        trace_id: Optional[str] = None,
     ) -> list[bytes]:
         aspect_ratio = self._to_aspect_ratio(width, height)
         requested = max(int(number_of_images or 1), 1)
@@ -51,6 +54,7 @@ class VertexImagen3:
             log.info("vertex_provider: seed ignored because add_watermark=True")
             seed = None
 
+        request_trace = trace_id or uuid.uuid4().hex[:8]
         params: dict[str, object] = {
             "prompt": prompt,
             "number_of_images": requested,
@@ -64,6 +68,8 @@ class VertexImagen3:
             params["guidance_scale"] = guidance_scale
         if seed is not None:
             params["seed"] = seed
+        if self.output_gcs_uri:
+            params["output_gcs_uri"] = f"{self.output_gcs_uri.rstrip('/')}/{request_trace}"
 
         log.debug(
             "[vertex.generate] params=%s",
@@ -77,6 +83,13 @@ class VertexImagen3:
 
         images: list[bytes] = []
         for image in response.images[:requested]:
+            for attr in ("gcs_uri", "uri", "image_uri"):
+                ref = getattr(image, attr, None)
+                if isinstance(ref, str) and ref.startswith("gs://"):
+                    log.info("[vertex.generate] stored image at %s", ref)
+                    # Imagen may still include bytes even when output_gcs_uri is used.
+                    # We continue extracting bytes to keep the return contract unchanged.
+                    break
             for attr in ("_image_bytes", "image_bytes"):
                 data = getattr(image, attr, None)
                 if isinstance(data, (bytes, bytearray)):
