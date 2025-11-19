@@ -12,6 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, root_validator
@@ -502,11 +503,9 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
 
 
 def _model_dump(model):
-    if hasattr(model, "model_dump"):
-        return model.model_dump(exclude_none=True)
-    if hasattr(model, "dict"):
-        return model.dict(exclude_none=True)
-    return {}
+    if model is None:
+        return None
+    return jsonable_encoder(model, exclude_none=True)
 
 
 def _model_validate(model, data):
@@ -579,7 +578,8 @@ def _poster_image_to_stored(image: PosterImage | None) -> StoredImage | None:
 
 def _preview_json(value: Any, limit: int = 512) -> str:
     try:
-        text = json.dumps(value, ensure_ascii=False)
+        encoded = jsonable_encoder(value)
+        text = json.dumps(encoded, ensure_ascii=False)
     except Exception:  # pragma: no cover - defensive fallback
         text = str(value)
     if len(text) <= limit:
@@ -883,6 +883,7 @@ async def generate_poster(request: Request) -> JSONResponse:
                 "variants": payload.variants,
                 "seed": payload.seed,
                 "lock_seed": payload.lock_seed,
+                "aspect_closeness": payload.aspect_closeness,
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
                 "asset_summary": normalised_assets,
             },
@@ -905,6 +906,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             seed=payload.seed,
             lock_seed=payload.lock_seed,
             trace_id=trace,
+            aspect_closeness=payload.aspect_closeness,
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
