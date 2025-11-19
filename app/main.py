@@ -9,8 +9,10 @@ import os
 import uuid
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, root_validator
@@ -47,6 +49,7 @@ from app.services.r2_client import (
     public_url_for,
 )
 from app.services.template_variants import (
+    TemplatePosterError,
     list_poster_entries,
     poster_entry_from_record,
     save_template_poster,
@@ -173,6 +176,8 @@ UPLOAD_ALLOWED_MIME = {
 
 
 def _normalise_allowed_origins(value: Any) -> list[str]:
+    """Parse comma/JSON separated origins and keep only scheme + host."""
+
     if not value:
         return ["*"]
     if isinstance(value, list):
@@ -191,18 +196,29 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
 
     cleaned = []
     for item in items:
-        candidate = str(item).strip().strip('"').strip("'").rstrip("/")
+        raw = str(item).strip().strip('"').strip("'")
+        if not raw:
+            continue
+        parsed = urlparse(raw)
+        candidate = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else raw
+        candidate = candidate.rstrip("/")
         if candidate:
             cleaned.append(candidate)
     return cleaned or ["*"]
 
-raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
+raw_origins = (
+    getattr(settings, "allowed_origins", None)
+    or os.getenv("CORS_ALLOW_ORIGINS")
+    or os.getenv("ALLOWED_ORIGINS")
+)
 allow_origins = _normalise_allowed_origins(raw_origins)
 
 DEFAULT_CORS_ORIGINS = {
     "https://zhaojfifa.github.io",
-    "https://zhaojfifa.github.io/ai-service",
+    "https://ai-service-x758.onrender.com",
 }
+# GitHub Pages 访问时请在 Render 环境变量 `CORS_ALLOW_ORIGINS` 中包含浏览器地址栏的完整 origin，
+# 例如 https://zhaojfifa.github.io，确保预检请求与页面一致。
 
 cors_origins = {origin.rstrip("/") for origin in allow_origins}
 cors_origins.update(DEFAULT_CORS_ORIGINS)
@@ -219,7 +235,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allow_origins,
     allow_credentials=cors_allow_credentials,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     max_age=86400,
 )
@@ -488,11 +504,9 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
 
 
 def _model_dump(model):
-    if hasattr(model, "model_dump"):
-        return model.model_dump(exclude_none=True)
-    if hasattr(model, "dict"):
-        return model.dict(exclude_none=True)
-    return {}
+    if model is None:
+        return None
+    return jsonable_encoder(model, exclude_none=True)
 
 
 def _model_validate(model, data):
@@ -565,7 +579,8 @@ def _poster_image_to_stored(image: PosterImage | None) -> StoredImage | None:
 
 def _preview_json(value: Any, limit: int = 512) -> str:
     try:
-        text = json.dumps(value, ensure_ascii=False)
+        encoded = jsonable_encoder(value)
+        text = json.dumps(encoded, ensure_ascii=False)
     except Exception:  # pragma: no cover - defensive fallback
         text = str(value)
     if len(text) <= limit:
@@ -772,7 +787,14 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
     slot = request_data.slot
     filename = request_data.filename
     content_type = request_data.content_type
-    data = request_data.data
+    key = request_data.key
+    size = request_data.size
+
+    if request_data.data:
+        logger.info(
+            "template poster upload payload still contains deprecated base64 data",
+            extra={"slot": slot, "poster_filename": filename},
+        )
 
     logger.info(
         "template poster upload received",
@@ -780,7 +802,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             "slot": slot,
             "poster_filename": filename,
             "content_type": content_type,
-            "size_bytes": len(data or ""),
+            "storage_key": key,
+            "size_bytes": size,
         },
     )
     try:
@@ -788,10 +811,11 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             slot=slot,
             filename=filename,
             content_type=content_type,
-            data=data,
+            key=key,
+            size=size,
         )
         return poster_entry_from_record(record)
-    except ValueError as exc:
+    except TemplatePosterError as exc:
         logger.warning(
             "template poster upload rejected",
             extra={
@@ -800,7 +824,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
                 "content_type": content_type,
             },
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        detail_payload = getattr(exc, "detail", None)
+        raise HTTPException(status_code=400, detail=detail_payload or str(exc)) from exc
     except Exception as exc:  # pragma: no cover - unexpected IO failure
         logger.exception(
             "Failed to store template poster",
@@ -869,6 +894,7 @@ async def generate_poster(request: Request) -> JSONResponse:
                 "variants": payload.variants,
                 "seed": payload.seed,
                 "lock_seed": payload.lock_seed,
+                "aspect_closeness": payload.aspect_closeness,
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
                 "asset_summary": normalised_assets,
             },
@@ -891,6 +917,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             seed=payload.seed,
             lock_seed=payload.lock_seed,
             trace_id=trace,
+            aspect_closeness=payload.aspect_closeness,
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
