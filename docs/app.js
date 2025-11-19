@@ -765,10 +765,15 @@ const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
   if (!image || typeof image !== 'object') return '';
-  const directUrl = typeof image.url === 'string' ? image.url : '';
-  if (directUrl) return directUrl;
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url : '';
-  return dataUrl;
+  const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
+  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
+    return directUrl;
+  }
+  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
+  if (dataUrl && dataUrl.startsWith('data:')) {
+    return dataUrl;
+  }
+  return '';
 }
 
 function inferImageMediaType(src) {
@@ -910,8 +915,16 @@ async function uploadFileToR2(folder, file, options = {}) {
         throw new Error(detail || '上传到 R2 失败，请稍后重试。');
       }
     }
-    const accessibleUrl = presign.get_url || presign.public_url || null;
-    const referenceUrl = presign.r2_url || accessibleUrl || toAssetUrl(presign.key);
+    const selectHttpUrl = (value) => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      return HTTP_URL_RX.test(trimmed) ? trimmed : null;
+    };
+    const accessibleUrl =
+      selectHttpUrl(presign.get_url) || selectHttpUrl(presign.public_url);
+    const derivedUrl = selectHttpUrl(toAssetUrl(presign.key));
+    const referenceUrl = accessibleUrl || derivedUrl || null;
     return {
       key: presign.key,
       url: referenceUrl,
@@ -3258,13 +3271,18 @@ function initStage2() {
           : inferImageMediaType(source) || 'image/png';
       const width = typeof poster.width === 'number' ? poster.width : null;
       const height = typeof poster.height === 'number' ? poster.height : null;
+      const normalizedUrl = HTTP_URL_RX.test(source) ? source : null;
+      const normalizedDataUrl = source.startsWith('data:') ? source : null;
       return {
         filename,
         media_type: mediaType,
         width,
         height,
-        url: typeof poster.url === 'string' ? poster.url : null,
-        data_url: typeof poster.data_url === 'string' ? poster.data_url : null,
+        key: typeof poster.key === 'string' ? poster.key : null,
+        url: normalizedUrl,
+        data_url:
+          normalizedDataUrl ||
+          (typeof poster.data_url === 'string' ? poster.data_url : null),
       };
     };
 

@@ -49,6 +49,7 @@ from app.services.r2_client import (
     public_url_for,
 )
 from app.services.template_variants import (
+    TemplatePosterError,
     list_poster_entries,
     poster_entry_from_record,
     save_template_poster,
@@ -814,7 +815,7 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             size=size,
         )
         return poster_entry_from_record(record)
-    except ValueError as exc:
+    except TemplatePosterError as exc:
         logger.warning(
             "template poster upload rejected",
             extra={
@@ -823,7 +824,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
                 "content_type": content_type,
             },
         )
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        detail_payload = getattr(exc, "detail", None)
+        raise HTTPException(status_code=400, detail=detail_payload or str(exc)) from exc
     except Exception as exc:  # pragma: no cover - unexpected IO failure
         logger.exception(
             "Failed to store template poster",

@@ -12,6 +12,13 @@ def _png_bytes(color: tuple[int, int, int] = (255, 0, 0)) -> bytes:
     return buffer.getvalue()
 
 
+def _jpeg_bytes(color: tuple[int, int, int] = (200, 100, 50)) -> bytes:
+    image = Image.new("RGB", (64, 64), color)
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
 @pytest.fixture()
 def template_tmpdir(tmp_path, monkeypatch):
     monkeypatch.setenv("TEMPLATE_POSTER_DIR", str(tmp_path))
@@ -136,3 +143,52 @@ def test_generate_poster_uses_template_overrides(template_tmpdir, fake_r2_storag
     assert result.poster.filename == "alpha.png"
     assert result.variants
     assert result.variants[0].filename == "bravo.png"
+
+
+def test_template_poster_accepts_jpeg_variants(template_tmpdir, fake_r2_storage):
+    from app.main import app
+
+    client = TestClient(app)
+    key_jpeg = "template-posters/variant_a/poster-a.jpeg"
+    fake_r2_storage[key_jpeg] = _jpeg_bytes()
+    payload_jpeg = {
+        "slot": "variant_a",
+        "filename": "PosterA.jpeg",
+        "content_type": "image/jpeg",
+        "key": key_jpeg,
+        "size": len(fake_r2_storage[key_jpeg]),
+    }
+    response = client.post("/api/template-posters", json=payload_jpeg)
+    assert response.status_code == 200
+
+    key_jpg = "template-posters/variant_b/poster-b.jpg"
+    fake_r2_storage[key_jpg] = _jpeg_bytes((20, 40, 60))
+    payload_jpg = {
+        "slot": "variant_b",
+        "filename": "PosterB.jpg",
+        "content_type": "image/jpg",
+        "key": key_jpg,
+        "size": len(fake_r2_storage[key_jpg]),
+    }
+    response = client.post("/api/template-posters", json=payload_jpg)
+    assert response.status_code == 200
+
+
+def test_template_poster_invalid_image_returns_detail(template_tmpdir, fake_r2_storage):
+    from app.main import app
+
+    client = TestClient(app)
+    key = "template-posters/variant_b/broken.png"
+    fake_r2_storage[key] = b"not-an-image"
+    payload = {
+        "slot": "variant_b",
+        "filename": "broken.png",
+        "content_type": "image/png",
+        "key": key,
+        "size": len(fake_r2_storage[key]),
+    }
+    response = client.post("/api/template-posters", json=payload)
+    assert response.status_code == 400
+    detail = response.json().get("detail")
+    assert detail["error"] == "INVALID_IMAGE"
+    assert detail["reason"] in {"cannot_identify", "decode_failed"}

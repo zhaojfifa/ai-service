@@ -10,17 +10,38 @@ import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Any, Iterable, List, Optional
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageFile, UnidentifiedImageError
 
 from app.schemas import PosterImage
 from app.services.s3_client import get_bytes, public_url_for
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
+# 允许 Pillow 在读取部分截断的 JPEG/WebP 时继续解析，避免无谓报错
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 DEFAULT_SLOTS = ("variant_a", "variant_b")
+
+
+class TemplatePosterError(ValueError):
+    """通用模板上传异常，允许附带结构化 detail 供 HTTPException 使用。"""
+
+    def __init__(self, message: str, *, detail: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.detail = detail
+
+
+class TemplatePosterInvalidImage(TemplatePosterError):
+    """无法解析图片内容时抛出的异常。"""
+
+    def __init__(self, reason: str, *, hint: str | None = None) -> None:
+        detail: dict[str, Any] = {"ok": False, "error": "INVALID_IMAGE", "reason": reason}
+        if hint:
+            detail["hint"] = hint
+        super().__init__("Invalid image payload", detail=detail)
 
 
 @dataclass
@@ -60,7 +81,7 @@ def _clean_filename(name: str) -> str:
 def _extension_for(content_type: str) -> str:
     if content_type == "image/png":
         return ".png"
-    if content_type == "image/jpeg":
+    if content_type in {"image/jpeg", "image/jpg"}:
         return ".jpg"
     if content_type == "image/webp":
         return ".webp"
@@ -239,22 +260,32 @@ def save_template_poster(
         )
         raise ValueError("对象存储返回空文件，请重新上传。")
 
+    buffer = BytesIO(raw)
     try:
-        with Image.open(BytesIO(raw)) as image:
+        with Image.open(buffer) as probe:
+            probe.verify()
+        buffer.seek(0)
+        with Image.open(buffer) as image:
             image.load()
             width, height = image.size
     except UnidentifiedImageError as exc:
-        logger.error(
+        logger.warning(
             "[poster-upload] Cannot identify image file (possibly corrupted)",
-            extra={"slot": slot, "content_type": content_type},
+            extra={"slot": slot, "content_type": content_type, "key": key},
         )
-        raise ValueError("Invalid image payload") from exc
+        raise TemplatePosterInvalidImage(
+            reason="cannot_identify",
+            hint="图片格式无法解析，请重新导出为标准 PNG/JPEG/WebP 后再上传。",
+        ) from exc
     except Exception as exc:
         logger.exception(
             "[poster-upload] Unexpected error while opening image",
-            extra={"slot": slot, "content_type": content_type},
+            extra={"slot": slot, "content_type": content_type, "key": key},
         )
-        raise ValueError("Invalid image payload") from exc
+        raise TemplatePosterInvalidImage(
+            reason="decode_failed",
+            hint="图片内容读取失败，可尝试重新导出或压缩后重试。",
+        ) from exc
 
     safe_filename = _clean_filename(filename)
     ext = _extension_for(content_type)
@@ -368,4 +399,6 @@ __all__ = [
     "list_poster_entries",
     "save_template_poster",
     "generation_overrides",
+    "TemplatePosterError",
+    "TemplatePosterInvalidImage",
 ]

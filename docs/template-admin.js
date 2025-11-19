@@ -80,6 +80,22 @@
     variant_b: '海报 B',
   };
 
+  const HTTP_URL_RX = /^https?:\/\//i;
+  const isHttpUrl = (value) => typeof value === 'string' && HTTP_URL_RX.test(value.trim());
+  const isDataUrl = (value) => typeof value === 'string' && value.trim().startsWith('data:');
+  const resolvePosterPreviewSource = (poster) => {
+    if (!poster) return '';
+    const direct = typeof poster.url === 'string' ? poster.url.trim() : '';
+    if (direct && (isHttpUrl(direct) || isDataUrl(direct))) {
+      return direct;
+    }
+    const dataUrl = typeof poster.data_url === 'string' ? poster.data_url.trim() : '';
+    if (dataUrl && isDataUrl(dataUrl)) {
+      return dataUrl;
+    }
+    return '';
+  };
+
   const slotMap = new Map();
   grid.querySelectorAll('[data-slot]').forEach((element) => {
     const slot = element.dataset.slot;
@@ -221,6 +237,9 @@
     addItem('文件名', poster.filename || '—');
     addItem('格式', poster.media_type || '—');
     addItem('尺寸', formatDimensions(poster.width, poster.height));
+    if (poster.key) {
+      addItem('对象存储 Key', poster.key);
+    }
     if (poster.url) {
       addItem('访问链接', poster.url, { isLink: true });
     }
@@ -232,7 +251,7 @@
     const preview = entry.preview;
     const placeholder = entry.placeholder;
     if (poster) {
-      const source = poster.url || poster.data_url || '';
+      const source = resolvePosterPreviewSource(poster);
       if (preview) {
         if (source) {
           preview.src = source;
@@ -334,6 +353,51 @@
     return data || {};
   };
 
+  const submitTemplatePoster = async (payload) => {
+    const base = await ensureBase({ warmup: true });
+    const url = joinBasePath ? joinBasePath(base, '/api/template-posters') : null;
+    if (!url) throw new Error('API 地址无效。');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      mode: 'cors',
+      cache: 'no-store',
+      credentials: 'omit',
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+    let data = null;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch (error) {
+        console.warn('[template-admin] response parse failed', error);
+      }
+    }
+    if (!response.ok) {
+      const detail = data?.detail;
+      const structured = typeof detail === 'object' && detail ? detail : data;
+      const reason = structured?.reason || structured?.error;
+      if (reason === 'cannot_identify') {
+        throw new Error('图片格式解析失败，请用 PS / 预览重新导出为标准 PNG/JPEG/WebP 再上传。');
+      }
+      if (reason === 'decode_failed') {
+        const hint = structured?.hint || '图片内容读取失败，可尝试重新导出或压缩文件后再试。';
+        throw new Error(hint);
+      }
+      const fallbackMessage =
+        (typeof detail === 'string' && detail) ||
+        structured?.hint ||
+        structured?.error ||
+        '模板上传失败，请稍后重试。';
+      throw new Error(fallbackMessage);
+    }
+    return data || {};
+  };
+
   const fetchPosters = async ({ silent = false } = {}) => {
     state.loading = true;
     refreshAllControls();
@@ -411,7 +475,7 @@
         content_type: file.type || contentType,
         size: declaredSize ?? presignedSize ?? 0,
       };
-      await requestJson('POST', '/api/template-posters', payload);
+      await submitTemplatePoster(payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
       await fetchPosters({ silent: true });
