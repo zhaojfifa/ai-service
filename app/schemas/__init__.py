@@ -512,9 +512,35 @@ class TemplatePosterUploadRequest(_CompatModel):
     slot: Literal["variant_a", "variant_b"] = Field(
         ..., description="Target slot for the uploaded template poster variant.",
     )
+    key: constr(strip_whitespace=True, min_length=1) = Field(
+        ..., description="Object storage key returned by /api/r2/presign-put.",
+    )
     filename: constr(strip_whitespace=True, min_length=1)
     content_type: constr(strip_whitespace=True, min_length=1)
-    data: constr(strip_whitespace=True, min_length=1)
+    size: int = Field(
+        ..., ge=0, description="Original file size in bytes (for logging/metadata).",
+    )
+    data: Optional[str] = Field(
+        None,
+        description="Deprecated. Base64 payloads are rejected upstream; keep for backward compatibility.",
+    )
+
+    if field_validator is not None:  # pragma: no cover - executed on Pydantic v2
+
+        @field_validator("key", mode="before")
+        @classmethod
+        def _ensure_key_is_not_data_url(cls, value: Any) -> Any:
+            if isinstance(value, str) and value.strip().startswith("data:"):
+                raise ValueError("R2 key must not be a data: URL")
+            return value
+
+    else:  # pragma: no cover - executed on Pydantic v1
+
+        @field_validator("key", allow_reuse=True)  # type: ignore[misc]
+        def _ensure_key_is_not_data_url(cls, value: Any) -> Any:
+            if isinstance(value, str) and value.strip().startswith("data:"):
+                raise ValueError("R2 key must not be a data: URL")
+            return value
 
 class TemplatePosterEntry(_CompatModel):
     slot: Literal["variant_a", "variant_b"]

@@ -1,69 +1,4 @@
 (function () {
-  const globalScope = typeof window !== 'undefined' ? window : globalThis;
-
-  const ensureGlobalFileToDataUrl = () => {
-    if (
-      globalScope &&
-      typeof globalScope.fileToDataUrl !== 'function'
-    ) {
-      globalScope.fileToDataUrl = (file) =>
-        new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const value = typeof reader.result === 'string' ? reader.result : '';
-            resolve(value);
-          };
-          reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
-          reader.readAsDataURL(file);
-        });
-    }
-    return globalScope?.fileToDataUrl || null;
-  };
-
-  const readFileAsDataUrl = (file) =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const value = typeof reader.result === 'string' ? reader.result : '';
-        resolve(value);
-      };
-      reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
-      reader.readAsDataURL(file);
-    });
-
-  const safeFileToDataUrl = (file) => {
-    if (!file) return Promise.resolve('');
-
-    const globalFn = ensureGlobalFileToDataUrl();
-
-    if (typeof globalFn === 'function') {
-      try {
-        const result = globalFn(file);
-        if (result && typeof result.then === 'function') {
-          return result
-            .then((value) => (typeof value === 'string' ? value : ''))
-            .catch(() => readFileAsDataUrl(file));
-        }
-        if (typeof result === 'string') {
-          return Promise.resolve(result);
-        }
-      } catch (error) {
-        console.warn('[template-admin] global fileToDataUrl failed', error);
-      }
-    }
-
-    return readFileAsDataUrl(file);
-  };
-
-  const extractBase64Payload = (dataUrl) => {
-    if (typeof dataUrl !== 'string') return null;
-    const trimmed = dataUrl.trim();
-    const commaIndex = trimmed.indexOf(',');
-    if (commaIndex === -1) return null;
-    const payload = trimmed.slice(commaIndex + 1).replace(/\s+/g, '');
-    return payload || null;
-  };
-
   const grid = document.getElementById('template-poster-grid');
   if (!grid) return;
 
@@ -80,6 +15,17 @@
     AppContext && typeof AppContext.utils === 'object'
       ? AppContext.utils
       : null;
+  const ensureUploadHelper = () => {
+    if (AppUtils && typeof AppUtils.uploadFileToR2 === 'function') {
+      return AppUtils.uploadFileToR2;
+    }
+    throw new Error('缺少 R2 上传工具，请刷新页面后重试。');
+  };
+  const folderForSlot = (slot) => {
+    if (slot === 'variant_a') return 'template-posters/variant-a';
+    if (slot === 'variant_b') return 'template-posters/variant-b';
+    return `template-posters/${slot || 'misc'}`;
+  };
   const joinBasePath =
     AppUtils?.joinBasePath ||
     ((base, path) => {
@@ -433,27 +379,43 @@
     }
 
     setSlotBusy(slot, true);
-    updateSlotStatus(slot, '正在上传…', 'info');
-    setGlobalStatus(`正在上传 ${slotLabels[slot] || slot}…`, 'info');
+    const label = slotLabels[slot] || slot;
+    updateSlotStatus(slot, '正在上传到 R2…', 'info');
+    setGlobalStatus(`正在上传 ${label}…`, 'info');
 
     try {
-      const dataUrl = await safeFileToDataUrl(file);
-      const base64 = extractBase64Payload(dataUrl);
-      if (!base64) {
-        throw new Error('图片编码失败，请重试。');
+      const uploadFileToR2 = ensureUploadHelper();
+      const bases = collectCandidates();
+      const folder = folderForSlot(slot);
+      const uploadResult = await uploadFileToR2(folder, file, { bases });
+      if (!uploadResult || !uploadResult.key) {
+        throw new Error('上传结果缺少对象存储 key。');
       }
+
+      updateSlotStatus(slot, '正在登记模板元数据…', 'info');
+      setGlobalStatus(`正在登记 ${label}…`, 'info');
+
+      const declaredSize =
+        typeof file.size === 'number' && Number.isFinite(file.size)
+          ? Math.max(0, Math.round(file.size))
+          : null;
+      const presignedSize =
+        uploadResult?.presign && Number.isFinite(Number(uploadResult.presign.size))
+          ? Number(uploadResult.presign.size)
+          : null;
+
       const payload = {
         slot,
+        key: uploadResult.key,
         filename: file.name || `${slot}.png`,
         content_type: file.type || contentType,
-        data: base64,
+        size: declaredSize ?? presignedSize ?? 0,
       };
-      console.log(payload);
       await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
       await fetchPosters({ silent: true });
-      setGlobalStatus(`${slotLabels[slot] || slot} 上传完成。`, 'success');
+      setGlobalStatus(`${label} 上传完成。`, 'success');
     } catch (error) {
       console.error('[template-admin] upload failed', error);
       const message = error?.message || '上传失败';
