@@ -9,6 +9,7 @@ import os
 import uuid
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -173,6 +174,8 @@ UPLOAD_ALLOWED_MIME = {
 
 
 def _normalise_allowed_origins(value: Any) -> list[str]:
+    """Parse comma/JSON separated origins and keep only scheme + host."""
+
     if not value:
         return ["*"]
     if isinstance(value, list):
@@ -191,18 +194,29 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
 
     cleaned = []
     for item in items:
-        candidate = str(item).strip().strip('"').strip("'").rstrip("/")
+        raw = str(item).strip().strip('"').strip("'")
+        if not raw:
+            continue
+        parsed = urlparse(raw)
+        candidate = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else raw
+        candidate = candidate.rstrip("/")
         if candidate:
             cleaned.append(candidate)
     return cleaned or ["*"]
 
-raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
+raw_origins = (
+    getattr(settings, "allowed_origins", None)
+    or os.getenv("CORS_ALLOW_ORIGINS")
+    or os.getenv("ALLOWED_ORIGINS")
+)
 allow_origins = _normalise_allowed_origins(raw_origins)
 
 DEFAULT_CORS_ORIGINS = {
     "https://zhaojfifa.github.io",
-    "https://zhaojfifa.github.io/ai-service",
+    "https://ai-service-x758.onrender.com",
 }
+# GitHub Pages 访问时请在 Render 环境变量 `CORS_ALLOW_ORIGINS` 中包含浏览器地址栏的完整 origin，
+# 例如 https://zhaojfifa.github.io，确保预检请求与页面一致。
 
 cors_origins = {origin.rstrip("/") for origin in allow_origins}
 cors_origins.update(DEFAULT_CORS_ORIGINS)
@@ -219,7 +233,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_allow_origins,
     allow_credentials=cors_allow_credentials,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     max_age=86400,
 )

@@ -938,6 +938,7 @@ async function uploadFileToR2(folder, file, options = {}) {
 
 App.utils.r2PresignPut = r2PresignPut;
 App.utils.uploadFileToR2 = uploadFileToR2;
+App.utils.updateMaterialUrlDisplay = updateMaterialUrlDisplay;
 
 function applyStoredAssetValue(target, storedValue) {
   if (!target || typeof storedValue !== 'string') return;
@@ -945,6 +946,58 @@ function applyStoredAssetValue(target, storedValue) {
     target.data_url = storedValue;
   } else {
     target.url = storedValue;
+  }
+}
+
+function updateMaterialUrlDisplay(field, asset) {
+  const container = document.querySelector(`[data-material-url="${field}"]`);
+  if (!container) return;
+
+  const label = container.dataset.label || '素材 URL：';
+  const prefix = label.endsWith('：') ? label : `${label}：`;
+  const urlCandidates = [];
+  if (asset) {
+    if (typeof asset === 'string') {
+      if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
+    } else if (typeof asset === 'object') {
+      const {
+        remoteUrl,
+        url,
+        publicUrl,
+        dataUrl,
+      } = asset;
+      [remoteUrl, url, publicUrl].forEach((candidate) => {
+        if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
+          urlCandidates.push(candidate);
+        }
+      });
+      if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
+        urlCandidates.push(dataUrl);
+      }
+    }
+  }
+
+  const url = urlCandidates.find(Boolean) || null;
+  container.textContent = '';
+  const labelSpan = document.createElement('span');
+  labelSpan.classList.add('asset-url-label');
+  labelSpan.textContent = prefix;
+  container.appendChild(labelSpan);
+
+  if (url) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = url;
+    container.appendChild(link);
+    container.classList.add('has-url');
+  } else {
+    const placeholder = document.createElement('span');
+    placeholder.classList.add('asset-url-empty');
+    placeholder.textContent = '尚未上传';
+    container.appendChild(placeholder);
+    container.classList.remove('has-url');
   }
 }
 
@@ -1055,61 +1108,6 @@ function initStage1() {
     scenario_asset: document.querySelector('[data-inline-preview="scenario_asset"]'),
     product_asset: document.querySelector('[data-inline-preview="product_asset"]'),
   };
-
-  const materialUrlDisplays = {
-    brand_logo: document.querySelector('[data-material-url="brand_logo"]'),
-  };
-
-  function updateMaterialUrlDisplay(field, asset) {
-    const container = materialUrlDisplays[field];
-    if (!container) return;
-    const label = container.dataset.label || '素材 URL：';
-    const prefix = label.endsWith('：') ? label : `${label}：`;
-    const urlCandidates = [];
-    if (asset) {
-      if (typeof asset === 'string') {
-        if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
-      } else if (typeof asset === 'object') {
-        const {
-          remoteUrl,
-          url,
-          publicUrl,
-          dataUrl,
-        } = asset;
-        [remoteUrl, url, publicUrl].forEach((candidate) => {
-          if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
-            urlCandidates.push(candidate);
-          }
-        });
-        if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
-          urlCandidates.push(dataUrl);
-        }
-      }
-    }
-
-    const url = urlCandidates.find(Boolean) || null;
-    container.textContent = '';
-    const labelSpan = document.createElement('span');
-    labelSpan.classList.add('asset-url-label');
-    labelSpan.textContent = prefix;
-    container.appendChild(labelSpan);
-
-    if (url) {
-      const link = document.createElement('a');
-      link.href = url;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = url;
-      container.appendChild(link);
-      container.classList.add('has-url');
-    } else {
-      const placeholder = document.createElement('span');
-      placeholder.classList.add('asset-url-empty');
-      placeholder.textContent = '尚未上传';
-      container.appendChild(placeholder);
-      container.classList.remove('has-url');
-    }
-  }
 
   const state = {
     brandLogo: null,
