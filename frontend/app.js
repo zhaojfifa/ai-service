@@ -938,6 +938,7 @@ async function uploadFileToR2(folder, file, options = {}) {
 
 App.utils.r2PresignPut = r2PresignPut;
 App.utils.uploadFileToR2 = uploadFileToR2;
+App.utils.updateMaterialUrlDisplay = updateMaterialUrlDisplay;
 
 function applyStoredAssetValue(target, storedValue) {
   if (!target || typeof storedValue !== 'string') return;

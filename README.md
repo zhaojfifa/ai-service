@@ -63,9 +63,11 @@ uvicorn app.main:app --reload
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
-### R2 CORS 配置
+### Cloudflare R2 CORS 配置
 
-前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若 R2 桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 错误并终止上传。因此需要在 R2 控制台（或 API）为目标桶配置 CORS，典型 JSON 规则如下（直接粘贴到 R2 → Settings → CORS policy）：
+前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 并终止上传。
+
+典型 JSON 规则如下（直接粘贴到 R2 → Settings → CORS policy），请将占位符替换为自己的域名：
 
 ```json
 {
@@ -73,8 +75,8 @@ uvicorn app.main:app --reload
     {
       "allowed": {
         "origins": [
-          "https://zhaojiffa.github.io",
-          "https://ai-service-x758.onrender.com"
+          "https://<your-frontend-host>",
+          "https://<your-api-host>"
         ],
         "methods": ["GET", "PUT", "HEAD", "POST", "OPTIONS"],
         "headers": ["*"]
@@ -88,35 +90,31 @@ uvicorn app.main:app --reload
 若需要 XML 形式，可使用等价配置：
 
 ```xml
-<CORSConfiguration>
+<CORSConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <CORSRule>
-    <AllowedOrigin>https://zhaojiffa.github.io</AllowedOrigin>
-    <AllowedOrigin>https://ai-service-x758.onrender.com</AllowedOrigin>
+    <AllowedOrigin>https://&lt;your-frontend-host&gt;</AllowedOrigin>
+    <AllowedOrigin>https://&lt;your-api-host&gt;</AllowedOrigin>
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
     <AllowedMethod>POST</AllowedMethod>
     <AllowedMethod>OPTIONS</AllowedMethod>
     <AllowedHeader>*</AllowedHeader>
-    <ExposeHeader>ETag</ExposeHeader>
-    <ExposeHeader>x-amz-request-id</ExposeHeader>
     <MaxAgeSeconds>86400</MaxAgeSeconds>
   </CORSRule>
 </CORSConfiguration>
 ```
 
-请确保 `AllowedOrigin` 与浏览器地址栏的域名完全一致（当前前端部署在 `https://zhaojiffa.github.io`）。若迁移到自建域名，需替换为新的 origin。更多排查与操作步骤见 [docs/cloudflare-r2-cors.md](docs/cloudflare-r2-cors.md)。
+- GitHub Pages 示例：`<your-frontend-host>` 可填写 `https://zhaojiffa.github.io`。
+- Render 示例：`<your-api-host>` 可填写 `https://ai-service-x758.onrender.com`。
 
-> **快速验证 CORS**
->
-> ```bash
-> curl -X OPTIONS \
->   -H "Origin: https://zhaojiffa.github.io" \
->   -H "Access-Control-Request-Method: PUT" \
->   "https://<your-r2-account-id>.r2.cloudflarestorage.com/<bucket>/<test-object>"
-> ```
->
-> 响应头中若包含 `Access-Control-Allow-Origin` 与 `Access-Control-Allow-Methods: PUT`，即可确认规则已生效；否则浏览器仍会在预检阶段拦截上传。
+自查 Checklist：
+
+1) origin 与浏览器地址栏是否完全一致（含 https，不含路径）；
+2) methods 是否包含 PUT 与 OPTIONS；
+3) headers 是否覆盖 `Content-Type`（推荐直接 `"*"`）。
+
+更多排查与操作步骤见 [docs/cloudflare-r2-cors.md](docs/cloudflare-r2-cors.md)。
 
 ## 图像生成（Vertex Only）与对象存储直传
 
@@ -226,7 +224,7 @@ curl -s https://<your-api>/api/imagen/generate \
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API、SMTP 与（可选的）Cloudflare R2 环境变量。
-   - `ALLOWED_ORIGINS` 支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
+   - `CORS_ALLOW_ORIGINS`（兼容 `ALLOWED_ORIGINS`）支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
      `https://your-account.github.io/ai-service/` 时，会被规范化为 `https://your-account.github.io`，避免跨域校验失败。
    - 若通过 OpenAI 1.x SDK 调 Glibatree，请提供 `GLIBATREE_API_KEY`，并根据实际需求配置 `GLIBATREE_CLIENT=openai`、`GLIBATREE_MODEL` 以及（可选的）`GLIBATREE_PROXY`。SDK 现在会自动构建 httpx 客户端并兼容代理参数。
    - 如需将生成的成品图与用户上传的素材统一存放到 Cloudflare R2，以避免超大 JSON 造成浏览器连接中断，可额外提供：

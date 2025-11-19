@@ -4,7 +4,7 @@
 
 ```
 Access to fetch at 'https://<account>.r2.cloudflarestorage.com/...'
-from origin 'https://zhaojiffa.github.io' has been blocked by CORS policy
+from origin 'https://<your-frontend-host>' has been blocked by CORS policy
 ```
 
 若出现上述提示，按以下步骤校准桶的 CORS 规则。
@@ -19,8 +19,8 @@ from origin 'https://zhaojiffa.github.io' has been blocked by CORS policy
     {
       "allowed": {
         "origins": [
-          "https://zhaojiffa.github.io",
-          "https://ai-service-x758.onrender.com"
+          "https://<your-frontend-host>",
+          "https://<your-api-host>"
         ],
         "methods": ["GET", "PUT", "HEAD", "POST", "OPTIONS"],
         "headers": ["*"]
@@ -42,9 +42,20 @@ from origin 'https://zhaojiffa.github.io' has been blocked by CORS policy
 
 ## 自查清单
 
-- Origin 拼写必须与浏览器地址栏一致，当前示例为 `https://zhaojiffa.github.io`。
+- Origin 拼写必须与浏览器地址栏一致（含 https，不含路径）。GitHub Pages 示例：`https://zhaojiffa.github.io`；Render 示例：`https://ai-service-x758.onrender.com`。
 - `methods` 中需要包含 `PUT` 和 `OPTIONS`，否则预检会失败。
 - 如果直传时自定义了 `Content-Type` 或其他头部，确认它们包含在 `headers` 中；最简单的做法是使用 `"*"` 放行全部。
 - 如切换到自建域名，请将 `origins` 中的地址替换为新的前端域名并重新保存。
+
+## 用 curl 快速验证预检
+
+```bash
+curl -i -X OPTIONS \
+  -H "Origin: https://zhaojiffa.github.io" \
+  -H "Access-Control-Request-Method: PUT" \
+  "https://<account-id>.r2.cloudflarestorage.com/<bucket>/<test-object>"
+```
+
+响应头中若包含 `Access-Control-Allow-Origin: https://zhaojiffa.github.io` 和 `Access-Control-Allow-Methods` 中的 `PUT`，即可确认规则已生效；否则浏览器仍会在预检阶段拦截上传。
 
 完成以上检查后，前端调用 `/api/r2/presign-put` 获取的预签名地址即可通过浏览器成功直传到 R2。
