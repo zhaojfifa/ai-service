@@ -65,18 +65,38 @@ uvicorn app.main:app --reload
 
 ### R2 CORS 配置
 
-前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若 R2 桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 错误并终止上传。因此需要在 R2 控制台（或 API）为目标桶配置 CORS，典型规则如下：
+前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若 R2 桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 错误并终止上传。因此需要在 R2 控制台（或 API）为目标桶配置 CORS，典型 JSON 规则如下（直接粘贴到 R2 → Settings → CORS policy）：
+
+```json
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://zhaojiffa.github.io",
+          "https://ai-service-x758.onrender.com"
+        ],
+        "methods": ["GET", "PUT", "HEAD", "POST", "OPTIONS"],
+        "headers": ["*"]
+      },
+      "max_age": 86400
+    }
+  ]
+}
+```
+
+若需要 XML 形式，可使用等价配置：
 
 ```xml
 <CORSConfiguration>
   <CORSRule>
-    <AllowedOrigin>https://zhaojifa.github.io</AllowedOrigin>
+    <AllowedOrigin>https://zhaojiffa.github.io</AllowedOrigin>
     <AllowedOrigin>https://ai-service-x758.onrender.com</AllowedOrigin>
-    <AllowedOrigin>http://localhost:5173</AllowedOrigin>
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
     <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>OPTIONS</AllowedMethod>
     <AllowedHeader>*</AllowedHeader>
     <ExposeHeader>ETag</ExposeHeader>
     <ExposeHeader>x-amz-request-id</ExposeHeader>
@@ -85,13 +105,13 @@ uvicorn app.main:app --reload
 </CORSConfiguration>
 ```
 
-根据实际部署域名增减 `AllowedOrigin` 即可。配置完成后，前端的直传流程会使用响应中返回的 `headers` 字段（通常仅包含 `Content-Type`）发起 PUT 请求；后续业务接口只需传递 `r2://bucket/key` 或公开的 HTTP URL，而不会再携带预签名上传地址。
+请确保 `AllowedOrigin` 与浏览器地址栏的域名完全一致（当前前端部署在 `https://zhaojiffa.github.io`）。若迁移到自建域名，需替换为新的 origin。更多排查与操作步骤见 [docs/cloudflare-r2-cors.md](docs/cloudflare-r2-cors.md)。
 
 > **快速验证 CORS**
 >
 > ```bash
 > curl -X OPTIONS \
->   -H "Origin: https://zhaojifa.github.io" \
+>   -H "Origin: https://zhaojiffa.github.io" \
 >   -H "Access-Control-Request-Method: PUT" \
 >   "https://<your-r2-account-id>.r2.cloudflarestorage.com/<bucket>/<test-object>"
 > ```
