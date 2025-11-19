@@ -105,7 +105,7 @@ uvicorn app.main:app --reload
 </CORSConfiguration>
 ```
 
-- GitHub Pages 示例：`<your-frontend-host>` 可填写 `https://zhaojiffa.github.io`。
+- GitHub Pages 示例：`<your-frontend-host>` 可填写 `https://zhaojfifa.github.io`。
 - Render 示例：`<your-api-host>` 可填写 `https://ai-service-x758.onrender.com`。
 
 自查 Checklist：

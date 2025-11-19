@@ -211,12 +211,11 @@ raw_origins = (
 allow_origins = _normalise_allowed_origins(raw_origins)
 
 DEFAULT_CORS_ORIGINS = {
-    "https://zhaojiffa.github.io",
-    "https://zhaojiffa.github.io/ai-service",
+    "https://zhaojfifa.github.io",
     "https://ai-service-x758.onrender.com",
 }
 # GitHub Pages 访问时请在 Render 环境变量 `CORS_ALLOW_ORIGINS` 中包含浏览器地址栏的完整 origin，
-# 例如 https://zhaojiffa.github.io，确保预检请求与页面一致。
+# 例如 https://zhaojfifa.github.io，确保预检请求与页面一致。
 
 cors_origins = {origin.rstrip("/") for origin in allow_origins}
 cors_origins.update(DEFAULT_CORS_ORIGINS)
