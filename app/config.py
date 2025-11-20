@@ -179,7 +179,10 @@ def get_settings() -> Settings:
         return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
     environment = _get("ENVIRONMENT", "development")
-    origins_raw = _get("ALLOWED_ORIGINS", "*")
+    origins_raw = _get(
+        "CORS_ALLOW_ORIGINS",
+        _get("ALLOWED_ORIGINS", "*"),
+    )
     allowed_origins = _parse_allowed_origins(origins_raw)
 
     email = EmailConfig(
