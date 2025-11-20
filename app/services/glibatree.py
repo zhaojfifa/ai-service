@@ -940,6 +940,14 @@ def generate_poster_asset(
     variant_images: list[PosterImage] = []
     vertex_traces: list[str] = []
     fallback_used = vertex_imagen_client is None
+    provider_plan = (
+        "VertexImagen3"
+        if vertex_imagen_client is not None
+        else "GlibatreeHTTP"
+        if settings.glibatree.is_configured and settings.glibatree.api_url
+        else "LocalMock"
+    )
+    provider_used = provider_plan
 
     logger.info(
         "poster.asset.start",
@@ -955,6 +963,19 @@ def generate_poster_asset(
         },
     )
 
+    logger.info(
+        "[vertex] generate_poster start",
+        extra={
+            "trace": trace_id,
+            "provider": provider_plan,
+            "prompt_preview": prompt[:280],
+            "neg_prompt_preview": (prompt_details or {}).get("negative_prompt", "")[:280],
+            "seed": seed,
+            "variants": variants,
+            "render_mode": render_mode,
+        },
+    )
+
     if vertex_imagen_client is not None:
         try:
             primary, telemetry = _generate_poster_with_vertex(
@@ -966,6 +987,7 @@ def generate_poster_asset(
                 prompt_details=prompt_details,
                 trace_id=trace_id,
             )
+            provider_used = "VertexImagen3"
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
@@ -1013,6 +1035,7 @@ def generate_poster_asset(
                 payload=http_payload,
                 trace_id=trace_id,
             )
+            provider_used = "GlibatreeHTTP"
         except Exception:
             logger.exception(
                 "Glibatree request failed, falling back to mock poster",
@@ -1029,6 +1052,7 @@ def generate_poster_asset(
             primary = override_primary
             variant_images = list(override_variants)
             used_override_primary = True
+            provider_used = "TemplateOverride"
         else:
             logger.debug(
                 "Falling back to local template renderer",
@@ -1036,6 +1060,7 @@ def generate_poster_asset(
             )
             mock_frame = _render_template_frame(poster, template, fill_background=True)
             primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
+            provider_used = "LocalMock"
 
     # 生成变体（仅重命名，不重复上传）
     if not used_override_primary and desired_variants > 1:
@@ -1061,6 +1086,18 @@ def generate_poster_asset(
         lock_seed=bool(lock_seed),
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
+    )
+
+    logger.info(
+        "[vertex] generate_poster done",
+        extra={
+            "trace": trace_id,
+            "provider": provider_used,
+            "width": getattr(primary, "width", None),
+            "height": getattr(primary, "height", None),
+            "variant_count": len(variant_images),
+            "fallback_used": fallback_used,
+        },
     )
 
     return result

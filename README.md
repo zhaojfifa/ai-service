@@ -293,8 +293,8 @@ python scripts/decode_template_assets.py
 
 ## 使用流程
 
-1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。若后端已配置 Cloudflare R2 环境变量，页面会在上传素材时先调用 `/api/r2/presign-put` 获取预签名 URL，并由浏览器将文件直接写入 R2，仅把对象 Key 保存在会话状态里；未配置时则继续沿用本地 Data URL。
-2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，同时提供“Prompt Inspector”面板：可以为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
+1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 上传素材、填写文案并即时查看分区预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。若后端已配置 Cloudflare R2 环境变量，页面会在上传素材时先调用 `/api/r2/presign-put` 获取预签名 URL，并由浏览器将文件直接写入 R2，仅把对象 Key 保存在会话状态里；未配置时则继续沿用本地 Data URL。
+2. **环节 2 – 生成海报**：`stage2.html` 顶部提供“锁版模板”选择区，默认沿用环节 1 的记录，可在此更换。页面会读取上一环节的素材概览，并在“版式预览”卡片中复用同款挂点示意；右侧 “Prompt Inspector” 面板可为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 
 ## 模板锁版与局部生成
@@ -306,6 +306,12 @@ python scripts/decode_template_assets.py
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
 
 页面默认填充了示例素材，便于快速体验。若部署环境已配置 Cloudflare R2，后端会将生成海报上传到对象存储并返回公开 URL；否则保持以 Base64 数据返回的旧行为。浏览器还会缓存模板 ID、素材模式以及 `gallery_limit` 等信息，以便多次往返页面时自动匹配模板要求。
+
+### 验证 VertexImagen3 调用链路
+
+1. 在 `/docs` 中先调用 `/api/r2/presign-put` 上传素材，拿到 Key/URL 后填入 `/api/generate-poster` 示例请求。
+2. 发送生成请求后查看 Render 或本地控制台，确认依次出现：`generate_poster dispatch`（带 prompt 片段、layout、variants 信息），`[vertex] generate_poster start`/`done`（provider=VertexImagen3，包含 prompt/negative 预览）。
+3. 日志链路完整且接口返回 200/422 等业务状态码，即可确认前端 → 后端 → VertexImagen3 的路径正常。
 
 ## 命令行快速体验
 

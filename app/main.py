@@ -905,6 +905,23 @@ async def generate_poster(request: Request) -> JSONResponse:
             poster, prompt_payload
         )
 
+        logger.info(
+            "generate_poster dispatch",
+            extra={
+                "trace": trace,
+                "brand": poster.brand_name,
+                "agent_name": poster.agent_name,
+                "layout": poster.template_id,
+                "variants": payload.variants,
+                "seed": payload.seed,
+                "lock_seed": payload.lock_seed,
+                "prompt_preview": prompt_text[:200],
+                "negative_preview": ((prompt_details or {}).get("negative_prompt") or "")[
+                    :200
+                ],
+            },
+        )
+
         # 生成主图与变体
         result = generate_poster_asset(
             poster,
@@ -918,6 +935,16 @@ async def generate_poster(request: Request) -> JSONResponse:
             lock_seed=payload.lock_seed,
             trace_id=trace,
             aspect_closeness=payload.aspect_closeness,
+        )
+
+        logger.info(
+            "generate_poster finished",
+            extra={
+                "trace": trace,
+                "layout": poster.template_id,
+                "variants": 1 + len(result.variants),
+                "fallback_used": result.fallback_used,
+            },
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
