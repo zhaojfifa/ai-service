@@ -63,40 +63,58 @@ uvicorn app.main:app --reload
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
-### R2 CORS 配置
+### Cloudflare R2 CORS 配置
 
-前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若 R2 桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 错误并终止上传。因此需要在 R2 控制台（或 API）为目标桶配置 CORS，典型规则如下：
+前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 并终止上传。
+
+典型 JSON 规则如下（直接粘贴到 R2 → Settings → CORS policy），请将占位符替换为自己的域名：
+
+```json
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://<your-frontend-host>",
+          "https://<your-api-host>"
+        ],
+        "methods": ["GET", "PUT", "HEAD", "POST", "OPTIONS"],
+        "headers": ["*"]
+      },
+      "max_age": 86400
+    }
+  ]
+}
+```
+
+若需要 XML 形式，可使用等价配置：
 
 ```xml
-<CORSConfiguration>
+<CORSConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
   <CORSRule>
-    <AllowedOrigin>https://zhaojifa.github.io</AllowedOrigin>
-    <AllowedOrigin>https://ai-service-x758.onrender.com</AllowedOrigin>
-    <AllowedOrigin>http://localhost:5173</AllowedOrigin>
+    <AllowedOrigin>https://&lt;your-frontend-host&gt;</AllowedOrigin>
+    <AllowedOrigin>https://&lt;your-api-host&gt;</AllowedOrigin>
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
     <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>OPTIONS</AllowedMethod>
     <AllowedHeader>*</AllowedHeader>
-    <ExposeHeader>ETag</ExposeHeader>
-    <ExposeHeader>x-amz-request-id</ExposeHeader>
     <MaxAgeSeconds>86400</MaxAgeSeconds>
   </CORSRule>
 </CORSConfiguration>
 ```
 
-根据实际部署域名增减 `AllowedOrigin` 即可。配置完成后，前端的直传流程会使用响应中返回的 `headers` 字段（通常仅包含 `Content-Type`）发起 PUT 请求；后续业务接口只需传递 `r2://bucket/key` 或公开的 HTTP URL，而不会再携带预签名上传地址。
+- GitHub Pages 示例：`<your-frontend-host>` 可填写 `https://zhaojfifa.github.io`。
+- Render 示例：`<your-api-host>` 可填写 `https://ai-service-x758.onrender.com`。
 
-> **快速验证 CORS**
->
-> ```bash
-> curl -X OPTIONS \
->   -H "Origin: https://zhaojifa.github.io" \
->   -H "Access-Control-Request-Method: PUT" \
->   "https://<your-r2-account-id>.r2.cloudflarestorage.com/<bucket>/<test-object>"
-> ```
->
-> 响应头中若包含 `Access-Control-Allow-Origin` 与 `Access-Control-Allow-Methods: PUT`，即可确认规则已生效；否则浏览器仍会在预检阶段拦截上传。
+自查 Checklist：
+
+1) origin 与浏览器地址栏是否完全一致（含 https，不含路径）；
+2) methods 是否包含 PUT 与 OPTIONS；
+3) headers 是否覆盖 `Content-Type`（推荐直接 `"*"`）。
+
+更多排查与操作步骤见 [docs/cloudflare-r2-cors.md](docs/cloudflare-r2-cors.md)。
 
 ## 图像生成（Vertex Only）与对象存储直传
 
@@ -206,7 +224,7 @@ curl -s https://<your-api>/api/imagen/generate \
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API、SMTP 与（可选的）Cloudflare R2 环境变量。
-   - `ALLOWED_ORIGINS` 支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
+   - `CORS_ALLOW_ORIGINS`（兼容 `ALLOWED_ORIGINS`）支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
      `https://your-account.github.io/ai-service/` 时，会被规范化为 `https://your-account.github.io`，避免跨域校验失败。
    - 若通过 OpenAI 1.x SDK 调 Glibatree，请提供 `GLIBATREE_API_KEY`，并根据实际需求配置 `GLIBATREE_CLIENT=openai`、`GLIBATREE_MODEL` 以及（可选的）`GLIBATREE_PROXY`。SDK 现在会自动构建 httpx 客户端并兼容代理参数。
    - 如需将生成的成品图与用户上传的素材统一存放到 Cloudflare R2，以避免超大 JSON 造成浏览器连接中断，可额外提供：
@@ -275,8 +293,8 @@ python scripts/decode_template_assets.py
 
 ## 使用流程
 
-1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。若后端已配置 Cloudflare R2 环境变量，页面会在上传素材时先调用 `/api/r2/presign-put` 获取预签名 URL，并由浏览器将文件直接写入 R2，仅把对象 Key 保存在会话状态里；未配置时则继续沿用本地 Data URL。
-2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，同时提供“Prompt Inspector”面板：可以为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
+1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 上传素材、填写文案并即时查看分区预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。若后端已配置 Cloudflare R2 环境变量，页面会在上传素材时先调用 `/api/r2/presign-put` 获取预签名 URL，并由浏览器将文件直接写入 R2，仅把对象 Key 保存在会话状态里；未配置时则继续沿用本地 Data URL。
+2. **环节 2 – 生成海报**：`stage2.html` 顶部提供“锁版模板”选择区，默认沿用环节 1 的记录，可在此更换。页面会读取上一环节的素材概览，并在“版式预览”卡片中复用同款挂点示意；右侧 “Prompt Inspector” 面板可为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 
 ## 模板锁版与局部生成
@@ -288,6 +306,12 @@ python scripts/decode_template_assets.py
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
 
 页面默认填充了示例素材，便于快速体验。若部署环境已配置 Cloudflare R2，后端会将生成海报上传到对象存储并返回公开 URL；否则保持以 Base64 数据返回的旧行为。浏览器还会缓存模板 ID、素材模式以及 `gallery_limit` 等信息，以便多次往返页面时自动匹配模板要求。
+
+### 验证 VertexImagen3 调用链路
+
+1. 在 `/docs` 中先调用 `/api/r2/presign-put` 上传素材，拿到 Key/URL 后填入 `/api/generate-poster` 示例请求。
+2. 发送生成请求后查看 Render 或本地控制台，确认依次出现：`generate_poster dispatch`（带 prompt 片段、layout、variants 信息），`[vertex] generate_poster start`/`done`（provider=VertexImagen3，包含 prompt/negative 预览）。
+3. 日志链路完整且接口返回 200/422 等业务状态码，即可确认前端 → 后端 → VertexImagen3 的路径正常。
 
 ## 命令行快速体验
 

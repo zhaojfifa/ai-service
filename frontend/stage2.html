@@ -39,12 +39,7 @@
           Designer 生成海报、提示词与营销文案。
         </p>
 
-        <div class="stage-summary" id="stage1-summary">
-          <h3>素材概览</h3>
-          <dl id="stage1-overview"></dl>
-        </div>
-
-        <div class="template-picker">
+        <section id="lock-template" class="template-select-grid">
           <div class="template-picker-control">
             <label for="template-select">锁版模板</label>
             <select id="template-select" aria-label="选择模板"></select>
@@ -58,7 +53,85 @@
               aria-label="模板预览"
             ></canvas>
           </div>
+        </section>
+
+        <div class="stage-summary" id="stage1-summary">
+          <h3>素材概览</h3>
+          <dl id="stage1-overview"></dl>
         </div>
+
+        <section id="layout-preview-section-stage2" aria-labelledby="layout-preview-heading-stage2">
+          <h3 id="layout-preview-heading-stage2">版式预览</h3>
+          <div
+            id="layout-preview-stage2"
+            class="poster-preview poster-layout-preview"
+            data-preview-root="stage2"
+            data-preview-container
+          >
+            <div class="poster-header">
+              <div class="poster-logo">
+                <div class="poster-logo-image">
+                  <img
+                    id="preview-brand-logo-stage2"
+                    data-preview-target="brand-logo"
+                    alt="品牌 Logo 预览"
+                  />
+                </div>
+                <div
+                  class="poster-brand-name"
+                  id="preview-brand-name-stage2"
+                  data-preview-target="brand-name"
+                ></div>
+              </div>
+              <div
+                class="poster-agent"
+                id="preview-agent-name-stage2"
+                data-preview-target="agent-name"
+              ></div>
+            </div>
+            <div class="poster-body">
+              <div class="poster-left">
+                <img
+                  id="preview-scenario-image-stage2"
+                  data-preview-target="scenario-image"
+                  alt="应用场景预览"
+                />
+              </div>
+              <div class="poster-right">
+                <div class="poster-product-wrapper">
+                  <img
+                    id="preview-product-image-stage2"
+                    data-preview-target="product-image"
+                    alt="产品渲染图预览"
+                  />
+                  <ul
+                    id="preview-feature-list-stage2"
+                    data-preview-target="feature-list"
+                  ></ul>
+                </div>
+              </div>
+            </div>
+            <div
+              class="poster-title"
+              id="preview-title-stage2"
+              data-preview-target="title"
+            ></div>
+            <div
+              class="poster-gallery"
+              id="preview-gallery-stage2"
+              data-preview-target="gallery"
+            ></div>
+            <div
+              class="poster-subtitle"
+              id="preview-subtitle-stage2"
+              data-preview-target="subtitle"
+            ></div>
+          </div>
+          <details class="layout-structure">
+            <summary>查看版式结构说明</summary>
+            <pre id="layout-structure-text-stage2" data-layout-structure></pre>
+          </details>
+        </section>
 
         <aside class="prompt-inspector" id="prompt-inspector">
           <header>
@@ -186,7 +259,8 @@
               <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
             </div>
           </div>
-          <div class="output-group hidden" id="poster-visual">
+          <!-- 旧版 stage2 预览：保留结构但隐藏 -->
+          <div class="output-group hidden is-deprecated" id="poster-visual" hidden>
             <h3>海报预览</h3>
             <div class="poster-preview-grid" id="poster-preview-grid">
               <figure class="poster-preview" data-role="template">

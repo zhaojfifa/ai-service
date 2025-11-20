@@ -19,6 +19,7 @@ import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 
 from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
@@ -920,6 +921,7 @@ def generate_poster_asset(
     seed: int | None = None,
     lock_seed: bool = False,
     trace_id: str | None = None,
+    aspect_closeness: float | None = None,
 ) -> PosterGenerationResult:
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
     _assert_assets_use_ref_only(poster)
@@ -938,6 +940,14 @@ def generate_poster_asset(
     variant_images: list[PosterImage] = []
     vertex_traces: list[str] = []
     fallback_used = vertex_imagen_client is None
+    provider_plan = (
+        "VertexImagen3"
+        if vertex_imagen_client is not None
+        else "GlibatreeHTTP"
+        if settings.glibatree.is_configured and settings.glibatree.api_url
+        else "LocalMock"
+    )
+    provider_used = provider_plan
 
     logger.info(
         "poster.asset.start",
@@ -953,6 +963,19 @@ def generate_poster_asset(
         },
     )
 
+    logger.info(
+        "[vertex] generate_poster start",
+        extra={
+            "trace": trace_id,
+            "provider": provider_plan,
+            "prompt_preview": prompt[:280],
+            "neg_prompt_preview": (prompt_details or {}).get("negative_prompt", "")[:280],
+            "seed": seed,
+            "variants": variants,
+            "render_mode": render_mode,
+        },
+    )
+
     if vertex_imagen_client is not None:
         try:
             primary, telemetry = _generate_poster_with_vertex(
@@ -964,6 +987,7 @@ def generate_poster_asset(
                 prompt_details=prompt_details,
                 trace_id=trace_id,
             )
+            provider_used = "VertexImagen3"
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
@@ -973,6 +997,22 @@ def generate_poster_asset(
                 "Vertex Imagen3 generation failed; falling back",
                 extra={"trace": trace_id},
             )
+
+    http_payload: dict[str, Any] | None = None
+    if settings.glibatree.is_configured and settings.glibatree.api_url:
+        http_payload = _generate_payload(
+            poster,
+            prompt,
+            preview,
+            prompt_bundle=prompt_bundle,
+            prompt_details=prompt_details,
+            render_mode=render_mode,
+            variants=variants,
+            seed=seed,
+            lock_seed=lock_seed,
+            trace_id=trace_id,
+            aspect_closeness=aspect_closeness,
+        )
 
     if (
         primary is None
@@ -992,7 +1032,10 @@ def generate_poster_asset(
                 prompt,
                 locked_frame,
                 template,
+                payload=http_payload,
+                trace_id=trace_id,
             )
+            provider_used = "GlibatreeHTTP"
         except Exception:
             logger.exception(
                 "Glibatree request failed, falling back to mock poster",
@@ -1009,6 +1052,7 @@ def generate_poster_asset(
             primary = override_primary
             variant_images = list(override_variants)
             used_override_primary = True
+            provider_used = "TemplateOverride"
         else:
             logger.debug(
                 "Falling back to local template renderer",
@@ -1016,6 +1060,7 @@ def generate_poster_asset(
             )
             mock_frame = _render_template_frame(poster, template, fill_background=True)
             primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
+            provider_used = "LocalMock"
 
     # 生成变体（仅重命名，不重复上传）
     if not used_override_primary and desired_variants > 1:
@@ -1043,7 +1088,64 @@ def generate_poster_asset(
         fallback_used=fallback_used,
     )
 
+    logger.info(
+        "[vertex] generate_poster done",
+        extra={
+            "trace": trace_id,
+            "provider": provider_used,
+            "width": getattr(primary, "width", None),
+            "height": getattr(primary, "height", None),
+            "variant_count": len(variant_images),
+            "fallback_used": fallback_used,
+        },
+    )
+
     return result
+
+
+def _generate_payload(
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    *,
+    prompt_bundle: dict[str, Any] | None = None,
+    prompt_details: dict[str, str] | None = None,
+    render_mode: str = "locked",
+    variants: int = 1,
+    seed: int | None = None,
+    lock_seed: bool = False,
+    trace_id: str | None = None,
+    aspect_closeness: float | None = None,
+) -> dict[str, Any]:
+    """Serialise poster inputs into a JSON-safe payload for HTTP fallbacks."""
+
+    if hasattr(poster, "model_dump"):
+        poster_payload = poster.model_dump(exclude_none=True)
+    elif hasattr(poster, "dict"):
+        poster_payload = poster.dict(exclude_none=True)
+    else:  # pragma: no cover - defensive fallback for legacy objects
+        poster_payload = {
+            key: getattr(poster, key)
+            for key in dir(poster)
+            if not key.startswith("__") and not callable(getattr(poster, key))
+        }
+
+    payload: dict[str, Any] = {
+        "poster": poster_payload,
+        "prompt": prompt,
+        "preview": preview,
+        "prompt_bundle": prompt_bundle or {},
+        "prompt_details": prompt_details or {},
+        "render_mode": render_mode,
+        "variants": variants,
+        "seed": seed,
+        "lock_seed": lock_seed,
+        "trace_id": trace_id,
+    }
+    if aspect_closeness is not None:
+        payload["aspect_closeness"] = aspect_closeness
+
+    return jsonable_encoder(payload, exclude_none=True)
 
 
 def _request_glibatree_http(
@@ -1052,12 +1154,26 @@ def _request_glibatree_http(
     prompt: str,
     locked_frame: Image.Image,
     template: TemplateResources,
+    *,
+    payload: dict[str, Any] | None = None,
+    trace_id: str | None = None,
 ) -> PosterImage:
     """Call the remote Glibatree API and transform the result into PosterImage."""
+    body: dict[str, Any] = payload or {}
+    if "prompt" not in body:
+        body = dict(body)
+        body["prompt"] = prompt
+
+    safe_body = jsonable_encoder(body, exclude_none=True)
+    logger.debug(
+        "poster.asset.glibatree.payload",
+        extra={"trace": trace_id, "payload_keys": sorted(safe_body.keys())},
+    )
+
     response = requests.post(
         api_url,
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"prompt": prompt},
+        json=safe_body,
         timeout=60,
     )
     try:
