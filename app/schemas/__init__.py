@@ -542,6 +542,13 @@ class GeneratePosterRequest(_CompatModel):
 
     lock_seed: bool = Field(False, description="Whether the provided seed should be respected across runs.")
 
+    aspect_closeness: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Optional hint (0-1) that nudges Imagen3 to preserve requested aspect ratios.",
+    )
+
     # 新字段（结构化 prompts）
     prompt_bundle: PromptBundle = Field(
         default_factory=PromptBundle,
