@@ -680,10 +680,15 @@ const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
   if (!image || typeof image !== 'object') return '';
-  const directUrl = typeof image.url === 'string' ? image.url : '';
-  if (directUrl) return directUrl;
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url : '';
-  return dataUrl;
+  const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
+  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
+    return directUrl;
+  }
+  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
+  if (dataUrl && dataUrl.startsWith('data:')) {
+    return dataUrl;
+  }
+  return '';
 }
 
 function inferImageMediaType(src) {
@@ -825,8 +830,16 @@ async function uploadFileToR2(folder, file, options = {}) {
         throw new Error(detail || '上传到 R2 失败，请稍后重试。');
       }
     }
-    const accessibleUrl = presign.get_url || presign.public_url || null;
-    const referenceUrl = presign.r2_url || accessibleUrl || toAssetUrl(presign.key);
+    const selectHttpUrl = (value) => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      return HTTP_URL_RX.test(trimmed) ? trimmed : null;
+    };
+    const accessibleUrl =
+      selectHttpUrl(presign.get_url) || selectHttpUrl(presign.public_url);
+    const derivedUrl = selectHttpUrl(toAssetUrl(presign.key));
+    const referenceUrl = accessibleUrl || derivedUrl || null;
     return {
       key: presign.key,
       url: referenceUrl,
@@ -853,6 +866,7 @@ async function uploadFileToR2(folder, file, options = {}) {
 
 App.utils.r2PresignPut = r2PresignPut;
 App.utils.uploadFileToR2 = uploadFileToR2;
+App.utils.updateMaterialUrlDisplay = updateMaterialUrlDisplay;
 
 function applyStoredAssetValue(target, storedValue) {
   if (!target || typeof storedValue !== 'string') return;
@@ -860,6 +874,58 @@ function applyStoredAssetValue(target, storedValue) {
     target.data_url = storedValue;
   } else {
     target.url = storedValue;
+  }
+}
+
+function updateMaterialUrlDisplay(field, asset) {
+  const container = document.querySelector(`[data-material-url="${field}"]`);
+  if (!container) return;
+
+  const label = container.dataset.label || '素材 URL：';
+  const prefix = label.endsWith('：') ? label : `${label}：`;
+  const urlCandidates = [];
+  if (asset) {
+    if (typeof asset === 'string') {
+      if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
+    } else if (typeof asset === 'object') {
+      const {
+        remoteUrl,
+        url,
+        publicUrl,
+        dataUrl,
+      } = asset;
+      [remoteUrl, url, publicUrl].forEach((candidate) => {
+        if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
+          urlCandidates.push(candidate);
+        }
+      });
+      if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
+        urlCandidates.push(dataUrl);
+      }
+    }
+  }
+
+  const url = urlCandidates.find(Boolean) || null;
+  container.textContent = '';
+  const labelSpan = document.createElement('span');
+  labelSpan.classList.add('asset-url-label');
+  labelSpan.textContent = prefix;
+  container.appendChild(labelSpan);
+
+  if (url) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = url;
+    container.appendChild(link);
+    container.classList.add('has-url');
+  } else {
+    const placeholder = document.createElement('span');
+    placeholder.classList.add('asset-url-empty');
+    placeholder.textContent = '尚未上传';
+    container.appendChild(placeholder);
+    container.classList.remove('has-url');
   }
 }
 
@@ -938,8 +1004,11 @@ function initStage1() {
   const buildPreviewButton = document.getElementById('build-preview');
   const nextButton = document.getElementById('go-to-stage2');
   const statusElement = document.getElementById('stage1-status');
-  const previewContainer = document.getElementById('preview-container');
-  const layoutStructure = document.getElementById('layout-structure-text');
+  const previewElements = buildPreviewTargets();
+  const previewContainer = previewElements.container;
+  const layoutStructures = previewElements.contexts.map((ctx) => ctx.layoutStructure).filter(Boolean);
+  const layoutStructure = layoutStructures[0] || null;
+  const setLayoutStructureText = (text) => setLayoutStructuresText(previewElements.contexts, text);
   const galleryButton = document.getElementById('add-gallery-item');
   const galleryPlaceholderButton = document.getElementById('add-gallery-placeholder');
   const galleryFileInput = document.getElementById('gallery-file-input');
@@ -952,18 +1021,6 @@ function initStage1() {
   if (!form || !buildPreviewButton || !nextButton) {
     return;
   }
-
-  const previewElements = {
-    brandLogo: document.getElementById('preview-brand-logo'),
-    brandName: document.getElementById('preview-brand-name'),
-    agentName: document.getElementById('preview-agent-name'),
-    scenarioImage: document.getElementById('preview-scenario-image'),
-    productImage: document.getElementById('preview-product-image'),
-    featureList: document.getElementById('preview-feature-list'),
-    title: document.getElementById('preview-title'),
-    subtitle: document.getElementById('preview-subtitle'),
-    gallery: document.getElementById('preview-gallery'),
-  };
 
   const inlinePreviews = {
     brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
@@ -1053,13 +1110,7 @@ function initStage1() {
   const refreshPreview = () => {
     if (!form) return null;
     const payload = collectStage1Data(form, state, { strict: false });
-    currentLayoutPreview = updatePosterPreview(
-      payload,
-      state,
-      previewElements,
-      layoutStructure,
-      previewContainer
-    );
+    currentLayoutPreview = updatePosterPreview(payload, state, previewElements);
     return payload;
   };
 
@@ -1071,8 +1122,6 @@ function initStage1() {
       currentLayoutPreview = stored.layout_preview || '';
       renderGalleryItems(state, galleryItemsContainer, {
         previewElements,
-        layoutStructure,
-        previewContainer,
         statusElement,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
@@ -1391,8 +1440,6 @@ function initStage1() {
 
     renderGalleryItems(state, galleryItemsContainer, {
       previewElements,
-      layoutStructure,
-      previewContainer,
       statusElement,
       onChange: refreshPreview,
       allowPrompt: galleryAllowsPrompt,
@@ -1488,13 +1535,7 @@ async function mountTemplateChooserStage1() {
   const quickPersist = () => {
     try {
       const relaxedPayload = collectStage1Data(form, state, { strict: false });
-      currentLayoutPreview = updatePosterPreview(
-        relaxedPayload,
-        state,
-        previewElements,
-        layoutStructure,
-        previewContainer
-      );
+      currentLayoutPreview = updatePosterPreview(relaxedPayload, state, previewElements);
       const serialised = serialiseStage1Data(relaxedPayload, state, currentLayoutPreview, false);
       saveStage1Data(serialised, { preserveStage2: false });
     } catch (e) {
@@ -1504,18 +1545,20 @@ async function mountTemplateChooserStage1() {
   quickPersist();
 
   // 5) 绑定切换
-  templateSelectStage1.addEventListener('change', async (ev) => {
-    const value = ev.target.value || DEFAULT_STAGE1.template_id;
-    state.templateId = value;
-    const entry = templateRegistry.find((x) => x.id === value);
-    state.templateLabel = entry?.name || '';
+  if (templateSelectStage1) {
+    templateSelectStage1.addEventListener('change', async (ev) => {
+      const value = ev.target.value || DEFAULT_STAGE1.template_id;
+      state.templateId = value;
+      const entry = templateRegistry.find((x) => x.id === value);
+      state.templateLabel = entry?.name || '';
 
-    state.previewBuilt = false; // 切换模板 => 预览需重建
-    setStatus(statusElement, '已切换模板，请重新构建版式预览或继续到环节 2 生成。', 'info');
+      state.previewBuilt = false; // 切换模板 => 预览需重建
+      setStatus(statusElement, '已切换模板，请重新构建版式预览或继续到环节 2 生成。', 'info');
 
-    quickPersist();
-    await refreshTemplatePreviewStage1(value);
-  });
+      quickPersist();
+      await refreshTemplatePreviewStage1(value);
+    });
+  }
 }
 
 // 注意：不要用顶层 await
@@ -1584,8 +1627,6 @@ void mountTemplateChooserStage1();
 
   renderGalleryItems(state, galleryItemsContainer, {
     previewElements,
-    layoutStructure,
-    previewContainer,
     statusElement,
     onChange: refreshPreview,
     allowPrompt: state.galleryAllowsPrompt,
@@ -1656,8 +1697,6 @@ void mountTemplateChooserStage1();
       state.previewBuilt = false;
       renderGalleryItems(state, galleryItemsContainer, {
         previewElements,
-        layoutStructure,
-        previewContainer,
         statusElement,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
@@ -1699,8 +1738,6 @@ void mountTemplateChooserStage1();
       state.previewBuilt = false;
       renderGalleryItems(state, galleryItemsContainer, {
         previewElements,
-        layoutStructure,
-        previewContainer,
         statusElement,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
@@ -1720,13 +1757,7 @@ void mountTemplateChooserStage1();
 
   buildPreviewButton.addEventListener('click', () => {
     const relaxedPayload = collectStage1Data(form, state, { strict: false });
-    currentLayoutPreview = updatePosterPreview(
-      relaxedPayload,
-      state,
-      previewElements,
-      layoutStructure,
-      previewContainer
-    );
+    currentLayoutPreview = updatePosterPreview(relaxedPayload, state, previewElements);
 
     try {
       const strictPayload = collectStage1Data(form, state, { strict: true });
@@ -1764,9 +1795,7 @@ void mountTemplateChooserStage1();
       currentLayoutPreview = updatePosterPreview(
         payload,
         state,
-        previewElements,
-        layoutStructure,
-        previewContainer
+        previewElements
       );
       state.previewBuilt = true;
       const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
@@ -2046,8 +2075,6 @@ async function switchAssetMode(target, mode, context) {
 function renderGalleryItems(state, container, options = {}) {
   const {
     previewElements,
-    layoutStructure,
-    previewContainer,
     statusElement,
     onChange,
     allowPrompt = true,
@@ -2100,8 +2127,6 @@ function renderGalleryItems(state, container, options = {}) {
       state.previewBuilt = false;
       renderGalleryItems(state, container, {
         previewElements,
-        layoutStructure,
-        previewContainer,
         statusElement,
         onChange,
         allowPrompt,
@@ -2394,87 +2419,146 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
-function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
-  const {
-    brandLogo,
-    brandName,
-    agentName,
-    scenarioImage,
-    productImage,
-    featureList,
-    title,
-    subtitle,
-    gallery,
-  } = elements;
+
+function collectLayoutPreviewContexts() {
+  const roots = Array.from(document.querySelectorAll('.poster-layout-preview'));
+  return roots.map((root) => {
+    const container =
+      root.closest('[data-preview-container]') ||
+      root.closest('.preview') ||
+      root.parentElement;
+    const layoutStructure =
+      container?.querySelector?.('[data-layout-structure]') ||
+      root.parentElement?.querySelector?.('[data-layout-structure]');
+    const select = (name) => root.querySelector(`[data-preview-target="${name}"]`);
+    return {
+      container,
+      layoutStructure,
+      elements: {
+        brandLogo: select('brand-logo'),
+        brandName: select('brand-name'),
+        agentName: select('agent-name'),
+        scenarioImage: select('scenario-image'),
+        productImage: select('product-image'),
+        featureList: select('feature-list'),
+        title: select('title'),
+        subtitle: select('subtitle'),
+        gallery: select('gallery'),
+      },
+    };
+  });
+}
+
+function buildPreviewTargets() {
+  const contexts = collectLayoutPreviewContexts();
+  const primary = contexts[0] || { elements: {} };
+  return {
+    contexts,
+    ...primary.elements,
+    layoutStructure: primary.layoutStructure,
+    container: primary.container,
+  };
+}
+
+function setLayoutStructuresText(contexts, text) {
+  const value = text || '';
+  contexts.forEach((ctx) => {
+    if (ctx?.layoutStructure) {
+      ctx.layoutStructure.textContent = value;
+    }
+  });
+}
+
+function updatePosterPreview(payload, state, targets) {
+  const contexts = Array.isArray(targets?.contexts)
+    ? targets.contexts
+    : targets
+    ? [targets]
+    : [];
 
   const layoutText = buildLayoutPreview(payload);
 
-  if (layoutStructure) {
-    layoutStructure.textContent = layoutText;
-  }
+  contexts.forEach((ctx) => {
+    const { elements = {}, layoutStructure, container } = ctx || {};
+    const {
+      brandLogo,
+      brandName,
+      agentName,
+      scenarioImage,
+      productImage,
+      featureList,
+      title,
+      subtitle,
+      gallery,
+    } = elements;
 
-  if (previewContainer) {
-    previewContainer.classList.remove('hidden');
-  }
-
-  if (brandLogo) {
-    brandLogo.src = payload.brand_logo?.dataUrl || placeholderImages.brandLogo;
-  }
-  if (brandName) {
-    brandName.textContent = payload.brand_name || '品牌名称';
-  }
-  if (agentName) {
-    agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
-  }
-  if (scenarioImage) {
-    scenarioImage.src = payload.scenario_asset?.dataUrl || placeholderImages.scenario;
-  }
-  if (productImage) {
-    productImage.src = payload.product_asset?.dataUrl || placeholderImages.product;
-  }
-  if (title) {
-    title.textContent = payload.title || '标题文案';
-  }
-  if (subtitle) {
-    subtitle.textContent = payload.subtitle || '副标题文案';
-  }
-
-  if (featureList) {
-    featureList.innerHTML = '';
-    const featuresForPreview = payload.features.length
-      ? payload.features
-      : DEFAULT_STAGE1.features;
-    featuresForPreview.slice(0, 4).forEach((feature, index) => {
-      const item = document.createElement('li');
-      item.classList.add(`feature-tag-${index + 1}`);
-      item.textContent = feature || `功能点 ${index + 1}`;
-      featureList.appendChild(item);
-    });
-  }
-
-  if (gallery) {
-    gallery.innerHTML = '';
-    const limit = state.galleryLimit || 4;
-    const entries = state.galleryEntries.slice(0, limit);
-    const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
-    const total = Math.max(entries.length, limit);
-    for (let index = 0; index < total; index += 1) {
-      const entry = entries[index];
-      const figure = document.createElement('figure');
-      const img = document.createElement('img');
-      const caption = document.createElement('figcaption');
-      if (entry?.asset?.dataUrl) {
-        img.src = entry.asset.dataUrl;
-      } else {
-        img.src = getGalleryPlaceholder(index, galleryLabel);
-      }
-      img.alt = `${galleryLabel} ${index + 1} 预览`;
-      caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
-      figure.appendChild(img);
-      figure.appendChild(caption);
-      gallery.appendChild(figure);
+    if (layoutStructure) {
+      layoutStructure.textContent = layoutText;
     }
-  }
+
+    if (container) {
+      container.classList.remove('hidden');
+    }
+
+    if (brandLogo) {
+      brandLogo.src = payload.brand_logo?.dataUrl || placeholderImages.brandLogo;
+    }
+    if (brandName) {
+      brandName.textContent = payload.brand_name || '品牌名称';
+    }
+    if (agentName) {
+      agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
+    }
+    if (scenarioImage) {
+      scenarioImage.src = payload.scenario_asset?.dataUrl || placeholderImages.scenario;
+    }
+    if (productImage) {
+      productImage.src = payload.product_asset?.dataUrl || placeholderImages.product;
+    }
+    if (title) {
+      title.textContent = payload.title || '标题文案';
+    }
+    if (subtitle) {
+      subtitle.textContent = payload.subtitle || '副标题文案';
+    }
+
+    if (featureList) {
+      featureList.innerHTML = '';
+      const featuresForPreview = payload.features.length
+        ? payload.features
+        : DEFAULT_STAGE1.features;
+      featuresForPreview.slice(0, 4).forEach((feature, index) => {
+        const item = document.createElement('li');
+        item.classList.add(`feature-tag-${index + 1}`);
+        item.textContent = feature || `功能点 ${index + 1}`;
+        featureList.appendChild(item);
+      });
+    }
+
+    if (gallery) {
+      gallery.innerHTML = '';
+      const limit = state.galleryLimit || 4;
+      const entries = state.galleryEntries.slice(0, limit);
+      const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
+      const total = Math.max(entries.length, limit);
+      for (let index = 0; index < total; index += 1) {
+        const entry = entries[index];
+        const figure = document.createElement('figure');
+        const img = document.createElement('img');
+        const caption = document.createElement('figcaption');
+        if (entry?.asset?.dataUrl) {
+          img.src = entry.asset.dataUrl;
+        } else {
+          img.src = getGalleryPlaceholder(index, galleryLabel);
+        }
+        img.alt = `${galleryLabel} ${index + 1} 预览`;
+        caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
+        figure.appendChild(img);
+        figure.appendChild(caption);
+        gallery.appendChild(figure);
+      }
+    }
+  });
 
   return layoutText;
 }
@@ -3094,7 +3178,10 @@ async function setupPromptInspector(
 function initStage2() {
   void (async () => {
     const statusElement = document.getElementById('stage2-status');
-    const layoutStructure = document.getElementById('layout-structure-text');
+    const previewElements = buildPreviewTargets();
+    const layoutStructures = previewElements.contexts.map((ctx) => ctx.layoutStructure).filter(Boolean);
+    const layoutStructure = layoutStructures[0] || null;
+    const setLayoutStructureText = (text) => setLayoutStructuresText(previewElements.contexts, text);
     const posterOutput = document.getElementById('poster-output');
     const aiPreview = document.getElementById('ai-preview');
     const aiSpinner = document.getElementById('ai-spinner');
@@ -3138,6 +3225,16 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
+    const stage1PreviewState = {
+      galleryEntries: stage1Data.gallery_entries || [],
+      galleryLimit: stage1Data.gallery_limit || 4,
+      galleryLabel: stage1Data.gallery_label || MATERIAL_DEFAULT_LABELS.gallery,
+    };
+    updatePosterPreview(stage1Data, stage1PreviewState, previewElements);
+    if (stage1Data.layout_preview) {
+      setLayoutStructureText(stage1Data.layout_preview);
+    }
+
     let promptManager = null;
     let currentTemplateAssets = null;
     let latestPromptState = null;
@@ -3170,13 +3267,18 @@ function initStage2() {
           : inferImageMediaType(source) || 'image/png';
       const width = typeof poster.width === 'number' ? poster.width : null;
       const height = typeof poster.height === 'number' ? poster.height : null;
+      const normalizedUrl = HTTP_URL_RX.test(source) ? source : null;
+      const normalizedDataUrl = source.startsWith('data:') ? source : null;
       return {
         filename,
         media_type: mediaType,
         width,
         height,
-        url: typeof poster.url === 'string' ? poster.url : null,
-        data_url: typeof poster.data_url === 'string' ? poster.data_url : null,
+        key: typeof poster.key === 'string' ? poster.key : null,
+        url: normalizedUrl,
+        data_url:
+          normalizedDataUrl ||
+          (typeof poster.data_url === 'string' ? poster.data_url : null),
       };
     };
 
@@ -3398,7 +3500,6 @@ function initStage2() {
         return triggerGeneration({
           stage1Data,
           statusElement,
-          layoutStructure,
           posterOutput,
           aiPreview,
           aiSpinner,
@@ -3429,15 +3530,13 @@ function initStage2() {
     stage1Data.template_id = stage1Data.template_id || DEFAULT_STAGE1.template_id;
     if (needsTemplatePersist) {
       stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-      if (layoutStructure) {
-        layoutStructure.textContent = stage1Data.layout_preview;
-      }
+      setLayoutStructureText(stage1Data.layout_preview);
       saveStage1Data(stage1Data);
     }
     let currentTemplateId = stage1Data.template_id;
 
-    if (layoutStructure && stage1Data.layout_preview) {
-      layoutStructure.textContent = stage1Data.layout_preview;
+    if (stage1Data.layout_preview) {
+      setLayoutStructureText(stage1Data.layout_preview);
     }
 
     let templateRegistry = [];
@@ -3527,24 +3626,20 @@ function initStage2() {
           stage1Data.template_id = fallbackEntry.id;
           stage1Data.template_label = fallbackEntry.name || '';
           stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-          if (layoutStructure) {
-            layoutStructure.textContent = stage1Data.layout_preview;
-          }
+          setLayoutStructureText(stage1Data.layout_preview);
+          updatePosterPreview(stage1Data, stage1PreviewState, previewElements);
           saveStage1Data(stage1Data);
         } else if (activeEntry) {
           const label = activeEntry.name || '';
           if (stage1Data.template_label !== label) {
             stage1Data.template_label = label;
             stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-            if (layoutStructure) {
-              layoutStructure.textContent = stage1Data.layout_preview;
-            }
+            setLayoutStructureText(stage1Data.layout_preview);
+            updatePosterPreview(stage1Data, stage1PreviewState, previewElements);
             saveStage1Data(stage1Data, { preserveStage2: true });
           }
         }
         templateSelect.value = currentTemplateId;
-        templateSelect.disabled = true;
-        templateSelect.title = '模板已在环节 1 中选定，可返回修改';
         await refreshTemplatePreview(currentTemplateId);
         updateSummary();
       } catch (error) {
@@ -3561,9 +3656,8 @@ function initStage2() {
         const entry = templateRegistry.find((item) => item.id === value);
         stage1Data.template_label = entry?.name || '';
         stage1Data.layout_preview = buildLayoutPreview(stage1Data);
-        if (layoutStructure) {
-          layoutStructure.textContent = stage1Data.layout_preview;
-        }
+        setLayoutStructureText(stage1Data.layout_preview);
+        updatePosterPreview(stage1Data, stage1PreviewState, previewElements);
         saveStage1Data(stage1Data, { preserveStage2: true });
         updateSummary();
         await refreshTemplatePreview(value);
