@@ -381,27 +381,6 @@ async function dataUrlToFile(dataUrl, nameHint = 'asset') {
   return { file, mime, extension, filename };
 }
 
-function estimatePayloadBytes(data) {
-  try {
-    if (typeof data === 'string') {
-      return new Blob([data]).size;
-    }
-    return new Blob([JSON.stringify(data)]).size;
-  } catch (error) {
-    console.warn('[client] unable to estimate payload size', error);
-    return -1;
-  }
-}
-
-function payloadContainsDataUrl(value) {
-  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
-  if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
-  if (value && typeof value === 'object') {
-    return Object.values(value).some(payloadContainsDataUrl);
-  }
-  return false;
-}
-
 async function normaliseAssetReference(
   asset,
   {
@@ -419,9 +398,9 @@ async function normaliseAssetReference(
     }
   };
 
-  const ensureNotInline = (value) => {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
+  const ensureNotInline = (candidate) => {
+    if (typeof candidate !== 'string') return null;
+    const trimmed = candidate.trim();
     if (!trimmed) return null;
     if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
       return null;
@@ -429,8 +408,8 @@ async function normaliseAssetReference(
     return trimmed;
   };
 
-  const normaliseKey = (value) => {
-    const trimmed = ensureNotInline(value);
+  const normaliseKey = (candidate) => {
+    const trimmed = ensureNotInline(candidate);
     if (!trimmed) return null;
     return trimmed.replace(/^\/+/, '');
   };
@@ -547,61 +526,6 @@ async function normaliseAssetReference(
   };
 }
 
-function summariseNegativePrompts(prompts) {
-  if (!prompts || typeof prompts !== 'object') return null;
-  const values = [];
-  Object.values(prompts).forEach((entry) => {
-    if (!entry) return;
-    const negative = typeof entry.negative === 'string' ? entry.negative.trim() : '';
-    if (negative) values.push(negative);
-  });
-  if (!values.length) return null;
-  return Array.from(new Set(values)).join(' | ');
-}
-
-function ensureUploadedAndLog(path, payload, rawPayload) {
-  const MAX = 512 * 1024;
-  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(16).slice(2, 10);
-  let bodyString = null;
-  if (typeof rawPayload === 'string') {
-    bodyString = rawPayload;
-  } else if (payload !== undefined) {
-    try {
-      bodyString = JSON.stringify(payload);
-    } catch (error) {
-      console.warn('[client] stringify payload failed', error);
-    }
-  }
-
-  const size = estimatePayloadBytes(bodyString ?? payload);
-  const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
-  const preview = typeof bodyString === 'string'
-    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
-    : null;
-
-  console.log(`[client] pre-check ${path}`, {
-    requestId,
-    size,
-    hasBase64,
-    preview,
-  });
-
-  if (hasBase64) {
-    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
-  }
-  if (MAX > 0 && size > MAX) {
-    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
-  }
-
-  return {
-    headers: { 'X-Request-ID': requestId },
-    bodyString,
-    size,
-  };
-}
-
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
@@ -612,12 +536,8 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
-  const inspection = ensureUploadedAndLog(path, payload, rawPayload);
-
   // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
-  const bodyRaw = (typeof rawPayload === 'string')
-    ? rawPayload
-    : inspection.bodyString ?? JSON.stringify(payload);
+  const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
 
   const logPrefix = `[postJsonWithRetry] ${path}`;
   const previewSnippet = (() => {
@@ -644,17 +564,12 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
       const url = urlFor(b);                               // ← 定义 url
       try {
-        const headers = {
-          'Content-Type': 'application/json; charset=UTF-8',
-          ...(inspection?.headers || {}),
-        };
-
         const res = await fetch(url, {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
           credentials: 'omit',
-          headers,
+          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
           body: bodyRaw,
           signal: ctrl.signal,
         });
@@ -1070,12 +985,7 @@ function initStage1() {
       if (typeof asset === 'string') {
         if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
       } else if (typeof asset === 'object') {
-        const {
-          remoteUrl,
-          url,
-          publicUrl,
-          dataUrl,
-        } = asset;
+        const { remoteUrl, url, publicUrl, dataUrl } = asset;
         [remoteUrl, url, publicUrl].forEach((candidate) => {
           if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
             urlCandidates.push(candidate);
@@ -3796,7 +3706,6 @@ async function triggerGeneration(opts) {
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
   const pd = stage1Data.product_asset || null;
-
   const scenarioMode = stage1Data.scenario_mode || 'upload';
   const productMode = stage1Data.product_mode || 'upload';
 
@@ -3915,10 +3824,12 @@ async function triggerGeneration(opts) {
       gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
     };
   } catch (error) {
-    console.error('[triggerGeneration] asset normalisation failed', error);
+    console.error('[triggerGeneration] asset normalization failed', error);
     setStatus(
       statusElement,
-      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+      error instanceof Error
+        ? error.message
+        : '素材未完成上传，请先上传至 R2/GCS。',
       'error',
     );
     return null;
@@ -3940,16 +3851,7 @@ async function triggerGeneration(opts) {
   };
   
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-
-  const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
-  if (negativeSummary) {
-    payload.negatives = negativeSummary;
-  }
-
-  if (abTest) {
-    payload.variants = Math.max(2, payload.variants || 2);
-  }
-
+  
   const posterSummary = {
     template_id: posterPayload.template_id,
     scenario_mode: posterPayload.scenario_mode,
@@ -3957,29 +3859,6 @@ async function triggerGeneration(opts) {
     feature_count: Array.isArray(posterPayload.features) ? posterPayload.features.length : 0,
     gallery_count: Array.isArray(posterPayload.gallery_items) ? posterPayload.gallery_items.length : 0,
   };
-  const assetAudit = {
-    brand_logo: {
-      key: brandLogoRef?.key || null,
-      url: posterPayload.brand_logo || null,
-    },
-    scenario: {
-      mode: posterPayload.scenario_mode,
-      key: posterPayload.scenario_key || null,
-      url: posterPayload.scenario_asset || null,
-    },
-    product: {
-      mode: posterPayload.product_mode,
-      key: posterPayload.product_key || null,
-      url: posterPayload.product_asset || null,
-    },
-    gallery: posterPayload.gallery_items.map((item, index) => ({
-      index,
-      mode: item.mode,
-      key: item.key || null,
-      url: item.asset || null,
-    })),
-  };
-
   console.info('[triggerGeneration] prepared payload', {
     apiCandidates,
     poster: posterSummary,
@@ -3987,9 +3866,26 @@ async function triggerGeneration(opts) {
     variants: payload.variants,
     seed: payload.seed,
     lock_seed: payload.lock_seed,
-    negatives: negativeSummary || null,
   });
-  console.info('[triggerGeneration] asset audit', assetAudit);
+  console.info('[triggerGeneration] asset audit', {
+    brand_logo: { key: brandLogoRef?.key || null, url: posterPayload.brand_logo || null },
+    scenario: {
+      key: posterPayload.scenario_key || null,
+      url: posterPayload.scenario_asset || null,
+      mode: posterPayload.scenario_mode,
+    },
+    product: {
+      key: posterPayload.product_key || null,
+      url: posterPayload.product_asset || null,
+      mode: posterPayload.product_mode,
+    },
+    gallery: posterPayload.gallery_items.map((item, index) => ({
+      index,
+      key: item.key || null,
+      url: item.asset || null,
+      mode: item.mode,
+    })),
+  });
   
   // 面板同步
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
