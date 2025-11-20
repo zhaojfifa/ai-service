@@ -9,6 +9,7 @@ import os
 import uuid
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
