@@ -54,14 +54,7 @@ App.utils.ensureTemplateAssets = (() => {
     const imgUrl  = App.utils.assetUrl?.(`templates/${entry.preview}`) || `templates/${entry.preview}`;
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
-    const imgP  = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('模板预览图加载失败'));
-      img.src = imgUrl;
-    });
+    const imgP  = loadImageAsset(imgUrl);
 
     const payload = { entry, spec: await specP, image: await imgP };
     _cache.set(entry.id, payload);
