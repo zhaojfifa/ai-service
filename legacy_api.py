@@ -9,7 +9,7 @@ GLIB_KEY = os.getenv("GLIB_KEY", "").strip()
 ATTACH_IMAGE = os.getenv("ATTACH_IMAGE", "false").lower() == "true"
 CORS_ALLOW = [o.strip() for o in os.getenv(
     "CORS_ALLOW_ORIGINS",
-    "https://zhaojfifa.github.io,http://localhost:5173,http://localhost:3000"
+    "https://<your-frontend-host>,http://localhost:5173,http://localhost:3000"
 ).split(",") if o.strip()]
 
 SMTP_HOST = os.getenv("SMTP_HOST", "")
