@@ -426,6 +426,18 @@
       return;
     }
 
+    const getDimensions = async () => {
+      try {
+        const bitmap = await createImageBitmap(file);
+        return { width: bitmap.width, height: bitmap.height };
+      } catch (error) {
+        console.warn('[template-admin] failed to read dimensions', error);
+        return { width: null, height: null };
+      }
+    };
+
+    const dimensionsPromise = getDimensions();
+
     const contentType = file.type || guessContentType(file);
     if (!contentType) {
       updateSlotStatus(slot, '无法识别文件格式，请上传 PNG/JPEG/WebP 图片。', 'error');
@@ -437,18 +449,23 @@
     setGlobalStatus(`正在上传 ${slotLabels[slot] || slot}…`, 'info');
 
     try {
-      const dataUrl = await safeFileToDataUrl(file);
-      const base64 = extractBase64Payload(dataUrl);
-      if (!base64) {
-        throw new Error('图片编码失败，请重试。');
+      if (!AppUtils?.uploadFileToR2) {
+        throw new Error('前端缺少 R2 直传能力，请检查构建脚本。');
       }
+      const candidates = collectCandidates();
+      const upload = await AppUtils.uploadFileToR2('template-posters', file, {
+        bases: candidates,
+      });
+      const { width, height } = await dimensionsPromise;
       const payload = {
         slot,
         filename: file.name || `${slot}.png`,
         content_type: file.type || contentType,
-        data: base64,
+        key: upload?.key || upload?.presign?.key,
+        size: file.size,
+        width,
+        height,
       };
-      console.log(payload);
       await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
