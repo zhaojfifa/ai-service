@@ -787,14 +787,6 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
     slot = request_data.slot
     filename = request_data.filename
     content_type = request_data.content_type
-    key = request_data.key
-    size = request_data.size
-
-    if request_data.data:
-        logger.info(
-            "template poster upload payload still contains deprecated base64 data",
-            extra={"slot": slot, "poster_filename": filename},
-        )
 
     logger.info(
         "template poster upload received",
@@ -802,8 +794,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             "slot": slot,
             "poster_filename": filename,
             "content_type": content_type,
-            "storage_key": key,
-            "size_bytes": size,
+            "size_bytes": request_data.size,
+            "has_key": bool(request_data.key),
         },
     )
     try:
@@ -811,8 +803,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             slot=slot,
             filename=filename,
             content_type=content_type,
-            key=key,
-            size=size,
+            key=request_data.key,
+            data=request_data.data,
         )
         return poster_entry_from_record(record)
     except TemplatePosterError as exc:

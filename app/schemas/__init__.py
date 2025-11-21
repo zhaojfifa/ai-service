@@ -521,30 +521,24 @@ class TemplatePosterUploadRequest(_CompatModel):
     )
     filename: constr(strip_whitespace=True, min_length=1)
     content_type: constr(strip_whitespace=True, min_length=1)
-    size: int = Field(
-        ..., ge=0, description="Original file size in bytes (for logging/metadata).",
-    )
-    data: Optional[str] = Field(
+    size: int | None = Field(
         None,
-        description="Deprecated. Base64 payloads are rejected upstream; keep for backward compatibility.",
+        ge=0,
+        description="Optional payload size hint (bytes) when using object storage.",
+    )
+    key: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        None,
+        description="Cloudflare R2 object key referencing the uploaded template image.",
+    )
+    data: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        None,
+        description="Deprecated: inline base64 payload; prefer uploading to R2 and sending a key.",
     )
 
-    if field_validator is not None:  # pragma: no cover - executed on Pydantic v2
-
-        @field_validator("key", mode="before")
-        @classmethod
-        def _ensure_key_is_not_data_url(cls, value: Any) -> Any:
-            if isinstance(value, str) and value.strip().startswith("data:"):
-                raise ValueError("R2 key must not be a data: URL")
-            return value
-
-    else:  # pragma: no cover - executed on Pydantic v1
-
-        @field_validator("key", allow_reuse=True)  # type: ignore[misc]
-        def _ensure_key_is_not_data_url(cls, value: Any) -> Any:
-            if isinstance(value, str) and value.strip().startswith("data:"):
-                raise ValueError("R2 key must not be a data: URL")
-            return value
+    @field_validator("key")
+    @classmethod
+    def _reject_data_url_key(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 class TemplatePosterEntry(_CompatModel):
     slot: Literal["variant_a", "variant_b"]

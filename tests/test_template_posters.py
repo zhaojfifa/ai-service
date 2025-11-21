@@ -25,27 +25,17 @@ def template_tmpdir(tmp_path, monkeypatch):
     yield tmp_path
 
 
-@pytest.fixture()
-def fake_r2_storage(monkeypatch):
+def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch):
+    from app.main import app
     import app.services.template_variants as template_variants
 
-    storage: dict[str, bytes] = {}
+    raw_png = base64.b64decode(_encode_png((255, 0, 0)))
 
-    def fake_get_bytes(key: str) -> bytes:
-        if key not in storage:
-            raise RuntimeError(f"missing R2 object: {key}")
-        return storage[key]
-
-    def fake_public_url(key: str) -> str:
-        return f"https://cdn.example.com/{key}"
+    def fake_get_bytes(key: str):
+        assert key == "template-posters/PosterA.png"
+        return raw_png
 
     monkeypatch.setattr(template_variants, "get_bytes", fake_get_bytes)
-    monkeypatch.setattr(template_variants, "public_url_for", fake_public_url)
-    return storage
-
-
-def test_template_poster_upload_and_fetch(template_tmpdir, fake_r2_storage):
-    from app.main import app
 
     client = TestClient(app)
     key = "template-posters/variant_a/poster-a.png"
@@ -54,8 +44,8 @@ def test_template_poster_upload_and_fetch(template_tmpdir, fake_r2_storage):
         "slot": "variant_a",
         "filename": "PosterA.png",
         "content_type": "image/png",
-        "key": key,
-        "size": len(fake_r2_storage[key]),
+        "key": "template-posters/PosterA.png",
+        "size": len(raw_png),
     }
     response = client.post("/api/template-posters", json=payload)
     assert response.status_code == 200
