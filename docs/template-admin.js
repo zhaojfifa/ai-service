@@ -448,22 +448,34 @@
     setGlobalStatus(`正在上传 ${label}…`, 'info');
 
     try {
-      if (!AppUtils?.uploadFileToR2) {
-        throw new Error('前端缺少 R2 直传能力，请检查构建脚本。');
+      const uploadFileToR2 = ensureUploadHelper();
+      const bases = collectCandidates();
+      const folder = folderForSlot(slot);
+      const uploadResult = await uploadFileToR2(folder, file, { bases });
+      if (!uploadResult || !uploadResult.key) {
+        throw new Error('上传结果缺少对象存储 key。');
       }
-      const candidates = collectCandidates();
-      const upload = await AppUtils.uploadFileToR2('template-posters', file, {
-        bases: candidates,
-      });
+
+      updateSlotStatus(slot, '正在登记模板元数据…', 'info');
+      setGlobalStatus(`正在登记 ${label}…`, 'info');
+
+      const declaredSize =
+        typeof file.size === 'number' && Number.isFinite(file.size)
+          ? Math.max(0, Math.round(file.size))
+          : null;
+      const presignedSize =
+        uploadResult?.presign && Number.isFinite(Number(uploadResult.presign.size))
+          ? Number(uploadResult.presign.size)
+          : null;
+
       const payload = {
         slot,
         key: uploadResult.key,
         filename: file.name || `${slot}.png`,
         content_type: file.type || contentType,
-        key: upload?.key || upload?.presign?.key,
-        size: file.size,
+        size: declaredSize ?? presignedSize ?? 0,
       };
-      await requestJson('POST', '/api/template-posters', payload);
+      await submitTemplatePoster(payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
       await fetchPosters({ silent: true });
