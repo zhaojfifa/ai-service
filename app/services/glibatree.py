@@ -959,7 +959,10 @@ def generate_poster_asset(
     else:
         logger.info(
             "[vertex] loaded layout spec",
-            extra={"template_id": poster.template_id or DEFAULT_TEMPLATE_ID, "slots": len(layout_spec or {})},
+            extra={
+                "template_id": poster.template_id or DEFAULT_TEMPLATE_ID,
+                "slots": len(layout_spec.slots) if hasattr(layout_spec, "slots") else None,
+            },
         )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 

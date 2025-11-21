@@ -805,6 +805,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             content_type=content_type,
             key=request_data.key,
             data=request_data.data,
+            width=request_data.width,
+            height=request_data.height,
         )
         return poster_entry_from_record(record)
     except TemplatePosterError as exc:

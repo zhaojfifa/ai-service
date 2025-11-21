@@ -205,6 +205,51 @@ def iter_template_records() -> Iterable[TemplatePosterRecord]:
             yield record
 
 
+def _upload_to_cloudflare(
+    raw: bytes, *, filename: str, content_type: str
+) -> Tuple[str | None, str | None]:
+    """Store poster bytes in Cloudflare R2 when configured."""
+
+    try:
+        key = make_key("template-posters", filename)
+    except Exception:  # pragma: no cover - defensive sanitising
+        logger.exception("Failed to build storage key for template poster")
+        return None, None
+
+    try:
+        url = put_bytes(key, raw, content_type=content_type)
+    except Exception:  # pragma: no cover - networking/runtime failure
+        logger.exception("Failed to upload template poster to R2", extra={"key": key})
+        return None, None
+
+    if url is None:
+        url = public_url_for(key)
+
+    return key, url
+
+from PIL import UnidentifiedImageError
+def _inspect_template_image(
+    data: bytes,
+    *,
+    fallback_width: int | None = None,
+    fallback_height: int | None = None,
+) -> tuple[int, int]:
+    """Open image bytes safely, falling back to hints when headers are odd."""
+
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.load()
+            return image.size
+    except (UnidentifiedImageError, OSError) as exc:
+        logger.warning(
+            "[poster-upload] Cannot inspect image payload; using fallback dimensions if provided",
+            exc_info=exc,
+        )
+        if fallback_width and fallback_height:
+            return fallback_width, fallback_height
+        raise
+
+
 def save_template_poster(
     *,
     slot: str,
@@ -213,6 +258,8 @@ def save_template_poster(
     key: str | None = None,
     data: str | None = None,
     allowed_mime: Optional[set[str]] = None,
+    width: int | None = None,
+    height: int | None = None,
 ) -> TemplatePosterRecord:
     slot = slot.strip()
     logger.info(
@@ -244,6 +291,9 @@ def save_template_poster(
         )
         raise ValueError("Unsupported image content type")
 
+    width_hint = width
+    height_hint = height
+
     raw: bytes | None = None
     if key:
         try:
@@ -274,40 +324,30 @@ def save_template_poster(
         )
         raise ValueError("对象存储返回空文件，请重新上传。")
 
-    buffer = BytesIO(raw)
     try:
-        with Image.open(buffer) as probe:
-            probe.verify()
-        buffer.seek(0)
-        with Image.open(buffer) as image:
-            image.load()
-            width, height = image.size
-    except UnidentifiedImageError as exc:
-        logger.warning(
-            "[poster-upload] Cannot identify image file (possibly corrupted)",
-            extra={"slot": slot, "content_type": content_type, "key": key},
+        width, height = _inspect_template_image(
+            raw,
+            fallback_width=width_hint,
+            fallback_height=height_hint,
         )
-        raise TemplatePosterInvalidImage(
-            reason="cannot_identify",
-            hint="图片格式无法解析，请重新导出为标准 PNG/JPEG/WebP 后再上传。",
-        ) from exc
     except Exception as exc:
-        logger.exception(
-            "[poster-upload] Unexpected error while opening image",
-            extra={"slot": slot, "content_type": content_type, "key": key},
+        raise ValueError("Invalid image payload") from exc
+
+    aspect_ratio = width / height if height else 0
+    expected_aspect = 0.75
+    tolerance = 0.15
+    if aspect_ratio <= 0 or abs(aspect_ratio - expected_aspect) > tolerance:
+        logger.warning(
+            "[poster-upload] Aspect ratio outside preferred range",
+            extra={
+                "slot": slot,
+                "content_type": content_type,
+                "width": width,
+                "height": height,
+                "aspect_ratio": aspect_ratio,
+                "expected": expected_aspect,
+            },
         )
-        raise TemplatePosterInvalidImage(
-            reason="decode_failed",
-            hint="图片内容读取失败，可尝试重新导出或压缩后重试。",
-        ) from exc
-
-    aspect_ratio = width / height if height else 0
-    if aspect_ratio <= 0 or aspect_ratio < 0.7 or aspect_ratio > 1.5:
-        raise ValueError("Unsupported aspect ratio for template poster")
-
-    aspect_ratio = width / height if height else 0
-    if aspect_ratio <= 0 or aspect_ratio < 0.7 or aspect_ratio > 1.5:
-        raise ValueError("Unsupported aspect ratio for template poster")
 
     # Filename sanitization
     safe_filename = _clean_filename(filename)
