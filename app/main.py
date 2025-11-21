@@ -971,6 +971,9 @@ async def generate_poster(request: Request) -> JSONResponse:
             lock_seed=result.lock_seed,
             vertex_trace_ids=result.trace_ids or None,
             fallback_used=result.fallback_used if result.fallback_used else None,
+            scenario_image=result.scenario_image,
+            product_image=result.product_image,
+            gallery_images=result.gallery_images,
         )
 
         stored_images: list[StoredImage] = []

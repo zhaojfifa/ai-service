@@ -23,7 +23,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
-from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.schemas import PosterGalleryItem, PosterImage, PosterInput, StoredImage
 from app.schemas.poster import PosterPayload
 from app.templates.layouts import load_layout
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
@@ -303,6 +303,9 @@ class PosterGenerationResult:
     trace_ids: list[str] = field(default_factory=list)
     fallback_used: bool = False
     provider: str | None = None
+    scenario_image: StoredImage | None = None
+    product_image: StoredImage | None = None
+    gallery_images: list[StoredImage] = field(default_factory=list)
 
 
 def _template_dimensions(
@@ -368,6 +371,42 @@ def _poster_asset_summary(poster: PosterInput | dict[str, Any]) -> dict[str, Any
         "urls": urls[:3],
         "count": len(keys) + len(urls),
     }
+
+
+def _stored_image_from_ref(ref: str | None, *, content_type: str = "image/png") -> StoredImage | None:
+    if not ref:
+        return None
+
+    value = ref.strip()
+    key_value: str | None = None
+    url_value: str | None = None
+
+    if value.startswith(("http://", "https://")):
+        url_value = value
+        key_value = value
+    elif value.startswith(("r2://", "s3://")):
+        try:
+            _, path = value.split("://", 1)
+            _, key_value = path.split("/", 1)
+        except ValueError:
+            key_value = value
+        if key_value:
+            url_value = public_url_for(key_value) or value
+    elif _BARE_KEY_PATTERN.match(value):
+        key_value = value
+        candidate_url = public_url_for(value)
+        url_value = candidate_url if candidate_url and candidate_url.startswith("http") else None
+    else:
+        url_value = value
+        key_value = value
+
+    if not key_value or not url_value or not url_value.startswith(("http://", "https://")):
+        return None
+
+    try:
+        return StoredImage(key=key_value, url=url_value, content_type=content_type)
+    except Exception:
+        return None
 
 
 def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
@@ -1092,6 +1131,18 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
+    scenario_asset = _stored_image_from_ref(
+        getattr(poster, "scenario_key", None) or getattr(poster, "scenario_asset", None)
+    )
+    product_asset = _stored_image_from_ref(
+        getattr(poster, "product_key", None) or getattr(poster, "product_asset", None)
+    )
+    gallery_assets: list[StoredImage] = []
+    for item in getattr(poster, "gallery_items", []) or []:
+        asset = _stored_image_from_ref(getattr(item, "key", None) or getattr(item, "asset", None))
+        if asset:
+            gallery_assets.append(asset)
+
     result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
@@ -1102,6 +1153,9 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
         provider=provider_label,
+        scenario_image=scenario_asset,
+        product_image=product_asset,
+        gallery_images=gallery_assets,
     )
 
     logger.info(

@@ -299,25 +299,32 @@ def save_template_poster(
         try:
             raw = get_bytes(key)
         except Exception as exc:  # pragma: no cover - network/config failures
-            logger.exception(
-                "[poster-upload] Failed to fetch object from R2",
+            logger.warning(
+                "[poster-upload] Failed to fetch object from R2; will fall back to hints",
                 extra={"slot": slot, "key": key},
+                exc_info=exc,
             )
-            raise ValueError("无法读取已上传的模板文件，请稍后重试。") from exc
+            raw = None
 
     if raw is None:
-        if not data:
-            raise ValueError("Missing image payload; 请先直传到 R2 后提交 key。")
-        try:
-            raw = _decode_image_payload(data)
-        except Exception as exc:
-            logger.exception(
-                "[poster-upload] Failed to decode base64 image data",
-                extra={"slot": slot, "content_type": content_type},
+        if data:
+            try:
+                raw = _decode_image_payload(data)
+            except Exception as exc:
+                logger.exception(
+                    "[poster-upload] Failed to decode base64 image data",
+                    extra={"slot": slot, "content_type": content_type},
+                )
+                raise ValueError("Invalid base64 image payload") from exc
+        elif key and width_hint and height_hint:
+            logger.info(
+                "[poster-upload] Proceeding without payload using provided dimensions",
+                extra={"slot": slot, "width": width_hint, "height": height_hint},
             )
-            raise ValueError("Invalid base64 image payload") from exc
+        else:
+            raise ValueError("Missing image payload; 请先直传到 R2 后提交 key。")
 
-    if not raw:
+    if raw is None and not (width_hint and height_hint):
         logger.warning(
             "[poster-upload] Image payload is empty after fetching from R2",
             extra={"slot": slot, "content_type": content_type, "key": key},
@@ -326,7 +333,7 @@ def save_template_poster(
 
     try:
         width, height = _inspect_template_image(
-            raw,
+            raw or b"",
             fallback_width=width_hint,
             fallback_height=height_hint,
         )
@@ -353,22 +360,26 @@ def save_template_poster(
     safe_filename = _clean_filename(filename)
     ext = _extension_for(content_type)
 
+    # Save to local path when bytes are available
     directory = _ensure_storage_dir()
     _remove_existing_slot_files(slot)
     path = directory / f"{slot}{ext}"
-    try:
-        with path.open("wb") as handle:
-            handle.write(raw)
-        logger.info(
-            "[poster-upload] Image written",
-            extra={"slot": slot, "path": str(path), "width": width, "height": height},
-        )
-    except Exception as exc:
-        logger.exception(
-            "[poster-upload] Failed to write image to disk",
-            extra={"slot": slot, "path": str(path)},
-        )
-        raise
+    if raw:
+        try:
+            with path.open("wb") as handle:
+                handle.write(raw)
+            logger.info(
+                "[poster-upload] Image written",
+                extra={"slot": slot, "path": str(path), "width": width, "height": height},
+            )
+        except Exception as exc:
+            logger.exception(
+                "[poster-upload] Failed to write image to disk",
+                extra={"slot": slot, "path": str(path)},
+            )
+            raise
+    else:
+        path = None
 
     # Upload to cloud (or reuse existing key)
     key_value: Optional[str] = key
@@ -390,11 +401,12 @@ def save_template_poster(
     metadata[slot] = {
         "filename": safe_filename,
         "content_type": content_type,
-        "path": path.name,
         "width": width,
         "height": height,
         "key": key,
     }
+    if path is not None:
+        metadata[slot]["path"] = path.name
     if key_value:
         metadata[slot]["key"] = key_value
     if url:

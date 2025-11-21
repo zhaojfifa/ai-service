@@ -683,6 +683,19 @@ class GeneratePosterResponse(_CompatModel):
         description="Optional collection of variant posters for A/B comparison.",
     )
 
+    scenario_image: StoredImage | None = Field(
+        None,
+        description="Optional rendered scenario image used for locked layout composition.",
+    )
+    product_image: StoredImage | None = Field(
+        None,
+        description="Optional rendered product image used for locked layout composition.",
+    )
+    gallery_images: list[StoredImage] = Field(
+        default_factory=list,
+        description="Optional rendered gallery thumbnails for the bottom strip.",
+    )
+
     results: list[StoredImage] = Field(
         default_factory=list,
         description="Normalised storage metadata for generated posters (key/url).",

@@ -3236,7 +3236,7 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.getElementById('poster-generated-image');
+    const posterGeneratedLayout = document.getElementById('poster-generated-layout');
     const posterGeneratedPlaceholder = document.getElementById('poster-generated-placeholder');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
@@ -4069,9 +4069,8 @@ async function triggerGeneration(opts) {
     generatedPlaceholder.textContent = generatedPlaceholderDefault;
     generatedPlaceholder.classList.add('hidden');
   };
-  if (generatedImage) {
-    generatedImage.classList.add('hidden');
-    generatedImage.removeAttribute('src');
+  if (posterGeneratedLayout) {
+    posterGeneratedLayout.innerHTML = '';
   }
   resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -4150,19 +4149,13 @@ async function triggerGeneration(opts) {
   
     clearFallbackTimer();
 
-    const posterData = (data && data.poster_image) || null;
-    const generatedAlt = `${stage1Data.product_name || '生成'} 海报`;
-    const hasPosterSource = posterData ? getPosterImageSource(posterData) : '';
     let assigned = false;
-    if (generatedImage && hasPosterSource && assignPosterImage(generatedImage, posterData, generatedAlt)) {
-      generatedImage.classList.remove('hidden');
+    if (posterGeneratedLayout) {
+      const layoutData = buildDualPosterData(stage1Data, data);
+      renderDualPosterPreview(posterGeneratedLayout, TEMPLATE_DUAL_LAYOUT, layoutData);
       hideGeneratedPlaceholder();
       assigned = true;
     } else {
-      if (generatedImage) {
-        generatedImage.classList.add('hidden');
-        generatedImage.removeAttribute('src');
-      }
       resetGeneratedPlaceholder('生成结果缺少可预览图片。');
     }
 
@@ -4570,13 +4563,119 @@ function tokeniseText(text) {
   return tokens;
 }
 
-function getSlotRect(slot) {
-  if (!slot) return null;
-  const x = Number(slot.x) || 0;
-  const y = Number(slot.y) || 0;
-  const width = Number(slot.width) || 0;
-  const height = Number(slot.height) || 0;
-  return { x, y, width, height };
+  function getSlotRect(slot) {
+    if (!slot) return null;
+    const x = Number(slot.x) || 0;
+    const y = Number(slot.y) || 0;
+    const width = Number(slot.width) || 0;
+    const height = Number(slot.height) || 0;
+    return { x, y, width, height };
+  }
+
+  function resolveSlotAssetUrl(asset) {
+  if (!asset) return '';
+  if (typeof asset === 'string') return asset;
+  const url = typeof asset.url === 'string' ? asset.url : '';
+  if (url) return url;
+  const dataUrl =
+    typeof asset.data_url === 'string'
+      ? asset.data_url
+      : typeof asset.dataUrl === 'string'
+      ? asset.dataUrl
+      : '';
+  return dataUrl;
+}
+
+function renderDualPosterPreview(root, layout, data) {
+  if (!root || !layout || !layout.slots) return;
+  root.innerHTML = '';
+  const slots = layout.slots;
+  Object.entries(slots).forEach(([key, slot]) => {
+    if (!slot) return;
+    const slotEl = document.createElement('div');
+    slotEl.classList.add('poster-layout__slot', `poster-layout__slot--${key}`);
+    slotEl.style.left = `${slot.x * 100}%`;
+    slotEl.style.top = `${slot.y * 100}%`;
+    slotEl.style.width = `${slot.w * 100}%`;
+    slotEl.style.height = `${slot.h * 100}%`;
+
+    if (slot.type === 'text') {
+      slotEl.classList.add('poster-layout__slot--text');
+      const textValue = data?.text?.[key] || '';
+      slotEl.textContent = textValue;
+      const fontSize = Math.max(slot.h * 80, 12);
+      slotEl.style.fontSize = `${fontSize}px`;
+      if (slot.align === 'right') {
+        slotEl.style.justifyContent = 'flex-end';
+        slotEl.style.textAlign = 'right';
+      } else if (slot.align === 'center') {
+        slotEl.style.justifyContent = 'center';
+        slotEl.style.textAlign = 'center';
+      } else {
+        slotEl.style.justifyContent = 'flex-start';
+        slotEl.style.textAlign = 'left';
+      }
+    } else {
+      slotEl.classList.add('poster-layout__slot--image');
+      const img = document.createElement('img');
+      const src = resolveSlotAssetUrl(data?.images?.[key]);
+      if (src) {
+        img.src = src;
+      } else {
+        slotEl.style.background = '#f5f5f7';
+      }
+      slotEl.appendChild(img);
+    }
+
+    root.appendChild(slotEl);
+  });
+}
+
+function buildDualPosterData(stage1Data, generation) {
+  const galleryLabels = Array.isArray(stage1Data?.gallery_entries)
+    ? stage1Data.gallery_entries.map((item) => item?.caption || '')
+    : [];
+  const galleryImages = Array.isArray(generation?.gallery_images)
+    ? generation.gallery_images.map((item) => resolveSlotAssetUrl(item))
+    : Array.isArray(stage1Data?.gallery_items)
+    ? stage1Data.gallery_items.map((item) => resolveSlotAssetUrl(item?.asset))
+    : [];
+
+  const images = {
+    logo:
+      resolveSlotAssetUrl(generation?.brand_logo) ||
+      resolveSlotAssetUrl(stage1Data?.brand_logo) ||
+      resolveSlotAssetUrl(stage1Data?.brand_logo_key),
+    scenario:
+      resolveSlotAssetUrl(generation?.scenario_image) ||
+      resolveSlotAssetUrl(stage1Data?.scenario_asset) ||
+      resolveSlotAssetUrl(stage1Data?.scenario_key),
+    product:
+      resolveSlotAssetUrl(generation?.product_image) ||
+      resolveSlotAssetUrl(stage1Data?.product_asset) ||
+      resolveSlotAssetUrl(stage1Data?.product_key),
+  };
+
+  ['series_1_img', 'series_2_img', 'series_3_img', 'series_4_img'].forEach(
+    (slotKey, index) => {
+      images[slotKey] = galleryImages[index] || '';
+    }
+  );
+
+  const text = {
+    brand_name: stage1Data?.brand_name || '',
+    agent_name: stage1Data?.agent_name || '',
+    headline: stage1Data?.title || '',
+    tagline: stage1Data?.subtitle || '',
+    series_1_txt: galleryLabels[0] || '',
+    series_2_txt: galleryLabels[1] || '',
+    series_3_txt: galleryLabels[2] || '',
+    series_4_txt: galleryLabels[3] || '',
+  };
+
+  return { images, text };
+}
+
 }
 
 async function saveStage2Result(data) {
