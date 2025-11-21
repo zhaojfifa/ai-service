@@ -1,4 +1,3 @@
-import base64
 from io import BytesIO
 
 import pytest
@@ -6,11 +5,18 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 
-def _encode_png(color: tuple[int, int, int] = (255, 0, 0)) -> str:
+def _png_bytes(color: tuple[int, int, int] = (255, 0, 0)) -> bytes:
     image = Image.new("RGB", (64, 64), color)
     buffer = BytesIO()
     image.save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode()
+    return buffer.getvalue()
+
+
+def _jpeg_bytes(color: tuple[int, int, int] = (200, 100, 50)) -> bytes:
+    image = Image.new("RGB", (64, 64), color)
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG")
+    return buffer.getvalue()
 
 
 @pytest.fixture()
@@ -19,15 +25,37 @@ def template_tmpdir(tmp_path, monkeypatch):
     yield tmp_path
 
 
-def test_template_poster_upload_and_fetch(template_tmpdir):
+@pytest.fixture()
+def fake_r2_storage(monkeypatch):
+    import app.services.template_variants as template_variants
+
+    storage: dict[str, bytes] = {}
+
+    def fake_get_bytes(key: str) -> bytes:
+        if key not in storage:
+            raise RuntimeError(f"missing R2 object: {key}")
+        return storage[key]
+
+    def fake_public_url(key: str) -> str:
+        return f"https://cdn.example.com/{key}"
+
+    monkeypatch.setattr(template_variants, "get_bytes", fake_get_bytes)
+    monkeypatch.setattr(template_variants, "public_url_for", fake_public_url)
+    return storage
+
+
+def test_template_poster_upload_and_fetch(template_tmpdir, fake_r2_storage):
     from app.main import app
 
     client = TestClient(app)
+    key = "template-posters/variant_a/poster-a.png"
+    fake_r2_storage[key] = _png_bytes((255, 0, 0))
     payload = {
         "slot": "variant_a",
         "filename": "PosterA.png",
         "content_type": "image/png",
-        "data": _encode_png((255, 0, 0)),
+        "key": key,
+        "size": len(fake_r2_storage[key]),
     }
     response = client.post("/api/template-posters", json=payload)
     assert response.status_code == 200
@@ -37,7 +65,8 @@ def test_template_poster_upload_and_fetch(template_tmpdir):
     assert data["poster"]["width"] == 64
     assert data["poster"]["height"] == 64
     assert data["poster"]["data_url"].startswith("data:image/png;base64,")
-    assert data["poster"].get("url") is None
+    assert data["poster"]["url"].startswith("https://cdn.example.com/")
+    assert data["poster"]["key"] == key
 
     response = client.get("/api/template-posters")
     assert response.status_code == 200
@@ -46,50 +75,47 @@ def test_template_poster_upload_and_fetch(template_tmpdir):
     assert listing["posters"][0]["slot"] == "variant_a"
 
 
-def test_template_poster_uploads_to_cloudflare(monkeypatch, template_tmpdir):
+def test_template_poster_metadata_uses_existing_r2_key(template_tmpdir, fake_r2_storage):
     import app.services.template_variants as template_variants
 
-    uploaded = {}
-
-    def fake_upload(raw: bytes, *, filename: str, content_type: str):
-        uploaded["raw_len"] = len(raw)
-        uploaded["filename"] = filename
-        uploaded["content_type"] = content_type
-        return "template-posters/test/key.png", "https://cdn.example.com/template-posters/test/key.png"
-
-    monkeypatch.setattr(template_variants, "_upload_to_cloudflare", fake_upload)
+    key = "template-posters/test/key.png"
+    fake_r2_storage[key] = _png_bytes((128, 64, 32))
 
     record = template_variants.save_template_poster(
         slot="variant_a",
         filename="Cloud.png",
         content_type="image/png",
-        data=_encode_png((128, 64, 32)),
+        key=key,
+        size=len(fake_r2_storage[key]),
     )
 
-    assert record.key == "template-posters/test/key.png"
-    assert record.url == "https://cdn.example.com/template-posters/test/key.png"
-    assert uploaded["filename"] == "Cloud.png"
-    assert uploaded["content_type"] == "image/png"
-    assert uploaded["raw_len"] > 0
+    assert record.key == key
+    assert record.url == f"https://cdn.example.com/{key}"
 
     posters = template_variants.list_template_posters()
-    assert posters[0].url == "https://cdn.example.com/template-posters/test/key.png"
+    assert posters[0].url == f"https://cdn.example.com/{key}"
 
 
-def test_generate_poster_uses_template_overrides(template_tmpdir):
+def test_generate_poster_uses_template_overrides(template_tmpdir, fake_r2_storage):
     import app.services.template_variants as template_variants
 
+    key_a = "template-posters/variant_a/alpha.png"
+    fake_r2_storage[key_a] = _png_bytes((0, 255, 0))
     template_variants.save_template_poster(
         slot="variant_a",
         filename="alpha.png",
         content_type="image/png",
-        data=_encode_png((0, 255, 0)),
+        key=key_a,
+        size=len(fake_r2_storage[key_a]),
     )
+    key_b = "template-posters/variant_b/bravo.png"
+    fake_r2_storage[key_b] = _png_bytes((0, 0, 255))
     template_variants.save_template_poster(
         slot="variant_b",
         filename="bravo.png",
         content_type="image/png",
-        data=_encode_png((0, 0, 255)),
+        key=key_b,
+        size=len(fake_r2_storage[key_b]),
     )
 
     from app.schemas import PosterInput
@@ -98,7 +124,7 @@ def test_generate_poster_uses_template_overrides(template_tmpdir):
     poster = PosterInput(
         brand_name="Brand",
         agent_name="Agent",
-        scenario_image="scene",
+        scenario_image="https://cdn.example.com/scene.png",
         product_name="Product",
         features=["f1", "f2", "f3"],
         title="Title",
@@ -117,3 +143,52 @@ def test_generate_poster_uses_template_overrides(template_tmpdir):
     assert result.poster.filename == "alpha.png"
     assert result.variants
     assert result.variants[0].filename == "bravo.png"
+
+
+def test_template_poster_accepts_jpeg_variants(template_tmpdir, fake_r2_storage):
+    from app.main import app
+
+    client = TestClient(app)
+    key_jpeg = "template-posters/variant_a/poster-a.jpeg"
+    fake_r2_storage[key_jpeg] = _jpeg_bytes()
+    payload_jpeg = {
+        "slot": "variant_a",
+        "filename": "PosterA.jpeg",
+        "content_type": "image/jpeg",
+        "key": key_jpeg,
+        "size": len(fake_r2_storage[key_jpeg]),
+    }
+    response = client.post("/api/template-posters", json=payload_jpeg)
+    assert response.status_code == 200
+
+    key_jpg = "template-posters/variant_b/poster-b.jpg"
+    fake_r2_storage[key_jpg] = _jpeg_bytes((20, 40, 60))
+    payload_jpg = {
+        "slot": "variant_b",
+        "filename": "PosterB.jpg",
+        "content_type": "image/jpg",
+        "key": key_jpg,
+        "size": len(fake_r2_storage[key_jpg]),
+    }
+    response = client.post("/api/template-posters", json=payload_jpg)
+    assert response.status_code == 200
+
+
+def test_template_poster_invalid_image_returns_detail(template_tmpdir, fake_r2_storage):
+    from app.main import app
+
+    client = TestClient(app)
+    key = "template-posters/variant_b/broken.png"
+    fake_r2_storage[key] = b"not-an-image"
+    payload = {
+        "slot": "variant_b",
+        "filename": "broken.png",
+        "content_type": "image/png",
+        "key": key,
+        "size": len(fake_r2_storage[key]),
+    }
+    response = client.post("/api/template-posters", json=payload)
+    assert response.status_code == 400
+    detail = response.json().get("detail")
+    assert detail["error"] == "INVALID_IMAGE"
+    assert detail["reason"] in {"cannot_identify", "decode_failed"}
