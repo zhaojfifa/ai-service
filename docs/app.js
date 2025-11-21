@@ -2486,8 +2486,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     previewContainer.classList.remove('hidden');
   }
 
+  const assetSrc = (asset) => asset?.dataUrl || asset?.remoteUrl || null;
+
   if (brandLogo) {
-    brandLogo.src = payload.brand_logo?.dataUrl || placeholderImages.brandLogo;
+    brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
   }
   if (brandName) {
     brandName.textContent = payload.brand_name || '品牌名称';
@@ -2496,10 +2498,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
   }
   if (scenarioImage) {
-    scenarioImage.src = payload.scenario_asset?.dataUrl || placeholderImages.scenario;
+    scenarioImage.src = assetSrc(payload.scenario_asset) || placeholderImages.scenario;
   }
   if (productImage) {
-    productImage.src = payload.product_asset?.dataUrl || placeholderImages.product;
+    productImage.src = assetSrc(payload.product_asset) || placeholderImages.product;
   }
   if (title) {
     title.textContent = payload.title || '标题文案';
@@ -2532,11 +2534,8 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       const figure = document.createElement('figure');
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
-      if (entry?.asset?.dataUrl) {
-        img.src = entry.asset.dataUrl;
-      } else {
-        img.src = getGalleryPlaceholder(index, galleryLabel);
-      }
+      const gallerySrc = assetSrc(entry?.asset);
+      img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
       img.alt = `${galleryLabel} ${index + 1} 预览`;
       caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
       figure.appendChild(img);
@@ -3877,6 +3876,7 @@ async function triggerGeneration(opts) {
       series_description: stage1Data.series_description,
 
       brand_logo: brandLogoUrl,
+      brand_logo_key: brandLogoRef.key,
 
       scenario_key: scenarioRef.key,
       scenario_asset: scenarioUrl,

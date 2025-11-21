@@ -234,6 +234,7 @@ def _normalise_asset_reference(label: str, value: Any) -> Any:
 
 def _key_field_for_asset(field: str) -> str | None:
     overrides = {
+        "brand_logo": "brand_logo_key",
         "scenario_image": "scenario_key",
         "product_image": "product_key",
     }
@@ -346,6 +347,7 @@ def _poster_asset_summary(poster: PosterInput | dict[str, Any]) -> dict[str, Any
         else:
             keys.append(_shorten_asset_value(trimmed))
 
+    _record(getattr(poster, "brand_logo_key", None))
     _record(getattr(poster, "brand_logo", None))
     _record(getattr(poster, "scenario_asset", None))
     _record(getattr(poster, "product_asset", None))
@@ -739,13 +741,19 @@ def _render_template_frame(
 
     draw = ImageDraw.Draw(canvas)
 
-    font_title = _load_font(64, weight="bold")
-    font_subtitle = _load_font(40, weight="bold")
-    font_brand = _load_font(36, weight="semibold")
-    font_agent = _load_font(30, weight="semibold")
-    font_body = _load_font(28)
-    font_feature = _load_font(26)
-    font_caption = _load_font(22)
+    scale = max(0.6, min(1.4, width / 1080))
+
+    def _scaled_font(base: int, *, weight: str = "regular") -> ImageFont.ImageFont:
+        size = max(12, int(round(base * scale)))
+        return _load_font(size, weight=weight)
+
+    font_title = _scaled_font(64, weight="bold")
+    font_subtitle = _scaled_font(40, weight="bold")
+    font_brand = _scaled_font(36, weight="semibold")
+    font_agent = _scaled_font(30, weight="semibold")
+    font_body = _scaled_font(28)
+    font_feature = _scaled_font(26)
+    font_caption = _scaled_font(22)
 
     slots = spec.get("slots", {})
 
@@ -754,7 +762,9 @@ def _render_template_frame(
     if logo_slot:
         left, top, width_box, height_box = _slot_to_box(logo_slot)
         logo_box = (left, top, left + width_box, top + height_box)
-        logo_image = _load_image_from_data_url(poster.brand_logo)
+        logo_image = _load_image_asset(
+            poster.brand_logo, getattr(poster, "brand_logo_key", None)
+        )
         if logo_image:
             _paste_image(canvas, logo_image, logo_box, mode="contain")
         else:
