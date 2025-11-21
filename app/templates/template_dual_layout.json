@@ -1,0 +1,245 @@
+{
+  "id": "template_dual",
+  "version": 1,
+  "canvas": {
+    "aspect_ratio": "1:1",
+    "width": 1024,
+    "height": 1024
+  },
+  "slots": {
+    "top_bar": {
+      "type": "container",
+      "x": 0.0,
+      "y": 0.0,
+      "w": 1.0,
+      "h": 0.16
+    },
+    "logo": {
+      "type": "image",
+      "parent": "top_bar",
+      "x": 0.04,
+      "y": 0.18,
+      "w": 0.09,
+      "h": 0.64,
+      "object_fit": "contain",
+      "border_radius": 0.18
+    },
+    "brand_name": {
+      "type": "text",
+      "parent": "top_bar",
+      "x": 0.18,
+      "y": 0.30,
+      "w": 0.30,
+      "h": 0.40,
+      "text_align": "left",
+      "font": {
+        "size": 0.028,
+        "weight": 600,
+        "line_height": 1.2
+      }
+    },
+    "agent_name": {
+      "type": "text",
+      "parent": "top_bar",
+      "x": 0.60,
+      "y": 0.30,
+      "w": 0.32,
+      "h": 0.40,
+      "text_align": "center",
+      "font": {
+        "size": 0.026,
+        "weight": 600,
+        "line_height": 1.3,
+        "uppercase": true
+      }
+    },
+    "scenario": {
+      "type": "image",
+      "x": 0.04,
+      "y": 0.19,
+      "w": 0.40,
+      "h": 0.52,
+      "object_fit": "cover",
+      "border_radius": 0.02
+    },
+    "product": {
+      "type": "image",
+      "x": 0.46,
+      "y": 0.19,
+      "w": 0.50,
+      "h": 0.52,
+      "object_fit": "cover",
+      "border_radius": 0.02
+    },
+    "callouts": [
+      {
+        "id": "feature_1",
+        "type": "text_bubble",
+        "anchor_slot": "product",
+        "x": 0.70,
+        "y": 0.24,
+        "w": 0.26,
+        "h": 0.16,
+        "text_align": "left",
+        "font": { "size": 0.015, "line_height": 1.3 }
+      },
+      {
+        "id": "feature_2",
+        "type": "text_bubble",
+        "anchor_slot": "product",
+        "x": 0.72,
+        "y": 0.40,
+        "w": 0.24,
+        "h": 0.16,
+        "text_align": "left",
+        "font": { "size": 0.015, "line_height": 1.3 }
+      },
+      {
+        "id": "feature_3",
+        "type": "text_bubble",
+        "anchor_slot": "product",
+        "x": 0.72,
+        "y": 0.56,
+        "w": 0.24,
+        "h": 0.16,
+        "text_align": "left",
+        "font": { "size": 0.015, "line_height": 1.3 }
+      },
+      {
+        "id": "feature_4",
+        "type": "text_bubble",
+        "anchor_slot": "product",
+        "x": 0.48,
+        "y": 0.70,
+        "w": 0.22,
+        "h": 0.12,
+        "text_align": "left",
+        "font": { "size": 0.015, "line_height": 1.3 }
+      }
+    ],
+    "headline": {
+      "type": "text",
+      "x": 0.06,
+      "y": 0.74,
+      "w": 0.88,
+      "h": 0.10,
+      "text_align": "center",
+      "font": {
+        "size": 0.038,
+        "weight": 700,
+        "tracking": 0.12
+      }
+    },
+    "gallery_row": {
+      "type": "container",
+      "x": 0.06,
+      "y": 0.84,
+      "w": 0.88,
+      "h": 0.12
+    },
+    "gallery": [
+      {
+        "id": "gallery_1",
+        "type": "image",
+        "parent": "gallery_row",
+        "x": 0.00,
+        "y": 0.08,
+        "w": 0.22,
+        "h": 0.72,
+        "object_fit": "cover",
+        "border_radius": 0.02
+      },
+      {
+        "id": "gallery_2",
+        "type": "image",
+        "parent": "gallery_row",
+        "x": 0.26,
+        "y": 0.08,
+        "w": 0.22,
+        "h": 0.72,
+        "object_fit": "cover",
+        "border_radius": 0.02
+      },
+      {
+        "id": "gallery_3",
+        "type": "image",
+        "parent": "gallery_row",
+        "x": 0.52,
+        "y": 0.08,
+        "w": 0.22,
+        "h": 0.72,
+        "object_fit": "cover",
+        "border_radius": 0.02
+      },
+      {
+        "id": "gallery_4",
+        "type": "image",
+        "parent": "gallery_row",
+        "x": 0.78,
+        "y": 0.08,
+        "w": 0.22,
+        "h": 0.72,
+        "object_fit": "cover",
+        "border_radius": 0.02
+      }
+    ],
+    "gallery_labels": [
+      {
+        "id": "gallery_label_1",
+        "type": "text",
+        "parent": "gallery_row",
+        "x": 0.00,
+        "y": 0.82,
+        "w": 0.22,
+        "h": 0.18,
+        "text_align": "center",
+        "font": { "size": 0.015 }
+      },
+      {
+        "id": "gallery_label_2",
+        "type": "text",
+        "parent": "gallery_row",
+        "x": 0.26,
+        "y": 0.82,
+        "w": 0.22,
+        "h": 0.18,
+        "text_align": "center",
+        "font": { "size": 0.015 }
+      },
+      {
+        "id": "gallery_label_3",
+        "type": "text",
+        "parent": "gallery_row",
+        "x": 0.52,
+        "y": 0.82,
+        "w": 0.22,
+        "h": 0.18,
+        "text_align": "center",
+        "font": { "size": 0.015 }
+      },
+      {
+        "id": "gallery_label_4",
+        "type": "text",
+        "parent": "gallery_row",
+        "x": 0.78,
+        "y": 0.82,
+        "w": 0.22,
+        "h": 0.18,
+        "text_align": "center",
+        "font": { "size": 0.015 }
+      }
+    ],
+    "tagline": {
+      "type": "text",
+      "x": 0.10,
+      "y": 0.93,
+      "w": 0.80,
+      "h": 0.05,
+      "text_align": "center",
+      "font": {
+        "size": 0.022,
+        "weight": 600
+      }
+    }
+  }
+}

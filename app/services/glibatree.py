@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
 from app.schemas.poster import PosterPayload
+from app.templates.layouts import load_layout
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
@@ -950,6 +951,16 @@ def generate_poster_asset(
     )
 
     template = _load_template_resources(poster.template_id)
+    layout_spec = None
+    try:
+        layout_spec = load_layout(poster.template_id or DEFAULT_TEMPLATE_ID)
+    except Exception:  # pragma: no cover - optional debug aid
+        logger.warning("[vertex] failed to load layout spec", exc_info=True)
+    else:
+        logger.info(
+            "[vertex] loaded layout spec",
+            extra={"template_id": poster.template_id or DEFAULT_TEMPLATE_ID, "slots": len(layout_spec or {})},
+        )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     settings = get_settings()

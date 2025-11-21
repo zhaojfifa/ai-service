@@ -305,6 +305,10 @@ def save_template_poster(
     if aspect_ratio <= 0 or aspect_ratio < 0.7 or aspect_ratio > 1.5:
         raise ValueError("Unsupported aspect ratio for template poster")
 
+    aspect_ratio = width / height if height else 0
+    if aspect_ratio <= 0 or aspect_ratio < 0.7 or aspect_ratio > 1.5:
+        raise ValueError("Unsupported aspect ratio for template poster")
+
     # Filename sanitization
     safe_filename = _clean_filename(filename)
     ext = _extension_for(content_type)

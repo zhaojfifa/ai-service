@@ -134,6 +134,28 @@ function assetUrl(path) {
 
 App.utils.assetUrl = assetUrl;
 
+// Layout helpers for relative-coordinates templates
+App.utils.resolveRect = function resolveRect(slot, canvasWidth, canvasHeight, parentRect) {
+  if (!slot) return { x: 0, y: 0, w: 0, h: 0 };
+  const px = parentRect ? parentRect.x : 0;
+  const py = parentRect ? parentRect.y : 0;
+  const pw = parentRect ? parentRect.w : canvasWidth;
+  const ph = parentRect ? parentRect.h : canvasHeight;
+
+  return {
+    x: px + Number(slot.x || 0) * pw,
+    y: py + Number(slot.y || 0) * ph,
+    w: Number(slot.w || 0) * pw,
+    h: Number(slot.h || 0) * ph,
+  };
+};
+
+App.utils.fontPx = function fontPx(font, canvasHeight) {
+  if (!font) return 0;
+  const size = typeof font.size === 'number' ? font.size : 0.02;
+  return size * canvasHeight;
+};
+
 function normaliseBase(base) {
   if (!base) return null;
   try {
