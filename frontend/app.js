@@ -2,6 +2,9 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// 保存最近一次生成的海报结果，供对比/AB 功能复用
+let posterGeneratedImage = null;
+
 // 1) 新增：按域名决定健康检查路径
 function isRenderHost(base) {
   try {
@@ -3543,7 +3546,6 @@ function initStage2() {
           aiPreviewMessage,
           posterVisual,
           templatePoster: fallbackPoster,
-          generatedImage: posterGeneratedImage,
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
           promptGroup,
@@ -3581,11 +3583,34 @@ function initStage2() {
     let templateRegistry = [];
 
     const handleABTest = () => {
-      const request = promptManager?.buildRequest?.() || { variants: 2 };
-      runGeneration({
-        forceVariants: Math.max(2, request.variants || 2),
-        abTest: true,
-      });
+      if (!posterGeneratedImage || !posterGeneratedImage.url) {
+        alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
+        return;
+      }
+
+      const templateImgEl = document.querySelector("[data-role='template-preview-image']") || null;
+      const baseline = templateImgEl
+        ? {
+            url: templateImgEl.src,
+            width:
+              typeof templateImgEl.naturalWidth === 'number' && templateImgEl.naturalWidth > 0
+                ? templateImgEl.naturalWidth
+                : templateImgEl.width || 0,
+            height:
+              typeof templateImgEl.naturalHeight === 'number' && templateImgEl.naturalHeight > 0
+                ? templateImgEl.naturalHeight
+                : templateImgEl.height || 0,
+          }
+        : activeTemplatePoster
+        ? {
+            url: getPosterImageSource(activeTemplatePoster),
+            width: activeTemplatePoster.width || 0,
+            height: activeTemplatePoster.height || 0,
+          }
+        : null;
+
+      openABModal?.(baseline, posterGeneratedImage) ||
+        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
     };
 
     promptManager = await setupPromptInspector(stage1Data, {
@@ -3819,7 +3844,7 @@ async function triggerGeneration(opts) {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
     posterVisual,
-    generatedImage,
+    generatedImage = null,
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
     templatePoster = null,
@@ -4093,7 +4118,7 @@ async function triggerGeneration(opts) {
     clearFallbackTimer();
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage) {
+    if (generatedImage?.classList) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
@@ -4140,6 +4165,14 @@ async function triggerGeneration(opts) {
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
   
+    posterGeneratedImage = data?.poster_url || data?.poster_image?.url
+      ? {
+          url: data.poster_url || data?.poster_image?.url || '',
+          width: data?.poster_image?.width || 0,
+          height: data?.poster_image?.height || 0,
+        }
+      : null;
+
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
       variants: Array.isArray(data?.variants) ? data.variants.length : 0,
@@ -4192,12 +4225,13 @@ async function triggerGeneration(opts) {
     return data;
   } catch (error) {
     console.error('[generatePoster] 请求失败', error);
+    posterGeneratedImage = null;
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage) {
+    if (generatedImage?.classList) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
