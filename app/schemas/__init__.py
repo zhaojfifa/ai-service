@@ -148,6 +148,10 @@ class PosterInput(_CompatModel):
         None,
         description="Optional reference to the brand logo stored in R2.",
     )
+    brand_logo_key: Optional[str] = Field(
+        None,
+        description="Optional Cloudflare R2 key for the uploaded brand logo.",
+    )
     scenario_asset: Optional[str] = Field(
         None,
         description="Optional reference to the scenario image stored in R2.",
