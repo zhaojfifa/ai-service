@@ -4676,8 +4676,6 @@ function buildDualPosterData(stage1Data, generation) {
   return { images, text };
 }
 
-}
-
 async function saveStage2Result(data) {
   if (!data) return;
 
