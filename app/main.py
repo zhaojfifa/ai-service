@@ -961,6 +961,7 @@ async def generate_poster(request: Request) -> JSONResponse:
                 ),
                 "vertex_traces": result.trace_ids,
                 "fallback_used": result.fallback_used,
+                "provider": getattr(result, "provider", None),
             },
         )
         response_payload = GeneratePosterResponse(

@@ -128,6 +128,17 @@ VERTEX_LOCATION=europe-west4
 VERTEX_IMAGEN_MODEL=imagen-3.0-generate-001
 ```
 
+### 线下验证 Vertex 调用链路
+
+1. 在 `/docs` 打开 Swagger，先调用 `/api/r2/presign-put` 上传一张素材图到 R2，获取 URL/Key。
+2. 使用前端 Network 中的示例 JSON 或手动构造 `/api/generate-poster` 请求，将素材 Key 填入对应字段。
+3. 观察 Render Logs，预期会连续出现：
+   - `generate_poster request received`（含品牌、布局等摘要）；
+   - `[vertex] generate_poster start`/`done`，`provider` 为 VertexImagen3 及 prompt 片段；
+   - `generate_poster completed`，包含生成的文件名、变体数量以及 Vertex trace。
+
+只要上述三类日志都出现，说明前端 → 后端 → Vertex → R2 的链路正常。
+
 生成接口默认写入对象存储并仅返回 URL/Key：
 
 ```

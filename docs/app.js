@@ -3680,21 +3680,21 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
   const entries = [
     [
-      '模板',
+      'Template',
       templateName || stage1Data.template_id || DEFAULT_STAGE1.template_id,
     ],
-    ['品牌 / 代理', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
-    ['主产品名称', stage1Data.product_name],
+    ['Brand / Agent', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
+    ['Product name', stage1Data.product_name],
     [
-      '功能点',
+      'Key features',
       (stage1Data.features || [])
         .map((feature, index) => `${index + 1}. ${feature}`)
         .join('\n'),
     ],
-    ['标题', stage1Data.title],
-    ['副标题', stage1Data.subtitle],
+    ['Headline', stage1Data.title],
+    ['Subheadline', stage1Data.subtitle],
     [
-      stage1Data.gallery_label || '底部产品',
+      stage1Data.gallery_label || 'Gallery',
       (() => {
         const galleryLimit = stage1Data.gallery_limit || 0;
         const galleryCount =
@@ -3702,9 +3702,9 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
             entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
           ).length || 0;
         if (galleryLimit > 0) {
-          return `${galleryCount} / ${galleryLimit} 项素材`;
+          return `${galleryCount} / ${galleryLimit} assets`;
         }
-        return `${galleryCount} 项素材`;
+        return `${galleryCount} assets`;
       })(),
     ],
   ];
