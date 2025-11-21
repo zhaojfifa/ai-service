@@ -2,8 +2,17 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
-// 保存最近一次生成的海报结果，供对比/AB 功能复用
-let posterGeneratedImage = null;
+// --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
+const posterGenerationState = {
+  /** 海报成品图 URL（R2 的公开地址） */
+  posterUrl: null,
+  /** 本次生成用到的 prompt 结构，用于展示 / 调试 */
+  promptBundle: null,
+  /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
+  rawResult: null,
+};
+// 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
+// 生成成功后 A/B 对比按钮才可使用。
 
 // 1) 新增：按域名决定健康检查路径
 function isRenderHost(base) {
@@ -3545,6 +3554,7 @@ function initStage2() {
           aiSpinner,
           aiPreviewMessage,
           posterVisual,
+          posterGeneratedLayout,
           templatePoster: fallbackPoster,
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
@@ -3583,7 +3593,7 @@ function initStage2() {
     let templateRegistry = [];
 
     const handleABTest = () => {
-      if (!posterGeneratedImage || !posterGeneratedImage.url) {
+      if (!posterGenerationState.posterUrl) {
         alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
         return;
       }
@@ -3609,7 +3619,13 @@ function initStage2() {
           }
         : null;
 
-      openABModal?.(baseline, posterGeneratedImage) ||
+      const generated = {
+        url: posterGenerationState.posterUrl,
+        width: posterGenerationState.rawResult?.poster_image?.width || 0,
+        height: posterGenerationState.rawResult?.poster_image?.height || 0,
+      };
+
+      openABModal?.(baseline, generated) ||
         alert('已准备好最新生成结果，可在右侧预览卡片查看。');
     };
 
@@ -3844,6 +3860,7 @@ async function triggerGeneration(opts) {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
     posterVisual,
+    posterGeneratedLayout = null,
     generatedImage = null,
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
@@ -4164,14 +4181,11 @@ async function triggerGeneration(opts) {
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-  
-    posterGeneratedImage = data?.poster_url || data?.poster_image?.url
-      ? {
-          url: data.poster_url || data?.poster_image?.url || '',
-          width: data?.poster_image?.width || 0,
-          height: data?.poster_image?.height || 0,
-        }
-      : null;
+
+    posterGenerationState.posterUrl = data?.poster_url || data?.poster_image?.url ||
+      (Array.isArray(data?.results) && data.results[0]?.url) || null;
+    posterGenerationState.promptBundle = data?.prompt_bundle || null;
+    posterGenerationState.rawResult = data || null;
 
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
@@ -4225,7 +4239,9 @@ async function triggerGeneration(opts) {
     return data;
   } catch (error) {
     console.error('[generatePoster] 请求失败', error);
-    posterGeneratedImage = null;
+    posterGenerationState.posterUrl = null;
+    posterGenerationState.promptBundle = null;
+    posterGenerationState.rawResult = null;
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
