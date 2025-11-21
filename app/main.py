@@ -9,6 +9,7 @@ import os
 import uuid
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -934,6 +935,7 @@ async def generate_poster(request: Request) -> JSONResponse:
                 ),
                 "vertex_traces": result.trace_ids,
                 "fallback_used": result.fallback_used,
+                "provider": getattr(result, "provider", None),
             },
         )
         response_payload = GeneratePosterResponse(
