@@ -148,6 +148,10 @@ class PosterInput(_CompatModel):
         None,
         description="Optional reference to the brand logo stored in R2.",
     )
+    brand_logo_key: Optional[str] = Field(
+        None,
+        description="Optional Cloudflare R2 key for the uploaded brand logo.",
+    )
     scenario_asset: Optional[str] = Field(
         None,
         description="Optional reference to the scenario image stored in R2.",
@@ -514,7 +518,24 @@ class TemplatePosterUploadRequest(_CompatModel):
     )
     filename: constr(strip_whitespace=True, min_length=1)
     content_type: constr(strip_whitespace=True, min_length=1)
-    data: constr(strip_whitespace=True, min_length=1)
+    size: int | None = Field(
+        None,
+        ge=0,
+        description="Optional payload size hint (bytes) when using object storage.",
+    )
+    key: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        None,
+        description="Cloudflare R2 object key referencing the uploaded template image.",
+    )
+    data: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        None,
+        description="Deprecated: inline base64 payload; prefer uploading to R2 and sending a key.",
+    )
+
+    @field_validator("key")
+    @classmethod
+    def _reject_data_url_key(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 class TemplatePosterEntry(_CompatModel):
     slot: Literal["variant_a", "variant_b"]
