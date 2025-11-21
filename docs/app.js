@@ -1574,6 +1574,16 @@ function initStage1() {
       state.templateId = first.id;
       state.templateLabel = first.name || '';
     }
+
+    const currentEntry = templateRegistry.find((entry) => entry.id === state.templateId);
+    if (!currentEntry) {
+      const fallback = templateRegistry[0];
+      state.templateId = fallback.id;
+      state.templateLabel = fallback.name || '';
+    } else if (!state.templateLabel) {
+      state.templateLabel = currentEntry.name || '';
+    }
+
     templateSelectStage1.value = state.templateId;
 
     // 4) 预览一次
