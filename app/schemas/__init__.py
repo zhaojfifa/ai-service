@@ -148,6 +148,10 @@ class PosterInput(_CompatModel):
         None,
         description="Optional reference to the brand logo stored in R2.",
     )
+    brand_logo_key: Optional[str] = Field(
+        None,
+        description="Optional Cloudflare R2 key for the uploaded brand logo.",
+    )
     scenario_asset: Optional[str] = Field(
         None,
         description="Optional reference to the scenario image stored in R2.",
@@ -514,7 +518,34 @@ class TemplatePosterUploadRequest(_CompatModel):
     )
     filename: constr(strip_whitespace=True, min_length=1)
     content_type: constr(strip_whitespace=True, min_length=1)
-    data: constr(strip_whitespace=True, min_length=1)
+    width: int | None = Field(
+        None,
+        ge=0,
+        description="Optional width hint (pixels) for template poster validation.",
+    )
+    height: int | None = Field(
+        None,
+        ge=0,
+        description="Optional height hint (pixels) for template poster validation.",
+    )
+    size: int | None = Field(
+        None,
+        ge=0,
+        description="Optional payload size hint (bytes) when using object storage.",
+    )
+    key: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        None,
+        description="Cloudflare R2 object key referencing the uploaded template image.",
+    )
+    data: Optional[constr(strip_whitespace=True, min_length=1)] = Field(
+        None,
+        description="Deprecated: inline base64 payload; prefer uploading to R2 and sending a key.",
+    )
+
+    @field_validator("key")
+    @classmethod
+    def _reject_data_url_key(cls, value: str | None) -> str | None:
+        return _reject_data_uri(value)
 
 class TemplatePosterEntry(_CompatModel):
     slot: Literal["variant_a", "variant_b"]
@@ -522,6 +553,37 @@ class TemplatePosterEntry(_CompatModel):
 
 class TemplatePosterCollection(_CompatModel):
     posters: list[TemplatePosterEntry] = Field(default_factory=list)
+
+
+# ------------------------------------------------------------------------------
+# 版式布局（相对坐标模板）
+# ------------------------------------------------------------------------------
+
+
+class TemplateSlot(_CompatModel):
+    key: constr(strip_whitespace=True, min_length=1) = Field(
+        ..., description="语义槽位名，如 logo/brand_name/scenario/product/gallery1",
+    )
+    kind: Literal["image", "text"] = "image"
+    x: float = Field(..., ge=0.0, le=1.0, description="左上角 X，相对于父容器宽度的比例")
+    y: float = Field(..., ge=0.0, le=1.0, description="左上角 Y，相对于父容器高度的比例")
+    w: float = Field(..., ge=0.0, le=1.0, description="宽度比例")
+    h: float = Field(..., ge=0.0, le=1.0, description="高度比例")
+    align: Literal["left", "center", "right"] = "left"
+    valign: Literal["top", "middle", "bottom"] = "middle"
+    font_scale: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="对 text 槽位生效：相对于画布高度的字号比例，例如 0.035",
+    )
+
+
+class TemplateLayout(_CompatModel):
+    layout_key: constr(strip_whitespace=True, min_length=1)
+    canvas_width: int = Field(1024, gt=0)
+    canvas_height: int = Field(1024, gt=0)
+    slots: list[TemplateSlot] = Field(default_factory=list)
 
 # ------------------------------------------------------------------------------
 # 生成请求 / 响应

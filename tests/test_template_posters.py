@@ -19,15 +19,25 @@ def template_tmpdir(tmp_path, monkeypatch):
     yield tmp_path
 
 
-def test_template_poster_upload_and_fetch(template_tmpdir):
+def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch):
     from app.main import app
+    import app.services.template_variants as template_variants
+
+    raw_png = base64.b64decode(_encode_png((255, 0, 0)))
+
+    def fake_get_bytes(key: str):
+        assert key == "template-posters/PosterA.png"
+        return raw_png
+
+    monkeypatch.setattr(template_variants, "get_bytes", fake_get_bytes)
 
     client = TestClient(app)
     payload = {
         "slot": "variant_a",
         "filename": "PosterA.png",
         "content_type": "image/png",
-        "data": _encode_png((255, 0, 0)),
+        "key": "template-posters/PosterA.png",
+        "size": len(raw_png),
     }
     response = client.post("/api/template-posters", json=payload)
     assert response.status_code == 200
@@ -98,7 +108,7 @@ def test_generate_poster_uses_template_overrides(template_tmpdir):
     poster = PosterInput(
         brand_name="Brand",
         agent_name="Agent",
-        scenario_image="scene",
+        scenario_image="https://cdn.example.com/scene.png",
         product_name="Product",
         features=["f1", "f2", "f3"],
         title="Title",

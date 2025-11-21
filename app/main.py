@@ -9,6 +9,7 @@ import os
 import uuid
 from functools import lru_cache
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -772,7 +773,6 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
     slot = request_data.slot
     filename = request_data.filename
     content_type = request_data.content_type
-    data = request_data.data
 
     logger.info(
         "template poster upload received",
@@ -780,7 +780,8 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             "slot": slot,
             "poster_filename": filename,
             "content_type": content_type,
-            "size_bytes": len(data or ""),
+            "size_bytes": request_data.size,
+            "has_key": bool(request_data.key),
         },
     )
     try:
@@ -788,7 +789,10 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
             slot=slot,
             filename=filename,
             content_type=content_type,
-            data=data,
+            key=request_data.key,
+            data=request_data.data,
+            width=request_data.width,
+            height=request_data.height,
         )
         return poster_entry_from_record(record)
     except ValueError as exc:
@@ -934,6 +938,7 @@ async def generate_poster(request: Request) -> JSONResponse:
                 ),
                 "vertex_traces": result.trace_ids,
                 "fallback_used": result.fallback_used,
+                "provider": getattr(result, "provider", None),
             },
         )
         response_payload = GeneratePosterResponse(
