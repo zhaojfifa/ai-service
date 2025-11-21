@@ -2518,7 +2518,18 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     previewContainer.classList.remove('hidden');
   }
 
-  const assetSrc = (asset) => asset?.dataUrl || asset?.remoteUrl || null;
+  const assetSrc = (asset) => {
+    if (!asset) return null;
+    const candidates = [
+      asset.remoteUrl,
+      asset.url,
+      asset.publicUrl,
+      asset.dataUrl,
+    ];
+    return candidates.find(
+      (value) => typeof value === 'string' && (HTTP_URL_RX.test(value) || value.startsWith('data:'))
+    ) || null;
+  };
 
   if (brandLogo) {
     brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
