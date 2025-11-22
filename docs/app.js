@@ -2,6 +2,41 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
+const posterGenerationState = {
+  /** 海报成品图 URL（R2 的公开地址） */
+  posterUrl: null,
+  /** 本次生成用到的 prompt 结构，用于展示 / 调试 */
+  promptBundle: null,
+  /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
+  rawResult: null,
+};
+// 双列功能模板的归一化布局（随容器等比缩放）
+const TEMPLATE_DUAL_LAYOUT = {
+  canvas: { width: 1024, height: 1024 },
+  slots: {
+    logo: { x: 0.06, y: 0.05, w: 0.09, h: 0.09, type: 'image' },
+    brand_name: { x: 0.18, y: 0.06, w: 0.30, h: 0.07, type: 'text', align: 'left' },
+    agent_name: { x: 0.58, y: 0.06, w: 0.34, h: 0.07, type: 'text', align: 'right' },
+
+    scenario: { x: 0.05, y: 0.20, w: 0.38, h: 0.46, type: 'image' },
+    product: { x: 0.46, y: 0.20, w: 0.46, h: 0.46, type: 'image' },
+    headline: { x: 0.07, y: 0.70, w: 0.86, h: 0.09, type: 'text', align: 'center' },
+
+    series_1_img: { x: 0.07, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_1_txt: { x: 0.07, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_2_img: { x: 0.30, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_2_txt: { x: 0.30, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_3_img: { x: 0.53, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_3_txt: { x: 0.53, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_4_img: { x: 0.76, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_4_txt: { x: 0.76, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    tagline: { x: 0.07, y: 0.95, w: 0.86, h: 0.04, type: 'text', align: 'center' },
+  },
+};
+// 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
+// 生成成功后 A/B 对比按钮才可使用。
+
 // 1) 新增：按域名决定健康检查路径
 function isRenderHost(base) {
   try {
@@ -54,14 +89,7 @@ App.utils.ensureTemplateAssets = (() => {
     const imgUrl  = App.utils.assetUrl?.(`templates/${entry.preview}`) || `templates/${entry.preview}`;
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
-    const imgP  = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('模板预览图加载失败'));
-      img.src = imgUrl;
-    });
+    const imgP  = loadImageAsset(imgUrl);
 
     const payload = { entry, spec: await specP, image: await imgP };
     _cache.set(entry.id, payload);
@@ -140,6 +168,28 @@ function assetUrl(path) {
 }
 
 App.utils.assetUrl = assetUrl;
+
+// Layout helpers for relative-coordinates templates
+App.utils.resolveRect = function resolveRect(slot, canvasWidth, canvasHeight, parentRect) {
+  if (!slot) return { x: 0, y: 0, w: 0, h: 0 };
+  const px = parentRect ? parentRect.x : 0;
+  const py = parentRect ? parentRect.y : 0;
+  const pw = parentRect ? parentRect.w : canvasWidth;
+  const ph = parentRect ? parentRect.h : canvasHeight;
+
+  return {
+    x: px + Number(slot.x || 0) * pw,
+    y: py + Number(slot.y || 0) * ph,
+    w: Number(slot.w || 0) * pw,
+    h: Number(slot.h || 0) * ph,
+  };
+};
+
+App.utils.fontPx = function fontPx(font, canvasHeight) {
+  if (!font) return 0;
+  const size = typeof font.size === 'number' ? font.size : 0.02;
+  return size * canvasHeight;
+};
 
 function normaliseBase(base) {
   if (!base) return null;
@@ -1494,158 +1544,133 @@ function initStage1() {
   }
 
   async function refreshTemplatePreviewStage1(templateId) {
-  if (!templateCanvasStage1) return;
-  try {
-    const assets =  await App.utils.ensureTemplateAssets(templateId); // 原有：加载模板资源 {entry,spec,image}
-    await applyTemplateMaterialsStage1(assets.spec);       // 原有：同步材料开关/占位说明等
-
-    const ctx = templateCanvasStage1.getContext('2d');
-    if (!ctx) return;
-    const { width, height } = templateCanvasStage1;
-
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#f8fafc';
-    ctx.fillRect(0, 0, width, height);
-
-    const img = assets.image;
-    const scale = Math.min(width / img.width, height / img.height);
-    const dw = img.width * scale;
-    const dh = img.height * scale;
-    const ox = (width - dw) / 2;
-    const oy = (height - dh) / 2;
-    ctx.drawImage(img, ox, oy, dw, dh);
-
-    if (templateDescriptionStage1) {
-      templateDescriptionStage1.textContent = assets.entry?.description || '';
-    }
-  } catch (err) {
-    console.error('[template preview] failed:', err);
-    if (templateDescriptionStage1) {
-      templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
-    }
-    const ctx = templateCanvasStage1?.getContext?.('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
-      ctx.fillStyle = '#f4f5f7';
-      ctx.fillRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
-      ctx.fillStyle = '#6b7280';
-      ctx.font = '16px "Noto Sans SC", sans-serif';
-      ctx.fillText('模板预览加载失败', 24, 48);
-    }
-  }
-  }
-async function mountTemplateChooserStage1() {
-  if (!templateSelectStage1) return;
-
-  // 1) 加载 registry（保持原名）
-  try {
-    templateRegistry = await App.utils.loadTemplateRegistry();
-  } catch (e) {
-    console.error('[registry] load failed:', e);
-    setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json 与静态路径。', 'warning');
-    return;
-  }
-  if (!Array.isArray(templateRegistry) || templateRegistry.length === 0) {
-    setStatus(statusElement, '模板列表为空，请确认 templates/registry.json 格式。', 'warning');
-    return;
-  }
-
-  // 2) 填充下拉
-  templateSelectStage1.innerHTML = '';
-  templateRegistry.forEach((entry) => {
-    const opt = document.createElement('option');
-    opt.value = entry.id;
-    opt.textContent = entry.name || entry.id;
-    templateSelectStage1.appendChild(opt);
-  });
-
-  // 3) 恢复/设置默认选项
-  const stored = loadStage1Data();
-  if (stored?.template_id) {
-    state.templateId = stored.template_id;
-    state.templateLabel = stored.template_label || '';
-  } else {
-    const first = templateRegistry[0];
-    state.templateId = first.id;
-    state.templateLabel = first.name || '';
-  }
-  templateSelectStage1.value = state.templateId;
-
-  // 4) 预览一次
-  await refreshTemplatePreviewStage1(state.templateId);
-
-  // 立即持久化一次（不必等“构建预览”）
-  const quickPersist = () => {
+    if (!templateCanvasStage1) return;
     try {
-      const relaxedPayload = collectStage1Data(form, state, { strict: false });
-      currentLayoutPreview = updatePosterPreview(
-        relaxedPayload,
-        state,
-        previewElements,
-        layoutStructure,
-        previewContainer
-      );
-      const serialised = serialiseStage1Data(relaxedPayload, state, currentLayoutPreview, false);
-      saveStage1Data(serialised, { preserveStage2: false });
-    } catch (e) {
-      console.warn('[template persist] skipped:', e);
+      const assets = await App.utils.ensureTemplateAssets(templateId); // 原有：加载模板资源 {entry,spec,image}
+      await applyTemplateMaterialsStage1(assets.spec); // 原有：同步材料开关/占位说明等
+
+      const ctx = templateCanvasStage1.getContext('2d');
+      if (!ctx) return;
+      const { width, height } = templateCanvasStage1;
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, width, height);
+
+      const img = assets.image;
+      const scale = Math.min(width / img.width, height / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      const ox = (width - dw) / 2;
+      const oy = (height - dh) / 2;
+      ctx.drawImage(img, ox, oy, dw, dh);
+
+      if (templateDescriptionStage1) {
+        templateDescriptionStage1.textContent = assets.entry?.description || '';
+      }
+    } catch (err) {
+      console.error('[template preview] failed:', err);
+      if (templateDescriptionStage1) {
+        templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
+      }
+      const ctx = templateCanvasStage1?.getContext?.('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
+        ctx.fillStyle = '#f4f5f7';
+        ctx.fillRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = '16px "Noto Sans SC", sans-serif';
+        ctx.fillText('模板预览加载失败', 24, 48);
+      }
     }
-  };
-  quickPersist();
+  }
 
-  // 5) 绑定切换
-  templateSelectStage1.addEventListener('change', async (ev) => {
-    const value = ev.target.value || DEFAULT_STAGE1.template_id;
-    state.templateId = value;
-    const entry = templateRegistry.find((x) => x.id === value);
-    state.templateLabel = entry?.name || '';
+  async function mountTemplateChooserStage1() {
+    if (!templateSelectStage1) return;
 
-    state.previewBuilt = false; // 切换模板 => 预览需重建
-    setStatus(statusElement, '已切换模板，请重新构建版式预览或继续到环节 2 生成。', 'info');
+    // 1) 加载 registry（保持原名）
+    try {
+      templateRegistry = await App.utils.loadTemplateRegistry();
+    } catch (e) {
+      console.error('[registry] load failed:', e);
+      setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json 与静态路径。', 'warning');
+      return;
+    }
+    if (!Array.isArray(templateRegistry) || templateRegistry.length === 0) {
+      setStatus(statusElement, '模板列表为空，请确认 templates/registry.json 格式。', 'warning');
+      return;
+    }
 
+    // 2) 填充下拉
+    templateSelectStage1.innerHTML = '';
+    templateRegistry.forEach((entry) => {
+      const opt = document.createElement('option');
+      opt.value = entry.id;
+      opt.textContent = entry.name || entry.id;
+      templateSelectStage1.appendChild(opt);
+    });
+
+    // 3) 恢复/设置默认选项
+    const stored = loadStage1Data();
+    if (stored?.template_id) {
+      state.templateId = stored.template_id;
+      state.templateLabel = stored.template_label || '';
+    } else {
+      const first = templateRegistry[0];
+      state.templateId = first.id;
+      state.templateLabel = first.name || '';
+    }
+
+    const currentEntry = templateRegistry.find((entry) => entry.id === state.templateId);
+    if (!currentEntry) {
+      const fallback = templateRegistry[0];
+      state.templateId = fallback.id;
+      state.templateLabel = fallback.name || '';
+    } else if (!state.templateLabel) {
+      state.templateLabel = currentEntry.name || '';
+    }
+
+    templateSelectStage1.value = state.templateId;
+
+    // 4) 预览一次
+    await refreshTemplatePreviewStage1(state.templateId);
+
+    // 立即持久化一次（不必等“构建预览”）
+    const quickPersist = () => {
+      try {
+        const relaxedPayload = collectStage1Data(form, state, { strict: false });
+        currentLayoutPreview = updatePosterPreview(
+          relaxedPayload,
+          state,
+          previewElements,
+          layoutStructure,
+          previewContainer
+        );
+        const serialised = serialiseStage1Data(relaxedPayload, state, currentLayoutPreview, false);
+        saveStage1Data(serialised, { preserveStage2: false });
+      } catch (e) {
+        console.warn('[template persist] skipped:', e);
+      }
+    };
     quickPersist();
-    await refreshTemplatePreviewStage1(value);
-  });
-}
 
-// 注意：不要用顶层 await
-void mountTemplateChooserStage1();
-  if (templateSelectStage1) {
-    App.utils.loadTemplateRegistry()
-      .then(async (registry) => {
-        templateRegistry = registry;
-        templateSelectStage1.innerHTML = '';
-        registry.forEach((entry) => {
-          const option = document.createElement('option');
-          option.value = entry.id;
-          option.textContent = entry.name;
-          templateSelectStage1.appendChild(option);
-        });
-        const activeEntry = registry.find((entry) => entry.id === state.templateId);
-        if (!activeEntry && registry[0]) {
-          state.templateId = registry[0].id;
-          state.templateLabel = registry[0].name || '';
-        } else if (activeEntry) {
-          state.templateLabel = activeEntry.name || state.templateLabel;
-        }
-        templateSelectStage1.value = state.templateId;
-        await refreshTemplatePreviewStage1(state.templateId);
-      })
-      .catch((error) => {
-        console.error(error);
-        setStatus(statusElement, '无法加载模板列表，请检查 templates 目录。', 'warning');
-      });
-
-    templateSelectStage1.addEventListener('change', async (event) => {
-      const value = event.target.value || DEFAULT_STAGE1.template_id;
+    // 5) 绑定切换
+    templateSelectStage1.addEventListener('change', async (ev) => {
+      const value = ev.target.value || DEFAULT_STAGE1.template_id;
       state.templateId = value;
-      const entry = templateRegistry.find((item) => item.id === value);
+      const entry = templateRegistry.find((x) => x.id === value);
       state.templateLabel = entry?.name || '';
-      state.previewBuilt = false;
-      refreshPreview();
+
+      state.previewBuilt = false; // 切换模板 => 预览需重建
+      setStatus(statusElement, '已切换模板，请重新构建版式预览或继续到环节 2 生成。', 'info');
+
+      quickPersist();
       await refreshTemplatePreviewStage1(value);
     });
   }
+
+  // 注意：不要用顶层 await
+  void mountTemplateChooserStage1();
 
   attachSingleImageHandler(
     form.querySelector('input[name="brand_logo"]'),
@@ -2507,8 +2532,21 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     previewContainer.classList.remove('hidden');
   }
 
+  const assetSrc = (asset) => {
+    if (!asset) return null;
+    const candidates = [
+      asset.remoteUrl,
+      asset.url,
+      asset.publicUrl,
+      asset.dataUrl,
+    ];
+    return candidates.find(
+      (value) => typeof value === 'string' && (HTTP_URL_RX.test(value) || value.startsWith('data:'))
+    ) || null;
+  };
+
   if (brandLogo) {
-    brandLogo.src = payload.brand_logo?.dataUrl || placeholderImages.brandLogo;
+    brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
   }
   if (brandName) {
     brandName.textContent = payload.brand_name || '品牌名称';
@@ -2517,10 +2555,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
   }
   if (scenarioImage) {
-    scenarioImage.src = payload.scenario_asset?.dataUrl || placeholderImages.scenario;
+    scenarioImage.src = assetSrc(payload.scenario_asset) || placeholderImages.scenario;
   }
   if (productImage) {
-    productImage.src = payload.product_asset?.dataUrl || placeholderImages.product;
+    productImage.src = assetSrc(payload.product_asset) || placeholderImages.product;
   }
   if (title) {
     title.textContent = payload.title || '标题文案';
@@ -2553,11 +2591,8 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       const figure = document.createElement('figure');
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
-      if (entry?.asset?.dataUrl) {
-        img.src = entry.asset.dataUrl;
-      } else {
-        img.src = getGalleryPlaceholder(index, galleryLabel);
-      }
+      const gallerySrc = assetSrc(entry?.asset);
+      img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
       img.alt = `${galleryLabel} ${index + 1} 预览`;
       caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
       figure.appendChild(img);
@@ -3193,7 +3228,7 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.getElementById('poster-generated-image');
+    const posterGeneratedLayout = document.getElementById('poster-generated-layout');
     const posterGeneratedPlaceholder = document.getElementById('poster-generated-placeholder');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
@@ -3494,8 +3529,8 @@ function initStage2() {
           aiSpinner,
           aiPreviewMessage,
           posterVisual,
+          posterGeneratedLayout,
           templatePoster: fallbackPoster,
-          generatedImage: posterGeneratedImage,
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
           promptGroup,
@@ -3533,11 +3568,40 @@ function initStage2() {
     let templateRegistry = [];
 
     const handleABTest = () => {
-      const request = promptManager?.buildRequest?.() || { variants: 2 };
-      runGeneration({
-        forceVariants: Math.max(2, request.variants || 2),
-        abTest: true,
-      });
+      if (!posterGenerationState.posterUrl) {
+        alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
+        return;
+      }
+
+      const templateImgEl = document.querySelector("[data-role='template-preview-image']") || null;
+      const baseline = templateImgEl
+        ? {
+            url: templateImgEl.src,
+            width:
+              typeof templateImgEl.naturalWidth === 'number' && templateImgEl.naturalWidth > 0
+                ? templateImgEl.naturalWidth
+                : templateImgEl.width || 0,
+            height:
+              typeof templateImgEl.naturalHeight === 'number' && templateImgEl.naturalHeight > 0
+                ? templateImgEl.naturalHeight
+                : templateImgEl.height || 0,
+          }
+        : activeTemplatePoster
+        ? {
+            url: getPosterImageSource(activeTemplatePoster),
+            width: activeTemplatePoster.width || 0,
+            height: activeTemplatePoster.height || 0,
+          }
+        : null;
+
+      const generated = {
+        url: posterGenerationState.posterUrl,
+        width: posterGenerationState.rawResult?.poster_image?.width || 0,
+        height: posterGenerationState.rawResult?.poster_image?.height || 0,
+      };
+
+      openABModal?.(baseline, generated) ||
+        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
     };
 
     promptManager = await setupPromptInspector(stage1Data, {
@@ -3696,21 +3760,21 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
   const entries = [
     [
-      '模板',
+      'Template',
       templateName || stage1Data.template_id || DEFAULT_STAGE1.template_id,
     ],
-    ['品牌 / 代理', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
-    ['主产品名称', stage1Data.product_name],
+    ['Brand / Agent', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
+    ['Product name', stage1Data.product_name],
     [
-      '功能点',
+      'Key features',
       (stage1Data.features || [])
         .map((feature, index) => `${index + 1}. ${feature}`)
         .join('\n'),
     ],
-    ['标题', stage1Data.title],
-    ['副标题', stage1Data.subtitle],
+    ['Headline', stage1Data.title],
+    ['Subheadline', stage1Data.subtitle],
     [
-      stage1Data.gallery_label || '底部产品',
+      stage1Data.gallery_label || 'Gallery',
       (() => {
         const galleryLimit = stage1Data.gallery_limit || 0;
         const galleryCount =
@@ -3718,9 +3782,9 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
             entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
           ).length || 0;
         if (galleryLimit > 0) {
-          return `${galleryCount} / ${galleryLimit} 项素材`;
+          return `${galleryCount} / ${galleryLimit} assets`;
         }
-        return `${galleryCount} 项素材`;
+        return `${galleryCount} assets`;
       })(),
     ],
   ];
@@ -3771,7 +3835,8 @@ async function triggerGeneration(opts) {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
     posterVisual,
-    generatedImage,
+    posterGeneratedLayout = null,
+    generatedImage = null,
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
     templatePoster = null,
@@ -3893,6 +3958,7 @@ async function triggerGeneration(opts) {
       series_description: stage1Data.series_description,
 
       brand_logo: brandLogoUrl,
+      brand_logo_key: brandLogoRef.key,
 
       scenario_key: scenarioRef.key,
       scenario_asset: scenarioUrl,
@@ -4020,9 +4086,8 @@ async function triggerGeneration(opts) {
     generatedPlaceholder.textContent = generatedPlaceholderDefault;
     generatedPlaceholder.classList.add('hidden');
   };
-  if (generatedImage) {
-    generatedImage.classList.add('hidden');
-    generatedImage.removeAttribute('src');
+  if (posterGeneratedLayout) {
+    posterGeneratedLayout.innerHTML = '';
   }
   resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -4045,7 +4110,7 @@ async function triggerGeneration(opts) {
     clearFallbackTimer();
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage) {
+    if (generatedImage?.classList) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
@@ -4091,7 +4156,12 @@ async function triggerGeneration(opts) {
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-  
+
+    posterGenerationState.posterUrl = data?.poster_url || data?.poster_image?.url ||
+      (Array.isArray(data?.results) && data.results[0]?.url) || null;
+    posterGenerationState.promptBundle = data?.prompt_bundle || null;
+    posterGenerationState.rawResult = data || null;
+
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
       variants: Array.isArray(data?.variants) ? data.variants.length : 0,
@@ -4101,19 +4171,13 @@ async function triggerGeneration(opts) {
   
     clearFallbackTimer();
 
-    const posterData = (data && data.poster_image) || null;
-    const generatedAlt = `${stage1Data.product_name || '生成'} 海报`;
-    const hasPosterSource = posterData ? getPosterImageSource(posterData) : '';
     let assigned = false;
-    if (generatedImage && hasPosterSource && assignPosterImage(generatedImage, posterData, generatedAlt)) {
-      generatedImage.classList.remove('hidden');
+    if (posterGeneratedLayout) {
+      const layoutData = buildDualPosterData(stage1Data, data);
+      renderDualPosterPreview(posterGeneratedLayout, TEMPLATE_DUAL_LAYOUT, layoutData);
       hideGeneratedPlaceholder();
       assigned = true;
     } else {
-      if (generatedImage) {
-        generatedImage.classList.add('hidden');
-        generatedImage.removeAttribute('src');
-      }
       resetGeneratedPlaceholder('生成结果缺少可预览图片。');
     }
 
@@ -4150,12 +4214,15 @@ async function triggerGeneration(opts) {
     return data;
   } catch (error) {
     console.error('[generatePoster] 请求失败', error);
+    posterGenerationState.posterUrl = null;
+    posterGenerationState.promptBundle = null;
+    posterGenerationState.rawResult = null;
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage) {
+    if (generatedImage?.classList) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
@@ -4521,13 +4588,117 @@ function tokeniseText(text) {
   return tokens;
 }
 
-function getSlotRect(slot) {
-  if (!slot) return null;
-  const x = Number(slot.x) || 0;
-  const y = Number(slot.y) || 0;
-  const width = Number(slot.width) || 0;
-  const height = Number(slot.height) || 0;
-  return { x, y, width, height };
+  function getSlotRect(slot) {
+    if (!slot) return null;
+    const x = Number(slot.x) || 0;
+    const y = Number(slot.y) || 0;
+    const width = Number(slot.width) || 0;
+    const height = Number(slot.height) || 0;
+    return { x, y, width, height };
+  }
+
+  function resolveSlotAssetUrl(asset) {
+  if (!asset) return '';
+  if (typeof asset === 'string') return asset;
+  const url = typeof asset.url === 'string' ? asset.url : '';
+  if (url) return url;
+  const dataUrl =
+    typeof asset.data_url === 'string'
+      ? asset.data_url
+      : typeof asset.dataUrl === 'string'
+      ? asset.dataUrl
+      : '';
+  return dataUrl;
+}
+
+function renderDualPosterPreview(root, layout, data) {
+  if (!root || !layout || !layout.slots) return;
+  root.innerHTML = '';
+  const slots = layout.slots;
+  Object.entries(slots).forEach(([key, slot]) => {
+    if (!slot) return;
+    const slotEl = document.createElement('div');
+    slotEl.classList.add('poster-layout__slot', `poster-layout__slot--${key}`);
+    slotEl.style.left = `${slot.x * 100}%`;
+    slotEl.style.top = `${slot.y * 100}%`;
+    slotEl.style.width = `${slot.w * 100}%`;
+    slotEl.style.height = `${slot.h * 100}%`;
+
+    if (slot.type === 'text') {
+      slotEl.classList.add('poster-layout__slot--text');
+      const textValue = data?.text?.[key] || '';
+      slotEl.textContent = textValue;
+      const fontSize = Math.max(slot.h * 80, 12);
+      slotEl.style.fontSize = `${fontSize}px`;
+      if (slot.align === 'right') {
+        slotEl.style.justifyContent = 'flex-end';
+        slotEl.style.textAlign = 'right';
+      } else if (slot.align === 'center') {
+        slotEl.style.justifyContent = 'center';
+        slotEl.style.textAlign = 'center';
+      } else {
+        slotEl.style.justifyContent = 'flex-start';
+        slotEl.style.textAlign = 'left';
+      }
+    } else {
+      slotEl.classList.add('poster-layout__slot--image');
+      const img = document.createElement('img');
+      const src = resolveSlotAssetUrl(data?.images?.[key]);
+      if (src) {
+        img.src = src;
+      } else {
+        slotEl.style.background = '#f5f5f7';
+      }
+      slotEl.appendChild(img);
+    }
+
+    root.appendChild(slotEl);
+  });
+}
+
+function buildDualPosterData(stage1Data, generation) {
+  const galleryLabels = Array.isArray(stage1Data?.gallery_entries)
+    ? stage1Data.gallery_entries.map((item) => item?.caption || '')
+    : [];
+  const galleryImages = Array.isArray(generation?.gallery_images)
+    ? generation.gallery_images.map((item) => resolveSlotAssetUrl(item))
+    : Array.isArray(stage1Data?.gallery_items)
+    ? stage1Data.gallery_items.map((item) => resolveSlotAssetUrl(item?.asset))
+    : [];
+
+  const images = {
+    logo:
+      resolveSlotAssetUrl(generation?.brand_logo) ||
+      resolveSlotAssetUrl(stage1Data?.brand_logo) ||
+      resolveSlotAssetUrl(stage1Data?.brand_logo_key),
+    scenario:
+      resolveSlotAssetUrl(generation?.scenario_image) ||
+      resolveSlotAssetUrl(stage1Data?.scenario_asset) ||
+      resolveSlotAssetUrl(stage1Data?.scenario_key),
+    product:
+      resolveSlotAssetUrl(generation?.product_image) ||
+      resolveSlotAssetUrl(stage1Data?.product_asset) ||
+      resolveSlotAssetUrl(stage1Data?.product_key),
+  };
+
+  ['series_1_img', 'series_2_img', 'series_3_img', 'series_4_img'].forEach(
+    (slotKey, index) => {
+      images[slotKey] = galleryImages[index] || '';
+    }
+  );
+
+  const text = {
+    brand_name: stage1Data?.brand_name || '',
+    agent_name: stage1Data?.agent_name || '',
+    headline: stage1Data?.title || '',
+    tagline: stage1Data?.subtitle || '',
+    series_1_txt: galleryLabels[0] || '',
+    series_2_txt: galleryLabels[1] || '',
+    series_3_txt: galleryLabels[2] || '',
+    series_4_txt: galleryLabels[3] || '',
+  };
+
+  return { images, text };
 }
 
 async function saveStage2Result(data) {
