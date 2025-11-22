@@ -212,7 +212,7 @@
                   后台尚未上传模板海报。
                 </div>
               </figure>
-              <figure class="poster-preview" data-role="generated">
+              <figure class="poster-preview" data-role="generated latest-poster-panel">
                 <header class="poster-preview-header">
                   <div class="poster-preview-title">
                     <span class="poster-chip poster-chip-secondary">海报 B</span>
@@ -221,11 +221,16 @@
                 </header>
                 <img
                   id="poster-generated-image"
-                  alt="生成海报预览"
-                  class="hidden"
+                  class="poster-preview-image hidden"
+                  alt="AI 生成海报"
+                  data-role="latest-poster-image"
                   decoding="async"
                 />
-                <div id="poster-generated-placeholder" class="poster-preview-placeholder">
+                <div
+                  id="poster-generated-placeholder"
+                  class="poster-preview-placeholder"
+                  data-role="latest-poster-empty"
+                >
                   生成结果将在此展示。
                 </div>
               </figure>

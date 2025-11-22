@@ -22,8 +22,9 @@ from fastapi import HTTPException, status
 from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
-from app.schemas import PosterGalleryItem, PosterImage, PosterInput
+from app.schemas import PosterGalleryItem, PosterImage, PosterInput, StoredImage
 from app.schemas.poster import PosterPayload
+from app.templates.layouts import load_layout
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
@@ -233,6 +234,7 @@ def _normalise_asset_reference(label: str, value: Any) -> Any:
 
 def _key_field_for_asset(field: str) -> str | None:
     overrides = {
+        "brand_logo": "brand_logo_key",
         "scenario_image": "scenario_key",
         "product_image": "product_key",
     }
@@ -299,6 +301,10 @@ class PosterGenerationResult:
     lock_seed: bool = False
     trace_ids: list[str] = field(default_factory=list)
     fallback_used: bool = False
+    provider: str | None = None
+    scenario_image: StoredImage | None = None
+    product_image: StoredImage | None = None
+    gallery_images: list[StoredImage] = field(default_factory=list)
 
 
 def _template_dimensions(
@@ -344,6 +350,7 @@ def _poster_asset_summary(poster: PosterInput | dict[str, Any]) -> dict[str, Any
         else:
             keys.append(_shorten_asset_value(trimmed))
 
+    _record(getattr(poster, "brand_logo_key", None))
     _record(getattr(poster, "brand_logo", None))
     _record(getattr(poster, "scenario_asset", None))
     _record(getattr(poster, "product_asset", None))
@@ -363,6 +370,42 @@ def _poster_asset_summary(poster: PosterInput | dict[str, Any]) -> dict[str, Any
         "urls": urls[:3],
         "count": len(keys) + len(urls),
     }
+
+
+def _stored_image_from_ref(ref: str | None, *, content_type: str = "image/png") -> StoredImage | None:
+    if not ref:
+        return None
+
+    value = ref.strip()
+    key_value: str | None = None
+    url_value: str | None = None
+
+    if value.startswith(("http://", "https://")):
+        url_value = value
+        key_value = value
+    elif value.startswith(("r2://", "s3://")):
+        try:
+            _, path = value.split("://", 1)
+            _, key_value = path.split("/", 1)
+        except ValueError:
+            key_value = value
+        if key_value:
+            url_value = public_url_for(key_value) or value
+    elif _BARE_KEY_PATTERN.match(value):
+        key_value = value
+        candidate_url = public_url_for(value)
+        url_value = candidate_url if candidate_url and candidate_url.startswith("http") else None
+    else:
+        url_value = value
+        key_value = value
+
+    if not key_value or not url_value or not url_value.startswith(("http://", "https://")):
+        return None
+
+    try:
+        return StoredImage(key=key_value, url=url_value, content_type=content_type)
+    except Exception:
+        return None
 
 
 def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
@@ -737,13 +780,19 @@ def _render_template_frame(
 
     draw = ImageDraw.Draw(canvas)
 
-    font_title = _load_font(64, weight="bold")
-    font_subtitle = _load_font(40, weight="bold")
-    font_brand = _load_font(36, weight="semibold")
-    font_agent = _load_font(30, weight="semibold")
-    font_body = _load_font(28)
-    font_feature = _load_font(26)
-    font_caption = _load_font(22)
+    scale = max(0.6, min(1.4, width / 1080))
+
+    def _scaled_font(base: int, *, weight: str = "regular") -> ImageFont.ImageFont:
+        size = max(12, int(round(base * scale)))
+        return _load_font(size, weight=weight)
+
+    font_title = _scaled_font(64, weight="bold")
+    font_subtitle = _scaled_font(40, weight="bold")
+    font_brand = _scaled_font(36, weight="semibold")
+    font_agent = _scaled_font(30, weight="semibold")
+    font_body = _scaled_font(28)
+    font_feature = _scaled_font(26)
+    font_caption = _scaled_font(22)
 
     slots = spec.get("slots", {})
 
@@ -752,7 +801,9 @@ def _render_template_frame(
     if logo_slot:
         left, top, width_box, height_box = _slot_to_box(logo_slot)
         logo_box = (left, top, left + width_box, top + height_box)
-        logo_image = _load_image_from_data_url(poster.brand_logo)
+        logo_image = _load_image_asset(
+            poster.brand_logo, getattr(poster, "brand_logo_key", None)
+        )
         if logo_image:
             _paste_image(canvas, logo_image, logo_box, mode="contain")
         else:
@@ -930,7 +981,26 @@ def generate_poster_asset(
     override_variants = override_posters[1:] if len(override_posters) > 1 else []
     used_override_primary = False
 
+    provider_label = (
+        vertex_imagen_client.__class__.__name__
+        if vertex_imagen_client is not None
+        else "LocalTemplateRenderer"
+    )
+
     template = _load_template_resources(poster.template_id)
+    layout_spec = None
+    try:
+        layout_spec = load_layout(poster.template_id or DEFAULT_TEMPLATE_ID)
+    except Exception:  # pragma: no cover - optional debug aid
+        logger.warning("[vertex] failed to load layout spec", exc_info=True)
+    else:
+        logger.info(
+            "[vertex] loaded layout spec",
+            extra={
+                "template_id": poster.template_id or DEFAULT_TEMPLATE_ID,
+                "slots": len(layout_spec.slots) if hasattr(layout_spec, "slots") else None,
+            },
+        )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     settings = get_settings()
@@ -940,7 +1010,7 @@ def generate_poster_asset(
     fallback_used = vertex_imagen_client is None
 
     logger.info(
-        "poster.asset.start",
+        "[vertex] generate_poster start",
         extra={
             "trace": trace_id,
             "template": template.id,
@@ -949,6 +1019,11 @@ def generate_poster_asset(
             "variants": variants,
             "seed": seed,
             "lock_seed": lock_seed,
+            "provider": provider_label,
+            "prompt_preview": prompt[:280],
+            "neg_prompt_preview": (prompt_details or {}).get("negative_prompt")
+            or (prompt_details or {}).get("negative"),
+            "prompt_details": (prompt_details or {}).get("scenario"),
             "asset_summary": _poster_asset_summary(poster),
         },
     )
@@ -967,6 +1042,7 @@ def generate_poster_asset(
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
+            provider_label = getattr(vertex_imagen_client, "__class__", VertexImagen3).__name__
         except Exception:
             fallback_used = True
             logger.exception(
@@ -993,6 +1069,7 @@ def generate_poster_asset(
                 locked_frame,
                 template,
             )
+            provider_label = "GlibatreeHTTP"
         except Exception:
             logger.exception(
                 "Glibatree request failed, falling back to mock poster",
@@ -1009,6 +1086,7 @@ def generate_poster_asset(
             primary = override_primary
             variant_images = list(override_variants)
             used_override_primary = True
+            provider_label = "TemplateOverride"
         else:
             logger.debug(
                 "Falling back to local template renderer",
@@ -1016,6 +1094,7 @@ def generate_poster_asset(
             )
             mock_frame = _render_template_frame(poster, template, fill_background=True)
             primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
+            provider_label = "LocalTemplateRenderer"
 
     # 生成变体（仅重命名，不重复上传）
     if not used_override_primary and desired_variants > 1:
@@ -1032,6 +1111,18 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
+    scenario_asset = _stored_image_from_ref(
+        getattr(poster, "scenario_key", None) or getattr(poster, "scenario_asset", None)
+    )
+    product_asset = _stored_image_from_ref(
+        getattr(poster, "product_key", None) or getattr(poster, "product_asset", None)
+    )
+    gallery_assets: list[StoredImage] = []
+    for item in getattr(poster, "gallery_items", []) or []:
+        asset = _stored_image_from_ref(getattr(item, "key", None) or getattr(item, "asset", None))
+        if asset:
+            gallery_assets.append(asset)
+
     result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
@@ -1041,6 +1132,23 @@ def generate_poster_asset(
         lock_seed=bool(lock_seed),
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
+        provider=provider_label,
+        scenario_image=scenario_asset,
+        product_image=product_asset,
+        gallery_images=gallery_assets,
+    )
+
+    logger.info(
+        "[vertex] generate_poster done",
+        extra={
+            "trace": trace_id,
+            "template": template.id,
+            "provider": provider_label,
+            "fallback_used": fallback_used,
+            "poster_filename": getattr(primary, "filename", None),
+            "variants": len(variant_images),
+            "vertex_traces": vertex_traces,
+        },
     )
 
     return result
