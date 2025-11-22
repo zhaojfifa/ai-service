@@ -4043,21 +4043,106 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  const posterUrl = renderPosterResult(data) || extractVertexPosterUrl(data);
+  const poster = data?.poster || {};
 
-  if (!posterUrl) {
-    console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
-    return;
+  console.log('[debug] apiVertexPosterResult', {
+    scenario_image: poster.scenario_image,
+    product_image: poster.product_image,
+    gallery_images: poster.gallery_images,
+    poster_image: poster.poster_image,
+  });
+
+  const posterRoot = document.getElementById('poster-b-root');
+  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
+  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
+  const title = poster.title || lastStage1Data?.title || '';
+  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
+
+  const logoSrc =
+    pickImageSrc(poster.brand_logo) ||
+    (lastStage1Data ? pickImageSrc(lastStage1Data.brand_logo) : null);
+
+  const logoEl = document.getElementById('poster-b-brand-logo');
+  if (logoEl && logoSrc) logoEl.src = logoSrc;
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+
+  if (brandNameEl) brandNameEl.textContent = brandName;
+  if (agentNameEl) agentNameEl.textContent = agentName;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+
+  const scenarioEl = document.querySelector('[data-role="poster-b-scenario"]');
+  const productEl = document.querySelector('[data-role="poster-b-product"]');
+
+  const scenarioSrc =
+    pickImageSrc(poster.scenario_image) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.scenario_asset));
+
+  const productSrc =
+    pickImageSrc(poster.product_image) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.product_asset));
+
+  if (scenarioEl && scenarioSrc) scenarioEl.src = scenarioSrc;
+  if (productEl && productSrc) productEl.src = productSrc;
+
+  const bottomSlots = document.querySelectorAll('[data-role="poster-b-gallery"]');
+
+  let galleryImages = poster.gallery_images || data?.gallery_images || [];
+
+  if (galleryImages.length && galleryImages.length < 4) {
+    const base = [...galleryImages];
+    while (galleryImages.length < 4) {
+      galleryImages.push(base[galleryImages.length % base.length]);
+    }
   }
 
-  posterGeneratedImageUrl = posterUrl;
-  posterGenerationState.posterUrl = posterUrl;
-  posterGeneratedImage = posterGenerationState.posterUrl;
+  if (!galleryImages.length && Array.isArray(lastStage1Data?.gallery_entries)) {
+    galleryImages = lastStage1Data.gallery_entries
+      .filter(Boolean)
+      .map((entry) => ({
+        url: entry?.asset || null,
+        asset: entry?.asset || null,
+        dataUrl: entry?.dataUrl || entry?.data_url || null,
+      }));
+  }
 
-  if (typeof applyPosterPreview === 'function') {
-    applyPosterPreview(posterUrl);
-  } else if (typeof updateGeneratedPoster === 'function') {
-    updateGeneratedPoster(posterUrl);
+  bottomSlots.forEach((slot, index) => {
+    const imgEl = slot.querySelector('img');
+    const captionEl = slot.querySelector('.slot-caption');
+    const imgObj = galleryImages[index];
+    const src = pickImageSrc(imgObj);
+
+    if (imgEl && src) {
+      imgEl.src = src;
+    }
+
+    if (captionEl) {
+      captionEl.textContent = '';
+    }
+  });
+
+  const hasVisuals = Boolean(scenarioSrc || productSrc || galleryImages.length);
+  if (posterRoot && hasVisuals) posterRoot.classList.remove('hidden');
+  if (posterPlaceholder?.classList && hasVisuals) posterPlaceholder.classList.add('hidden');
+
+  const finalPosterUrl =
+    data?.poster_url || pickImageSrc(poster.poster_image) || posterGenerationState.posterUrl || null;
+
+  if (finalPosterUrl) {
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) hiddenUrlInput.value = finalPosterUrl;
+
+    try {
+      sessionStorage.setItem('latestPosterUrl', finalPosterUrl);
+    } catch (e) {
+      console.warn('无法写 latestPosterUrl', e);
+    }
   }
 }
 

@@ -612,7 +612,7 @@ main {
   gap: 0.75rem;
 }
 
-.poster-b-logo img {
+.poster-b-brand-logo {
   width: 72px;
   height: 72px;
   object-fit: contain;
@@ -622,19 +622,19 @@ main {
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
 }
 
-.poster-b-brand,
-.poster-b-agent {
+.poster-b-brand-name,
+.poster-b-agent-name {
   font-weight: 700;
   color: #1f2933;
   letter-spacing: 0.05em;
   word-break: break-word;
 }
 
-.poster-b-brand {
+.poster-b-brand-name {
   text-align: left;
 }
 
-.poster-b-agent {
+.poster-b-agent-name {
   text-align: right;
 }
 
@@ -668,13 +668,34 @@ main {
   gap: 0.5rem;
 }
 
-.poster-b-gallery img {
+
+.poster-bottom-slot {
   width: 100%;
-  aspect-ratio: 1 / 1;
+  height: 120px;
+  padding: 4px 6px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.poster-bottom-slot img {
+  width: 100%;
+  height: 72px;
+  border-radius: 8px;
   object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid #d9e2ec;
-  background: #edf2f7;
+  display: block;
+}
+
+.poster-bottom-slot .slot-caption {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  min-height: 16px;
 }
 
 .poster-b-subtitle {
