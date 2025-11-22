@@ -11,6 +11,9 @@ const posterGenerationState = {
   /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
   rawResult: null,
 };
+// 兼容旧版调用：确保引用不存在的全局变量时不会抛出 ReferenceError
+let posterGeneratedImage = null;
+let posterGeneratedLayout = null;
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
@@ -3577,7 +3580,7 @@ function initStage2() {
           aiSpinner,
           aiPreviewMessage,
           posterVisual,
-          posterGeneratedLayout,
+          generatedImage: posterGeneratedImage,
           templatePoster: fallbackPoster,
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
@@ -3883,7 +3886,6 @@ async function triggerGeneration(opts) {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
     posterVisual,
-    posterGeneratedLayout = null,
     generatedImage = null,
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
@@ -4124,6 +4126,9 @@ async function triggerGeneration(opts) {
   if (aiSpinner) aiSpinner.classList.remove('hidden');
   if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
   if (posterVisual) posterVisual.classList.remove('hidden');
+  posterGenerationState.posterUrl = null;
+  posterGeneratedImage = null;
+  posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
   const resetGeneratedPlaceholder = (message) => {
     if (!generatedPlaceholder) return;
     generatedPlaceholder.textContent = message || generatedPlaceholderDefault;
@@ -4134,8 +4139,9 @@ async function triggerGeneration(opts) {
     generatedPlaceholder.textContent = generatedPlaceholderDefault;
     generatedPlaceholder.classList.add('hidden');
   };
-  if (posterGeneratedLayout) {
-    posterGeneratedLayout.innerHTML = '';
+  if (generatedImage?.classList) {
+    generatedImage.classList.add('hidden');
+    generatedImage.removeAttribute('src');
   }
   resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -4209,6 +4215,8 @@ async function triggerGeneration(opts) {
       (Array.isArray(data?.results) && data.results[0]?.url) || null;
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
+    posterGeneratedImage = posterGenerationState.posterUrl;
+    posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
 
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
@@ -4216,13 +4224,13 @@ async function triggerGeneration(opts) {
       seed: data?.seed ?? null,
       lock_seed: data?.lock_seed ?? null,
     });
-  
+
     clearFallbackTimer();
 
     let assigned = false;
-    if (posterGeneratedLayout) {
-      const layoutData = buildDualPosterData(stage1Data, data);
-      renderDualPosterPreview(posterGeneratedLayout, TEMPLATE_DUAL_LAYOUT, layoutData);
+    if (posterGenerationState.posterUrl && generatedImage?.classList) {
+      generatedImage.src = posterGenerationState.posterUrl;
+      generatedImage.classList.remove('hidden');
       hideGeneratedPlaceholder();
       assigned = true;
     } else {
@@ -4265,6 +4273,8 @@ async function triggerGeneration(opts) {
     posterGenerationState.posterUrl = null;
     posterGenerationState.promptBundle = null;
     posterGenerationState.rawResult = null;
+    posterGeneratedImage = null;
+    posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
     setStatus(statusElement, error?.message || '生成失败', 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
