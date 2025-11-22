@@ -224,9 +224,46 @@
                   </div>
                 </header>
                 <div class="ai-result-box">
+                  <div
+                    class="poster-layout poster-layout--dual hidden"
+                    data-role="vertex-slot-preview"
+                    aria-hidden="true"
+                  >
+                    <div
+                      class="poster-layout__slot poster-layout__slot--image"
+                      style="left: 5%; top: 20%; width: 38%; height: 46%"
+                    >
+                      <img
+                        data-ai-slot="scenario_image"
+                        class="poster-layout__img is-placeholder"
+                        alt="场景图（AI 生成）"
+                      />
+                    </div>
+                    <div
+                      class="poster-layout__slot poster-layout__slot--image"
+                      style="left: 46%; top: 20%; width: 46%; height: 46%"
+                    >
+                      <img
+                        data-ai-slot="product_image"
+                        class="poster-layout__img is-placeholder"
+                        alt="产品图（AI 生成）"
+                      />
+                    </div>
+                    <div
+                      class="poster-layout__slot poster-layout__slot--image"
+                      style="left: 7%; top: 82%; width: 18%; height: 13%"
+                    >
+                      <img
+                        data-ai-slot="gallery_primary"
+                        class="poster-layout__img is-placeholder"
+                        alt="图库图像"
+                      />
+                    </div>
+                  </div>
                   <img
                     id="vertex-poster-preview-img"
                     data-role="vertex-poster-img"
+                    data-latest="vertex-poster"
                     alt="AI 生成海报预览"
                     style="max-width: 100%; display: none; border-radius: 8px;"
                     decoding="async"

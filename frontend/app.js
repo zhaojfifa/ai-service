@@ -3928,21 +3928,93 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  const posterUrl = extractVertexPosterUrl(data);
+  const {
+    poster_url,
+    poster_image,
+    poster,
+    scenario_image,
+    product_image,
+    gallery_images,
+  } = data || {};
 
-  if (!posterUrl) {
-    console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
-    return;
+  const resolvedPosterUrl =
+    poster_url ||
+    (poster && (poster.asset_url || poster.url)) ||
+    (poster_image && poster_image.url) ||
+    (gallery_images &&
+      gallery_images.results &&
+      Array.isArray(gallery_images.results) &&
+      gallery_images.results[0] &&
+      gallery_images.results[0].url) ||
+    null;
+
+  posterGeneratedImageUrl = resolvedPosterUrl || null;
+  posterGenerationState.posterUrl = resolvedPosterUrl || null;
+  posterGeneratedImage = posterGenerationState.posterUrl;
+  posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+
+  const latestPosterImg = document.querySelector('[data-role="vertex-poster-img"]');
+  const latestPosterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  if (latestPosterImg && resolvedPosterUrl) {
+    assignPosterImage(latestPosterImg, { url: resolvedPosterUrl }, 'AI 生成海报');
+    latestPosterImg.style.display = 'block';
+    latestPosterImg.classList.remove('hidden');
+    if (latestPosterPlaceholder) {
+      latestPosterPlaceholder.style.display = 'none';
+    }
+  } else {
+    if (latestPosterImg) {
+      latestPosterImg.removeAttribute('src');
+      latestPosterImg.classList.add('hidden');
+      latestPosterImg.style.display = 'none';
+    }
+    if (latestPosterPlaceholder) {
+      latestPosterPlaceholder.style.display = '';
+    }
   }
 
-  posterGeneratedImageUrl = posterUrl;
-  posterGenerationState.posterUrl = posterUrl;
-  posterGeneratedImage = posterGenerationState.posterUrl;
+  hydrateStage2LayoutFromVertexResult({
+    scenario_image,
+    product_image,
+    gallery_images,
+  });
+}
 
-  if (typeof applyPosterPreview === 'function') {
-    applyPosterPreview(posterUrl);
-  } else if (typeof updateGeneratedPoster === 'function') {
-    updateGeneratedPoster(posterUrl);
+function hydrateStage2LayoutFromVertexResult(vertexImages) {
+  if (!vertexImages) return;
+
+  const { scenario_image, product_image, gallery_images } = vertexImages;
+  const previewRoot =
+    document.querySelector('[data-role="vertex-slot-preview"]') ||
+    document.getElementById('vertex-poster-preview');
+  if (!previewRoot) return;
+
+  const bindSlot = (slotName, asset) => {
+    const slotImg = previewRoot.querySelector(`[data-ai-slot="${slotName}"]`);
+    if (!slotImg || !asset || !asset.url) return false;
+    slotImg.src = asset.url;
+    if (asset.key) {
+      slotImg.dataset.objectKey = asset.key;
+    }
+    slotImg.classList.remove('is-placeholder');
+    slotImg.style.display = 'block';
+    return true;
+  };
+
+  const galleryResult =
+    gallery_images &&
+    ((Array.isArray(gallery_images.results) && gallery_images.results[0]) ||
+      (Array.isArray(gallery_images) && gallery_images[0]) ||
+      null);
+
+  const boundScenario = bindSlot('scenario_image', scenario_image);
+  const boundProduct = bindSlot('product_image', product_image);
+  const boundGallery = bindSlot('gallery_primary', galleryResult);
+
+  if (boundScenario || boundProduct || boundGallery) {
+    previewRoot.classList.remove('hidden');
+    previewRoot.removeAttribute('aria-hidden');
   }
 }
 
