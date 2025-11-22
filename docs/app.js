@@ -2,6 +2,21 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
+function pickImageSrc(img) {
+  if (!img) return null;
+  if (typeof img === 'string') return img;
+
+  const src =
+    (typeof img.url === 'string' && img.url.trim()) ||
+    (typeof img.asset === 'string' && img.asset.trim()) ||
+    (typeof img.dataUrl === 'string' && img.dataUrl.trim()) ||
+    (typeof img.data_url === 'string' && img.data_url.trim()) ||
+    null;
+
+  return src;
+}
+
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
 const posterGenerationState = {
   /** 海报成品图 URL（R2 的公开地址） */
@@ -829,14 +844,14 @@ const MATERIAL_DEFAULT_LABELS = {
 const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
-  if (!image || typeof image !== 'object') return '';
-  const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
-  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
-    return directUrl;
-  }
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
-  if (dataUrl && dataUrl.startsWith('data:')) {
-    return dataUrl;
+  if (!image) return '';
+  const directUrl = pickImageSrc(image);
+  if (directUrl && typeof directUrl === 'string') {
+    const trimmed = directUrl.trim();
+    if (HTTP_URL_RX.test(trimmed) || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+    return trimmed;
   }
   return '';
 }
@@ -3887,6 +3902,73 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
+function renderPosterResult(result) {
+  const posterImg =
+    document.getElementById('poster-image') ||
+    document.getElementById('vertex-poster-preview-img');
+  const scenarioImg = document.getElementById('scenario-image');
+  const productImg = document.getElementById('product-image');
+  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  const posterSrc =
+    result?.poster_url ||
+    pickImageSrc(result?.poster?.poster_image) ||
+    pickImageSrc(result?.poster_image);
+
+  if (posterSrc) {
+    if (posterImg) {
+      posterImg.src = posterSrc;
+      if (posterImg.classList?.contains('hidden')) {
+        posterImg.classList.remove('hidden');
+      }
+      if (posterImg.style) {
+        posterImg.style.display = 'block';
+      }
+    }
+
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) {
+      hiddenUrlInput.value = posterSrc;
+    }
+
+    if (posterPlaceholder?.classList) {
+      posterPlaceholder.classList.add('hidden');
+    }
+
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterSrc);
+    } catch (e) {
+      console.warn('failed to cache latestPosterUrl', e);
+    }
+  }
+
+  const scenarioSrc =
+    pickImageSrc(result?.poster?.scenario_image) || pickImageSrc(result?.scenario_image);
+
+  if (scenarioSrc && scenarioImg) {
+    scenarioImg.src = scenarioSrc;
+  }
+
+  const productSrc = pickImageSrc(result?.poster?.product_image) || pickImageSrc(result?.product_image);
+
+  if (productSrc && productImg) {
+    productImg.src = productSrc;
+  }
+
+  const galleryImages = result?.poster?.gallery_images || result?.gallery_images || [];
+  galleryImages.forEach((imgObj, index) => {
+    const src = pickImageSrc(imgObj);
+    const el = document.querySelector(
+      `[data-role="gallery-image"][data-index="${index}"]`
+    );
+    if (src && el) {
+      el.src = src;
+    }
+  });
+
+  return posterSrc || null;
+}
+
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
@@ -3928,7 +4010,7 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  const posterUrl = extractVertexPosterUrl(data);
+  const posterUrl = renderPosterResult(data) || extractVertexPosterUrl(data);
 
   if (!posterUrl) {
     console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
@@ -4998,17 +5080,38 @@ function initStage3() {
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+    if (!stage1Data || !stage2Result) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    assignPosterImage(
-      posterImage,
-      stage2Result.poster_image,
-      `${stage1Data.product_name} 海报预览`
-    );
+    if (posterImage) {
+      let posterSrc = null;
+
+      try {
+        posterSrc = sessionStorage.getItem('latestPosterUrl');
+      } catch (e) {
+        console.warn('cannot read latestPosterUrl from sessionStorage', e);
+      }
+
+      if (!posterSrc) {
+        posterSrc =
+          stage2Result?.poster_url ||
+          pickImageSrc(stage2Result?.poster?.poster_image) ||
+          pickImageSrc(stage2Result?.poster_image);
+      }
+
+      if (posterSrc) {
+        posterImage.src = posterSrc;
+      } else if (stage2Result.poster_image) {
+        assignPosterImage(
+          posterImage,
+          stage2Result.poster_image,
+          `${stage1Data.product_name} 海报预览`
+        );
+      }
+    }
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }
