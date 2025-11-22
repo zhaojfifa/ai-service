@@ -3888,51 +3888,47 @@ function buildPromptBundleStrings(prompts = {}) {
 }
 
 function applyVertexPosterResult(data) {
-  try {
-    console.log('[triggerGeneration] applyVertexPosterResult', data);
+  console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-    const galleryResults =
-      data?.gallery_images?.results || data?.poster?.gallery_images?.results || [];
+  let posterUrl = null;
 
-    const vertexPosterItem = galleryResults[0] || null;
-    const vertexPosterUrl =
-      vertexPosterItem?.url || data?.poster_image_url || data?.poster?.asset_url || null;
+  if (
+    data &&
+    data.gallery_images &&
+    Array.isArray(data.gallery_images.results) &&
+    data.gallery_images.results.length > 0
+  ) {
+    posterUrl = data.gallery_images.results[0].url;
+  }
 
-    if (!vertexPosterUrl) {
-      console.warn('[triggerGeneration] no vertex poster url found in response');
-      return;
-    }
+  if (!posterUrl && Array.isArray(data?.images) && data.images.length > 0) {
+    const img0 = data.images[0];
+    posterUrl = typeof img0 === 'string' ? img0 : img0?.url;
+  }
 
-    posterGeneratedImageUrl = vertexPosterUrl;
-    posterGenerationState.posterUrl = vertexPosterUrl;
+  if (!posterUrl && data?.poster?.url) {
+    posterUrl = data.poster.url;
+  }
 
-    const imgEl = document.querySelector('[data-role="vertex-poster-preview"]');
-    const placeholderEl = document.querySelector('[data-role="vertex-poster-placeholder"]');
-    const hiddenInput = document.getElementById('vertex-poster-url');
+  if (!posterUrl && typeof data?.poster_url === 'string') {
+    posterUrl = data.poster_url;
+  }
 
-    if (imgEl) {
-      imgEl.src = vertexPosterUrl;
-      imgEl.style.display = 'block';
-      imgEl.classList.remove('hidden');
-    }
+  if (!posterUrl) {
+    console.warn(
+      '[triggerGeneration] no vertex poster url found in response (after fallback)',
+      data,
+    );
+    return;
+  }
 
-    if (placeholderEl) {
-      placeholderEl.style.display = 'none';
-    }
+  posterGeneratedImageUrl = posterUrl;
+  posterGenerationState.posterUrl = posterUrl;
 
-    if (hiddenInput) {
-      hiddenInput.value = vertexPosterUrl;
-    }
-
-    window.posterGeneratedLayout = {
-      type: 'vertex',
-      poster_url: vertexPosterUrl,
-      scenario_url: data?.scenario_image?.url,
-      product_url: data?.product_image?.url,
-      raw: data,
-    };
-  } catch (err) {
-    console.error('[triggerGeneration] applyVertexPosterResult error', err);
+  if (typeof applyPosterPreview === 'function') {
+    applyPosterPreview(posterUrl);
+  } else if (typeof updateGeneratedPoster === 'function') {
+    updateGeneratedPoster(posterUrl);
   }
 }
 
