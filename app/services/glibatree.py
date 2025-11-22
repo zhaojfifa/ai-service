@@ -111,6 +111,46 @@ def upload_bytes_to_r2_return_ref(
     return f"r2://{bucket}/{storage_key}", url
 
 
+async def generate_slot_image(
+    prompt: str,
+    *,
+    slot: str,
+    index: int | None = None,
+    template_id: str | None = None,
+    aspect: str = "1:1",
+) -> tuple[str, str]:
+    """Generate a single slot image and persist it to object storage."""
+
+    if not prompt or not prompt.strip():
+        raise ValueError("prompt is required to generate slot image")
+
+    if vertex_imagen_client is None:
+        raise RuntimeError("Vertex Imagen3 client is not configured")
+
+    try:
+        generated = vertex_imagen_client.generate_bytes(
+            prompt=prompt,
+            aspect_ratio=aspect or "1:1",
+        )
+    except Exception as exc:  # pragma: no cover - upstream service call
+        logger.exception("[slot-image] generation failed: %s", exc)
+        raise
+
+    image_bytes = generated[0] if isinstance(generated, tuple) else generated
+    prefix = slot or "slot"
+    folder = prefix
+    if prefix == "gallery" and index is not None:
+        folder = f"gallery/{index}".strip("/")
+
+    storage_key = make_key(folder, f"{template_id or 'slot'}-{uuid.uuid4().hex}.png")
+    url = put_bytes(storage_key, image_bytes, content_type="image/png")
+    if not url:
+        raise RuntimeError("Failed to upload generated slot image")
+
+    public_ref = public_url_for(storage_key) or url
+    return storage_key, public_ref
+
+
 def _default_asset_bucket() -> str | None:
     return (
         os.getenv("POSTER_ASSET_BUCKET")
