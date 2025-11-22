@@ -33,20 +33,20 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Step 2 · Generate posters via backend</h2>
+        <h2>环节 2 · 调用后端生成海报</h2>
         <p class="hint">
-          Confirm assets from Step 1, then call the Render-hosted FastAPI service to let Glibatree
-          Art Designer generate the poster, prompt, and marketing copy.
+          确认环节 1 的素材信息后，调用 Render 托管的 FastAPI 服务，让 Glibatree Art
+          Designer 生成海报、提示词与营销文案。
         </p>
 
         <div class="stage-summary" id="stage1-summary">
-          <h3>Material overview</h3>
+          <h3>素材概览</h3>
           <dl id="stage1-overview"></dl>
         </div>
 
         <div class="template-picker">
           <div class="template-picker-control">
-            <label for="template-select">Locked template</label>
+            <label for="template-select">锁版模板</label>
             <select id="template-select" aria-label="选择模板"></select>
             <p id="template-description" class="template-description"></p>
           </div>
@@ -219,19 +219,21 @@
                     <span class="poster-preview-label">最新生成结果</span>
                   </div>
                 </header>
-                <img
-                  id="poster-generated-image"
-                  class="poster-preview-image hidden"
-                  alt="AI 生成海报"
-                  data-role="latest-poster-image"
-                  decoding="async"
-                />
-                <div
-                  id="poster-generated-placeholder"
-                  class="poster-preview-placeholder"
-                  data-role="latest-poster-empty"
-                >
-                  生成结果将在此展示。
+                <div class="ai-result-box">
+                  <img
+                    id="vertex-poster-preview"
+                    data-role="vertex-poster-preview"
+                    alt="AI 生成海报预览"
+                    style="max-width: 100%; display: none; border-radius: 8px;"
+                    decoding="async"
+                  />
+                  <div
+                    id="vertex-poster-placeholder"
+                    data-role="vertex-poster-placeholder"
+                    class="poster-preview-placeholder"
+                  >
+                    AI 生成结果将在这里展示。
+                  </div>
                 </div>
                 <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
               </figure>
