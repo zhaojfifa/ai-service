@@ -33,20 +33,20 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Step 2 · Generate posters via backend</h2>
+        <h2>环节 2 · 调用后端生成海报</h2>
         <p class="hint">
-          Confirm assets from Step 1, then call the Render-hosted FastAPI service to let Glibatree
-          Art Designer generate the poster, prompt, and marketing copy.
+          确认环节 1 的素材信息后，调用 Render 托管的 FastAPI 服务，让 Glibatree Art
+          Designer 生成海报、提示词与营销文案。
         </p>
 
         <div class="stage-summary" id="stage1-summary">
-          <h3>Material overview</h3>
+          <h3>素材概览</h3>
           <dl id="stage1-overview"></dl>
         </div>
 
         <div class="template-picker">
           <div class="template-picker-control">
-            <label for="template-select">Locked template</label>
+            <label for="template-select">锁版模板</label>
             <select id="template-select" aria-label="选择模板"></select>
             <p id="template-description" class="template-description"></p>
           </div>
@@ -246,7 +246,7 @@
           </div>
           <div class="output-group hidden" id="prompt-bundle-group">
             <h3>提示词槽位配置（JSON）</h3>
-            <pre id="prompt-bundle-json"></pre>
+            <textarea id="prompt-bundle-json" rows="10" readonly data-role="prompt-bundle-json"></textarea>
           </div>
           <div class="output-group hidden" id="email-group">
             <h3>营销文案草稿</h3>
