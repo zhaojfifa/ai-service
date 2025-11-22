@@ -14,6 +14,11 @@ const posterGenerationState = {
 // 兼容旧版调用：确保引用不存在的全局变量时不会抛出 ReferenceError
 let posterGeneratedImage = null;
 let posterGeneratedLayout = null;
+
+// stage2：缓存最近一次生成结果与提示词，便于预览与回放
+let lastPosterResult = null;
+let posterGeneratedImageUrl = null;
+let lastPromptBundle = null;
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
@@ -3585,6 +3590,8 @@ function initStage2() {
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
           promptGroup,
+          promptBundleGroup,
+          promptBundlePre,
           emailGroup,
           promptTextarea,
           emailTextarea,
@@ -3890,6 +3897,8 @@ async function triggerGeneration(opts) {
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
     templatePoster = null,
+    promptBundleGroup,
+    promptBundlePre,
     promptGroup, emailGroup, promptTextarea, emailTextarea,
     generateButton, regenerateButton, nextButton,
     promptManager, updatePromptPanels,
@@ -4219,11 +4228,31 @@ async function triggerGeneration(opts) {
       (Array.isArray(data?.results) && data.results[0]?.url) ||
       null;
 
+    lastPosterResult = data || null;
+    lastPromptBundle = data?.prompt_bundle || null;
+    posterGeneratedImageUrl = posterUrl || null;
+
     posterGenerationState.posterUrl = posterUrl;
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
     posterGeneratedImage = posterGenerationState.posterUrl;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+
+    if (promptBundlePre && promptBundleGroup) {
+      const bundle = lastPromptBundle;
+      const hasBundle =
+        bundle &&
+        ((typeof bundle === 'string' && bundle.trim()) ||
+          (typeof bundle === 'object' && Object.keys(bundle).length));
+      if (hasBundle) {
+        const text = typeof bundle === 'string' ? bundle : JSON.stringify(bundle, null, 2);
+        promptBundlePre.textContent = text;
+        promptBundleGroup.classList.remove('hidden');
+      } else {
+        promptBundlePre.textContent = '';
+        promptBundleGroup.classList.add('hidden');
+      }
+    }
 
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
@@ -4284,6 +4313,9 @@ async function triggerGeneration(opts) {
     posterGenerationState.posterUrl = null;
     posterGenerationState.promptBundle = null;
     posterGenerationState.rawResult = null;
+    lastPosterResult = null;
+    lastPromptBundle = null;
+    posterGeneratedImageUrl = null;
     posterGeneratedImage = null;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
     setStatus(statusElement, error?.message || '生成失败', 'error');
