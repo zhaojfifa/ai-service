@@ -212,22 +212,30 @@
                   后台尚未上传模板海报。
                 </div>
               </figure>
-              <figure class="poster-preview" data-role="generated">
+              <figure class="poster-preview" data-role="generated latest-poster-panel">
                 <header class="poster-preview-header">
                   <div class="poster-preview-title">
                     <span class="poster-chip poster-chip-secondary">海报 B</span>
                     <span class="poster-preview-label">最新生成结果</span>
                   </div>
                 </header>
-                <img
-                  id="poster-generated-image"
-                  alt="生成海报预览"
-                  class="hidden"
-                  decoding="async"
-                />
-                <div id="poster-generated-placeholder" class="poster-preview-placeholder">
-                  生成结果将在此展示。
+                <div class="ai-result-box">
+                  <img
+                    id="vertex-poster-preview"
+                    data-role="vertex-poster-preview"
+                    alt="AI 生成海报预览"
+                    style="max-width: 100%; display: none; border-radius: 8px;"
+                    decoding="async"
+                  />
+                  <div
+                    id="vertex-poster-placeholder"
+                    data-role="vertex-poster-placeholder"
+                    class="poster-preview-placeholder"
+                  >
+                    AI 生成结果将在这里展示。
+                  </div>
                 </div>
+                <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
               </figure>
             </div>
           </div>
@@ -241,7 +249,7 @@
           </div>
           <div class="output-group hidden" id="prompt-bundle-group">
             <h3>提示词槽位配置（JSON）</h3>
-            <pre id="prompt-bundle-json"></pre>
+            <textarea id="prompt-bundle-json" rows="10" readonly data-role="prompt-bundle-json"></textarea>
           </div>
           <div class="output-group hidden" id="email-group">
             <h3>营销文案草稿</h3>
