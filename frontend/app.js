@@ -17,6 +17,8 @@ function pickImageSrc(img) {
   return src;
 }
 
+let lastStage1Data = null;
+
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
 const posterGenerationState = {
   /** 海报成品图 URL（R2 的公开地址） */
@@ -3903,17 +3905,68 @@ function buildPromptBundleStrings(prompts = {}) {
 }
 
 function renderPosterResult(result) {
+  const poster = result?.poster || {};
+  const galleryImages = poster.gallery_images || result?.gallery_images || [];
+  const posterRoot = document.getElementById('poster-b-root');
   const posterImg =
     document.getElementById('poster-image') ||
     document.getElementById('vertex-poster-preview-img');
-  const scenarioImg = document.getElementById('scenario-image');
-  const productImg = document.getElementById('product-image');
+  const scenarioImg =
+    document.querySelector('[data-role="poster-b-scenario"]') ||
+    document.getElementById('scenario-image');
+  const productImg =
+    document.querySelector('[data-role="poster-b-product"]') ||
+    document.getElementById('product-image');
   const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
 
+  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
+  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
+  const title = poster.title || lastStage1Data?.title || '';
+  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
+
+  const logoSrc =
+    pickImageSrc(poster.brand_logo) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.brand_logo));
+
+  const logoEl = document.getElementById('poster-b-brand-logo');
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+
+  if (brandNameEl) brandNameEl.textContent = brandName;
+  if (agentNameEl) agentNameEl.textContent = agentName;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+
+  const scenarioSrc =
+    pickImageSrc(poster.scenario_image) || pickImageSrc(result?.scenario_image);
+
+  if (scenarioSrc && scenarioImg) {
+    scenarioImg.src = scenarioSrc;
+  }
+
+  const productSrc =
+    pickImageSrc(poster.product_image) || pickImageSrc(result?.product_image);
+
+  if (productSrc && productImg) {
+    productImg.src = productSrc;
+  }
+
+  const galleryEls = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  galleryEls.forEach((slot, index) => {
+    const src = pickImageSrc(galleryImages[index]);
+    if (src) {
+      slot.src = src;
+    }
+  });
+
   const posterSrc =
-    result?.poster_url ||
-    pickImageSrc(result?.poster?.poster_image) ||
-    pickImageSrc(result?.poster_image);
+    result?.poster_url || pickImageSrc(poster.poster_image) || pickImageSrc(result?.poster_image);
 
   if (posterSrc) {
     if (posterImg) {
@@ -3931,10 +3984,6 @@ function renderPosterResult(result) {
       hiddenUrlInput.value = posterSrc;
     }
 
-    if (posterPlaceholder?.classList) {
-      posterPlaceholder.classList.add('hidden');
-    }
-
     try {
       sessionStorage.setItem('latestPosterUrl', posterSrc);
     } catch (e) {
@@ -3942,29 +3991,13 @@ function renderPosterResult(result) {
     }
   }
 
-  const scenarioSrc =
-    pickImageSrc(result?.poster?.scenario_image) || pickImageSrc(result?.scenario_image);
-
-  if (scenarioSrc && scenarioImg) {
-    scenarioImg.src = scenarioSrc;
+  const hasVisuals = Boolean(posterSrc || scenarioSrc || productSrc || galleryImages.length);
+  if (posterRoot && hasVisuals) {
+    posterRoot.classList.remove('hidden');
   }
-
-  const productSrc = pickImageSrc(result?.poster?.product_image) || pickImageSrc(result?.product_image);
-
-  if (productSrc && productImg) {
-    productImg.src = productSrc;
+  if (posterPlaceholder?.classList && hasVisuals) {
+    posterPlaceholder.classList.add('hidden');
   }
-
-  const galleryImages = result?.poster?.gallery_images || result?.gallery_images || [];
-  galleryImages.forEach((imgObj, index) => {
-    const src = pickImageSrc(imgObj);
-    const el = document.querySelector(
-      `[data-role="gallery-image"][data-index="${index}"]`
-    );
-    if (src && el) {
-      el.src = src;
-    }
-  });
 
   return posterSrc || null;
 }
@@ -4045,7 +4078,20 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
-  
+
+  try {
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+  } catch (error) {
+    try {
+      lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+    } catch {
+      lastStage1Data = stage1Data || null;
+    }
+    console.warn('[triggerGeneration] unable to deep copy stage1Data, using fallback reference', error);
+  }
+
+  console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
+
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -4189,9 +4235,14 @@ async function triggerGeneration(opts) {
     );
     return null;
   }
-  
 
- // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+  console.info('[debug] posterPayload', {
+    ...posterPayload,
+    gallery_items: posterPayload.gallery_items || [],
+  });
+
+
+  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
   
@@ -4361,6 +4412,13 @@ async function triggerGeneration(opts) {
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+    console.info('[debug] apiVertexPosterResult', {
+      poster_url: data?.poster_url,
+      scenario_image: data?.poster?.scenario_image,
+      product_image: data?.poster?.product_image,
+      gallery_images: data?.poster?.gallery_images,
+    });
 
     const posterUrl =
       data?.poster?.asset_url ||
