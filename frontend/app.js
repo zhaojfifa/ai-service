@@ -11,6 +11,29 @@ const posterGenerationState = {
   /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
   rawResult: null,
 };
+// 双列功能模板的归一化布局（随容器等比缩放）
+const TEMPLATE_DUAL_LAYOUT = {
+  canvas: { width: 1024, height: 1024 },
+  slots: {
+    logo: { x: 0.06, y: 0.05, w: 0.09, h: 0.09, type: 'image' },
+    brand_name: { x: 0.18, y: 0.06, w: 0.30, h: 0.07, type: 'text', align: 'left' },
+    agent_name: { x: 0.58, y: 0.06, w: 0.34, h: 0.07, type: 'text', align: 'right' },
+
+    scenario: { x: 0.05, y: 0.20, w: 0.38, h: 0.46, type: 'image' },
+    product: { x: 0.46, y: 0.20, w: 0.46, h: 0.46, type: 'image' },
+    headline: { x: 0.07, y: 0.70, w: 0.86, h: 0.09, type: 'text', align: 'center' },
+
+    series_1_img: { x: 0.07, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_1_txt: { x: 0.07, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_2_img: { x: 0.30, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_2_txt: { x: 0.30, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_3_img: { x: 0.53, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_3_txt: { x: 0.53, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_4_img: { x: 0.76, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_4_txt: { x: 0.76, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    tagline: { x: 0.07, y: 0.95, w: 0.86, h: 0.04, type: 'text', align: 'center' },
+  },
+};
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
 // 生成成功后 A/B 对比按钮才可使用。
 
