@@ -2,6 +2,23 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
+function pickImageSrc(img) {
+  if (!img) return null;
+  if (typeof img === 'string') return img;
+
+  const src =
+    (typeof img.url === 'string' && img.url.trim()) ||
+    (typeof img.asset === 'string' && img.asset.trim()) ||
+    (typeof img.dataUrl === 'string' && img.dataUrl.trim()) ||
+    (typeof img.data_url === 'string' && img.data_url.trim()) ||
+    null;
+
+  return src;
+}
+
+let lastStage1Data = null;
+
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
 const posterGenerationState = {
   /** 海报成品图 URL（R2 的公开地址） */
@@ -829,14 +846,14 @@ const MATERIAL_DEFAULT_LABELS = {
 const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
-  if (!image || typeof image !== 'object') return '';
-  const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
-  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
-    return directUrl;
-  }
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
-  if (dataUrl && dataUrl.startsWith('data:')) {
-    return dataUrl;
+  if (!image) return '';
+  const directUrl = pickImageSrc(image);
+  if (directUrl && typeof directUrl === 'string') {
+    const trimmed = directUrl.trim();
+    if (HTTP_URL_RX.test(trimmed) || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+    return trimmed;
   }
   return '';
 }
@@ -3887,6 +3904,104 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
+function renderPosterResult(result) {
+  const poster = result?.poster || {};
+  const galleryImages = poster.gallery_images || result?.gallery_images || [];
+  const posterRoot = document.getElementById('poster-b-root');
+  const posterImg =
+    document.getElementById('poster-image') ||
+    document.getElementById('vertex-poster-preview-img');
+  const scenarioImg =
+    document.querySelector('[data-role="poster-b-scenario"]') ||
+    document.getElementById('scenario-image');
+  const productImg =
+    document.querySelector('[data-role="poster-b-product"]') ||
+    document.getElementById('product-image');
+  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
+  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
+  const title = poster.title || lastStage1Data?.title || '';
+  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
+
+  const logoSrc =
+    pickImageSrc(poster.brand_logo) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.brand_logo));
+
+  const logoEl = document.getElementById('poster-b-brand-logo');
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+
+  if (brandNameEl) brandNameEl.textContent = brandName;
+  if (agentNameEl) agentNameEl.textContent = agentName;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+
+  const scenarioSrc =
+    pickImageSrc(poster.scenario_image) || pickImageSrc(result?.scenario_image);
+
+  if (scenarioSrc && scenarioImg) {
+    scenarioImg.src = scenarioSrc;
+  }
+
+  const productSrc =
+    pickImageSrc(poster.product_image) || pickImageSrc(result?.product_image);
+
+  if (productSrc && productImg) {
+    productImg.src = productSrc;
+  }
+
+  const galleryEls = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  galleryEls.forEach((slot, index) => {
+    const src = pickImageSrc(galleryImages[index]);
+    if (src) {
+      slot.src = src;
+    }
+  });
+
+  const posterSrc =
+    result?.poster_url || pickImageSrc(poster.poster_image) || pickImageSrc(result?.poster_image);
+
+  if (posterSrc) {
+    if (posterImg) {
+      posterImg.src = posterSrc;
+      if (posterImg.classList?.contains('hidden')) {
+        posterImg.classList.remove('hidden');
+      }
+      if (posterImg.style) {
+        posterImg.style.display = 'block';
+      }
+    }
+
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) {
+      hiddenUrlInput.value = posterSrc;
+    }
+
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterSrc);
+    } catch (e) {
+      console.warn('failed to cache latestPosterUrl', e);
+    }
+  }
+
+  const hasVisuals = Boolean(posterSrc || scenarioSrc || productSrc || galleryImages.length);
+  if (posterRoot && hasVisuals) {
+    posterRoot.classList.remove('hidden');
+  }
+  if (posterPlaceholder?.classList && hasVisuals) {
+    posterPlaceholder.classList.add('hidden');
+  }
+
+  return posterSrc || null;
+}
+
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
@@ -3928,7 +4043,7 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  const posterUrl = extractVertexPosterUrl(data);
+  const posterUrl = renderPosterResult(data) || extractVertexPosterUrl(data);
 
   if (!posterUrl) {
     console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
@@ -3963,7 +4078,20 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
-  
+
+  try {
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+  } catch (error) {
+    try {
+      lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+    } catch {
+      lastStage1Data = stage1Data || null;
+    }
+    console.warn('[triggerGeneration] unable to deep copy stage1Data, using fallback reference', error);
+  }
+
+  console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
+
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -4107,9 +4235,14 @@ async function triggerGeneration(opts) {
     );
     return null;
   }
-  
 
- // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+  console.info('[debug] posterPayload', {
+    ...posterPayload,
+    gallery_items: posterPayload.gallery_items || [],
+  });
+
+
+  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
   
@@ -4279,6 +4412,13 @@ async function triggerGeneration(opts) {
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+    console.info('[debug] apiVertexPosterResult', {
+      poster_url: data?.poster_url,
+      scenario_image: data?.poster?.scenario_image,
+      product_image: data?.poster?.product_image,
+      gallery_images: data?.poster?.gallery_images,
+    });
 
     const posterUrl =
       data?.poster?.asset_url ||
@@ -4998,17 +5138,38 @@ function initStage3() {
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+    if (!stage1Data || !stage2Result) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    assignPosterImage(
-      posterImage,
-      stage2Result.poster_image,
-      `${stage1Data.product_name} 海报预览`
-    );
+    if (posterImage) {
+      let posterSrc = null;
+
+      try {
+        posterSrc = sessionStorage.getItem('latestPosterUrl');
+      } catch (e) {
+        console.warn('cannot read latestPosterUrl from sessionStorage', e);
+      }
+
+      if (!posterSrc) {
+        posterSrc =
+          stage2Result?.poster_url ||
+          pickImageSrc(stage2Result?.poster?.poster_image) ||
+          pickImageSrc(stage2Result?.poster_image);
+      }
+
+      if (posterSrc) {
+        posterImage.src = posterSrc;
+      } else if (stage2Result.poster_image) {
+        assignPosterImage(
+          posterImage,
+          stage2Result.poster_image,
+          `${stage1Data.product_name} 海报预览`
+        );
+      }
+    }
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }
