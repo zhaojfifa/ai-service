@@ -305,6 +305,8 @@ main {
   border-radius: 12px;
   padding: 1rem 1.25rem;
   margin-bottom: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 .template-picker {
@@ -353,6 +355,7 @@ main {
 }
 
 .template-preview-wrapper canvas {
+  width: min(100%, 420px);
   max-width: 100%;
   height: auto;
   border-radius: 16px;
@@ -652,6 +655,7 @@ main {
 
 .stage-summary h3 {
   margin-top: 0;
+  font-size: 1.05em;
 }
 
 .stage-summary dl {
@@ -664,10 +668,12 @@ main {
 .stage-summary dt {
   font-weight: 600;
   color: #52606d;
+  font-size: 0.98em;
 }
 
 .stage-summary dd {
   margin: 0;
+  font-size: 0.98em;
 }
 
 .actions {

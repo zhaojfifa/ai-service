@@ -4211,8 +4211,15 @@ async function triggerGeneration(opts) {
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
 
-    posterGenerationState.posterUrl = data?.poster_url || data?.poster_image?.url ||
-      (Array.isArray(data?.results) && data.results[0]?.url) || null;
+    const posterUrl =
+      data?.poster?.asset_url ||
+      data?.poster?.url ||
+      data?.poster_url ||
+      data?.poster_image?.url ||
+      (Array.isArray(data?.results) && data.results[0]?.url) ||
+      null;
+
+    posterGenerationState.posterUrl = posterUrl;
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
     posterGeneratedImage = posterGenerationState.posterUrl;
@@ -4234,6 +4241,10 @@ async function triggerGeneration(opts) {
       hideGeneratedPlaceholder();
       assigned = true;
     } else {
+      if (generatedImage?.classList) {
+        generatedImage.classList.add('hidden');
+        generatedImage.removeAttribute('src');
+      }
       resetGeneratedPlaceholder('生成结果缺少可预览图片。');
     }
 
