@@ -17,6 +17,57 @@ function pickImageSrc(img) {
   return src;
 }
 
+function renderPosterBFromStage1(stage1Data) {
+  if (!stage1Data) return;
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+  const logoEl = document.getElementById('poster-b-brand-logo');
+
+  if (brandNameEl) brandNameEl.textContent = stage1Data.brand_name || '';
+  if (agentNameEl) agentNameEl.textContent = stage1Data.agent_name || '';
+  if (titleEl) titleEl.textContent = stage1Data.title || '';
+  if (subtitleEl) subtitleEl.textContent = stage1Data.subtitle || '';
+
+  const logoSrc = pickImageSrc(stage1Data.brand_logo);
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const scenarioEl = document.querySelector('[data-role="poster-b-scenario"]');
+  const productEl = document.querySelector('[data-role="poster-b-product"]');
+
+  const scenarioSrc = pickImageSrc(stage1Data.scenario_asset);
+  const productSrc = pickImageSrc(stage1Data.product_asset);
+
+  if (scenarioEl && scenarioSrc) {
+    scenarioEl.src = scenarioSrc;
+  }
+  if (productEl && productSrc) {
+    productEl.src = productSrc;
+  }
+
+  const bottomSlots = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  const gallery = (stage1Data.gallery_entries || []).filter(Boolean);
+
+  bottomSlots.forEach((slot, index) => {
+    const imgEl = slot.querySelector('img');
+    const captionEl = slot.querySelector('.slot-caption');
+
+    const entry = gallery.length ? gallery[index % gallery.length] : null;
+    const entrySrc = entry ? pickImageSrc(entry.asset) : null;
+
+    if (imgEl && entrySrc) {
+      imgEl.src = entrySrc;
+    }
+    if (captionEl) {
+      captionEl.textContent = entry?.caption || '';
+    }
+  });
+}
+
 let lastStage1Data = null;
 
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
@@ -1265,6 +1316,14 @@ function initStage1() {
           '描述要生成的小图内容',
       });
       refreshPreview();
+      const scenarioPreview = document.getElementById('scenario_preview');
+      if (scenarioPreview) {
+        scenarioPreview.src = pickImageSrc(state.scenario) || '';
+      }
+      const productPreview = document.getElementById('product_preview');
+      if (productPreview) {
+        productPreview.src = pickImageSrc(state.product) || '';
+      }
     })();
   } else {
     applyStage1Defaults(form);
@@ -2353,7 +2412,7 @@ function renderGalleryItems(state, container, options = {}) {
       if (!file) return;
       try {
         entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
         state.previewBuilt = false;
         onChange?.();
       } catch (error) {
@@ -2371,7 +2430,10 @@ function renderGalleryItems(state, container, options = {}) {
     previewWrapper.classList.add('gallery-item-preview');
     const previewImage = document.createElement('img');
     previewImage.alt = `${label} ${index + 1} 预览`;
-    previewImage.src = entry.asset?.dataUrl || placeholder;
+    previewImage.src = pickImageSrc(entry.asset) || placeholder;
+    previewImage.dataset.role = 'gallery-preview';
+    previewImage.dataset.index = String(index);
+    previewImage.classList.add('slot-preview');
     previewWrapper.appendChild(previewImage);
     item.appendChild(previewWrapper);
 
@@ -2397,6 +2459,8 @@ function renderGalleryItems(state, container, options = {}) {
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
+    promptTextarea.dataset.role = 'gallery-prompt';
+    promptTextarea.dataset.index = String(index);
     promptTextarea.addEventListener('input', () => {
       entry.prompt = promptTextarea.value;
       state.previewBuilt = false;
@@ -2404,6 +2468,14 @@ function renderGalleryItems(state, container, options = {}) {
     });
     promptField.appendChild(promptTextarea);
     item.appendChild(promptField);
+
+    const generateButton = document.createElement('button');
+    generateButton.type = 'button';
+    generateButton.textContent = `AI 生成小图 ${index + 1}`;
+    generateButton.classList.add('secondary');
+    generateButton.dataset.role = 'gallery-generate';
+    generateButton.dataset.index = String(index);
+    item.appendChild(generateButton);
 
     async function applyGalleryMode(mode, options = {}) {
       const { initial = false } = options;
@@ -2439,7 +2511,7 @@ function renderGalleryItems(state, container, options = {}) {
         }
         previewImage.src = placeholder;
       } else {
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
       }
 
       if (!initial) {
@@ -2475,6 +2547,8 @@ function renderGalleryItems(state, container, options = {}) {
 
     container.appendChild(item);
   });
+
+  bindSlotGenerationButtons(state, { refreshPreview: onChange });
 }
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
@@ -2523,10 +2597,13 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
   payload.product_mode = state.productMode || 'upload';
+  const scenarioPromptValue = formData.get('scenario_prompt')?.toString().trim() || '';
   const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
   payload.product_prompt = productPromptValue || null;
   payload.scenario_prompt =
-    payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
+    payload.scenario_mode === 'prompt'
+      ? payload.scenario_image
+      : scenarioPromptValue || null;
   payload.gallery_label = galleryLabel;
   payload.gallery_limit = galleryLimit;
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
@@ -2576,6 +2653,144 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   }
 
   return payload;
+}
+
+async function generateSlotImage(slotType, index, promptText, stage1Data) {
+  const apiCandidates = getApiCandidates(
+    document.getElementById('api-base')?.value || null
+  );
+  if (!apiCandidates.length) {
+    throw new Error('未配置后端 API 基址');
+  }
+  if (!promptText || !promptText.trim()) {
+    throw new Error('请先填写提示词再生成图片');
+  }
+
+  const payload = {
+    slot: slotType,
+    index: index ?? null,
+    prompt: promptText,
+    template_id: stage1Data?.template_id || null,
+  };
+
+  const resp = await postJsonWithRetry(
+    apiCandidates,
+    '/api/generate-slot-image',
+    payload,
+    1
+  );
+
+  const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+  console.log('[debug] generateSlotImage result', { slotType, index, data });
+
+  if (!data || !data.url) {
+    throw new Error('生成图片失败，返回结果缺少 url');
+  }
+
+  return data;
+}
+
+function bindSlotGenerationButtons(stage1State, { refreshPreview }) {
+  const getStage1DataSnapshot = () =>
+    collectStage1Data(
+      document.getElementById('poster-form'),
+      stage1State,
+      { strict: false }
+    );
+
+  const btnScenario = document.getElementById('btn-generate-scenario');
+  if (btnScenario) {
+    if (btnScenario.dataset.bound !== 'true') {
+      btnScenario.dataset.bound = 'true';
+      btnScenario.addEventListener('click', async () => {
+        const prompt = document.getElementById('scenario_prompt')?.value || '';
+        try {
+          btnScenario.disabled = true;
+          const snapshot = getStage1DataSnapshot();
+          const { url, key } = await generateSlotImage('scenario', null, prompt, snapshot);
+          stage1State.scenario = url;
+          stage1State.scenarioMode = 'upload';
+          stage1State.scenarioKey = key;
+          const img = document.getElementById('scenario_preview');
+          if (img) img.src = url;
+          refreshPreview?.();
+        } catch (err) {
+          alert(err?.message || '生成场景图失败');
+        } finally {
+          btnScenario.disabled = false;
+        }
+      });
+    }
+  }
+
+  const btnProduct = document.getElementById('btn-generate-product');
+  if (btnProduct) {
+    if (btnProduct.dataset.bound !== 'true') {
+      btnProduct.dataset.bound = 'true';
+      btnProduct.addEventListener('click', async () => {
+        const prompt = document.getElementById('product_prompt')?.value || '';
+        try {
+          btnProduct.disabled = true;
+          const snapshot = getStage1DataSnapshot();
+          const { url, key } = await generateSlotImage('product', null, prompt, snapshot);
+          stage1State.product = url;
+          stage1State.productMode = 'upload';
+          stage1State.productKey = key;
+          const img = document.getElementById('product_preview');
+          if (img) img.src = url;
+          refreshPreview?.();
+        } catch (err) {
+          alert(err?.message || '生成主产品图失败');
+        } finally {
+          btnProduct.disabled = false;
+        }
+      });
+    }
+  }
+
+  const galleryButtons = document.querySelectorAll('[data-role="gallery-generate"]');
+  galleryButtons.forEach((btn) => {
+    if (btn.dataset.bound === 'true') return;
+    btn.dataset.bound = 'true';
+    const index = Number(btn.getAttribute('data-index') || '0');
+    btn.addEventListener('click', async () => {
+      const promptEl = document.querySelector(
+        `[data-role="gallery-prompt"][data-index="${index}"]`
+      );
+      const prompt = promptEl?.value || '';
+      try {
+        btn.disabled = true;
+        const snapshot = getStage1DataSnapshot();
+        const { url, key } = await generateSlotImage('gallery', index, prompt, snapshot);
+        if (!Array.isArray(stage1State.galleryEntries)) {
+          stage1State.galleryEntries = [];
+        }
+        if (!stage1State.galleryEntries[index]) {
+          stage1State.galleryEntries[index] = {
+            id: `gallery-${index}-${Date.now()}`,
+            caption: '',
+            asset: null,
+            prompt: '',
+            mode: 'upload',
+          };
+        }
+        stage1State.galleryEntries[index].asset = url;
+        stage1State.galleryEntries[index].key = key;
+        stage1State.galleryEntries[index].mode = 'upload';
+
+        const img = document.querySelector(
+          `[data-role="gallery-preview"][data-index="${index}"]`
+        );
+        if (img) img.src = url;
+        refreshPreview?.();
+      } catch (err) {
+        alert(err?.message || `生成小图 ${index + 1} 失败`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
@@ -3331,6 +3546,9 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+    renderPosterBFromStage1(lastStage1Data);
+
     let promptManager = null;
     let currentTemplateAssets = null;
     let latestPromptState = null;
@@ -4045,118 +4263,40 @@ function applyVertexPosterResult(data) {
 
   const poster = data?.poster || {};
 
-  console.log('[debug] vertexPoster slots', {
-    scenario_image: poster.scenario_image,
-    product_image: poster.product_image,
-    gallery_images: poster.gallery_images,
-    poster_image: poster.poster_image,
-  });
-
-  const posterRoot = document.getElementById('poster-b-root');
-  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
-
-  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
-  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
-  const title = poster.title || lastStage1Data?.title || '';
-  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
-
-  const logoSrc =
-    pickImageSrc(poster.brand_logo) ||
-    (lastStage1Data ? pickImageSrc(lastStage1Data.brand_logo) : null);
-
-  const logoEl = document.getElementById('poster-b-brand-logo');
-  if (logoEl && logoSrc) logoEl.src = logoSrc;
-
-  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
-  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
-  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
-  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
-
-  if (brandNameEl) brandNameEl.textContent = brandName;
-  if (agentNameEl) agentNameEl.textContent = agentName;
-  if (titleEl) titleEl.textContent = title;
-  if (subtitleEl) subtitleEl.textContent = subtitle;
-
-  const scenarioEl = document.querySelector('[data-role="poster-b-scenario"]');
-  const productEl = document.querySelector('[data-role="poster-b-product"]');
-
-  const scenarioSrc =
-    pickImageSrc(poster.scenario_image) ||
-    (lastStage1Data && pickImageSrc(lastStage1Data.scenario_asset));
-
-  const productSrc =
-    pickImageSrc(poster.product_image) ||
-    (lastStage1Data && pickImageSrc(lastStage1Data.product_asset));
-
-  console.log('[debug] slot src', { scenarioSrc, productSrc });
-
-  if (scenarioEl && scenarioSrc) scenarioEl.src = scenarioSrc;
-  if (productEl && productSrc) productEl.src = productSrc;
-
-  const bottomSlots = document.querySelectorAll('[data-role="poster-b-gallery"]');
-
-  let galleryImages = poster.gallery_images || data?.gallery_images || [];
-
-  if (!galleryImages.length) {
-    const baseSrcs = [scenarioSrc, productSrc].filter(Boolean);
-    galleryImages = [];
-    while (galleryImages.length < 4 && baseSrcs.length) {
-      const src = baseSrcs[galleryImages.length % baseSrcs.length];
-      galleryImages.push({ url: src });
-    }
-
-    console.log('[debug] fallback galleryImages', galleryImages);
+  if (lastStage1Data) {
+    renderPosterBFromStage1(lastStage1Data);
   }
 
-  if (galleryImages.length && galleryImages.length < 4) {
-    const base = [...galleryImages];
-    while (galleryImages.length < 4) {
-      galleryImages.push(base[galleryImages.length % base.length]);
-    }
+  if (typeof promptTextarea !== 'undefined' && promptTextarea) {
+    promptTextarea.value = data.prompt || '';
   }
-
-  if (!galleryImages.length && Array.isArray(lastStage1Data?.gallery_entries)) {
-    galleryImages = lastStage1Data.gallery_entries
-      .filter(Boolean)
-      .map((entry) => ({
-        url: entry?.asset || null,
-        asset: entry?.asset || null,
-        dataUrl: entry?.dataUrl || entry?.data_url || null,
-      }));
+  if (typeof emailTextarea !== 'undefined' && emailTextarea) {
+    emailTextarea.value = data.email_body || '';
   }
-
-  bottomSlots.forEach((slot, index) => {
-    const imgEl = slot.querySelector('img');
-    const captionEl = slot.querySelector('.slot-caption');
-    const imgObj = galleryImages[index];
-    const src = pickImageSrc(imgObj);
-
-    if (imgEl && src) {
-      imgEl.src = src;
-    }
-
-    if (captionEl) {
-      captionEl.textContent = '';
-    }
-  });
-
-  const hasVisuals = Boolean(scenarioSrc || productSrc || galleryImages.length);
-  if (posterRoot && hasVisuals) posterRoot.classList.remove('hidden');
-  if (posterPlaceholder?.classList && hasVisuals) posterPlaceholder.classList.add('hidden');
 
   const finalPosterUrl =
-    data?.poster_url || pickImageSrc(poster.poster_image) || posterGenerationState.posterUrl || null;
+    data.poster_url ||
+    (poster.poster_image && (poster.poster_image.url || poster.poster_image.asset)) ||
+    (Array.isArray(data.results) && data.results[0] && data.results[0].url) ||
+    null;
 
   if (finalPosterUrl) {
     const hiddenUrlInput = document.getElementById('vertex-poster-url');
     if (hiddenUrlInput) hiddenUrlInput.value = finalPosterUrl;
 
+    posterGenerationState.posterUrl = finalPosterUrl;
     try {
       sessionStorage.setItem('latestPosterUrl', finalPosterUrl);
     } catch (e) {
       console.warn('无法写 latestPosterUrl', e);
     }
   }
+
+  console.log('[debug] applyVertexPosterResult', {
+    poster_image: poster.poster_image,
+    poster_url: data.poster_url,
+    results: data.results,
+  });
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------

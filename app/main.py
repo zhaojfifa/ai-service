@@ -22,6 +22,8 @@ from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    GenerateSlotImageRequest,
+    GenerateSlotImageResponse,
     ImageRef,
     PosterImage,
     PromptBundle,
@@ -35,7 +37,11 @@ from app.schemas import (
     TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
-from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
+from app.services.glibatree import (
+    configure_vertex_imagen,
+    generate_poster_asset,
+    generate_slot_image,
+)
 from app.services.image_provider.factory import get_provider
 from app.services.poster import (
     build_glibatree_prompt,
@@ -840,6 +846,27 @@ def fetch_template_posters() -> TemplatePosterCollection:
         logger.exception("Failed to load template posters")
         raise HTTPException(status_code=500, detail="无法加载模板列表，请稍后重试。") from exc
     return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/generate-slot-image", response_model=GenerateSlotImageResponse)
+async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlotImageResponse:
+    aspect = req.aspect or "1:1"
+
+    try:
+        key, url = await generate_slot_image(
+            prompt=req.prompt,
+            slot=req.slot,
+            index=req.index,
+            template_id=req.template_id,
+            aspect=aspect,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - upstream failure
+        logger.exception("generate_slot_image failed: %s", exc)
+        raise HTTPException(status_code=500, detail="生成槽位图片失败") from exc
+
+    return GenerateSlotImageResponse(url=url, key=key)
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
