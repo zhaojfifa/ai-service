@@ -4045,7 +4045,7 @@ function applyVertexPosterResult(data) {
 
   const poster = data?.poster || {};
 
-  console.log('[debug] apiVertexPosterResult', {
+  console.log('[debug] vertexPoster slots', {
     scenario_image: poster.scenario_image,
     product_image: poster.product_image,
     gallery_images: poster.gallery_images,
@@ -4088,12 +4088,25 @@ function applyVertexPosterResult(data) {
     pickImageSrc(poster.product_image) ||
     (lastStage1Data && pickImageSrc(lastStage1Data.product_asset));
 
+  console.log('[debug] slot src', { scenarioSrc, productSrc });
+
   if (scenarioEl && scenarioSrc) scenarioEl.src = scenarioSrc;
   if (productEl && productSrc) productEl.src = productSrc;
 
   const bottomSlots = document.querySelectorAll('[data-role="poster-b-gallery"]');
 
   let galleryImages = poster.gallery_images || data?.gallery_images || [];
+
+  if (!galleryImages.length) {
+    const baseSrcs = [scenarioSrc, productSrc].filter(Boolean);
+    galleryImages = [];
+    while (galleryImages.length < 4 && baseSrcs.length) {
+      const src = baseSrcs[galleryImages.length % baseSrcs.length];
+      galleryImages.push({ url: src });
+    }
+
+    console.log('[debug] fallback galleryImages', galleryImages);
+  }
 
   if (galleryImages.length && galleryImages.length < 4) {
     const base = [...galleryImages];
