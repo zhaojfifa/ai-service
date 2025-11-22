@@ -516,6 +516,9 @@ class TemplatePosterUploadRequest(_CompatModel):
     slot: Literal["variant_a", "variant_b"] = Field(
         ..., description="Target slot for the uploaded template poster variant.",
     )
+    key: constr(strip_whitespace=True, min_length=1) = Field(
+        ..., description="Object storage key returned by /api/r2/presign-put.",
+    )
     filename: constr(strip_whitespace=True, min_length=1)
     content_type: constr(strip_whitespace=True, min_length=1)
     width: int | None = Field(
@@ -603,6 +606,13 @@ class GeneratePosterRequest(_CompatModel):
     )
 
     lock_seed: bool = Field(False, description="Whether the provided seed should be respected across runs.")
+
+    aspect_closeness: float | None = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Optional hint (0-1) that nudges Imagen3 to preserve requested aspect ratios.",
+    )
 
     # 新字段（结构化 prompts）
     prompt_bundle: PromptBundle = Field(
