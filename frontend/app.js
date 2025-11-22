@@ -3554,10 +3554,10 @@ function initStage2() {
         }
 
         if (bundleText) {
-          promptBundlePre.textContent = bundleText;
+          promptBundlePre.value = bundleText;
           promptBundleGroup.classList.remove('hidden');
         } else {
-          promptBundlePre.textContent = '';
+          promptBundlePre.value = '';
           promptBundleGroup.classList.add('hidden');
         }
       }
@@ -4246,10 +4246,10 @@ async function triggerGeneration(opts) {
           (typeof bundle === 'object' && Object.keys(bundle).length));
       if (hasBundle) {
         const text = typeof bundle === 'string' ? bundle : JSON.stringify(bundle, null, 2);
-        promptBundlePre.textContent = text;
+        promptBundlePre.value = text;
         promptBundleGroup.classList.remove('hidden');
       } else {
-        promptBundlePre.textContent = '';
+        promptBundlePre.value = '';
         promptBundleGroup.classList.add('hidden');
       }
     }
