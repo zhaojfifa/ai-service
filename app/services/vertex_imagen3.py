@@ -153,9 +153,10 @@ class VertexImagen3:
             guidance,
         )
         start = time.time()
-        images = self._generate_model.generate_images(
-            **kwargs, request_timeout=self.timeout
-        )
+        if "request_timeout" in self._generate_params:
+            kwargs["request_timeout"] = self.timeout
+
+        images = self._generate_model.generate_images(**kwargs)
         if not images:
             raise RuntimeError("Vertex Imagen3 generate_images returned empty list")
 
@@ -248,7 +249,10 @@ class VertexImagen3:
             guidance,
         )
         start = time.time()
-        images = self._edit_model.edit_image(**kwargs, request_timeout=self.timeout)
+        if "request_timeout" in self._edit_params:
+            kwargs["request_timeout"] = self.timeout
+
+        images = self._edit_model.edit_image(**kwargs)
         if not images:
             raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
 
