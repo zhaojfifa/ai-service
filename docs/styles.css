@@ -698,6 +698,24 @@ main {
   min-height: 16px;
 }
 
+.slot-preview {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  border-radius: 8px;
+  margin-top: 8px;
+  object-fit: cover;
+  background: #f4f5f7;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .poster-b-subtitle {
   text-align: right;
   color: #475569;
