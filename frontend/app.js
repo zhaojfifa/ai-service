@@ -3279,7 +3279,7 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-preview"]');
+    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
     const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
@@ -3887,43 +3887,57 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
+function extractVertexPosterUrl(result) {
+  if (!result) return null;
+
+  if (typeof result.poster_url === 'string' && result.poster_url.length > 0) {
+    return result.poster_url;
+  }
+
+  if (Array.isArray(result.results) && result.results.length > 0) {
+    const candidate = result.results.find((entry) => entry && entry.url) || result.results[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  if (Array.isArray(result.gallery_images) && result.gallery_images.length > 0) {
+    const candidate =
+      result.gallery_images.find((entry) => entry && entry.url) || result.gallery_images[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  if (
+    result.gallery_images &&
+    Array.isArray(result.gallery_images.results) &&
+    result.gallery_images.results.length > 0
+  ) {
+    const candidate =
+      result.gallery_images.results.find((entry) => entry && entry.url) ||
+      result.gallery_images.results[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  return null;
+}
+
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  let posterUrl = null;
-
-  if (
-    data &&
-    data.gallery_images &&
-    Array.isArray(data.gallery_images.results) &&
-    data.gallery_images.results.length > 0
-  ) {
-    posterUrl = data.gallery_images.results[0].url;
-  }
-
-  if (!posterUrl && Array.isArray(data?.images) && data.images.length > 0) {
-    const img0 = data.images[0];
-    posterUrl = typeof img0 === 'string' ? img0 : img0?.url;
-  }
-
-  if (!posterUrl && data?.poster?.url) {
-    posterUrl = data.poster.url;
-  }
-
-  if (!posterUrl && typeof data?.poster_url === 'string') {
-    posterUrl = data.poster_url;
-  }
+  const posterUrl = extractVertexPosterUrl(data);
 
   if (!posterUrl) {
-    console.warn(
-      '[triggerGeneration] no vertex poster url found in response (after fallback)',
-      data,
-    );
+    console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
     return;
   }
 
   posterGeneratedImageUrl = posterUrl;
   posterGenerationState.posterUrl = posterUrl;
+  posterGeneratedImage = posterGenerationState.posterUrl;
 
   if (typeof applyPosterPreview === 'function') {
     applyPosterPreview(posterUrl);
@@ -4196,6 +4210,7 @@ async function triggerGeneration(opts) {
   if (generatedImage?.classList) {
     generatedImage.classList.add('hidden');
     generatedImage.removeAttribute('src');
+    generatedImage.style.display = 'none';
   }
   resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -4313,6 +4328,7 @@ async function triggerGeneration(opts) {
     let assigned = false;
     if (posterGenerationState.posterUrl && generatedImage?.classList) {
       generatedImage.src = posterGenerationState.posterUrl;
+      generatedImage.style.display = 'block';
       generatedImage.classList.remove('hidden');
       hideGeneratedPlaceholder();
       assigned = true;
@@ -4320,6 +4336,7 @@ async function triggerGeneration(opts) {
       if (generatedImage?.classList) {
         generatedImage.classList.add('hidden');
         generatedImage.removeAttribute('src');
+        generatedImage.style.display = 'none';
       }
       resetGeneratedPlaceholder('生成结果缺少可预览图片。');
     }
