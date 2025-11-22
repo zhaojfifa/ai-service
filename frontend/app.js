@@ -3279,8 +3279,8 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedLayout = document.getElementById('poster-generated-layout');
-    const posterGeneratedPlaceholder = document.getElementById('poster-generated-placeholder');
+    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-preview"]');
+    const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
@@ -3887,6 +3887,55 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
+function applyVertexPosterResult(data) {
+  try {
+    console.log('[triggerGeneration] applyVertexPosterResult', data);
+
+    const galleryResults =
+      data?.gallery_images?.results || data?.poster?.gallery_images?.results || [];
+
+    const vertexPosterItem = galleryResults[0] || null;
+    const vertexPosterUrl =
+      vertexPosterItem?.url || data?.poster_image_url || data?.poster?.asset_url || null;
+
+    if (!vertexPosterUrl) {
+      console.warn('[triggerGeneration] no vertex poster url found in response');
+      return;
+    }
+
+    posterGeneratedImageUrl = vertexPosterUrl;
+    posterGenerationState.posterUrl = vertexPosterUrl;
+
+    const imgEl = document.querySelector('[data-role="vertex-poster-preview"]');
+    const placeholderEl = document.querySelector('[data-role="vertex-poster-placeholder"]');
+    const hiddenInput = document.getElementById('vertex-poster-url');
+
+    if (imgEl) {
+      imgEl.src = vertexPosterUrl;
+      imgEl.style.display = 'block';
+      imgEl.classList.remove('hidden');
+    }
+
+    if (placeholderEl) {
+      placeholderEl.style.display = 'none';
+    }
+
+    if (hiddenInput) {
+      hiddenInput.value = vertexPosterUrl;
+    }
+
+    window.posterGeneratedLayout = {
+      type: 'vertex',
+      poster_url: vertexPosterUrl,
+      scenario_url: data?.scenario_image?.url,
+      product_url: data?.product_image?.url,
+      raw: data,
+    };
+  } catch (err) {
+    console.error('[triggerGeneration] applyVertexPosterResult error', err);
+  }
+}
+
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts) {
   const {
@@ -4260,6 +4309,8 @@ async function triggerGeneration(opts) {
       seed: data?.seed ?? null,
       lock_seed: data?.lock_seed ?? null,
     });
+
+    applyVertexPosterResult(data);
 
     clearFallbackTimer();
 
@@ -5326,5 +5377,12 @@ function createAssetStore() {
     get,
     delete: remove,
     clear,
+  };
+}
+
+if (typeof window.openABModal !== 'function') {
+  window.openABModal = function openABModal(layout) {
+    console.log('[openABModal] stub called, layout =', layout);
+    alert('A/B 测试弹窗暂未实现，目前已完成 AI 海报生成，可以先前往第 3 步使用该海报。');
   };
 }

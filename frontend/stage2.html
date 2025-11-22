@@ -219,20 +219,23 @@
                     <span class="poster-preview-label">最新生成结果</span>
                   </div>
                 </header>
-                <img
-                  id="poster-generated-image"
-                  class="poster-preview-image hidden"
-                  alt="AI 生成海报"
-                  data-role="latest-poster-image"
-                  decoding="async"
-                />
-                <div
-                  id="poster-generated-placeholder"
-                  class="poster-preview-placeholder"
-                  data-role="latest-poster-empty"
-                >
-                  生成结果将在此展示。
+                <div class="ai-result-box">
+                  <img
+                    id="vertex-poster-preview"
+                    data-role="vertex-poster-preview"
+                    alt="AI 生成海报预览"
+                    style="max-width: 100%; display: none; border-radius: 8px;"
+                    decoding="async"
+                  />
+                  <div
+                    id="vertex-poster-placeholder"
+                    data-role="vertex-poster-placeholder"
+                    class="poster-preview-placeholder"
+                  >
+                    AI 生成结果将在这里展示。
+                  </div>
                 </div>
+                <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
               </figure>
             </div>
           </div>
