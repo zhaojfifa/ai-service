@@ -109,20 +109,7 @@
                 </label>
                 <label class="field" data-material-description-container="scenario">
                   <span data-material-description="scenario">应用场景描述（上传或 AI 生成时都会用到）</span>
-                  <textarea
-                    id="scenario_prompt"
-                    name="scenario_image"
-                    rows="3"
-                    required
-                    data-material-input="scenario"
-                    data-role="scenario-positive-prompt"
-                  ></textarea>
-                  <div class="slot-actions">
-                    <button type="button" id="btn-generate-scenario" class="secondary">
-                      AI 生成场景图
-                    </button>
-                    <img id="scenario_preview" class="slot-preview" alt="场景图预览" />
-                  </div>
+                  <textarea name="scenario_image" rows="3" required data-material-input="scenario"></textarea>
                 </label>
                 <div class="field-group">
                   <label>场景图提示词</label>
@@ -157,19 +144,11 @@
                 <label class="field optional" data-mode-visible="product:prompt" data-material-prompt="product">
                   <span data-material-prompt-label="product">产品图生成描述（可选补充）</span>
                   <textarea
-                    id="product_prompt"
                     name="product_prompt"
                     rows="3"
                     placeholder="补充产品材质、角度、使用场景等信息"
                     data-material-input="product-prompt"
-                    data-role="product-positive-prompt"
                   ></textarea>
-                  <div class="slot-actions">
-                    <button type="button" id="btn-generate-product" class="secondary">
-                      AI 生成主产品图
-                    </button>
-                    <img id="product_preview" class="slot-preview" alt="主产品预览" />
-                  </div>
                 </label>
                 <div class="field-group">
                   <label>主产品提示词</label>
