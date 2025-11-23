@@ -106,9 +106,9 @@ class PosterGalleryItem(_CompatModel):
         None,
         description="Object storage key pointing to the uploaded gallery asset.",
     )
-    mode: Literal["upload", "prompt"] = Field(
+    mode: Literal["upload", "prompt", "logo", "logo_fallback"] = Field(
         "upload",
-        description="Whether the gallery item was uploaded or generated from a prompt.",
+        description="Whether the gallery item was uploaded, generated from a prompt, or logo-filled.",
     )
     prompt: Optional[str] = Field(
         None,
@@ -733,6 +733,23 @@ class GeneratePosterResponse(_CompatModel):
                 return PromptBundle.parse_obj(v)  # v1
             return PromptBundle(**v)
         raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
+
+# ------------------------------------------------------------------------------
+# 槽位级生图
+# ------------------------------------------------------------------------------
+
+
+class GenerateSlotImageRequest(_CompatModel):
+    slot: Literal["scenario", "product", "gallery"]
+    index: Optional[int] = None
+    prompt: constr(strip_whitespace=True, min_length=1)
+    template_id: Optional[str] = None
+    aspect: Optional[str] = "1:1"
+
+
+class GenerateSlotImageResponse(_CompatModel):
+    url: HttpUrl
+    key: constr(strip_whitespace=True, min_length=1)
 
 # ------------------------------------------------------------------------------
 # 邮件
