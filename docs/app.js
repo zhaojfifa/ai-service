@@ -539,12 +539,20 @@ async function normaliseAssetReference(
   asset,
   {
     field = 'asset',
-    requireUploaded = false,
+    required = true,
+    // backward compatibility: honour legacy requireUploaded if provided
+    requireUploaded = undefined,
     apiCandidates = [],
     folder = 'uploads',
   } = {},
   brandLogo = null,
 ) {
+  const mustHaveUpload =
+    typeof required === 'boolean'
+      ? required
+      : typeof requireUploaded === 'boolean'
+        ? requireUploaded
+        : true;
   const candidates = Array.isArray(apiCandidates) ? apiCandidates.filter(Boolean) : [];
 
   const ensureUploaderAvailable = () => {
@@ -599,7 +607,7 @@ async function normaliseAssetReference(
   }
 
   if (!asset) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: null, url: null };
@@ -608,7 +616,7 @@ async function normaliseAssetReference(
   if (typeof asset === 'string') {
     const trimmed = asset.trim();
     if (!trimmed) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
       }
       return { key: null, url: null };
@@ -621,7 +629,7 @@ async function normaliseAssetReference(
     }
     const resolved = toAssetUrl(trimmed);
     if (!isUrlLike(resolved)) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
       }
     }
@@ -672,14 +680,14 @@ async function normaliseAssetReference(
   }
 
   if (!resolvedUrl) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: keyCandidate || null, url: null };
   }
 
   if (!isUrlLike(resolvedUrl)) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
     }
     return { key: keyCandidate || null, url: null };
@@ -4401,21 +4409,21 @@ async function triggerGeneration(opts) {
   try {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
-      requireUploaded: false,
+      required: true,
       apiCandidates,
       folder: 'brand-logo',
     });
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'scenario',
     }, brandLogoRef);
 
     productRef = await normaliseAssetReference(pd, {
       field: 'poster.product_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'product',
     }, brandLogoRef);
