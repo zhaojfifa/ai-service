@@ -539,11 +539,19 @@ async function normaliseAssetReference(
   asset,
   {
     field = 'asset',
-    requireUploaded = false,
+    required = true,
+    // backward compatibility: honour legacy requireUploaded if provided
+    requireUploaded = undefined,
     apiCandidates = [],
     folder = 'uploads',
-  } = {}
+  } = {},
 ) {
+  const mustHaveUpload =
+    typeof required === 'boolean'
+      ? required
+      : typeof requireUploaded === 'boolean'
+        ? requireUploaded
+        : true;
   const candidates = Array.isArray(apiCandidates) ? apiCandidates.filter(Boolean) : [];
 
   const ensureUploaderAvailable = () => {
@@ -588,7 +596,7 @@ async function normaliseAssetReference(
   };
 
   if (!asset) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: null, url: null };
@@ -597,7 +605,7 @@ async function normaliseAssetReference(
   if (typeof asset === 'string') {
     const trimmed = asset.trim();
     if (!trimmed) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
       }
       return { key: null, url: null };
@@ -610,7 +618,7 @@ async function normaliseAssetReference(
     }
     const resolved = toAssetUrl(trimmed);
     if (!isUrlLike(resolved)) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
       }
     }
@@ -661,14 +669,14 @@ async function normaliseAssetReference(
   }
 
   if (!resolvedUrl) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: keyCandidate || null, url: null };
   }
 
   if (!isUrlLike(resolvedUrl)) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
     }
     return { key: keyCandidate || null, url: null };
@@ -4299,6 +4307,69 @@ function applyVertexPosterResult(data) {
   });
 }
 
+async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
+  const result = [];
+  const entries = Array.isArray(stage1?.gallery_entries)
+    ? stage1.gallery_entries.filter(Boolean)
+    : [];
+
+  for (let i = 0; i < maxSlots; i += 1) {
+    const entry = entries[i] || null;
+    const caption = entry?.caption?.trim() || `Series ${i + 1}`;
+    const promptText = entry?.prompt?.trim() || null;
+    const mode = entry?.mode || 'upload';
+
+    const hasPrompt = !!promptText;
+    if (mode === 'prompt' && hasPrompt) {
+      result.push({
+        caption,
+        key: null,
+        asset: null,
+        mode: 'prompt',
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    let ref = null;
+    if (entry && entry.asset) {
+      ref = await normaliseAssetReference(entry.asset, {
+        field: `poster.gallery_items[${i}]`,
+        required: false,
+        apiCandidates,
+        folder: 'gallery',
+      });
+    }
+
+    if (ref && (ref.key || ref.url)) {
+      result.push({
+        caption,
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode,
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    if (logoRef && (logoRef.url || logoRef.key)) {
+      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
+      result.push({
+        caption,
+        key: logoRef.key || null,
+        asset: logoRef.url || null,
+        mode: 'logo_fallback',
+        prompt: null,
+      });
+      continue;
+    }
+
+    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
+  }
+
+  return result;
+}
+
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts) {
   const {
@@ -4357,60 +4428,26 @@ async function triggerGeneration(opts) {
   try {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
-      requireUploaded: false,
+      required: true,
       apiCandidates,
       folder: 'brand-logo',
     });
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'scenario',
     });
 
     productRef = await normaliseAssetReference(pd, {
       field: 'poster.product_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'product',
     });
 
-    galleryItems = [];
-    for (const [index, entry] of (stage1Data.gallery_entries || []).entries()) {
-      if (!entry) continue;
-      const mode = entry.mode || 'upload';
-      const caption = entry.caption?.trim() || null;
-      const promptText = entry.prompt?.trim() || null;
-
-      if (mode === 'prompt') {
-        if (promptText) {
-          galleryItems.push({
-            caption,
-            key: null,
-            asset: null,
-            mode,
-            prompt: promptText,
-          });
-        }
-        continue;
-      }
-
-      const ref = await normaliseAssetReference(entry.asset, {
-        field: `poster.gallery_items[${index}]`,
-        requireUploaded: true,
-        apiCandidates,
-        folder: 'gallery',
-      });
-
-      galleryItems.push({
-        caption,
-        key: ref.key,
-        asset: ref.url,
-        mode,
-        prompt: promptText,
-      });
-    }
+    galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
 
     const features = Array.isArray(stage1Data.features)
       ? stage1Data.features.filter(Boolean)
@@ -4760,7 +4797,14 @@ async function triggerGeneration(opts) {
     posterGeneratedImageUrl = null;
     posterGeneratedImage = null;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
-    setStatus(statusElement, error?.message || '生成失败', 'error');
+    const detail = error?.responseJson?.detail || null;
+    const quotaExceeded =
+      error?.status === 429 &&
+      (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
+    const friendlyMessage = quotaExceeded
+      ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+      : error?.message || '生成失败';
+    setStatus(statusElement, friendlyMessage, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
@@ -4769,7 +4813,7 @@ async function triggerGeneration(opts) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
-    resetGeneratedPlaceholder(error?.message || generatedPlaceholderDefault);
+    resetGeneratedPlaceholder(friendlyMessage || generatedPlaceholderDefault);
     return null;
   }
 }

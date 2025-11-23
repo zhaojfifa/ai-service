@@ -314,6 +314,54 @@ def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
                 pass
 
 
+def _apply_gallery_logo_fallback(
+    poster: PosterInput, *, max_slots: int = 4
+) -> PosterInput:
+    """Ensure gallery slots are populated, falling back to the brand logo when empty."""
+
+    logo_url = getattr(poster, "brand_logo", None)
+    logo_key = getattr(poster, "brand_logo_key", None)
+
+    if not logo_url and not logo_key:
+        return poster
+
+    gallery_items = list(getattr(poster, "gallery_items", []) or [])
+    if not max_slots:
+        max_slots = 4
+
+    filled: list[PosterGalleryItem] = []
+    for index in range(max_slots):
+        existing = gallery_items[index] if index < len(gallery_items) else None
+        has_asset = bool(getattr(existing, "asset", None) or getattr(existing, "key", None))
+        has_prompt = bool(getattr(existing, "prompt", None))
+
+        if existing and (has_asset or has_prompt):
+            filled.append(existing)
+            continue
+
+        if not logo_url and not logo_key:
+            continue
+
+        caption = getattr(existing, "caption", None) or f"Series {index + 1}"
+        filled.append(
+            PosterGalleryItem(
+                caption=caption,
+                asset=logo_url,
+                key=logo_key,
+                mode=getattr(existing, "mode", None) or "logo_fallback",
+                prompt=None,
+            )
+        )
+
+    if len(gallery_items) > max_slots:
+        filled.extend(gallery_items[max_slots:])
+
+    if filled == gallery_items:
+        return poster
+
+    return _copy_model(poster, gallery_items=filled)
+
+
 def _copy_model(instance, **update):
     """Compatibility helper for cloning Pydantic v1/v2 models with updates."""
     if hasattr(instance, "model_copy"):
@@ -1683,6 +1731,11 @@ def _enforce_template_materials(
 
     if updates:
         poster = _copy_model(poster, **updates)
+
+    poster = _apply_gallery_logo_fallback(
+        poster,
+        max_slots=gallery_limit or 4,
+    )
 
     material_flags = {
         "scenario": {
