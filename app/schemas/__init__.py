@@ -735,6 +735,23 @@ class GeneratePosterResponse(_CompatModel):
         raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
 
 # ------------------------------------------------------------------------------
+# 槽位级生图
+# ------------------------------------------------------------------------------
+
+
+class GenerateSlotImageRequest(_CompatModel):
+    slot: Literal["scenario", "product", "gallery"]
+    index: Optional[int] = None
+    prompt: constr(strip_whitespace=True, min_length=1)
+    template_id: Optional[str] = None
+    aspect: Optional[str] = "1:1"
+
+
+class GenerateSlotImageResponse(_CompatModel):
+    url: HttpUrl
+    key: constr(strip_whitespace=True, min_length=1)
+
+# ------------------------------------------------------------------------------
 # 邮件
 # ------------------------------------------------------------------------------
 
