@@ -314,6 +314,14 @@ def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
                 pass
 
 
+def _normalise_gallery_mode(mode: str | None) -> str:
+    """Coerce legacy logo markers into upload mode for downstream logic."""
+
+    if mode in {"logo", "logo_fallback", None}:
+        return "upload"
+    return mode
+
+
 def _apply_gallery_logo_fallback(
     poster: PosterInput, *, max_slots: int = 4
 ) -> PosterInput:
@@ -348,7 +356,7 @@ def _apply_gallery_logo_fallback(
                 caption=caption,
                 asset=logo_url,
                 key=logo_key,
-                mode=getattr(existing, "mode", None) or "logo_fallback",
+                mode="logo",
                 prompt=None,
             )
         )
@@ -1705,7 +1713,7 @@ def _enforce_template_materials(
             gallery_changed = True
             break
 
-        desired_mode = item.mode
+        desired_mode = _normalise_gallery_mode(item.mode)
         updates_for_item: dict[str, Any] = {}
         if not gallery_allows_upload:
             desired_mode = "prompt"

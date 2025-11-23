@@ -106,9 +106,9 @@ class PosterGalleryItem(_CompatModel):
         None,
         description="Object storage key pointing to the uploaded gallery asset.",
     )
-    mode: Literal["upload", "prompt"] = Field(
+    mode: Literal["upload", "prompt", "logo", "logo_fallback"] = Field(
         "upload",
-        description="Whether the gallery item was uploaded or generated from a prompt.",
+        description="Whether the gallery item was uploaded, generated from a prompt, or logo-filled.",
     )
     prompt: Optional[str] = Field(
         None,

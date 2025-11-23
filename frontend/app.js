@@ -545,6 +545,7 @@ async function normaliseAssetReference(
     apiCandidates = [],
     folder = 'uploads',
   } = {},
+  brandLogo = null,
 ) {
   const mustHaveUpload =
     typeof required === 'boolean'
@@ -594,6 +595,16 @@ async function normaliseAssetReference(
       url: finalUrl,
     };
   };
+
+  // Handle explicit logo fallback: coerce to upload with brand logo reference
+  if (asset && typeof asset === 'object' && asset.mode === 'logo') {
+    const logoKey = brandLogo?.key || brandLogo?.r2Key || null;
+    const logoUrl = brandLogo?.url || brandLogo?.remoteUrl || brandLogo?.cdnUrl || null;
+    if (!logoKey && !logoUrl) {
+      throw new Error(`${field} 使用 logo 兜底失败: 品牌 Logo 缺少 URL/Key`);
+    }
+    asset = { ...asset, key: logoKey || asset.key || null, url: logoUrl || asset.url || null, mode: 'upload' };
+  }
 
   if (!asset) {
     if (mustHaveUpload) {
@@ -4370,6 +4381,69 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
   return result;
 }
 
+async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
+  const result = [];
+  const entries = Array.isArray(stage1?.gallery_entries)
+    ? stage1.gallery_entries.filter(Boolean)
+    : [];
+
+  for (let i = 0; i < maxSlots; i += 1) {
+    const entry = entries[i] || null;
+    const caption = entry?.caption?.trim() || `Series ${i + 1}`;
+    const promptText = entry?.prompt?.trim() || null;
+    const mode = entry?.mode || 'upload';
+
+    const hasPrompt = !!promptText;
+    if (mode === 'prompt' && hasPrompt) {
+      result.push({
+        caption,
+        key: null,
+        asset: null,
+        mode: 'prompt',
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    let ref = null;
+    if (entry && entry.asset) {
+      ref = await normaliseAssetReference(entry.asset, {
+        field: `poster.gallery_items[${i}]`,
+        required: false,
+        apiCandidates,
+        folder: 'gallery',
+      }, logoRef);
+    }
+
+    if (ref && (ref.key || ref.url)) {
+      result.push({
+        caption,
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode,
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    if (logoRef && (logoRef.url || logoRef.key)) {
+      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
+      result.push({
+        caption,
+        key: logoRef.key || null,
+        asset: logoRef.url || null,
+        mode: 'upload',
+        prompt: null,
+      });
+      continue;
+    }
+
+    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
+  }
+
+  return result;
+}
+
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts) {
   const {
@@ -4438,14 +4512,14 @@ async function triggerGeneration(opts) {
       required: true,
       apiCandidates,
       folder: 'scenario',
-    });
+    }, brandLogoRef);
 
     productRef = await normaliseAssetReference(pd, {
       field: 'poster.product_image',
       required: true,
       apiCandidates,
       folder: 'product',
-    });
+    }, brandLogoRef);
 
     galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
 
