@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import logging
 import os
@@ -10,44 +11,17 @@ import re
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Iterable, List, Optional
+from typing import Iterable, List, Tuple
 
-from PIL import Image, ImageFile, UnidentifiedImageError
+from PIL import Image
 
 from app.schemas import PosterImage
-from app.services.s3_client import get_bytes, public_url_for
+from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
 
 logger = logging.getLogger(__name__)
 
-# 允许 Pillow 在读取部分截断的 JPEG/WebP 时继续解析，避免无谓报错
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-
-DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
 DEFAULT_SLOTS = ("variant_a", "variant_b")
-FALLBACK_POSTER_DATA_URL = (
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
-    "AAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
-)
-FALLBACK_POSTER_WIDTH = 1
-FALLBACK_POSTER_HEIGHT = 1
-
-
-class TemplatePosterError(ValueError):
-    """通用模板上传异常，允许附带结构化 detail 供 HTTPException 使用。"""
-
-    def __init__(self, message: str, *, detail: dict[str, Any] | None = None) -> None:
-        super().__init__(message)
-        self.detail = detail
-
-
-class TemplatePosterInvalidImage(TemplatePosterError):
-    """无法解析图片内容时抛出的异常。"""
-
-    def __init__(self, reason: str, *, hint: str | None = None) -> None:
-        detail: dict[str, Any] = {"ok": False, "error": "INVALID_IMAGE", "reason": reason}
-        if hint:
-            detail["hint"] = hint
-        super().__init__("Invalid image payload", detail=detail)
 
 
 @dataclass
@@ -87,11 +61,26 @@ def _clean_filename(name: str) -> str:
 def _extension_for(content_type: str) -> str:
     if content_type == "image/png":
         return ".png"
-    if content_type in {"image/jpeg", "image/jpg"}:
+    if content_type == "image/jpeg":
         return ".jpg"
     if content_type == "image/webp":
         return ".webp"
     raise ValueError(f"Unsupported content type: {content_type}")
+
+
+def _decode_image_payload(data: str) -> bytes:
+    if not data:
+        raise ValueError("Missing image payload")
+    if data.startswith("data:"):
+        try:
+            header, encoded = data.split(",", 1)
+        except ValueError as exc:
+            raise ValueError("Invalid data URL payload") from exc
+        data = encoded
+    try:
+        return base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError) as exc:  # pragma: no cover - defensive
+        raise ValueError("Invalid base64 payload") from exc
 
 
 def _read_metadata() -> dict[str, dict[str, str]]:
@@ -143,7 +132,6 @@ def _poster_from_record(record: TemplatePosterRecord) -> PosterImage:
         "media_type": record.content_type,
         "data_url": data_url,
         "url": record.url,
-        "key": record.key,
         "width": record.width,
         "height": record.height,
     }
@@ -233,193 +221,65 @@ def _upload_to_cloudflare(
 
     return key, url
 
-from PIL import UnidentifiedImageError
-def _inspect_template_image(
-    data: bytes,
-    *,
-    fallback_width: int | None = None,
-    fallback_height: int | None = None,
-) -> tuple[int, int]:
-    """Open image bytes safely, falling back to hints when headers are odd."""
-
-    try:
-        with Image.open(BytesIO(data)) as image:
-            image.load()
-            return image.size
-    except (UnidentifiedImageError, OSError) as exc:
-        logger.warning(
-            "[poster-upload] Cannot inspect image payload; using fallback dimensions if provided",
-            exc_info=exc,
-        )
-        if fallback_width and fallback_height:
-            return fallback_width, fallback_height
-        raise
-
 
 def save_template_poster(
     *,
     slot: str,
     filename: str,
     content_type: str,
-    key: str | None = None,
-    data: str | None = None,
-    allowed_mime: Optional[set[str]] = None,
-    width: int | None = None,
-    height: int | None = None,
+    data: str,
+    allowed_mime: set[str] | None = None,
 ) -> TemplatePosterRecord:
     slot = slot.strip()
-    logger.info(
-        "[poster-upload] Start processing",
-        extra={
-            "slot": slot,
-            "poster_filename": filename,
-            "content_type": content_type,
-            "has_key": bool(key),
-            "payload_length": len(data or ""),
-        },
-    )
-
     if slot not in DEFAULT_SLOTS:
-        logger.warning("[poster-upload] Invalid slot", extra={"slot": slot})
         raise ValueError("slot must be one of variant_a or variant_b")
 
     content_type = content_type.strip().lower()
-    key = (key or "").strip()
-    if not key:
-        logger.warning("[poster-upload] Missing storage key", extra={"slot": slot})
-        raise ValueError("缺少对象存储 key，请先完成 R2 上传。")
-
     allowed = allowed_mime or DEFAULT_ALLOWED_MIME
     if content_type not in allowed:
-        logger.warning(
-            "[poster-upload] Unsupported content type",
-            extra={"slot": slot, "content_type": content_type},
-        )
         raise ValueError("Unsupported image content type")
 
-    width_hint = width
-    height_hint = height
-
-    raw: bytes | None = None
-    if key:
-        try:
-            raw = get_bytes(key)
-        except Exception as exc:  # pragma: no cover - network/config failures
-            logger.warning(
-                "[poster-upload] Failed to fetch object from R2; will fall back to hints",
-                extra={"slot": slot, "key": key},
-                exc_info=exc,
-            )
-            raw = None
-
-    if raw is None:
-        if data:
-            try:
-                raw = _decode_image_payload(data)
-            except Exception as exc:
-                logger.exception(
-                    "[poster-upload] Failed to decode base64 image data",
-                    extra={"slot": slot, "content_type": content_type},
-                )
-                raise ValueError("Invalid base64 image payload") from exc
-        elif key and width_hint and height_hint:
-            logger.info(
-                "[poster-upload] Proceeding without payload using provided dimensions",
-                extra={"slot": slot, "width": width_hint, "height": height_hint},
-            )
-        else:
-            raise ValueError("Missing image payload; 请先直传到 R2 后提交 key。")
-
-    if raw is None and not (width_hint and height_hint):
-        logger.warning(
-            "[poster-upload] Image payload is empty after fetching from R2",
-            extra={"slot": slot, "content_type": content_type, "key": key},
-        )
-        raise ValueError("对象存储返回空文件，请重新上传。")
+    raw = _decode_image_payload(data)
+    if not raw:
+        raise ValueError("Empty image payload")
 
     try:
-        width, height = _inspect_template_image(
-            raw or b"",
-            fallback_width=width_hint,
-            fallback_height=height_hint,
-        )
-    except Exception as exc:
+        with Image.open(BytesIO(raw)) as image:
+            image.load()
+            width, height = image.size
+    except Exception as exc:  # pragma: no cover - invalid image
         raise ValueError("Invalid image payload") from exc
 
-    aspect_ratio = width / height if height else 0
-    expected_aspect = 0.75
-    tolerance = 0.15
-    if aspect_ratio <= 0 or abs(aspect_ratio - expected_aspect) > tolerance:
-        logger.warning(
-            "[poster-upload] Aspect ratio outside preferred range",
-            extra={
-                "slot": slot,
-                "content_type": content_type,
-                "width": width,
-                "height": height,
-                "aspect_ratio": aspect_ratio,
-                "expected": expected_aspect,
-            },
-        )
-
-    # Filename sanitization
     safe_filename = _clean_filename(filename)
     ext = _extension_for(content_type)
 
-    # Save to local path when bytes are available
     directory = _ensure_storage_dir()
     _remove_existing_slot_files(slot)
     path = directory / f"{slot}{ext}"
-    if raw:
-        try:
-            with path.open("wb") as handle:
-                handle.write(raw)
-            logger.info(
-                "[poster-upload] Image written",
-                extra={"slot": slot, "path": str(path), "width": width, "height": height},
-            )
-        except Exception as exc:
-            logger.exception(
-                "[poster-upload] Failed to write image to disk",
-                extra={"slot": slot, "path": str(path)},
-            )
-            raise
-    else:
-        path = None
+    with path.open("wb") as handle:
+        handle.write(raw)
 
-    # Upload to cloud (or reuse existing key)
-    key_value: Optional[str] = key
-    url: Optional[str] = None
-    if key_value:
-        url = public_url_for(key_value)
-    else:
-        try:
-            key_value, url = _upload_to_cloudflare(raw, filename=safe_filename, content_type=content_type)
-            logger.info(
-                "[poster-upload] Uploaded to R2",
-                extra={"slot": slot, "key": key_value, "url": url},
-            )
-        except Exception:
-            logger.exception("[poster-upload] Error uploading to R2", extra={"slot": slot})
-            key_value, url = None, None
+    key: str | None = None
+    url: str | None = None
+    try:
+        key, url = _upload_to_cloudflare(raw, filename=safe_filename, content_type=content_type)
+    except Exception:  # pragma: no cover - unexpected failure already logged
+        logger.exception("Unexpected error while uploading template poster to R2")
+        key, url = None, None
 
     metadata = _read_metadata()
     metadata[slot] = {
         "filename": safe_filename,
         "content_type": content_type,
+        "path": path.name,
         "width": width,
         "height": height,
-        "key": key,
     }
-    if path is not None:
-        metadata[slot]["path"] = path.name
-    if key_value:
-        metadata[slot]["key"] = key_value
+    if key:
+        metadata[slot]["key"] = key
     if url:
         metadata[slot]["url"] = url
-
     _write_metadata(metadata)
-    logger.info("[poster-upload] Metadata updated", extra={"slot": slot})
 
     return TemplatePosterRecord(
         slot=slot,
@@ -428,7 +288,7 @@ def save_template_poster(
         path=path,
         width=width,
         height=height,
-        key=key_value,
+        key=key,
         url=url,
     )
 
@@ -442,24 +302,6 @@ def list_poster_entries() -> list[dict[str, PosterImage]]:
     for record in iter_template_records():
         entries.append(poster_entry_from_record(record))
     return entries
-
-
-def fallback_poster_entries() -> list[dict[str, PosterImage]]:
-    """Return minimal placeholder posters when no template assets exist."""
-
-    posters: list[dict[str, PosterImage]] = []
-    for slot in DEFAULT_SLOTS:
-        poster = PosterImage(
-            filename=f"{slot}-placeholder.png",
-            media_type="image/png",
-            key=None,
-            data_url=FALLBACK_POSTER_DATA_URL,
-            url=None,
-            width=FALLBACK_POSTER_WIDTH,
-            height=FALLBACK_POSTER_HEIGHT,
-        )
-        posters.append({"slot": slot, "poster": poster})
-    return posters
 
 
 def generation_overrides(desired: int) -> list[PosterImage]:
@@ -503,6 +345,4 @@ __all__ = [
     "list_poster_entries",
     "save_template_poster",
     "generation_overrides",
-    "TemplatePosterError",
-    "TemplatePosterInvalidImage",
 ]

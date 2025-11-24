@@ -916,16 +916,11 @@ const MATERIAL_DEFAULT_LABELS = {
 const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
-  if (!image) return '';
-  const directUrl = pickImageSrc(image);
-  if (directUrl && typeof directUrl === 'string') {
-    const trimmed = directUrl.trim();
-    if (HTTP_URL_RX.test(trimmed) || trimmed.startsWith('data:')) {
-      return trimmed;
-    }
-    return trimmed;
-  }
-  return '';
+  if (!image || typeof image !== 'object') return '';
+  const directUrl = typeof image.url === 'string' ? image.url : '';
+  if (directUrl) return directUrl;
+  const dataUrl = typeof image.data_url === 'string' ? image.data_url : '';
+  return dataUrl;
 }
 
 function inferImageMediaType(src) {
@@ -3530,8 +3525,8 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
-    const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+    const posterGeneratedImage = document.getElementById('poster-generated-image');
+    const posterGeneratedPlaceholder = document.getElementById('poster-generated-placeholder');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
@@ -3582,8 +3577,6 @@ function initStage2() {
     const templateState = {
       loaded: false,
       poster: null,
-      variantA: null,
-      variantB: null,
     };
 
     const normalisePosterRecord = (poster) => {
@@ -3600,18 +3593,13 @@ function initStage2() {
           : inferImageMediaType(source) || 'image/png';
       const width = typeof poster.width === 'number' ? poster.width : null;
       const height = typeof poster.height === 'number' ? poster.height : null;
-      const normalizedUrl = HTTP_URL_RX.test(source) ? source : null;
-      const normalizedDataUrl = source.startsWith('data:') ? source : null;
       return {
         filename,
         media_type: mediaType,
         width,
         height,
-        key: typeof poster.key === 'string' ? poster.key : null,
-        url: normalizedUrl,
-        data_url:
-          normalizedDataUrl ||
-          (typeof poster.data_url === 'string' ? poster.data_url : null),
+        url: typeof poster.url === 'string' ? poster.url : null,
+        data_url: typeof poster.data_url === 'string' ? poster.data_url : null,
       };
     };
 
@@ -3707,8 +3695,6 @@ function initStage2() {
       if (!candidates.length) {
         templateState.loaded = false;
         templateState.poster = null;
-        templateState.variantA = null;
-        templateState.variantB = null;
         updateTemplatePosterDisplay('请先填写后端 API 地址以加载模板海报。');
         if (!silent) {
           setStatus(statusElement, '请先填写后端 API 地址以加载模板海报。', 'info');
@@ -3739,10 +3725,7 @@ function initStage2() {
           const payload = await response.json().catch(() => ({ posters: [] }));
           const posters = Array.isArray(payload?.posters) ? payload.posters : [];
           const variantA = posters.find((item) => item?.slot === 'variant_a')?.poster || null;
-          const variantB = posters.find((item) => item?.slot === 'variant_b')?.poster || null;
           templateState.poster = variantA;
-          templateState.variantA = variantA;
-          templateState.variantB = variantB;
           templateState.loaded = true;
           updateTemplatePosterDisplay();
           if (!silent) {
@@ -3761,8 +3744,6 @@ function initStage2() {
         setStatus(statusElement, '模板海报加载失败，请稍后重试。', 'warning');
       }
       templateState.loaded = false;
-      templateState.variantA = null;
-      templateState.variantB = null;
       return false;
     };
 
@@ -3839,13 +3820,11 @@ function initStage2() {
           aiSpinner,
           aiPreviewMessage,
           posterVisual,
-          generatedImage: posterGeneratedImage,
           templatePoster: fallbackPoster,
+          generatedImage: posterGeneratedImage,
           generatedPlaceholder: posterGeneratedPlaceholder,
           generatedPlaceholderDefault,
           promptGroup,
-          promptBundleGroup,
-          promptBundlePre,
           emailGroup,
           promptTextarea,
           emailTextarea,
@@ -4450,12 +4429,10 @@ async function triggerGeneration(opts) {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
     posterVisual,
-    generatedImage = null,
+    generatedImage,
     generatedPlaceholder,
     generatedPlaceholderDefault = '生成结果将在此展示。',
     templatePoster = null,
-    promptBundleGroup,
-    promptBundlePre,
     promptGroup, emailGroup, promptTextarea, emailTextarea,
     generateButton, regenerateButton, nextButton,
     promptManager, updatePromptPanels,
@@ -4486,166 +4463,57 @@ async function triggerGeneration(opts) {
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
 
-  // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
-  const templateId = stage1Data.template_id;
-  const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset || null;
+  const toAssetRef = (asset) => {
+    if (!asset) return null;
+    const key = asset.r2Key || null;
+    const url = asset.url || asset.publicUrl || asset.r2Url || null;
+    if (!key && !url) return null;
+    return { key, url };
+  };
 
-  const scenarioMode = stage1Data.scenario_mode || 'upload';
-  const productMode = stage1Data.product_mode || 'upload';
+  const galleryItems = (stage1Data.gallery_entries || [])
+    .map((entry) => {
+      const ref = toAssetRef(entry.asset);
+      if (!ref) return null;
+      return {
+        asset: ref,
+        caption: entry.caption?.trim() || null,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 4);
 
-  let posterPayload;
-  let brandLogoRef;
-  let scenarioRef;
-  let productRef;
-  let galleryItems;
-  try {
-    brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
-      field: 'poster.brand_logo',
-      required: true,
-      apiCandidates,
-      folder: 'brand-logo',
-    });
-
-    scenarioRef = await normaliseAssetReference(sc, {
-      field: 'poster.scenario_image',
-      required: true,
-      apiCandidates,
-      folder: 'scenario',
-    }, brandLogoRef);
-
-    productRef = await normaliseAssetReference(pd, {
-      field: 'poster.product_image',
-      required: true,
-      apiCandidates,
-      folder: 'product',
-    }, brandLogoRef);
-
-    galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
-
-    const features = Array.isArray(stage1Data.features)
-      ? stage1Data.features.filter(Boolean)
-      : [];
-
-    const brandLogoUrl = brandLogoRef.url || null;
-    const scenarioUrl = scenarioRef.url || null;
-    const productUrl = productRef.url || null;
-
-    if (scenarioUrl) {
-      assertAssetUrl('场景图', scenarioUrl);
-    }
-    if (productUrl) {
-      assertAssetUrl('主产品图', productUrl);
-    }
-    if (brandLogoUrl) {
-      assertAssetUrl('品牌 Logo', brandLogoUrl);
-    }
-
-    posterPayload = {
-      brand_name: stage1Data.brand_name,
-      agent_name: stage1Data.agent_name,
-      scenario_image: scenarioUrl,
-      product_name: stage1Data.product_name,
-      template_id: templateId,
-      features,
-      title: stage1Data.title,
-      subtitle: stage1Data.subtitle,
-      series_description: stage1Data.series_description,
-
-      brand_logo: brandLogoUrl,
-      brand_logo_key: brandLogoRef.key,
-
-      scenario_key: scenarioRef.key,
-      scenario_asset: scenarioUrl,
-
-      product_key: productRef.key,
-      product_asset: productUrl,
-
-      scenario_mode: scenarioMode,
-      scenario_prompt:
-        scenarioMode === 'prompt'
-          ? stage1Data.scenario_prompt || stage1Data.scenario_image || null
-          : null,
-      product_mode: productMode,
-      product_prompt: productMode === 'prompt' ? stage1Data.product_prompt || null : null,
-
-      gallery_items: galleryItems,
-      gallery_label: stage1Data.gallery_label || null,
-      gallery_limit: stage1Data.gallery_limit ?? null,
-      gallery_allows_prompt: stage1Data.gallery_allows_prompt !== false,
-      gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
-    };
-  } catch (error) {
-    console.error('[triggerGeneration] asset normalisation failed', error);
-    setStatus(
-      statusElement,
-      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
-      'error',
-    );
-    return null;
-  }
-
-  console.info('[debug] posterPayload', {
-    ...posterPayload,
-    gallery_items: posterPayload.gallery_items || [],
-  });
-
-
-  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
-  
+
   const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
-  
-  const requestBase = {
-    poster: posterPayload,
-    render_mode: 'locked',
+
+  const payload = {
+    template_id: 'template_dual',
+    brand_logo: toAssetRef(stage1Data.brand_logo),
+    scenario: toAssetRef(stage1Data.scenario_asset),
+    product: toAssetRef(stage1Data.product_asset),
+    gallery: galleryItems,
+    prompt_bundle: promptBundleStrings,
+    brand_name: stage1Data.brand_name,
+    agent_name: stage1Data.agent_name,
+    scenario_text: stage1Data.scenario_image,
+    product_name: stage1Data.product_name,
+    title: stage1Data.title,
+    subtitle: stage1Data.subtitle,
+    series_description: stage1Data.series_description,
+    features: stage1Data.features,
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
   };
-  
-  const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-
-  const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
-  if (negativeSummary) {
-    payload.negatives = negativeSummary;
-  }
-
-  if (abTest) {
-    payload.variants = Math.max(2, payload.variants || 2);
-  }
 
   const posterSummary = {
-    template_id: posterPayload.template_id,
-    scenario_mode: posterPayload.scenario_mode,
-    product_mode: posterPayload.product_mode,
-    feature_count: Array.isArray(posterPayload.features) ? posterPayload.features.length : 0,
-    gallery_count: Array.isArray(posterPayload.gallery_items) ? posterPayload.gallery_items.length : 0,
+    template_id: payload.template_id,
+    feature_count: Array.isArray(payload.features) ? payload.features.length : 0,
+    gallery_count: Array.isArray(payload.gallery) ? payload.gallery.length : 0,
   };
-  const assetAudit = {
-    brand_logo: {
-      key: brandLogoRef?.key || null,
-      url: posterPayload.brand_logo || null,
-    },
-    scenario: {
-      mode: posterPayload.scenario_mode,
-      key: posterPayload.scenario_key || null,
-      url: posterPayload.scenario_asset || null,
-    },
-    product: {
-      mode: posterPayload.product_mode,
-      key: posterPayload.product_key || null,
-      url: posterPayload.product_asset || null,
-    },
-    gallery: posterPayload.gallery_items.map((item, index) => ({
-      index,
-      mode: item.mode,
-      key: item.key || null,
-      url: item.asset || null,
-    })),
-  };
-
+  console.debug('[debug] posterPayload', payload);
   console.info('[triggerGeneration] prepared payload', {
     apiCandidates,
     poster: posterSummary,
@@ -4676,9 +4544,6 @@ async function triggerGeneration(opts) {
   if (aiSpinner) aiSpinner.classList.remove('hidden');
   if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
   if (posterVisual) posterVisual.classList.remove('hidden');
-  posterGenerationState.posterUrl = null;
-  posterGeneratedImage = null;
-  posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
   const resetGeneratedPlaceholder = (message) => {
     if (!generatedPlaceholder) return;
     generatedPlaceholder.textContent = message || generatedPlaceholderDefault;
@@ -4689,10 +4554,9 @@ async function triggerGeneration(opts) {
     generatedPlaceholder.textContent = generatedPlaceholderDefault;
     generatedPlaceholder.classList.add('hidden');
   };
-  if (generatedImage?.classList) {
+  if (generatedImage) {
     generatedImage.classList.add('hidden');
     generatedImage.removeAttribute('src');
-    generatedImage.style.display = 'none';
   }
   resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -4715,7 +4579,7 @@ async function triggerGeneration(opts) {
     clearFallbackTimer();
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage?.classList) {
+    if (generatedImage) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
@@ -4809,23 +4673,21 @@ async function triggerGeneration(opts) {
       seed: data?.seed ?? null,
       lock_seed: data?.lock_seed ?? null,
     });
-
-    applyVertexPosterResult(data);
-
+  
     clearFallbackTimer();
 
+    const posterData = (data && data.poster_image) || null;
+    const generatedAlt = `${stage1Data.product_name || '生成'} 海报`;
+    const hasPosterSource = posterData ? getPosterImageSource(posterData) : '';
     let assigned = false;
-    if (posterGenerationState.posterUrl && generatedImage?.classList) {
-      generatedImage.src = posterGenerationState.posterUrl;
-      generatedImage.style.display = 'block';
+    if (generatedImage && hasPosterSource && assignPosterImage(generatedImage, posterData, generatedAlt)) {
       generatedImage.classList.remove('hidden');
       hideGeneratedPlaceholder();
       assigned = true;
     } else {
-      if (generatedImage?.classList) {
+      if (generatedImage) {
         generatedImage.classList.add('hidden');
         generatedImage.removeAttribute('src');
-        generatedImage.style.display = 'none';
       }
       resetGeneratedPlaceholder('生成结果缺少可预览图片。');
     }
@@ -4883,11 +4745,11 @@ async function triggerGeneration(opts) {
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage?.classList) {
+    if (generatedImage) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
-    resetGeneratedPlaceholder(friendlyMessage || generatedPlaceholderDefault);
+    resetGeneratedPlaceholder(error?.message || generatedPlaceholderDefault);
     return null;
   }
 }
