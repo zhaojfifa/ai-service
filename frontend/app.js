@@ -4465,11 +4465,25 @@ async function prepareTemplatePreviewAssets(stage1Data) {
     gallery: [],
   };
 
+  const pickSrc = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (typeof value.dataUrl === 'string') return value.dataUrl;
+    if (typeof value.data_url === 'string') return value.data_url;
+    if (typeof value.url === 'string') return value.url;
+    if (typeof value.remoteUrl === 'string') return value.remoteUrl;
+    if (typeof value.cdnUrl === 'string') return value.cdnUrl;
+    if (typeof value.asset === 'object' || typeof value.asset === 'string') {
+      return pickSrc(value.asset);
+    }
+    return null;
+  };
+
   const tasks = [];
-  const queue = (key, dataUrl, index) => {
-    if (!dataUrl) return;
+  const queue = (key, src, index) => {
+    if (!src) return;
     tasks.push(
-      loadImageAsset(dataUrl)
+      loadImageAsset(src)
         .then((image) => {
           if (key === 'gallery') {
             result.gallery[index] = image;
@@ -4481,11 +4495,11 @@ async function prepareTemplatePreviewAssets(stage1Data) {
     );
   };
 
-  queue('brand_logo', stage1Data.brand_logo?.dataUrl);
-  queue('scenario', stage1Data.scenario_asset?.dataUrl);
-  queue('product', stage1Data.product_asset?.dataUrl);
+  queue('brand_logo', pickSrc(stage1Data.brand_logo));
+  queue('scenario', pickSrc(stage1Data.scenario_asset));
+  queue('product', pickSrc(stage1Data.product_asset));
   (stage1Data.gallery_entries || []).forEach((entry, index) => {
-    queue('gallery', entry?.asset?.dataUrl, index);
+    queue('gallery', pickSrc(entry?.asset || entry), index);
   });
 
   await Promise.allSettled(tasks);
