@@ -272,6 +272,10 @@ class PromptSlotConfig(_CompatModel):
     def _clean_aspect(cls, value: Any) -> str:
         return _strip_required(value)
 
+    if isinstance(value, dict):
+        data = dict(value)
+    else:
+        return {"prompt": str(value)}
 
 class PromptBundle(_CompatModel):
     scenario: PromptSlotConfig = Field(default_factory=lambda: _coerce_prompt_slot({}, "scenario"))

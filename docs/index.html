@@ -67,6 +67,14 @@
                 <div class="inline-preview" role="presentation">
                   <img data-inline-preview="brand_logo" alt="品牌 Logo 预览" />
                 </div>
+                <div
+                  class="asset-url"
+                  data-material-url="brand_logo"
+                  data-label="品牌 Logo URL："
+                  aria-live="polite"
+                >
+                  品牌 Logo URL：尚未上传
+                </div>
               </label>
               <label class="field">
                 <span>品牌名称</span>
@@ -103,6 +111,14 @@
                   <span data-material-description="scenario">应用场景描述（上传或 AI 生成时都会用到）</span>
                   <textarea name="scenario_image" rows="3" required data-material-input="scenario"></textarea>
                 </label>
+                <div class="field-group">
+                  <label>场景图提示词</label>
+                  <textarea id="scenario_prompt" name="scenario_prompt" rows="3"></textarea>
+                  <button type="button" id="btn-generate-scenario" class="secondary">
+                    AI 生成场景图
+                  </button>
+                  <img id="scenario_preview" class="slot-preview" alt="场景图预览" />
+                </div>
               </div>
               <div class="image-stack">
                 <div class="mode-toggle" data-mode-target="product">
@@ -134,6 +150,14 @@
                     data-material-input="product-prompt"
                   ></textarea>
                 </label>
+                <div class="field-group">
+                  <label>主产品提示词</label>
+                  <textarea id="product_prompt" rows="3"></textarea>
+                  <button type="button" id="btn-generate-product" class="secondary">
+                    AI 生成主产品图
+                  </button>
+                  <img id="product_preview" class="slot-preview" alt="主产品预览" />
+                </div>
                 <div class="feature-fields">
                   <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
                   <div class="feature-grid">

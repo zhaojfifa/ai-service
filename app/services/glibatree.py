@@ -11,12 +11,14 @@ from datetime import UTC, datetime
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Tuple, Optional
+from typing import Any, Optional, Tuple
 
-import httpx
 import requests
-from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+
+from fastapi import HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput
@@ -25,6 +27,15 @@ from app.services.template_variants import generation_overrides
 
 _ALLOWED_OPENAI_KWARGS = {"api_key", "base_url", "timeout", "max_retries", "http_client"}
 logger = logging.getLogger(__name__)
+
+vertex_imagen_client: VertexImagen3 | None = None
+
+
+def configure_vertex_imagen(client: VertexImagen3 | None) -> None:
+    """Configure the shared Vertex Imagen3 client used for poster generation."""
+
+    global vertex_imagen_client
+    vertex_imagen_client = client
 
 OPENAI_IMAGE_SIZE = "1024x1024"
 ASSET_IMAGE_SIZE = os.getenv("OPENAI_ASSET_SIZE", OPENAI_IMAGE_SIZE)
@@ -36,6 +47,322 @@ BRAND_RED = (239, 76, 84)
 INK_BLACK = (31, 41, 51)
 SILVER = (244, 245, 247)
 GUIDE_GREY = (203, 210, 217)
+
+_ALLOWED_REF_PREFIXES = ("r2://", "s3://", "gs://", "https://", "http://")
+_BARE_KEY_PATTERN = re.compile(r"^[0-9A-Za-z._/-]+$")
+
+
+def r2_public_url_from_ref(ref: str) -> str:
+    """Resolve a storage reference into a publicly accessible URL."""
+
+    if not ref:
+        raise ValueError("empty storage reference")
+
+    value = ref.strip()
+    if value.startswith(("http://", "https://")):
+        return value
+
+    if value.startswith(("r2://", "s3://")):
+        _, path = value.split("://", 1)
+        if "/" not in path:
+            raise ValueError(f"invalid storage reference: {value}")
+        _, key = path.split("/", 1)
+        url = public_url_for(key)
+        return url or value
+
+    if value.startswith("gs://"):
+        # Vertex output written to GCS can be served directly or proxied.
+        return value
+
+    raise ValueError(f"unsupported storage reference: {value}")
+
+
+def upload_bytes_to_r2_return_ref(
+    data: bytes,
+    *,
+    key: str | None = None,
+    ext: str = ".png",
+    content_type: str = "image/png",
+) -> tuple[str, str]:
+    """Persist ``data`` to R2/S3 and return (r2://bucket/key, public_url)."""
+
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("image payload must be bytes")
+
+    bucket = (os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET") or "").strip()
+    if not bucket:
+        raise RuntimeError("R2/S3 bucket is not configured")
+
+    if key:
+        storage_key = key.lstrip("/")
+    else:
+        filename = f"{uuid.uuid4().hex}{ext if ext.startswith('.') else f'.{ext}'}"
+        storage_key = make_key("posters", filename)
+
+    url = put_bytes(storage_key, bytes(data), content_type=content_type)
+    if not url:
+        raise RuntimeError(f"Failed to upload object {storage_key}")
+
+    return f"r2://{bucket}/{storage_key}", url
+
+
+async def generate_slot_image(
+    prompt: str,
+    *,
+    slot: str,
+    index: int | None = None,
+    template_id: str | None = None,
+    aspect: str = "1:1",
+) -> tuple[str, str]:
+    """Generate a single slot image and persist it to object storage."""
+
+    if not prompt or not prompt.strip():
+        raise ValueError("prompt is required to generate slot image")
+
+    if vertex_imagen_client is None:
+        raise RuntimeError("Vertex Imagen3 client is not configured")
+
+    try:
+        generated = vertex_imagen_client.generate_bytes(
+            prompt=prompt,
+            aspect_ratio=aspect or "1:1",
+        )
+    except Exception as exc:  # pragma: no cover - upstream service call
+        logger.exception("[slot-image] generation failed: %s", exc)
+        raise
+
+    image_bytes = generated[0] if isinstance(generated, tuple) else generated
+    prefix = slot or "slot"
+    folder = prefix
+    if prefix == "gallery" and index is not None:
+        folder = f"gallery/{index}".strip("/")
+
+    storage_key = make_key(folder, f"{template_id or 'slot'}-{uuid.uuid4().hex}.png")
+    url = put_bytes(storage_key, image_bytes, content_type="image/png")
+    if not url:
+        raise RuntimeError("Failed to upload generated slot image")
+
+    public_ref = public_url_for(storage_key) or url
+    return storage_key, public_ref
+
+
+def _default_asset_bucket() -> str | None:
+    return (
+        os.getenv("POSTER_ASSET_BUCKET")
+        or os.getenv("R2_BUCKET")
+        or os.getenv("S3_BUCKET")
+    )
+
+
+def _default_asset_scheme(bucket: str | None) -> str | None:
+    scheme = os.getenv("POSTER_ASSET_SCHEME") or os.getenv("ASSET_SCHEME")
+    if scheme:
+        return scheme.rstrip(":/")
+
+    r2_bucket = os.getenv("R2_BUCKET")
+    s3_bucket = os.getenv("S3_BUCKET")
+    if bucket and bucket == r2_bucket:
+        return "r2"
+    if bucket and bucket == s3_bucket:
+        return "s3"
+
+    if r2_bucket:
+        return "r2"
+    if s3_bucket:
+        return "s3"
+    return None
+
+
+def _public_base_override() -> str | None:
+    base = (
+        os.getenv("POSTER_ASSET_PUBLIC_BASE")
+        or os.getenv("ASSETS_PUBLIC_BASE")
+        or os.getenv("R2_PUBLIC_BASE")
+        or os.getenv("S3_PUBLIC_BASE")
+    )
+    if base:
+        return base.rstrip("/")
+    return None
+
+
+def coerce_asset_ref_to_url(
+    value: str | None, *, key: str | None = None
+) -> tuple[str | None, str | None]:
+    """Normalise loose asset references into allowed URL formats."""
+
+    candidate = (value or "").strip()
+    key_candidate = key.strip() if isinstance(key, str) else ""
+
+    if not candidate and key_candidate:
+        candidate = key_candidate
+
+    if not candidate:
+        return None, key_candidate or None
+
+    if candidate.lower().startswith("data:"):
+        raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
+
+    if candidate.startswith(_ALLOWED_REF_PREFIXES):
+        return candidate, key_candidate.lstrip("/") or None
+
+    fallback_key = key_candidate or candidate
+    fallback_key = fallback_key.lstrip("/")
+    if fallback_key and _BARE_KEY_PATTERN.match(fallback_key):
+        bucket = _default_asset_bucket()
+        scheme = _default_asset_scheme(bucket)
+        public_base = _public_base_override()
+        if bucket and scheme:
+            return f"{scheme}://{bucket}/{fallback_key}", fallback_key
+        if public_base:
+            return f"{public_base}/{fallback_key}", fallback_key
+
+    raise ValueError("invalid url; expected r2://, s3://, gs:// or http(s)")
+
+
+def _normalise_asset_reference(label: str, value: Any) -> Any:
+    """Coerce loose asset references into URL/Key pairs when possible."""
+
+    if value is None:
+        return None
+
+    if hasattr(value, "model_dump"):
+        normalised = value.model_dump(exclude_none=False)
+    elif hasattr(value, "dict"):
+        normalised = value.dict(exclude_none=False)
+    elif isinstance(value, dict):
+        normalised = dict(value)
+    elif isinstance(value, str):
+        normalised = {"url": value}
+    else:
+        return value
+
+    raw_url = normalised.get("url")
+    if isinstance(raw_url, str):
+        candidate = raw_url.strip()
+        normalised["url"] = candidate
+
+    key_candidate = normalised.get("key")
+    if isinstance(key_candidate, str):
+        cleaned_key = key_candidate.strip().lstrip("/")
+    else:
+        cleaned_key = None
+    if cleaned_key:
+        normalised["key"] = cleaned_key
+    elif "key" in normalised:
+        normalised["key"] = None
+
+    try:
+        url_value, derived_key = coerce_asset_ref_to_url(
+            normalised.get("url"), key=cleaned_key
+        )
+    except ValueError as exc:
+        logger.debug(
+            "poster.asset.invalid_ref",
+            extra={"field": label, "value": normalised.get("url"), "error": str(exc)},
+        )
+        raise
+    normalised["url"] = url_value
+    if derived_key and not cleaned_key:
+        normalised["key"] = derived_key
+
+    return normalised
+
+
+def _key_field_for_asset(field: str) -> str | None:
+    overrides = {
+        "brand_logo": "brand_logo_key",
+        "scenario_image": "scenario_key",
+        "product_image": "product_key",
+    }
+    return overrides.get(field)
+
+
+def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
+    """Propagate normalised asset references back to the original payload."""
+
+    if isinstance(target, dict):
+        target[field] = value
+        if isinstance(value, dict):
+            key_field = _key_field_for_asset(field)
+            if key_field:
+                target[key_field] = value.get("key") or target.get(key_field)
+        return
+
+    if isinstance(value, dict):
+        url_value = value.get("url")
+    else:
+        url_value = value
+
+    if isinstance(url_value, str) and url_value:
+        try:
+            setattr(target, field, url_value)
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+    if isinstance(value, dict):
+        key_value = value.get("key")
+        key_field = _key_field_for_asset(field)
+        if key_field and key_value and hasattr(target, key_field):
+            try:
+                setattr(target, key_field, key_value)
+            except Exception:  # pragma: no cover - defensive
+                pass
+
+
+def _normalise_gallery_mode(mode: str | None) -> str:
+    """Coerce legacy logo markers into upload mode for downstream logic."""
+
+    if mode in {"logo", "logo_fallback", None}:
+        return "upload"
+    return mode
+
+
+def _apply_gallery_logo_fallback(
+    poster: PosterInput, *, max_slots: int = 4
+) -> PosterInput:
+    """Ensure gallery slots are populated, falling back to the brand logo when empty."""
+
+    logo_url = getattr(poster, "brand_logo", None)
+    logo_key = getattr(poster, "brand_logo_key", None)
+
+    if not logo_url and not logo_key:
+        return poster
+
+    gallery_items = list(getattr(poster, "gallery_items", []) or [])
+    if not max_slots:
+        max_slots = 4
+
+    filled: list[PosterGalleryItem] = []
+    for index in range(max_slots):
+        existing = gallery_items[index] if index < len(gallery_items) else None
+        has_asset = bool(getattr(existing, "asset", None) or getattr(existing, "key", None))
+        has_prompt = bool(getattr(existing, "prompt", None))
+
+        if existing and (has_asset or has_prompt):
+            filled.append(existing)
+            continue
+
+        if not logo_url and not logo_key:
+            continue
+
+        caption = getattr(existing, "caption", None) or f"Series {index + 1}"
+        filled.append(
+            PosterGalleryItem(
+                caption=caption,
+                asset=logo_url,
+                key=logo_key,
+                mode="logo",
+                prompt=None,
+            )
+        )
+
+    if len(gallery_items) > max_slots:
+        filled.extend(gallery_items[max_slots:])
+
+    if filled == gallery_items:
+        return poster
+
+    return _copy_model(poster, gallery_items=filled)
 
 
 def _copy_model(instance, **update):
@@ -64,35 +391,327 @@ class PosterGenerationResult:
     scores: dict[str, float] | None = None
     seed: int | None = None
     lock_seed: bool = False
+    trace_ids: list[str] = field(default_factory=list)
+    fallback_used: bool = False
+    provider: str | None = None
+    scenario_image: StoredImage | None = None
+    product_image: StoredImage | None = None
+    gallery_images: list[StoredImage] = field(default_factory=list)
 
-def _sanitize_openai_kwargs(kw: dict[str, Any]) -> dict[str, Any]:
-    cleaned = {k: v for k, v in kw.items() if k in _ALLOWED_OPENAI_KWARGS}
-    extra = set(kw) - _ALLOWED_OPENAI_KWARGS
-    if extra:
-        # 关键：把多余键（尤其 proxies）打到日志里，方便你在 Render 日志里定位来源
-        logger.warning("Stripping unsupported OpenAI kwargs: %s", sorted(extra))
-    return cleaned
 
-def _build_openai_client(config: GlibatreeConfig) -> tuple[OpenAI, Optional[httpx.Client]]:
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
+def _template_dimensions(
+    template: TemplateResources, locked_frame: Image.Image
+) -> tuple[int, int]:
+    size_spec = template.spec.get("size", {})
+    width = int(size_spec.get("width") or locked_frame.width)
+    height = int(size_spec.get("height") or locked_frame.height)
+    return max(width, 64), max(height, 64)
 
-    kwargs: dict[str, Any] = {"api_key": config.api_key}
-    if config.api_url:
-        kwargs["base_url"] = config.api_url
 
-    http_client: httpx.Client | None = None
-    if config.proxy:
-        timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-        http_client = httpx.Client(proxies=config.proxy, timeout=timeout)
-        kwargs["http_client"] = http_client
+def _default_mask_b64(template: TemplateResources) -> str | None:
+    mask = template.mask_background
+    if not mask:
+        return None
 
-    # >>> 关键改动：白名单过滤 + 断言
-    kwargs = _sanitize_openai_kwargs(kwargs)
-    assert "proxies" not in kwargs, f"proxies leaked into OpenAI kwargs: {kwargs.keys()}"
-    logger.info("OpenAI client kwargs keys: %s", sorted(kwargs.keys()))
+    alpha = mask.split()[3]
+    inverted = ImageOps.invert(alpha)
+    buffer = BytesIO()
+    inverted.convert("L").save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
 
-    return OpenAI(**kwargs), http_client
+
+def _shorten_asset_value(value: str) -> str:
+    text = value.strip()
+    if len(text) <= 64:
+        return text
+    return f"{text[:32]}…{text[-16:]}"
+
+
+def _poster_asset_summary(poster: PosterInput | dict[str, Any]) -> dict[str, Any]:
+    keys: list[str] = []
+    urls: list[str] = []
+
+    def _record(candidate: str | None) -> None:
+        if not candidate:
+            return
+        trimmed = candidate.strip()
+        if not trimmed:
+            return
+        if trimmed.lower().startswith("http"):
+            urls.append(_shorten_asset_value(trimmed))
+        else:
+            keys.append(_shorten_asset_value(trimmed))
+
+    _record(getattr(poster, "brand_logo_key", None))
+    _record(getattr(poster, "brand_logo", None))
+    _record(getattr(poster, "scenario_asset", None))
+    _record(getattr(poster, "product_asset", None))
+    _record(getattr(poster, "scenario_key", None))
+    _record(getattr(poster, "product_key", None))
+
+    for item in getattr(poster, "gallery_items", []) or []:
+        if isinstance(item, PosterGalleryItem):
+            _record(getattr(item, "key", None))
+            _record(getattr(item, "asset", None))
+        elif isinstance(item, dict):
+            _record(str(item.get("key")) if item.get("key") else None)
+            _record(str(item.get("asset")) if item.get("asset") else None)
+
+    return {
+        "keys": keys[:8],
+        "urls": urls[:3],
+        "count": len(keys) + len(urls),
+    }
+
+
+def _stored_image_from_ref(ref: str | None, *, content_type: str = "image/png") -> StoredImage | None:
+    if not ref:
+        return None
+
+    value = ref.strip()
+    key_value: str | None = None
+    url_value: str | None = None
+
+    if value.startswith(("http://", "https://")):
+        url_value = value
+        key_value = value
+    elif value.startswith(("r2://", "s3://")):
+        try:
+            _, path = value.split("://", 1)
+            _, key_value = path.split("/", 1)
+        except ValueError:
+            key_value = value
+        if key_value:
+            url_value = public_url_for(key_value) or value
+    elif _BARE_KEY_PATTERN.match(value):
+        key_value = value
+        candidate_url = public_url_for(value)
+        url_value = candidate_url if candidate_url and candidate_url.startswith("http") else None
+    else:
+        url_value = value
+        key_value = value
+
+    if not key_value or not url_value or not url_value.startswith(("http://", "https://")):
+        return None
+
+    try:
+        return StoredImage(key=key_value, url=url_value, content_type=content_type)
+    except Exception:
+        return None
+
+
+def _assert_assets_use_ref_only(poster: PosterInput | dict[str, Any]) -> None:
+    """Ensure poster assets reference stored objects rather than base64 blobs."""
+
+    if hasattr(poster, "model_dump"):
+        try:
+            payload = poster.model_dump(exclude_none=False)
+        except TypeError:  # pragma: no cover - defensive
+            payload = poster.model_dump()
+    elif hasattr(poster, "dict"):
+        payload = poster.dict(exclude_none=False)
+    elif isinstance(poster, dict):
+        payload = dict(poster)
+    else:  # pragma: no cover - extremely rare
+        payload = {
+            key: getattr(poster, key)
+            for key in dir(poster)
+            if not key.startswith("__") and not callable(getattr(poster, key))
+        }
+
+    gallery = payload.get("gallery_items") or payload.get("gallery") or []
+    normalised_gallery: list[Any] = []
+    for entry in gallery:
+        if hasattr(entry, "model_dump"):
+            normalised_gallery.append(entry.model_dump(exclude_none=False))
+        elif hasattr(entry, "dict"):
+            normalised_gallery.append(entry.dict(exclude_none=False))
+        else:
+            normalised_gallery.append(entry)
+    if normalised_gallery:
+        payload["gallery_items"] = normalised_gallery
+
+    for field in ("scenario_image", "brand_logo"):
+        if field in payload:
+            try:
+                normalised_value = _normalise_asset_reference(field, payload.get(field))
+            except ValueError as exc:
+                message = str(exc)
+                detail = (
+                    "请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url"
+                    if "base64" in message.lower()
+                    else f"{message}; field={field}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=detail,
+                ) from exc
+            payload[field] = normalised_value
+            _apply_asset_reference(poster, field, normalised_value)
+
+    try:
+        if hasattr(PosterPayload, "model_validate"):
+            PosterPayload.model_validate(payload)
+        elif hasattr(PosterPayload, "parse_obj"):
+            PosterPayload.parse_obj(payload)
+        else:  # pragma: no cover - ultra legacy
+            PosterPayload(**payload)
+    except ValidationError as exc:
+        issues = []
+        for error in exc.errors():
+            location = ".".join(str(item) for item in error.get("loc", ()))
+            message = error.get("msg") or error.get("type") or "invalid"
+            issues.append(f"{location}:{message}")
+        logger.warning(
+            "poster.asset.invalid",
+            extra={"issues": issues, "template": payload.get("template_id")},
+        )
+        detail = "请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url"
+        if issues:
+            detail = f"{detail}; bad={','.join(issues)}"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=detail,
+        ) from exc
+
+
+def _generate_poster_with_vertex(
+    client: VertexImagen3,
+    poster: PosterInput,
+    prompt: str,
+    locked_frame: Image.Image,
+    template: TemplateResources,
+    *,
+    prompt_details: dict[str, str] | None = None,
+    trace_id: str | None = None,
+) -> tuple[PosterImage, dict[str, Any]]:
+    width_default, height_default = _template_dimensions(template, locked_frame)
+
+    requested_size = getattr(poster, "size", None)
+    width = int(getattr(poster, "width", None) or width_default)
+    height = int(getattr(poster, "height", None) or height_default)
+    width = max(width, 64)
+    height = max(height, 64)
+    size_arg = requested_size or f"{width}x{height}"
+
+    negative_prompt = getattr(poster, "negative_prompt", None)
+    if not negative_prompt and prompt_details:
+        negative_prompt = prompt_details.get("negative_prompt")
+
+    guidance = getattr(poster, "guidance", None)
+    aspect_ratio = getattr(poster, "aspect_ratio", None)
+
+    base_image_b64 = getattr(poster, "base_image_b64", None)
+    mask_b64 = getattr(poster, "mask_b64", None)
+    region_rect = getattr(poster, "region_rect", None)
+
+    should_edit = bool(base_image_b64 or mask_b64 or region_rect)
+    request_trace = trace_id or uuid.uuid4().hex[:8]
+    telemetry: dict[str, Any] = {
+        "request_trace": request_trace,
+        "mode": "edit" if should_edit else "generate",
+        "size": f"{width}x{height}",
+        "template": template.id,
+    }
+
+    params = getattr(
+        client,
+        "_edit_params" if should_edit else "_generate_params",
+        None,
+    )
+    ratio_hint = aspect_ratio or _aspect_from_dims(width, height)
+    if isinstance(params, set):
+        _, size_mode = _select_dimension_kwargs(params, width, height, ratio_hint)
+        telemetry["size_mode"] = size_mode
+
+    vertex_trace: str | None = None
+    start = time.time()
+    try:
+        if should_edit:
+            base_bytes = (
+                base64.b64decode(base_image_b64)
+                if base_image_b64
+                else _image_to_png_bytes(locked_frame)
+            )
+            mask_arg = mask_b64 or _default_mask_b64(template)
+            payload = client.edit_bytes(
+                base_image_bytes=base_bytes,
+                prompt=prompt,
+                mask_b64=mask_arg,
+                region_rect=region_rect,
+                size=size_arg,
+                width=width,
+                height=height,
+                negative_prompt=negative_prompt,
+                guidance=guidance,
+                return_trace=True,
+            )
+        else:
+            payload = client.generate_bytes(
+                prompt=prompt,
+                size=size_arg,
+                width=width,
+                height=height,
+                negative_prompt=negative_prompt,
+                aspect_ratio=aspect_ratio,
+                guidance=guidance,
+                return_trace=True,
+            )
+        if isinstance(payload, tuple):
+            image_bytes, vertex_trace = payload
+        else:  # pragma: no cover - defensive fallback
+            image_bytes, vertex_trace = payload, None
+    except Exception as exc:
+        elapsed = (time.time() - start) * 1000
+        telemetry.update(
+            {
+                "status": "error",
+                "elapsed_ms": round(elapsed, 2),
+                "vertex_trace": vertex_trace,
+                "error": str(exc),
+            }
+        )
+        logger.exception(
+            "Vertex Imagen3 %s failed",
+            telemetry["mode"],
+            extra={"request_trace": request_trace, "vertex_trace": vertex_trace},
+        )
+        raise
+
+    elapsed = (time.time() - start) * 1000
+    telemetry.update(
+        {
+            "status": "ok",
+            "elapsed_ms": round(elapsed, 2),
+            "vertex_trace": vertex_trace,
+        }
+    )
+
+    try:
+        generated = Image.open(BytesIO(image_bytes)).convert("RGBA")
+    except UnidentifiedImageError as exc:
+        telemetry.update({"status": "invalid_image", "error": str(exc)})
+        raise RuntimeError(f"Vertex Imagen3 returned invalid image: {exc}") from exc
+
+    if template.mask_background:
+        mask_alpha = template.mask_background.split()[3]
+        generated.paste(locked_frame, mask=mask_alpha)
+    else:
+        generated.alpha_composite(locked_frame)
+
+    safe_name = f"{template.id}_vertex.png"
+    telemetry["bytes"] = len(image_bytes)
+    logger.info(
+        "Vertex Imagen3 poster generated",
+        extra={
+            "request_trace": request_trace,
+            "vertex_trace": vertex_trace,
+            "mode": telemetry["mode"],
+            "size": telemetry["size"],
+            "bytes": telemetry["bytes"],
+        },
+    )
+    return _poster_image_from_pillow(generated, safe_name), telemetry
 
 
 
@@ -253,13 +872,19 @@ def _render_template_frame(
 
     draw = ImageDraw.Draw(canvas)
 
-    font_title = _load_font(64, weight="bold")
-    font_subtitle = _load_font(40, weight="bold")
-    font_brand = _load_font(36, weight="semibold")
-    font_agent = _load_font(30, weight="semibold")
-    font_body = _load_font(28)
-    font_feature = _load_font(26)
-    font_caption = _load_font(22)
+    scale = max(0.6, min(1.4, width / 1080))
+
+    def _scaled_font(base: int, *, weight: str = "regular") -> ImageFont.ImageFont:
+        size = max(12, int(round(base * scale)))
+        return _load_font(size, weight=weight)
+
+    font_title = _scaled_font(64, weight="bold")
+    font_subtitle = _scaled_font(40, weight="bold")
+    font_brand = _scaled_font(36, weight="semibold")
+    font_agent = _scaled_font(30, weight="semibold")
+    font_body = _scaled_font(28)
+    font_feature = _scaled_font(26)
+    font_caption = _scaled_font(22)
 
     slots = spec.get("slots", {})
 
@@ -268,7 +893,9 @@ def _render_template_frame(
     if logo_slot:
         left, top, width_box, height_box = _slot_to_box(logo_slot)
         logo_box = (left, top, left + width_box, top + height_box)
-        logo_image = _load_image_from_data_url(poster.brand_logo)
+        logo_image = _load_image_asset(
+            poster.brand_logo, getattr(poster, "brand_logo_key", None)
+        )
         if logo_image:
             _paste_image(canvas, logo_image, logo_box, mode="contain")
         else:
@@ -446,6 +1073,19 @@ def generate_poster_asset(
     used_override_primary = False
 
     template = _load_template_resources(poster.template_id)
+    layout_spec = None
+    try:
+        layout_spec = load_layout(poster.template_id or DEFAULT_TEMPLATE_ID)
+    except Exception:  # pragma: no cover - optional debug aid
+        logger.warning("[vertex] failed to load layout spec", exc_info=True)
+    else:
+        logger.info(
+            "[vertex] loaded layout spec",
+            extra={
+                "template_id": poster.template_id or DEFAULT_TEMPLATE_ID,
+                "slots": len(layout_spec.slots) if hasattr(layout_spec, "slots") else None,
+            },
+        )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     settings = get_settings()
@@ -482,7 +1122,10 @@ def generate_poster_asset(
                     template,
                 )
         except Exception:
-            logger.exception("Glibatree request failed, falling back to mock poster")
+            logger.exception(
+                "Glibatree request failed, falling back to mock poster",
+                extra={"trace": trace_id},
+            )
 
     if primary is None:
         if override_primary is not None:
@@ -517,7 +1160,73 @@ def generate_poster_asset(
         scores=None,
         seed=seed if lock_seed else None,
         lock_seed=bool(lock_seed),
+        trace_ids=vertex_traces,
+        fallback_used=fallback_used,
+        provider=provider_label,
+        scenario_image=scenario_asset,
+        product_image=product_asset,
+        gallery_images=gallery_assets,
     )
+
+    logger.info(
+        "[vertex] generate_poster done",
+        extra={
+            "trace": trace_id,
+            "template": template.id,
+            "provider": provider_label,
+            "fallback_used": fallback_used,
+            "poster_filename": getattr(primary, "filename", None),
+            "variants": len(variant_images),
+            "vertex_traces": vertex_traces,
+        },
+    )
+
+    return result
+
+
+def _generate_payload(
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    *,
+    prompt_bundle: dict[str, Any] | None = None,
+    prompt_details: dict[str, str] | None = None,
+    render_mode: str = "locked",
+    variants: int = 1,
+    seed: int | None = None,
+    lock_seed: bool = False,
+    trace_id: str | None = None,
+    aspect_closeness: float | None = None,
+) -> dict[str, Any]:
+    """Serialise poster inputs into a JSON-safe payload for HTTP fallbacks."""
+
+    if hasattr(poster, "model_dump"):
+        poster_payload = poster.model_dump(exclude_none=True)
+    elif hasattr(poster, "dict"):
+        poster_payload = poster.dict(exclude_none=True)
+    else:  # pragma: no cover - defensive fallback for legacy objects
+        poster_payload = {
+            key: getattr(poster, key)
+            for key in dir(poster)
+            if not key.startswith("__") and not callable(getattr(poster, key))
+        }
+
+    payload: dict[str, Any] = {
+        "poster": poster_payload,
+        "prompt": prompt,
+        "preview": preview,
+        "prompt_bundle": prompt_bundle or {},
+        "prompt_details": prompt_details or {},
+        "render_mode": render_mode,
+        "variants": variants,
+        "seed": seed,
+        "lock_seed": lock_seed,
+        "trace_id": trace_id,
+    }
+    if aspect_closeness is not None:
+        payload["aspect_closeness"] = aspect_closeness
+
+    return jsonable_encoder(payload, exclude_none=True)
 
 
 def _request_glibatree_http(
@@ -526,12 +1235,26 @@ def _request_glibatree_http(
     prompt: str,
     locked_frame: Image.Image,
     template: TemplateResources,
+    *,
+    payload: dict[str, Any] | None = None,
+    trace_id: str | None = None,
 ) -> PosterImage:
     """Call the remote Glibatree API and transform the result into PosterImage."""
+    body: dict[str, Any] = payload or {}
+    if "prompt" not in body:
+        body = dict(body)
+        body["prompt"] = prompt
+
+    safe_body = jsonable_encoder(body, exclude_none=True)
+    logger.debug(
+        "poster.asset.glibatree.payload",
+        extra={"trace": trace_id, "payload_keys": sorted(safe_body.keys())},
+    )
+
     response = requests.post(
         api_url,
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"prompt": prompt},
+        json=safe_body,
         timeout=60,
     )
     try:
@@ -810,18 +1533,33 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
     slug = safe_filename.replace(" ", "_").replace("/", "_")
     timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     digest = hashlib.sha1(image_bytes).hexdigest()[:10]
-    key = f"posters/{timestamp}-{digest}-{slug}"
+    storage_key = f"posters/{timestamp}-{digest}-{slug}"
 
-    url = put_bytes(key, image_bytes, content_type="image/png")
-    if url:
-        logger.info("R2 upload ok key=%s url=%s", key, url)
-    else:
-        logger.warning("R2 upload failed; will return data_url instead (key=%s)", key)
+    storage_ref: str | None = None
+    url: str | None = None
+    try:
+        storage_ref, url = upload_bytes_to_r2_return_ref(
+            image_bytes,
+            key=storage_key,
+            content_type="image/png",
+        )
+        logger.info("R2 upload ok key=%s url=%s", storage_key, url)
+    except Exception as exc:  # pragma: no cover - storage fallback
+        logger.warning(
+            "R2 upload failed; will return data_url instead", extra={"key": storage_key, "error": str(exc)}
+        )
 
     data_url: str | None = None
     if not url:
         encoded = base64.b64encode(image_bytes).decode("ascii")
         data_url = f"data:image/png;base64,{encoded}"
+
+    key_value: str | None = None
+    if storage_ref and "://" in storage_ref:
+        _, path = storage_ref.split("://", 1)
+        key_value = path.split("/", 1)[1] if "/" in path else storage_key
+    elif url:
+        key_value = storage_key
 
     return PosterImage(
         filename=safe_filename,
@@ -844,60 +1582,34 @@ def _parse_size(size_str: str) -> tuple[int, int]:
 
 
 def _generate_image_from_openai(config: GlibatreeConfig, prompt: str, size: str) -> str:
-    """用 OpenAI 直接生成一张图，返回 data:image/png;base64,..."""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置，无法调用 OpenAI 生成素材。")
+    """使用 Vertex Imagen3 生成 PNG data URL（兼容旧签名）。"""
 
-    from contextlib import ExitStack
-    with ExitStack() as stack:
-        client, http_client = _build_openai_client(config)
-        if http_client is not None:
-            stack.callback(http_client.close)
+    del config  # 保留兼容签名
 
-        try:
-            resp = client.images.generate(
-                model=config.model or "gpt-image-1",
-                prompt=prompt,
-                size=size,
-            )
-            if not resp.data:
-                raise ValueError("OpenAI images.generate 空响应")
-            b64 = getattr(resp.data[0], "b64_json", None)
-            if not b64:
-                raise ValueError("OpenAI images.generate 缺少 b64_json")
-            return f"data:image/png;base64,{b64}"
+    if vertex_imagen_client is None:
+        raise RuntimeError("Vertex Imagen3 未配置，无法生成图像。")
 
-        except TypeError as e:
-            logger.exception("OpenAI SDK images.generate failed, fallback to raw HTTP: %s", e)
-            b64 = _openai_images_generate_via_httpx(config, prompt, size)
-            return f"data:image/png;base64,{b64}"
+    width, height = _parse_size(size)
 
-def _openai_images_generate_via_httpx(config: GlibatreeConfig, prompt: str, size: str) -> str:
-    """直接调 REST /v1/images/generations，返回 b64_json。"""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
-    base_url = (config.api_url or "https://api.openai.com/v1").rstrip("/")
-
-    payload = {
-        "model": config.model or "gpt-image-1",
-        "prompt": prompt,
-        "size": size,
-    }
-    timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-    with httpx.Client(proxies=config.proxy, timeout=timeout) as cli:
-        r = cli.post(
-            f"{base_url}/images/generations",
-            headers={
-                "Authorization": f"Bearer {config.api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
+    try:
+        image_bytes = vertex_imagen_client.generate_bytes(
+            prompt=prompt,
+            size=size,
+            width=width,
+            height=height,
         )
-        r.raise_for_status()
-        data = r.json()
-        if not data.get("data"):
-            raise RuntimeError(f"OpenAI images/generations empty response: {data}")
-        return data["data"][0]["b64_json"]
+    except Exception as exc:  # pragma: no cover - 网络或配置异常
+        raise RuntimeError(f"vertex imagen generate error: {exc}") from exc
+
+    try:
+        image = Image.open(BytesIO(image_bytes)).convert("RGBA")
+    except Exception as exc:  # pragma: no cover - 非法图像
+        raise RuntimeError(f"invalid image payload: {exc}") from exc
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
 
 
 def _enforce_template_materials(
@@ -1023,6 +1735,11 @@ def _enforce_template_materials(
     if updates:
         poster = _copy_model(poster, **updates)
 
+    poster = _apply_gallery_logo_fallback(
+        poster,
+        max_slots=gallery_limit or 4,
+    )
+
     material_flags = {
         "scenario": {
             "allows_prompt": scenario_allows_prompt,
@@ -1044,31 +1761,6 @@ def _enforce_template_materials(
 
     return poster, material_flags
 
-def _openai_images_edit_via_httpx(config: GlibatreeConfig, prompt: str,
-                                  image_png: bytes, mask_png: bytes, size: str) -> str:
-    """直接调 REST /v1/images/edits，返回 b64_json（不含 data: 前缀）。"""
-    if not config.api_key:
-        raise ValueError("GLIBATREE_API_KEY 未配置。")
-    base_url = (config.api_url or "https://api.openai.com/v1").rstrip("/")
-
-    files = {
-        "prompt": (None, prompt),
-        "size": (None, size),
-          "image": ("image.png", image_png, "image/png"),
-        "mask": ("mask.png", mask_png, "image/png"),
-    }
-    timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
-    with httpx.Client(proxies=config.proxy, timeout=timeout) as cli:
-        r = cli.post(
-            f"{base_url}/images/edits",
-            headers={"Authorization": f"Bearer {config.api_key}"},
-            files=files,
-        )
-        r.raise_for_status()
-        data = r.json()
-        if not data.get("data"):
-            raise RuntimeError(f"OpenAI images/edits empty response: {data}")
-        return data["data"][0]["b64_json"]
 
 def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     """Resolve AI-generated assets for scenario, product, and gallery slots."""
@@ -1078,7 +1770,7 @@ def prepare_poster_assets(poster: PosterInput) -> PosterInput:
     settings = get_settings()
     config = settings.glibatree
 
-    if not config.use_openai_client or not config.api_key:
+    if not config.use_openai_client or not (config.api_key and config.api_url):
         return poster
 
     updates: dict[str, Any] = {}

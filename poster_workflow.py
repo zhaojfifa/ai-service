@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Type, TypeVar
 
 import requests
+from fastapi.encoders import jsonable_encoder
 
 from app.schemas import PosterImage, PosterInput, SendEmailRequest
 from app.services.email_sender import send_email
@@ -77,9 +78,7 @@ def _model_validate(model: Type[TModel], data: Dict[str, Any]) -> TModel:
 def _model_dump(instance: Any) -> Dict[str, Any]:
     """Return a plain ``dict`` regardless of the installed Pydantic version."""
 
-    if hasattr(instance, "model_dump"):
-        return instance.model_dump()  # type: ignore[attr-defined]
-    return instance.dict()  # type: ignore[attr-defined]
+    return jsonable_encoder(instance, exclude_none=True)  # type: ignore[arg-type]
 
 
 def parse_poster_input(config: Dict[str, Any]) -> PosterInput:
@@ -150,6 +149,7 @@ def main() -> None:
     poster = parse_poster_input(config)
 
     prompt_overrides = config.get("prompts") if isinstance(config.get("prompts"), dict) else None
+    aspect_closeness = config.get("aspect_closeness")
 
     preview = render_layout_preview(poster)
     prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
@@ -161,6 +161,7 @@ def main() -> None:
         preview,
         prompt_bundle=prompt_bundle,
         prompt_details=prompt_details,
+        aspect_closeness=aspect_closeness,
     )
     poster_image = generation.poster
     email_body = compose_marketing_email(poster, poster_image.filename)

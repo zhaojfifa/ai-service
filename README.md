@@ -68,6 +68,170 @@ uvicorn app.main:app --reload
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
 
+### Cloudflare R2 CORS 配置
+
+前端使用 `/api/r2/presign-put` 获取预签名地址后，会直接在浏览器中对 Cloudflare R2 发起 `PUT` 上传。若桶未放行对应域名，浏览器会在预检阶段抛出 `No 'Access-Control-Allow-Origin' header` 并终止上传。
+
+典型 JSON 规则如下（直接粘贴到 R2 → Settings → CORS policy），请将占位符替换为自己的域名：
+
+```json
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://<your-frontend-host>",
+          "https://<your-api-host>"
+        ],
+        "methods": ["GET", "PUT", "HEAD", "POST", "OPTIONS"],
+        "headers": ["*"]
+      },
+      "max_age": 86400
+    }
+  ]
+}
+```
+
+若需要 XML 形式，可使用等价配置：
+
+```xml
+<CORSConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <CORSRule>
+    <AllowedOrigin>https://&lt;your-frontend-host&gt;</AllowedOrigin>
+    <AllowedOrigin>https://&lt;your-api-host&gt;</AllowedOrigin>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedMethod>POST</AllowedMethod>
+    <AllowedMethod>OPTIONS</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <MaxAgeSeconds>86400</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>
+```
+
+- GitHub Pages 示例：`<your-frontend-host>` 可填写 `https://zhaojfifa.github.io`。
+- Render 示例：`<your-api-host>` 可填写 `https://ai-service-x758.onrender.com`。
+
+自查 Checklist：
+
+1) origin 与浏览器地址栏是否完全一致（含 https，不含路径）；
+2) methods 是否包含 PUT 与 OPTIONS；
+3) headers 是否覆盖 `Content-Type`（推荐直接 `"*"`）。
+
+更多排查与操作步骤见 [docs/cloudflare-r2-cors.md](docs/cloudflare-r2-cors.md)。
+
+## 图像生成（Vertex Only）与对象存储直传
+
+服务端固定使用 Vertex Imagen 3：
+
+```
+IMAGE_PROVIDER=vertex
+GCP_KEY_B64=...
+VERTEX_PROJECT_ID=...
+VERTEX_LOCATION=europe-west4
+VERTEX_IMAGEN_MODEL=imagen-3.0-generate-001
+```
+
+### 线下验证 Vertex 调用链路
+
+1. 在 `/docs` 打开 Swagger，先调用 `/api/r2/presign-put` 上传一张素材图到 R2，获取 URL/Key。
+2. 使用前端 Network 中的示例 JSON 或手动构造 `/api/generate-poster` 请求，将素材 Key 填入对应字段。
+3. 观察 Render Logs，预期会连续出现：
+   - `generate_poster request received`（含品牌、布局等摘要）；
+   - `[vertex] generate_poster start`/`done`，`provider` 为 VertexImagen3 及 prompt 片段；
+   - `generate_poster completed`，包含生成的文件名、变体数量以及 Vertex trace。
+
+只要上述三类日志都出现，说明前端 → 后端 → Vertex → R2 的链路正常。
+
+生成接口默认写入对象存储并仅返回 URL/Key：
+
+```
+POST /api/imagen/generate
+{
+  "prompt": "a cute corgi in space suit",
+  "width": 1024,
+  "height": 1024,
+  "variants": 2
+}
+→ 200 OK
+{
+  "ok": true,
+  "variants": 2,
+  "width": 1024,
+  "height": 1024,
+  "provider": "vertex",
+  "results": [
+    {
+      "key": "imagen/2025/10/25/req123/0.png",
+      "url": "https://cdn.example.com/imagen/2025/10/25/req123/0.png",
+      "content_type": "image/png"
+    },
+    {
+      "key": "imagen/2025/10/25/req123/1.png",
+      "url": "https://cdn.example.com/imagen/2025/10/25/req123/1.png",
+      "content_type": "image/png"
+    }
+  ],
+  "key": "imagen/2025/10/25/req123/0.png",
+  "url": "https://cdn.example.com/imagen/2025/10/25/req123/0.png",
+  "content_type": "image/png",
+  "meta": {
+    "add_watermark": true,
+    "seed_requested": null,
+    "seed_used": null,
+    "requested_variants": 2
+  }
+}
+```
+
+需要直传 R2（Cloudflare）：
+
+```
+STORAGE_BACKEND=s3
+S3_BUCKET=ai-service
+S3_PUBLIC_BASE=https://你的CDN域名
+```
+
+全项目规范：后续接口仅传 `url` 或 `key` 字段，不再上送二进制/BASE64。
+
+推荐的环境变量补充：
+
+- `LOG_LEVEL`: 统一控制 uvicorn/应用日志级别，默认 `INFO`
+- `RETURN_BINARY_DEFAULT`: 设为 `0`（默认）表示禁止返回图片二进制；调试时可设置 `1`
+
+大图片/内联 base64 会被 `BodyGuardMiddleware` 拦截并返回 413。请将素材直传对象存储（R2/GCS），接口仅传 Key/URL。
+
+健康与首页：
+
+- `GET /` / `HEAD /` → 200，用于探活
+- `GET /health` → 200
+- `GET /docs` / `GET /openapi.json` → 在线调试与文档
+
+### 快速验收
+
+```bash
+# 健康检查
+curl -s https://<your-api>/health
+
+# 简易生图接口（响应为 JSON，包含存储的 URL/Key）
+curl -s https://<your-api>/api/imagen/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "prompt": "A watercolor hummingbird, 4k, intricate, trending on artstation",
+        "size": "1024x1024"
+      }'
+```
+
+
+### 常见问题
+
+- `ImportError: cannot import name Mask` → 使用 `Image` 作为 mask 类型（本项目已修复）。
+- 权限/鉴权失败：检查 `GOOGLE_APPLICATION_CREDENTIALS` 或 `GCP_KEY_B64` 是否正确配置，以及服务账号是否具备 Vertex AI User 权限。
+- 区域/超时：调整 `GCP_LOCATION` 与 `VERTEX_TIMEOUT_SECONDS`。
+- 复现性：设置 `VERTEX_SEED` 为非 0 整数。
+
+
 ## Render 托管后端
 
 1. 将项目推送至 GitHub，并在 Render 控制台选择 “New Web Service”。
@@ -76,7 +240,7 @@ uvicorn app.main:app --reload
    - 以 `uvicorn app.main:app --host 0.0.0.0 --port $PORT` 启动服务。
    - 依赖列表中仅使用纯 Python 版本的 `uvicorn`，避免在 Render 免费方案上编译 `httptools/uvloop` 失败导致构建中断。
 3. 在 Render 的 “Environment” 设置界面中填写所需的 Glibatree API、SMTP 与（可选的）Cloudflare R2 环境变量。
-   - `ALLOWED_ORIGINS` 支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
+   - `CORS_ALLOW_ORIGINS`（兼容 `ALLOWED_ORIGINS`）支持逗号分隔多个域名，后端会在启动时自动剥离路径部分。例如填写
      `https://your-account.github.io/ai-service/` 时，会被规范化为 `https://your-account.github.io`，避免跨域校验失败。
    - 若通过 OpenAI 1.x SDK 调 Glibatree，请提供 `GLIBATREE_API_KEY`，并根据实际需求配置 `GLIBATREE_CLIENT=openai`、`GLIBATREE_MODEL` 以及（可选的）`GLIBATREE_PROXY`。SDK 现在会自动构建 httpx 客户端并兼容代理参数。
    - 如需将生成的成品图与用户上传的素材统一存放到 Cloudflare R2，以避免超大 JSON 造成浏览器连接中断，可额外提供：
@@ -154,6 +318,7 @@ python scripts/decode_template_assets.py
 - **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标、尺寸及 `materials` 定义）。`materials` 字段会为每个槽位提供 `label`、`type`、`count`、`allowsPrompt`、`allowsUpload`、`promptPlaceholder` 等元数据，前端据此渲染表单文案、限制素材数量并切换上传/AI 模式，后端则据此判断哪些槽位需要在渲染前调用 AI 生成素材。
 - **提示词预设**：`frontend/prompts/presets.json` 汇总了常见的 Prompt Preset（如白底产品、厨房场景、灰度小图等），Prompt Inspector 会自动加载并允许按模板设定默认 Preset；后端也会回传经标准化后的 Prompt Bundle，方便在多端保持一致。若需要扩展主题，可在该文件中新建预设并提交。
 - **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
+- **版式 JSON**：`app/templates/template_dual_layout.json` 使用 0–1 相对坐标描述 `template_dual` 的所有槽位，`app/templates/layouts.py` 提供 `load_layout()` 便于前后端共享同一版式几何。
 - **后端流水线**：`app/services/glibatree.py` 会先调用 `prepare_poster_assets`，对所有标记为“文字生成”的槽位请求 OpenAI 生成素材（缺少 API Key 时自动跳过），随后按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
 
