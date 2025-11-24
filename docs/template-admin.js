@@ -1,99 +1,92 @@
 (function () {
+  'use strict';
+
   const grid = document.getElementById('template-poster-grid');
   if (!grid) return;
+
+  const STORAGE_KEYS = {
+    apiBase: 'template-admin:api-base-url',
+  };
+
+  const appContext =
+    window.App && typeof window.App === 'object' ? window.App : (window.App = {});
+  const appUtils =
+    appContext && typeof appContext.utils === 'object' ? appContext.utils : (appContext.utils = {});
+
+  const readStoredBase = () => {
+    try {
+      return window.localStorage?.getItem(STORAGE_KEYS.apiBase) || '';
+    } catch (error) {
+      console.warn('[template-admin] unable to read stored api base', error);
+      return '';
+    }
+  };
+
+  const writeStoredBase = (value) => {
+    try {
+      const storage = window.localStorage;
+      if (!storage) return;
+      if (value) {
+        storage.setItem(STORAGE_KEYS.apiBase, value);
+      } else {
+        storage.removeItem(STORAGE_KEYS.apiBase);
+      }
+    } catch (error) {
+      console.warn('[template-admin] unable to persist api base', error);
+    }
+  };
+
+  if (typeof appContext.apiBaseUrl !== 'string') {
+    appContext.apiBaseUrl = '';
+  }
+
+  let storedBase = readStoredBase();
+  if (!appContext.apiBaseUrl && storedBase) {
+    appContext.apiBaseUrl = storedBase;
+  }
+
+  const rememberBase = (value) => {
+    const normalised = typeof value === 'string' ? value.trim() : '';
+    appContext.apiBaseUrl = normalised;
+    storedBase = normalised;
+    writeStoredBase(normalised);
+    return normalised;
+  };
+  const joinBase =
+    typeof window.joinBasePath === 'function'
+      ? window.joinBasePath
+      : (base, path) => {
+          const url = new URL(path, base);
+          return url.toString();
+        };
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  const extractBase64Payload = (value) => {
+    if (typeof value !== 'string') return '';
+    const parts = value.split(',');
+    const payload = parts.length > 1 ? parts.slice(1).join(',') : value;
+    return payload.replace(/\s+/g, '');
+  };
 
   const statusElement = document.getElementById('template-status');
   const refreshButton = document.getElementById('refresh-posters');
   const apiBaseInput = document.getElementById('api-base');
-  const AppContext =
-    typeof window !== 'undefined' &&
-    window.App &&
-    typeof window.App === 'object'
-      ? window.App
-      : null;
-  const AppUtils =
-    AppContext && typeof AppContext.utils === 'object'
-      ? AppContext.utils
-      : null;
-  const ensureUploadHelper = () => {
-    if (AppUtils && typeof AppUtils.uploadFileToR2 === 'function') {
-      return AppUtils.uploadFileToR2;
-    }
-    throw new Error('缺少 R2 上传工具，请刷新页面后重试。');
-  };
-  const folderForSlot = (slot) => {
-    if (slot === 'variant_a') return 'template-posters/variant-a';
-    if (slot === 'variant_b') return 'template-posters/variant-b';
-    return `template-posters/${slot || 'misc'}`;
-  };
-  const joinBasePath =
-    AppUtils?.joinBasePath ||
-    ((base, path) => {
-      if (!base) return null;
-      const baseString = String(base).trim();
-      if (!baseString) return null;
-      const cleanBase = baseString.replace(/\/+$/, '');
-      if (!path) return cleanBase;
-      const pathString = String(path).trim();
-      if (!pathString) return cleanBase;
-      const cleanPath = pathString.startsWith('/')
-        ? pathString
-        : `/${pathString}`;
-      return `${cleanBase}${cleanPath}`;
-    });
 
-  const normaliseBase = (value) => {
-    if (!value) return null;
-    const stringValue = typeof value === 'string' ? value : `${value}`;
-    const trimmed = stringValue.trim();
-    if (!trimmed) return null;
-    return trimmed.replace(/\/+$/, '');
-  };
-
-  const readInputBase = () => normaliseBase(apiBaseInput?.value || '');
-
-  const collectCandidates = () => {
-    const sources = [];
-    const utilCandidates = AppUtils?.getApiCandidates?.() || [];
-    if (Array.isArray(utilCandidates)) {
-      sources.push(...utilCandidates);
-    } else if (utilCandidates) {
-      sources.push(utilCandidates);
-    }
-    const appBase = normaliseBase(AppContext?.apiBase || '');
-    const inputBase = readInputBase();
-    if (appBase) sources.push(appBase);
-    if (inputBase) sources.push(inputBase);
-    const unique = [];
-    const seen = new Set();
-    sources.forEach((item) => {
-      const base = normaliseBase(item);
-      if (!base || seen.has(base)) return;
-      seen.add(base);
-      unique.push(base);
-    });
-    return unique;
-  };
+  if (apiBaseInput && !apiBaseInput.value && appContext.apiBaseUrl) {
+    apiBaseInput.value = appContext.apiBaseUrl;
+  }
 
   const slotLabels = {
     variant_a: '海报 A',
     variant_b: '海报 B',
-  };
-
-  const HTTP_URL_RX = /^https?:\/\//i;
-  const isHttpUrl = (value) => typeof value === 'string' && HTTP_URL_RX.test(value.trim());
-  const isDataUrl = (value) => typeof value === 'string' && value.trim().startsWith('data:');
-  const resolvePosterPreviewSource = (poster) => {
-    if (!poster) return '';
-    const direct = typeof poster.url === 'string' ? poster.url.trim() : '';
-    if (direct && (isHttpUrl(direct) || isDataUrl(direct))) {
-      return direct;
-    }
-    const dataUrl = typeof poster.data_url === 'string' ? poster.data_url.trim() : '';
-    if (dataUrl && isDataUrl(dataUrl)) {
-      return dataUrl;
-    }
-    return '';
   };
 
   const slotMap = new Map();
@@ -237,9 +230,6 @@
     addItem('文件名', poster.filename || '—');
     addItem('格式', poster.media_type || '—');
     addItem('尺寸', formatDimensions(poster.width, poster.height));
-    if (poster.key) {
-      addItem('对象存储 Key', poster.key);
-    }
     if (poster.url) {
       addItem('访问链接', poster.url, { isLink: true });
     }
@@ -251,7 +241,7 @@
     const preview = entry.preview;
     const placeholder = entry.placeholder;
     if (poster) {
-      const source = resolvePosterPreviewSource(poster);
+      const source = poster.url || poster.data_url || '';
       if (preview) {
         if (source) {
           preview.src = source;
@@ -296,34 +286,74 @@
     });
   };
 
+  const getApiCandidates = () => {
+    const seen = new Set();
+    const push = (value) => {
+      if (typeof value !== 'string') return;
+      const trimmed = value.trim();
+      if (!trimmed) return;
+      seen.add(trimmed);
+    };
+
+    if (apiBaseInput?.value) {
+      push(apiBaseInput.value);
+    }
+
+    push(appContext.apiBaseUrl);
+    push(storedBase);
+
+    const candidatesFromUtils =
+      typeof appUtils.getApiCandidates === 'function'
+        ? appUtils.getApiCandidates()
+        : [];
+    if (Array.isArray(candidatesFromUtils)) {
+      candidatesFromUtils.forEach((entry) => push(entry));
+    }
+
+    return Array.from(seen);
+  };
+
   const ensureBase = async ({ force = false, warmup = false } = {}) => {
     if (!force && state.base) return state.base;
-    const candidates = collectCandidates();
+    const candidates = getApiCandidates();
     if (!candidates.length) {
       throw new Error('请先填写后端 API 地址。');
     }
-    if (warmup && AppUtils?.warmUp) {
+    if (warmup && typeof appUtils.warmUp === 'function') {
       try {
-        await AppUtils.warmUp(candidates, { force: true });
+        await appUtils.warmUp(candidates, { force: true });
       } catch (error) {
         console.warn('[template-admin] warmUp failed', error);
       }
     }
     let base = null;
-    if (AppUtils?.pickHealthyBase) {
-      base = await AppUtils.pickHealthyBase(candidates);
+    if (typeof appUtils.pickHealthyBase === 'function') {
+      try {
+        base = await appUtils.pickHealthyBase(candidates);
+      } catch (error) {
+        console.warn('[template-admin] pickHealthyBase failed', error);
+      }
     }
     state.base = base || candidates[0] || null;
     if (!state.base) {
       throw new Error('未找到可用的后端 API 地址。');
+    }
+    state.base = rememberBase(state.base) || state.base;
+    if (apiBaseInput && !apiBaseInput.value) {
+      apiBaseInput.value = state.base;
     }
     return state.base;
   };
 
   const requestJson = async (method, path, payload) => {
     const base = await ensureBase({ warmup: method !== 'GET' });
-    const url = joinBasePath ? joinBasePath(base, path) : null;
-    if (!url) throw new Error('API 地址无效。');
+    let url;
+    try {
+      url = joinBase(base, path);
+    } catch (error) {
+      console.error('[template-admin] joinBase failed', error);
+      throw new Error('API 地址无效。');
+    }
     const body = payload ? JSON.stringify(payload) : undefined;
     const response = await fetch(url, {
       method,
@@ -349,51 +379,6 @@
     if (!response.ok) {
       const detail = data?.detail || data?.message || text || '请求失败';
       throw new Error(detail);
-    }
-    return data || {};
-  };
-
-  const submitTemplatePoster = async (payload) => {
-    const base = await ensureBase({ warmup: true });
-    const url = joinBasePath ? joinBasePath(base, '/api/template-posters') : null;
-    if (!url) throw new Error('API 地址无效。');
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      mode: 'cors',
-      cache: 'no-store',
-      credentials: 'omit',
-      body: JSON.stringify(payload),
-    });
-    const text = await response.text();
-    let data = null;
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch (error) {
-        console.warn('[template-admin] response parse failed', error);
-      }
-    }
-    if (!response.ok) {
-      const detail = data?.detail;
-      const structured = typeof detail === 'object' && detail ? detail : data;
-      const reason = structured?.reason || structured?.error;
-      if (reason === 'cannot_identify') {
-        throw new Error('图片格式解析失败，请用 PS / 预览重新导出为标准 PNG/JPEG/WebP 再上传。');
-      }
-      if (reason === 'decode_failed') {
-        const hint = structured?.hint || '图片内容读取失败，可尝试重新导出或压缩文件后再试。';
-        throw new Error(hint);
-      }
-      const fallbackMessage =
-        (typeof detail === 'string' && detail) ||
-        structured?.hint ||
-        structured?.error ||
-        '模板上传失败，请稍后重试。';
-      throw new Error(fallbackMessage);
     }
     return data || {};
   };
@@ -436,50 +421,33 @@
       return;
     }
 
-    const contentType = file.type || guessContentType(file);
+    const contentType = guessContentType(file);
     if (!contentType) {
       updateSlotStatus(slot, '无法识别文件格式，请上传 PNG/JPEG/WebP 图片。', 'error');
       return;
     }
 
     setSlotBusy(slot, true);
-    const label = slotLabels[slot] || slot;
-    updateSlotStatus(slot, '正在上传到 R2…', 'info');
-    setGlobalStatus(`正在上传 ${label}…`, 'info');
+    updateSlotStatus(slot, '正在上传…', 'info');
+    setGlobalStatus(`正在上传 ${slotLabels[slot] || slot}…`, 'info');
 
     try {
-      const uploadFileToR2 = ensureUploadHelper();
-      const bases = collectCandidates();
-      const folder = folderForSlot(slot);
-      const uploadResult = await uploadFileToR2(folder, file, { bases });
-      if (!uploadResult || !uploadResult.key) {
-        throw new Error('上传结果缺少对象存储 key。');
+      const dataUrl = await fileToDataUrl(file);
+      const base64Data = extractBase64Payload(dataUrl);
+      if (!base64Data) {
+        throw new Error('图片数据解析失败，请重试。');
       }
-
-      updateSlotStatus(slot, '正在登记模板元数据…', 'info');
-      setGlobalStatus(`正在登记 ${label}…`, 'info');
-
-      const declaredSize =
-        typeof file.size === 'number' && Number.isFinite(file.size)
-          ? Math.max(0, Math.round(file.size))
-          : null;
-      const presignedSize =
-        uploadResult?.presign && Number.isFinite(Number(uploadResult.presign.size))
-          ? Number(uploadResult.presign.size)
-          : null;
-
       const payload = {
         slot,
-        key: uploadResult.key,
         filename: file.name || `${slot}.png`,
-        content_type: file.type || contentType,
-        size: declaredSize ?? presignedSize ?? 0,
+        content_type: contentType,
+        data: base64Data,
       };
-      await submitTemplatePoster(payload);
+      await requestJson('POST', '/api/template-posters', payload);
       updateSlotStatus(slot, '上传完成。', 'success');
       clearSelection(slot);
       await fetchPosters({ silent: true });
-      setGlobalStatus(`${label} 上传完成。`, 'success');
+      setGlobalStatus(`${slotLabels[slot] || slot} 上传完成。`, 'success');
     } catch (error) {
       console.error('[template-admin] upload failed', error);
       const message = error?.message || '上传失败';
@@ -529,14 +497,9 @@
   }
 
   if (apiBaseInput) {
-    if (AppContext?.apiBase && !apiBaseInput.value) {
-      apiBaseInput.value = AppContext.apiBase;
-    }
     apiBaseInput.addEventListener('change', () => {
+      rememberBase(apiBaseInput.value);
       state.base = null;
-      if (AppContext) {
-        AppContext.apiBase = apiBaseInput.value?.trim() || '';
-      }
       fetchPosters({ silent: true });
     });
   }

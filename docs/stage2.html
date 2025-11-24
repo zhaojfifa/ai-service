@@ -212,82 +212,22 @@
                   后台尚未上传模板海报。
                 </div>
               </figure>
-              <figure
-                class="poster-preview"
-                data-role="generated latest-poster-panel vertex-poster-preview"
-                id="vertex-poster-preview"
-              >
+              <figure class="poster-preview" data-role="generated">
                 <header class="poster-preview-header">
                   <div class="poster-preview-title">
                     <span class="poster-chip poster-chip-secondary">海报 B</span>
                     <span class="poster-preview-label">最新生成结果</span>
                   </div>
                 </header>
-                <div class="ai-result-box">
-                  <div id="poster-b-root" class="poster-b poster-preview-card hidden">
-                    <div class="poster-b-header">
-                      <img
-                        id="poster-b-brand-logo"
-                        class="poster-b-brand-logo"
-                        alt="品牌 logo 预览"
-                      />
-                      <div class="poster-b-brand-name" data-bind="brand_name"></div>
-                      <div class="poster-b-agent-name" data-bind="agent_name"></div>
-                    </div>
-
-                    <div class="poster-b-main">
-                      <img
-                        class="poster-b-scenario"
-                        data-role="poster-b-scenario"
-                        alt="场景图预览"
-                      />
-                      <img
-                        class="poster-b-product"
-                        data-role="poster-b-product"
-                        alt="产品图预览"
-                      />
-                    </div>
-
-                    <h1 class="poster-b-title" data-bind="title"></h1>
-
-                    <div class="poster-b-gallery">
-                      <div class="poster-bottom-slot" data-role="poster-b-gallery" data-index="0">
-                        <img alt="系列小图 1" />
-                        <div class="slot-caption"></div>
-                      </div>
-                      <div class="poster-bottom-slot" data-role="poster-b-gallery" data-index="1">
-                        <img alt="系列小图 2" />
-                        <div class="slot-caption"></div>
-                      </div>
-                      <div class="poster-bottom-slot" data-role="poster-b-gallery" data-index="2">
-                        <img alt="系列小图 3" />
-                        <div class="slot-caption"></div>
-                      </div>
-                      <div class="poster-bottom-slot" data-role="poster-b-gallery" data-index="3">
-                        <img alt="系列小图 4" />
-                        <div class="slot-caption"></div>
-                      </div>
-                    </div>
-
-                    <div class="poster-b-subtitle" data-bind="subtitle"></div>
-                  </div>
-
-                  <img
-                    id="vertex-poster-preview-img"
-                    data-role="vertex-poster-img"
-                    alt="AI 生成海报预览"
-                    style="max-width: 100%; display: none; border-radius: 8px;"
-                    decoding="async"
-                  />
-                  <div
-                    id="vertex-poster-placeholder"
-                    data-role="vertex-poster-placeholder"
-                    class="poster-preview-placeholder"
-                  >
-                    AI 生成结果将在这里展示。
-                  </div>
+                <img
+                  id="poster-generated-image"
+                  alt="生成海报预览"
+                  class="hidden"
+                  decoding="async"
+                />
+                <div id="poster-generated-placeholder" class="poster-preview-placeholder">
+                  生成结果将在此展示。
                 </div>
-                <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
               </figure>
             </div>
           </div>
