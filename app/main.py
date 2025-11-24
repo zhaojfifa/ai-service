@@ -4,6 +4,9 @@ import base64
 import binascii
 import datetime as dt
 import json
+
+import base64
+import json
 import logging
 import os
 import uuid
@@ -14,9 +17,15 @@ from urllib.parse import urlparse
 from google.api_core.exceptions import ResourceExhausted
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
+import os
+from typing import Any, Iterable, Optional
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, root_validator
+from fastapi.responses import Response
+from pydantic import ValidationError
 
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
@@ -27,12 +36,17 @@ from app.schemas import (
     GenerateSlotImageResponse,
     ImageRef,
     PosterImage,
+    PosterGalleryItem,
+    PosterInput,
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
     StoredImage,
     SendEmailRequest,
     SendEmailResponse,
+    TemplatePosterCollection,
+    TemplatePosterEntry,
+    TemplatePosterUploadRequest,
     TemplatePosterCollection,
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
@@ -44,6 +58,8 @@ from app.services.glibatree import (
     generate_slot_image,
 )
 from app.services.image_provider.factory import get_provider
+from app.services.glibatree import generate_poster_asset
+from app.services.image_provider import ImageProvider
 from app.services.poster import (
     build_glibatree_prompt,
     compose_marketing_email,
@@ -109,7 +125,26 @@ def root_head() -> Response:
     # HEAD 按规范不返回 body
     return Response(status_code=200)
 
+from app.services.s3_client import get_bytes, make_key, presigned_put_url, public_url_for
+from app.services.template_variants import (
+    list_poster_entries,
+    poster_entry_from_record,
+    save_template_poster,
+)
 
+
+def _configure_logging() -> logging.Logger:
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    logger = logging.getLogger("ai-service")
+    logger.debug("Logging configured at %s", level)
+    return logger
+
+
+logger = _configure_logging()
 settings = get_settings()
 
 
@@ -175,6 +210,9 @@ app.add_middleware(BodyGuardMiddleware, max_bytes=body_guard_bytes)
 logger.info("BodyGuardMiddleware ready", extra={"max_json_bytes": body_guard_bytes})
 
 # ✅ 上传配置
+image_provider = ImageProvider()
+app = FastAPI(title="Marketing Poster API", version="1.0.0")
+
 UPLOAD_MAX_BYTES = max(int(os.getenv("UPLOAD_MAX_BYTES", "20000000") or 0), 0)
 UPLOAD_ALLOWED_MIME = {
     item.strip()
@@ -186,6 +224,7 @@ UPLOAD_ALLOWED_MIME = {
 def _normalise_allowed_origins(value: Any) -> list[str]:
     """Parse comma/JSON separated origins and keep only scheme + host."""
 
+def _normalize_allowed_origins(value: Any) -> list[str]:
     if not value:
         return ["*"]
     if isinstance(value, list):
@@ -193,7 +232,14 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
     elif isinstance(value, str):
         text = value.strip()
         if text.startswith("["):
+        text = value.strip()
+        if text.startswith("["):
             try:
+                items = json.loads(text)
+            except (TypeError, ValueError):
+                items = text.split(",")
+        else:
+            items = text.split(",")
                 items = json.loads(text)
             except (TypeError, ValueError):
                 items = text.split(",")
@@ -213,6 +259,13 @@ def _normalise_allowed_origins(value: Any) -> list[str]:
         if candidate:
             cleaned.append(candidate)
     return cleaned or ["*"]
+    cleaned = []
+    for item in items:
+        candidate = str(item).strip().strip('"').strip("'").rstrip("/")
+        if candidate:
+            cleaned.append(candidate)
+    return cleaned or ["*"]
+
 
 raw_origins = (
     getattr(settings, "allowed_origins", None)
@@ -238,6 +291,8 @@ if allow_all and explicit_origins:
 
 cors_allow_origins = explicit_origins or ["*"]
 cors_allow_credentials = not allow_all
+raw_origins = getattr(settings, "allowed_origins", None) or os.getenv("ALLOWED_ORIGINS")
+allow_origins = _normalize_allowed_origins(raw_origins)
 
 app.add_middleware(
     CORSMiddleware,
@@ -246,7 +301,13 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     max_age=86400,
+    allow_origins=allow_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=86400,
 )
+
 
 
 @app.options("/{path:path}")
@@ -509,6 +570,13 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
     return JSONResponse(payload.model_dump(exclude_none=True))
 
 
+async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
+    return Response(status_code=204)
+
+
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
 
 
 def _model_dump(model):
@@ -744,6 +812,94 @@ def _ensure_trace_id(request: Request) -> str:
     return trace
 
 
+def _coerce_optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _coerce_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _asset_bytes(ref: Any) -> bytes | None:
+    if not ref:
+        return None
+
+    key = getattr(ref, "key", None)
+    url = getattr(ref, "url", None)
+
+    if key:
+        try:
+            return get_bytes(key)
+        except Exception as exc:
+            logger.warning("Unable to fetch asset by key %s: %s", key, exc)
+
+    if url:
+        try:
+            import httpx
+
+            with httpx.Client(timeout=10) as client:
+                resp = client.get(url)
+                resp.raise_for_status()
+                return resp.content
+        except Exception as exc:  # pragma: no cover - network dependent
+            logger.warning("Unable to fetch asset by url %s: %s", url, exc)
+
+    return None
+
+
+def _asset_data_url(ref: Any) -> str | None:
+    payload = _asset_bytes(ref)
+    if not payload:
+        return None
+    mime = "image/png"
+    encoded = base64.b64encode(payload).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def _asset_uri(ref: Any) -> str | None:
+    if not ref:
+        return None
+    url = getattr(ref, "url", None)
+    key = getattr(ref, "key", None)
+    if url:
+        return str(url)
+    if key:
+        return public_url_for(key) or key
+    return None
+
+
+def _coerce_gallery(items: Iterable[PosterGalleryItem], fallback: Any) -> list[PosterGalleryItem]:
+    entries: list[PosterGalleryItem] = []
+    for item in items:
+        if getattr(item, "asset", None) is None and getattr(item, "key", None) is None:
+            entries.append(
+                PosterGalleryItem(
+                    caption=item.caption,
+                    asset=fallback,
+                    key=getattr(fallback, "key", None),
+                    mode=getattr(item, "mode", "upload"),
+                    prompt=getattr(item, "prompt", None),
+                )
+            )
+        else:
+            entries.append(item)
+    if not entries:
+        entries = [PosterGalleryItem(caption=None, asset=fallback) for _ in range(4)]
+
+    while len(entries) < 4:
+        entries.append(PosterGalleryItem(caption=None, asset=fallback))
+
+    return entries[:4]
+
+
 async def read_json_relaxed(request: Request) -> dict:
     try:
         payload = await request.json()
@@ -883,6 +1039,33 @@ async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlot
     return GenerateSlotImageResponse(url=url, key=key)
 
 
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 async def generate_poster(request: Request) -> JSONResponse:
     trace = _ensure_trace_id(request)
@@ -921,10 +1104,40 @@ async def generate_poster(request: Request) -> JSONResponse:
     try:
         poster = payload.poster
         normalised_assets = _summarise_assets(poster)
+        gallery_items = _coerce_gallery(payload.gallery, payload.brand_logo)
+        features = [text for text in (payload.features or []) if text]
+        while len(features) < 3:
+            features.append("核心卖点")
+        features = features[:4]
+
+        poster = PosterInput(
+            brand_name=payload.brand_name or "品牌名称",
+            agent_name=payload.agent_name or "代理名称",
+            scenario_image=payload.scenario_text or "应用场景",
+            product_name=payload.product_name or "主推产品",
+            template_id=payload.template_id,
+            features=features,
+            title=payload.title or "新品海报",
+            series_description=payload.series_description or "系列介绍",
+            subtitle=payload.subtitle or "品牌标语",
+            brand_logo=_asset_data_url(payload.brand_logo),
+            scenario_key=_asset_uri(payload.scenario),
+            product_key=_asset_uri(payload.product),
+            gallery_items=gallery_items,
+            gallery_limit=4,
+            gallery_allows_prompt=False,
+            gallery_allows_upload=True,
+            scenario_mode="upload",
+            product_mode="upload",
+        )
+
         logger.info(
             "generate_poster normalised payload",
             extra={
                 "trace": trace,
+                "poster": _summarise_poster(poster),
+            "generate_poster normalised payload: %s",
+            {
                 "poster": _summarise_poster(poster),
                 "variants": payload.variants,
                 "seed": payload.seed,
@@ -934,25 +1147,37 @@ async def generate_poster(request: Request) -> JSONResponse:
                 "asset_summary": normalised_assets,
             },
         )
+
         preview = render_layout_preview(poster)
         prompt_payload = _model_dump(payload.prompt_bundle)
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
 
-        # 生成主图与变体
+        provider_bytes: bytes | None = None
+        provider_filename = f"{poster.template_id}_poster.png"
+
+        try:
+            provider_bytes = image_provider.generate(prompt=prompt_text)
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Image provider failed; falling back to legacy pipeline")
+
         result = generate_poster_asset(
             poster,
             prompt_text,
             preview,
             prompt_bundle=prompt_payload,
             prompt_details=prompt_details,
-            render_mode=payload.render_mode,
+            render_mode="locked",
             variants=payload.variants,
             seed=payload.seed,
             lock_seed=payload.lock_seed,
             trace_id=trace,
             aspect_closeness=payload.aspect_closeness,
+            primary_image_bytes=provider_bytes,
+            primary_image_filename=provider_filename,
         )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
@@ -980,12 +1205,15 @@ async def generate_poster(request: Request) -> JSONResponse:
                 else:  # pragma: no cover - legacy Pydantic fallback
                     response_bundle = PromptBundle(**converted)
 
+        gallery_sources = [uri for uri in (_asset_uri(item.asset) for item in gallery_items) if uri]
+
         logger.info(
             "generate_poster completed",
             extra={
                 "trace": trace,
                 "response": {
                     "poster_filename": getattr(result.poster, "filename", None),
+                    "poster_url": getattr(result.poster, "url", None),
                     "variant_count": len(result.variants or []),
                     "has_scores": bool(result.scores),
                     "seed": result.seed,
@@ -1072,6 +1300,11 @@ async def generate_poster(request: Request) -> JSONResponse:
                 "provider": "vertex",
             },
         ) from exc
+            poster_url=getattr(result.poster, "url", None),
+            poster_key=getattr(result.poster, "storage_key", None),
+            gallery_images=gallery_sources,
+        )
+
     except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster", extra={"trace": trace})
         raise HTTPException(status_code=500, detail=str(exc)) from exc

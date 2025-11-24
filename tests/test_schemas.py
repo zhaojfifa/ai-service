@@ -1,27 +1,18 @@
-import pytest
-from fastapi import HTTPException
-
-from app.schemas import (
-    GeneratePosterRequest,
-    GeneratePosterResponse,
-    PosterImage,
-    PromptBundle,
-    PromptSlotConfig,
-    R2PresignPutResponse,
-)
-from app.services.glibatree import _assert_assets_use_ref_only
+from app.schemas import GeneratePosterRequest, GeneratePosterResponse, PosterImage, PromptBundle, PromptSlotConfig
 
 
-def _base_poster_payload() -> dict:
+def _base_request_payload() -> dict:
     return {
-        "brand_name": "Brand",
-        "agent_name": "Agent",
-        "scenario_image": "https://cdn.example.com/scenario.png",
-        "product_name": "Product",
-        "features": ["F1", "F2", "F3"],
-        "title": "Headline",
-        "series_description": "Series",
-        "subtitle": "Tagline",
+        "template_id": "template_dual",
+        "brand_logo": {"key": "logo-key"},
+        "scenario": {"key": "scenario-key"},
+        "product": {"key": "product-key"},
+        "gallery": [
+            {"asset": {"key": "g1"}},
+            {"asset": {"key": "g2"}},
+            {"asset": {"key": "g3"}},
+            {"asset": {"key": "g4"}},
+        ],
     }
 
 
@@ -82,13 +73,11 @@ def test_generate_poster_response_accepts_prompt_bundle_dict() -> None:
 
 
 def test_generate_poster_request_aliases_prompts_field() -> None:
-    payload = {
-        "poster": _base_poster_payload(),
-        "prompts": {
-            "scenario": {"prompt": "Moody", "aspect": "1:1"},
-            "product": {"prompt": "Floating", "aspect": "4:5"},
-            "gallery": {"prompt": "Angles", "aspect": "4:3"},
-        },
+    payload = _base_request_payload()
+    payload["prompts"] = {
+        "scenario": {"prompt": "Moody", "aspect": "1:1"},
+        "product": {"prompt": "Floating", "aspect": "4:5"},
+        "gallery": {"prompt": "Angles", "aspect": "4:3"},
     }
 
     request = GeneratePosterRequest.model_validate(payload)
