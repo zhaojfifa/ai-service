@@ -44,7 +44,7 @@ uvicorn app.main:app --reload
 
 服务默认监听 `http://127.0.0.1:8000`，核心接口包括：
 
-- `POST /api/generate-poster`：接收素材参数，返回版式预览、Glibatree 提示词、占位海报图（或真实 API 响应）及营销邮件草稿。
+- `POST /api/generate-poster`：接收素材参数，优先调用统一图片服务（OpenAI 兼容或 Vertex 直连），返回版式预览、Glibatree 提示词、真实或占位海报图及营销邮件草稿。
 - `POST /api/send-email`：将邮件发送请求交给 SMTP 服务执行；未配置 SMTP 时返回 `status=skipped`。
 - `POST /api/r2/presign-put`：在配置 Cloudflare R2 后，为前端生成直传所需的预签名 PUT URL 与对象 Key。
 - `GET /health`：健康检查。
@@ -54,6 +54,11 @@ uvicorn app.main:app --reload
 | 变量名 | 说明 |
 | --- | --- |
 | `ALLOWED_ORIGINS` | 允许的跨域来源，逗号分隔；默认 `*`。|
+| `IMAGE_API_BASE` | 可选，统一图片服务的根地址。指向 OpenAI 兼容端点时写到 `/v1` 之前，指向 Vertex 直连端点时写到对应服务根路径。|
+| `IMAGE_API_KEY` | 可选，若目标服务需要鉴权，可填写 Bearer Token；无需鉴权时留空。|
+| `IMAGE_API_KIND` | 可选，`auto`（默认）会根据 `IMAGE_API_BASE` 自动判断；也可显式指定 `openai` 或 `vertex`。|
+| `IMAGE_API_PROXY` | 可选，通过 `httpx` 客户端访问图片服务时使用的 HTTP/HTTPS 代理地址。|
+| `IMAGE_DEFAULT_SIZE` | 可选，未显式指定尺寸时用于拼接图片服务参数的默认值，格式如 `1024x1024`。|
 | `GLIBATREE_API_URL` / `GLIBATREE_API_KEY` | 设置后会尝试调用真实的 Glibatree Art Designer API，失败时会自动回退到本地占位图。|
 | `GLIBATREE_CLIENT` | 可选，取值 `http`（默认根据 URL 自动判定）或 `openai`。当使用 OpenAI 1.x SDK 代理 Glibatree 接口时请选择 `openai`。|
 | `GLIBATREE_MODEL` | 可选，指定 OpenAI 生成图像时使用的模型名称，默认 `gpt-image-1`。|
@@ -141,7 +146,7 @@ python scripts/decode_template_assets.py
 ## 使用流程
 
 1. **环节 1 – 素材输入 + 版式预览**：在 `index.html` 顶部先选择锁版模板，页面会加载模板规范并展示挂点预览。表单会读取模板的 `materials` 元数据：`type=image` 的槽位若声明 `allowsPrompt=true` 会提供“上传图像 / 文字生成”切换，若 `allowsPrompt=false` 则仅保留上传项；`type=text` 或 `allowsUpload=false` 则强制走文字描述，由 AI 生成素材。底部小图的数量、提示语和默认占位也由模板的 `count`、`label`、`promptPlaceholder` 定义，必须准备足量素材才能继续流程。点击“构建版式预览”后即可在页面下方看到分区预览与结构说明，数据会暂存于浏览器 `sessionStorage`，方便跳转下一环节。若后端已配置 Cloudflare R2 环境变量，页面会在上传素材时先调用 `/api/r2/presign-put` 获取预签名 URL，并由浏览器将文件直接写入 R2，仅把对象 Key 保存在会话状态里；未配置时则继续沿用本地 Data URL。
-2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，同时提供“Prompt Inspector”面板：可以为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端先依据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并仅在蒙版透明区调用 OpenAI Images Edit 补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
+2. **环节 2 – 生成海报**：`stage2.html` 会读取上一环节的素材概览，并锁定已选模板（如需更换可返回环节 1）。右侧 Canvas 会根据模板与当前素材渲染挂点示意，同时提供“Prompt Inspector”面板：可以为场景、产品与底部小图选择预设、调整正/负向提示词、设置 Seed 并一键 A/B 生成。点击“生成海报与文案”后，前端会携带素材模式、提示词配置与模板 ID 调用 FastAPI。后端会构造统一的图片生成参数，优先调用 `IMAGE_API_BASE` 指向的 OpenAI 兼容或 Vertex 直连服务获取海报底图，随后根据模板元数据判断哪些槽位需要 AI 生成或处理，再执行锁版渲染并在蒙版透明区补足背景。接口会返回结构化提示词、主图与可选变体、评分信息以及营销文案，页面将结果缓存以便跳转下一环节或再次生成。
 3. **环节 3 – 邮件发送**：`stage3.html` 会显示最新海报与提示词，填写客户邮箱后点击“发送营销邮件”。若 SMTP 已正确配置，后端会完成发送；否则返回未执行的提示，便于调试。
 
 ## 模板锁版与局部生成

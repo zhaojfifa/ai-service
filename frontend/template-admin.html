@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>后台模板海报上传</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body data-stage="template-admin">
+    <header>
+      <div class="header-content">
+        <div>
+          <h1>后台模板海报上传</h1>
+          <p>
+            管理“一键 A/B 生成”默认展示的模板海报资源，支持 PNG、JPEG、WebP 格式。
+          </p>
+        </div>
+        <label class="api-config">
+          <span>后端 API 地址</span>
+          <input
+            type="url"
+            id="api-base"
+            placeholder="https://ai-service.example.com"
+          />
+        </label>
+      </div>
+    </header>
+
+    <main>
+      <section class="card template-admin-card">
+        <h2>标准模板海报</h2>
+        <p class="hint">
+          上传后的两张海报会在环节 2 的“一键 A/B 生成”中作为默认模板直接展示，上传
+          新文件将覆盖对应槽位的旧资源。
+        </p>
+
+        <div class="template-admin-grid" id="template-poster-grid">
+          <article class="template-slot" data-slot="variant_a">
+            <header class="slot-header">
+              <h3>海报 A</h3>
+              <p>用于默认展示的主视觉模板。</p>
+            </header>
+            <div class="template-preview">
+              <img
+                data-role="preview"
+                alt="海报 A 预览"
+                class="hidden"
+                decoding="async"
+              />
+              <div class="template-preview-empty" data-role="empty">
+                尚未上传海报
+              </div>
+            </div>
+            <dl class="template-meta" data-role="meta">
+              <dt>当前状态</dt>
+              <dd>尚未上传</dd>
+            </dl>
+            <div class="slot-controls">
+              <label class="file-label" for="upload-variant-a">选择图片文件</label>
+              <input
+                id="upload-variant-a"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+              />
+              <p class="file-selection" data-role="selection">尚未选择文件</p>
+              <div class="slot-actions">
+                <button type="button" class="primary" data-action="upload">
+                  上传海报
+                </button>
+                <button type="button" class="secondary" data-action="reset">
+                  清除选择
+                </button>
+              </div>
+              <p class="slot-status" data-role="slot-status" aria-live="polite"></p>
+            </div>
+          </article>
+
+          <article class="template-slot" data-slot="variant_b">
+            <header class="slot-header">
+              <h3>海报 B</h3>
+              <p>用于默认展示的对比模板。</p>
+            </header>
+            <div class="template-preview">
+              <img
+                data-role="preview"
+                alt="海报 B 预览"
+                class="hidden"
+                decoding="async"
+              />
+              <div class="template-preview-empty" data-role="empty">
+                尚未上传海报
+              </div>
+            </div>
+            <dl class="template-meta" data-role="meta">
+              <dt>当前状态</dt>
+              <dd>尚未上传</dd>
+            </dl>
+            <div class="slot-controls">
+              <label class="file-label" for="upload-variant-b">选择图片文件</label>
+              <input
+                id="upload-variant-b"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+              />
+              <p class="file-selection" data-role="selection">尚未选择文件</p>
+              <div class="slot-actions">
+                <button type="button" class="primary" data-action="upload">
+                  上传海报
+                </button>
+                <button type="button" class="secondary" data-action="reset">
+                  清除选择
+                </button>
+              </div>
+              <p class="slot-status" data-role="slot-status" aria-live="polite"></p>
+            </div>
+          </article>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="secondary" id="refresh-posters">
+            刷新后台海报
+          </button>
+        </div>
+        <p id="template-status" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <footer>
+      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
+    </footer>
+
+    <script defer src="template-admin.js?v=2"></script>
+  </body>
+</html>

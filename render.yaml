@@ -8,3 +8,11 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.5
+      - key: IMAGE_API_BASE
+        value: https://ai-vertex.onrender.com
+      - key: IMAGE_API_KEY
+        sync: false
+      - key: IMAGE_API_KIND
+        value: auto
+      - key: IMAGE_DEFAULT_SIZE
+        value: 1024x1024

@@ -7,6 +7,7 @@ import re
 import uuid
 from functools import lru_cache
 from typing import Optional
+from urllib.parse import quote
 
 import boto3
 from botocore.client import BaseClient
@@ -52,28 +53,39 @@ def get_client() -> BaseClient | None:
 
 def make_key(folder: str, filename: str) -> str:
     folder = (folder or "uploads").strip("/ ") or "uploads"
-    date_part = _dt.datetime.utcnow().strftime("%Y%m%d")
+    date_part = _dt.datetime.now(_dt.UTC).strftime("%Y%m%d")
     safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", filename or "asset")
     return f"{folder}/{date_part}/{uuid.uuid4().hex}/{safe_name}"
 
-# 新增：规范化 public_base，自动补桶名，避免“漏桶名/双斜杠”
+# 新增：规范化 public_base，支持 {bucket} 占位符，避免“漏桶名/双斜杠”
 def _normalize_public_base() -> str | None:
-    base = _normalize_public_base()
-    if base:
-        # key 里可能有中文/空格，按需编码；你如果全是安全字符，可不编码
-        from urllib.parse import quote
-        return f"{base}/{quote(key)}"
-    return None
-    
+    raw_base = _env("S3_PUBLIC_BASE")
+    if not raw_base:
+        return None
+
+    base = raw_base.strip()
+    if not base:
+        return None
+
+    base = base.rstrip("/")
+
+    bucket = (_env("S3_BUCKET") or "").strip("/")
+    if bucket and "{bucket}" in base:
+        base = base.replace("{bucket}", bucket)
+
+    return base
+
 def public_url_for(key: str) -> str | None:
     """
     Build a public URL using S3_PUBLIC_BASE (必须配置为 R2 的 public 域，比如 r2.dev 或你的自定义域)。
     未配置则返回 None（让调用方回退 base64）。
     """
-    base = _env("S3_PUBLIC_BASE")
-    if base:
-        return f"{base.rstrip('/')}/{key.lstrip('/')}"
-    return None
+    base = _normalize_public_base()
+    if not base:
+        return None
+
+    safe_key = quote(key.lstrip("/"), safe="/")
+    return f"{base}/{safe_key}"
 
 
 def presigned_put_url(key: str, content_type: str, expires: int = 900) -> str:
