@@ -2,6 +2,25 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
+function pickImageSrc(img) {
+  if (!img) return null;
+  if (typeof img === 'string') return img;
+
+  const src =
+    (typeof img.url === 'string' && img.url.trim()) ||
+    (typeof img.asset === 'string' && img.asset.trim()) ||
+    (typeof img.dataUrl === 'string' && img.dataUrl.trim()) ||
+    (typeof img.data_url === 'string' && img.data_url.trim()) ||
+    null;
+
+  return src;
+}
+
+let lastStage1Data = null;
+let lastPosterResult = null;
+let posterLayoutRoot = null;
+
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
 const posterGenerationState = {
   /** 海报成品图 URL（R2 的公开地址） */
@@ -16,30 +35,29 @@ let posterGeneratedImage = null;
 let posterGeneratedLayout = null;
 
 // stage2：缓存最近一次生成结果与提示词，便于预览与回放
-let lastPosterResult = null;
 let posterGeneratedImageUrl = null;
 let lastPromptBundle = null;
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
   slots: {
-    logo: { x: 0.06, y: 0.05, w: 0.09, h: 0.09, type: 'image' },
-    brand_name: { x: 0.18, y: 0.06, w: 0.30, h: 0.07, type: 'text', align: 'left' },
-    agent_name: { x: 0.58, y: 0.06, w: 0.34, h: 0.07, type: 'text', align: 'right' },
+    logo: { x: 0.06, y: 0.07, w: 0.08, h: 0.08, type: 'image' },
+    brand_name: { x: 0.18, y: 0.08, w: 0.30, h: 0.06, type: 'text', align: 'left' },
+    agent_name: { x: 0.54, y: 0.08, w: 0.38, h: 0.08, type: 'text', align: 'right' },
 
-    scenario: { x: 0.05, y: 0.20, w: 0.38, h: 0.46, type: 'image' },
-    product: { x: 0.46, y: 0.20, w: 0.46, h: 0.46, type: 'image' },
-    headline: { x: 0.07, y: 0.70, w: 0.86, h: 0.09, type: 'text', align: 'center' },
+    scenario: { x: 0.05, y: 0.22, w: 0.38, h: 0.44, type: 'image' },
+    product: { x: 0.45, y: 0.22, w: 0.48, h: 0.44, type: 'image' },
+    headline: { x: 0.08, y: 0.70, w: 0.84, h: 0.08, type: 'text', align: 'center' },
 
-    series_1_img: { x: 0.07, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
-    series_1_txt: { x: 0.07, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_1_img: { x: 0.06, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_1_txt: { x: 0.06, y: 0.93, w: 0.18, h: 0.03, type: 'text', align: 'center' },
     series_2_img: { x: 0.30, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
-    series_2_txt: { x: 0.30, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
-    series_3_img: { x: 0.53, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
-    series_3_txt: { x: 0.53, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
-    series_4_img: { x: 0.76, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
-    series_4_txt: { x: 0.76, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
-    tagline: { x: 0.07, y: 0.95, w: 0.86, h: 0.04, type: 'text', align: 'center' },
+    series_2_txt: { x: 0.30, y: 0.93, w: 0.18, h: 0.03, type: 'text', align: 'center' },
+    series_3_img: { x: 0.54, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_3_txt: { x: 0.54, y: 0.93, w: 0.18, h: 0.03, type: 'text', align: 'center' },
+    series_4_img: { x: 0.78, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_4_txt: { x: 0.78, y: 0.93, w: 0.18, h: 0.03, type: 'text', align: 'center' },
+    tagline: { x: 0.10, y: 0.96, w: 0.80, h: 0.03, type: 'text', align: 'center' },
   },
 };
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
@@ -3321,6 +3339,8 @@ function initStage2() {
     const templateCanvas = document.getElementById('template-preview-canvas');
     const templateDescription = document.getElementById('template-description');
     const apiBaseInput = document.getElementById('api-base');
+    const posterLayout = document.getElementById('posterB-layout');
+    const exportPosterButton = document.getElementById('export-poster-b');
 
     if (!generateButton || !nextButton) {
       return;
@@ -3337,6 +3357,46 @@ function initStage2() {
     }
 
     await hydrateStage1DataAssets(stage1Data);
+
+    try {
+      lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+    } catch (error) {
+      try {
+        lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+      } catch {
+        lastStage1Data = stage1Data || null;
+      }
+      console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
+    }
+
+    if (posterLayout) {
+      posterLayoutRoot = posterLayout;
+    }
+    refreshPosterLayoutPreview();
+
+    if (exportPosterButton && posterLayout) {
+      exportPosterButton.addEventListener('click', async () => {
+        try {
+          exportPosterButton.disabled = true;
+          const html2canvas = await loadHtml2Canvas();
+          if (!posterLayoutRoot || !html2canvas) return;
+          const canvas = await html2canvas(posterLayoutRoot, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+          });
+          const dataUrl = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.download = 'poster-b.png';
+          link.href = dataUrl;
+          link.click();
+        } catch (error) {
+          console.error('导出预览失败', error);
+          alert('导出预览失败，请稍后重试。');
+        } finally {
+          exportPosterButton.disabled = false;
+        }
+      });
+    }
 
     let promptManager = null;
     let currentTemplateAssets = null;
@@ -3952,6 +4012,8 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
+  refreshPosterLayoutPreview(data);
+
   const posterUrl = extractVertexPosterUrl(data);
 
   if (!posterUrl) {
@@ -4453,6 +4515,7 @@ async function triggerGeneration(opts) {
       generatedImage.removeAttribute('src');
     }
     resetGeneratedPlaceholder(friendlyMessage || generatedPlaceholderDefault);
+    refreshPosterLayoutPreview();
     return null;
   }
 }
@@ -4873,47 +4936,51 @@ function tokeniseText(text) {
   }
 
   function resolveSlotAssetUrl(asset) {
-  if (!asset) return '';
-  if (typeof asset === 'string') return asset;
-  const url = typeof asset.url === 'string' ? asset.url : '';
-  if (url) return url;
-  const dataUrl =
-    typeof asset.data_url === 'string'
-      ? asset.data_url
-      : typeof asset.dataUrl === 'string'
-      ? asset.dataUrl
-      : '';
-  return dataUrl;
+  const direct = pickImageSrc(asset);
+  if (direct) return direct;
+  if (asset && typeof asset === 'object') {
+    const publicUrl = typeof asset.public_url === 'string' ? asset.public_url.trim() : '';
+    if (publicUrl) return publicUrl;
+    const r2Url = typeof asset.r2_url === 'string' ? asset.r2_url.trim() : '';
+    if (r2Url) return r2Url;
+  }
+  return '';
 }
 
 function renderDualPosterPreview(root, layout, data) {
   if (!root || !layout || !layout.slots) return;
   root.innerHTML = '';
+  root.classList.add('poster-layout');
+  root.style.position = 'relative';
+  if (layout.canvas?.width && layout.canvas?.height) {
+    root.style.aspectRatio = `${layout.canvas.width} / ${layout.canvas.height}`;
+  }
+
   const slots = layout.slots;
   Object.entries(slots).forEach(([key, slot]) => {
     if (!slot) return;
     const slotEl = document.createElement('div');
     slotEl.classList.add('poster-layout__slot', `poster-layout__slot--${key}`);
-    slotEl.style.left = `${slot.x * 100}%`;
-    slotEl.style.top = `${slot.y * 100}%`;
-    slotEl.style.width = `${slot.w * 100}%`;
-    slotEl.style.height = `${slot.h * 100}%`;
+    slotEl.style.left = `${(slot.x ?? 0) * 100}%`;
+    slotEl.style.top = `${(slot.y ?? 0) * 100}%`;
+    slotEl.style.width = `${(slot.w ?? 0) * 100}%`;
+    slotEl.style.height = `${(slot.h ?? 0) * 100}%`;
 
     if (slot.type === 'text') {
       slotEl.classList.add('poster-layout__slot--text');
       const textValue = data?.text?.[key] || '';
       slotEl.textContent = textValue;
-      const fontSize = Math.max(slot.h * 80, 12);
+      const fontSize = Math.max((slot.h || 0) * 80, 12);
       slotEl.style.fontSize = `${fontSize}px`;
       if (slot.align === 'right') {
         slotEl.style.justifyContent = 'flex-end';
         slotEl.style.textAlign = 'right';
-      } else if (slot.align === 'center') {
-        slotEl.style.justifyContent = 'center';
-        slotEl.style.textAlign = 'center';
-      } else {
+      } else if (slot.align === 'left') {
         slotEl.style.justifyContent = 'flex-start';
         slotEl.style.textAlign = 'left';
+      } else {
+        slotEl.style.justifyContent = 'center';
+        slotEl.style.textAlign = 'center';
       }
     } else {
       slotEl.classList.add('poster-layout__slot--image');
@@ -4932,41 +4999,56 @@ function renderDualPosterPreview(root, layout, data) {
 }
 
 function buildDualPosterData(stage1Data, generation) {
-  const galleryLabels = Array.isArray(stage1Data?.gallery_entries)
-    ? stage1Data.gallery_entries.map((item) => item?.caption || '')
+  const poster = generation?.poster || {};
+  const galleryEntries = Array.isArray(stage1Data?.gallery_entries)
+    ? stage1Data.gallery_entries.filter(Boolean)
     : [];
-  const galleryImages = Array.isArray(generation?.gallery_images)
-    ? generation.gallery_images.map((item) => resolveSlotAssetUrl(item))
-    : Array.isArray(stage1Data?.gallery_items)
-    ? stage1Data.gallery_items.map((item) => resolveSlotAssetUrl(item?.asset))
+  const galleryLabels = galleryEntries.map((item) => item?.caption || '');
+  const stage1GallerySources = galleryEntries
+    .map((entry) => resolveSlotAssetUrl(entry?.asset))
+    .filter(Boolean);
+
+  const generationGallery = Array.isArray(poster.gallery_images)
+    ? poster.gallery_images
+    : Array.isArray(generation?.gallery_images)
+    ? generation.gallery_images
     : [];
+
+  const logoSrc =
+    resolveSlotAssetUrl(poster.brand_logo) || resolveSlotAssetUrl(stage1Data?.brand_logo);
+  const scenarioSrc =
+    resolveSlotAssetUrl(poster.scenario_image) ||
+    resolveSlotAssetUrl(generation?.scenario_image) ||
+    resolveSlotAssetUrl(stage1Data?.scenario_asset);
+  const productSrc =
+    resolveSlotAssetUrl(poster.product_image) ||
+    resolveSlotAssetUrl(generation?.product_image) ||
+    resolveSlotAssetUrl(stage1Data?.product_asset);
+
+  const galleryImages = [];
+  for (let i = 0; i < 4; i += 1) {
+    const genSrc = resolveSlotAssetUrl(generationGallery[i]);
+    const stage1Src = stage1GallerySources.length
+      ? stage1GallerySources[i % stage1GallerySources.length]
+      : '';
+    galleryImages.push(genSrc || stage1Src || logoSrc || '');
+  }
 
   const images = {
-    logo:
-      resolveSlotAssetUrl(generation?.brand_logo) ||
-      resolveSlotAssetUrl(stage1Data?.brand_logo) ||
-      resolveSlotAssetUrl(stage1Data?.brand_logo_key),
-    scenario:
-      resolveSlotAssetUrl(generation?.scenario_image) ||
-      resolveSlotAssetUrl(stage1Data?.scenario_asset) ||
-      resolveSlotAssetUrl(stage1Data?.scenario_key),
-    product:
-      resolveSlotAssetUrl(generation?.product_image) ||
-      resolveSlotAssetUrl(stage1Data?.product_asset) ||
-      resolveSlotAssetUrl(stage1Data?.product_key),
+    logo: logoSrc || '',
+    scenario: scenarioSrc || '',
+    product: productSrc || '',
+    series_1_img: galleryImages[0] || '',
+    series_2_img: galleryImages[1] || '',
+    series_3_img: galleryImages[2] || '',
+    series_4_img: galleryImages[3] || '',
   };
 
-  ['series_1_img', 'series_2_img', 'series_3_img', 'series_4_img'].forEach(
-    (slotKey, index) => {
-      images[slotKey] = galleryImages[index] || '';
-    }
-  );
-
   const text = {
-    brand_name: stage1Data?.brand_name || '',
-    agent_name: stage1Data?.agent_name || '',
-    headline: stage1Data?.title || '',
-    tagline: stage1Data?.subtitle || '',
+    brand_name: stage1Data?.brand_name || poster.brand_name || '',
+    agent_name: stage1Data?.agent_name || poster.agent_name || '',
+    headline: stage1Data?.title || poster.title || '',
+    tagline: stage1Data?.subtitle || poster.subtitle || '',
     series_1_txt: galleryLabels[0] || '',
     series_2_txt: galleryLabels[1] || '',
     series_3_txt: galleryLabels[2] || '',
@@ -4974,6 +5056,29 @@ function buildDualPosterData(stage1Data, generation) {
   };
 
   return { images, text };
+}
+
+function refreshPosterLayoutPreview(generationOverride = null) {
+  if (!posterLayoutRoot || !lastStage1Data) return;
+  const data = buildDualPosterData(lastStage1Data, generationOverride ?? lastPosterResult);
+  renderDualPosterPreview(posterLayoutRoot, TEMPLATE_DUAL_LAYOUT, data);
+}
+
+let html2CanvasLoader = null;
+async function loadHtml2Canvas() {
+  if (typeof window !== 'undefined' && window.html2canvas) return window.html2canvas;
+  if (html2CanvasLoader) return html2CanvasLoader;
+
+  html2CanvasLoader = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    script.async = true;
+    script.onload = () => resolve(window.html2canvas);
+    script.onerror = () => reject(new Error('html2canvas 加载失败'));
+    document.head.appendChild(script);
+  });
+
+  return html2CanvasLoader;
 }
 
 async function saveStage2Result(data) {
