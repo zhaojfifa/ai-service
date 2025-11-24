@@ -11,6 +11,7 @@ from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
+from google.api_core.exceptions import ResourceExhausted
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +23,8 @@ from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    GenerateSlotImageRequest,
+    GenerateSlotImageResponse,
     ImageRef,
     PosterImage,
     PromptBundle,
@@ -35,7 +38,11 @@ from app.schemas import (
     TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
-from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
+from app.services.glibatree import (
+    configure_vertex_imagen,
+    generate_poster_asset,
+    generate_slot_image,
+)
 from app.services.image_provider.factory import get_provider
 from app.services.poster import (
     build_glibatree_prompt,
@@ -50,6 +57,7 @@ from app.services.r2_client import (
 )
 from app.services.template_variants import (
     TemplatePosterError,
+    fallback_poster_entries,
     list_poster_entries,
     poster_entry_from_record,
     save_template_poster,
@@ -839,7 +847,40 @@ def fetch_template_posters() -> TemplatePosterCollection:
     except Exception as exc:  # pragma: no cover - unexpected IO failure
         logger.exception("Failed to load template posters")
         raise HTTPException(status_code=500, detail="无法加载模板列表，请稍后重试。") from exc
+    if not entries:
+        entries = fallback_poster_entries()
     return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/generate-slot-image", response_model=GenerateSlotImageResponse)
+async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlotImageResponse:
+    aspect = req.aspect or "1:1"
+
+    try:
+        key, url = await generate_slot_image(
+            prompt=req.prompt,
+            slot=req.slot,
+            index=req.index,
+            template_id=req.template_id,
+            aspect=aspect,
+        )
+    except ResourceExhausted as exc:
+        logger.warning("Vertex quota exceeded for imagen3", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "vertex_quota_exceeded",
+                "message": "Google Vertex 图像模型日配额已用尽，请稍后重试或改用本地上传。",
+                "provider": "vertex",
+            },
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - upstream failure
+        logger.exception("generate_slot_image failed: %s", exc)
+        raise HTTPException(status_code=500, detail="生成槽位图片失败") from exc
+
+    return GenerateSlotImageResponse(url=url, key=key)
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
@@ -1019,6 +1060,18 @@ async def generate_poster(request: Request) -> JSONResponse:
         headers["X-Request-Trace"] = trace
         return JSONResponse(content=_model_dump(response_payload), headers=headers)
 
+    except ResourceExhausted as exc:
+        logger.warning(
+            "Vertex quota exceeded for imagen3", extra={"trace": trace, "error": str(exc)}
+        )
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "vertex_quota_exceeded",
+                "message": "Google Vertex 图像模型日配额已用尽，请稍后重试或改用本地上传。",
+                "provider": "vertex",
+            },
+        ) from exc
     except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster", extra={"trace": trace})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
