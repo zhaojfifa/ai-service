@@ -272,10 +272,15 @@ class PromptSlotConfig(_CompatModel):
     def _clean_aspect(cls, value: Any) -> str:
         return _strip_required(value)
 
-    if isinstance(value, dict):
-        data = dict(value)
-    else:
-        return {"prompt": str(value)}
+    # Legacy aliases (v1 schemas used positive/negative)
+    @property
+    def positive(self) -> str:
+        return self.prompt
+
+    @property
+    def negative(self) -> str:
+        return self.negative_prompt
+
 
 class PromptBundle(_CompatModel):
     scenario: PromptSlotConfig = Field(default_factory=lambda: _coerce_prompt_slot({}, "scenario"))

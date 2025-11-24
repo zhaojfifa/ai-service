@@ -50,17 +50,6 @@ from app.services.template_variants import (
     poster_entry_from_record,
     save_template_poster,
 )
-logging.getLogger("uvicorn").setLevel(LOG_LEVEL)
-logging.getLogger("uvicorn.error").setLevel(LOG_LEVEL)
-logging.getLogger("uvicorn.access").setLevel(LOG_LEVEL)
-logging.getLogger("ai-service").setLevel(LOG_LEVEL)
-
-log = logging.getLogger("ai-service")
-logger = log
-app = FastAPI(title="Marketing Poster API", version="1.0.0")
-
-# ------------- 关键修复：安全导入 + 条件注册（防止 NameError） -------------
-RejectHugeOrBase64 = None  # 先占位，避免后续引用未定义
 
 
 def _configure_logging() -> logging.Logger:
@@ -523,6 +512,33 @@ async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlot
         raise HTTPException(status_code=500, detail="生成槽位图片失败") from exc
 
     return GenerateSlotImageResponse(url=url, key=key)
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
