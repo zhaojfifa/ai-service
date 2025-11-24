@@ -4465,17 +4465,38 @@ async function prepareTemplatePreviewAssets(stage1Data) {
     gallery: [],
   };
 
-  const pickSrc = (value) => {
-    if (!value) return null;
+  const pickSrc = (value, depth = 0) => {
+    if (!value || depth > 3) return null;
     if (typeof value === 'string') return value;
-    if (typeof value.dataUrl === 'string') return value.dataUrl;
-    if (typeof value.data_url === 'string') return value.data_url;
-    if (typeof value.url === 'string') return value.url;
-    if (typeof value.remoteUrl === 'string') return value.remoteUrl;
-    if (typeof value.cdnUrl === 'string') return value.cdnUrl;
-    if (typeof value.asset === 'object' || typeof value.asset === 'string') {
-      return pickSrc(value.asset);
+
+    const directFields = [
+      value.dataUrl,
+      value.data_url,
+      value.url,
+      value.remoteUrl,
+      value.publicUrl,
+      value.public_url,
+      value.asset_url,
+      value.cdnUrl,
+      value.src,
+    ];
+    for (const field of directFields) {
+      if (typeof field === 'string' && field) return field;
     }
+
+    const nested = [value.asset, value.image, value.poster_image];
+    for (const candidate of nested) {
+      const picked = pickSrc(candidate, depth + 1);
+      if (picked) return picked;
+    }
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const picked = pickSrc(item, depth + 1);
+        if (picked) return picked;
+      }
+    }
+
     return null;
   };
 
@@ -4503,6 +4524,20 @@ async function prepareTemplatePreviewAssets(stage1Data) {
   });
 
   await Promise.allSettled(tasks);
+
+  const galleryLimit = Math.max(
+    Number(stage1Data.gallery_limit) || 0,
+    (stage1Data.gallery_entries || []).length,
+    4
+  );
+  if (result.brand_logo) {
+    for (let i = 0; i < galleryLimit; i += 1) {
+      if (!result.gallery[i]) {
+        result.gallery[i] = result.brand_logo;
+      }
+    }
+  }
+
   return result;
 }
 
