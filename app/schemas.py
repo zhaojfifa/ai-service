@@ -1,37 +1,87 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, constr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, constr, field_validator, model_validator
 
-try:  # pragma: no cover - available on Pydantic v2
-    from pydantic import ConfigDict  # type: ignore
-except ImportError:  # pragma: no cover - Pydantic v1
-    ConfigDict = None  # type: ignore[assignment]
-
-try:  # pragma: no cover - prefer v2 validators when available
-    from pydantic import field_validator  # type: ignore
-except ImportError:  # pragma: no cover - Pydantic v1 fallback
-    from pydantic import validator as field_validator  # type: ignore
-
-try:  # pragma: no cover - only defined on Pydantic v2
-    from pydantic import model_validator  # type: ignore
-except ImportError:  # pragma: no cover - use root_validator on v1
-    model_validator = None  # type: ignore
-    from pydantic import root_validator  # type: ignore
-else:  # pragma: no cover - v2 runtime keeps attribute for completeness
-    root_validator = None  # type: ignore
+Aspect = Literal["1:1", "4:5", "4:3", "16:9", "9:16"]
 
 
 class _CompatModel(BaseModel):
-    """Base model that ignores unknown fields across Pydantic versions."""
+    """Base model configured to ignore unknown fields (Pydantic v2 only)."""
 
-    if ConfigDict is not None:  # pragma: no cover - executed on Pydantic v2
-        model_config = ConfigDict(extra="ignore")
-    else:  # pragma: no cover - executed on Pydantic v1
+    model_config = ConfigDict(extra="ignore")
 
-        class Config:  # type: ignore[override]
-            extra = "ignore"
+
+# -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+
+
+def _strip_optional(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _strip_required(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _normalise_prompt_payload(value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {}
+
+    if isinstance(value, str):
+        return {"prompt": value}
+
+    if isinstance(value, dict):
+        data = dict(value)
+    elif hasattr(value, "model_dump"):
+        data = value.model_dump(exclude_none=False)
+    elif hasattr(value, "dict"):
+        data = value.dict(exclude_none=False)
+    else:
+        return {"prompt": str(value)}
+
+    if "positive" in data and "prompt" not in data:
+        data["prompt"] = data.pop("positive")
+    if "text" in data and "prompt" not in data:
+        data["prompt"] = data.pop("text")
+    if "negative" in data and "negative_prompt" not in data:
+        data["negative_prompt"] = data.pop("negative")
+    if "aspect_ratio" in data and "aspect" not in data:
+        data["aspect"] = data.pop("aspect_ratio")
+
+    return data
+
+
+def _coerce_prompt_slot(value: Any, slot: str) -> "PromptSlotConfig":
+    defaults: dict[str, str] = {
+        "scenario": "1:1",
+        "product": "4:5",
+        "gallery": "4:3",
+    }
+    allowed: set[str] = {"1:1", "4:5", "4:3", "16:9", "9:16"}
+    payload = _normalise_prompt_payload(value)
+
+    aspect = payload.get("aspect") or defaults.get(slot, "1:1")
+    if aspect not in allowed:
+        aspect = defaults.get(slot, "1:1")
+
+    prompt = _strip_required(payload.get("prompt"))
+    negative = _strip_required(payload.get("negative_prompt"))
+    preset = _strip_optional(payload.get("preset"))
+
+    return PromptSlotConfig(preset=preset, prompt=prompt, negative_prompt=negative, aspect=aspect)
+
+
+# -----------------------------------------------------------------------------
+# Asset references
+# -----------------------------------------------------------------------------
 
 
 class AssetRef(_CompatModel):
@@ -44,44 +94,25 @@ class AssetRef(_CompatModel):
         None, description="Public or signed URL to the asset."
     )
 
-    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_str(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return {"url": value}
+        return value
 
-        @model_validator(mode="before")
-        @classmethod
-        def _coerce_str(cls, value: Any) -> Any:
-            if isinstance(value, str):
-                return {"url": value}
-            return value
-
-    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
-
-        @model_validator(mode="after")
-        def _ensure_reference(self) -> "AssetRef":
-            if not (self.key or self.url):
-                raise ValueError("asset reference must include key or url")
-            return self
-
-    elif root_validator is not None:  # pragma: no cover - executed on Pydantic v1
-
-        @root_validator(pre=True)  # type: ignore[misc]
-        def _coerce_str(cls, values: Any) -> Any:
-            if isinstance(values, str):
-                return {"url": values}
-            return values
-
-        @root_validator(skip_on_failure=True)  # type: ignore[misc]
-        def _ensure_reference(cls, values: dict[str, Any]) -> dict[str, Any]:
-            if not (values.get("key") or values.get("url")):
-                raise ValueError("asset reference must include key or url")
-            return values
+    @model_validator(mode="after")
+    def _ensure_reference(self) -> "AssetRef":
+        if not (self.key or self.url):
+            raise ValueError("asset reference must include key or url")
+        return self
 
 
 class PosterGalleryItem(_CompatModel):
     """Represents a single gallery thumbnail and its optional metadata."""
 
     caption: constr(strip_whitespace=True, min_length=1) | None = Field(
-        None,
-        description="Optional caption describing the series thumbnail.",
+        None, description="Optional caption describing the series thumbnail."
     )
     asset: AssetRef | None = None
     key: Optional[str] = Field(
@@ -89,6 +120,16 @@ class PosterGalleryItem(_CompatModel):
     )
     mode: Literal["upload", "prompt"] = "upload"
     prompt: Optional[str] = None
+
+    @field_validator("prompt", "key", mode="before")
+    @classmethod
+    def _strip_optional_text(cls, value: Any) -> Optional[str]:
+        return _strip_optional(value)
+
+
+# -----------------------------------------------------------------------------
+# Poster payloads
+# -----------------------------------------------------------------------------
 
 
 class PosterInput(_CompatModel):
@@ -197,73 +238,10 @@ class PosterImage(_CompatModel):
     width: int = Field(..., gt=0)
     height: int = Field(..., gt=0)
 
-# ------------------------------------------------------------------------------
-# Prompt 归一化工具
-# ------------------------------------------------------------------------------
 
-Aspect = Literal["1:1", "4:5", "4:3"]
-
-PROMPT_SLOT_DEFAULT_ASPECT: dict[str, Aspect] = {
-    "scenario": "1:1",
-    "product": "4:5",
-    "gallery": "4:3",
-}
-
-
-def _normalise_aspect(value: Any, slot: str) -> Aspect:
-    if isinstance(value, str):
-        candidate = value.strip()
-        if candidate in {"1:1", "4:5", "4:3"}:
-            return candidate  # type: ignore[return-value]
-    return PROMPT_SLOT_DEFAULT_ASPECT[slot]
-
-
-def _strip_optional_text(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-    text = str(value).strip()
-    return text or None
-
-
-def _strip_required_text(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
-def _normalise_prompt_slot_payload(value: Any) -> dict[str, Any]:
-    """Convert loose payloads into a PromptSlotConfig-compatible dict."""
-
-    if value is None:
-        return {}
-
-    if isinstance(value, str):
-        return {"prompt": value}
-
-    if hasattr(value, "model_dump"):
-        try:
-            return value.model_dump(exclude_none=False)  # type: ignore[attr-defined]
-        except TypeError:  # pragma: no cover - defensive
-            return value.model_dump()  # type: ignore[attr-defined]
-
-    if hasattr(value, "dict"):
-        return value.dict(exclude_none=False)  # type: ignore[attr-defined]
-
-    if isinstance(value, dict):
-        data = dict(value)
-    else:
-        return {"prompt": str(value)}
-
-    if "positive" in data and "prompt" not in data:
-        data["prompt"] = data.pop("positive")
-    if "text" in data and "prompt" not in data:
-        data["prompt"] = data.pop("text")
-    if "negative" in data and "negative_prompt" not in data:
-        data["negative_prompt"] = data.pop("negative")
-    if "aspect_ratio" in data and "aspect" not in data:
-        data["aspect"] = data.pop("aspect_ratio")
-
-    return data
+# -----------------------------------------------------------------------------
+# Prompt bundle
+# -----------------------------------------------------------------------------
 
 
 class PromptSlotConfig(_CompatModel):
@@ -274,104 +252,56 @@ class PromptSlotConfig(_CompatModel):
     negative_prompt: str = ""
     aspect: str = ""
 
-    if model_validator is not None:  # pragma: no cover - executed on Pydantic v2
-
-        @model_validator(mode="before")
-        @classmethod
-        def _coerce_input(cls, value: Any) -> Any:
-            return _normalise_prompt_slot_payload(value)
-
-    else:  # pragma: no cover - executed on Pydantic v1
-
-        @root_validator(pre=True)  # type: ignore[misc]
-        def _coerce_input(cls, values: Any) -> Any:
-            return _normalise_prompt_slot_payload(values)
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_input(cls, value: Any) -> Any:
+        return _normalise_prompt_payload(value)
 
     @field_validator("preset", mode="before")
     @classmethod
     def _clean_preset(cls, value: Any) -> Optional[str]:
-        return _strip_optional_text(value)
+        return _strip_optional(value)
 
     @field_validator("prompt", "negative_prompt", mode="before")
     @classmethod
     def _clean_prompt_text(cls, value: Any) -> str:
-        return _strip_required_text(value)
+        return _strip_required(value)
 
     @field_validator("aspect", mode="before")
     @classmethod
     def _clean_aspect(cls, value: Any) -> str:
-        if value is None:
-            return ""
-        return str(value).strip()
+        return _strip_required(value)
 
-
-def _clone_prompt_slot(slot: PromptSlotConfig, **updates: Any) -> PromptSlotConfig:
-    if hasattr(slot, "model_dump"):
-        data = slot.model_dump(exclude_none=False)
-    else:  # pragma: no cover - legacy Pydantic v1
-        data = slot.dict(exclude_none=False)
-    data.update(updates)
-    if hasattr(PromptSlotConfig, "model_validate"):
-        return PromptSlotConfig.model_validate(data)
-    return PromptSlotConfig.parse_obj(data)  # type: ignore[no-any-return]
-
-
-# 默认工厂：依据不同槽位给到不同默认画幅
-def _default_scenario_slot() -> PromptSlotConfig:
-    return _clone_prompt_slot(PromptSlotConfig(), aspect=PROMPT_SLOT_DEFAULT_ASPECT["scenario"])
-
-
-def _default_product_slot() -> PromptSlotConfig:
-    return _clone_prompt_slot(PromptSlotConfig(), aspect=PROMPT_SLOT_DEFAULT_ASPECT["product"])
-
-
-def _default_gallery_slot() -> PromptSlotConfig:
-    return _clone_prompt_slot(PromptSlotConfig(), aspect=PROMPT_SLOT_DEFAULT_ASPECT["gallery"])
-
-
-# 通用的 slot 归一化函数（支持 str / dict / PromptSlotConfig）
-def _coerce_prompt_slot(value: Any, slot_name: str) -> PromptSlotConfig:
-    if isinstance(value, PromptSlotConfig):
-        slot = value
+    if isinstance(value, dict):
+        data = dict(value)
     else:
-        payload = _normalise_prompt_slot_payload(value)
-        if hasattr(PromptSlotConfig, "model_validate"):
-            slot = PromptSlotConfig.model_validate(payload)
-        else:
-            slot = PromptSlotConfig.parse_obj(payload)  # type: ignore[assignment]
-
-    desired_aspect = _normalise_aspect(slot.aspect, slot_name)
-    if slot.aspect != desired_aspect:
-        slot = _clone_prompt_slot(slot, aspect=desired_aspect)
-    if slot.preset == "":
-        slot = _clone_prompt_slot(slot, preset=None)
-    return slot
-
+        return {"prompt": str(value)}
 
 class PromptBundle(_CompatModel):
-    scenario: PromptSlotConfig = Field(default_factory=_default_scenario_slot)
-    product: PromptSlotConfig = Field(default_factory=_default_product_slot)
-    gallery: PromptSlotConfig = Field(default_factory=_default_gallery_slot)
+    scenario: PromptSlotConfig = Field(default_factory=lambda: _coerce_prompt_slot({}, "scenario"))
+    product: PromptSlotConfig = Field(default_factory=lambda: _coerce_prompt_slot({}, "product"))
+    gallery: PromptSlotConfig = Field(default_factory=lambda: _coerce_prompt_slot({}, "gallery"))
 
-    # 入参归一化：允许 str/dict/PromptSlotConfig
     @field_validator("scenario", mode="before")
     @classmethod
-    def _coerce_scenario(cls, v: Any) -> PromptSlotConfig:
-        return _coerce_prompt_slot(v, "scenario")
+    def _coerce_scenario(cls, value: Any) -> PromptSlotConfig:
+        return _coerce_prompt_slot(value, "scenario")
 
     @field_validator("product", mode="before")
     @classmethod
-    def _coerce_product(cls, v: Any) -> PromptSlotConfig:
-        return _coerce_prompt_slot(v, "product")
+    def _coerce_product(cls, value: Any) -> PromptSlotConfig:
+        return _coerce_prompt_slot(value, "product")
 
     @field_validator("gallery", mode="before")
     @classmethod
-    def _coerce_gallery(cls, v: Any) -> PromptSlotConfig:
-        return _coerce_prompt_slot(v, "gallery")
+    def _coerce_gallery(cls, value: Any) -> PromptSlotConfig:
+        return _coerce_prompt_slot(value, "gallery")
 
-# ------------------------------------------------------------------------------
-# 直传 / 预签名
-# ------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# R2 upload helpers
+# -----------------------------------------------------------------------------
+
 
 class R2PresignPutRequest(_CompatModel):
     folder: str = Field(
@@ -386,6 +316,7 @@ class R2PresignPutRequest(_CompatModel):
         description="Optional byte size reported by the browser for validation",
     )
 
+
 class R2PresignPutResponse(_CompatModel):
     key: str
     put_url: str
@@ -393,29 +324,34 @@ class R2PresignPutResponse(_CompatModel):
         None, description="Public URL when the bucket exposes a static endpoint"
     )
 
-# ------------------------------------------------------------------------------
-# 模板海报上传
-# ------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Template posters
+# -----------------------------------------------------------------------------
 
 
 class TemplatePosterUploadRequest(_CompatModel):
     slot: Literal["variant_a", "variant_b"] = Field(
-        ..., description="Target slot for the uploaded template poster variant.",
+        ..., description="Target slot for the uploaded template poster variant."
     )
     filename: constr(strip_whitespace=True, min_length=1)
     content_type: constr(strip_whitespace=True, min_length=1)
     data: constr(strip_whitespace=True, min_length=1)
 
+
 class TemplatePosterEntry(_CompatModel):
     slot: Literal["variant_a", "variant_b"]
     poster: PosterImage
 
+
 class TemplatePosterCollection(_CompatModel):
     posters: list[TemplatePosterEntry] = Field(default_factory=list)
 
-# ------------------------------------------------------------------------------
-# 生成请求 / 响应
-# ------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Generate poster
+# -----------------------------------------------------------------------------
+
 
 class GeneratePosterRequest(_CompatModel):
     template_id: constr(strip_whitespace=True, min_length=1) = "template_dual"
@@ -443,21 +379,24 @@ class GeneratePosterRequest(_CompatModel):
     )
     lock_seed: bool = Field(False, description="Whether the provided seed should be respected across runs.")
 
-    if model_validator is not None:  # Pydantic v2
-        @model_validator(mode="before")
-        @classmethod
-        def _coerce_prompt_bundle(cls, data: Any) -> Any:
-            if isinstance(data, dict) and "prompt_bundle" not in data and "prompts" in data:
-                data = dict(data)
-                data["prompt_bundle"] = data.pop("prompts")
-            return data
-    elif root_validator is not None:  # pragma: no cover - Pydantic v1
-        @root_validator(pre=True)  # type: ignore[misc]
-        def _coerce_prompt_bundle(cls, values: dict[str, Any]) -> dict[str, Any]:
-            if "prompt_bundle" not in values and "prompts" in values:
-                values = dict(values)
-                values["prompt_bundle"] = values.pop("prompts")
-            return values
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_prompt_bundle(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "prompt_bundle" not in data and "prompts" in data:
+            data = dict(data)
+            data["prompt_bundle"] = data.pop("prompts")
+        return data
+
+    @field_validator("prompt_bundle", mode="before")
+    @classmethod
+    def _build_prompt_bundle(cls, value: PromptBundle | dict[str, Any] | None) -> PromptBundle | None:
+        if value is None:
+            return None
+        if isinstance(value, PromptBundle):
+            return value
+        if isinstance(value, dict):
+            return PromptBundle.model_validate(value)
+        raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
 
 
 class GeneratePosterResponse(_CompatModel):
@@ -500,43 +439,34 @@ class GeneratePosterResponse(_CompatModel):
 
     @field_validator("prompt_bundle", mode="before")
     @classmethod
-    def _coerce_prompt_bundle(cls, v: PromptBundle | dict[str, Any] | None) -> PromptBundle | None:
-        if v is None or isinstance(v, PromptBundle):
-            return v
-        if isinstance(v, dict):
-            if hasattr(PromptBundle, "model_validate"):
-                return PromptBundle.model_validate(v)  # v2
-            if hasattr(PromptBundle, "parse_obj"):
-                return PromptBundle.parse_obj(v)  # v1
-            return PromptBundle(**v)
+    def _coerce_prompt_bundle(cls, value: PromptBundle | dict[str, Any] | None) -> PromptBundle | None:
+        if value is None or isinstance(value, PromptBundle):
+            return value
+        if isinstance(value, dict):
+            return PromptBundle.model_validate(value)
         raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
 
-# ------------------------------------------------------------------------------
-# 邮件
-# ------------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Emails
+# -----------------------------------------------------------------------------
+
 
 class SendEmailRequest(_CompatModel):
     """Payload expected when requesting the backend to send an email."""
 
-    recipient: EmailStr
-    subject: constr(strip_whitespace=True, min_length=1)
-    body: constr(strip_whitespace=True, min_length=1)
-    attachment: Optional[PosterImage] = Field(
-        None,
-        description="Optional poster attachment. When omitted the email will be sent without attachments.",
-    )
+    to: EmailStr
+    subject: str
+    body: str
+    attachment_url: Optional[str] = None
+    attachment_name: Optional[str] = None
+    poster_key: Optional[str] = None
+
 
 class SendEmailResponse(_CompatModel):
-    status: Literal["sent", "skipped"]
-    detail: str
+    success: bool
+    message: str | None = None
 
-# ------------------------------------------------------------------------------
-# 前向引用修复（v1 与 v2）
-# ------------------------------------------------------------------------------
 
-if hasattr(GeneratePosterResponse, "model_rebuild"):  # v2
-    GeneratePosterResponse.model_rebuild()
-    GeneratePosterRequest.model_rebuild()
-else:  # v1
-    GeneratePosterResponse.update_forward_refs()
-    GeneratePosterRequest.update_forward_refs()
+GeneratePosterRequest.model_rebuild()
+GeneratePosterResponse.model_rebuild()
