@@ -1,0 +1,32 @@
+{
+  "layout_key": "template_dual",
+  "canvas_width": 1024,
+  "canvas_height": 1024,
+  "slots": [
+    {"key": "logo", "kind": "image", "x": 0.06, "y": 0.05, "w": 0.09, "h": 0.09, "align": "left", "valign": "middle"},
+    {"key": "brand_name", "kind": "text", "x": 0.18, "y": 0.06, "w": 0.30, "h": 0.07, "align": "left", "valign": "middle", "font_scale": 0.028},
+    {"key": "agent_name", "kind": "text", "x": 0.58, "y": 0.06, "w": 0.34, "h": 0.07, "align": "right", "valign": "middle", "font_scale": 0.026},
+
+    {"key": "scenario", "kind": "image", "x": 0.05, "y": 0.20, "w": 0.38, "h": 0.46, "align": "center", "valign": "middle"},
+    {"key": "product", "kind": "image", "x": 0.46, "y": 0.20, "w": 0.46, "h": 0.46, "align": "center", "valign": "middle"},
+
+    {"key": "feature_1", "kind": "text", "x": 0.70, "y": 0.24, "w": 0.26, "h": 0.10, "align": "left", "valign": "middle", "font_scale": 0.016},
+    {"key": "feature_2", "kind": "text", "x": 0.72, "y": 0.36, "w": 0.24, "h": 0.10, "align": "left", "valign": "middle", "font_scale": 0.016},
+    {"key": "feature_3", "kind": "text", "x": 0.72, "y": 0.48, "w": 0.24, "h": 0.10, "align": "left", "valign": "middle", "font_scale": 0.016},
+    {"key": "feature_4", "kind": "text", "x": 0.48, "y": 0.66, "w": 0.22, "h": 0.10, "align": "left", "valign": "middle", "font_scale": 0.016},
+
+    {"key": "headline", "kind": "text", "x": 0.07, "y": 0.70, "w": 0.86, "h": 0.09, "align": "center", "valign": "middle", "font_scale": 0.038},
+
+    {"key": "gallery_1", "kind": "image", "x": 0.07, "y": 0.82, "w": 0.18, "h": 0.13, "align": "center", "valign": "middle"},
+    {"key": "gallery_2", "kind": "image", "x": 0.29, "y": 0.82, "w": 0.18, "h": 0.13, "align": "center", "valign": "middle"},
+    {"key": "gallery_3", "kind": "image", "x": 0.51, "y": 0.82, "w": 0.18, "h": 0.13, "align": "center", "valign": "middle"},
+    {"key": "gallery_4", "kind": "image", "x": 0.73, "y": 0.82, "w": 0.18, "h": 0.13, "align": "center", "valign": "middle"},
+
+    {"key": "gallery_label_1", "kind": "text", "x": 0.07, "y": 0.94, "w": 0.18, "h": 0.04, "align": "center", "valign": "top", "font_scale": 0.015},
+    {"key": "gallery_label_2", "kind": "text", "x": 0.29, "y": 0.94, "w": 0.18, "h": 0.04, "align": "center", "valign": "top", "font_scale": 0.015},
+    {"key": "gallery_label_3", "kind": "text", "x": 0.51, "y": 0.94, "w": 0.18, "h": 0.04, "align": "center", "valign": "top", "font_scale": 0.015},
+    {"key": "gallery_label_4", "kind": "text", "x": 0.73, "y": 0.94, "w": 0.18, "h": 0.04, "align": "center", "valign": "top", "font_scale": 0.015},
+
+    {"key": "tagline", "kind": "text", "x": 0.07, "y": 0.95, "w": 0.86, "h": 0.05, "align": "center", "valign": "middle", "font_scale": 0.022}
+  ]
+}

@@ -128,6 +128,17 @@ VERTEX_LOCATION=europe-west4
 VERTEX_IMAGEN_MODEL=imagen-3.0-generate-001
 ```
 
+### 线下验证 Vertex 调用链路
+
+1. 在 `/docs` 打开 Swagger，先调用 `/api/r2/presign-put` 上传一张素材图到 R2，获取 URL/Key。
+2. 使用前端 Network 中的示例 JSON 或手动构造 `/api/generate-poster` 请求，将素材 Key 填入对应字段。
+3. 观察 Render Logs，预期会连续出现：
+   - `generate_poster request received`（含品牌、布局等摘要）；
+   - `[vertex] generate_poster start`/`done`，`provider` 为 VertexImagen3 及 prompt 片段；
+   - `generate_poster completed`，包含生成的文件名、变体数量以及 Vertex trace。
+
+只要上述三类日志都出现，说明前端 → 后端 → Vertex → R2 的链路正常。
+
 生成接口默认写入对象存储并仅返回 URL/Key：
 
 ```
@@ -302,6 +313,7 @@ python scripts/decode_template_assets.py
 - **模板目录**：`frontend/templates/` 为每套模板提供 `template.png`（锁死元素）、`mask_*.png`（AI 可编辑的透明区域）与 `spec.json`（槽位坐标、尺寸及 `materials` 定义）。`materials` 字段会为每个槽位提供 `label`、`type`、`count`、`allowsPrompt`、`allowsUpload`、`promptPlaceholder` 等元数据，前端据此渲染表单文案、限制素材数量并切换上传/AI 模式，后端则据此判断哪些槽位需要在渲染前调用 AI 生成素材。
 - **提示词预设**：`frontend/prompts/presets.json` 汇总了常见的 Prompt Preset（如白底产品、厨房场景、灰度小图等），Prompt Inspector 会自动加载并允许按模板设定默认 Preset；后端也会回传经标准化后的 Prompt Bundle，方便在多端保持一致。若需要扩展主题，可在该文件中新建预设并提交。
 - **品牌规范**：`docs/brand-guides/kitchen_campaign.md` 描述了品牌色板、字号、连线样式等规则。Canvas 预览与 Pillow 渲染均按照该文档执行。
+- **版式 JSON**：`app/templates/template_dual_layout.json` 使用 0–1 相对坐标描述 `template_dual` 的所有槽位，`app/templates/layouts.py` 提供 `load_layout()` 便于前后端共享同一版式几何。
 - **后端流水线**：`app/services/glibatree.py` 会先调用 `prepare_poster_assets`，对所有标记为“文字生成”的槽位请求 OpenAI 生成素材（缺少 API Key 时自动跳过），随后按模板绘制 Logo、标题、功能点连线与底部小图，再通过 OpenAI Images Edit（`image + mask`）仅在透明区域补足背景氛围，失败时回退到同模板的本地渲染图。
 - **质量守护**：生成完成后会把蒙版外的像素覆盖回程序绘制的元素，防止模型篡改 Logo、标题或功能点。模板选择也会同步保存在 `sessionStorage`，便于多次生成或返回环节 1 调整素材。
 
