@@ -17,6 +17,20 @@ function pickImageSrc(img) {
   return src;
 }
 
+function buildGeneratedAssetFromUrl(url, key) {
+  if (!url) return null;
+  return {
+    key: null,
+    dataUrl: url,
+    remoteUrl: url,
+    url,
+    r2Key: key || null,
+    type: 'image/png',
+    size: null,
+    lastModified: Date.now(),
+  };
+}
+
 let lastStage1Data = null;
 let lastPosterResult = null;
 let posterLayoutRoot = null;
@@ -868,14 +882,14 @@ const MATERIAL_DEFAULT_LABELS = {
 const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
-  if (!image || typeof image !== 'object') return '';
-  const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
-  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
-    return directUrl;
-  }
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
-  if (dataUrl && dataUrl.startsWith('data:')) {
-    return dataUrl;
+  if (!image) return '';
+  const directUrl = pickImageSrc(image);
+  if (directUrl && typeof directUrl === 'string') {
+    const trimmed = directUrl.trim();
+    if (HTTP_URL_RX.test(trimmed) || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+    return trimmed;
   }
   return '';
 }
@@ -1279,6 +1293,8 @@ function initStage1() {
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
         forcePromptOnly: state.galleryAllowsUpload === false,
@@ -1287,6 +1303,14 @@ function initStage1() {
           '描述要生成的小图内容',
       });
       refreshPreview();
+      const scenarioPreview = document.getElementById('scenario_preview');
+      if (scenarioPreview) {
+        scenarioPreview.src = pickImageSrc(state.scenario) || '';
+      }
+      const productPreview = document.getElementById('product_preview');
+      if (productPreview) {
+        productPreview.src = pickImageSrc(state.product) || '';
+      }
     })();
   } else {
     applyStage1Defaults(form);
@@ -1599,6 +1623,8 @@ function initStage1() {
       layoutStructure,
       previewContainer,
       statusElement,
+      form,
+      inlinePreviews,
       onChange: refreshPreview,
       allowPrompt: galleryAllowsPrompt,
       forcePromptOnly: !galleryAllowsUpload,
@@ -1792,6 +1818,8 @@ void mountTemplateChooserStage1();
     layoutStructure,
     previewContainer,
     statusElement,
+    form,
+    inlinePreviews,
     onChange: refreshPreview,
     allowPrompt: state.galleryAllowsPrompt,
     forcePromptOnly: state.galleryAllowsUpload === false,
@@ -1864,6 +1892,8 @@ void mountTemplateChooserStage1();
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
         forcePromptOnly: state.galleryAllowsUpload === false,
@@ -1907,6 +1937,8 @@ void mountTemplateChooserStage1();
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
         forcePromptOnly: state.galleryAllowsUpload === false,
@@ -2257,6 +2289,8 @@ function renderGalleryItems(state, container, options = {}) {
     layoutStructure,
     previewContainer,
     statusElement,
+    form,
+    inlinePreviews,
     onChange,
     allowPrompt = true,
     forcePromptOnly = false,
@@ -2311,6 +2345,8 @@ function renderGalleryItems(state, container, options = {}) {
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange,
         allowPrompt,
         forcePromptOnly,
@@ -2378,7 +2414,7 @@ function renderGalleryItems(state, container, options = {}) {
       if (!file) return;
       try {
         entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
         state.previewBuilt = false;
         onChange?.();
       } catch (error) {
@@ -2396,7 +2432,10 @@ function renderGalleryItems(state, container, options = {}) {
     previewWrapper.classList.add('gallery-item-preview');
     const previewImage = document.createElement('img');
     previewImage.alt = `${label} ${index + 1} 预览`;
-    previewImage.src = entry.asset?.dataUrl || placeholder;
+    previewImage.src = pickImageSrc(entry.asset) || placeholder;
+    previewImage.dataset.role = 'gallery-preview';
+    previewImage.dataset.index = String(index);
+    previewImage.classList.add('slot-preview');
     previewWrapper.appendChild(previewImage);
     item.appendChild(previewWrapper);
 
@@ -2422,6 +2461,8 @@ function renderGalleryItems(state, container, options = {}) {
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
+    promptTextarea.dataset.role = 'gallery-prompt';
+    promptTextarea.dataset.index = String(index);
     promptTextarea.addEventListener('input', () => {
       entry.prompt = promptTextarea.value;
       state.previewBuilt = false;
@@ -2429,6 +2470,14 @@ function renderGalleryItems(state, container, options = {}) {
     });
     promptField.appendChild(promptTextarea);
     item.appendChild(promptField);
+
+    const generateButton = document.createElement('button');
+    generateButton.type = 'button';
+    generateButton.textContent = `AI 生成小图 ${index + 1}`;
+    generateButton.classList.add('secondary');
+    generateButton.dataset.role = 'gallery-generate';
+    generateButton.dataset.index = String(index);
+    item.appendChild(generateButton);
 
     async function applyGalleryMode(mode, options = {}) {
       const { initial = false } = options;
@@ -2464,7 +2513,7 @@ function renderGalleryItems(state, container, options = {}) {
         }
         previewImage.src = placeholder;
       } else {
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
       }
 
       if (!initial) {
@@ -2499,6 +2548,13 @@ function renderGalleryItems(state, container, options = {}) {
     void applyGalleryMode(entry.mode, { initial: true });
 
     container.appendChild(item);
+  });
+
+  bindSlotGenerationButtons(state, {
+    refreshPreview: onChange,
+    form,
+    inlinePreviews,
+    statusElement,
   });
 }
 function collectStage1Data(form, state, { strict = false } = {}) {
@@ -2548,10 +2604,14 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
   payload.product_mode = state.productMode || 'upload';
+  const scenarioPromptValue =
+    formData.get('scenario_prompt')?.toString().trim() || payload.scenario_image || '';
   const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
   payload.product_prompt = productPromptValue || null;
   payload.scenario_prompt =
-    payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
+    payload.scenario_mode === 'prompt'
+      ? payload.scenario_image
+      : scenarioPromptValue || null;
   payload.gallery_label = galleryLabel;
   payload.gallery_limit = galleryLimit;
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
@@ -2601,6 +2661,186 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   }
 
   return payload;
+}
+
+async function generateSlotImage(slotType, index, promptText, stage1Data) {
+  const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+  if (!apiCandidates.length) {
+    throw new Error('未配置后端 API 基址');
+  }
+  const prompt = (promptText || '').trim();
+  if (!prompt) {
+    throw new Error('请先填写提示词再生成图片');
+  }
+
+  const payload = {
+    slot: slotType,
+    index: index ?? null,
+    prompt,
+    template_id: stage1Data?.template_id || stage1Data?.templateId || null,
+  };
+
+  const data = await postJsonWithRetry(
+    apiCandidates,
+    '/api/generate-slot-image',
+    payload,
+    1
+  );
+
+  console.log('[debug] generateSlotImage result', { slotType, index, data });
+
+  if (!data || !data.url) {
+    throw new Error('生成图片失败，返回结果缺少 url');
+  }
+
+  return data;
+}
+
+function bindSlotGenerationButtons(stage1State, options = {}) {
+  const { refreshPreview, form, inlinePreviews, statusElement } = options;
+  const posterForm = form || document.getElementById('poster-form');
+  if (!posterForm) return;
+
+  const scenarioPreview = document.getElementById('scenario_preview');
+  const productPreview = document.getElementById('product_preview');
+
+  const getStage1DataSnapshot = () =>
+    collectStage1Data(posterForm, stage1State, { strict: false });
+
+  const applyGeneratedAsset = (targetKey, asset, previewEl) => {
+    if (!asset) return;
+    stage1State[targetKey] = asset;
+    const modeKey = targetKey === 'scenario' ? 'scenarioMode' : 'productMode';
+    stage1State[modeKey] = 'upload';
+    stage1State.previewBuilt = false;
+
+    const inlineKey = `${targetKey}_asset`;
+    const inlineEl =
+      inlinePreviews?.[inlineKey] ||
+      posterForm.querySelector(`[data-inline-preview="${inlineKey}"]`);
+    const src = pickImageSrc(asset);
+    if (inlineEl && src) inlineEl.src = src;
+    if (previewEl && src) previewEl.src = src;
+
+    const uploadRadio = posterForm.querySelector(
+      `input[name="${targetKey}_mode"][value="upload"]`
+    );
+    const promptRadio = posterForm.querySelector(
+      `input[name="${targetKey}_mode"][value="prompt"]`
+    );
+    if (uploadRadio) uploadRadio.checked = true;
+    if (promptRadio) promptRadio.checked = false;
+
+    refreshPreview?.();
+  };
+
+  const bindButton = (buttonId, slotType, promptSelectors, previewEl) => {
+    const button = document.getElementById(buttonId);
+    if (!button || button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+
+    button.addEventListener('click', async () => {
+      const promptEl =
+        promptSelectors
+          .map((selector) => posterForm.querySelector(selector))
+          .find(Boolean);
+      const prompt = promptEl?.value || '';
+      try {
+        button.disabled = true;
+        const snapshot = getStage1DataSnapshot();
+        const { url, key } = await generateSlotImage(
+          slotType,
+          null,
+          prompt,
+          snapshot
+        );
+        const asset = buildGeneratedAssetFromUrl(url, key);
+        applyGeneratedAsset(slotType === 'scenario' ? 'scenario' : 'product', asset, previewEl);
+      } catch (err) {
+        console.error(`[${slotType}] generate failed`, err);
+        const detail = err?.responseJson?.detail || err?.responseJson;
+        const quotaExceeded = err?.status === 429 && detail?.error === 'vertex_quota_exceeded';
+        const message = quotaExceeded
+          ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+          : err?.message || '生成图片失败';
+        if (statusElement) {
+          setStatus(statusElement, message, 'error');
+        } else {
+          alert(message);
+        }
+      } finally {
+        button.disabled = false;
+      }
+    });
+  };
+
+  bindButton(
+    'btn-generate-scenario',
+    'scenario',
+    ['[data-role="scenario-positive-prompt"]', '#scenario_prompt', 'textarea[name="scenario_image"]'],
+    scenarioPreview
+  );
+
+  bindButton(
+    'btn-generate-product',
+    'product',
+    ['[data-role="product-positive-prompt"]', '#product_prompt', 'textarea[name="product_prompt"]'],
+    productPreview
+  );
+
+  const galleryButtons = document.querySelectorAll('[data-role="gallery-generate"]');
+  galleryButtons.forEach((btn) => {
+    if (btn.dataset.bound === 'true') return;
+    btn.dataset.bound = 'true';
+    const index = Number(btn.getAttribute('data-index') || '0');
+    btn.addEventListener('click', async () => {
+      const promptEl = posterForm.querySelector(
+        `[data-role="gallery-prompt"][data-index="${index}"]`
+      );
+      const prompt = promptEl?.value || '';
+      try {
+        btn.disabled = true;
+        const snapshot = getStage1DataSnapshot();
+        const { url, key } = await generateSlotImage('gallery', index, prompt, snapshot);
+        if (!Array.isArray(stage1State.galleryEntries)) {
+          stage1State.galleryEntries = [];
+        }
+        if (!stage1State.galleryEntries[index]) {
+          stage1State.galleryEntries[index] = {
+            id: `gallery-${index}-${Date.now()}`,
+            caption: '',
+            asset: null,
+            prompt: '',
+            mode: 'upload',
+          };
+        }
+        stage1State.galleryEntries[index].asset = buildGeneratedAssetFromUrl(url, key);
+        stage1State.galleryEntries[index].mode = 'upload';
+
+        const img = posterForm.querySelector(
+          `[data-role="gallery-preview"][data-index="${index}"]`
+        );
+        const src = pickImageSrc(stage1State.galleryEntries[index].asset);
+        if (img && src) img.src = src;
+        refreshPreview?.();
+      } catch (err) {
+        console.error(`[gallery ${index}] generate failed`, err);
+        const detail = err?.responseJson?.detail || err?.responseJson;
+        const quotaExceeded = err?.status === 429 && detail?.error === 'vertex_quota_exceeded';
+        const message =
+          quotaExceeded
+            ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+            : err?.message || `生成小图 ${index + 1} 失败`;
+        if (statusElement) {
+          setStatus(statusElement, message, 'error');
+        } else {
+          alert(message);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
@@ -3358,17 +3598,7 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
-    try {
-      lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
-    } catch (error) {
-      try {
-        lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
-      } catch {
-        lastStage1Data = stage1Data || null;
-      }
-      console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
-    }
-
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
     if (posterLayout) {
       posterLayoutRoot = posterLayout;
     }
@@ -3971,6 +4201,104 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
+function renderPosterResult(result) {
+  const poster = result?.poster || {};
+  const galleryImages = poster.gallery_images || result?.gallery_images || [];
+  const posterRoot = document.getElementById('poster-b-root');
+  const posterImg =
+    document.getElementById('poster-image') ||
+    document.getElementById('vertex-poster-preview-img');
+  const scenarioImg =
+    document.querySelector('[data-role="poster-b-scenario"]') ||
+    document.getElementById('scenario-image');
+  const productImg =
+    document.querySelector('[data-role="poster-b-product"]') ||
+    document.getElementById('product-image');
+  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
+  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
+  const title = poster.title || lastStage1Data?.title || '';
+  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
+
+  const logoSrc =
+    pickImageSrc(poster.brand_logo) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.brand_logo));
+
+  const logoEl = document.getElementById('poster-b-brand-logo');
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+
+  if (brandNameEl) brandNameEl.textContent = brandName;
+  if (agentNameEl) agentNameEl.textContent = agentName;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+
+  const scenarioSrc =
+    pickImageSrc(poster.scenario_image) || pickImageSrc(result?.scenario_image);
+
+  if (scenarioSrc && scenarioImg) {
+    scenarioImg.src = scenarioSrc;
+  }
+
+  const productSrc =
+    pickImageSrc(poster.product_image) || pickImageSrc(result?.product_image);
+
+  if (productSrc && productImg) {
+    productImg.src = productSrc;
+  }
+
+  const galleryEls = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  galleryEls.forEach((slot, index) => {
+    const src = pickImageSrc(galleryImages[index]);
+    if (src) {
+      slot.src = src;
+    }
+  });
+
+  const posterSrc =
+    result?.poster_url || pickImageSrc(poster.poster_image) || pickImageSrc(result?.poster_image);
+
+  if (posterSrc) {
+    if (posterImg) {
+      posterImg.src = posterSrc;
+      if (posterImg.classList?.contains('hidden')) {
+        posterImg.classList.remove('hidden');
+      }
+      if (posterImg.style) {
+        posterImg.style.display = 'block';
+      }
+    }
+
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) {
+      hiddenUrlInput.value = posterSrc;
+    }
+
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterSrc);
+    } catch (e) {
+      console.warn('failed to cache latestPosterUrl', e);
+    }
+  }
+
+  const hasVisuals = Boolean(posterSrc || scenarioSrc || productSrc || galleryImages.length);
+  if (posterRoot && hasVisuals) {
+    posterRoot.classList.remove('hidden');
+  }
+  if (posterPlaceholder?.classList && hasVisuals) {
+    posterPlaceholder.classList.add('hidden');
+  }
+
+  return posterSrc || null;
+}
+
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
@@ -4012,88 +4340,40 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
+  const poster = data?.poster || {};
+
   refreshPosterLayoutPreview(data);
 
-  const posterUrl = extractVertexPosterUrl(data);
-
-  if (!posterUrl) {
-    console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
-    return;
+  if (typeof promptTextarea !== 'undefined' && promptTextarea) {
+    promptTextarea.value = data.prompt || '';
+  }
+  if (typeof emailTextarea !== 'undefined' && emailTextarea) {
+    emailTextarea.value = data.email_body || '';
   }
 
-  posterGeneratedImageUrl = posterUrl;
-  posterGenerationState.posterUrl = posterUrl;
-  posterGeneratedImage = posterGenerationState.posterUrl;
+  const finalPosterUrl =
+    data.poster_url ||
+    (poster.poster_image && (poster.poster_image.url || poster.poster_image.asset)) ||
+    (Array.isArray(data.results) && data.results[0] && data.results[0].url) ||
+    null;
 
-  if (typeof applyPosterPreview === 'function') {
-    applyPosterPreview(posterUrl);
-  } else if (typeof updateGeneratedPoster === 'function') {
-    updateGeneratedPoster(posterUrl);
-  }
-}
+  if (finalPosterUrl) {
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) hiddenUrlInput.value = finalPosterUrl;
 
-async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
-  const result = [];
-  const entries = Array.isArray(stage1?.gallery_entries)
-    ? stage1.gallery_entries.filter(Boolean)
-    : [];
-
-  for (let i = 0; i < maxSlots; i += 1) {
-    const entry = entries[i] || null;
-    const caption = entry?.caption?.trim() || `Series ${i + 1}`;
-    const promptText = entry?.prompt?.trim() || null;
-    const mode = entry?.mode || 'upload';
-    const normalisedMode = mode === 'logo' || mode === 'logo_fallback' ? 'upload' : mode;
-
-    const hasPrompt = !!promptText;
-    if (normalisedMode === 'prompt' && hasPrompt) {
-      result.push({
-        caption,
-        key: null,
-        asset: null,
-        mode: 'prompt',
-        prompt: promptText,
-      });
-      continue;
+    posterGenerationState.posterUrl = finalPosterUrl;
+    try {
+      sessionStorage.setItem('latestPosterUrl', finalPosterUrl);
+    } catch (e) {
+      console.warn('无法写 latestPosterUrl', e);
     }
-
-    let ref = null;
-    if (entry && entry.asset) {
-      ref = await normaliseAssetReference(entry.asset, {
-        field: `poster.gallery_items[${i}]`,
-        required: false,
-        apiCandidates,
-        folder: 'gallery',
-      }, logoRef);
-    }
-
-    if (ref && (ref.key || ref.url)) {
-      result.push({
-        caption,
-        key: ref.key || null,
-        asset: ref.url || null,
-        mode: normalisedMode,
-        prompt: promptText,
-      });
-      continue;
-    }
-
-    if (logoRef && (logoRef.url || logoRef.key)) {
-      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
-      result.push({
-        caption,
-        key: logoRef.key || null,
-        asset: logoRef.url || null,
-        mode: 'upload',
-        prompt: null,
-      });
-      continue;
-    }
-
-    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
   }
 
-  return result;
+  console.log('[debug] applyVertexPosterResult', {
+    poster_image: poster.poster_image,
+    poster_url: data.poster_url,
+    results: data.results,
+  });
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
@@ -4113,7 +4393,20 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
-  
+
+  try {
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+  } catch (error) {
+    try {
+      lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+    } catch {
+      lastStage1Data = stage1Data || null;
+    }
+    console.warn('[triggerGeneration] unable to deep copy stage1Data, using fallback reference', error);
+  }
+
+  console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
+
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -4160,7 +4453,74 @@ async function triggerGeneration(opts) {
       folder: 'product',
     }, brandLogoRef);
 
-    galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
+    galleryItems = [];
+
+    const galleryEntries = Array.isArray(stage1Data.gallery_entries)
+      ? stage1Data.gallery_entries.filter(Boolean)
+      : [];
+    const maxGallerySlots = 4;
+
+      for (let index = 0; index < maxGallerySlots; index += 1) {
+        const entry = galleryEntries[index] || null;
+        const mode = entry?.mode || 'upload';
+        const normalisedMode = mode === 'logo' || mode === 'logo_fallback' ? 'upload' : mode;
+        const caption = entry?.caption?.trim() || null;
+        const promptText = entry?.prompt?.trim() || null;
+
+        const hasPrompt = !!(promptText && promptText.trim().length > 0);
+        if (normalisedMode === 'prompt' && hasPrompt) {
+          galleryItems.push({
+            caption,
+            key: null,
+            asset: null,
+            mode: 'prompt',
+            prompt: promptText,
+          });
+          continue;
+        }
+
+        const hasAsset = !!entry?.asset;
+
+        if (hasAsset) {
+          const ref = await normaliseAssetReference(entry.asset, {
+            field: `poster.gallery_items[${index}]`,
+            requireUploaded: true,
+            apiCandidates,
+            folder: 'gallery',
+          }, brandLogoRef);
+
+          galleryItems.push({
+            caption: caption || `Series ${index + 1}`,
+            key: ref.key,
+            asset: ref.url,
+            mode: normalisedMode,
+            prompt: promptText,
+          });
+          continue;
+        }
+
+        if (brandLogoRef && (brandLogoRef.url || brandLogoRef.key)) {
+          console.info('[triggerGeneration] gallery empty, fallback to brand logo', {
+            index,
+            caption,
+          });
+
+          galleryItems.push({
+            caption: caption || `Series ${index + 1}`,
+            key: brandLogoRef.key || null,
+            asset: brandLogoRef.url || null,
+            mode: 'upload',
+            prompt: null,
+          });
+
+          continue;
+        }
+
+        console.warn(
+          '[triggerGeneration] gallery empty and no brand logo available, skip slot',
+          { index, caption },
+        );
+      }
 
     const features = Array.isArray(stage1Data.features)
       ? stage1Data.features.filter(Boolean)
@@ -4223,9 +4583,14 @@ async function triggerGeneration(opts) {
     );
     return null;
   }
-  
 
- // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+  console.info('[debug] posterPayload', {
+    ...posterPayload,
+    gallery_items: posterPayload.gallery_items || [],
+  });
+
+
+  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
   
@@ -4396,6 +4761,13 @@ async function triggerGeneration(opts) {
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
 
+    console.info('[debug] apiVertexPosterResult', {
+      poster_url: data?.poster_url,
+      scenario_image: data?.poster?.scenario_image,
+      product_image: data?.poster?.product_image,
+      gallery_images: data?.poster?.gallery_images,
+    });
+
     const posterUrl =
       data?.poster?.asset_url ||
       data?.poster?.url ||
@@ -4498,14 +4870,13 @@ async function triggerGeneration(opts) {
     posterGeneratedImageUrl = null;
     posterGeneratedImage = null;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
-    const detail = error?.responseJson?.detail || null;
-    const quotaExceeded =
-      error?.status === 429 &&
-      (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
-    const friendlyMessage = quotaExceeded
-      ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
-      : error?.message || '生成失败';
-    setStatus(statusElement, friendlyMessage, 'error');
+    const detail = error?.responseJson?.detail || error?.responseJson;
+    const quotaExceeded = error?.status === 429 && detail?.error === 'vertex_quota_exceeded';
+    const message =
+      quotaExceeded
+        ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+        : error?.message || '生成失败';
+    setStatus(statusElement, message, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
@@ -4514,7 +4885,7 @@ async function triggerGeneration(opts) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
-    resetGeneratedPlaceholder(friendlyMessage || generatedPlaceholderDefault);
+    resetGeneratedPlaceholder(message || generatedPlaceholderDefault);
     refreshPosterLayoutPreview();
     return null;
   }
@@ -5213,17 +5584,38 @@ function initStage3() {
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+    if (!stage1Data || !stage2Result) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    assignPosterImage(
-      posterImage,
-      stage2Result.poster_image,
-      `${stage1Data.product_name} 海报预览`
-    );
+    if (posterImage) {
+      let posterSrc = null;
+
+      try {
+        posterSrc = sessionStorage.getItem('latestPosterUrl');
+      } catch (e) {
+        console.warn('cannot read latestPosterUrl from sessionStorage', e);
+      }
+
+      if (!posterSrc) {
+        posterSrc =
+          stage2Result?.poster_url ||
+          pickImageSrc(stage2Result?.poster?.poster_image) ||
+          pickImageSrc(stage2Result?.poster_image);
+      }
+
+      if (posterSrc) {
+        posterImage.src = posterSrc;
+      } else if (stage2Result.poster_image) {
+        assignPosterImage(
+          posterImage,
+          stage2Result.poster_image,
+          `${stage1Data.product_name} 海报预览`
+        );
+      }
+    }
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }

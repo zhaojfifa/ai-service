@@ -17,6 +17,20 @@ function pickImageSrc(img) {
   return src;
 }
 
+function buildGeneratedAssetFromUrl(url, key) {
+  if (!url) return null;
+  return {
+    key: null,
+    dataUrl: url,
+    remoteUrl: url,
+    url,
+    r2Key: key || null,
+    type: 'image/png',
+    size: null,
+    lastModified: Date.now(),
+  };
+}
+
 let lastStage1Data = null;
 let lastPosterResult = null;
 let posterLayoutRoot = null;
@@ -1787,6 +1801,11 @@ void mountTemplateChooserStage1();
     statusElement
   );
 
+  bindSlotGenerationButtons(form, state, inlinePreviews, {
+    refreshPreview,
+    statusElement,
+  });
+
   renderGalleryItems(state, galleryItemsContainer, {
     previewElements,
     layoutStructure,
@@ -2602,6 +2621,130 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
+
+async function generateSlotImage(slotType, index, promptText, stage1Data) {
+  const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+  if (!apiCandidates.length) {
+    throw new Error('未配置后端 API 基址');
+  }
+  const prompt = (promptText || '').trim();
+  if (!prompt) {
+    throw new Error('请先填写提示词再生成图片');
+  }
+
+  const payload = {
+    slot: slotType,
+    index: index ?? null,
+    prompt,
+    template_id: stage1Data?.template_id || stage1Data?.templateId || null,
+  };
+
+  const data = await postJsonWithRetry(
+    apiCandidates,
+    '/api/generate-slot-image',
+    payload,
+    1
+  );
+
+  if (!data || !data.url) {
+    throw new Error('生成图片失败，返回结果缺少 url');
+  }
+
+  return data;
+}
+
+function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
+  const { refreshPreview, statusElement } = options;
+  const posterForm = form || document.getElementById('poster-form');
+  if (!posterForm) return;
+
+  const scenarioPreview = document.getElementById('scenario_preview');
+  const productPreview = document.getElementById('product_preview');
+
+  const getStage1Snapshot = () => collectStage1Data(posterForm, state, { strict: false });
+
+  const applyGeneratedAsset = (targetKey, asset, previewEl) => {
+    if (!asset) return;
+    state[targetKey] = asset;
+    const modeKey = targetKey === 'scenario' ? 'scenarioMode' : 'productMode';
+    state[modeKey] = 'upload';
+    state.previewBuilt = false;
+
+    const inlineKey = `${targetKey}_asset`;
+    const inlineEl =
+      inlinePreviews?.[inlineKey] ||
+      posterForm.querySelector(`[data-inline-preview="${inlineKey}"]`);
+    const src = pickImageSrc(asset);
+    if (inlineEl && src) inlineEl.src = src;
+    if (previewEl && src) previewEl.src = src;
+
+    const uploadRadio = posterForm.querySelector(
+      `input[name="${targetKey}_mode"][value="upload"]`
+    );
+    const promptRadio = posterForm.querySelector(
+      `input[name="${targetKey}_mode"][value="prompt"]`
+    );
+    if (uploadRadio) uploadRadio.checked = true;
+    if (promptRadio) promptRadio.checked = false;
+
+    refreshPreview?.();
+  };
+
+  const bindButton = (buttonId, slotType, promptSelectors, previewEl) => {
+    const button = document.getElementById(buttonId);
+    if (!button || button.dataset.bound === 'true') return;
+    button.dataset.bound = 'true';
+
+    button.addEventListener('click', async () => {
+      const promptEl =
+        promptSelectors
+          .map((selector) => posterForm.querySelector(selector))
+          .find(Boolean);
+      const prompt = promptEl?.value || '';
+      try {
+        button.disabled = true;
+        const snapshot = getStage1Snapshot();
+        const { url, key } = await generateSlotImage(
+          slotType,
+          null,
+          prompt,
+          snapshot
+        );
+        const asset = buildGeneratedAssetFromUrl(url, key);
+        applyGeneratedAsset(slotType === 'scenario' ? 'scenario' : 'product', asset, previewEl);
+      } catch (err) {
+        console.error(`[${slotType}] generate failed`, err);
+        const detail = err?.responseJson?.detail || err?.responseJson;
+        const quotaExceeded = err?.status === 429 && detail?.error === 'vertex_quota_exceeded';
+        const message = quotaExceeded
+          ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+          : err?.message || '生成图片失败';
+        if (statusElement) {
+          setStatus(statusElement, message, 'error');
+        } else {
+          alert(message);
+        }
+      } finally {
+        button.disabled = false;
+      }
+    });
+  };
+
+  bindButton(
+    'btn-generate-scenario',
+    'scenario',
+    ['[data-role="scenario-positive-prompt"]', 'textarea[name="scenario_image"]'],
+    scenarioPreview
+  );
+
+  bindButton(
+    'btn-generate-product',
+    'product',
+    ['[data-role="product-positive-prompt"]', 'textarea[name="product_prompt"]'],
+    productPreview
+  );
+}
+
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
