@@ -8,10 +8,13 @@ from typing import Any, Iterable, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError, root_validator
 from fastapi.responses import Response
 from pydantic import ValidationError
 
 from app.config import get_settings
+from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
@@ -20,6 +23,7 @@ from app.schemas import (
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
+    StoredImage,
     SendEmailRequest,
     SendEmailResponse,
     TemplatePosterCollection,
@@ -27,6 +31,12 @@ from app.schemas import (
     TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
+from app.services.glibatree import (
+    configure_vertex_imagen,
+    generate_poster_asset,
+    generate_slot_image,
+)
+from app.services.image_provider.factory import get_provider
 from app.services.glibatree import generate_poster_asset
 from app.services.image_provider import ImageProvider
 from app.services.poster import (
@@ -96,6 +106,11 @@ allow_origins = _normalize_allowed_origins(raw_origins)
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=cors_allow_origins,
+    allow_credentials=cors_allow_credentials,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    max_age=86400,
     allow_origins=allow_origins,
     allow_credentials=False,
     allow_methods=["*"],
@@ -115,11 +130,9 @@ def health_check() -> dict[str, str]:
 
 
 def _model_dump(model):
-    if hasattr(model, "model_dump"):
-        return model.model_dump(exclude_none=True)
-    if hasattr(model, "dict"):
-        return model.dict(exclude_none=True)
-    return {}
+    if model is None:
+        return None
+    return jsonable_encoder(model, exclude_none=True)
 
 
 def _model_validate(model, data):
@@ -130,9 +143,70 @@ def _model_validate(model, data):
     return model(**data)
 
 
+def _decode_data_url_to_bytes(data_url: str) -> bytes:
+    if "," not in data_url:
+        raise ValueError("Invalid data URL: missing comma separator")
+    header, encoded = data_url.split(",", 1)
+    header_lower = header.lower()
+    if not header_lower.startswith("data:") or ";base64" not in header_lower:
+        raise ValueError("Only base64-encoded data URLs are supported")
+    try:
+        return base64.b64decode(encoded)
+    except (binascii.Error, ValueError) as exc:  # pragma: no cover - defensive
+        raise ValueError("Failed to decode data URL") from exc
+
+
+def _infer_key_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    base = (os.getenv("R2_PUBLIC_BASE") or os.getenv("S3_PUBLIC_BASE") or "").rstrip("/")
+    if base and url.startswith(f"{base}/"):
+        return url[len(base) + 1 :]
+    return None
+
+
+def _poster_image_to_stored(image: PosterImage | None) -> StoredImage | None:
+    if image is None:
+        return None
+
+    media_type = getattr(image, "media_type", "image/png") or "image/png"
+    width = getattr(image, "width", None)
+    height = getattr(image, "height", None)
+
+    url = getattr(image, "url", None)
+    key = getattr(image, "key", None)
+    if url:
+        key = key or _infer_key_from_url(url) or image.filename
+        return StoredImage(
+            key=key or image.filename,
+            url=url,
+            content_type=media_type,
+            width=width,
+            height=height,
+        )
+
+    data_url = getattr(image, "data_url", None)
+    if data_url:
+        stored = store_image_and_url(
+            _decode_data_url_to_bytes(data_url),
+            ext="png",
+            content_type=media_type,
+        )
+        return StoredImage(
+            key=stored["key"],
+            url=stored["url"],
+            content_type=stored["content_type"],
+            width=width,
+            height=height,
+        )
+
+    return None
+
+
 def _preview_json(value: Any, limit: int = 512) -> str:
     try:
-        text = json.dumps(value, ensure_ascii=False)
+        encoded = jsonable_encoder(value)
+        text = json.dumps(encoded, ensure_ascii=False)
     except Exception:  # pragma: no cover - defensive fallback
         text = str(value)
     if len(text) <= limit:
@@ -323,11 +397,175 @@ def presign_r2_upload(request: R2PresignPutRequest) -> R2PresignPutResponse:
 
     try:
         key = make_key(request.folder, request.filename)
-        put_url = presigned_put_url(key, request.content_type)
+        put_url = presign_put_url(key, request.content_type)
     except RuntimeError as exc:  # pragma: no cover - configuration issue
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return R2PresignPutResponse(key=key, put_url=put_url, public_url=public_url_for(key))
+    bucket = os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET")
+    r2_url = f"r2://{bucket}/{key}" if bucket else None
+    public_url = public_url_for(key)
+    get_url = public_url
+    headers: dict[str, str] = {"Content-Type": request.content_type}
+    if not get_url:
+        try:
+            get_url = presign_get_url(key)
+        except RuntimeError:
+            get_url = None
+
+    return R2PresignPutResponse(
+        key=key,
+        put_url=put_url,
+        get_url=get_url,
+        r2_url=r2_url,
+        public_url=public_url,
+        headers=headers,
+    )
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(request_data: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    slot = request_data.slot
+    filename = request_data.filename
+    content_type = request_data.content_type
+
+    logger.info(
+        "template poster upload received",
+        extra={
+            "slot": slot,
+            "poster_filename": filename,
+            "content_type": content_type,
+            "size_bytes": request_data.size,
+            "has_key": bool(request_data.key),
+        },
+    )
+    try:
+        record = save_template_poster(
+            slot=slot,
+            filename=filename,
+            content_type=content_type,
+            key=request_data.key,
+            data=request_data.data,
+            width=request_data.width,
+            height=request_data.height,
+        )
+        return poster_entry_from_record(record)
+    except TemplatePosterError as exc:
+        logger.warning(
+            "template poster upload rejected",
+            extra={
+                "slot": slot,
+                "poster_filename": filename,
+                "content_type": content_type,
+            },
+        )
+        detail_payload = getattr(exc, "detail", None)
+        raise HTTPException(status_code=400, detail=detail_payload or str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception(
+            "Failed to store template poster",
+            extra={
+                "slot": slot,
+                "poster_filename": filename,
+                "content_type": content_type,
+            },
+        )
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试。") from exc
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail="无法加载模板列表，请稍后重试。") from exc
+    if not entries:
+        entries = fallback_poster_entries()
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/generate-slot-image", response_model=GenerateSlotImageResponse)
+async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlotImageResponse:
+    aspect = req.aspect or "1:1"
+
+    try:
+        key, url = await generate_slot_image(
+            prompt=req.prompt,
+            slot=req.slot,
+            index=req.index,
+            template_id=req.template_id,
+            aspect=aspect,
+        )
+    except ResourceExhausted as exc:
+        logger.warning("Vertex quota exceeded for imagen3", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "vertex_quota_exceeded",
+                "message": "Google Vertex 图像模型日配额已用尽，请稍后重试或改用本地上传。",
+                "provider": "vertex",
+            },
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - upstream failure
+        logger.exception("generate_slot_image failed: %s", exc)
+        raise HTTPException(status_code=500, detail="生成槽位图片失败") from exc
+
+    return GenerateSlotImageResponse(url=url, key=key)
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/template-posters", response_model=TemplatePosterCollection)
+def fetch_template_posters() -> TemplatePosterCollection:
+    try:
+        entries = list_poster_entries()
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to load template posters")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/template-posters", response_model=TemplatePosterEntry)
+def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePosterEntry:
+    try:
+        record = save_template_poster(
+            slot=payload.slot,
+            filename=payload.filename,
+            content_type=payload.content_type,
+            data=payload.data,
+        )
+        return poster_entry_from_record(record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover - unexpected IO failure
+        logger.exception("Failed to store template poster")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
@@ -358,21 +596,38 @@ def upload_template_poster(payload: TemplatePosterUploadRequest) -> TemplatePost
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
-async def generate_poster(request: Request) -> GeneratePosterResponse:
+async def generate_poster(request: Request) -> JSONResponse:
+    trace = _ensure_trace_id(request)
+    guard_info = getattr(request.state, "guard_info", {})
+    content_length = request.headers.get("content-length")
+
     try:
         raw_payload = await read_json_relaxed(request)
+        raw_assets = _summarise_assets(raw_payload.get("poster", {})) if isinstance(raw_payload, dict) else {}
         logger.info(
-            "generate_poster request received: %s",
-            _preview_json(raw_payload, limit=768),
+            "generate_poster request received",
+            extra={
+                "trace": trace,
+                "content_length": content_length,
+                "body_bytes": guard_info.get("bytes"),
+                "body_has_base64": guard_info.get("has_base64"),
+                "asset_summary": raw_assets,
+            },
         )
         payload = _model_validate(GeneratePosterRequest, raw_payload)
     except ValidationError as exc:
-        logger.warning("generate_poster validation error: %s", exc.errors())
+        logger.warning(
+            "generate_poster validation error",
+            extra={"trace": trace, "errors": exc.errors()},
+        )
         raise HTTPException(status_code=422, detail=exc.errors()) from exc
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception("generate_poster payload parsing failed")
+        logger.exception(
+            "generate_poster payload parsing failed",
+            extra={"trace": trace},
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
@@ -404,13 +659,19 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
         )
 
         logger.info(
+            "generate_poster normalised payload",
+            extra={
+                "trace": trace,
+                "poster": _summarise_poster(poster),
             "generate_poster normalised payload: %s",
             {
                 "poster": _summarise_poster(poster),
                 "variants": payload.variants,
                 "seed": payload.seed,
                 "lock_seed": payload.lock_seed,
+                "aspect_closeness": payload.aspect_closeness,
                 "prompt_bundle": _summarise_prompt_bundle(payload.prompt_bundle),
+                "asset_summary": normalised_assets,
             },
         )
 
@@ -472,8 +733,9 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
         gallery_sources = [uri for uri in (_asset_uri(item.asset) for item in gallery_items) if uri]
 
         logger.info(
-            "generate_poster completed: %s",
-            {
+            "generate_poster completed",
+            extra={
+                "trace": trace,
                 "response": {
                     "poster_filename": getattr(result.poster, "filename", None),
                     "poster_url": getattr(result.poster, "url", None),
@@ -485,14 +747,17 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
                 "prompt_bundle": _summarise_prompt_bundle(
                     response_bundle or payload.prompt_bundle
                 ),
+                "vertex_traces": result.trace_ids,
+                "fallback_used": result.fallback_used,
+                "provider": getattr(result, "provider", None),
             },
         )
-        return GeneratePosterResponse(
+        response_payload = GeneratePosterResponse(
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
-            prompt_details=prompt_details,
+            prompt_details=result.prompt_details,
             prompt_bundle=response_bundle,
             variants=result.variants,
             scores=result.scores,
@@ -504,7 +769,7 @@ async def generate_poster(request: Request) -> GeneratePosterResponse:
         )
 
     except Exception as exc:  # defensive logging
-        logger.exception("Failed to generate poster")
+        logger.exception("Failed to generate poster", extra={"trace": trace})
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
@@ -518,4 +783,3 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 
 __all__ = ["app"]
-

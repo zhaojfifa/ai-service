@@ -78,40 +78,52 @@ class EmailConfig:
         return bool(self.host and self.sender)
 
 @dataclass
-class GlibatreeConfig:
-    api_url: str | None = None
-    api_key: str | None = None
-    model:   str | None = None
-    proxy:   str | None = None
-    client:  str       = "http"   # "http" | "openai"
-
-    @property
-    def use_openai_client(self) -> bool:
-        return (self.client or "").strip().lower() == "openai"
+class GCPConfig:
+    project_id: str | None
+    location: str = "us-central1"
 
     @property
     def is_configured(self) -> bool:
-        if self.use_openai_client:
-            return bool(self.api_key)
+        return bool(self.project_id)
+
+
+@dataclass
+class VertexConfig:
+    imagen_generate_model: str = "imagen-3.0-generate-001"
+
+
+@dataclass
+class OpenAIConfig:
+    api_key: str | None = None
+    base_url: str | None = None
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.base_url)
+
+
+@dataclass
+class GlibatreeConfig:
+    api_url: str | None = None
+    api_key: str | None = None
+    model: str | None = None
+    proxy: str | None = None
+
+    @property
+    def is_configured(self) -> bool:
         return bool(self.api_url and self.api_key)
 
     @classmethod
     def from_env(cls) -> "GlibatreeConfig":
-        def truthy(name: str) -> bool:
-            v = os.getenv(name)
-            return str(v).strip().lower() in {"1","true","yes","on"}
-
         api_key = os.getenv("GLIBATREE_API_KEY") or os.getenv("OPENAI_API_KEY")
-        api_url = os.getenv("GLIBATREE_BASE_URL") or os.getenv("OPENAI_BASE_URL")
-        model   = os.getenv("GLIBATREE_MODEL")    or os.getenv("OPENAI_MODEL")
-        proxy   = os.getenv("GLIBATREE_PROXY")    or os.getenv("OPENAI_PROXY")
+        api_url = os.getenv("GLIBATREE_API_URL") or os.getenv("GLIBATREE_BASE_URL")
+        model = os.getenv("GLIBATREE_MODEL") or os.getenv("OPENAI_MODEL")
+        proxy = os.getenv("GLIBATREE_PROXY") or os.getenv("OPENAI_PROXY")
 
-        client  = (
-            os.getenv("GLIBATREE_CLIENT") or
-            ("openai" if truthy("GLIBATREE_USE") or truthy("OPENAI_USE") else "http")
-        )
+        if not api_url:
+            api_url = os.getenv("OPENAI_BASE_URL")
 
-        return cls(api_url=api_url, api_key=api_key, model=model, proxy=proxy, client=client)
+        return cls(api_url=api_url, api_key=api_key, model=model, proxy=proxy)
 
 
 @dataclass
@@ -119,7 +131,10 @@ class Settings:
     environment: str
     allowed_origins: List[str]
     email: EmailConfig
+    gcp: GCPConfig
+    vertex: VertexConfig
     glibatree: GlibatreeConfig
+    openai: OpenAIConfig
     s3_endpoint: str | None
     s3_access_key: str | None
     s3_secret_key: str | None
@@ -164,7 +179,10 @@ def get_settings() -> Settings:
         return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
     environment = _get("ENVIRONMENT", "development")
-    origins_raw = _get("ALLOWED_ORIGINS", "*")
+    origins_raw = _get(
+        "CORS_ALLOW_ORIGINS",
+        _get("ALLOWED_ORIGINS", "*"),
+    )
     allowed_origins = _parse_allowed_origins(origins_raw)
 
     email = EmailConfig(
@@ -177,47 +195,31 @@ def get_settings() -> Settings:
         use_ssl=_as_bool(_get("SMTP_USE_SSL"), False),
     )
 
-    # ---------- 兼容两套变量：优先 GLIBATREE_*，否则回退 OPENAI_* ----------
-    api_url = (
-        _get("GLIBATREE_API_URL")
-        or _get("GLIBATREE_BASE_URL")
-        or _get("OPENAI_BASE_URL")
+    gcp = GCPConfig(
+        project_id=_get("GCP_PROJECT_ID"),
+        location=_get("GCP_LOCATION", "us-central1") or "us-central1",
     )
-    api_key = _get("GLIBATREE_API_KEY") or _get("OPENAI_API_KEY")
-    model   = _get("GLIBATREE_MODEL")    or _get("OPENAI_MODEL") or "gpt-image-1"
-    proxy   = _get("GLIBATREE_PROXY")    or _get("OPENAI_PROXY")
 
-    # 选择客户端：显式 client > USE 开关 > 根据 url/是否仅有 key 推断
-    raw_client = _get("GLIBATREE_CLIENT")
-    use_flag   = _truthy(_get("GLIBATREE_USE")) or _truthy(_get("OPENAI_USE"))
-
-    if raw_client:
-        client = raw_client.strip().lower()
-        if client not in {"http", "openai"}:
-            client = "openai" if (api_url and "openai" in api_url.lower()) else "http"
-    elif use_flag:
-        client = "openai"
-    elif api_url and any(x in api_url.lower() for x in ("openai", "openrouter")):
-        client = "openai"
-    elif api_key and not api_url:
-        # 只有 Key 时也默认走 OpenAI（SDK 默认 base_url）
-        client = "openai"
-    else:
-        client = "http"
-
-    glibatree = GlibatreeConfig(
-        api_url=api_url,
-        api_key=api_key,
-        model=model,
-        proxy=proxy,
-        client=client,
+    vertex = VertexConfig(
+        imagen_generate_model=_get("VERTEX_IMAGEN_GENERATE_MODEL", "imagen-3.0-generate-001")
+        or "imagen-3.0-generate-001",
     )
+
+    openai_cfg = OpenAIConfig(
+        api_key=_get("OPENAI_API_KEY"),
+        base_url=_get("OPENAI_BASE_URL"),
+    )
+
+    glibatree = GlibatreeConfig.from_env()
 
     return Settings(
         environment=environment,
         allowed_origins=allowed_origins,
         email=email,
+        gcp=gcp,
+        vertex=vertex,
         glibatree=glibatree,
+        openai=openai_cfg,
         s3_endpoint=_get("S3_ENDPOINT"),
         s3_access_key=_get("S3_ACCESS_KEY"),
         s3_secret_key=_get("S3_SECRET_KEY"),

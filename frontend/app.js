@@ -2,6 +2,117 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
+function pickImageSrc(img) {
+  if (!img) return null;
+  if (typeof img === 'string') return img;
+
+  const src =
+    (typeof img.url === 'string' && img.url.trim()) ||
+    (typeof img.asset === 'string' && img.asset.trim()) ||
+    (typeof img.dataUrl === 'string' && img.dataUrl.trim()) ||
+    (typeof img.data_url === 'string' && img.data_url.trim()) ||
+    null;
+
+  return src;
+}
+
+function renderPosterBFromStage1(stage1Data) {
+  if (!stage1Data) return;
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+  const logoEl = document.getElementById('poster-b-brand-logo');
+
+  if (brandNameEl) brandNameEl.textContent = stage1Data.brand_name || '';
+  if (agentNameEl) agentNameEl.textContent = stage1Data.agent_name || '';
+  if (titleEl) titleEl.textContent = stage1Data.title || '';
+  if (subtitleEl) subtitleEl.textContent = stage1Data.subtitle || '';
+
+  const logoSrc = pickImageSrc(stage1Data.brand_logo);
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const scenarioEl = document.querySelector('[data-role="poster-b-scenario"]');
+  const productEl = document.querySelector('[data-role="poster-b-product"]');
+
+  const scenarioSrc = pickImageSrc(stage1Data.scenario_asset);
+  const productSrc = pickImageSrc(stage1Data.product_asset);
+
+  if (scenarioEl && scenarioSrc) {
+    scenarioEl.src = scenarioSrc;
+  }
+  if (productEl && productSrc) {
+    productEl.src = productSrc;
+  }
+
+  const bottomSlots = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  const gallery = (stage1Data.gallery_entries || []).filter(Boolean);
+
+  bottomSlots.forEach((slot, index) => {
+    const imgEl = slot.querySelector('img');
+    const captionEl = slot.querySelector('.slot-caption');
+
+    const entry = gallery.length ? gallery[index % gallery.length] : null;
+    const entrySrc = entry ? pickImageSrc(entry.asset) : null;
+
+    if (imgEl && entrySrc) {
+      imgEl.src = entrySrc;
+    }
+    if (captionEl) {
+      captionEl.textContent = entry?.caption || '';
+    }
+  });
+}
+
+let lastStage1Data = null;
+
+// --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
+const posterGenerationState = {
+  /** 海报成品图 URL（R2 的公开地址） */
+  posterUrl: null,
+  /** 本次生成用到的 prompt 结构，用于展示 / 调试 */
+  promptBundle: null,
+  /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
+  rawResult: null,
+};
+// 兼容旧版调用：确保引用不存在的全局变量时不会抛出 ReferenceError
+let posterGeneratedImage = null;
+let posterGeneratedLayout = null;
+
+// stage2：缓存最近一次生成结果与提示词，便于预览与回放
+let lastPosterResult = null;
+let posterGeneratedImageUrl = null;
+let lastPromptBundle = null;
+// 双列功能模板的归一化布局（随容器等比缩放）
+const TEMPLATE_DUAL_LAYOUT = {
+  canvas: { width: 1024, height: 1024 },
+  slots: {
+    logo: { x: 0.06, y: 0.05, w: 0.09, h: 0.09, type: 'image' },
+    brand_name: { x: 0.18, y: 0.06, w: 0.30, h: 0.07, type: 'text', align: 'left' },
+    agent_name: { x: 0.58, y: 0.06, w: 0.34, h: 0.07, type: 'text', align: 'right' },
+
+    scenario: { x: 0.05, y: 0.20, w: 0.38, h: 0.46, type: 'image' },
+    product: { x: 0.46, y: 0.20, w: 0.46, h: 0.46, type: 'image' },
+    headline: { x: 0.07, y: 0.70, w: 0.86, h: 0.09, type: 'text', align: 'center' },
+
+    series_1_img: { x: 0.07, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_1_txt: { x: 0.07, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_2_img: { x: 0.30, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_2_txt: { x: 0.30, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_3_img: { x: 0.53, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_3_txt: { x: 0.53, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    series_4_img: { x: 0.76, y: 0.80, w: 0.18, h: 0.13, type: 'image' },
+    series_4_txt: { x: 0.76, y: 0.93, w: 0.18, h: 0.04, type: 'text', align: 'center' },
+    tagline: { x: 0.07, y: 0.95, w: 0.86, h: 0.04, type: 'text', align: 'center' },
+  },
+};
+// 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
+// 生成成功后 A/B 对比按钮才可使用。
+
 // 1) 新增：按域名决定健康检查路径
 function isRenderHost(base) {
   try {
@@ -140,6 +251,28 @@ function assetUrl(path) {
 }
 
 App.utils.assetUrl = assetUrl;
+
+// Layout helpers for relative-coordinates templates
+App.utils.resolveRect = function resolveRect(slot, canvasWidth, canvasHeight, parentRect) {
+  if (!slot) return { x: 0, y: 0, w: 0, h: 0 };
+  const px = parentRect ? parentRect.x : 0;
+  const py = parentRect ? parentRect.y : 0;
+  const pw = parentRect ? parentRect.w : canvasWidth;
+  const ph = parentRect ? parentRect.h : canvasHeight;
+
+  return {
+    x: px + Number(slot.x || 0) * pw,
+    y: py + Number(slot.y || 0) * ph,
+    w: Number(slot.w || 0) * pw,
+    h: Number(slot.h || 0) * ph,
+  };
+};
+
+App.utils.fontPx = function fontPx(font, canvasHeight) {
+  if (!font) return 0;
+  const size = typeof font.size === 'number' ? font.size : 0.02;
+  return size * canvasHeight;
+};
 
 function normaliseBase(base) {
   if (!base) return null;
@@ -317,6 +450,310 @@ function validatePayloadSize(raw) {
   }
 }
 
+const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const HTTP_URL_RX = /^https?:\/\//i;
+const URL_SCHEMES = ['http://', 'https://', 'r2://', 's3://', 'gs://'];
+
+const DEFAULT_ASSET_BUCKET =
+  window.__ASSET_BUCKET__ || window.__R2_BUCKET__ || window.__S3_BUCKET__ || 'poster-assets';
+const DEFAULT_ASSET_SCHEME =
+  window.__ASSET_SCHEME__ || (window.__S3_BUCKET__ ? 's3' : 'r2');
+const PUBLIC_ASSET_BASE =
+  window.__ASSET_PUBLIC_BASE__ || window.__R2_PUBLIC_BASE__ || window.__S3_PUBLIC_BASE__ || '';
+
+function isUrlLike(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return URL_SCHEMES.some((scheme) => trimmed.startsWith(scheme));
+}
+
+function toAssetUrl(input) {
+  if (!input) return '';
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  if (isUrlLike(trimmed)) return trimmed;
+  const sanitised = trimmed.replace(/^\/+/, '');
+  if (PUBLIC_ASSET_BASE) {
+    const base = PUBLIC_ASSET_BASE.replace(/\/$/, '');
+    return `${base}/${sanitised}`;
+  }
+  if (DEFAULT_ASSET_BUCKET && DEFAULT_ASSET_SCHEME) {
+    return `${DEFAULT_ASSET_SCHEME}://${DEFAULT_ASSET_BUCKET.replace(/\/$/, '')}/${sanitised}`;
+  }
+  return sanitised;
+}
+
+function assertAssetUrl(fieldLabel, value) {
+  if (!value || !isUrlLike(value)) {
+    throw new Error(`${fieldLabel} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+  }
+}
+
+function guessExtensionFromMime(mime) {
+  if (!mime) return 'png';
+  const normalised = mime.toLowerCase();
+  if (normalised.includes('png')) return 'png';
+  if (normalised.includes('jpeg') || normalised.includes('jpg')) return 'jpg';
+  if (normalised.includes('webp')) return 'webp';
+  if (normalised.includes('gif')) return 'gif';
+  return 'png';
+}
+
+async function dataUrlToFile(dataUrl, nameHint = 'asset') {
+  const response = await fetch(dataUrl);
+  if (!response.ok) {
+    throw new Error('无法解析内联图片，请重新上传素材。');
+  }
+  const blob = await response.blob();
+  const mime = blob.type || inferImageMediaType(dataUrl) || 'image/png';
+  const extension = guessExtensionFromMime(mime);
+  const safeHint = nameHint.toString().trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'asset';
+  const filename = `${safeHint}.${extension}`;
+  const file = new File([blob], filename, { type: mime });
+  return { file, mime, extension, filename };
+}
+
+function estimatePayloadBytes(data) {
+  try {
+    if (typeof data === 'string') {
+      return new Blob([data]).size;
+    }
+    return new Blob([JSON.stringify(data)]).size;
+  } catch (error) {
+    console.warn('[client] unable to estimate payload size', error);
+    return -1;
+  }
+}
+
+function payloadContainsDataUrl(value) {
+  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
+  if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(payloadContainsDataUrl);
+  }
+  return false;
+}
+
+async function normaliseAssetReference(
+  asset,
+  {
+    field = 'asset',
+    required = true,
+    // backward compatibility: honour legacy requireUploaded if provided
+    requireUploaded = undefined,
+    apiCandidates = [],
+    folder = 'uploads',
+  } = {},
+  brandLogo = null,
+) {
+  const mustHaveUpload =
+    typeof required === 'boolean'
+      ? required
+      : typeof requireUploaded === 'boolean'
+        ? requireUploaded
+        : true;
+  const candidates = Array.isArray(apiCandidates) ? apiCandidates.filter(Boolean) : [];
+
+  const ensureUploaderAvailable = () => {
+    if (!candidates.length) {
+      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
+    }
+  };
+
+  const ensureNotInline = (value) => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      return null;
+    }
+    return trimmed;
+  };
+
+  const normaliseKey = (value) => {
+    const trimmed = ensureNotInline(value);
+    if (!trimmed) return null;
+    return trimmed.replace(/^\/+/, '');
+  };
+
+  const uploadInlineAsset = async (dataUrl) => {
+    if (!dataUrl || !DATA_URL_PAYLOAD_RX.test(dataUrl)) return null;
+    ensureUploaderAvailable();
+    const safeHint = field.replace(/[^a-z0-9]+/gi, '_') || 'asset';
+    const { file } = await dataUrlToFile(dataUrl, safeHint);
+    const result = await uploadFileToR2(folder, file, { bases: candidates });
+    if (!result.uploaded || (!result.url && !result.key)) {
+      throw new Error(`${field} 上传失败，请稍后重试。`);
+    }
+    const finalUrl = result.url || toAssetUrl(result.key);
+    if (!finalUrl || !isUrlLike(finalUrl)) {
+      throw new Error(`${field} 上传失败，无法解析生成的 URL。`);
+    }
+    return {
+      key: result.key ? result.key.replace(/^\/+/, '') : null,
+      url: finalUrl,
+    };
+  };
+
+  // Handle explicit logo fallback: coerce to upload with brand logo reference
+  if (asset && typeof asset === 'object' && asset.mode === 'logo') {
+    const logoKey = brandLogo?.key || brandLogo?.r2Key || null;
+    const logoUrl = brandLogo?.url || brandLogo?.remoteUrl || brandLogo?.cdnUrl || null;
+    if (!logoKey && !logoUrl) {
+      throw new Error(`${field} 使用 logo 兜底失败: 品牌 Logo 缺少 URL/Key`);
+    }
+    asset = { ...asset, key: logoKey || asset.key || null, url: logoUrl || asset.url || null, mode: 'upload' };
+  }
+
+  if (!asset) {
+    if (mustHaveUpload) {
+      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+    }
+    return { key: null, url: null };
+  }
+
+  if (typeof asset === 'string') {
+    const trimmed = asset.trim();
+    if (!trimmed) {
+      if (mustHaveUpload) {
+        throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+      }
+      return { key: null, url: null };
+    }
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      const uploaded = await uploadInlineAsset(trimmed);
+      if (uploaded) {
+        return uploaded;
+      }
+    }
+    const resolved = toAssetUrl(trimmed);
+    if (!isUrlLike(resolved)) {
+      if (mustHaveUpload) {
+        throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+      }
+    }
+    return { key: HTTP_URL_RX.test(trimmed) ? null : trimmed.replace(/^\/+/, ''), url: isUrlLike(resolved) ? resolved : null };
+  }
+
+  let keyCandidate = normaliseKey(asset.r2Key || asset.key || asset.storage_key || null);
+  let resolvedUrl = null;
+  let inlineCandidate = null;
+
+  const sourceCandidates = [asset.remoteUrl, asset.url, asset.publicUrl, asset.cdnUrl, asset.dataUrl];
+  for (const candidate of sourceCandidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (!trimmed) continue;
+    if (DATA_URL_PAYLOAD_RX.test(trimmed)) {
+      inlineCandidate = inlineCandidate || trimmed;
+      continue;
+    }
+    if (isUrlLike(trimmed)) {
+      resolvedUrl = toAssetUrl(trimmed);
+      break;
+    }
+    if (!HTTP_URL_RX.test(trimmed) && !keyCandidate) {
+      keyCandidate = normaliseKey(trimmed) || keyCandidate;
+    }
+  }
+
+  if (!resolvedUrl && inlineCandidate) {
+    const uploaded = await uploadInlineAsset(inlineCandidate);
+    if (uploaded) {
+      resolvedUrl = uploaded.url;
+      keyCandidate = uploaded.key || keyCandidate;
+      if (typeof asset === 'object') {
+        asset.r2Key = uploaded.key || asset.r2Key || null;
+        asset.remoteUrl = uploaded.url;
+        asset.dataUrl = uploaded.url;
+      }
+      console.info(`[normaliseAssetReference] 已将 ${field} 的 base64 预览上传至 R2/GCS。`);
+    }
+  }
+
+  if (!resolvedUrl && keyCandidate) {
+    const derivedUrl = toAssetUrl(keyCandidate);
+    if (isUrlLike(derivedUrl)) {
+      resolvedUrl = derivedUrl;
+    }
+  }
+
+  if (!resolvedUrl) {
+    if (mustHaveUpload) {
+      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+    }
+    return { key: keyCandidate || null, url: null };
+  }
+
+  if (!isUrlLike(resolvedUrl)) {
+    if (mustHaveUpload) {
+      throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+    }
+    return { key: keyCandidate || null, url: null };
+  }
+
+  return {
+    key: keyCandidate ? keyCandidate.replace(/^\/+/, '') : null,
+    url: resolvedUrl,
+  };
+}
+
+function summariseNegativePrompts(prompts) {
+  if (!prompts || typeof prompts !== 'object') return null;
+  const values = [];
+  Object.values(prompts).forEach((entry) => {
+    if (!entry) return;
+    const negative = typeof entry.negative === 'string' ? entry.negative.trim() : '';
+    if (negative) values.push(negative);
+  });
+  if (!values.length) return null;
+  return Array.from(new Set(values)).join(' | ');
+}
+
+function ensureUploadedAndLog(path, payload, rawPayload) {
+  const MAX = 512 * 1024;
+  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(16).slice(2, 10);
+  let bodyString = null;
+  if (typeof rawPayload === 'string') {
+    bodyString = rawPayload;
+  } else if (payload !== undefined) {
+    try {
+      bodyString = JSON.stringify(payload);
+    } catch (error) {
+      console.warn('[client] stringify payload failed', error);
+    }
+  }
+
+  const size = estimatePayloadBytes(bodyString ?? payload);
+  const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
+  const preview = typeof bodyString === 'string'
+    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
+    : null;
+
+  console.log(`[client] pre-check ${path}`, {
+    requestId,
+    size,
+    hasBase64,
+    preview,
+  });
+
+  if (hasBase64) {
+    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
+  }
+  if (MAX > 0 && size > MAX) {
+    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
+  }
+
+  return {
+    headers: { 'X-Request-ID': requestId },
+    bodyString,
+    size,
+  };
+}
+
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
@@ -327,8 +764,12 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
+  const inspection = ensureUploadedAndLog(path, payload, rawPayload);
+
   // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
-  const bodyRaw = (typeof rawPayload === 'string') ? rawPayload : JSON.stringify(payload);
+  const bodyRaw = (typeof rawPayload === 'string')
+    ? rawPayload
+    : inspection.bodyString ?? JSON.stringify(payload);
 
   const logPrefix = `[postJsonWithRetry] ${path}`;
   const previewSnippet = (() => {
@@ -355,12 +796,17 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
       const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
       const url = urlFor(b);                               // ← 定义 url
       try {
+        const headers = {
+          'Content-Type': 'application/json; charset=UTF-8',
+          ...(inspection?.headers || {}),
+        };
+
         const res = await fetch(url, {
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
           credentials: 'omit',
-          headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+          headers,
           body: bodyRaw,
           signal: ctrl.signal,
         });
@@ -527,7 +973,7 @@ function isSamePosterImage(a, b) {
 }
 
 // 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
-// 返回 { key, put_url, public_url, etag, content_type, size }
+// 返回 { key, put_url, get_url, r2_url, public_url, etag, content_type, size }
 async function r2PresignPut(folder, file, bases, options = {}) {
   if (!file) throw new Error('没有可上传的文件');
 
@@ -546,8 +992,16 @@ async function r2PresignPut(folder, file, bases, options = {}) {
   const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
 
   if (!data || typeof data !== 'object') throw new Error('预签名接口返回异常');
-  const { key, put_url: putUrl, public_url: publicUrl } = data;
+  const {
+    key,
+    put_url: putUrl,
+    get_url: getUrl,
+    r2_url: r2Url,
+    public_url: legacyPublicUrl,
+  } = data;
   if (!key || !putUrl) throw new Error('预签名接口缺少 key 或 put_url');
+  const normalizedR2 = r2Url || null;
+  const readableUrl = getUrl || legacyPublicUrl || null;
 
   // 2) 直接上传到 R2（options.upload === false 可只要签名不上传）
   if (options.upload !== false) {
@@ -561,47 +1015,90 @@ async function r2PresignPut(folder, file, bases, options = {}) {
       throw new Error(`R2 上传失败：HTTP ${putRes.status} ${putRes.statusText} ${txt || ''}`.trim());
     }
     const etag = putRes.headers.get('etag') || null;
-    return { key, put_url: putUrl, public_url: publicUrl, etag, content_type: contentType, size };
+    return {
+      key,
+      put_url: putUrl,
+      get_url: readableUrl,
+      r2_url: normalizedR2,
+      public_url: readableUrl,
+      etag,
+      content_type: contentType,
+      size,
+    };
   }
 
   // 仅返回签名信息
-  return { key, put_url: putUrl, public_url: publicUrl, content_type: contentType, size };
+  return {
+    key,
+    put_url: putUrl,
+    get_url: readableUrl,
+    r2_url: normalizedR2,
+    public_url: readableUrl,
+    content_type: contentType,
+    size,
+  };
 }
 
 
 async function uploadFileToR2(folder, file, options = {}) {
   try {
-    const presign = await r2PresignPut(folder, file, options?.bases);
-    const putResponse = await fetch(presign.put_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': file?.type || 'application/octet-stream' },
-      body: file,
+    const shouldUpload = options?.upload !== false;
+    const presign = await r2PresignPut(folder, file, options?.bases, {
+      upload: false,
     });
-    if (!putResponse.ok) {
-      const detail = await putResponse.text();
-      throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+    if (shouldUpload) {
+      const headers = (presign.headers && Object.keys(presign.headers).length)
+        ? presign.headers
+        : { 'Content-Type': file?.type || 'application/octet-stream' };
+
+      const putResponse = await fetch(presign.put_url, {
+        method: 'PUT',
+        headers,
+        body: file,
+        mode: 'cors',
+      });
+      if (!putResponse.ok) {
+        const detail = await putResponse.text();
+        throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+      }
     }
+    const selectHttpUrl = (value) => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      return HTTP_URL_RX.test(trimmed) ? trimmed : null;
+    };
+    const accessibleUrl =
+      selectHttpUrl(presign.get_url) || selectHttpUrl(presign.public_url);
+    const derivedUrl = selectHttpUrl(toAssetUrl(presign.key));
+    const referenceUrl = accessibleUrl || derivedUrl || null;
     return {
       key: presign.key,
-      url: presign.public_url || null,
+      url: referenceUrl,
       uploaded: true,
       presign,
     };
   } catch (error) {
-    console.warn('[uploadFileToR2] 直传失败，回退本地预览', error);
-    const dataUrl = file ? await fileToDataUrl(file) : null;
-    return {
-      key: null,
-      url: null,
-      uploaded: false,
-      dataUrl,
-      error,
-    };
+    console.error('[uploadFileToR2] 直传失败', error);
+    if (error instanceof TypeError) {
+      const origin = (typeof window !== 'undefined' && window.location)
+        ? window.location.origin
+        : '当前站点';
+      const message = `R2 上传失败：请确认对象存储的 CORS 规则已允许 ${origin} 执行 PUT 请求。`;
+      const corsError = new Error(message);
+      corsError.code = 'R2_CORS_BLOCKED';
+      throw corsError;
+    }
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('上传到 R2 失败，请稍后重试。');
   }
 }
 
 App.utils.r2PresignPut = r2PresignPut;
 App.utils.uploadFileToR2 = uploadFileToR2;
+App.utils.updateMaterialUrlDisplay = updateMaterialUrlDisplay;
 
 function applyStoredAssetValue(target, storedValue) {
   if (!target || typeof storedValue !== 'string') return;
@@ -609,6 +1106,58 @@ function applyStoredAssetValue(target, storedValue) {
     target.data_url = storedValue;
   } else {
     target.url = storedValue;
+  }
+}
+
+function updateMaterialUrlDisplay(field, asset) {
+  const container = document.querySelector(`[data-material-url="${field}"]`);
+  if (!container) return;
+
+  const label = container.dataset.label || '素材 URL：';
+  const prefix = label.endsWith('：') ? label : `${label}：`;
+  const urlCandidates = [];
+  if (asset) {
+    if (typeof asset === 'string') {
+      if (HTTP_URL_RX.test(asset)) urlCandidates.push(asset);
+    } else if (typeof asset === 'object') {
+      const {
+        remoteUrl,
+        url,
+        publicUrl,
+        dataUrl,
+      } = asset;
+      [remoteUrl, url, publicUrl].forEach((candidate) => {
+        if (typeof candidate === 'string' && HTTP_URL_RX.test(candidate)) {
+          urlCandidates.push(candidate);
+        }
+      });
+      if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
+        urlCandidates.push(dataUrl);
+      }
+    }
+  }
+
+  const url = urlCandidates.find(Boolean) || null;
+  container.textContent = '';
+  const labelSpan = document.createElement('span');
+  labelSpan.classList.add('asset-url-label');
+  labelSpan.textContent = prefix;
+  container.appendChild(labelSpan);
+
+  if (url) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = url;
+    container.appendChild(link);
+    container.classList.add('has-url');
+  } else {
+    const placeholder = document.createElement('span');
+    placeholder.classList.add('asset-url-empty');
+    placeholder.textContent = '尚未上传';
+    container.appendChild(placeholder);
+    container.classList.remove('has-url');
   }
 }
 
@@ -744,6 +1293,8 @@ function initStage1() {
     galleryType: 'image',
   };
 
+  updateMaterialUrlDisplay('brand_logo', state.brandLogo);
+
   let currentLayoutPreview = '';
   let templateRegistry = [];
 
@@ -779,6 +1330,14 @@ function initStage1() {
           '描述要生成的小图内容',
       });
       refreshPreview();
+      const scenarioPreview = document.getElementById('scenario_preview');
+      if (scenarioPreview) {
+        scenarioPreview.src = pickImageSrc(state.scenario) || '';
+      }
+      const productPreview = document.getElementById('product_preview');
+      if (productPreview) {
+        productPreview.src = pickImageSrc(state.product) || '';
+      }
     })();
   } else {
     applyStage1Defaults(form);
@@ -1550,6 +2109,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   }
 
   state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
+  updateMaterialUrlDisplay('brand_logo', state.brandLogo);
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
   state.galleryEntries = Array.isArray(data.gallery_entries)
@@ -1611,6 +2171,9 @@ function attachSingleImageHandler(
             : placeholderImages.product;
         inlinePreview.src = placeholder;
       }
+      if (key === 'brandLogo') {
+        updateMaterialUrlDisplay('brand_logo', state[key]);
+      }
       refreshPreview();
       return;
     }
@@ -1621,13 +2184,20 @@ function attachSingleImageHandler(
         product: 'product',
       };
       const folder = folderMap[key] || 'uploads';
-      const forceDataUrl = key === 'brandLogo';
+      const requireUploadOptions =
+        key === 'brandLogo'
+          ? {
+              requireUpload: true,
+              requireUploadMessage:
+                '品牌 Logo 必须上传到 R2/GCS，仅传递 URL 或 Key。',
+            }
+          : {};
       state[key] = await prepareAssetFromFile(
         folder,
         file,
         state[key],
         statusElement,
-        { forceDataUrl }
+        requireUploadOptions
       );
       if (inlinePreview) {
         inlinePreview.src = state[key]?.dataUrl ||
@@ -1637,11 +2207,18 @@ function attachSingleImageHandler(
             ? placeholderImages.scenario
             : placeholderImages.product);
       }
+      if (key === 'brandLogo') {
+        updateMaterialUrlDisplay('brand_logo', state[key]);
+      }
       state.previewBuilt = false;
       refreshPreview();
     } catch (error) {
       console.error(error);
-      setStatus(statusElement, '处理图片素材时发生错误，请重试。', 'error');
+      const message =
+        error instanceof Error
+          ? error.message || '处理图片素材时发生错误，请重试。'
+          : '处理图片素材时发生错误，请重试。';
+      setStatus(statusElement, message, 'error');
     }
   });
 }
@@ -1849,7 +2426,7 @@ function renderGalleryItems(state, container, options = {}) {
       if (!file) return;
       try {
         entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
         state.previewBuilt = false;
         onChange?.();
       } catch (error) {
@@ -1867,7 +2444,10 @@ function renderGalleryItems(state, container, options = {}) {
     previewWrapper.classList.add('gallery-item-preview');
     const previewImage = document.createElement('img');
     previewImage.alt = `${label} ${index + 1} 预览`;
-    previewImage.src = entry.asset?.dataUrl || placeholder;
+    previewImage.src = pickImageSrc(entry.asset) || placeholder;
+    previewImage.dataset.role = 'gallery-preview';
+    previewImage.dataset.index = String(index);
+    previewImage.classList.add('slot-preview');
     previewWrapper.appendChild(previewImage);
     item.appendChild(previewWrapper);
 
@@ -1893,6 +2473,8 @@ function renderGalleryItems(state, container, options = {}) {
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
+    promptTextarea.dataset.role = 'gallery-prompt';
+    promptTextarea.dataset.index = String(index);
     promptTextarea.addEventListener('input', () => {
       entry.prompt = promptTextarea.value;
       state.previewBuilt = false;
@@ -1900,6 +2482,14 @@ function renderGalleryItems(state, container, options = {}) {
     });
     promptField.appendChild(promptTextarea);
     item.appendChild(promptField);
+
+    const generateButton = document.createElement('button');
+    generateButton.type = 'button';
+    generateButton.textContent = `AI 生成小图 ${index + 1}`;
+    generateButton.classList.add('secondary');
+    generateButton.dataset.role = 'gallery-generate';
+    generateButton.dataset.index = String(index);
+    item.appendChild(generateButton);
 
     async function applyGalleryMode(mode, options = {}) {
       const { initial = false } = options;
@@ -1935,7 +2525,7 @@ function renderGalleryItems(state, container, options = {}) {
         }
         previewImage.src = placeholder;
       } else {
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
       }
 
       if (!initial) {
@@ -1971,6 +2561,8 @@ function renderGalleryItems(state, container, options = {}) {
 
     container.appendChild(item);
   });
+
+  bindSlotGenerationButtons(state, { refreshPreview: onChange });
 }
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
@@ -2019,10 +2611,13 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
   payload.product_mode = state.productMode || 'upload';
+  const scenarioPromptValue = formData.get('scenario_prompt')?.toString().trim() || '';
   const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
   payload.product_prompt = productPromptValue || null;
   payload.scenario_prompt =
-    payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
+    payload.scenario_mode === 'prompt'
+      ? payload.scenario_image
+      : scenarioPromptValue || null;
   payload.gallery_label = galleryLabel;
   payload.gallery_limit = galleryLimit;
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
@@ -2073,6 +2668,144 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   return payload;
 }
+
+async function generateSlotImage(slotType, index, promptText, stage1Data) {
+  const apiCandidates = getApiCandidates(
+    document.getElementById('api-base')?.value || null
+  );
+  if (!apiCandidates.length) {
+    throw new Error('未配置后端 API 基址');
+  }
+  if (!promptText || !promptText.trim()) {
+    throw new Error('请先填写提示词再生成图片');
+  }
+
+  const payload = {
+    slot: slotType,
+    index: index ?? null,
+    prompt: promptText,
+    template_id: stage1Data?.template_id || null,
+  };
+
+  const resp = await postJsonWithRetry(
+    apiCandidates,
+    '/api/generate-slot-image',
+    payload,
+    1
+  );
+
+  const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+  console.log('[debug] generateSlotImage result', { slotType, index, data });
+
+  if (!data || !data.url) {
+    throw new Error('生成图片失败，返回结果缺少 url');
+  }
+
+  return data;
+}
+
+function bindSlotGenerationButtons(stage1State, { refreshPreview }) {
+  const getStage1DataSnapshot = () =>
+    collectStage1Data(
+      document.getElementById('poster-form'),
+      stage1State,
+      { strict: false }
+    );
+
+  const btnScenario = document.getElementById('btn-generate-scenario');
+  if (btnScenario) {
+    if (btnScenario.dataset.bound !== 'true') {
+      btnScenario.dataset.bound = 'true';
+      btnScenario.addEventListener('click', async () => {
+        const prompt = document.getElementById('scenario_prompt')?.value || '';
+        try {
+          btnScenario.disabled = true;
+          const snapshot = getStage1DataSnapshot();
+          const { url, key } = await generateSlotImage('scenario', null, prompt, snapshot);
+          stage1State.scenario = url;
+          stage1State.scenarioMode = 'upload';
+          stage1State.scenarioKey = key;
+          const img = document.getElementById('scenario_preview');
+          if (img) img.src = url;
+          refreshPreview?.();
+        } catch (err) {
+          alert(err?.message || '生成场景图失败');
+        } finally {
+          btnScenario.disabled = false;
+        }
+      });
+    }
+  }
+
+  const btnProduct = document.getElementById('btn-generate-product');
+  if (btnProduct) {
+    if (btnProduct.dataset.bound !== 'true') {
+      btnProduct.dataset.bound = 'true';
+      btnProduct.addEventListener('click', async () => {
+        const prompt = document.getElementById('product_prompt')?.value || '';
+        try {
+          btnProduct.disabled = true;
+          const snapshot = getStage1DataSnapshot();
+          const { url, key } = await generateSlotImage('product', null, prompt, snapshot);
+          stage1State.product = url;
+          stage1State.productMode = 'upload';
+          stage1State.productKey = key;
+          const img = document.getElementById('product_preview');
+          if (img) img.src = url;
+          refreshPreview?.();
+        } catch (err) {
+          alert(err?.message || '生成主产品图失败');
+        } finally {
+          btnProduct.disabled = false;
+        }
+      });
+    }
+  }
+
+  const galleryButtons = document.querySelectorAll('[data-role="gallery-generate"]');
+  galleryButtons.forEach((btn) => {
+    if (btn.dataset.bound === 'true') return;
+    btn.dataset.bound = 'true';
+    const index = Number(btn.getAttribute('data-index') || '0');
+    btn.addEventListener('click', async () => {
+      const promptEl = document.querySelector(
+        `[data-role="gallery-prompt"][data-index="${index}"]`
+      );
+      const prompt = promptEl?.value || '';
+      try {
+        btn.disabled = true;
+        const snapshot = getStage1DataSnapshot();
+        const { url, key } = await generateSlotImage('gallery', index, prompt, snapshot);
+        if (!Array.isArray(stage1State.galleryEntries)) {
+          stage1State.galleryEntries = [];
+        }
+        if (!stage1State.galleryEntries[index]) {
+          stage1State.galleryEntries[index] = {
+            id: `gallery-${index}-${Date.now()}`,
+            caption: '',
+            asset: null,
+            prompt: '',
+            mode: 'upload',
+          };
+        }
+        stage1State.galleryEntries[index].asset = url;
+        stage1State.galleryEntries[index].key = key;
+        stage1State.galleryEntries[index].mode = 'upload';
+
+        const img = document.querySelector(
+          `[data-role="gallery-preview"][data-index="${index}"]`
+        );
+        if (img) img.src = url;
+        refreshPreview?.();
+      } catch (err) {
+        alert(err?.message || `生成小图 ${index + 1} 失败`);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -2096,8 +2829,21 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     previewContainer.classList.remove('hidden');
   }
 
+  const assetSrc = (asset) => {
+    if (!asset) return null;
+    const candidates = [
+      asset.remoteUrl,
+      asset.url,
+      asset.publicUrl,
+      asset.dataUrl,
+    ];
+    return candidates.find(
+      (value) => typeof value === 'string' && (HTTP_URL_RX.test(value) || value.startsWith('data:'))
+    ) || null;
+  };
+
   if (brandLogo) {
-    brandLogo.src = payload.brand_logo?.dataUrl || placeholderImages.brandLogo;
+    brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
   }
   if (brandName) {
     brandName.textContent = payload.brand_name || '品牌名称';
@@ -2106,10 +2852,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
   }
   if (scenarioImage) {
-    scenarioImage.src = payload.scenario_asset?.dataUrl || placeholderImages.scenario;
+    scenarioImage.src = assetSrc(payload.scenario_asset) || placeholderImages.scenario;
   }
   if (productImage) {
-    productImage.src = payload.product_asset?.dataUrl || placeholderImages.product;
+    productImage.src = assetSrc(payload.product_asset) || placeholderImages.product;
   }
   if (title) {
     title.textContent = payload.title || '标题文案';
@@ -2142,11 +2888,8 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       const figure = document.createElement('figure');
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
-      if (entry?.asset?.dataUrl) {
-        img.src = entry.asset.dataUrl;
-      } else {
-        img.src = getGalleryPlaceholder(index, galleryLabel);
-      }
+      const gallerySrc = assetSrc(entry?.asset);
+      img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
       img.alt = `${galleryLabel} ${index + 1} 预览`;
       caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
       figure.appendChild(img);
@@ -2817,6 +3560,9 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+    renderPosterBFromStage1(lastStage1Data);
+
     let promptManager = null;
     let currentTemplateAssets = null;
     let latestPromptState = null;
@@ -3043,10 +3789,10 @@ function initStage2() {
         }
 
         if (bundleText) {
-          promptBundlePre.textContent = bundleText;
+          promptBundlePre.value = bundleText;
           promptBundleGroup.classList.remove('hidden');
         } else {
-          promptBundlePre.textContent = '';
+          promptBundlePre.value = '';
           promptBundleGroup.classList.add('hidden');
         }
       }
@@ -3113,11 +3859,40 @@ function initStage2() {
     let templateRegistry = [];
 
     const handleABTest = () => {
-      const request = promptManager?.buildRequest?.() || { variants: 2 };
-      runGeneration({
-        forceVariants: Math.max(2, request.variants || 2),
-        abTest: true,
-      });
+      if (!posterGenerationState.posterUrl) {
+        alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
+        return;
+      }
+
+      const templateImgEl = document.querySelector("[data-role='template-preview-image']") || null;
+      const baseline = templateImgEl
+        ? {
+            url: templateImgEl.src,
+            width:
+              typeof templateImgEl.naturalWidth === 'number' && templateImgEl.naturalWidth > 0
+                ? templateImgEl.naturalWidth
+                : templateImgEl.width || 0,
+            height:
+              typeof templateImgEl.naturalHeight === 'number' && templateImgEl.naturalHeight > 0
+                ? templateImgEl.naturalHeight
+                : templateImgEl.height || 0,
+          }
+        : activeTemplatePoster
+        ? {
+            url: getPosterImageSource(activeTemplatePoster),
+            width: activeTemplatePoster.width || 0,
+            height: activeTemplatePoster.height || 0,
+          }
+        : null;
+
+      const generated = {
+        url: posterGenerationState.posterUrl,
+        width: posterGenerationState.rawResult?.poster_image?.width || 0,
+        height: posterGenerationState.rawResult?.poster_image?.height || 0,
+      };
+
+      openABModal?.(baseline, generated) ||
+        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
     };
 
     promptManager = await setupPromptInspector(stage1Data, {
@@ -3345,6 +4120,309 @@ function buildPromptBundleStrings(prompts = {}) {
   };
 }
 
+function renderPosterResult(result) {
+  const poster = result?.poster || {};
+  const galleryImages = poster.gallery_images || result?.gallery_images || [];
+  const posterRoot = document.getElementById('poster-b-root');
+  const posterImg =
+    document.getElementById('poster-image') ||
+    document.getElementById('vertex-poster-preview-img');
+  const scenarioImg =
+    document.querySelector('[data-role="poster-b-scenario"]') ||
+    document.getElementById('scenario-image');
+  const productImg =
+    document.querySelector('[data-role="poster-b-product"]') ||
+    document.getElementById('product-image');
+  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
+  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
+  const title = poster.title || lastStage1Data?.title || '';
+  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
+
+  const logoSrc =
+    pickImageSrc(poster.brand_logo) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.brand_logo));
+
+  const logoEl = document.getElementById('poster-b-brand-logo');
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+
+  if (brandNameEl) brandNameEl.textContent = brandName;
+  if (agentNameEl) agentNameEl.textContent = agentName;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+
+  const scenarioSrc =
+    pickImageSrc(poster.scenario_image) || pickImageSrc(result?.scenario_image);
+
+  if (scenarioSrc && scenarioImg) {
+    scenarioImg.src = scenarioSrc;
+  }
+
+  const productSrc =
+    pickImageSrc(poster.product_image) || pickImageSrc(result?.product_image);
+
+  if (productSrc && productImg) {
+    productImg.src = productSrc;
+  }
+
+  const galleryEls = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  galleryEls.forEach((slot, index) => {
+    const src = pickImageSrc(galleryImages[index]);
+    if (src) {
+      slot.src = src;
+    }
+  });
+
+  const posterSrc =
+    result?.poster_url || pickImageSrc(poster.poster_image) || pickImageSrc(result?.poster_image);
+
+  if (posterSrc) {
+    if (posterImg) {
+      posterImg.src = posterSrc;
+      if (posterImg.classList?.contains('hidden')) {
+        posterImg.classList.remove('hidden');
+      }
+      if (posterImg.style) {
+        posterImg.style.display = 'block';
+      }
+    }
+
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) {
+      hiddenUrlInput.value = posterSrc;
+    }
+
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterSrc);
+    } catch (e) {
+      console.warn('failed to cache latestPosterUrl', e);
+    }
+  }
+
+  const hasVisuals = Boolean(posterSrc || scenarioSrc || productSrc || galleryImages.length);
+  if (posterRoot && hasVisuals) {
+    posterRoot.classList.remove('hidden');
+  }
+  if (posterPlaceholder?.classList && hasVisuals) {
+    posterPlaceholder.classList.add('hidden');
+  }
+
+  return posterSrc || null;
+}
+
+function extractVertexPosterUrl(result) {
+  if (!result) return null;
+
+  if (typeof result.poster_url === 'string' && result.poster_url.length > 0) {
+    return result.poster_url;
+  }
+
+  if (Array.isArray(result.results) && result.results.length > 0) {
+    const candidate = result.results.find((entry) => entry && entry.url) || result.results[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  if (Array.isArray(result.gallery_images) && result.gallery_images.length > 0) {
+    const candidate =
+      result.gallery_images.find((entry) => entry && entry.url) || result.gallery_images[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  if (
+    result.gallery_images &&
+    Array.isArray(result.gallery_images.results) &&
+    result.gallery_images.results.length > 0
+  ) {
+    const candidate =
+      result.gallery_images.results.find((entry) => entry && entry.url) ||
+      result.gallery_images.results[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  return null;
+}
+
+function applyVertexPosterResult(data) {
+  console.log('[triggerGeneration] applyVertexPosterResult', data);
+
+  const poster = data?.poster || {};
+
+  if (lastStage1Data) {
+    renderPosterBFromStage1(lastStage1Data);
+  }
+
+  if (typeof promptTextarea !== 'undefined' && promptTextarea) {
+    promptTextarea.value = data.prompt || '';
+  }
+  if (typeof emailTextarea !== 'undefined' && emailTextarea) {
+    emailTextarea.value = data.email_body || '';
+  }
+
+  const finalPosterUrl =
+    data.poster_url ||
+    (poster.poster_image && (poster.poster_image.url || poster.poster_image.asset)) ||
+    (Array.isArray(data.results) && data.results[0] && data.results[0].url) ||
+    null;
+
+  if (finalPosterUrl) {
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) hiddenUrlInput.value = finalPosterUrl;
+
+    posterGenerationState.posterUrl = finalPosterUrl;
+    try {
+      sessionStorage.setItem('latestPosterUrl', finalPosterUrl);
+    } catch (e) {
+      console.warn('无法写 latestPosterUrl', e);
+    }
+  }
+
+  console.log('[debug] applyVertexPosterResult', {
+    poster_image: poster.poster_image,
+    poster_url: data.poster_url,
+    results: data.results,
+  });
+}
+
+async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
+  const result = [];
+  const entries = Array.isArray(stage1?.gallery_entries)
+    ? stage1.gallery_entries.filter(Boolean)
+    : [];
+
+  for (let i = 0; i < maxSlots; i += 1) {
+    const entry = entries[i] || null;
+    const caption = entry?.caption?.trim() || `Series ${i + 1}`;
+    const promptText = entry?.prompt?.trim() || null;
+    const mode = entry?.mode || 'upload';
+
+    const hasPrompt = !!promptText;
+    if (mode === 'prompt' && hasPrompt) {
+      result.push({
+        caption,
+        key: null,
+        asset: null,
+        mode: 'prompt',
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    let ref = null;
+    if (entry && entry.asset) {
+      ref = await normaliseAssetReference(entry.asset, {
+        field: `poster.gallery_items[${i}]`,
+        required: false,
+        apiCandidates,
+        folder: 'gallery',
+      });
+    }
+
+    if (ref && (ref.key || ref.url)) {
+      result.push({
+        caption,
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode,
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    if (logoRef && (logoRef.url || logoRef.key)) {
+      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
+      result.push({
+        caption,
+        key: logoRef.key || null,
+        asset: logoRef.url || null,
+        mode: 'logo_fallback',
+        prompt: null,
+      });
+      continue;
+    }
+
+    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
+  }
+
+  return result;
+}
+
+async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
+  const result = [];
+  const entries = Array.isArray(stage1?.gallery_entries)
+    ? stage1.gallery_entries.filter(Boolean)
+    : [];
+
+  for (let i = 0; i < maxSlots; i += 1) {
+    const entry = entries[i] || null;
+    const caption = entry?.caption?.trim() || `Series ${i + 1}`;
+    const promptText = entry?.prompt?.trim() || null;
+    const mode = entry?.mode || 'upload';
+
+    const hasPrompt = !!promptText;
+    if (mode === 'prompt' && hasPrompt) {
+      result.push({
+        caption,
+        key: null,
+        asset: null,
+        mode: 'prompt',
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    let ref = null;
+    if (entry && entry.asset) {
+      ref = await normaliseAssetReference(entry.asset, {
+        field: `poster.gallery_items[${i}]`,
+        required: false,
+        apiCandidates,
+        folder: 'gallery',
+      }, logoRef);
+    }
+
+    if (ref && (ref.key || ref.url)) {
+      result.push({
+        caption,
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode,
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    if (logoRef && (logoRef.url || logoRef.key)) {
+      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
+      result.push({
+        caption,
+        key: logoRef.key || null,
+        asset: logoRef.url || null,
+        mode: 'upload',
+        prompt: null,
+      });
+      continue;
+    }
+
+    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
+  }
+
+  return result;
+}
+
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
 async function triggerGeneration(opts) {
   const {
@@ -3360,7 +4438,20 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
-  
+
+  try {
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+  } catch (error) {
+    try {
+      lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+    } catch {
+      lastStage1Data = stage1Data || null;
+    }
+    console.warn('[triggerGeneration] unable to deep copy stage1Data, using fallback reference', error);
+  }
+
+  console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
+
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -3430,7 +4521,9 @@ async function triggerGeneration(opts) {
     variants: payload.variants,
     seed: payload.seed,
     lock_seed: payload.lock_seed,
+    negatives: negativeSummary || null,
   });
+  console.info('[triggerGeneration] asset audit', assetAudit);
   
   // 面板同步
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
@@ -3532,7 +4625,48 @@ async function triggerGeneration(opts) {
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-  
+
+    console.info('[debug] apiVertexPosterResult', {
+      poster_url: data?.poster_url,
+      scenario_image: data?.poster?.scenario_image,
+      product_image: data?.poster?.product_image,
+      gallery_images: data?.poster?.gallery_images,
+    });
+
+    const posterUrl =
+      data?.poster?.asset_url ||
+      data?.poster?.url ||
+      data?.poster_url ||
+      data?.poster_image?.url ||
+      (Array.isArray(data?.results) && data.results[0]?.url) ||
+      null;
+
+    lastPosterResult = data || null;
+    lastPromptBundle = data?.prompt_bundle || null;
+    posterGeneratedImageUrl = posterUrl || null;
+
+    posterGenerationState.posterUrl = posterUrl;
+    posterGenerationState.promptBundle = data?.prompt_bundle || null;
+    posterGenerationState.rawResult = data || null;
+    posterGeneratedImage = posterGenerationState.posterUrl;
+    posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+
+    if (promptBundlePre && promptBundleGroup) {
+      const bundle = lastPromptBundle;
+      const hasBundle =
+        bundle &&
+        ((typeof bundle === 'string' && bundle.trim()) ||
+          (typeof bundle === 'object' && Object.keys(bundle).length));
+      if (hasBundle) {
+        const text = typeof bundle === 'string' ? bundle : JSON.stringify(bundle, null, 2);
+        promptBundlePre.value = text;
+        promptBundleGroup.classList.remove('hidden');
+      } else {
+        promptBundlePre.value = '';
+        promptBundleGroup.classList.add('hidden');
+      }
+    }
+
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
       variants: Array.isArray(data?.variants) ? data.variants.length : 0,
@@ -3591,7 +4725,22 @@ async function triggerGeneration(opts) {
     return data;
   } catch (error) {
     console.error('[generatePoster] 请求失败', error);
-    setStatus(statusElement, error?.message || '生成失败', 'error');
+    posterGenerationState.posterUrl = null;
+    posterGenerationState.promptBundle = null;
+    posterGenerationState.rawResult = null;
+    lastPosterResult = null;
+    lastPromptBundle = null;
+    posterGeneratedImageUrl = null;
+    posterGeneratedImage = null;
+    posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+    const detail = error?.responseJson?.detail || null;
+    const quotaExceeded =
+      error?.status === 429 &&
+      (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
+    const friendlyMessage = quotaExceeded
+      ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+      : error?.message || '生成失败';
+    setStatus(statusElement, friendlyMessage, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
@@ -3962,13 +5111,117 @@ function tokeniseText(text) {
   return tokens;
 }
 
-function getSlotRect(slot) {
-  if (!slot) return null;
-  const x = Number(slot.x) || 0;
-  const y = Number(slot.y) || 0;
-  const width = Number(slot.width) || 0;
-  const height = Number(slot.height) || 0;
-  return { x, y, width, height };
+  function getSlotRect(slot) {
+    if (!slot) return null;
+    const x = Number(slot.x) || 0;
+    const y = Number(slot.y) || 0;
+    const width = Number(slot.width) || 0;
+    const height = Number(slot.height) || 0;
+    return { x, y, width, height };
+  }
+
+  function resolveSlotAssetUrl(asset) {
+  if (!asset) return '';
+  if (typeof asset === 'string') return asset;
+  const url = typeof asset.url === 'string' ? asset.url : '';
+  if (url) return url;
+  const dataUrl =
+    typeof asset.data_url === 'string'
+      ? asset.data_url
+      : typeof asset.dataUrl === 'string'
+      ? asset.dataUrl
+      : '';
+  return dataUrl;
+}
+
+function renderDualPosterPreview(root, layout, data) {
+  if (!root || !layout || !layout.slots) return;
+  root.innerHTML = '';
+  const slots = layout.slots;
+  Object.entries(slots).forEach(([key, slot]) => {
+    if (!slot) return;
+    const slotEl = document.createElement('div');
+    slotEl.classList.add('poster-layout__slot', `poster-layout__slot--${key}`);
+    slotEl.style.left = `${slot.x * 100}%`;
+    slotEl.style.top = `${slot.y * 100}%`;
+    slotEl.style.width = `${slot.w * 100}%`;
+    slotEl.style.height = `${slot.h * 100}%`;
+
+    if (slot.type === 'text') {
+      slotEl.classList.add('poster-layout__slot--text');
+      const textValue = data?.text?.[key] || '';
+      slotEl.textContent = textValue;
+      const fontSize = Math.max(slot.h * 80, 12);
+      slotEl.style.fontSize = `${fontSize}px`;
+      if (slot.align === 'right') {
+        slotEl.style.justifyContent = 'flex-end';
+        slotEl.style.textAlign = 'right';
+      } else if (slot.align === 'center') {
+        slotEl.style.justifyContent = 'center';
+        slotEl.style.textAlign = 'center';
+      } else {
+        slotEl.style.justifyContent = 'flex-start';
+        slotEl.style.textAlign = 'left';
+      }
+    } else {
+      slotEl.classList.add('poster-layout__slot--image');
+      const img = document.createElement('img');
+      const src = resolveSlotAssetUrl(data?.images?.[key]);
+      if (src) {
+        img.src = src;
+      } else {
+        slotEl.style.background = '#f5f5f7';
+      }
+      slotEl.appendChild(img);
+    }
+
+    root.appendChild(slotEl);
+  });
+}
+
+function buildDualPosterData(stage1Data, generation) {
+  const galleryLabels = Array.isArray(stage1Data?.gallery_entries)
+    ? stage1Data.gallery_entries.map((item) => item?.caption || '')
+    : [];
+  const galleryImages = Array.isArray(generation?.gallery_images)
+    ? generation.gallery_images.map((item) => resolveSlotAssetUrl(item))
+    : Array.isArray(stage1Data?.gallery_items)
+    ? stage1Data.gallery_items.map((item) => resolveSlotAssetUrl(item?.asset))
+    : [];
+
+  const images = {
+    logo:
+      resolveSlotAssetUrl(generation?.brand_logo) ||
+      resolveSlotAssetUrl(stage1Data?.brand_logo) ||
+      resolveSlotAssetUrl(stage1Data?.brand_logo_key),
+    scenario:
+      resolveSlotAssetUrl(generation?.scenario_image) ||
+      resolveSlotAssetUrl(stage1Data?.scenario_asset) ||
+      resolveSlotAssetUrl(stage1Data?.scenario_key),
+    product:
+      resolveSlotAssetUrl(generation?.product_image) ||
+      resolveSlotAssetUrl(stage1Data?.product_asset) ||
+      resolveSlotAssetUrl(stage1Data?.product_key),
+  };
+
+  ['series_1_img', 'series_2_img', 'series_3_img', 'series_4_img'].forEach(
+    (slotKey, index) => {
+      images[slotKey] = galleryImages[index] || '';
+    }
+  );
+
+  const text = {
+    brand_name: stage1Data?.brand_name || '',
+    agent_name: stage1Data?.agent_name || '',
+    headline: stage1Data?.title || '',
+    tagline: stage1Data?.subtitle || '',
+    series_1_txt: galleryLabels[0] || '',
+    series_2_txt: galleryLabels[1] || '',
+    series_3_txt: galleryLabels[2] || '',
+    series_4_txt: galleryLabels[3] || '',
+  };
+
+  return { images, text };
 }
 
 async function saveStage2Result(data) {
@@ -4103,17 +5356,38 @@ function initStage3() {
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+    if (!stage1Data || !stage2Result) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    assignPosterImage(
-      posterImage,
-      stage2Result.poster_image,
-      `${stage1Data.product_name} 海报预览`
-    );
+    if (posterImage) {
+      let posterSrc = null;
+
+      try {
+        posterSrc = sessionStorage.getItem('latestPosterUrl');
+      } catch (e) {
+        console.warn('cannot read latestPosterUrl from sessionStorage', e);
+      }
+
+      if (!posterSrc) {
+        posterSrc =
+          stage2Result?.poster_url ||
+          pickImageSrc(stage2Result?.poster?.poster_image) ||
+          pickImageSrc(stage2Result?.poster_image);
+      }
+
+      if (posterSrc) {
+        posterImage.src = posterSrc;
+      } else if (stage2Result.poster_image) {
+        assignPosterImage(
+          posterImage,
+          stage2Result.poster_image,
+          `${stage1Data.product_name} 海报预览`
+        );
+      }
+    }
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }
@@ -4146,6 +5420,7 @@ function initStage3() {
 
       try {
         await warmUp(apiCandidates);
+
         const response = await postJsonWithRetry(
           apiCandidates,
           '/api/send-email',
@@ -4158,10 +5433,10 @@ function initStage3() {
           1
         );
 
-        await response.json().catch(() => ({}));
+        console.log('邮件发送 response:', response);
         setStatus(statusElement, '营销邮件发送成功！', 'success');
       } catch (error) {
-        console.error(error);
+        console.error('[邮件发送失败]', error);
         setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
       } finally {
         sendButton.disabled = false;
@@ -4170,13 +5445,13 @@ function initStage3() {
   })();
 }
 
+// ✉️ 构造邮件标题
 function buildEmailSubject(stage1Data) {
   const brand = stage1Data.brand_name || '品牌';
   const agent = stage1Data.agent_name ? `（${stage1Data.agent_name}）` : '';
   const product = stage1Data.product_name || '产品';
   return `${brand}${agent} ${product} 市场推广海报`;
 }
-
 function setStatus(element, message, level = 'info') {
   if (!element) return;
   element.textContent = message;
@@ -4257,24 +5532,44 @@ async function prepareAssetFromFile(
   statusElement,
   options = {}
 ) {
-  const { forceDataUrl = false } = options;
+  const {
+    forceDataUrl = false,
+    requireUpload = false,
+    requireUploadMessage,
+  } = options;
   const candidates = getApiCandidates(apiBaseInput?.value || null);
   let uploadResult = null;
 
   if (candidates.length) {
     uploadResult = await uploadFileToR2(folder, file, { bases: candidates });
-    if (!uploadResult.uploaded && statusElement) {
-      const message =
-        uploadResult.error instanceof Error
-          ? uploadResult.error.message
-          : '上传到 R2 失败，已回退至本地预览。';
-      setStatus(statusElement, message, 'warning');
+    if (!uploadResult.uploaded) {
+      if (requireUpload) {
+        throw new Error(
+          requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+        );
+      }
+      if (statusElement) {
+        const message =
+          uploadResult.error instanceof Error
+            ? uploadResult.error.message
+            : '上传到 R2 失败，已回退至本地预览。';
+        setStatus(statusElement, message, 'warning');
+      }
     }
+  } else if (requireUpload) {
+    throw new Error(
+      requireUploadMessage || '请先配置后端基址以启用对象存储上传。'
+    );
   } else if (statusElement) {
     setStatus(statusElement, '未配置后端基址，素材将仅保存在本地预览。', 'warning');
   }
 
   const remoteUrl = uploadResult?.url || null;
+  if (requireUpload && !remoteUrl) {
+    throw new Error(
+      requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+    );
+  }
   let dataUrl = uploadResult?.dataUrl || null;
   if (!dataUrl || (!forceDataUrl && remoteUrl)) {
     dataUrl = !remoteUrl || forceDataUrl ? await fileToDataUrl(file) : remoteUrl;
@@ -4474,5 +5769,12 @@ function createAssetStore() {
     get,
     delete: remove,
     clear,
+  };
+}
+
+if (typeof window.openABModal !== 'function') {
+  window.openABModal = function openABModal(layout) {
+    console.log('[openABModal] stub called, layout =', layout);
+    alert('A/B 测试弹窗暂未实现，目前已完成 AI 海报生成，可以先前往第 3 步使用该海报。');
   };
 }
