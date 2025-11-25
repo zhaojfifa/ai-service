@@ -776,7 +776,7 @@ class SendEmailRequest(_CompatModel):
     )
 
 class SendEmailResponse(_CompatModel):
-    status: Literal["sent", "skipped"]
+    status: Literal["sent", "skipped", "error"]
     detail: str
 
 # ------------------------------------------------------------------------------

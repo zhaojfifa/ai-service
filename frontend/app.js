@@ -5809,7 +5809,23 @@ function initStage3() {
         );
 
         console.log('邮件发送 response:', response);
-        setStatus(statusElement, '营销邮件发送成功！', 'success');
+        if (response?.status === 'sent') {
+          setStatus(statusElement, '营销邮件发送成功！', 'success');
+        } else if (response?.status === 'skipped') {
+          setStatus(
+            statusElement,
+            response?.detail || '邮件服务未配置，本次只做预览，未真正发送。',
+            'warning'
+          );
+        } else if (response?.status === 'error') {
+          setStatus(
+            statusElement,
+            response?.detail ? `邮件发送失败：${response.detail}` : '邮件发送失败',
+            'error'
+          );
+        } else {
+          setStatus(statusElement, '邮件发送结果未知，请检查日志。', 'warning');
+        }
       } catch (error) {
         console.error('[邮件发送失败]', error);
         setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
