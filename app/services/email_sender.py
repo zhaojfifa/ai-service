@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import base64
+import logging
 import smtplib
 from email.message import EmailMessage
 from typing import Tuple
 
 import requests
 from loguru import logger
+
+logger = logging.getLogger("email_sender")
 
 from app.config import get_settings
 from app.schemas import PosterImage, SendEmailRequest, SendEmailResponse
