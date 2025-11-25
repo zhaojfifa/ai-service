@@ -522,6 +522,73 @@ main {
   min-height: 100%;
 }
 
+.poster-layout-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.poster-layout {
+  position: relative;
+  width: 100%;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e2e8f0;
+}
+
+.poster-layout--dual {
+  aspect-ratio: 1 / 1;
+}
+
+.poster-layout__slot {
+  position: absolute;
+}
+
+.poster-layout__slot--image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.poster-layout__slot--text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  font-family: inherit;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.poster-layout__slot--brand_name {
+  justify-content: flex-start;
+  text-align: left;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+
+.poster-layout__slot--agent_name {
+  justify-content: flex-end;
+  text-align: right;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.poster-layout__slot--headline {
+  font-weight: 700;
+}
+
+.poster-layout__slot--tagline {
+  font-size: 0.9em;
+}
+
+.poster-layout-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .poster-preview-header {
   display: flex;
   align-items: center;
@@ -593,6 +660,146 @@ main {
   color: #64748b;
   font-size: 0.9rem;
   background: #ffffff;
+}
+
+.poster-b {
+  display: grid;
+  gap: 0.85rem;
+  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.poster-b-header {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.poster-b-brand-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid #d9e2ec;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
+}
+
+.poster-b-brand-name,
+.poster-b-agent-name {
+  font-weight: 700;
+  color: #1f2933;
+  letter-spacing: 0.05em;
+  word-break: break-word;
+}
+
+.poster-b-brand-name {
+  text-align: left;
+}
+
+.poster-b-agent-name {
+  text-align: right;
+}
+
+.poster-b-main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.poster-b-main img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #d9e2ec;
+  background: #e5e9f0;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+
+.poster-b-title {
+  margin: 0;
+  text-align: center;
+  font-size: 1.1rem;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.poster-b-gallery {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+
+.poster-bottom-slot {
+  width: 100%;
+  height: 120px;
+  padding: 4px 6px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.poster-bottom-slot img {
+  width: 100%;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
+.poster-bottom-slot .slot-caption {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  min-height: 16px;
+}
+
+.slot-actions {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.slot-actions .slot-preview {
+  max-width: 180px;
+}
+
+.slot-preview {
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  border-radius: 8px;
+  margin-top: 8px;
+  object-fit: cover;
+  background: #f4f5f7;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.poster-b-subtitle {
+  text-align: right;
+  color: #475569;
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
 .poster-layout {
