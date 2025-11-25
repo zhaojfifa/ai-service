@@ -11,6 +11,8 @@ from loguru import logger
 
 logger = logging.getLogger("email_sender")
 
+logger = logging.getLogger("ai-service.email")
+
 from app.config import get_settings
 from app.schemas import PosterImage, SendEmailRequest, SendEmailResponse
 
@@ -19,6 +21,7 @@ def send_email(payload: SendEmailRequest) -> SendEmailResponse:
     settings = get_settings()
 
     if not settings.email.is_configured:
+        logger.warning("SMTP not configured; skip sending email to %s", payload.recipient)
         return SendEmailResponse(
             status="skipped",
             detail="邮件服务未配置，只做预览。",
@@ -26,6 +29,7 @@ def send_email(payload: SendEmailRequest) -> SendEmailResponse:
 
     from_addr = settings.email.sender or settings.email.username
     if not from_addr:
+        logger.warning("Missing from address while sending email to %s", payload.recipient)
         return SendEmailResponse(
             status="skipped",
             detail="缺少发件人邮箱配置。",
@@ -58,6 +62,15 @@ def send_email(payload: SendEmailRequest) -> SendEmailResponse:
                 server.login(settings.email.username, settings.email.password)
             server.send_message(message)
 
+        logger.info(
+            "Email sent via SMTP host=%s port=%s tls=%s ssl=%s from=%s to=%s",
+            settings.email.host,
+            settings.email.port,
+            settings.email.use_tls,
+            settings.email.use_ssl,
+            from_addr,
+            payload.recipient,
+        )
         return SendEmailResponse(status="sent", detail="邮件已发送。")
     except Exception as exc:  # pragma: no cover - runtime safety
         logger.exception("send_email_smtp failed")
