@@ -7,6 +7,7 @@ const VERTEX_IMAGE_TAG_CLASSNAMES = {
   product: 'slot-product',
   gallery: 'slot-gallery',
 };
+let apiBaseInput;
 
 // 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
 function pickImageSrc(img) {
@@ -38,12 +39,16 @@ function buildGeneratedAssetFromUrl(url, key) {
 }
 
 function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
-  const finalUrl = url || logoFallback || '';
+  const logoImg = document.getElementById('preview-brand-logo');
+  const finalUrl = url || logoFallback || logoImg?.src || '';
   if (!finalUrl) return;
 
   const selectors = [];
   if (slot === 'gallery') {
     selectors.push(`[data-role="gallery-preview"][data-index="${index}"]`);
+    selectors.push(
+      `.poster-gallery [data-gallery-index="${index}"] img, .bottom-product-card[data-gallery-index="${index}"] img`
+    );
     selectors.push(`#preview-gallery figure:nth-child(${index + 1}) img`);
     selectors.push(`#poster-result .poster-gallery-slot[data-index="${index}"] img`);
   } else if (slot === 'scenario') {
@@ -1188,7 +1193,6 @@ function updateMaterialUrlDisplay(field, asset) {
   }
 }
 
-const apiBaseInput = document.getElementById('api-base');
 // ==== 兜底：保持原命名的 loadTemplateRegistry（放在 init() 之前）====
 (function ensureLoadTemplateRegistry() {
   const REG_PATH = (typeof TEMPLATE_REGISTRY_PATH === 'string' && TEMPLATE_REGISTRY_PATH)
@@ -1215,13 +1219,8 @@ const apiBaseInput = document.getElementById('api-base');
   }
 })();
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
-
 function init() {
+  apiBaseInput = document.getElementById('api-base');
   loadApiBase();
   if (apiBaseInput) {
     apiBaseInput.addEventListener('change', saveApiBase);
@@ -1243,6 +1242,8 @@ function init() {
       break;
   }
 }
+
+document.addEventListener('DOMContentLoaded', init);
 
 function loadApiBase() {
   if (!apiBaseInput) return;
@@ -2379,7 +2380,8 @@ function renderGalleryItems(state, container, options = {}) {
     const placeholder = getGalleryPlaceholder(index, label);
 
     const item = document.createElement('div');
-    item.classList.add('gallery-item');
+    item.classList.add('gallery-item', 'bottom-product-card');
+    item.dataset.galleryIndex = String(index);
     item.dataset.id = entry.id;
 
     const header = document.createElement('div');
@@ -2487,11 +2489,13 @@ function renderGalleryItems(state, container, options = {}) {
 
     const previewWrapper = document.createElement('div');
     previewWrapper.classList.add('gallery-item-preview');
+    previewWrapper.dataset.galleryIndex = String(index);
     const previewImage = document.createElement('img');
     previewImage.alt = `${label} ${index + 1} 预览`;
     previewImage.src = pickImageSrc(entry.asset) || placeholder;
     previewImage.dataset.role = 'gallery-preview';
     previewImage.dataset.index = String(index);
+    previewImage.dataset.galleryIndex = String(index);
     previewImage.classList.add('slot-preview');
     previewWrapper.appendChild(previewImage);
     item.appendChild(previewWrapper);
@@ -3004,6 +3008,7 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     for (let index = 0; index < total; index += 1) {
       const entry = entries[index];
       const figure = document.createElement('figure');
+      figure.dataset.galleryIndex = String(index);
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
       const gallerySrc = assetSrc(entry?.asset) || logoFallback;
