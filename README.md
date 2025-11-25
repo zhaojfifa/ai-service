@@ -45,7 +45,7 @@ uvicorn app.main:app --reload
 服务默认监听 `http://127.0.0.1:8000`，核心接口包括：
 
 - `POST /api/generate-poster`：接收素材参数，返回版式预览、Glibatree 提示词、占位海报图（或真实 API 响应）及营销邮件草稿。
-- `POST /api/send-email`：将邮件发送请求交给 SMTP 服务执行；未配置 SMTP 时返回 `status=skipped`。
+- `POST /api/send-email`：将邮件发送请求交给 SMTP 服务执行；未配置 SMTP 时返回 `status=skipped`，配置后会通过 SMTP 真实发送。
 - `POST /api/r2/presign-put`：在配置 Cloudflare R2 后，为前端生成直传所需的预签名 PUT URL 与对象 Key。
 - `GET /health`：健康检查。
 
@@ -58,10 +58,25 @@ uvicorn app.main:app --reload
 | `GLIBATREE_CLIENT` | 可选，取值 `http`（默认根据 URL 自动判定）或 `openai`。当使用 OpenAI 1.x SDK 代理 Glibatree 接口时请选择 `openai`。|
 | `GLIBATREE_MODEL` | 可选，指定 OpenAI 生成图像时使用的模型名称，默认 `gpt-image-1`。|
 | `GLIBATREE_PROXY` | 可选，HTTP(S) 代理地址；配置后会通过 `httpx` 客户端转发至 OpenAI SDK。|
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_SENDER` | 配置后端通过指定 SMTP 账号发送邮件。|
+| `EMAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_SENDER`/`SMTP_FROM`/`FROM_EMAIL` | 配置后端通过指定 SMTP 账号发送邮件。`EMAIL_ENABLED=false` 时仍返回 `status=skipped`。|
 | `SMTP_USE_TLS`, `SMTP_USE_SSL` | 控制 TLS/SSL 行为（默认启用 TLS）。|
 | `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_BUCKET`, `S3_PUBLIC_BASE`, `S3_SIGNED_GET_TTL` | （可选）启用 Cloudflare R2 存储生成的海报与上传素材。未配置时自动回退为 Base64。`S3_PUBLIC_BASE` 可指向自定义域名，`S3_SIGNED_GET_TTL` 控制私有桶生成的预签名 GET 有效期。|
 | `UPLOAD_MAX_BYTES`, `UPLOAD_ALLOWED_MIME` | （可选）限制前端直传文件大小与允许的 MIME 类型，默认分别为 `20000000` 字节与 `image/png,image/jpeg,image/webp`。|
+
+示例 163 邮箱配置：
+
+```
+EMAIL_ENABLED=true
+SMTP_HOST=smtp.163.com
+SMTP_PORT=587
+SMTP_USERNAME=yourname@163.com
+SMTP_PASSWORD=<邮箱提供的客户端授权码>
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+SMTP_FROM=ChefCraft <yourname@163.com>
+```
+
+SMTP_PASSWORD 需使用邮箱的授权码（或应用专用密码），不要填普通登录密码。
 
 ### Cloudflare R2 CORS 配置
 
