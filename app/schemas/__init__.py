@@ -705,9 +705,9 @@ class GeneratePosterResponse(_CompatModel):
         description="Optional rendered gallery thumbnails for the bottom strip.",
     )
 
-    results: list[StoredImage] = Field(
-        default_factory=list,
-        description="Normalised storage metadata for generated posters (key/url).",
+    results: list[StoredImage] | None = Field(
+        default=None,
+        description="Normalised storage metadata for generated posters (legacy/optional).",
     )
 
     # 可选评分

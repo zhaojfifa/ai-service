@@ -2959,16 +2959,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
   }
 
   if (featureList) {
-    featureList.innerHTML = '';
     const featuresForPreview = payload.features.length
       ? payload.features
       : DEFAULT_STAGE1.features;
-    featuresForPreview.slice(0, 4).forEach((feature, index) => {
-      const item = document.createElement('li');
-      item.classList.add(`feature-tag-${index + 1}`);
-      item.textContent = feature || `功能点 ${index + 1}`;
-      featureList.appendChild(item);
-    });
+    renderFeatureTags(featureList, featuresForPreview.slice(0, 3));
   }
 
   if (gallery) {
@@ -3075,6 +3069,28 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     layout_preview: layoutPreview,
     preview_built: previewBuilt,
   };
+}
+
+const FEATURE_TAG_CLASSNAMES = [
+  'feature-tag feature-tag--top',
+  'feature-tag feature-tag--middle',
+  'feature-tag feature-tag--bottom',
+];
+
+function renderFeatureTags(target, features) {
+  if (!target) return;
+  target.innerHTML = '';
+  FEATURE_TAG_CLASSNAMES.forEach((className, index) => {
+    const li = document.createElement('li');
+    li.className = className;
+    li.dataset.featureIndex = String(index);
+    const span = document.createElement('span');
+    const text = features?.[index] || '';
+    span.textContent = text;
+    if (!text) li.style.display = 'none';
+    li.appendChild(span);
+    target.appendChild(li);
+  });
 }
 
 function saveStage1Data(data, options = {}) {
@@ -4440,20 +4456,15 @@ function renderPosterResult() {
 
   const featureList = document.getElementById('poster-result-feature-list');
   if (featureList) {
-    featureList.innerHTML = '';
-    (poster.features || []).forEach((text) => {
-      if (!text) return;
-      const li = document.createElement('li');
-      li.textContent = text;
-      featureList.appendChild(li);
-    });
+    renderFeatureTags(featureList, (poster.features || []).slice(0, 3));
   }
 
   const gallerySlots = root.querySelectorAll('.poster-gallery-slot');
+  const logoFallback = assets.brand_logo_url || poster.brand_logo_url || '';
   gallerySlots.forEach((slot, index) => {
     const img = slot.querySelector('img');
     const captionEl = slot.querySelector('.slot-caption');
-    const src = assets.gallery_urls?.[index] || '';
+    const src = assets.gallery_urls?.[index] || logoFallback || '';
     if (img) {
       if (src) {
         img.src = src;

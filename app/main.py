@@ -1032,34 +1032,14 @@ async def generate_poster(request: Request) -> JSONResponse:
             gallery_images=[_stored_to_asset(item) for item in result.gallery_images or [] if _stored_to_asset(item)],
         )
 
-        stored_images: list[StoredImage] = []
-        try:
-            primary_stored = _poster_image_to_stored(result.poster)
-            if primary_stored:
-                stored_images.append(primary_stored)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.exception(
-                "Failed to normalise primary poster storage",
-                extra={"trace": trace, "error": str(exc)},
-            )
-            raise HTTPException(status_code=500, detail="Poster storage failed") from exc
+        primary_url = response_payload.poster_url or getattr(result.poster, "url", None)
+        primary_key = response_payload.poster_key or getattr(result.poster, "key", None)
 
-        for variant in result.variants or []:
-            try:
-                variant_stored = _poster_image_to_stored(variant)
-            except Exception as exc:  # pragma: no cover - keep best-effort variants
-                logger.warning(
-                    "Skipping variant storage normalisation",
-                    extra={"trace": trace, "error": str(exc)},
-                )
-                continue
-            if variant_stored:
-                stored_images.append(variant_stored)
-
-        update_kwargs: dict[str, Any] = {"results": stored_images}
-        if stored_images:
-            update_kwargs["poster_url"] = stored_images[0].url
-            update_kwargs["poster_key"] = stored_images[0].key
+        update_kwargs: dict[str, Any] = {"results": None}
+        if primary_url:
+            update_kwargs["poster_url"] = primary_url
+        if primary_key:
+            update_kwargs["poster_key"] = primary_key
 
         if hasattr(response_payload, "model_copy"):
             response_payload = response_payload.model_copy(update=update_kwargs)  # type: ignore[attr-defined]
