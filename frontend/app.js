@@ -2,6 +2,12 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+const VERTEX_IMAGE_TAG_CLASSNAMES = {
+  scenario: 'slot-scenario',
+  product: 'slot-product',
+  gallery: 'slot-gallery',
+};
+
 // 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
 function pickImageSrc(img) {
   if (!img) return null;
@@ -29,6 +35,35 @@ function buildGeneratedAssetFromUrl(url, key) {
     size: null,
     lastModified: Date.now(),
   };
+}
+
+function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
+  const finalUrl = url || logoFallback || '';
+  if (!finalUrl) return;
+
+  const selectors = [];
+  if (slot === 'gallery') {
+    selectors.push(`[data-role="gallery-preview"][data-index="${index}"]`);
+    selectors.push(`#preview-gallery figure:nth-child(${index + 1}) img`);
+    selectors.push(`#poster-result .poster-gallery-slot[data-index="${index}"] img`);
+  } else if (slot === 'scenario') {
+    selectors.push('#preview-scenario-image');
+    selectors.push('#poster-result-scenario-image');
+  } else if (slot === 'product') {
+    selectors.push('#preview-product-image');
+    selectors.push('#poster-result-product-image');
+  }
+
+  selectors
+    .map((selector) => document.querySelectorAll(selector))
+    .forEach((nodeList) => {
+      nodeList.forEach((img) => {
+        if (img && img.tagName === 'IMG') {
+          img.src = finalUrl;
+          img.style.visibility = 'visible';
+        }
+      });
+    });
 }
 
 let lastStage1Data = null;
@@ -1180,7 +1215,11 @@ const apiBaseInput = document.getElementById('api-base');
   }
 })();
 
-init();
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
 
 function init() {
   loadApiBase();
@@ -2865,6 +2904,9 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
         const src = pickImageSrc(state.galleryEntries[index].asset);
         if (img && src) img.src = src;
 
+        const logoFallback = pickImageSrc(state.brandLogo);
+        applySlotImagePreview('gallery', index, src, { logoFallback });
+
         refreshPreview?.();
       } catch (err) {
         console.error(`[gallery ${index}] generate failed`, err);
@@ -2922,6 +2964,8 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     ) || null;
   };
 
+  const logoFallback = assetSrc(state.brandLogo) || placeholderImages.brandLogo;
+
   if (brandLogo) {
     brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
   }
@@ -2962,7 +3006,7 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       const figure = document.createElement('figure');
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
-      const gallerySrc = assetSrc(entry?.asset);
+      const gallerySrc = assetSrc(entry?.asset) || logoFallback;
       img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
       img.alt = `${galleryLabel} ${index + 1} 预览`;
       caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
