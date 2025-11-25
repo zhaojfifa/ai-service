@@ -1293,6 +1293,8 @@ function initStage1() {
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
         forcePromptOnly: state.galleryAllowsUpload === false,
@@ -1613,6 +1615,8 @@ function initStage1() {
       layoutStructure,
       previewContainer,
       statusElement,
+      form,
+      inlinePreviews,
       onChange: refreshPreview,
       allowPrompt: galleryAllowsPrompt,
       forcePromptOnly: !galleryAllowsUpload,
@@ -1811,6 +1815,8 @@ void mountTemplateChooserStage1();
     layoutStructure,
     previewContainer,
     statusElement,
+    form,
+    inlinePreviews,
     onChange: refreshPreview,
     allowPrompt: state.galleryAllowsPrompt,
     forcePromptOnly: state.galleryAllowsUpload === false,
@@ -1883,6 +1889,8 @@ void mountTemplateChooserStage1();
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
         forcePromptOnly: state.galleryAllowsUpload === false,
@@ -1926,6 +1934,8 @@ void mountTemplateChooserStage1();
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange: refreshPreview,
         allowPrompt: state.galleryAllowsPrompt,
         forcePromptOnly: state.galleryAllowsUpload === false,
@@ -2280,6 +2290,8 @@ function renderGalleryItems(state, container, options = {}) {
     allowPrompt = true,
     forcePromptOnly = false,
     promptPlaceholder = '描述要生成的小图内容',
+    form,
+    inlinePreviews,
   } = options;
   if (!container) return;
   container.innerHTML = '';
@@ -2330,6 +2342,8 @@ function renderGalleryItems(state, container, options = {}) {
         layoutStructure,
         previewContainer,
         statusElement,
+        form,
+        inlinePreviews,
         onChange,
         allowPrompt,
         forcePromptOnly,
@@ -2397,7 +2411,7 @@ function renderGalleryItems(state, container, options = {}) {
       if (!file) return;
       try {
         entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
         state.previewBuilt = false;
         onChange?.();
       } catch (error) {
@@ -2415,7 +2429,10 @@ function renderGalleryItems(state, container, options = {}) {
     previewWrapper.classList.add('gallery-item-preview');
     const previewImage = document.createElement('img');
     previewImage.alt = `${label} ${index + 1} 预览`;
-    previewImage.src = entry.asset?.dataUrl || placeholder;
+    previewImage.src = pickImageSrc(entry.asset) || placeholder;
+    previewImage.dataset.role = 'gallery-preview';
+    previewImage.dataset.index = String(index);
+    previewImage.classList.add('slot-preview');
     previewWrapper.appendChild(previewImage);
     item.appendChild(previewWrapper);
 
@@ -2441,6 +2458,8 @@ function renderGalleryItems(state, container, options = {}) {
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
+    promptTextarea.dataset.role = 'gallery-prompt';
+    promptTextarea.dataset.index = String(index);
     promptTextarea.addEventListener('input', () => {
       entry.prompt = promptTextarea.value;
       state.previewBuilt = false;
@@ -2448,6 +2467,17 @@ function renderGalleryItems(state, container, options = {}) {
     });
     promptField.appendChild(promptTextarea);
     item.appendChild(promptField);
+
+    const generateButton = document.createElement('button');
+    generateButton.type = 'button';
+    generateButton.textContent = `AI 生成底部产品小图 ${index + 1}`;
+    generateButton.classList.add('secondary');
+    generateButton.dataset.role = 'gallery-generate';
+    generateButton.dataset.index = String(index);
+    if (!allowPromptMode) {
+      generateButton.disabled = true;
+    }
+    item.appendChild(generateButton);
 
     async function applyGalleryMode(mode, options = {}) {
       const { initial = false } = options;
@@ -2483,7 +2513,11 @@ function renderGalleryItems(state, container, options = {}) {
         }
         previewImage.src = placeholder;
       } else {
-        previewImage.src = entry.asset?.dataUrl || placeholder;
+        previewImage.src = pickImageSrc(entry.asset) || placeholder;
+      }
+
+      if (allowPromptMode) {
+        generateButton.disabled = !isPrompt;
       }
 
       if (!initial) {
@@ -2518,6 +2552,11 @@ function renderGalleryItems(state, container, options = {}) {
     void applyGalleryMode(entry.mode, { initial: true });
 
     container.appendChild(item);
+  });
+
+  bindSlotGenerationButtons(form, state, inlinePreviews, {
+    refreshPreview: onChange,
+    statusElement,
   });
 }
 function collectStage1Data(form, state, { strict = false } = {}) {
@@ -2743,6 +2782,64 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
     ['[data-role="product-positive-prompt"]', 'textarea[name="product_prompt"]'],
     productPreview
   );
+
+  const galleryButtons = document.querySelectorAll('[data-role="gallery-generate"]');
+  galleryButtons.forEach((btn) => {
+    if (btn.dataset.bound === 'true') return;
+    btn.dataset.bound = 'true';
+    const index = Number(btn.getAttribute('data-index') || '0');
+    btn.addEventListener('click', async () => {
+      const promptEl = posterForm.querySelector(
+        `[data-role="gallery-prompt"][data-index="${index}"]`
+      );
+      const prompt = promptEl?.value || '';
+      try {
+        btn.disabled = true;
+        const snapshot = getStage1Snapshot();
+        const { url, key } = await generateSlotImage('gallery', index, prompt, snapshot);
+
+        if (!Array.isArray(state.galleryEntries)) {
+          state.galleryEntries = [];
+        }
+        if (!state.galleryEntries[index]) {
+          state.galleryEntries[index] = {
+            id: `gallery-${index}-${Date.now()}`,
+            caption: '',
+            asset: null,
+            prompt: '',
+            mode: 'upload',
+          };
+        }
+
+        state.galleryEntries[index].asset = buildGeneratedAssetFromUrl(url, key);
+        state.galleryEntries[index].mode = 'upload';
+        state.previewBuilt = false;
+
+        const img = posterForm.querySelector(
+          `[data-role="gallery-preview"][data-index="${index}"]`
+        );
+        const src = pickImageSrc(state.galleryEntries[index].asset);
+        if (img && src) img.src = src;
+
+        refreshPreview?.();
+      } catch (err) {
+        console.error(`[gallery ${index}] generate failed`, err);
+        const detail = err?.responseJson?.detail || err?.responseJson;
+        const quotaExceeded = err?.status === 429 && detail?.error === 'vertex_quota_exceeded';
+        const message =
+          quotaExceeded
+            ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+            : err?.message || `生成小图 ${index + 1} 失败`;
+        if (statusElement) {
+          setStatus(statusElement, message, 'error');
+        } else {
+          alert(message);
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
