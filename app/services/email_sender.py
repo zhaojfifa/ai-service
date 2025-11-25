@@ -7,6 +7,9 @@ from email.message import EmailMessage
 from typing import Tuple
 
 import requests
+from loguru import logger
+
+logger = logging.getLogger("email_sender")
 
 logger = logging.getLogger("ai-service.email")
 
