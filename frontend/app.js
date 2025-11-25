@@ -4275,6 +4275,9 @@ function extractVertexPosterUrl(result) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
+  const slotSummary = summariseGenerationSlots(data);
+  console.info('[triggerGeneration] slot assets', slotSummary);
+
   refreshPosterLayoutPreview(data);
 
   const posterUrl = extractVertexPosterUrl(data);
@@ -4357,6 +4360,27 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
   }
 
   return result;
+}
+
+function formatPosterGenerationError(error) {
+  const rawDetail = error?.responseJson?.detail ?? error?.responseJson ?? null;
+
+  if (Array.isArray(rawDetail)) {
+    const first = rawDetail.find((entry) => entry?.msg || entry?.message);
+    if (first?.msg) return first.msg;
+    if (first?.message) return first.message;
+  }
+
+  if (rawDetail && typeof rawDetail === 'object') {
+    if (typeof rawDetail.message === 'string') return rawDetail.message;
+    if (typeof rawDetail.error === 'string') return rawDetail.error;
+  }
+
+  if (typeof rawDetail === 'string') {
+    return rawDetail;
+  }
+
+  return error?.message || '生成失败';
 }
 
 // ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
@@ -4752,7 +4776,12 @@ async function triggerGeneration(opts) {
 
     return data;
   } catch (error) {
-    console.error('[generatePoster] 请求失败', error);
+    console.error('[generatePoster] 请求失败', {
+      error,
+      status: error?.status,
+      responseJson: error?.responseJson,
+      responseText: error?.responseText,
+    });
     posterGenerationState.posterUrl = null;
     posterGenerationState.promptBundle = null;
     posterGenerationState.rawResult = null;
@@ -4767,7 +4796,7 @@ async function triggerGeneration(opts) {
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
     const friendlyMessage = quotaExceeded
       ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
-      : error?.message || '生成失败';
+      : formatPosterGenerationError(error);
     setStatus(statusElement, friendlyMessage, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
@@ -5198,7 +5227,7 @@ function tokeniseText(text) {
     return { x, y, width, height };
   }
 
-  function resolveSlotAssetUrl(asset) {
+function resolveSlotAssetUrl(asset) {
   const direct = pickImageSrc(asset);
   if (direct) return direct;
   if (asset && typeof asset === 'object') {
@@ -5208,6 +5237,33 @@ function tokeniseText(text) {
     if (r2Url) return r2Url;
   }
   return '';
+}
+
+function summariseGenerationSlots(result) {
+  const poster = result?.poster || {};
+  const scenario =
+    pickImageSrc(poster.scenario_image) ||
+    pickImageSrc(result?.scenario_image) ||
+    null;
+  const product =
+    pickImageSrc(poster.product_image) ||
+    pickImageSrc(result?.product_image) ||
+    null;
+
+  const gallerySource = Array.isArray(poster.gallery_images)
+    ? poster.gallery_images
+    : Array.isArray(result?.gallery_images)
+    ? result.gallery_images
+    : [];
+  const gallery = gallerySource.map((item) => pickImageSrc(item)).filter(Boolean);
+
+  return {
+    scenario: Boolean(scenario),
+    product: Boolean(product),
+    galleryCount: gallery.length,
+    gallery,
+    posterUrl: extractVertexPosterUrl(result),
+  };
 }
 
 function renderDualPosterPreview(root, layout, data) {

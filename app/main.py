@@ -1052,6 +1052,17 @@ async def generate_poster(request: Request) -> JSONResponse:
             payload_dict = response_payload.dict()
             payload_dict.update(update_kwargs)
             response_payload = GeneratePosterResponse(**payload_dict)
+
+        slot_assets = {
+            "scenario_url": getattr(response_payload.scenario_image, "url", None),
+            "product_url": getattr(response_payload.product_image, "url", None),
+            "gallery_count": len(response_payload.gallery_images or []),
+            "poster_url": getattr(response_payload, "poster_url", None),
+        }
+        logger.info(
+            "generate_poster slot assets prepared",
+            extra={"trace": trace, "slot_assets": slot_assets},
+        )
         headers: dict[str, str] = {}
         if result.trace_ids:
             headers["X-Vertex-Trace"] = ",".join(result.trace_ids)
@@ -1074,7 +1085,10 @@ async def generate_poster(request: Request) -> JSONResponse:
         ) from exc
     except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster", extra={"trace": trace})
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "poster_generation_failed", "message": str(exc)},
+        ) from exc
 
 
 @app.post("/api/send-email", response_model=SendEmailResponse)
