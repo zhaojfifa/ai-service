@@ -111,6 +111,46 @@ def upload_bytes_to_r2_return_ref(
     return f"r2://{bucket}/{storage_key}", url
 
 
+async def generate_slot_image(
+    prompt: str,
+    *,
+    slot: str,
+    index: int | None = None,
+    template_id: str | None = None,
+    aspect: str = "1:1",
+) -> tuple[str, str]:
+    """Generate a single slot image and persist it to object storage."""
+
+    if not prompt or not prompt.strip():
+        raise ValueError("prompt is required to generate slot image")
+
+    if vertex_imagen_client is None:
+        raise RuntimeError("Vertex Imagen3 client is not configured")
+
+    try:
+        generated = vertex_imagen_client.generate_bytes(
+            prompt=prompt,
+            aspect_ratio=aspect or "1:1",
+        )
+    except Exception as exc:  # pragma: no cover - upstream service call
+        logger.exception("[slot-image] generation failed: %s", exc)
+        raise
+
+    image_bytes = generated[0] if isinstance(generated, tuple) else generated
+    prefix = slot or "slot"
+    folder = prefix
+    if prefix == "gallery" and index is not None:
+        folder = f"gallery/{index}".strip("/")
+
+    storage_key = make_key(folder, f"{template_id or 'slot'}-{uuid.uuid4().hex}.png")
+    url = put_bytes(storage_key, image_bytes, content_type="image/png")
+    if not url:
+        raise RuntimeError("Failed to upload generated slot image")
+
+    public_ref = public_url_for(storage_key) or url
+    return storage_key, public_ref
+
+
 def _default_asset_bucket() -> str | None:
     return (
         os.getenv("POSTER_ASSET_BUCKET")
@@ -272,6 +312,62 @@ def _apply_asset_reference(target: Any, field: str, value: Any) -> None:
                 setattr(target, key_field, key_value)
             except Exception:  # pragma: no cover - defensive
                 pass
+
+
+def _normalise_gallery_mode(mode: str | None) -> str:
+    """Coerce legacy logo markers into upload mode for downstream logic."""
+
+    if mode in {"logo", "logo_fallback", None}:
+        return "upload"
+    return mode
+
+
+def _apply_gallery_logo_fallback(
+    poster: PosterInput, *, max_slots: int = 4
+) -> PosterInput:
+    """Ensure gallery slots are populated, falling back to the brand logo when empty."""
+
+    logo_url = getattr(poster, "brand_logo", None)
+    logo_key = getattr(poster, "brand_logo_key", None)
+
+    if not logo_url and not logo_key:
+        return poster
+
+    gallery_items = list(getattr(poster, "gallery_items", []) or [])
+    if not max_slots:
+        max_slots = 4
+
+    filled: list[PosterGalleryItem] = []
+    for index in range(max_slots):
+        existing = gallery_items[index] if index < len(gallery_items) else None
+        has_asset = bool(getattr(existing, "asset", None) or getattr(existing, "key", None))
+        has_prompt = bool(getattr(existing, "prompt", None))
+
+        if existing and (has_asset or has_prompt):
+            filled.append(existing)
+            continue
+
+        if not logo_url and not logo_key:
+            continue
+
+        caption = getattr(existing, "caption", None) or f"Series {index + 1}"
+        filled.append(
+            PosterGalleryItem(
+                caption=caption,
+                asset=logo_url,
+                key=logo_key,
+                mode="logo",
+                prompt=None,
+            )
+        )
+
+    if len(gallery_items) > max_slots:
+        filled.extend(gallery_items[max_slots:])
+
+    if filled == gallery_items:
+        return poster
+
+    return _copy_model(poster, gallery_items=filled)
 
 
 def _copy_model(instance, **update):
@@ -1617,7 +1713,7 @@ def _enforce_template_materials(
             gallery_changed = True
             break
 
-        desired_mode = item.mode
+        desired_mode = _normalise_gallery_mode(item.mode)
         updates_for_item: dict[str, Any] = {}
         if not gallery_allows_upload:
             desired_mode = "prompt"
@@ -1643,6 +1739,11 @@ def _enforce_template_materials(
 
     if updates:
         poster = _copy_model(poster, **updates)
+
+    poster = _apply_gallery_logo_fallback(
+        poster,
+        max_slots=gallery_limit or 4,
+    )
 
     material_flags = {
         "scenario": {
