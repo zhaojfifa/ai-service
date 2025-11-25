@@ -4278,6 +4278,8 @@ function applyVertexPosterResult(data) {
   const slotSummary = summariseGenerationSlots(data);
   console.info('[triggerGeneration] slot assets', slotSummary);
 
+  surfaceSlotWarnings(slotSummary);
+
   refreshPosterLayoutPreview(data);
 
   const posterUrl = extractVertexPosterUrl(data);
@@ -4797,7 +4799,9 @@ async function triggerGeneration(opts) {
     const friendlyMessage = quotaExceeded
       ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
       : formatPosterGenerationError(error);
-    setStatus(statusElement, friendlyMessage, 'error');
+    const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
+    const decoratedMessage = `${friendlyMessage}${statusHint}`;
+    setStatus(statusElement, decoratedMessage, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
@@ -4806,7 +4810,7 @@ async function triggerGeneration(opts) {
       generatedImage.classList.add('hidden');
       generatedImage.removeAttribute('src');
     }
-    resetGeneratedPlaceholder(friendlyMessage || generatedPlaceholderDefault);
+    resetGeneratedPlaceholder(decoratedMessage || generatedPlaceholderDefault);
     refreshPosterLayoutPreview();
     return null;
   }
@@ -5264,6 +5268,25 @@ function summariseGenerationSlots(result) {
     gallery,
     posterUrl: extractVertexPosterUrl(result),
   };
+}
+
+function surfaceSlotWarnings(slotSummary) {
+  if (!slotSummary) return;
+  const aiMessage = document.getElementById('ai-preview-message');
+  if (!aiMessage) return;
+
+  const missing = [];
+  if (!slotSummary.scenario) missing.push('场景图');
+  if (!slotSummary.product) missing.push('产品图');
+  const missingGallery = slotSummary.galleryCount === 0;
+
+  if (!missing.length && !missingGallery) return;
+
+  const parts = [];
+  if (missing.length) parts.push(`缺少${missing.join('、')}`);
+  if (missingGallery) parts.push('未返回系列小图');
+
+  aiMessage.textContent = `生成完成，但${parts.join('，')}，请检查素材或稍后重试。`;
 }
 
 function renderDualPosterPreview(root, layout, data) {
