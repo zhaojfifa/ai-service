@@ -51,6 +51,27 @@ let posterGeneratedLayout = null;
 // stage2：缓存最近一次生成结果与提示词，便于预览与回放
 let posterGeneratedImageUrl = null;
 let lastPromptBundle = null;
+
+const stage2State = {
+  poster: {
+    brand_name: '',
+    agent_name: '',
+    headline: '',
+    tagline: '',
+    features: [],
+    series: [],
+  },
+  assets: {
+    brand_logo_url: '',
+    scenario_url: '',
+    product_url: '',
+    gallery_urls: [],
+    composite_poster_url: '',
+  },
+  vertex: {
+    lastResponse: null,
+  },
+};
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
@@ -3632,6 +3653,31 @@ function initStage2() {
       console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
     }
 
+    stage2State.poster = {
+      brand_name: stage1Data.brand_name || '',
+      agent_name: stage1Data.agent_name || '',
+      headline: stage1Data.title || '',
+      tagline: stage1Data.subtitle || '',
+      features: Array.isArray(stage1Data.features) ? stage1Data.features.filter(Boolean) : [],
+      series: Array.isArray(stage1Data.gallery_entries)
+        ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
+        : [],
+    };
+
+    stage2State.assets = {
+      brand_logo_url: pickImageSrc(stage1Data.brand_logo) || '',
+      scenario_url: pickImageSrc(stage1Data.scenario_asset) || '',
+      product_url: pickImageSrc(stage1Data.product_asset) || '',
+      gallery_urls: Array.isArray(stage1Data.gallery_entries)
+        ? stage1Data.gallery_entries
+            .map((entry) => pickImageSrc(entry?.asset))
+            .filter(Boolean)
+        : [],
+      composite_poster_url: '',
+    };
+
+    renderPosterResult();
+
     if (posterLayout) {
       posterLayoutRoot = posterLayout;
     }
@@ -4272,6 +4318,86 @@ function extractVertexPosterUrl(result) {
   return null;
 }
 
+function renderPosterResult() {
+  const root = document.getElementById('poster-result');
+  if (!root) return;
+
+  const { poster, assets } = stage2State;
+
+  const logoImg = document.getElementById('poster-result-brand-logo');
+  if (logoImg) {
+    const logoSrc = assets.brand_logo_url || '';
+    if (logoSrc) {
+      logoImg.src = logoSrc;
+      logoImg.style.display = 'block';
+    } else {
+      logoImg.removeAttribute('src');
+      logoImg.style.display = 'none';
+    }
+  }
+
+  const brandNameEl = document.getElementById('poster-result-brand-name');
+  const agentNameEl = document.getElementById('poster-result-agent-name');
+  if (brandNameEl) brandNameEl.textContent = poster.brand_name || '';
+  if (agentNameEl) agentNameEl.textContent = poster.agent_name || '';
+
+  const scenarioImg = document.getElementById('poster-result-scenario-image');
+  if (scenarioImg) {
+    const src = assets.scenario_url || '';
+    if (src) {
+      scenarioImg.src = src;
+    } else {
+      scenarioImg.removeAttribute('src');
+    }
+  }
+
+  const productImg = document.getElementById('poster-result-product-image');
+  if (productImg) {
+    const src = assets.product_url || '';
+    if (src) {
+      productImg.src = src;
+    } else {
+      productImg.removeAttribute('src');
+    }
+  }
+
+  const featureList = document.getElementById('poster-result-feature-list');
+  if (featureList) {
+    featureList.innerHTML = '';
+    (poster.features || []).forEach((text) => {
+      if (!text) return;
+      const li = document.createElement('li');
+      li.textContent = text;
+      featureList.appendChild(li);
+    });
+  }
+
+  const gallerySlots = root.querySelectorAll('.poster-gallery-slot');
+  gallerySlots.forEach((slot, index) => {
+    const img = slot.querySelector('img');
+    const captionEl = slot.querySelector('.slot-caption');
+    const src = assets.gallery_urls?.[index] || '';
+    if (img) {
+      if (src) {
+        img.src = src;
+        img.style.visibility = 'visible';
+      } else {
+        img.removeAttribute('src');
+        img.style.visibility = 'hidden';
+      }
+    }
+    if (captionEl) {
+      const series = poster.series?.[index];
+      captionEl.textContent = (series && series.name) || '';
+    }
+  });
+
+  const taglineEl = document.getElementById('poster-result-tagline');
+  if (taglineEl) {
+    taglineEl.textContent = poster.tagline || '';
+  }
+}
+
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
@@ -4280,24 +4406,35 @@ function applyVertexPosterResult(data) {
 
   surfaceSlotWarnings(slotSummary);
 
-  refreshPosterLayoutPreview(data);
+  stage2State.vertex.lastResponse = data || null;
+  const assets = stage2State.assets;
+
+  if (data?.scenario_image?.url) {
+    assets.scenario_url = data.scenario_image.url;
+  }
+  if (data?.product_image?.url) {
+    assets.product_url = data.product_image.url;
+  }
+  if (Array.isArray(data?.gallery_images)) {
+    assets.gallery_urls = data.gallery_images
+      .map((entry) => pickImageSrc(entry))
+      .filter(Boolean);
+  }
 
   const posterUrl = extractVertexPosterUrl(data);
-
-  if (!posterUrl) {
-    console.warn('[triggerGeneration] no vertex poster url found in response (after fallback)', data);
-    return;
+  if (posterUrl) {
+    posterGeneratedImageUrl = posterUrl;
+    posterGenerationState.posterUrl = posterUrl;
+    posterGeneratedImage = posterGenerationState.posterUrl;
+    assets.composite_poster_url = posterUrl;
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterUrl);
+    } catch (error) {
+      console.warn('无法缓存最新海报 URL', error);
+    }
   }
 
-  posterGeneratedImageUrl = posterUrl;
-  posterGenerationState.posterUrl = posterUrl;
-  posterGeneratedImage = posterGenerationState.posterUrl;
-
-  if (typeof applyPosterPreview === 'function') {
-    applyPosterPreview(posterUrl);
-  } else if (typeof updateGeneratedPoster === 'function') {
-    updateGeneratedPoster(posterUrl);
-  }
+  renderPosterResult();
 }
 
 async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {

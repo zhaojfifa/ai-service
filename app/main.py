@@ -27,6 +27,7 @@ from app.schemas import (
     GenerateSlotImageResponse,
     ImageRef,
     PosterImage,
+    PosterImageAsset,
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
@@ -585,6 +586,20 @@ def _poster_image_to_stored(image: PosterImage | None) -> StoredImage | None:
     return None
 
 
+def _stored_to_asset(image: StoredImage | None) -> PosterImageAsset | None:
+    if image is None:
+        return None
+    if not image.url or not image.key:
+        return None
+    return PosterImageAsset(
+        key=image.key,
+        url=image.url,
+        width=getattr(image, "width", None),
+        height=getattr(image, "height", None),
+        content_type=getattr(image, "content_type", None),
+    )
+
+
 def _preview_json(value: Any, limit: int = 512) -> str:
     try:
         encoded = jsonable_encoder(value)
@@ -1012,9 +1027,9 @@ async def generate_poster(request: Request) -> JSONResponse:
             lock_seed=result.lock_seed,
             vertex_trace_ids=result.trace_ids or None,
             fallback_used=result.fallback_used if result.fallback_used else None,
-            scenario_image=result.scenario_image,
-            product_image=result.product_image,
-            gallery_images=result.gallery_images,
+            scenario_image=_stored_to_asset(result.scenario_image),
+            product_image=_stored_to_asset(result.product_image),
+            gallery_images=[_stored_to_asset(item) for item in result.gallery_images or [] if _stored_to_asset(item)],
         )
 
         stored_images: list[StoredImage] = []

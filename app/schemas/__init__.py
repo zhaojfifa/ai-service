@@ -638,17 +638,26 @@ class GeneratePosterRequest(_CompatModel):
             return values
 
 
+class PosterImageAsset(_CompatModel):
+    key: str
+    url: HttpUrl
+    width: Optional[int] = None
+    height: Optional[int] = None
+    content_type: Optional[str] = None
+
+
 class GeneratePosterResponse(_CompatModel):
     """Aggregated response after preparing all marketing assets."""
 
-    layout_preview: str
+    hasPoster: bool = True
+    layout_preview: Optional[str] = None
 
     # 详细字段（保持向后兼容）
-    prompt: str
-    email_body: str
-    poster_image: PosterImage
+    prompt: Optional[str] = None
+    email_body: Optional[str] = None
+    poster_image: Optional[PosterImage] = None
 
-    poster_url: Optional[str] = Field(
+    poster_url: Optional[HttpUrl] = Field(
         None,
         description="Primary poster URL stored in R2/GCS for downstream consumers.",
     )
@@ -683,15 +692,15 @@ class GeneratePosterResponse(_CompatModel):
         description="Optional collection of variant posters for A/B comparison.",
     )
 
-    scenario_image: StoredImage | None = Field(
+    scenario_image: PosterImageAsset | None = Field(
         None,
         description="Optional rendered scenario image used for locked layout composition.",
     )
-    product_image: StoredImage | None = Field(
+    product_image: PosterImageAsset | None = Field(
         None,
         description="Optional rendered product image used for locked layout composition.",
     )
-    gallery_images: list[StoredImage] = Field(
+    gallery_images: list[PosterImageAsset] = Field(
         default_factory=list,
         description="Optional rendered gallery thumbnails for the bottom strip.",
     )
