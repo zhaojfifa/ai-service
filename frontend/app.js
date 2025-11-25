@@ -2464,6 +2464,7 @@ function renderGalleryItems(state, container, options = {}) {
       entry.prompt = promptTextarea.value;
       state.previewBuilt = false;
       onChange?.();
+      refreshGalleryGenerateState(entry.mode === 'prompt');
     });
     promptField.appendChild(promptTextarea);
     item.appendChild(promptField);
@@ -2474,10 +2475,12 @@ function renderGalleryItems(state, container, options = {}) {
     generateButton.classList.add('secondary');
     generateButton.dataset.role = 'gallery-generate';
     generateButton.dataset.index = String(index);
-    if (!allowPromptMode) {
-      generateButton.disabled = true;
-    }
     item.appendChild(generateButton);
+
+    const refreshGalleryGenerateState = (isPromptMode) => {
+      const hasPromptText = Boolean((promptTextarea.value || '').trim());
+      generateButton.disabled = !allowPromptMode || !isPromptMode || !hasPromptText;
+    };
 
     async function applyGalleryMode(mode, options = {}) {
       const { initial = false } = options;
@@ -2517,7 +2520,7 @@ function renderGalleryItems(state, container, options = {}) {
       }
 
       if (allowPromptMode) {
-        generateButton.disabled = !isPrompt;
+        refreshGalleryGenerateState(isPrompt);
       }
 
       if (!initial) {
@@ -2734,12 +2737,32 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
     if (!button || button.dataset.bound === 'true') return;
     button.dataset.bound = 'true';
 
+    const promptEl =
+      promptSelectors.map((selector) => posterForm.querySelector(selector)).find(Boolean) ||
+      null;
+
+    const isPromptMode = () =>
+      slotType === 'scenario'
+        ? state.scenarioMode === 'prompt'
+        : state.productMode === 'prompt';
+
+    const refreshButtonState = () => {
+      const promptValue = (promptEl?.value || '').trim();
+      button.disabled = !isPromptMode() || !promptValue;
+    };
+
+    if (promptEl) {
+      promptEl.addEventListener('input', refreshButtonState);
+    }
+
+    const modeInputs = posterForm.querySelectorAll(`input[name="${slotType}_mode"]`);
+    modeInputs.forEach((input) => input.addEventListener('change', refreshButtonState));
+
+    refreshButtonState();
+
     button.addEventListener('click', async () => {
-      const promptEl =
-        promptSelectors
-          .map((selector) => posterForm.querySelector(selector))
-          .find(Boolean);
       const prompt = promptEl?.value || '';
+      if (!isPromptMode()) return;
       try {
         button.disabled = true;
         const snapshot = getStage1Snapshot();
@@ -2764,7 +2787,7 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
           alert(message);
         }
       } finally {
-        button.disabled = false;
+        refreshButtonState();
       }
     });
   };
