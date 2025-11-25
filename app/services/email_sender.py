@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 logger = logging.getLogger("ai_service.email")
 
+logger = logging.getLogger(__name__)
+
 from app.config import get_settings
 from app.schemas import PosterImage, SendEmailRequest, SendEmailResponse
 
