@@ -106,9 +106,9 @@ class PosterGalleryItem(_CompatModel):
         None,
         description="Object storage key pointing to the uploaded gallery asset.",
     )
-    mode: Literal["upload", "prompt"] = Field(
+    mode: Literal["upload", "prompt", "logo", "logo_fallback"] = Field(
         "upload",
-        description="Whether the gallery item was uploaded or generated from a prompt.",
+        description="Whether the gallery item was uploaded, generated from a prompt, or logo-filled.",
     )
     prompt: Optional[str] = Field(
         None,
@@ -638,17 +638,26 @@ class GeneratePosterRequest(_CompatModel):
             return values
 
 
+class PosterImageAsset(_CompatModel):
+    key: str
+    url: HttpUrl
+    width: Optional[int] = None
+    height: Optional[int] = None
+    content_type: Optional[str] = None
+
+
 class GeneratePosterResponse(_CompatModel):
     """Aggregated response after preparing all marketing assets."""
 
-    layout_preview: str
+    hasPoster: bool = True
+    layout_preview: Optional[str] = None
 
     # 详细字段（保持向后兼容）
-    prompt: str
-    email_body: str
-    poster_image: PosterImage
+    prompt: Optional[str] = None
+    email_body: Optional[str] = None
+    poster_image: Optional[PosterImage] = None
 
-    poster_url: Optional[str] = Field(
+    poster_url: Optional[HttpUrl] = Field(
         None,
         description="Primary poster URL stored in R2/GCS for downstream consumers.",
     )
@@ -683,22 +692,22 @@ class GeneratePosterResponse(_CompatModel):
         description="Optional collection of variant posters for A/B comparison.",
     )
 
-    scenario_image: StoredImage | None = Field(
+    scenario_image: PosterImageAsset | None = Field(
         None,
         description="Optional rendered scenario image used for locked layout composition.",
     )
-    product_image: StoredImage | None = Field(
+    product_image: PosterImageAsset | None = Field(
         None,
         description="Optional rendered product image used for locked layout composition.",
     )
-    gallery_images: list[StoredImage] = Field(
+    gallery_images: list[PosterImageAsset] = Field(
         default_factory=list,
         description="Optional rendered gallery thumbnails for the bottom strip.",
     )
 
-    results: list[StoredImage] = Field(
-        default_factory=list,
-        description="Normalised storage metadata for generated posters (key/url).",
+    results: list[StoredImage] | None = Field(
+        default=None,
+        description="Normalised storage metadata for generated posters (legacy/optional).",
     )
 
     # 可选评分
@@ -735,6 +744,23 @@ class GeneratePosterResponse(_CompatModel):
         raise TypeError("prompt_bundle must be a PromptBundle, dictionary, or None")
 
 # ------------------------------------------------------------------------------
+# 槽位级生图
+# ------------------------------------------------------------------------------
+
+
+class GenerateSlotImageRequest(_CompatModel):
+    slot: Literal["scenario", "product", "gallery"]
+    index: Optional[int] = None
+    prompt: constr(strip_whitespace=True, min_length=1)
+    template_id: Optional[str] = None
+    aspect: Optional[str] = "1:1"
+
+
+class GenerateSlotImageResponse(_CompatModel):
+    url: HttpUrl
+    key: constr(strip_whitespace=True, min_length=1)
+
+# ------------------------------------------------------------------------------
 # 邮件
 # ------------------------------------------------------------------------------
 
@@ -750,7 +776,7 @@ class SendEmailRequest(_CompatModel):
     )
 
 class SendEmailResponse(_CompatModel):
-    status: Literal["sent", "skipped"]
+    status: Literal["sent", "skipped", "error"]
     detail: str
 
 # ------------------------------------------------------------------------------
