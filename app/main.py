@@ -11,6 +11,7 @@ from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
 
+from google.api_core.exceptions import ResourceExhausted
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,8 +23,11 @@ from app.middlewares.body_guard import BodyGuardMiddleware
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
+    GenerateSlotImageRequest,
+    GenerateSlotImageResponse,
     ImageRef,
     PosterImage,
+    PosterImageAsset,
     PromptBundle,
     R2PresignPutRequest,
     R2PresignPutResponse,
@@ -35,7 +39,11 @@ from app.schemas import (
     TemplatePosterUploadRequest,
 )
 from app.services.email_sender import send_email
-from app.services.glibatree import configure_vertex_imagen, generate_poster_asset
+from app.services.glibatree import (
+    configure_vertex_imagen,
+    generate_poster_asset,
+    generate_slot_image,
+)
 from app.services.image_provider.factory import get_provider
 from app.services.poster import (
     build_glibatree_prompt,
@@ -50,6 +58,7 @@ from app.services.r2_client import (
 )
 from app.services.template_variants import (
     TemplatePosterError,
+    fallback_poster_entries,
     list_poster_entries,
     poster_entry_from_record,
     save_template_poster,
@@ -577,6 +586,20 @@ def _poster_image_to_stored(image: PosterImage | None) -> StoredImage | None:
     return None
 
 
+def _stored_to_asset(image: StoredImage | None) -> PosterImageAsset | None:
+    if image is None:
+        return None
+    if not image.url or not image.key:
+        return None
+    return PosterImageAsset(
+        key=image.key,
+        url=image.url,
+        width=getattr(image, "width", None),
+        height=getattr(image, "height", None),
+        content_type=getattr(image, "content_type", None),
+    )
+
+
 def _preview_json(value: Any, limit: int = 512) -> str:
     try:
         encoded = jsonable_encoder(value)
@@ -839,7 +862,40 @@ def fetch_template_posters() -> TemplatePosterCollection:
     except Exception as exc:  # pragma: no cover - unexpected IO failure
         logger.exception("Failed to load template posters")
         raise HTTPException(status_code=500, detail="无法加载模板列表，请稍后重试。") from exc
+    if not entries:
+        entries = fallback_poster_entries()
     return TemplatePosterCollection(posters=entries)
+
+
+@app.post("/api/generate-slot-image", response_model=GenerateSlotImageResponse)
+async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlotImageResponse:
+    aspect = req.aspect or "1:1"
+
+    try:
+        key, url = await generate_slot_image(
+            prompt=req.prompt,
+            slot=req.slot,
+            index=req.index,
+            template_id=req.template_id,
+            aspect=aspect,
+        )
+    except ResourceExhausted as exc:
+        logger.warning("Vertex quota exceeded for imagen3", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "vertex_quota_exceeded",
+                "message": "Google Vertex 图像模型日配额已用尽，请稍后重试或改用本地上传。",
+                "provider": "vertex",
+            },
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - upstream failure
+        logger.exception("generate_slot_image failed: %s", exc)
+        raise HTTPException(status_code=500, detail="生成槽位图片失败") from exc
+
+    return GenerateSlotImageResponse(url=url, key=key)
 
 
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
@@ -971,39 +1027,19 @@ async def generate_poster(request: Request) -> JSONResponse:
             lock_seed=result.lock_seed,
             vertex_trace_ids=result.trace_ids or None,
             fallback_used=result.fallback_used if result.fallback_used else None,
-            scenario_image=result.scenario_image,
-            product_image=result.product_image,
-            gallery_images=result.gallery_images,
+            scenario_image=_stored_to_asset(result.scenario_image),
+            product_image=_stored_to_asset(result.product_image),
+            gallery_images=[_stored_to_asset(item) for item in result.gallery_images or [] if _stored_to_asset(item)],
         )
 
-        stored_images: list[StoredImage] = []
-        try:
-            primary_stored = _poster_image_to_stored(result.poster)
-            if primary_stored:
-                stored_images.append(primary_stored)
-        except Exception as exc:  # pragma: no cover - defensive logging
-            logger.exception(
-                "Failed to normalise primary poster storage",
-                extra={"trace": trace, "error": str(exc)},
-            )
-            raise HTTPException(status_code=500, detail="Poster storage failed") from exc
+        primary_url = response_payload.poster_url or getattr(result.poster, "url", None)
+        primary_key = response_payload.poster_key or getattr(result.poster, "key", None)
 
-        for variant in result.variants or []:
-            try:
-                variant_stored = _poster_image_to_stored(variant)
-            except Exception as exc:  # pragma: no cover - keep best-effort variants
-                logger.warning(
-                    "Skipping variant storage normalisation",
-                    extra={"trace": trace, "error": str(exc)},
-                )
-                continue
-            if variant_stored:
-                stored_images.append(variant_stored)
-
-        update_kwargs: dict[str, Any] = {"results": stored_images}
-        if stored_images:
-            update_kwargs["poster_url"] = stored_images[0].url
-            update_kwargs["poster_key"] = stored_images[0].key
+        update_kwargs: dict[str, Any] = {"results": None}
+        if primary_url:
+            update_kwargs["poster_url"] = primary_url
+        if primary_key:
+            update_kwargs["poster_key"] = primary_key
 
         if hasattr(response_payload, "model_copy"):
             response_payload = response_payload.model_copy(update=update_kwargs)  # type: ignore[attr-defined]
@@ -1011,6 +1047,17 @@ async def generate_poster(request: Request) -> JSONResponse:
             payload_dict = response_payload.dict()
             payload_dict.update(update_kwargs)
             response_payload = GeneratePosterResponse(**payload_dict)
+
+        slot_assets = {
+            "scenario_url": getattr(response_payload.scenario_image, "url", None),
+            "product_url": getattr(response_payload.product_image, "url", None),
+            "gallery_count": len(response_payload.gallery_images or []),
+            "poster_url": getattr(response_payload, "poster_url", None),
+        }
+        logger.info(
+            "generate_poster slot assets prepared",
+            extra={"trace": trace, "slot_assets": slot_assets},
+        )
         headers: dict[str, str] = {}
         if result.trace_ids:
             headers["X-Vertex-Trace"] = ",".join(result.trace_ids)
@@ -1019,9 +1066,24 @@ async def generate_poster(request: Request) -> JSONResponse:
         headers["X-Request-Trace"] = trace
         return JSONResponse(content=_model_dump(response_payload), headers=headers)
 
+    except ResourceExhausted as exc:
+        logger.warning(
+            "Vertex quota exceeded for imagen3", extra={"trace": trace, "error": str(exc)}
+        )
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "vertex_quota_exceeded",
+                "message": "Google Vertex 图像模型日配额已用尽，请稍后重试或改用本地上传。",
+                "provider": "vertex",
+            },
+        ) from exc
     except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster", extra={"trace": trace})
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "poster_generation_failed", "message": str(exc)},
+        ) from exc
 
 
 @app.post("/api/send-email", response_model=SendEmailResponse)
