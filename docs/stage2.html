@@ -188,59 +188,78 @@
           </div>
           <div class="output-group hidden" id="poster-visual">
             <h3>海报预览</h3>
-            <div class="poster-preview-grid" id="poster-preview-grid">
-              <figure class="poster-preview" data-role="template">
-                <header class="poster-preview-header">
-                  <div class="poster-preview-title">
-                    <span class="poster-chip">海报 A</span>
-                    <span class="poster-preview-label">模板海报</span>
+            <section class="card-section" id="poster-preview-section">
+              <div id="poster-result" class="poster-preview poster-preview--result">
+                <div class="poster-header">
+                  <div class="poster-logo">
+                    <div class="poster-logo-image">
+                      <img id="poster-result-brand-logo" alt="品牌 Logo 预览" />
+                    </div>
+                    <div class="poster-brand-name" id="poster-result-brand-name"></div>
                   </div>
-                  <a
-                    id="poster-template-link"
-                    class="poster-preview-link hidden"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >查看原图</a>
-                </header>
-                <img
-                  id="poster-template-image"
-                  alt="模板海报预览"
-                  class="hidden"
-                  decoding="async"
-                />
-                <div id="poster-template-placeholder" class="poster-preview-placeholder">
-                  后台尚未上传模板海报。
+                  <div class="poster-agent" id="poster-result-agent-name"></div>
                 </div>
-              </figure>
-              <figure
-                class="poster-preview"
-                data-role="generated latest-poster-panel vertex-poster-preview"
-                id="vertex-poster-preview"
+
+                <div class="poster-body">
+                  <div class="poster-left">
+                    <img id="poster-result-scenario-image" alt="应用场景预览" />
+                  </div>
+                  <div class="poster-right">
+                    <div class="poster-product-wrapper">
+                      <img id="poster-result-product-image" alt="产品渲染图预览" />
+                      <ul id="poster-result-feature-list" class="feature-tags">
+                        <li class="feature-tag feature-tag--top" data-feature-index="0">
+                          <span></span>
+                        </li>
+                        <li class="feature-tag feature-tag--middle" data-feature-index="1">
+                          <span></span>
+                        </li>
+                        <li class="feature-tag feature-tag--bottom" data-feature-index="2">
+                          <span></span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="poster-gallery-row">
+                  <div class="poster-gallery-slot" data-index="0">
+                    <img alt="底部系列小图 1" />
+                    <div class="slot-caption"></div>
+                  </div>
+                  <div class="poster-gallery-slot" data-index="1">
+                    <img alt="底部系列小图 2" />
+                    <div class="slot-caption"></div>
+                  </div>
+                  <div class="poster-gallery-slot" data-index="2">
+                    <img alt="底部系列小图 3" />
+                    <div class="slot-caption"></div>
+                  </div>
+                  <div class="poster-gallery-slot" data-index="3">
+                    <img alt="底部系列小图 4" />
+                    <div class="slot-caption"></div>
+                  </div>
+                </div>
+
+                <div class="poster-tagline" id="poster-result-tagline"></div>
+              </div>
+            </section>
+            <div class="ai-result-box">
+              <img
+                id="vertex-poster-preview-img"
+                data-role="vertex-poster-img"
+                alt="AI 生成海报预览"
+                style="max-width: 100%; display: none; border-radius: 8px;"
+                decoding="async"
+              />
+              <div
+                id="vertex-poster-placeholder"
+                data-role="vertex-poster-placeholder"
+                class="poster-preview-placeholder"
               >
-                <header class="poster-preview-header">
-                  <div class="poster-preview-title">
-                    <span class="poster-chip poster-chip-secondary">海报 B</span>
-                    <span class="poster-preview-label">最新生成结果</span>
-                  </div>
-                </header>
-                <div class="ai-result-box">
-                  <img
-                    id="vertex-poster-preview-img"
-                    data-role="vertex-poster-img"
-                    alt="AI 生成海报预览"
-                    style="max-width: 100%; display: none; border-radius: 8px;"
-                    decoding="async"
-                  />
-                  <div
-                    id="vertex-poster-placeholder"
-                    data-role="vertex-poster-placeholder"
-                    class="poster-preview-placeholder"
-                  >
-                    AI 生成结果将在这里展示。
-                  </div>
-                </div>
-                <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
-              </figure>
+                AI 生成结果将在这里展示。
+              </div>
+              <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
             </div>
           </div>
           <div class="output-group hidden" id="prompt-group">
