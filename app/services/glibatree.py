@@ -26,6 +26,7 @@ from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput, StoredImage
 from app.schemas.poster import PosterPayload
 from app.templates.layouts import load_layout
+from app.services.storage_bridge import store_image_and_url
 from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwargs
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
@@ -41,6 +42,62 @@ def configure_vertex_imagen(client: VertexImagen3 | None) -> None:
 
     global vertex_imagen_client
     vertex_imagen_client = client
+
+
+def _slot_prompt(
+    prompt_bundle: dict[str, Any] | None,
+    slot: str,
+    *,
+    default_aspect: str,
+) -> tuple[str, str | None, str]:
+    """Extract prompt/negative/aspect for a given slot from the prompt bundle."""
+
+    bundle = prompt_bundle or {}
+    config = bundle.get(slot) if isinstance(bundle, dict) else None
+    prompt = ""
+    negative = None
+    aspect = default_aspect
+
+    if isinstance(config, str):
+        prompt = config.strip()
+    elif isinstance(config, dict):
+        prompt = (
+            config.get("prompt")
+            or config.get("positive")
+            or config.get("text")
+            or ""
+        ).strip()
+        negative_candidate = (
+            config.get("negative_prompt") or config.get("negative") or ""
+        ).strip()
+        negative = negative_candidate or None
+        aspect = (config.get("aspect") or default_aspect or "").strip() or default_aspect
+
+    return prompt, negative, aspect
+
+
+def _store_slot_bytes(image_bytes: bytes, *, trace_id: str, slot: str) -> StoredImage:
+    """Persist slot image bytes to storage and return a StoredImage model."""
+
+    filename = f"{slot}-{trace_id}.png"
+    meta = store_image_and_url(image_bytes, ext="png", key=make_key("posters", filename))
+    width: int | None = None
+    height: int | None = None
+
+    try:
+        with Image.open(BytesIO(image_bytes)) as img:
+            width, height = img.size
+    except Exception:  # pragma: no cover - best-effort size extraction
+        width = None
+        height = None
+
+    return StoredImage(
+        key=meta["key"],
+        url=meta["url"],
+        content_type=meta.get("content_type", "image/png"),
+        width=width,
+        height=height,
+    )
 
 OPENAI_IMAGE_SIZE = "1024x1024"
 ASSET_IMAGE_SIZE = os.getenv("OPENAI_ASSET_SIZE", OPENAI_IMAGE_SIZE)
@@ -1105,7 +1162,152 @@ def generate_poster_asset(
     primary: PosterImage | None = None
     variant_images: list[PosterImage] = []
     vertex_traces: list[str] = []
+    slot_traces: list[str] = []
     fallback_used = vertex_imagen_client is None
+
+    scenario_slot_asset: StoredImage | None = None
+    product_slot_asset: StoredImage | None = None
+    gallery_slot_assets: list[StoredImage] = []
+
+    if vertex_imagen_client is not None:
+        scenario_prompt, scenario_negative, scenario_aspect = _slot_prompt(
+            prompt_bundle or {}, "scenario", default_aspect="1:1"
+        )
+        if scenario_prompt:
+            logger.info(
+                "[vertex] slot start",
+                extra={
+                    "trace": trace_id,
+                    "slot": "scenario_image",
+                    "aspect": scenario_aspect,
+                },
+            )
+            try:
+                payload = vertex_imagen_client.generate_bytes(
+                    prompt=scenario_prompt,
+                    negative_prompt=scenario_negative,
+                    aspect_ratio=scenario_aspect,
+                    return_trace=True,
+                )
+                image_bytes, slot_trace = (
+                    payload if isinstance(payload, tuple) else (payload, None)
+                )
+                scenario_slot_asset = _store_slot_bytes(
+                    image_bytes, trace_id=trace_id or uuid.uuid4().hex, slot="scenario"
+                )
+                if slot_trace:
+                    slot_traces.append(str(slot_trace))
+                logger.info(
+                    "[vertex] slot done",
+                    extra={
+                        "trace": trace_id,
+                        "slot": "scenario_image",
+                        "url": scenario_slot_asset.url if scenario_slot_asset else None,
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "[vertex] scenario slot generation failed; continuing without slot",
+                    extra={"trace": trace_id},
+                )
+
+        product_prompt, product_negative, product_aspect = _slot_prompt(
+            prompt_bundle or {}, "product", default_aspect="4:5"
+        )
+        if product_prompt:
+            logger.info(
+                "[vertex] slot start",
+                extra={
+                    "trace": trace_id,
+                    "slot": "product_image",
+                    "aspect": product_aspect,
+                },
+            )
+            try:
+                payload = vertex_imagen_client.generate_bytes(
+                    prompt=product_prompt,
+                    negative_prompt=product_negative,
+                    aspect_ratio=product_aspect,
+                    return_trace=True,
+                )
+                image_bytes, slot_trace = (
+                    payload if isinstance(payload, tuple) else (payload, None)
+                )
+                product_slot_asset = _store_slot_bytes(
+                    image_bytes, trace_id=trace_id or uuid.uuid4().hex, slot="product"
+                )
+                if slot_trace:
+                    slot_traces.append(str(slot_trace))
+                logger.info(
+                    "[vertex] slot done",
+                    extra={
+                        "trace": trace_id,
+                        "slot": "product_image",
+                        "url": product_slot_asset.url if product_slot_asset else None,
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "[vertex] product slot generation failed; continuing without slot",
+                    extra={"trace": trace_id},
+                )
+
+        gallery_prompt, gallery_negative, gallery_aspect = _slot_prompt(
+            prompt_bundle or {}, "gallery", default_aspect="4:3"
+        )
+        gallery_prompts: list[str] = []
+        if gallery_prompt:
+            gallery_prompts.append(gallery_prompt)
+        for item in getattr(poster, "gallery_items", []) or []:
+            maybe_prompt = getattr(item, "prompt", None)
+            if maybe_prompt:
+                gallery_prompts.append(str(maybe_prompt))
+        # Use up to 4 prompts, repeating if only one is provided
+        for idx in range(4):
+            if not gallery_prompts:
+                break
+            prompt_value = gallery_prompts[idx % len(gallery_prompts)].strip()
+            if not prompt_value:
+                continue
+            logger.info(
+                "[vertex] slot start",
+                extra={
+                    "trace": trace_id,
+                    "slot": f"gallery_{idx}",
+                    "aspect": gallery_aspect,
+                },
+            )
+            try:
+                payload = vertex_imagen_client.generate_bytes(
+                    prompt=prompt_value,
+                    negative_prompt=gallery_negative,
+                    aspect_ratio=gallery_aspect,
+                    return_trace=True,
+                )
+                image_bytes, slot_trace = (
+                    payload if isinstance(payload, tuple) else (payload, None)
+                )
+                stored = _store_slot_bytes(
+                    image_bytes,
+                    trace_id=(trace_id or uuid.uuid4().hex) + f"-g{idx}",
+                    slot=f"gallery_{idx+1}",
+                )
+                gallery_slot_assets.append(stored)
+                if slot_trace:
+                    slot_traces.append(str(slot_trace))
+                logger.info(
+                    "[vertex] slot done",
+                    extra={
+                        "trace": trace_id,
+                        "slot": f"gallery_{idx}",
+                        "url": stored.url,
+                    },
+                )
+            except Exception:
+                logger.exception(
+                    "[vertex] gallery slot generation failed; continuing",
+                    extra={"trace": trace_id, "gallery_index": idx},
+                )
 
     logger.info(
         "[vertex] generate_poster start",
@@ -1212,6 +1414,9 @@ def generate_poster_asset(
             primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
             provider_label = "LocalTemplateRenderer"
 
+    if slot_traces:
+        vertex_traces.extend(slot_traces)
+
     # 生成变体（仅重命名，不重复上传）
     if not used_override_primary and desired_variants > 1:
         for index in range(1, desired_variants):
@@ -1227,17 +1432,32 @@ def generate_poster_asset(
     if not used_override_primary and override_variants:
         variant_images.extend(override_variants)
 
-    scenario_asset = _stored_image_from_ref(
+    if scenario_slot_asset:
+        poster.scenario_asset = scenario_slot_asset.url
+        poster.scenario_key = scenario_slot_asset.key
+    if product_slot_asset:
+        poster.product_asset = product_slot_asset.url
+        poster.product_key = product_slot_asset.key
+
+    scenario_asset = scenario_slot_asset or _stored_image_from_ref(
         getattr(poster, "scenario_key", None) or getattr(poster, "scenario_asset", None)
     )
-    product_asset = _stored_image_from_ref(
+    product_asset = product_slot_asset or _stored_image_from_ref(
         getattr(poster, "product_key", None) or getattr(poster, "product_asset", None)
     )
+
     gallery_assets: list[StoredImage] = []
-    for item in getattr(poster, "gallery_items", []) or []:
-        asset = _stored_image_from_ref(getattr(item, "key", None) or getattr(item, "asset", None))
-        if asset:
-            gallery_assets.append(asset)
+    if gallery_slot_assets:
+        for slot_asset in gallery_slot_assets:
+            if slot_asset:
+                gallery_assets.append(slot_asset)
+    else:
+        for item in getattr(poster, "gallery_items", []) or []:
+            asset = _stored_image_from_ref(
+                getattr(item, "key", None) or getattr(item, "asset", None)
+            )
+            if asset:
+                gallery_assets.append(asset)
 
     result = PosterGenerationResult(
         poster=primary,
