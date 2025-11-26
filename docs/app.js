@@ -896,6 +896,12 @@ const STORAGE_KEYS = {
   stage2: 'marketing-poster-stage2-result',
 };
 
+const ATTACHMENT_STORAGE_KEYS = {
+  variant: 'poster-attachment-variant',
+  url: 'poster-attachment-url',
+  name: 'poster-attachment-name',
+};
+
 const DEFAULT_STAGE1 = {
   brand_name: '厨匠ChefCraft',
   agent_name: '星辉渠道服务中心',
@@ -3295,6 +3301,13 @@ function buildPromptPreviewText(state) {
   return lines.join('\n').trim();
 }
 
+function renderPromptPreview(state) {
+  const previewTextarea = document.getElementById('prompt-preview-text');
+  if (!previewTextarea) return;
+  const text = buildPromptPreviewText(state || {});
+  previewTextarea.value = text || '当前暂无提示词内容。';
+}
+
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
   if (!templateSpec) return '';
 
@@ -3494,7 +3507,6 @@ async function setupPromptInspector(
   const seedInput = container.querySelector('#prompt-seed');
   const lockSeedCheckbox = container.querySelector('#prompt-lock-seed');
   const variantsInput = container.querySelector('#prompt-variants');
-  const previewButton = container.querySelector('#preview-prompts');
   const abButton = container.querySelector('#generate-ab');
 
   const elements = {
@@ -3514,6 +3526,7 @@ async function setupPromptInspector(
     if (typeof onStateChange === 'function') {
       onStateChange(clonePromptState(state), presets);
     }
+    renderPromptPreview(state);
   };
 
   const persist = () => {
@@ -3609,10 +3622,6 @@ async function setupPromptInspector(
   }
 
   if (previewButton && promptTextarea) {
-    previewButton.addEventListener('click', () => {
-      promptTextarea.value = buildPromptPreviewText(state);
-      setStatus(statusElement, '已根据提示词 Inspector 更新预览。', 'info');
-    });
   }
 
   const api = {
@@ -3687,7 +3696,6 @@ function initStage2() {
     const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
     const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const promptGroup = document.getElementById('prompt-group');
-    const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
     const emailGroup = document.getElementById('email-group');
     const promptTextarea = document.getElementById('openai-request-prompt');
@@ -3956,15 +3964,9 @@ function initStage2() {
       const presetsSource =
         options.presets || promptPresets || promptManager?.presets || { presets: {}, defaultAssignments: {} };
 
-      if (defaultPromptTextarea && promptDefaultGroup) {
+      if (defaultPromptTextarea) {
         const englishPrompt = buildTemplateDefaultPrompt(stage1Data, spec, presetsSource);
-        if (englishPrompt) {
-          defaultPromptTextarea.value = englishPrompt;
-          promptDefaultGroup.classList.remove('hidden');
-        } else {
-          defaultPromptTextarea.value = '';
-          promptDefaultGroup.classList.add('hidden');
-        }
+        defaultPromptTextarea.value = englishPrompt || '';
       }
 
       if (promptBundlePre && promptBundleGroup) {
@@ -4241,10 +4243,11 @@ function initStage2() {
 
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
-      if (!stored || !stored.poster_image) {
+      if (!stored || !(stored.poster_image || stored.poster_url)) {
         setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
         return;
       }
+      persistPosterAttachmentSelection(stored);
       window.location.href = 'stage3.html';
     });
   })();
@@ -5863,11 +5866,33 @@ async function loadStage2Result() {
   }
 }
 
+function loadPosterAttachmentPreference(stage2Result) {
+  let variant = localStorage.getItem(ATTACHMENT_STORAGE_KEYS.variant) || 'A';
+  let url = localStorage.getItem(ATTACHMENT_STORAGE_KEYS.url) || '';
+  let name = localStorage.getItem(ATTACHMENT_STORAGE_KEYS.name) || '';
+
+  if (!url) {
+    url =
+      pickImageSrc(stage2Result?.poster_image) || stage2Result?.poster_url || '';
+  }
+
+  if (!url) {
+    variant = 'A';
+  }
+
+  if (!name) {
+    name = variant === 'B' ? 'poster_B.png' : 'poster_A.png';
+  }
+
+  return { variant, url, name };
+}
+
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
     const posterImage = document.getElementById('stage3-poster-image');
     const posterCaption = document.getElementById('stage3-poster-caption');
+    const attachmentIndicator = document.getElementById('attachment-indicator');
     const promptTextarea = document.getElementById('stage3-prompt');
     const emailRecipient = document.getElementById('email-recipient');
     const emailSubject = document.getElementById('email-subject');
@@ -5880,6 +5905,7 @@ function initStage3() {
 
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
+    const attachmentPref = loadPosterAttachmentPreference(stage2Result);
 
     if (!stage1Data || !stage2Result) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
@@ -5915,6 +5941,10 @@ function initStage3() {
     }
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
+    }
+    if (attachmentIndicator) {
+      const variantLabel = attachmentPref.variant === 'B' ? 'B 版海报' : 'A 版海报';
+      attachmentIndicator.textContent = `当前附件：${variantLabel}`;
     }
     if (promptTextarea) {
       promptTextarea.value = stage2Result.prompt || '';
@@ -5953,7 +5983,9 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: stage2Result.poster_image,
+            attachment: attachmentPref.url
+              ? { url: attachmentPref.url, filename: attachmentPref.name }
+              : stage2Result.poster_image,
           },
           1
         );
