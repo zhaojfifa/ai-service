@@ -3523,6 +3523,12 @@ async function setupPromptInspector(
   applyPromptStateToInspector(state, elements, presets);
 
   const emitStateChange = () => {
+    try {
+      stage2State.prompts = clonePromptState(state);
+    } catch (error) {
+      stage2State.prompts = state;
+      console.warn('无法保存提示词状态快照', error);
+    }
     if (typeof onStateChange === 'function') {
       onStateChange(clonePromptState(state), presets);
     }
