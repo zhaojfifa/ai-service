@@ -566,12 +566,20 @@ async function normaliseAssetReference(
   asset,
   {
     field = 'asset',
-    requireUploaded = false,
+    required = true,
+    // backward compatibility: honour legacy requireUploaded if provided
+    requireUploaded = undefined,
     apiCandidates = [],
     folder = 'uploads',
   } = {},
   brandLogo = null,
 ) {
+  const mustHaveUpload =
+    typeof required === 'boolean'
+      ? required
+      : typeof requireUploaded === 'boolean'
+        ? requireUploaded
+        : true;
   const candidates = Array.isArray(apiCandidates) ? apiCandidates.filter(Boolean) : [];
 
   const ensureUploaderAvailable = () => {
@@ -626,7 +634,7 @@ async function normaliseAssetReference(
   }
 
   if (!asset) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: null, url: null };
@@ -635,7 +643,7 @@ async function normaliseAssetReference(
   if (typeof asset === 'string') {
     const trimmed = asset.trim();
     if (!trimmed) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
       }
       return { key: null, url: null };
@@ -648,7 +656,7 @@ async function normaliseAssetReference(
     }
     const resolved = toAssetUrl(trimmed);
     if (!isUrlLike(resolved)) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
       }
     }
@@ -699,14 +707,14 @@ async function normaliseAssetReference(
   }
 
   if (!resolvedUrl) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: keyCandidate || null, url: null };
   }
 
   if (!isUrlLike(resolvedUrl)) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
     }
     return { key: keyCandidate || null, url: null };
@@ -1872,6 +1880,11 @@ void mountTemplateChooserStage1();
     statusElement
   );
 
+  bindSlotGenerationButtons(form, state, inlinePreviews, {
+    refreshPreview,
+    statusElement,
+  });
+
   renderGalleryItems(state, galleryItemsContainer, {
     previewElements,
     layoutStructure,
@@ -2153,7 +2166,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
   state.galleryEntries = Array.isArray(data.gallery_entries)
-    ? await Promise.all(
+      ? await Promise.all(
         data.gallery_entries.map(async (entry) => ({
           id: entry.id || createId(),
           caption: entry.caption || '',
@@ -2354,6 +2367,8 @@ function renderGalleryItems(state, container, options = {}) {
     allowPrompt = true,
     forcePromptOnly = false,
     promptPlaceholder = '描述要生成的小图内容',
+    form,
+    inlinePreviews,
   } = options;
   if (!container) return;
   container.innerHTML = '';
@@ -4523,81 +4538,6 @@ function renderPosterResult() {
   }
 }
 
-function updateVariantAvailability() {
-  const radioB = document.querySelector('input[name="posterAttachmentVariant"][value="B"]');
-  const radioA = document.querySelector('input[name="posterAttachmentVariant"][value="A"]');
-  const note = document.getElementById('variant-b-note');
-  const hasPosterB = Boolean(stage2State.assets.composite_poster_url);
-  if (radioB) {
-    radioB.disabled = !hasPosterB;
-    if (!hasPosterB && radioB.checked && radioA) {
-      radioA.checked = true;
-    }
-  }
-  if (note) {
-    note.classList.toggle('hidden', hasPosterB);
-  }
-}
-
-function renderPosterVariantB() {
-  const url = stage2State.assets.composite_poster_url || '';
-  const img = document.getElementById('vertex-poster-preview-img');
-  const placeholder = document.getElementById('vertex-poster-placeholder');
-  if (img) {
-    if (url) {
-      img.src = url;
-      img.style.display = 'block';
-      img.classList.remove('hidden');
-    } else {
-      img.removeAttribute('src');
-      img.style.display = 'none';
-      img.classList.add('hidden');
-    }
-  }
-  if (placeholder) {
-    placeholder.classList.toggle('hidden', Boolean(url));
-  }
-  updateVariantAvailability();
-}
-
-function getSelectedPosterVariant() {
-  const checked = document.querySelector('input[name="posterAttachmentVariant"]:checked');
-  return checked?.value === 'B' ? 'B' : 'A';
-}
-
-function persistPosterAttachmentSelection(stage2Result) {
-  const variantChoice = getSelectedPosterVariant();
-  const attachmentFromStage2 = stage2Result || {};
-  let variant = variantChoice;
-  let attachmentUrl = null;
-
-  if (variant === 'B') {
-    attachmentUrl = stage2State.assets.composite_poster_url || attachmentFromStage2.poster_url || null;
-    if (!attachmentUrl && attachmentFromStage2.poster_image) {
-      attachmentUrl = pickImageSrc(attachmentFromStage2.poster_image);
-    }
-    if (!attachmentUrl) {
-      variant = 'A';
-    }
-  }
-
-  if (variant === 'A') {
-    attachmentUrl = pickImageSrc(attachmentFromStage2.poster_image) || stage2State.assets.composite_poster_url || null;
-  }
-
-  const attachmentName = variant === 'B' ? 'poster_B.png' : 'poster_A.png';
-
-  try {
-    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.variant, variant);
-    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.url, attachmentUrl || '');
-    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.name, attachmentName);
-  } catch (error) {
-    console.warn('无法保存附件选择', error);
-  }
-
-  return { variant, attachmentUrl, attachmentName };
-}
-
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
@@ -4635,7 +4575,6 @@ function applyVertexPosterResult(data) {
   }
 
   renderPosterResult();
-  renderPosterVariantB();
 }
 
 function formatPosterGenerationError(error) {
@@ -4712,7 +4651,6 @@ async function triggerGeneration(opts) {
   };
 
   renderPosterResult();
-  renderPosterVariantB();
 
   console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
 
@@ -4743,21 +4681,21 @@ async function triggerGeneration(opts) {
   try {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
-      requireUploaded: false,
+      required: true,
       apiCandidates,
       folder: 'brand-logo',
     });
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'scenario',
     }, brandLogoRef);
 
     productRef = await normaliseAssetReference(pd, {
       field: 'poster.product_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'product',
     }, brandLogoRef);
@@ -5976,14 +5914,12 @@ function initStage3() {
     }
 
     if (posterImage) {
-      let posterSrc = attachmentPref.url || null;
+      let posterSrc = null;
 
-      if (!posterSrc) {
-        try {
-          posterSrc = sessionStorage.getItem('latestPosterUrl');
-        } catch (e) {
-          console.warn('cannot read latestPosterUrl from sessionStorage', e);
-        }
+      try {
+        posterSrc = sessionStorage.getItem('latestPosterUrl');
+      } catch (e) {
+        console.warn('cannot read latestPosterUrl from sessionStorage', e);
       }
 
       if (!posterSrc) {
