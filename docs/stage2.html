@@ -60,214 +60,270 @@
           </div>
         </div>
 
-        <aside class="prompt-inspector" id="prompt-inspector">
-          <header>
+        <section class="card prompt-preview-card" aria-label="预览当前提示词">
+          <div class="card-heading">
             <div>
-              <h3>提示词 Inspector</h3>
-              <p class="hint">
-                模板限定了生成槽位，可在此查看与微调最终提示词，支持多套 Preset、
-                Seed 锁定与 A/B 生成。
-              </p>
+              <h3>预览当前提示词</h3>
+              <p class="hint">实时汇总各槽位提示词与模板默认文案。</p>
             </div>
-            <div class="seed-controls">
-              <label>
-                <span>Seed</span>
-                <input type="number" id="prompt-seed" min="0" step="1" placeholder="随机" />
-              </label>
-              <label class="toggle">
-                <input type="checkbox" id="prompt-lock-seed" />
-                <span>锁定 Seed</span>
-              </label>
-              <label>
-                <span>变体数量</span>
-                <input type="number" id="prompt-variants" min="1" max="3" value="1" />
-              </label>
-            </div>
-          </header>
-
-          <div class="prompt-slot" data-slot="scenario">
-            <div class="slot-header">
-              <h4>场景背景</h4>
-              <select data-preset-select="scenario"></select>
-            </div>
-            <details open>
-              <summary>最终 Prompt</summary>
-              <div class="prompt-editor">
-                <label>
-                  <span>正向提示词</span>
-                  <textarea data-positive="scenario" rows="3"></textarea>
-                </label>
-                <label>
-                  <span>负向提示词</span>
-                  <textarea data-negative="scenario" rows="3"></textarea>
-                </label>
-                <div class="prompt-meta">
-                  <span data-aspect="scenario"></span>
-                  <button type="button" class="link" data-reset="scenario">恢复 Preset</button>
-                </div>
-              </div>
-            </details>
+          </div>
+          <div class="prompt-preview-grid">
+            <label class="field">
+              <span>槽位提示词汇总</span>
+              <textarea id="prompt-preview-text" rows="8" readonly></textarea>
+            </label>
+            <label class="field">
+              <span>模板默认英文提示词</span>
+              <textarea id="template-default-prompt" rows="8" readonly></textarea>
+            </label>
           </div>
 
-          <div class="prompt-slot" data-slot="product">
-            <div class="slot-header">
-              <h4>核心产品</h4>
-              <select data-preset-select="product"></select>
-            </div>
-            <details open>
-              <summary>最终 Prompt</summary>
-              <div class="prompt-editor">
-                <label>
-                  <span>正向提示词</span>
-                  <textarea data-positive="product" rows="3"></textarea>
-                </label>
-                <label>
-                  <span>负向提示词</span>
-                  <textarea data-negative="product" rows="3"></textarea>
-                </label>
-                <div class="prompt-meta">
-                  <span data-aspect="product"></span>
-                  <button type="button" class="link" data-reset="product">恢复 Preset</button>
-                </div>
+          <aside class="prompt-inspector" id="prompt-inspector">
+            <header>
+              <div>
+                <h3>提示词 Inspector</h3>
+                <p class="hint">
+                  模板限定了生成槽位，可在此查看与微调最终提示词，支持多套 Preset、
+                  Seed 锁定与 A/B 生成。
+                </p>
               </div>
-            </details>
-          </div>
-
-          <div class="prompt-slot" data-slot="gallery">
-            <div class="slot-header">
-              <h4>底部系列小图</h4>
-              <select data-preset-select="gallery"></select>
-            </div>
-            <details>
-              <summary>最终 Prompt</summary>
-              <div class="prompt-editor">
+              <div class="seed-controls">
                 <label>
-                  <span>正向提示词</span>
-                  <textarea data-positive="gallery" rows="3"></textarea>
+                  <span>Seed</span>
+                  <input type="number" id="prompt-seed" min="0" step="1" placeholder="随机" />
+                </label>
+                <label class="toggle">
+                  <input type="checkbox" id="prompt-lock-seed" />
+                  <span>锁定 Seed</span>
                 </label>
                 <label>
-                  <span>负向提示词</span>
-                  <textarea data-negative="gallery" rows="3"></textarea>
+                  <span>变体数量</span>
+                  <input type="number" id="prompt-variants" min="1" max="3" value="1" />
                 </label>
-                <div class="prompt-meta">
-                  <span data-aspect="gallery"></span>
-                  <button type="button" class="link" data-reset="gallery">恢复 Preset</button>
-                </div>
               </div>
-            </details>
-          </div>
+            </header>
 
-          <footer>
-            <button type="button" id="preview-prompts" class="secondary">
-              预览当前提示词
+            <div class="prompt-slot" data-slot="scenario">
+              <div class="slot-header">
+                <h4>场景背景</h4>
+                <select data-preset-select="scenario"></select>
+              </div>
+              <details open>
+                <summary>最终 Prompt</summary>
+                <div class="prompt-editor">
+                  <label>
+                    <span>正向提示词</span>
+                    <textarea data-positive="scenario" rows="3"></textarea>
+                  </label>
+                  <label>
+                    <span>负向提示词</span>
+                    <textarea data-negative="scenario" rows="3"></textarea>
+                  </label>
+                  <div class="prompt-meta">
+                    <span data-aspect="scenario"></span>
+                    <button type="button" class="link" data-reset="scenario">恢复 Preset</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div class="prompt-slot" data-slot="product">
+              <div class="slot-header">
+                <h4>核心产品</h4>
+                <select data-preset-select="product"></select>
+              </div>
+              <details open>
+                <summary>最终 Prompt</summary>
+                <div class="prompt-editor">
+                  <label>
+                    <span>正向提示词</span>
+                    <textarea data-positive="product" rows="3"></textarea>
+                  </label>
+                  <label>
+                    <span>负向提示词</span>
+                    <textarea data-negative="product" rows="3"></textarea>
+                  </label>
+                  <div class="prompt-meta">
+                    <span data-aspect="product"></span>
+                    <button type="button" class="link" data-reset="product">恢复 Preset</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div class="prompt-slot" data-slot="gallery">
+              <div class="slot-header">
+                <h4>底部系列小图</h4>
+                <select data-preset-select="gallery"></select>
+              </div>
+              <details>
+                <summary>最终 Prompt</summary>
+                <div class="prompt-editor">
+                  <label>
+                    <span>正向提示词</span>
+                    <textarea data-positive="gallery" rows="3"></textarea>
+                  </label>
+                  <label>
+                    <span>负向提示词</span>
+                    <textarea data-negative="gallery" rows="3"></textarea>
+                  </label>
+                  <div class="prompt-meta">
+                    <span data-aspect="gallery"></span>
+                    <button type="button" class="link" data-reset="gallery">恢复 Preset</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <footer>
+              <button type="button" id="generate-ab" class="secondary">
+                A/B 生成并对比
+              </button>
+            </footer>
+          </aside>
+        </section>
+
+        <section class="card stage-card" id="ab-card">
+          <h3>A/B 测试功能</h3>
+
+          <div class="generate-actions">
+            <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
+            <button id="regenerate-poster" class="secondary hidden" type="button">
+              再次生成海报
             </button>
-            <button type="button" id="generate-ab" class="secondary">
-              A/B 生成并对比
+          </div>
+
+          <div id="poster-output" class="hidden">
+            <div class="output-group hidden" id="layout-preview-group">
+              <h3>版式结构概览</h3>
+              <pre id="layout-structure-text"></pre>
+            </div>
+            <div class="output-group" id="ai-preview">
+              <h3>AI 生成进度</h3>
+              <div class="ai-preview-canvas">
+                <div class="spinner" id="ai-spinner" aria-hidden="true"></div>
+                <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
+              </div>
+            </div>
+            <div class="output-group hidden" id="poster-visual">
+              <h3>海报预览</h3>
+              <div class="ab-preview-grid">
+                <section class="card-section ab-preview" id="ab-preview-A">
+                  <div class="ab-preview-header">A 版 · 槽位排版（推荐）</div>
+                  <div id="poster-result" class="poster-preview poster-preview--result">
+                    <div class="poster-header">
+                      <div class="poster-logo">
+                        <div class="poster-logo-image">
+                          <img id="poster-result-brand-logo" alt="品牌 Logo 预览" />
+                        </div>
+                        <div class="poster-brand-name" id="poster-result-brand-name"></div>
+                      </div>
+                      <div class="poster-agent" id="poster-result-agent-name"></div>
+                    </div>
+
+                    <div class="poster-body">
+                      <div class="poster-left">
+                        <img id="poster-result-scenario-image" alt="应用场景预览" />
+                      </div>
+                      <div class="poster-right">
+                        <div class="poster-product-wrapper">
+                          <img id="poster-result-product-image" alt="产品渲染图预览" />
+                          <ul id="poster-result-feature-list" class="feature-tags">
+                            <li class="feature-tag feature-tag--top" data-feature-index="0">
+                              <span></span>
+                            </li>
+                            <li class="feature-tag feature-tag--middle" data-feature-index="1">
+                              <span></span>
+                            </li>
+                            <li class="feature-tag feature-tag--bottom" data-feature-index="2">
+                              <span></span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="poster-gallery-row">
+                      <div class="poster-gallery-slot" data-index="0">
+                        <img alt="底部系列小图 1" />
+                        <div class="slot-caption"></div>
+                      </div>
+                      <div class="poster-gallery-slot" data-index="1">
+                        <img alt="底部系列小图 2" />
+                        <div class="slot-caption"></div>
+                      </div>
+                      <div class="poster-gallery-slot" data-index="2">
+                        <img alt="底部系列小图 3" />
+                        <div class="slot-caption"></div>
+                      </div>
+                      <div class="poster-gallery-slot" data-index="3">
+                        <img alt="底部系列小图 4" />
+                        <div class="slot-caption"></div>
+                      </div>
+                    </div>
+
+                    <div class="poster-tagline" id="poster-result-tagline"></div>
+                  </div>
+                </section>
+
+                <section class="card-section ab-preview" id="ab-preview-B">
+                  <div class="ab-preview-header">B 版 · 整版海报</div>
+                  <div class="ai-result-box">
+                    <img
+                      id="vertex-poster-preview-img"
+                      data-role="vertex-poster-img"
+                      alt="AI 生成海报预览"
+                      style="max-width: 100%; display: none; border-radius: 8px;"
+                      decoding="async"
+                    />
+                    <div
+                      id="vertex-poster-placeholder"
+                      data-role="vertex-poster-placeholder"
+                      class="poster-preview-placeholder"
+                    >
+                      当前没有 B 版海报，请先生成或选择 A 版。
+                    </div>
+                    <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
+                  </div>
+                </section>
+              </div>
+
+              <div class="attachment-selector">
+                <label>
+                  <input type="radio" name="posterAttachmentVariant" value="A" checked />
+                  发送 A 版海报（槽位排版）
+                </label>
+                <label>
+                  <input type="radio" name="posterAttachmentVariant" value="B" />
+                  发送 B 版海报（整版）
+                </label>
+                <small id="variant-b-note" class="hint hidden">
+                  B 版暂不可用，已默认使用 A 版附件。
+                </small>
+              </div>
+            </div>
+            <div class="output-group hidden" id="prompt-group">
+              <h3>实际 OpenAI 提示词</h3>
+              <textarea id="openai-request-prompt" rows="10" readonly></textarea>
+            </div>
+            <div class="output-group hidden" id="prompt-bundle-group">
+              <h3>提示词槽位配置（JSON）</h3>
+              <textarea id="prompt-bundle-json" rows="10" readonly data-role="prompt-bundle-json"></textarea>
+            </div>
+            <div class="output-group hidden" id="email-group">
+              <h3>营销文案草稿</h3>
+              <textarea id="generated-email" rows="10" readonly></textarea>
+            </div>
+          </div>
+
+          <div class="actions">
+            <a class="secondary" href="index.html">返回环节 1</a>
+            <button id="to-stage3" class="primary" type="button" disabled>
+              保存并前往环节 3
             </button>
-          </footer>
-        </aside>
-
-        <div class="generate-actions">
-          <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
-          <button id="regenerate-poster" class="secondary hidden" type="button">
-            再次生成海报
-          </button>
-        </div>
-
-        <div id="poster-output" class="hidden">
-          <div class="output-group" id="layout-preview-group">
-            <h3>版式结构概览</h3>
-            <pre id="layout-structure-text"></pre>
           </div>
-          <div class="output-group" id="ai-preview">
-            <h3>AI 生成进度</h3>
-            <div class="ai-preview-canvas">
-              <div class="spinner" id="ai-spinner" aria-hidden="true"></div>
-              <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
-            </div>
-          </div>
-          <div class="output-group hidden" id="poster-visual">
-            <h3>海报预览</h3>
-            <div class="poster-preview-grid" id="poster-preview-grid">
-              <figure class="poster-preview" data-role="template">
-                <header class="poster-preview-header">
-                  <div class="poster-preview-title">
-                    <span class="poster-chip">海报 A</span>
-                    <span class="poster-preview-label">模板海报</span>
-                  </div>
-                  <a
-                    id="poster-template-link"
-                    class="poster-preview-link hidden"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >查看原图</a>
-                </header>
-                <img
-                  id="poster-template-image"
-                  alt="模板海报预览"
-                  class="hidden"
-                  decoding="async"
-                />
-                <div id="poster-template-placeholder" class="poster-preview-placeholder">
-                  后台尚未上传模板海报。
-                </div>
-              </figure>
-              <figure
-                class="poster-preview"
-                data-role="generated latest-poster-panel vertex-poster-preview"
-                id="vertex-poster-preview"
-              >
-                <header class="poster-preview-header">
-                  <div class="poster-preview-title">
-                    <span class="poster-chip poster-chip-secondary">海报 B</span>
-                    <span class="poster-preview-label">最新生成结果</span>
-                  </div>
-                </header>
-                <div class="ai-result-box">
-                  <img
-                    id="vertex-poster-preview-img"
-                    data-role="vertex-poster-img"
-                    alt="AI 生成海报预览"
-                    style="max-width: 100%; display: none; border-radius: 8px;"
-                    decoding="async"
-                  />
-                  <div
-                    id="vertex-poster-placeholder"
-                    data-role="vertex-poster-placeholder"
-                    class="poster-preview-placeholder"
-                  >
-                    AI 生成结果将在这里展示。
-                  </div>
-                </div>
-                <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
-              </figure>
-            </div>
-          </div>
-          <div class="output-group hidden" id="prompt-group">
-            <h3>实际 OpenAI 提示词</h3>
-            <textarea id="openai-request-prompt" rows="10" readonly></textarea>
-          </div>
-          <div class="output-group hidden" id="prompt-default-group">
-            <h3>模板默认英文提示词</h3>
-            <textarea id="template-default-prompt" rows="8" readonly></textarea>
-          </div>
-          <div class="output-group hidden" id="prompt-bundle-group">
-            <h3>提示词槽位配置（JSON）</h3>
-            <textarea id="prompt-bundle-json" rows="10" readonly data-role="prompt-bundle-json"></textarea>
-          </div>
-          <div class="output-group hidden" id="email-group">
-            <h3>营销文案草稿</h3>
-            <textarea id="generated-email" rows="10" readonly></textarea>
-          </div>
-        </div>
-
-        <div class="actions">
-          <a class="secondary" href="index.html">返回环节 1</a>
-          <button id="to-stage3" class="primary" type="button" disabled>
-            保存并前往环节 3
-          </button>
-        </div>
-        <p id="stage2-status" role="status" aria-live="polite"></p>
+          <p id="stage2-status" role="status" aria-live="polite"></p>
+        </section>
       </section>
     </main>
 

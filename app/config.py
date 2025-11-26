@@ -65,6 +65,7 @@ def _parse_allowed_origins(raw: str | None) -> List[str]:
 
 @dataclass
 class EmailConfig:
+    enabled: bool
     host: str | None
     port: int
     username: str | None
@@ -75,7 +76,7 @@ class EmailConfig:
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.host and self.sender)
+        return bool(self.enabled and self.host and (self.sender or self.username))
 
 @dataclass
 class GCPConfig:
@@ -186,11 +187,16 @@ def get_settings() -> Settings:
     allowed_origins = _parse_allowed_origins(origins_raw)
 
     email = EmailConfig(
+        enabled=_as_bool(
+            _get("EMAIL_ENABLED") or _get("SMTP_EMAIL_ENABLED"), True
+        ),
         host=_get("SMTP_HOST"),
         port=int(_get("SMTP_PORT", "587")),
-        username=_get("SMTP_USERNAME"),
-        password=_get("SMTP_PASSWORD"),
-        sender=_get("EMAIL_SENDER"),
+        username=_get("SMTP_USERNAME") or _get("SMTP_USER"),
+        password=_get("SMTP_PASSWORD") or _get("SMTP_PASS"),
+        sender=_get("EMAIL_SENDER")
+        or _get("SMTP_FROM")
+        or _get("FROM_EMAIL"),
         use_tls=_as_bool(_get("SMTP_USE_TLS"), True),
         use_ssl=_as_bool(_get("SMTP_USE_SSL"), False),
     )

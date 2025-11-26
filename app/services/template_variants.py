@@ -24,6 +24,12 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 DEFAULT_SLOTS = ("variant_a", "variant_b")
+FALLBACK_POSTER_DATA_URL = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
+    "AAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
+)
+FALLBACK_POSTER_WIDTH = 1
+FALLBACK_POSTER_HEIGHT = 1
 
 
 class TemplatePosterError(ValueError):
@@ -436,6 +442,24 @@ def list_poster_entries() -> list[dict[str, PosterImage]]:
     for record in iter_template_records():
         entries.append(poster_entry_from_record(record))
     return entries
+
+
+def fallback_poster_entries() -> list[dict[str, PosterImage]]:
+    """Return minimal placeholder posters when no template assets exist."""
+
+    posters: list[dict[str, PosterImage]] = []
+    for slot in DEFAULT_SLOTS:
+        poster = PosterImage(
+            filename=f"{slot}-placeholder.png",
+            media_type="image/png",
+            key=None,
+            data_url=FALLBACK_POSTER_DATA_URL,
+            url=None,
+            width=FALLBACK_POSTER_WIDTH,
+            height=FALLBACK_POSTER_HEIGHT,
+        )
+        posters.append({"slot": slot, "poster": poster})
+    return posters
 
 
 def generation_overrides(desired: int) -> list[PosterImage]:
