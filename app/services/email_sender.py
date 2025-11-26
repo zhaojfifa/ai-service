@@ -8,6 +8,16 @@ from typing import Tuple
 
 import requests
 
+logger = logging.getLogger("email_sender")
+
+logger = logging.getLogger("ai-service.email")
+
+logger = logging.getLogger(__name__)
+
+logger = logging.getLogger("ai_service.email")
+
+logger = logging.getLogger(__name__)
+
 logger = logging.getLogger("ai_service.email_sender")
 
 from app.config import get_settings
