@@ -101,7 +101,6 @@ const stage2State = {
     features: [],
     series: [],
   },
-  prompts: {},
   assets: {
     brand_logo_url: '',
     scenario_url: '',
@@ -567,12 +566,20 @@ async function normaliseAssetReference(
   asset,
   {
     field = 'asset',
-    requireUploaded = false,
+    required = true,
+    // backward compatibility: honour legacy requireUploaded if provided
+    requireUploaded = undefined,
     apiCandidates = [],
     folder = 'uploads',
   } = {},
   brandLogo = null,
 ) {
+  const mustHaveUpload =
+    typeof required === 'boolean'
+      ? required
+      : typeof requireUploaded === 'boolean'
+        ? requireUploaded
+        : true;
   const candidates = Array.isArray(apiCandidates) ? apiCandidates.filter(Boolean) : [];
 
   const ensureUploaderAvailable = () => {
@@ -627,7 +634,7 @@ async function normaliseAssetReference(
   }
 
   if (!asset) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: null, url: null };
@@ -636,7 +643,7 @@ async function normaliseAssetReference(
   if (typeof asset === 'string') {
     const trimmed = asset.trim();
     if (!trimmed) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
       }
       return { key: null, url: null };
@@ -649,7 +656,7 @@ async function normaliseAssetReference(
     }
     const resolved = toAssetUrl(trimmed);
     if (!isUrlLike(resolved)) {
-      if (requireUploaded) {
+      if (mustHaveUpload) {
         throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
       }
     }
@@ -700,14 +707,14 @@ async function normaliseAssetReference(
   }
 
   if (!resolvedUrl) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
     }
     return { key: keyCandidate || null, url: null };
   }
 
   if (!isUrlLike(resolvedUrl)) {
-    if (requireUploaded) {
+    if (mustHaveUpload) {
       throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
     }
     return { key: keyCandidate || null, url: null };
@@ -1873,6 +1880,11 @@ void mountTemplateChooserStage1();
     statusElement
   );
 
+  bindSlotGenerationButtons(form, state, inlinePreviews, {
+    refreshPreview,
+    statusElement,
+  });
+
   renderGalleryItems(state, galleryItemsContainer, {
     previewElements,
     layoutStructure,
@@ -2154,7 +2166,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
   state.galleryEntries = Array.isArray(data.gallery_entries)
-    ? await Promise.all(
+      ? await Promise.all(
         data.gallery_entries.map(async (entry) => ({
           id: entry.id || createId(),
           caption: entry.caption || '',
@@ -2355,6 +2367,8 @@ function renderGalleryItems(state, container, options = {}) {
     allowPrompt = true,
     forcePromptOnly = false,
     promptPlaceholder = '描述要生成的小图内容',
+    form,
+    inlinePreviews,
   } = options;
   if (!container) return;
   container.innerHTML = '';
@@ -3288,45 +3302,10 @@ function buildPromptPreviewText(state) {
 }
 
 function renderPromptPreview(state) {
-  const promptState = state || stage2State.prompts || {};
-  try {
-    stage2State.prompts = clonePromptState(promptState);
-  } catch (error) {
-    stage2State.prompts = promptState || {};
-    console.warn('无法拷贝提示词状态，将直接引用原对象', error);
-  }
-
-  const container = document.getElementById('prompt-preview-summary');
-  const text = buildPromptPreviewText(promptState || {});
-  if (container) {
-    container.innerHTML = '';
-    if (text) {
-      PROMPT_SLOTS.forEach((slot) => {
-        const entry = promptState.slots?.[slot];
-        if (!entry) return;
-        const block = document.createElement('div');
-        block.className = 'prompt-preview-slot';
-        const title = document.createElement('h5');
-        title.textContent = PROMPT_SLOT_LABELS[slot] || slot;
-        const body = document.createElement('div');
-        body.className = 'prompt-preview-body';
-        const lines = [];
-        if (entry.positive) lines.push(`正向：${entry.positive}`);
-        if (entry.negative) lines.push(`负向：${entry.negative}`);
-        if (entry.aspect) lines.push(`画幅：${entry.aspect}`);
-        body.textContent = lines.join('\n') || '暂无内容';
-        block.appendChild(title);
-        block.appendChild(body);
-        container.appendChild(block);
-      });
-    }
-    if (!container.children.length) {
-      const empty = document.createElement('div');
-      empty.className = 'prompt-preview-empty';
-      empty.textContent = '当前暂无提示词内容。';
-      container.appendChild(empty);
-    }
-  }
+  const previewTextarea = document.getElementById('prompt-preview-text');
+  if (!previewTextarea) return;
+  const text = buildPromptPreviewText(state || {});
+  previewTextarea.value = text || '当前暂无提示词内容。';
 }
 
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
@@ -3720,8 +3699,8 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.getElementById('poster-variant-b-image');
-    const posterGeneratedPlaceholder = document.getElementById('poster-variant-b-placeholder');
+    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
+    const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const promptGroup = document.getElementById('prompt-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
     const emailGroup = document.getElementById('email-group');
@@ -3761,7 +3740,6 @@ function initStage2() {
       posterLayoutRoot = posterLayout;
     }
     refreshPosterLayoutPreview();
-    updateVariantAvailability();
 
     if (exportPosterButton && posterLayout) {
       exportPosterButton.addEventListener('click', async () => {
@@ -4569,7 +4547,7 @@ function renderPosterResult() {
 function updateVariantAvailability() {
   const radioB = document.querySelector('input[name="posterAttachmentVariant"][value="B"]');
   const radioA = document.querySelector('input[name="posterAttachmentVariant"][value="A"]');
-  const note = document.getElementById('ab-variant-b-hint');
+  const note = document.getElementById('variant-b-note');
   const hasPosterB = Boolean(stage2State.assets.poster_url);
   if (radioB) {
     radioB.disabled = !hasPosterB;
@@ -4578,21 +4556,23 @@ function updateVariantAvailability() {
     }
   }
   if (note) {
-    note.textContent = hasPosterB ? '' : '当前没有 B 版海报，默认使用 A 版附件。';
+    note.classList.toggle('hidden', hasPosterB);
   }
 }
 
 function renderPosterVariantB() {
   const url = stage2State.assets.poster_url || '';
-  const img = document.getElementById('poster-variant-b-image');
-  const placeholder = document.getElementById('poster-variant-b-placeholder');
+  const img = document.getElementById('vertex-poster-preview-img');
+  const placeholder = document.getElementById('vertex-poster-placeholder');
   if (img) {
     if (url) {
       img.src = url;
       img.style.display = 'block';
+      img.classList.remove('hidden');
     } else {
       img.removeAttribute('src');
       img.style.display = 'none';
+      img.classList.add('hidden');
     }
   }
   if (placeholder) {
@@ -4784,21 +4764,21 @@ async function triggerGeneration(opts) {
   try {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
-      requireUploaded: false,
+      required: true,
       apiCandidates,
       folder: 'brand-logo',
     });
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'scenario',
     }, brandLogoRef);
 
     productRef = await normaliseAssetReference(pd, {
       field: 'poster.product_image',
-      requireUploaded: true,
+      required: true,
       apiCandidates,
       folder: 'product',
     }, brandLogoRef);
