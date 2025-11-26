@@ -106,7 +106,7 @@ const stage2State = {
     scenario_url: '',
     product_url: '',
     gallery_urls: [],
-    composite_poster_url: '',
+    poster_url: '',
   },
   vertex: {
     lastResponse: null,
@@ -4538,6 +4538,81 @@ function renderPosterResult() {
   }
 }
 
+function updateVariantAvailability() {
+  const radioB = document.querySelector('input[name="posterAttachmentVariant"][value="B"]');
+  const radioA = document.querySelector('input[name="posterAttachmentVariant"][value="A"]');
+  const note = document.getElementById('variant-b-note');
+  const hasPosterB = Boolean(stage2State.assets.poster_url);
+  if (radioB) {
+    radioB.disabled = !hasPosterB;
+    if (!hasPosterB && radioB.checked && radioA) {
+      radioA.checked = true;
+    }
+  }
+  if (note) {
+    note.classList.toggle('hidden', hasPosterB);
+  }
+}
+
+function renderPosterVariantB() {
+  const url = stage2State.assets.poster_url || '';
+  const img = document.getElementById('vertex-poster-preview-img');
+  const placeholder = document.getElementById('vertex-poster-placeholder');
+  if (img) {
+    if (url) {
+      img.src = url;
+      img.style.display = 'block';
+      img.classList.remove('hidden');
+    } else {
+      img.removeAttribute('src');
+      img.style.display = 'none';
+      img.classList.add('hidden');
+    }
+  }
+  if (placeholder) {
+    placeholder.classList.toggle('hidden', Boolean(url));
+  }
+  updateVariantAvailability();
+}
+
+function getSelectedPosterVariant() {
+  const checked = document.querySelector('input[name="posterAttachmentVariant"]:checked');
+  return checked?.value === 'B' ? 'B' : 'A';
+}
+
+function persistPosterAttachmentSelection(stage2Result) {
+  const variantChoice = getSelectedPosterVariant();
+  const attachmentFromStage2 = stage2Result || {};
+  let variant = variantChoice;
+  let attachmentUrl = null;
+
+  if (variant === 'B') {
+    attachmentUrl = stage2State.assets.poster_url || attachmentFromStage2.poster_url || null;
+    if (!attachmentUrl && attachmentFromStage2.poster_image) {
+      attachmentUrl = pickImageSrc(attachmentFromStage2.poster_image);
+    }
+    if (!attachmentUrl) {
+      variant = 'A';
+    }
+  }
+
+  if (variant === 'A') {
+    attachmentUrl = pickImageSrc(attachmentFromStage2.poster_image) || stage2State.assets.poster_url || null;
+  }
+
+  const attachmentName = variant === 'B' ? 'poster_B.png' : 'poster_A.png';
+
+  try {
+    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.variant, variant);
+    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.url, attachmentUrl || '');
+    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.name, attachmentName);
+  } catch (error) {
+    console.warn('无法保存附件选择', error);
+  }
+
+  return { variant, attachmentUrl, attachmentName };
+}
+
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
@@ -4566,7 +4641,7 @@ function applyVertexPosterResult(data) {
     const hiddenUrlInput = document.getElementById('vertex-poster-url');
     if (hiddenUrlInput) hiddenUrlInput.value = posterUrl;
     posterGenerationState.posterUrl = posterUrl;
-    assets.composite_poster_url = posterUrl;
+    assets.poster_url = posterUrl;
     try {
       sessionStorage.setItem('latestPosterUrl', posterUrl);
     } catch (e) {
@@ -4575,6 +4650,7 @@ function applyVertexPosterResult(data) {
   }
 
   renderPosterResult();
+  renderPosterVariantB();
 }
 
 function formatPosterGenerationError(error) {
@@ -4647,10 +4723,11 @@ async function triggerGeneration(opts) {
           .map((entry) => pickImageSrc(entry?.asset))
           .filter(Boolean)
       : [],
-    composite_poster_url: '',
+    poster_url: '',
   };
 
   renderPosterResult();
+  renderPosterVariantB();
 
   console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
 
@@ -5914,12 +5991,14 @@ function initStage3() {
     }
 
     if (posterImage) {
-      let posterSrc = null;
+      let posterSrc = attachmentPref.url || null;
 
-      try {
-        posterSrc = sessionStorage.getItem('latestPosterUrl');
-      } catch (e) {
-        console.warn('cannot read latestPosterUrl from sessionStorage', e);
+      if (!posterSrc) {
+        try {
+          posterSrc = sessionStorage.getItem('latestPosterUrl');
+        } catch (e) {
+          console.warn('cannot read latestPosterUrl from sessionStorage', e);
+        }
       }
 
       if (!posterSrc) {
