@@ -7,82 +7,45 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-stage="stage3">
-    <header>
-      <div class="header-content">
-        <div>
-          <h1>营销海报生成工作流</h1>
-          <p>复核海报与文案，填写客户邮箱，完成营销邮件发送。</p>
-        </div>
-        <label class="api-config">
-          <span>后端 API 地址</span>
-          <input
-            type="url"
-            id="api-base"
-            placeholder="https://your-render-service.onrender.com"
-          />
-        </label>
+    <header class="page-header">
+      <div>
+        <h1>环节 3 · 邮件发送</h1>
+        <p>使用上一环节的海报附件发送营销邮件。</p>
       </div>
-      <nav class="stage-nav" aria-label="流程导航">
-        <a href="index.html">环节 1 · 素材输入与版式预览</a>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <a href="stage2.html">环节 2 · AI 海报生成</a>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <span class="active">环节 3 · 邮件发送</span>
+      <nav class="stage-nav">
+        <a href="index.html">环节 1</a>
+        <span class="nav-arrow">→</span>
+        <a href="stage2.html">环节 2</a>
+        <span class="nav-arrow">→</span>
+        <span class="active">环节 3</span>
       </nav>
     </header>
 
-    <main>
-      <section class="card stage-card">
-        <h2>环节 3 · 填写邮件并发送给客户</h2>
-        <p class="hint">
-          使用环节 2 的输出完善邮件主题与正文，上传的海报会随邮件附件一起发送。
-        </p>
-
-        <div class="output-group" id="stage3-preview">
-          <h3>海报与提示词</h3>
-          <div class="stage3-preview-grid">
-            <figure class="poster-figure">
-              <img id="stage3-poster-image" alt="海报预览" />
-              <figcaption id="stage3-poster-caption"></figcaption>
-            </figure>
-            <div class="prompt-wrapper">
-              <label class="field">
-                <span>Glibatree 提示词</span>
-                <textarea id="stage3-prompt" rows="12" readonly></textarea>
-              </label>
-            </div>
-          </div>
-        </div>
-
+    <main class="stage-layout">
+      <section class="card">
+        <h2>邮件内容</h2>
+        <p id="attachment-variant-indicator"></p>
+        <img id="attachment-preview" class="thumb" alt="附件预览" />
         <form id="email-form">
-          <div class="grid">
-            <label class="field">
-              <span>收件邮箱</span>
-              <input type="email" id="email-recipient" required />
-            </label>
-            <label class="field">
-              <span>邮件主题</span>
-              <input type="text" id="email-subject" required />
-            </label>
-          </div>
+          <label class="field">
+            <span>收件人邮箱</span>
+            <input type="email" id="email-recipient" required />
+          </label>
+          <label class="field">
+            <span>邮件主题</span>
+            <input type="text" id="email-subject" />
+          </label>
           <label class="field">
             <span>邮件正文</span>
-            <textarea id="email-body" rows="10" required></textarea>
+            <textarea id="email-body" rows="5"></textarea>
           </label>
+          <div class="actions">
+            <button type="submit" class="btn primary">发送邮件</button>
+          </div>
         </form>
-
-        <div class="actions">
-          <a class="secondary" href="stage2.html">返回环节 2</a>
-          <button id="send-email" class="primary" type="button">发送营销邮件</button>
-        </div>
-        <p id="stage3-status" role="status" aria-live="polite"></p>
       </section>
     </main>
 
-    <footer>
-      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
-    </footer>
-
-    <script src="app.js" type="module"></script>
+    <script src="app.js"></script>
   </body>
 </html>
