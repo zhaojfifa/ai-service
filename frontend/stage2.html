@@ -204,121 +204,81 @@
               <h3>版式结构概览</h3>
               <pre id="layout-structure-text"></pre>
             </div>
-            <div class="output-group" id="ai-preview">
-              <h3>AI 生成进度</h3>
-              <div class="ai-preview-canvas">
-                <div class="spinner" id="ai-spinner" aria-hidden="true"></div>
-                <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
+          </div>
+          <div class="output-group hidden" id="poster-visual">
+            <h3>海报预览</h3>
+            <section class="card-section" id="poster-preview-section">
+              <div id="poster-result" class="poster-preview poster-preview--result">
+                <div class="poster-header">
+                  <div class="poster-logo">
+                    <div class="poster-logo-image">
+                      <img id="poster-result-brand-logo" alt="品牌 Logo 预览" />
+                    </div>
+                    <div class="poster-brand-name" id="poster-result-brand-name"></div>
+                  </div>
+                  <div class="poster-agent" id="poster-result-agent-name"></div>
+                </div>
+
+                <div class="poster-body">
+                  <div class="poster-left">
+                    <img id="poster-result-scenario-image" alt="应用场景预览" />
+                  </div>
+                  <div class="poster-right">
+                    <div class="poster-product-wrapper">
+                      <img id="poster-result-product-image" alt="产品渲染图预览" />
+                      <ul id="poster-result-feature-list" class="feature-tags">
+                        <li class="feature-tag feature-tag--top" data-feature-index="0">
+                          <span></span>
+                        </li>
+                        <li class="feature-tag feature-tag--middle" data-feature-index="1">
+                          <span></span>
+                        </li>
+                        <li class="feature-tag feature-tag--bottom" data-feature-index="2">
+                          <span></span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="poster-gallery-row">
+                  <div class="poster-gallery-slot" data-index="0">
+                    <img alt="底部系列小图 1" />
+                    <div class="slot-caption"></div>
+                  </div>
+                  <div class="poster-gallery-slot" data-index="1">
+                    <img alt="底部系列小图 2" />
+                    <div class="slot-caption"></div>
+                  </div>
+                  <div class="poster-gallery-slot" data-index="2">
+                    <img alt="底部系列小图 3" />
+                    <div class="slot-caption"></div>
+                  </div>
+                  <div class="poster-gallery-slot" data-index="3">
+                    <img alt="底部系列小图 4" />
+                    <div class="slot-caption"></div>
+                  </div>
+                </div>
+
+                <div class="poster-tagline" id="poster-result-tagline"></div>
               </div>
-            </div>
-            <div class="output-group hidden" id="poster-visual">
-              <h3>海报预览</h3>
-              <div id="ab-preview" class="ab-preview">
-                <section
-                  id="ab-preview-variant-a"
-                  class="poster-preview poster-preview--a"
-                  aria-label="A 版槽位排版"
-                >
-                  <div class="poster-header">
-                    <div class="poster-logo">
-                      <div class="poster-logo-image">
-                        <img id="poster-result-brand-logo" alt="品牌 Logo 预览" />
-                      </div>
-                      <div class="poster-brand-name" id="poster-result-brand-name"></div>
-                    </div>
-                    <div class="poster-agent" id="poster-result-agent-name"></div>
-                  </div>
-
-                  <div class="poster-body">
-                    <div class="poster-left">
-                      <img id="poster-result-scenario-image" alt="应用场景预览" />
-                    </div>
-                    <div class="poster-right">
-                      <div class="poster-product-wrapper">
-                        <img id="poster-result-product-image" alt="产品渲染图预览" />
-                        <ul id="poster-result-feature-list" class="feature-tags">
-                          <li class="feature-tag feature-tag--top" data-feature-index="0">
-                            <span></span>
-                          </li>
-                          <li class="feature-tag feature-tag--middle" data-feature-index="1">
-                            <span></span>
-                          </li>
-                          <li class="feature-tag feature-tag--bottom" data-feature-index="2">
-                            <span></span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="poster-gallery-row">
-                    <div class="poster-gallery-slot" data-index="0">
-                      <img alt="底部系列小图 1" />
-                      <div class="slot-caption"></div>
-                    </div>
-                    <div class="poster-gallery-slot" data-index="1">
-                      <img alt="底部系列小图 2" />
-                      <div class="slot-caption"></div>
-                    </div>
-                    <div class="poster-gallery-slot" data-index="2">
-                      <img alt="底部系列小图 3" />
-                      <div class="slot-caption"></div>
-                    </div>
-                    <div class="poster-gallery-slot" data-index="3">
-                      <img alt="底部系列小图 4" />
-                      <div class="slot-caption"></div>
-                    </div>
-                  </div>
-
-                  <div class="poster-tagline" id="poster-result-tagline"></div>
-                </section>
-
-                <section
-                  id="ab-preview-variant-b"
-                  class="poster-preview poster-preview--b"
-                  aria-label="B 版整版海报"
-                >
-                  <div class="ab-poster-shell">
-                    <img
-                      id="poster-variant-b-image"
-                      alt="B 版海报预览"
-                      class="ab-poster-image"
-                      decoding="async"
-                    />
-                    <div
-                      id="poster-variant-b-placeholder"
-                      class="poster-preview-placeholder"
-                    >
-                      当前没有 B 版海报，请先生成或选择 A 版。
-                    </div>
-                  </div>
-                  <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
-                </section>
+            </section>
+            <div class="ai-result-box">
+              <img
+                id="vertex-poster-preview-img"
+                data-role="vertex-poster-img"
+                alt="AI 生成海报预览"
+                style="max-width: 100%; display: none; border-radius: 8px;"
+                decoding="async"
+              />
+              <div
+                id="vertex-poster-placeholder"
+                data-role="vertex-poster-placeholder"
+                class="poster-preview-placeholder"
+              >
+                AI 生成结果将在这里展示。
               </div>
-
-              <div class="attachment-selector">
-                <label>
-                  <input type="radio" name="posterAttachmentVariant" value="A" checked />
-                  发送 A 版海报（槽位排版）
-                </label>
-                <label>
-                  <input type="radio" name="posterAttachmentVariant" value="B" />
-                  发送 B 版海报（整版）
-                </label>
-                <small id="ab-variant-b-hint" class="hint"></small>
-              </div>
-            </div>
-            <div class="output-group hidden" id="prompt-group">
-              <h3>实际 OpenAI 提示词</h3>
-              <textarea id="openai-request-prompt" rows="10" readonly></textarea>
-            </div>
-            <div class="output-group hidden" id="prompt-bundle-group">
-              <h3>提示词槽位配置（JSON）</h3>
-              <textarea id="prompt-bundle-json" rows="10" readonly data-role="prompt-bundle-json"></textarea>
-            </div>
-            <div class="output-group hidden" id="email-group">
-              <h3>营销文案草稿</h3>
-              <textarea id="generated-email" rows="10" readonly></textarea>
+              <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
             </div>
           </div>
 

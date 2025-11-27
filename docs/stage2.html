@@ -3,341 +3,91 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>环节 2 · AI 海报生成</title>
+    <title>环节 2 · AI 生成与 A/B 预览</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-stage="stage2">
-    <header>
-      <div class="header-content">
-        <div>
-          <h1>营销海报生成工作流</h1>
-          <p>使用环节 1 的素材调用 FastAPI 后端生成海报与营销文案。</p>
-        </div>
-        <label class="api-config">
-          <span>后端 API 地址</span>
-          <input
-            type="url"
-            id="api-base"
-            placeholder="https://ai-service-x758.onrender.com"
-          />
-        </label>
+    <header class="page-header">
+      <div>
+        <h1>环节 2 · AI 生成与 A/B 预览</h1>
+        <p>延续 Route A 槽位版式，调用后端生成图像与文案。</p>
       </div>
-      <nav class="stage-nav" aria-label="流程导航">
-        <a href="index.html">环节 1 · 素材输入与版式预览</a>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <span class="active">环节 2 · AI 海报生成</span>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <a href="stage3.html">环节 3 · 邮件发送</a>
+      <nav class="stage-nav">
+        <a href="index.html">返回环节 1</a>
+        <span class="nav-arrow">→</span>
+        <span class="active">环节 2</span>
+        <span class="nav-arrow">→</span>
+        <a href="stage3.html" id="nav-stage3">环节 3</a>
       </nav>
     </header>
 
-    <main>
-      <section class="card stage-card">
-        <h2>环节 2 · 调用后端生成海报</h2>
-        <p class="hint">
-          确认环节 1 的素材信息后，调用 Render 托管的 FastAPI 服务，让 Glibatree Art
-          Designer 生成海报、提示词与营销文案。
-        </p>
-
-        <div class="stage-summary" id="stage1-summary">
-          <h3>素材概览</h3>
-          <dl id="stage1-overview"></dl>
+    <main class="stage-layout">
+      <section class="card prompt-preview-card" id="prompt-preview-card">
+        <h2>预览当前提示词</h2>
+        <div class="prompt-preview">
+          <h3>模板默认英文提示词</h3>
+          <pre id="template-default-prompt" class="prompt-block"></pre>
+          <h3>槽位提示词汇总</h3>
+          <pre id="prompt-preview-text" class="prompt-block"></pre>
         </div>
+      </section>
 
-        <div class="template-picker">
-          <div class="template-picker-control">
-            <label for="template-select">锁版模板</label>
-            <select id="template-select" aria-label="选择模板"></select>
-            <p id="template-description" class="template-description"></p>
-          </div>
-          <div class="template-preview-wrapper">
-            <canvas
-              id="template-preview-canvas"
-              width="512"
-              height="512"
-              aria-label="模板预览"
-            ></canvas>
-          </div>
+      <section class="card stage-card" id="ab-card">
+        <h2>A/B 测试功能</h2>
+        <div id="layout-picker-stage2" class="layout-picker"></div>
+        <div class="actions">
+          <button class="btn primary" id="generate-poster">生成海报与文案</button>
+          <button class="btn" id="regenerate-poster">再次生成</button>
+          <button class="btn" id="preview-prompts">预览提示词</button>
         </div>
-
-        <section
-          class="card prompt-preview-card"
-          id="prompt-preview-card"
-          aria-label="预览当前提示词"
-        >
-          <div class="card-heading">
-            <div>
-              <h3>预览当前提示词</h3>
-              <p class="hint">实时汇总各槽位提示词与模板默认文案。</p>
+        <div id="ab-preview" class="ab-preview">
+          <div id="ab-preview-variant-a" class="poster-frame poster-preview--a">
+            <div class="poster-header">
+              <img data-slot="logo" class="slot-logo" alt="品牌 logo" />
+              <div class="text-block">
+                <div data-slot="brand" class="slot-brand"></div>
+                <div data-slot="slogan" class="slot-slogan"></div>
+              </div>
+            </div>
+            <div class="poster-body" data-layout-area="hero">
+              <img data-slot="hero" class="slot-hero" alt="主视觉" />
+              <div class="body-text">
+                <div data-slot="highlights" class="slot-highlights"></div>
+                <div data-slot="cta" class="slot-cta"></div>
+                <img data-slot="product" class="slot-product" alt="产品图" />
+              </div>
+            </div>
+            <div class="poster-gallery" id="preview-gallery">
+              <figure><img data-slot="gallery-1" alt="小图1" /></figure>
+              <figure><img data-slot="gallery-2" alt="小图2" /></figure>
+              <figure><img data-slot="gallery-3" alt="小图3" /></figure>
+              <figure><img data-slot="gallery-4" alt="小图4" /></figure>
             </div>
           </div>
-          <div class="prompt-preview-grid">
-            <div class="prompt-preview-block">
-              <h4>槽位提示词汇总</h4>
-              <div
-                id="prompt-preview-text"
-                class="prompt-preview-summary"
-                aria-live="polite"
-              ></div>
-            </div>
-            <div class="prompt-preview-block">
-              <h4>模板默认英文提示词</h4>
-              <textarea id="template-default-prompt" rows="8" readonly></textarea>
-            </div>
-          </div>
+          <div id="ab-preview-variant-b" class="poster-frame poster-preview--b"></div>
+        </div>
+        <div class="ab-attachment-choice">
+          <label>
+            <input type="radio" name="posterAttachmentVariant" value="A" checked />
+            使用 A 版海报作为邮件附件
+          </label>
+          <label>
+            <input type="radio" name="posterAttachmentVariant" value="B" />
+            使用 B 版海报作为邮件附件
+          </label>
+          <small id="variant-b-note" class="form-hint"></small>
+        </div>
+        <div class="actions">
+          <button class="btn primary" id="go-to-stage3">保存并前往环节 3</button>
+        </div>
+      </section>
 
-          <aside class="prompt-inspector" id="prompt-inspector">
-            <header>
-              <div>
-                <h3>提示词 Inspector</h3>
-                <p class="hint">
-                  模板限定了生成槽位，可在此查看与微调最终提示词，支持多套 Preset、
-                  Seed 锁定与 A/B 生成。
-                </p>
-              </div>
-              <div class="seed-controls">
-                <label>
-                  <span>Seed</span>
-                  <input type="number" id="prompt-seed" min="0" step="1" placeholder="随机" />
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" id="prompt-lock-seed" />
-                  <span>锁定 Seed</span>
-                </label>
-                <label>
-                  <span>变体数量</span>
-                  <input type="number" id="prompt-variants" min="1" max="3" value="1" />
-                </label>
-              </div>
-            </header>
-
-            <div class="prompt-slot" data-slot="scenario">
-              <div class="slot-header">
-                <h4>场景背景</h4>
-                <select data-preset-select="scenario"></select>
-              </div>
-              <details open>
-                <summary>最终 Prompt</summary>
-                <div class="prompt-editor">
-                  <label>
-                    <span>正向提示词</span>
-                    <textarea data-positive="scenario" rows="3"></textarea>
-                  </label>
-                  <label>
-                    <span>负向提示词</span>
-                    <textarea data-negative="scenario" rows="3"></textarea>
-                  </label>
-                  <div class="prompt-meta">
-                    <span data-aspect="scenario"></span>
-                    <button type="button" class="link" data-reset="scenario">恢复 Preset</button>
-                  </div>
-                </div>
-              </details>
-            </div>
-
-            <div class="prompt-slot" data-slot="product">
-              <div class="slot-header">
-                <h4>核心产品</h4>
-                <select data-preset-select="product"></select>
-              </div>
-              <details open>
-                <summary>最终 Prompt</summary>
-                <div class="prompt-editor">
-                  <label>
-                    <span>正向提示词</span>
-                    <textarea data-positive="product" rows="3"></textarea>
-                  </label>
-                  <label>
-                    <span>负向提示词</span>
-                    <textarea data-negative="product" rows="3"></textarea>
-                  </label>
-                  <div class="prompt-meta">
-                    <span data-aspect="product"></span>
-                    <button type="button" class="link" data-reset="product">恢复 Preset</button>
-                  </div>
-                </div>
-              </details>
-            </div>
-
-            <div class="prompt-slot" data-slot="gallery">
-              <div class="slot-header">
-                <h4>底部系列小图</h4>
-                <select data-preset-select="gallery"></select>
-              </div>
-              <details>
-                <summary>最终 Prompt</summary>
-                <div class="prompt-editor">
-                  <label>
-                    <span>正向提示词</span>
-                    <textarea data-positive="gallery" rows="3"></textarea>
-                  </label>
-                  <label>
-                    <span>负向提示词</span>
-                    <textarea data-negative="gallery" rows="3"></textarea>
-                  </label>
-                  <div class="prompt-meta">
-                    <span data-aspect="gallery"></span>
-                    <button type="button" class="link" data-reset="gallery">恢复 Preset</button>
-                  </div>
-                </div>
-              </details>
-            </div>
-
-          </aside>
-        </section>
-
-        <section class="card stage-card" id="ab-card">
-          <h3>A/B 测试功能</h3>
-
-          <div class="generate-actions">
-            <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
-            <button id="regenerate-poster" class="secondary hidden" type="button">
-              再次生成海报
-            </button>
-          </div>
-
-          <div id="poster-output" class="hidden">
-            <div
-              class="output-group hidden layout-debug-hidden"
-              id="layout-preview-group"
-            >
-              <h3>版式结构概览</h3>
-              <pre id="layout-structure-text"></pre>
-            </div>
-            <div class="output-group" id="ai-preview">
-              <h3>AI 生成进度</h3>
-              <div class="ai-preview-canvas">
-                <div class="spinner" id="ai-spinner" aria-hidden="true"></div>
-                <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
-              </div>
-            </div>
-            <div class="output-group hidden" id="poster-visual">
-              <h3>海报预览</h3>
-              <div id="ab-preview" class="ab-preview">
-                <section
-                  id="ab-preview-variant-a"
-                  class="poster-preview poster-preview--a"
-                  aria-label="A 版槽位排版"
-                >
-                  <div class="poster-header">
-                    <div class="poster-logo">
-                      <div class="poster-logo-image">
-                        <img id="poster-result-brand-logo" alt="品牌 Logo 预览" />
-                      </div>
-                      <div class="poster-brand-name" id="poster-result-brand-name"></div>
-                    </div>
-                    <div class="poster-agent" id="poster-result-agent-name"></div>
-                  </div>
-
-                  <div class="poster-body">
-                    <div class="poster-left">
-                      <img id="poster-result-scenario-image" alt="应用场景预览" />
-                    </div>
-                    <div class="poster-right">
-                      <div class="poster-product-wrapper">
-                        <img id="poster-result-product-image" alt="产品渲染图预览" />
-                        <ul id="poster-result-feature-list" class="feature-tags">
-                          <li class="feature-tag feature-tag--top" data-feature-index="0">
-                            <span></span>
-                          </li>
-                          <li class="feature-tag feature-tag--middle" data-feature-index="1">
-                            <span></span>
-                          </li>
-                          <li class="feature-tag feature-tag--bottom" data-feature-index="2">
-                            <span></span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="poster-gallery-row">
-                    <div class="poster-gallery-slot" data-index="0">
-                      <img alt="底部系列小图 1" />
-                      <div class="slot-caption"></div>
-                    </div>
-                    <div class="poster-gallery-slot" data-index="1">
-                      <img alt="底部系列小图 2" />
-                      <div class="slot-caption"></div>
-                    </div>
-                    <div class="poster-gallery-slot" data-index="2">
-                      <img alt="底部系列小图 3" />
-                      <div class="slot-caption"></div>
-                    </div>
-                    <div class="poster-gallery-slot" data-index="3">
-                      <img alt="底部系列小图 4" />
-                      <div class="slot-caption"></div>
-                    </div>
-                  </div>
-
-                  <div class="poster-tagline" id="poster-result-tagline"></div>
-                </section>
-
-                <section
-                  id="ab-preview-variant-b"
-                  class="poster-preview poster-preview--b"
-                  aria-label="B 版整版海报"
-                >
-                  <div class="ab-poster-shell">
-                    <img
-                      id="poster-variant-b-image"
-                      alt="B 版海报预览"
-                      class="ab-poster-image"
-                      decoding="async"
-                    />
-                    <div
-                      id="poster-variant-b-placeholder"
-                      class="poster-preview-placeholder"
-                    >
-                      当前没有 B 版海报，请先生成或选择 A 版。
-                    </div>
-                  </div>
-                  <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
-                </section>
-              </div>
-
-              <div class="attachment-selector">
-                <label>
-                  <input type="radio" name="posterAttachmentVariant" value="A" checked />
-                  发送 A 版海报（槽位排版）
-                </label>
-                <label>
-                  <input type="radio" name="posterAttachmentVariant" value="B" />
-                  发送 B 版海报（整版）
-                </label>
-                <small id="ab-variant-b-hint" class="hint"></small>
-              </div>
-            </div>
-            <div class="output-group hidden" id="prompt-group">
-              <h3>实际 OpenAI 提示词</h3>
-              <textarea id="openai-request-prompt" rows="10" readonly></textarea>
-            </div>
-            <div class="output-group hidden" id="prompt-bundle-group">
-              <h3>提示词槽位配置（JSON）</h3>
-              <textarea id="prompt-bundle-json" rows="10" readonly data-role="prompt-bundle-json"></textarea>
-            </div>
-            <div class="output-group hidden" id="email-group">
-              <h3>营销文案草稿</h3>
-              <textarea id="generated-email" rows="10" readonly></textarea>
-            </div>
-          </div>
-
-          <div class="actions">
-            <a class="secondary" href="index.html">返回环节 1</a>
-            <button id="to-stage3" class="primary" type="button" disabled>
-              保存并前往环节 3
-            </button>
-          </div>
-          <p id="stage2-status" role="status" aria-live="polite"></p>
-        </section>
+      <section class="card layout-debug-hidden" id="layout-preview-group">
+        <h2>版式结构（调试用）</h2>
+        <pre id="layout-structure-text"></pre>
       </section>
     </main>
 
-    <footer>
-      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
-    </footer>
-    <!-- styles.css 之后，app.js 之前 -->
-    <script defer src="placeholder.js?v=3"></script>
-    <script defer src="app.js?v=1"></script>
+    <script src="app.js"></script>
   </body>
 </html>
