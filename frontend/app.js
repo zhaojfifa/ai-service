@@ -2367,8 +2367,6 @@ function renderGalleryItems(state, container, options = {}) {
     allowPrompt = true,
     forcePromptOnly = false,
     promptPlaceholder = '描述要生成的小图内容',
-    form,
-    inlinePreviews,
   } = options;
   if (!container) return;
   container.innerHTML = '';
