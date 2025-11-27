@@ -3506,7 +3506,7 @@ function persistPromptState(stage1Data, state) {
   saveStage1Data(stage1Data, { preserveStage2: true });
 }
 
-async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange } = {}) {
+async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange, previewButton } = {}) {
   const container = document.getElementById('prompt-inspector');
   if (!container) return null;
 
@@ -3658,6 +3658,7 @@ async function setupPromptInspector(stage1Data, { promptTextarea, statusElement,
   }
 
   if (previewButton && promptTextarea) {
+    // previewButton is optional and only used when provided by the caller
   }
 
   const api = {
