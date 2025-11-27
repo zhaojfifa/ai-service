@@ -101,13 +101,12 @@ const stage2State = {
     features: [],
     series: [],
   },
-  prompts: {},
   assets: {
     brand_logo_url: '',
     scenario_url: '',
     product_url: '',
     gallery_urls: [],
-    poster_url: '',
+    composite_poster_url: '',
   },
   vertex: {
     lastResponse: null,
@@ -2636,10 +2635,8 @@ function renderGalleryItems(state, container, options = {}) {
     container.appendChild(item);
   });
 
-  bindSlotGenerationButtons(state, {
+  bindSlotGenerationButtons(form, state, inlinePreviews, {
     refreshPreview: onChange,
-    form,
-    inlinePreviews,
     statusElement,
   });
 }
@@ -2773,8 +2770,6 @@ async function generateSlotImage(slotType, index, promptText, stage1Data) {
     1
   );
 
-  console.log('[debug] generateSlotImage result', { slotType, index, data });
-
   if (!data || !data.url) {
     throw new Error('生成图片失败，返回结果缺少 url');
   }
@@ -2782,23 +2777,22 @@ async function generateSlotImage(slotType, index, promptText, stage1Data) {
   return data;
 }
 
-function bindSlotGenerationButtons(stage1State, options = {}) {
-  const { refreshPreview, form, inlinePreviews, statusElement } = options;
+function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
+  const { refreshPreview, statusElement } = options;
   const posterForm = form || document.getElementById('poster-form');
   if (!posterForm) return;
 
   const scenarioPreview = document.getElementById('scenario_preview');
   const productPreview = document.getElementById('product_preview');
 
-  const getStage1DataSnapshot = () =>
-    collectStage1Data(posterForm, stage1State, { strict: false });
+  const getStage1Snapshot = () => collectStage1Data(posterForm, state, { strict: false });
 
   const applyGeneratedAsset = (targetKey, asset, previewEl) => {
     if (!asset) return;
-    stage1State[targetKey] = asset;
+    state[targetKey] = asset;
     const modeKey = targetKey === 'scenario' ? 'scenarioMode' : 'productMode';
-    stage1State[modeKey] = 'upload';
-    stage1State.previewBuilt = false;
+    state[modeKey] = 'upload';
+    state.previewBuilt = false;
 
     const inlineKey = `${targetKey}_asset`;
     const inlineEl =
@@ -2831,8 +2825,8 @@ function bindSlotGenerationButtons(stage1State, options = {}) {
 
     const isPromptMode = () =>
       slotType === 'scenario'
-        ? stage1State.scenarioMode === 'prompt'
-        : stage1State.productMode === 'prompt';
+        ? state.scenarioMode === 'prompt'
+        : state.productMode === 'prompt';
 
     const refreshButtonState = () => {
       const promptValue = (promptEl?.value || '').trim();
@@ -2853,7 +2847,7 @@ function bindSlotGenerationButtons(stage1State, options = {}) {
       if (!isPromptMode()) return;
       try {
         button.disabled = true;
-        const snapshot = getStage1DataSnapshot();
+        const snapshot = getStage1Snapshot();
         const { url, key } = await generateSlotImage(
           slotType,
           null,
@@ -2883,14 +2877,14 @@ function bindSlotGenerationButtons(stage1State, options = {}) {
   bindButton(
     'btn-generate-scenario',
     'scenario',
-    ['[data-role="scenario-positive-prompt"]', '#scenario_prompt', 'textarea[name="scenario_image"]'],
+    ['[data-role="scenario-positive-prompt"]', 'textarea[name="scenario_image"]'],
     scenarioPreview
   );
 
   bindButton(
     'btn-generate-product',
     'product',
-    ['[data-role="product-positive-prompt"]', '#product_prompt', 'textarea[name="product_prompt"]'],
+    ['[data-role="product-positive-prompt"]', 'textarea[name="product_prompt"]'],
     productPreview
   );
 
@@ -2906,13 +2900,14 @@ function bindSlotGenerationButtons(stage1State, options = {}) {
       const prompt = promptEl?.value || '';
       try {
         btn.disabled = true;
-        const snapshot = getStage1DataSnapshot();
+        const snapshot = getStage1Snapshot();
         const { url, key } = await generateSlotImage('gallery', index, prompt, snapshot);
-        if (!Array.isArray(stage1State.galleryEntries)) {
-          stage1State.galleryEntries = [];
+
+        if (!Array.isArray(state.galleryEntries)) {
+          state.galleryEntries = [];
         }
-        if (!stage1State.galleryEntries[index]) {
-          stage1State.galleryEntries[index] = {
+        if (!state.galleryEntries[index]) {
+          state.galleryEntries[index] = {
             id: `gallery-${index}-${Date.now()}`,
             caption: '',
             asset: null,
@@ -2920,17 +2915,20 @@ function bindSlotGenerationButtons(stage1State, options = {}) {
             mode: 'upload',
           };
         }
-        stage1State.galleryEntries[index].asset = buildGeneratedAssetFromUrl(url, key);
-        stage1State.galleryEntries[index].mode = 'upload';
+
+        state.galleryEntries[index].asset = buildGeneratedAssetFromUrl(url, key);
+        state.galleryEntries[index].mode = 'upload';
+        state.previewBuilt = false;
 
         const img = posterForm.querySelector(
           `[data-role="gallery-preview"][data-index="${index}"]`
         );
-        const src = pickImageSrc(stage1State.galleryEntries[index].asset);
+        const src = pickImageSrc(state.galleryEntries[index].asset);
         if (img && src) img.src = src;
 
-        const logoFallback = pickImageSrc(stage1State.brandLogo);
+        const logoFallback = pickImageSrc(state.brandLogo);
         applySlotImagePreview('gallery', index, src, { logoFallback });
+
         refreshPreview?.();
       } catch (err) {
         console.error(`[gallery ${index}] generate failed`, err);
@@ -2951,6 +2949,7 @@ function bindSlotGenerationButtons(stage1State, options = {}) {
     });
   });
 }
+
 function updatePosterPreview(payload, state, elements, layoutStructure, previewContainer) {
   const {
     brandLogo,
@@ -3757,12 +3756,46 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
 
-    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+    try {
+      lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+    } catch (error) {
+      try {
+        lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+      } catch {
+        lastStage1Data = stage1Data || null;
+      }
+      console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
+    }
+
+    stage2State.poster = {
+      brand_name: stage1Data.brand_name || '',
+      agent_name: stage1Data.agent_name || '',
+      headline: stage1Data.title || '',
+      tagline: stage1Data.subtitle || '',
+      features: Array.isArray(stage1Data.features) ? stage1Data.features.filter(Boolean) : [],
+      series: Array.isArray(stage1Data.gallery_entries)
+        ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
+        : [],
+    };
+
+    stage2State.assets = {
+      brand_logo_url: pickImageSrc(stage1Data.brand_logo) || '',
+      scenario_url: pickImageSrc(stage1Data.scenario_asset) || '',
+      product_url: pickImageSrc(stage1Data.product_asset) || '',
+      gallery_urls: Array.isArray(stage1Data.gallery_entries)
+        ? stage1Data.gallery_entries
+            .map((entry) => pickImageSrc(entry?.asset))
+            .filter(Boolean)
+        : [],
+      composite_poster_url: '',
+    };
+
+    renderPosterResult();
+
     if (posterLayout) {
       posterLayoutRoot = posterLayout;
     }
     refreshPosterLayoutPreview();
-    updateVariantAvailability();
 
     if (exportPosterButton && posterLayout) {
       exportPosterButton.addEventListener('click', async () => {
@@ -4529,85 +4562,6 @@ function renderPosterResult() {
   }
 }
 
-function updateVariantAvailability() {
-  const radioB = document.querySelector('input[name="posterAttachmentVariant"][value="B"]');
-  const radioA = document.querySelector('input[name="posterAttachmentVariant"][value="A"]');
-  const note = document.getElementById('ab-variant-b-hint');
-  const hasPosterB = Boolean(stage2State.assets.poster_url);
-  if (radioB) {
-    radioB.disabled = !hasPosterB;
-    if (!hasPosterB && radioB.checked && radioA) {
-      radioA.checked = true;
-    }
-  }
-  if (note) {
-    note.textContent = hasPosterB ? '' : '当前没有 B 版海报，默认使用 A 版附件。';
-  }
-}
-
-function renderPosterVariantB() {
-  const url = stage2State.assets.poster_url || '';
-  const img = document.getElementById('poster-variant-b-image');
-  const placeholder = document.getElementById('poster-variant-b-placeholder');
-  if (img) {
-    if (url) {
-      img.src = url;
-      img.style.display = 'block';
-    } else {
-      img.removeAttribute('src');
-      img.style.display = 'none';
-    }
-  }
-  if (placeholder) {
-    placeholder.classList.toggle('hidden', Boolean(url));
-  }
-  updateVariantAvailability();
-}
-
-function getSelectedPosterVariant() {
-  const checked = document.querySelector('input[name="posterAttachmentVariant"]:checked');
-  return checked?.value === 'B' ? 'B' : 'A';
-}
-
-function persistPosterAttachmentSelection(stage2Result) {
-  const variantChoice = getSelectedPosterVariant();
-  const attachmentFromStage2 = stage2Result || {};
-  const urlA =
-    pickImageSrc(attachmentFromStage2.poster_image) ||
-    pickImageSrc(attachmentFromStage2.template_poster) ||
-    stage2State.assets.poster_url ||
-    posterGenerationState.posterUrl ||
-    null;
-
-  const urlB = stage2State.assets.poster_url || attachmentFromStage2.poster_url || null;
-
-  let variant = variantChoice;
-  let attachmentUrl = urlA;
-  let attachmentName = 'poster_A.png';
-
-  if (variantChoice === 'B' && urlB) {
-    variant = 'B';
-    attachmentUrl = urlB;
-    attachmentName = 'poster_B.png';
-  }
-
-  if (!attachmentUrl) {
-    variant = 'A';
-    attachmentUrl = urlA || urlB || '';
-    attachmentName = 'poster_A.png';
-  }
-
-  try {
-    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.variant, variant);
-    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.url, attachmentUrl || '');
-    localStorage.setItem(ATTACHMENT_STORAGE_KEYS.name, attachmentName);
-  } catch (error) {
-    console.warn('无法保存附件选择', error);
-  }
-
-  return { variant, attachmentUrl, attachmentName };
-}
-
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
@@ -4633,19 +4587,82 @@ function applyVertexPosterResult(data) {
 
   const posterUrl = extractVertexPosterUrl(data);
   if (posterUrl) {
-    const hiddenUrlInput = document.getElementById('vertex-poster-url');
-    if (hiddenUrlInput) hiddenUrlInput.value = posterUrl;
+    posterGeneratedImageUrl = posterUrl;
     posterGenerationState.posterUrl = posterUrl;
-    assets.poster_url = posterUrl;
+    posterGeneratedImage = posterGenerationState.posterUrl;
+    assets.composite_poster_url = posterUrl;
     try {
       sessionStorage.setItem('latestPosterUrl', posterUrl);
-    } catch (e) {
-      console.warn('无法写 latestPosterUrl', e);
+    } catch (error) {
+      console.warn('无法缓存最新海报 URL', error);
     }
   }
 
   renderPosterResult();
-  renderPosterVariantB();
+}
+
+async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
+  const result = [];
+  const entries = Array.isArray(stage1?.gallery_entries)
+    ? stage1.gallery_entries.filter(Boolean)
+    : [];
+
+  for (let i = 0; i < maxSlots; i += 1) {
+    const entry = entries[i] || null;
+    const caption = entry?.caption?.trim() || `Series ${i + 1}`;
+    const promptText = entry?.prompt?.trim() || null;
+    const mode = entry?.mode || 'upload';
+    const normalisedMode = mode === 'logo' || mode === 'logo_fallback' ? 'upload' : mode;
+
+    const hasPrompt = !!promptText;
+    if (normalisedMode === 'prompt' && hasPrompt) {
+      result.push({
+        caption,
+        key: null,
+        asset: null,
+        mode: 'prompt',
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    let ref = null;
+    if (entry && entry.asset) {
+      ref = await normaliseAssetReference(entry.asset, {
+        field: `poster.gallery_items[${i}]`,
+        required: false,
+        apiCandidates,
+        folder: 'gallery',
+      }, logoRef);
+    }
+
+    if (ref && (ref.key || ref.url)) {
+      result.push({
+        caption,
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode: normalisedMode,
+        prompt: promptText,
+      });
+      continue;
+    }
+
+    if (logoRef && (logoRef.url || logoRef.key)) {
+      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
+      result.push({
+        caption,
+        key: logoRef.key || null,
+        asset: logoRef.url || null,
+        mode: 'upload',
+        prompt: null,
+      });
+      continue;
+    }
+
+    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
+  }
+
+  return result;
 }
 
 function formatPosterGenerationError(error) {
@@ -4772,74 +4789,7 @@ async function triggerGeneration(opts) {
       folder: 'product',
     }, brandLogoRef);
 
-    galleryItems = [];
-
-    const galleryEntries = Array.isArray(stage1Data.gallery_entries)
-      ? stage1Data.gallery_entries.filter(Boolean)
-      : [];
-    const maxGallerySlots = 4;
-
-      for (let index = 0; index < maxGallerySlots; index += 1) {
-        const entry = galleryEntries[index] || null;
-        const mode = entry?.mode || 'upload';
-        const normalisedMode = mode === 'logo' || mode === 'logo_fallback' ? 'upload' : mode;
-        const caption = entry?.caption?.trim() || null;
-        const promptText = entry?.prompt?.trim() || null;
-
-        const hasPrompt = !!(promptText && promptText.trim().length > 0);
-        if (normalisedMode === 'prompt' && hasPrompt) {
-          galleryItems.push({
-            caption,
-            key: null,
-            asset: null,
-            mode: 'prompt',
-            prompt: promptText,
-          });
-          continue;
-        }
-
-        const hasAsset = !!entry?.asset;
-
-        if (hasAsset) {
-          const ref = await normaliseAssetReference(entry.asset, {
-            field: `poster.gallery_items[${index}]`,
-            requireUploaded: true,
-            apiCandidates,
-            folder: 'gallery',
-          }, brandLogoRef);
-
-          galleryItems.push({
-            caption: caption || `Series ${index + 1}`,
-            key: ref.key,
-            asset: ref.url,
-            mode: normalisedMode,
-            prompt: promptText,
-          });
-          continue;
-        }
-
-        if (brandLogoRef && (brandLogoRef.url || brandLogoRef.key)) {
-          console.info('[triggerGeneration] gallery empty, fallback to brand logo', {
-            index,
-            caption,
-          });
-
-          galleryItems.push({
-            caption: caption || `Series ${index + 1}`,
-            key: brandLogoRef.key || null,
-            asset: brandLogoRef.url || null,
-            mode: 'upload',
-            prompt: null,
-          });
-
-          continue;
-        }
-
-        console.warn(
-          '[triggerGeneration] gallery empty and no brand logo available, skip slot',
-          { index, caption },
-        );
-      }
+    galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
 
     const features = Array.isArray(stage1Data.features)
       ? stage1Data.features.filter(Boolean)
@@ -5194,12 +5144,13 @@ async function triggerGeneration(opts) {
     posterGeneratedImageUrl = null;
     posterGeneratedImage = null;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
-    const detail = error?.responseJson?.detail || error?.responseJson;
-    const quotaExceeded = error?.status === 429 && detail?.error === 'vertex_quota_exceeded';
-    const friendlyMessage =
-      quotaExceeded
-        ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
-        : formatPosterGenerationError(error);
+    const detail = error?.responseJson?.detail || null;
+    const quotaExceeded =
+      error?.status === 429 &&
+      (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
+    const friendlyMessage = quotaExceeded
+      ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+      : formatPosterGenerationError(error);
     const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
     const decoratedMessage = `${friendlyMessage}${statusHint}`;
     setStatus(statusElement, decoratedMessage, 'error');
