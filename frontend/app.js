@@ -896,6 +896,12 @@ const STORAGE_KEYS = {
   stage2: 'marketing-poster-stage2-result',
 };
 
+const ATTACHMENT_STORAGE_KEYS = {
+  variant: 'poster-attachment-variant',
+  url: 'poster-attachment-url',
+  name: 'poster-attachment-name',
+};
+
 const DEFAULT_STAGE1 = {
   brand_name: '厨匠ChefCraft',
   agent_name: '星辉渠道服务中心',
@@ -943,14 +949,14 @@ const MATERIAL_DEFAULT_LABELS = {
 const assetStore = createAssetStore();
 
 function getPosterImageSource(image) {
-  if (!image || typeof image !== 'object') return '';
-  const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
-  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
-    return directUrl;
-  }
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
-  if (dataUrl && dataUrl.startsWith('data:')) {
-    return dataUrl;
+  if (!image) return '';
+  const directUrl = pickImageSrc(image);
+  if (directUrl && typeof directUrl === 'string') {
+    const trimmed = directUrl.trim();
+    if (HTTP_URL_RX.test(trimmed) || trimmed.startsWith('data:')) {
+      return trimmed;
+    }
+    return trimmed;
   }
   return '';
 }
@@ -1364,6 +1370,14 @@ function initStage1() {
           '描述要生成的小图内容',
       });
       refreshPreview();
+      const scenarioPreview = document.getElementById('scenario_preview');
+      if (scenarioPreview) {
+        scenarioPreview.src = pickImageSrc(state.scenario) || '';
+      }
+      const productPreview = document.getElementById('product_preview');
+      if (productPreview) {
+        productPreview.src = pickImageSrc(state.product) || '';
+      }
     })();
   } else {
     applyStage1Defaults(form);
@@ -2347,6 +2361,8 @@ function renderGalleryItems(state, container, options = {}) {
     layoutStructure,
     previewContainer,
     statusElement,
+    form,
+    inlinePreviews,
     onChange,
     allowPrompt = true,
     forcePromptOnly = false,
@@ -2673,10 +2689,14 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
   payload.product_mode = state.productMode || 'upload';
+  const scenarioPromptValue =
+    formData.get('scenario_prompt')?.toString().trim() || payload.scenario_image || '';
   const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
   payload.product_prompt = productPromptValue || null;
   payload.scenario_prompt =
-    payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
+    payload.scenario_mode === 'prompt'
+      ? payload.scenario_image
+      : scenarioPromptValue || null;
   payload.gallery_label = galleryLabel;
   payload.gallery_limit = galleryLimit;
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
@@ -3281,6 +3301,50 @@ function buildPromptPreviewText(state) {
   return lines.join('\n').trim();
 }
 
+function renderPromptPreview(state) {
+  const promptState = state || stage2State.prompts || {};
+  try {
+    stage2State.prompts = clonePromptState(promptState);
+  } catch (error) {
+    stage2State.prompts = promptState || {};
+    console.warn('无法拷贝提示词状态，将直接引用原对象', error);
+  }
+
+  const container =
+    document.getElementById('prompt-preview-text') ||
+    document.getElementById('prompt-preview-summary');
+  const text = buildPromptPreviewText(promptState || {});
+  if (container) {
+    container.innerHTML = '';
+    if (text) {
+      PROMPT_SLOTS.forEach((slot) => {
+        const entry = promptState.slots?.[slot];
+        if (!entry) return;
+        const block = document.createElement('div');
+        block.className = 'prompt-preview-slot';
+        const title = document.createElement('h5');
+        title.textContent = PROMPT_SLOT_LABELS[slot] || slot;
+        const body = document.createElement('div');
+        body.className = 'prompt-preview-body';
+        const lines = [];
+        if (entry.positive) lines.push(`正向：${entry.positive}`);
+        if (entry.negative) lines.push(`负向：${entry.negative}`);
+        if (entry.aspect) lines.push(`画幅：${entry.aspect}`);
+        body.textContent = lines.join('\n') || '暂无内容';
+        block.appendChild(title);
+        block.appendChild(body);
+        container.appendChild(block);
+      });
+    }
+    if (!container.children.length) {
+      const empty = document.createElement('div');
+      empty.className = 'prompt-preview-empty';
+      empty.textContent = '当前暂无提示词内容。';
+      container.appendChild(empty);
+    }
+  }
+}
+
 function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
   if (!templateSpec) return '';
 
@@ -3444,10 +3508,7 @@ function persistPromptState(stage1Data, state) {
   saveStage1Data(stage1Data, { preserveStage2: true });
 }
 
-async function setupPromptInspector(
-  stage1Data,
-  { promptTextarea, statusElement, onStateChange, onABTest } = {}
-) {
+async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange } = {}) {
   const container = document.getElementById('prompt-inspector');
   if (!container) return null;
 
@@ -3480,9 +3541,6 @@ async function setupPromptInspector(
   const seedInput = container.querySelector('#prompt-seed');
   const lockSeedCheckbox = container.querySelector('#prompt-lock-seed');
   const variantsInput = container.querySelector('#prompt-variants');
-  const previewButton = container.querySelector('#preview-prompts');
-  const abButton = container.querySelector('#generate-ab');
-
   const elements = {
     selects,
     positives,
@@ -3497,9 +3555,16 @@ async function setupPromptInspector(
   applyPromptStateToInspector(state, elements, presets);
 
   const emitStateChange = () => {
+    try {
+      stage2State.prompts = clonePromptState(state);
+    } catch (error) {
+      stage2State.prompts = state;
+      console.warn('无法保存提示词状态快照', error);
+    }
     if (typeof onStateChange === 'function') {
       onStateChange(clonePromptState(state), presets);
     }
+    renderPromptPreview(state);
   };
 
   const persist = () => {
@@ -3595,10 +3660,6 @@ async function setupPromptInspector(
   }
 
   if (previewButton && promptTextarea) {
-    previewButton.addEventListener('click', () => {
-      promptTextarea.value = buildPromptPreviewText(state);
-      setStatus(statusElement, '已根据提示词 Inspector 更新预览。', 'info');
-    });
   }
 
   const api = {
@@ -3646,15 +3707,6 @@ async function setupPromptInspector(
     },
   };
 
-  if (abButton) {
-    abButton.addEventListener('click', () => {
-      api.setVariants(Math.max(2, state.variants || 2));
-      if (typeof onABTest === 'function') {
-        onABTest();
-      }
-    });
-  }
-
   return api;
 }
 
@@ -3670,10 +3722,9 @@ function initStage2() {
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
-    const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+    const posterGeneratedImage = document.getElementById('poster-variant-b-image');
+    const posterGeneratedPlaceholder = document.getElementById('poster-variant-b-placeholder');
     const promptGroup = document.getElementById('prompt-group');
-    const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
     const emailGroup = document.getElementById('email-group');
     const promptTextarea = document.getElementById('openai-request-prompt');
@@ -3977,15 +4028,9 @@ function initStage2() {
       const presetsSource =
         options.presets || promptPresets || promptManager?.presets || { presets: {}, defaultAssignments: {} };
 
-      if (defaultPromptTextarea && promptDefaultGroup) {
+      if (defaultPromptTextarea) {
         const englishPrompt = buildTemplateDefaultPrompt(stage1Data, spec, presetsSource);
-        if (englishPrompt) {
-          defaultPromptTextarea.value = englishPrompt;
-          promptDefaultGroup.classList.remove('hidden');
-        } else {
-          defaultPromptTextarea.value = '';
-          promptDefaultGroup.classList.add('hidden');
-        }
+        defaultPromptTextarea.value = englishPrompt || '';
       }
 
       if (promptBundlePre && promptBundleGroup) {
@@ -4083,47 +4128,9 @@ function initStage2() {
 
     let templateRegistry = [];
 
-    const handleABTest = () => {
-      if (!posterGenerationState.posterUrl) {
-        alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
-        return;
-      }
-
-      const templateImgEl = document.querySelector("[data-role='template-preview-image']") || null;
-      const baseline = templateImgEl
-        ? {
-            url: templateImgEl.src,
-            width:
-              typeof templateImgEl.naturalWidth === 'number' && templateImgEl.naturalWidth > 0
-                ? templateImgEl.naturalWidth
-                : templateImgEl.width || 0,
-            height:
-              typeof templateImgEl.naturalHeight === 'number' && templateImgEl.naturalHeight > 0
-                ? templateImgEl.naturalHeight
-                : templateImgEl.height || 0,
-          }
-        : activeTemplatePoster
-        ? {
-            url: getPosterImageSource(activeTemplatePoster),
-            width: activeTemplatePoster.width || 0,
-            height: activeTemplatePoster.height || 0,
-          }
-        : null;
-
-      const generated = {
-        url: posterGenerationState.posterUrl,
-        width: posterGenerationState.rawResult?.poster_image?.width || 0,
-        height: posterGenerationState.rawResult?.poster_image?.height || 0,
-      };
-
-      openABModal?.(baseline, generated) ||
-        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
-    };
-
     promptManager = await setupPromptInspector(stage1Data, {
       promptTextarea,
       statusElement,
-      onABTest: handleABTest,
       onStateChange: (stateSnapshot, presets) => {
         latestPromptState = stateSnapshot || latestPromptState;
         if (presets) {
@@ -4262,10 +4269,11 @@ function initStage2() {
 
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
-      if (!stored || !stored.poster_image) {
+      if (!stored || !(stored.poster_image || stored.poster_url)) {
         setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
         return;
       }
+      persistPosterAttachmentSelection(stored);
       window.location.href = 'stage3.html';
     });
   })();
@@ -4343,6 +4351,104 @@ function buildPromptBundleStrings(prompts = {}) {
     product: toPromptString(prompts.product),
     gallery: toPromptString(prompts.gallery),
   };
+}
+
+function renderPosterResult(result) {
+  const poster = result?.poster || {};
+  const galleryImages = poster.gallery_images || result?.gallery_images || [];
+  const posterRoot = document.getElementById('poster-b-root');
+  const posterImg =
+    document.getElementById('poster-image') ||
+    document.getElementById('vertex-poster-preview-img');
+  const scenarioImg =
+    document.querySelector('[data-role="poster-b-scenario"]') ||
+    document.getElementById('scenario-image');
+  const productImg =
+    document.querySelector('[data-role="poster-b-product"]') ||
+    document.getElementById('product-image');
+  const posterPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+
+  const brandName = poster.brand_name || lastStage1Data?.brand_name || '';
+  const agentName = poster.agent_name || lastStage1Data?.agent_name || '';
+  const title = poster.title || lastStage1Data?.title || '';
+  const subtitle = poster.subtitle || lastStage1Data?.subtitle || '';
+
+  const logoSrc =
+    pickImageSrc(poster.brand_logo) ||
+    (lastStage1Data && pickImageSrc(lastStage1Data.brand_logo));
+
+  const logoEl = document.getElementById('poster-b-brand-logo');
+  if (logoEl && logoSrc) {
+    logoEl.src = logoSrc;
+  }
+
+  const brandNameEl = document.querySelector('#poster-b-root [data-bind="brand_name"]');
+  const agentNameEl = document.querySelector('#poster-b-root [data-bind="agent_name"]');
+  const titleEl = document.querySelector('#poster-b-root [data-bind="title"]');
+  const subtitleEl = document.querySelector('#poster-b-root [data-bind="subtitle"]');
+
+  if (brandNameEl) brandNameEl.textContent = brandName;
+  if (agentNameEl) agentNameEl.textContent = agentName;
+  if (titleEl) titleEl.textContent = title;
+  if (subtitleEl) subtitleEl.textContent = subtitle;
+
+  const scenarioSrc =
+    pickImageSrc(poster.scenario_image) || pickImageSrc(result?.scenario_image);
+
+  if (scenarioSrc && scenarioImg) {
+    scenarioImg.src = scenarioSrc;
+  }
+
+  const productSrc =
+    pickImageSrc(poster.product_image) || pickImageSrc(result?.product_image);
+
+  if (productSrc && productImg) {
+    productImg.src = productSrc;
+  }
+
+  const galleryEls = document.querySelectorAll('[data-role="poster-b-gallery"]');
+  galleryEls.forEach((slot, index) => {
+    const src = pickImageSrc(galleryImages[index]);
+    if (src) {
+      slot.src = src;
+    }
+  });
+
+  const posterSrc =
+    result?.poster_url || pickImageSrc(poster.poster_image) || pickImageSrc(result?.poster_image);
+
+  if (posterSrc) {
+    if (posterImg) {
+      posterImg.src = posterSrc;
+      if (posterImg.classList?.contains('hidden')) {
+        posterImg.classList.remove('hidden');
+      }
+      if (posterImg.style) {
+        posterImg.style.display = 'block';
+      }
+    }
+
+    const hiddenUrlInput = document.getElementById('vertex-poster-url');
+    if (hiddenUrlInput) {
+      hiddenUrlInput.value = posterSrc;
+    }
+
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterSrc);
+    } catch (e) {
+      console.warn('failed to cache latestPosterUrl', e);
+    }
+  }
+
+  const hasVisuals = Boolean(posterSrc || scenarioSrc || productSrc || galleryImages.length);
+  if (posterRoot && hasVisuals) {
+    posterRoot.classList.remove('hidden');
+  }
+  if (posterPlaceholder?.classList && hasVisuals) {
+    posterPlaceholder.classList.add('hidden');
+  }
+
+  return posterSrc || null;
 }
 
 function extractVertexPosterUrl(result) {
@@ -4599,7 +4705,46 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
-  
+
+  try {
+    lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
+  } catch (error) {
+    try {
+      lastStage1Data = stage1Data ? JSON.parse(JSON.stringify(stage1Data)) : null;
+    } catch {
+      lastStage1Data = stage1Data || null;
+    }
+    console.warn('[triggerGeneration] unable to deep copy stage1Data, using fallback reference', error);
+  }
+
+  stage2State.poster = {
+    brand_name: stage1Data.brand_name || '',
+    agent_name: stage1Data.agent_name || '',
+    headline: stage1Data.title || '',
+    tagline: stage1Data.subtitle || '',
+    features: Array.isArray(stage1Data.features) ? stage1Data.features.filter(Boolean) : [],
+    series: Array.isArray(stage1Data.gallery_entries)
+      ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
+      : [],
+  };
+
+  stage2State.assets = {
+    brand_logo_url: pickImageSrc(stage1Data.brand_logo) || '',
+    scenario_url: pickImageSrc(stage1Data.scenario_asset) || '',
+    product_url: pickImageSrc(stage1Data.product_asset) || '',
+    gallery_urls: Array.isArray(stage1Data.gallery_entries)
+      ? stage1Data.gallery_entries
+          .map((entry) => pickImageSrc(entry?.asset))
+          .filter(Boolean)
+      : [],
+    poster_url: '',
+  };
+
+  renderPosterResult();
+  renderPosterVariantB();
+
+  console.info('[debug] stage1Data snapshot', lastStage1Data || stage1Data || null);
+
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -4709,9 +4854,14 @@ async function triggerGeneration(opts) {
     );
     return null;
   }
-  
 
- // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+  console.info('[debug] posterPayload', {
+    ...posterPayload,
+    gallery_items: posterPayload.gallery_items || [],
+  });
+
+
+  // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
   
@@ -4881,6 +5031,13 @@ async function triggerGeneration(opts) {
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+
+    console.info('[debug] apiVertexPosterResult', {
+      poster_url: data?.poster_url,
+      scenario_image: data?.poster?.scenario_image,
+      product_image: data?.poster?.product_image,
+      gallery_images: data?.poster?.gallery_images,
+    });
 
     const posterUrl =
       data?.poster?.asset_url ||
@@ -5734,11 +5891,41 @@ async function loadStage2Result() {
   }
 }
 
+function loadPosterAttachmentPreference(stage2Result) {
+  let variant = localStorage.getItem(ATTACHMENT_STORAGE_KEYS.variant) || 'A';
+  let url = localStorage.getItem(ATTACHMENT_STORAGE_KEYS.url) || '';
+  let name = localStorage.getItem(ATTACHMENT_STORAGE_KEYS.name) || '';
+
+  const posterA =
+    pickImageSrc(stage2Result?.poster_image) || pickImageSrc(stage2Result?.template_poster) || '';
+  const posterB = stage2Result?.poster_url || '';
+
+  if (!url && variant === 'B') {
+    url = posterB;
+  }
+
+  if (!url && variant === 'A') {
+    url = posterA || posterB;
+  }
+
+  if (!url) {
+    variant = 'A';
+    url = posterA || posterB || '';
+  }
+
+  if (!name) {
+    name = variant === 'B' ? 'poster_B.png' : 'poster_A.png';
+  }
+
+  return { variant, url, name };
+}
+
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
     const posterImage = document.getElementById('stage3-poster-image');
     const posterCaption = document.getElementById('stage3-poster-caption');
+    const attachmentIndicator = document.getElementById('attachment-indicator');
     const promptTextarea = document.getElementById('stage3-prompt');
     const emailRecipient = document.getElementById('email-recipient');
     const emailSubject = document.getElementById('email-subject');
@@ -5751,20 +5938,48 @@ function initStage3() {
 
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
+    const attachmentPref = loadPosterAttachmentPreference(stage2Result);
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+    if (!stage1Data || !stage2Result) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    assignPosterImage(
-      posterImage,
-      stage2Result.poster_image,
-      `${stage1Data.product_name} 海报预览`
-    );
+    if (posterImage) {
+      let posterSrc = attachmentPref.url || null;
+
+      if (!posterSrc) {
+        try {
+          posterSrc = sessionStorage.getItem('latestPosterUrl');
+        } catch (e) {
+          console.warn('cannot read latestPosterUrl from sessionStorage', e);
+        }
+      }
+
+      if (!posterSrc) {
+        posterSrc =
+          stage2Result?.poster_url ||
+          pickImageSrc(stage2Result?.poster?.poster_image) ||
+          pickImageSrc(stage2Result?.poster_image);
+      }
+
+      if (posterSrc) {
+        posterImage.src = posterSrc;
+      } else if (stage2Result.poster_image) {
+        assignPosterImage(
+          posterImage,
+          stage2Result.poster_image,
+          `${stage1Data.product_name} 海报预览`
+        );
+      }
+    }
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
+    }
+    if (attachmentIndicator) {
+      const variantLabel = attachmentPref.variant === 'B' ? 'B 版海报' : 'A 版海报';
+      attachmentIndicator.textContent = `当前附件：${variantLabel}`;
     }
     if (promptTextarea) {
       promptTextarea.value = stage2Result.prompt || '';
@@ -5803,7 +6018,9 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: stage2Result.poster_image,
+            attachment: attachmentPref.url
+              ? { url: attachmentPref.url, filename: attachmentPref.name }
+              : stage2Result.poster_image,
           },
           1
         );
