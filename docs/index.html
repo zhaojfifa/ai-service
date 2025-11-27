@@ -3,146 +3,272 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>环节 1 · 版式选择与素材准备</title>
+    <title>环节 1 · 素材输入与版式预览</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-stage="stage1">
-    <header class="page-header">
-      <div>
-        <h1>营销海报 · Route A</h1>
-        <p>选择版式、填写文案、上传槽位图片，前端直接排版。</p>
+    <header>
+      <div class="header-content">
+        <div>
+          <h1>营销海报生成工作流</h1>
+          <p>按照三个环节完成素材准备、AI 生成与邮件分发。</p>
+        </div>
+        <label class="api-config">
+          <span>后端 API 地址</span>
+          <input
+            type="url"
+            id="api-base"
+            placeholder="https://ai-service-x758.onrender.com"
+          />
+        </label>
       </div>
-      <label class="api-config">
-        <span>后端 API 地址</span>
-        <input type="url" id="api-base" placeholder="https://your-api.example.com" />
-      </label>
+      <nav class="stage-nav" aria-label="流程导航">
+        <span class="active">环节 1 · 素材输入与版式预览</span>
+        <span class="nav-arrow" aria-hidden="true">→</span>
+        <a href="stage2.html">环节 2 · AI 海报生成</a>
+        <span class="nav-arrow" aria-hidden="true">→</span>
+        <a href="stage3.html">环节 3 · 邮件发送</a>
+      </nav>
     </header>
 
-    <main class="stage-layout">
-      <section class="card" id="layout-picker-card">
-        <h2>1. 选择版式</h2>
-        <div id="layout-picker" class="layout-picker"></div>
-      </section>
-
-      <section class="card" id="content-input-card">
-        <h2>2. 填写文案与上传槽位图片</h2>
-        <div class="grid-2">
-          <div class="form-column">
-            <label class="field">
-              <span>品牌名称</span>
-              <input type="text" id="input-brand-name" />
-            </label>
-            <label class="field">
-              <span>主标语</span>
-              <input type="text" id="input-slogan" />
-            </label>
-            <label class="field">
-              <span>产品卖点</span>
-              <textarea id="input-product-highlights" rows="3"></textarea>
-            </label>
-            <label class="field">
-              <span>行动号召</span>
-              <input type="text" id="input-call-to-action" />
-            </label>
-
-            <fieldset class="fieldset">
-              <legend>提示词（纯前端预览）</legend>
+    <main>
+      <section class="card stage-card">
+        <h2>环节 1 · 素材输入与版式预览</h2>
+        <p class="hint">
+          按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
+          点击“保存并前往环节 2”继续流程。
+        </p>
+        <form id="poster-form" novalidate>
+          <fieldset class="fieldset">
+            <legend>模板选择</legend>
+            <div class="template-select-grid">
               <label class="field">
-                <span>品牌/代理提示词</span>
-                <textarea data-prompt-slot="brand" rows="2"></textarea>
+                <span>选择锁版模板</span>
+                <select id="template-select-stage1" name="template_id" required></select>
               </label>
-              <label class="field">
-                <span>场景提示词</span>
-                <textarea data-prompt-slot="scenario" rows="2"></textarea>
-              </label>
-              <label class="field">
-                <span>产品提示词</span>
-                <textarea data-prompt-slot="product" rows="2"></textarea>
-              </label>
-              <label class="field">
-                <span>卖点/Benefits 提示词</span>
-                <textarea data-prompt-slot="benefits" rows="2"></textarea>
-              </label>
-            </fieldset>
-          </div>
-
-          <div class="form-column">
-            <div class="upload-field">
-              <label>品牌 Logo</label>
-              <input type="file" id="upload-brand-logo" accept="image/*" />
-              <img data-preview-for="upload-brand-logo" class="thumb" alt="Logo 预览" />
+              <div class="template-meta">
+                <p id="template-description-stage1" class="template-description"></p>
+                <canvas
+                  id="template-preview-stage1"
+                  width="360"
+                  height="360"
+                  aria-label="模板预览"
+                ></canvas>
+              </div>
             </div>
-            <div class="upload-field">
-              <label>主视觉 / 场景图</label>
-              <input type="file" id="upload-hero-image" accept="image/*" />
-              <img data-preview-for="upload-hero-image" class="thumb" alt="场景预览" />
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>顶部横条</legend>
+            <div class="grid top-banner-grid">
+              <label class="field file-field" data-material-field="brand_logo">
+                <span data-material-label="brand_logo">品牌 Logo 上传</span>
+                <input type="file" name="brand_logo" accept="image/*" />
+                <div class="inline-preview" role="presentation">
+                  <img data-inline-preview="brand_logo" alt="品牌 Logo 预览" />
+                </div>
+                <div
+                  class="asset-url"
+                  data-material-url="brand_logo"
+                  data-label="品牌 Logo URL："
+                  aria-live="polite"
+                >
+                  品牌 Logo URL：尚未上传
+                </div>
+              </label>
+              <label class="field">
+                <span>品牌名称</span>
+                <input type="text" name="brand_name" required />
+              </label>
+              <label class="field">
+                <span>品牌代理名 / 分销名</span>
+                <input type="text" name="agent_name" required />
+              </label>
             </div>
-            <div class="upload-field">
-              <label>产品渲染图</label>
-              <input type="file" id="upload-product-image" accept="image/*" />
-              <img data-preview-for="upload-product-image" class="thumb" alt="产品预览" />
-            </div>
-            <div class="gallery-uploads">
-              <label>底部系列小图</label>
-              <div class="grid-2">
-                <div class="upload-field">
-                  <input type="file" id="upload-gallery-1" accept="image/*" />
-                  <img data-preview-for="upload-gallery-1" class="thumb" alt="小图1" />
+          </fieldset>
+
+          <fieldset class="fieldset">
+            <legend>图像素材区</legend>
+            <div class="image-zones">
+              <div class="image-stack">
+                <div class="mode-toggle" data-mode-target="scenario">
+                  <span data-material-toggle-label="scenario">场景素材来源</span>
+                  <label data-mode-option="scenario-upload">
+                    <input type="radio" name="scenario_mode" value="upload" checked /> 上传图像
+                  </label>
+                  <label data-mode-option="scenario-prompt">
+                    <input type="radio" name="scenario_mode" value="prompt" /> 文字生成
+                  </label>
                 </div>
-                <div class="upload-field">
-                  <input type="file" id="upload-gallery-2" accept="image/*" />
-                  <img data-preview-for="upload-gallery-2" class="thumb" alt="小图2" />
+                <label class="field file-field" data-material-field="scenario">
+                  <span data-material-label="scenario">应用场景图上传</span>
+                  <input type="file" name="scenario_asset" accept="image/*" />
+                  <div class="inline-preview">
+                    <img data-inline-preview="scenario_asset" alt="应用场景预览" />
+                  </div>
+                </label>
+                <label class="field" data-material-description-container="scenario">
+                  <span data-material-description="scenario">应用场景描述（上传或 AI 生成时都会用到）</span>
+                  <textarea
+                    id="scenario_prompt"
+                    name="scenario_image"
+                    rows="3"
+                    required
+                    data-material-input="scenario"
+                    data-role="scenario-positive-prompt"
+                  ></textarea>
+                  <div class="slot-actions">
+                    <button type="button" id="btn-generate-scenario" class="secondary">
+                      AI 生成场景图
+                    </button>
+                    <img id="scenario_preview" class="slot-preview" alt="场景图预览" />
+                  </div>
+                </label>
+              </div>
+              <div class="image-stack">
+                <div class="mode-toggle" data-mode-target="product">
+                  <span data-material-toggle-label="product">主产品素材来源</span>
+                  <label data-mode-option="product-upload">
+                    <input type="radio" name="product_mode" value="upload" checked /> 上传图像
+                  </label>
+                  <label data-mode-option="product-prompt">
+                    <input type="radio" name="product_mode" value="prompt" /> 文字生成
+                  </label>
                 </div>
-                <div class="upload-field">
-                  <input type="file" id="upload-gallery-3" accept="image/*" />
-                  <img data-preview-for="upload-gallery-3" class="thumb" alt="小图3" />
-                </div>
-                <div class="upload-field">
-                  <input type="file" id="upload-gallery-4" accept="image/*" />
-                  <img data-preview-for="upload-gallery-4" class="thumb" alt="小图4" />
+                <label class="field file-field" data-material-field="product">
+                  <span data-material-label="product">产品 45° 渲染图上传</span>
+                  <input type="file" name="product_asset" accept="image/*" />
+                  <div class="inline-preview">
+                    <img data-inline-preview="product_asset" alt="产品渲染图预览" />
+                  </div>
+                </label>
+                <label class="field">
+                  <span>主产品名称</span>
+                  <input type="text" name="product_name" required />
+                </label>
+                <label class="field optional" data-mode-visible="product:prompt" data-material-prompt="product">
+                  <span data-material-prompt-label="product">产品图生成描述（可选补充）</span>
+                  <textarea
+                    id="product_prompt"
+                    name="product_prompt"
+                    rows="3"
+                    placeholder="补充产品材质、角度、使用场景等信息"
+                    data-material-input="product-prompt"
+                    data-role="product-positive-prompt"
+                  ></textarea>
+                  <div class="slot-actions">
+                    <button type="button" id="btn-generate-product" class="secondary">
+                      AI 生成主产品图
+                    </button>
+                    <img id="product_preview" class="slot-preview" alt="主产品预览" />
+                  </div>
+                </label>
+                <div class="feature-fields">
+                  <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
+                  <div class="feature-grid">
+                    <input type="text" name="features" required />
+                    <input type="text" name="features" required />
+                    <input type="text" name="features" required />
+                    <input type="text" name="features" placeholder="可选" />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </fieldset>
 
-      <section class="card" id="preview-card">
-        <h2>3. 版式实时预览</h2>
-        <div id="poster-layout-preview" class="poster-frame">
-          <div class="poster-header">
-            <img data-slot="logo" class="slot-logo" alt="品牌 logo" />
-            <div class="text-block">
-              <div data-slot="brand" class="slot-brand"></div>
-              <div data-slot="slogan" class="slot-slogan"></div>
+          <fieldset class="fieldset">
+            <legend>文字字段与底部产品</legend>
+            <div class="grid text-grid">
+              <label class="field">
+                <span>标题文案（大号粗体红字）</span>
+                <input type="text" name="title" required />
+              </label>
+              <label class="field">
+                <span>副标题文案（左下 / 右下角）</span>
+                <input type="text" name="subtitle" required />
+              </label>
             </div>
-          </div>
-          <div class="poster-body" data-layout-area="hero">
-            <img data-slot="hero" class="slot-hero" alt="主视觉" />
-            <div class="body-text">
-              <div data-slot="highlights" class="slot-highlights"></div>
-              <div data-slot="cta" class="slot-cta"></div>
-              <img data-slot="product" class="slot-product" alt="产品图" />
+            <div class="gallery-upload">
+              <div>
+                <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
+                <p class="micro-copy" data-gallery-description>
+                  每个条目由一张产品小图和一段系列说明组成，可上传现成图像，也可
+                  仅输入描述让 AI 生成。
+                </p>
+              </div>
+              <button type="button" id="add-gallery-item" class="secondary" data-gallery-upload>
+                上传底部产品小图
+              </button>
+              <button
+                type="button"
+                id="add-gallery-placeholder"
+                class="secondary subtle"
+                data-gallery-prompt
+              >
+                添加 AI 生成条目
+              </button>
+              <input
+                type="file"
+                id="gallery-file-input"
+                accept="image/*"
+                multiple
+                hidden
+              />
             </div>
-          </div>
-          <div class="poster-gallery" id="preview-gallery">
-            <figure><img data-slot="gallery-1" alt="小图1" /></figure>
-            <figure><img data-slot="gallery-2" alt="小图2" /></figure>
-            <figure><img data-slot="gallery-3" alt="小图3" /></figure>
-            <figure><img data-slot="gallery-4" alt="小图4" /></figure>
-          </div>
-        </div>
-        <div class="layout-preview-text">
-          <h3>后端版式结构预览</h3>
-          <pre id="layout-preview-text" class="prompt-block"></pre>
-        </div>
+            <div id="gallery-items" class="gallery-items" aria-live="polite"></div>
+          </fieldset>
+        </form>
+
         <div class="actions">
-          <button id="preview-layout" class="btn">调用后端预览版式</button>
-          <button id="go-to-stage2" class="btn primary">保存并前往环节 2</button>
+          <button id="build-preview" class="primary" type="button">构建版式预览</button>
+          <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
+        </div>
+        <p id="stage1-status" role="status" aria-live="polite"></p>
+
+        <div class="preview" id="preview-container">
+          <h3>版式预览</h3>
+          <div id="layout-preview" class="poster-preview">
+            <div class="poster-header">
+              <div class="poster-logo">
+                <div class="poster-logo-image">
+                  <img id="preview-brand-logo" alt="品牌 Logo 预览" />
+                </div>
+                <div class="poster-brand-name" id="preview-brand-name"></div>
+              </div>
+              <div class="poster-agent" id="preview-agent-name"></div>
+            </div>
+            <div class="poster-body">
+              <div class="poster-left">
+                <img id="preview-scenario-image" alt="应用场景预览" />
+              </div>
+              <div class="poster-right">
+                <div class="poster-product-wrapper">
+                  <img id="preview-product-image" alt="产品渲染图预览" />
+                  <ul id="preview-feature-list" class="feature-tags">
+                    <li class="feature-tag feature-tag--top" data-feature-index="0"><span></span></li>
+                    <li class="feature-tag feature-tag--middle" data-feature-index="1"><span></span></li>
+                    <li class="feature-tag feature-tag--bottom" data-feature-index="2"><span></span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="poster-title" id="preview-title"></div>
+            <div class="poster-gallery" id="preview-gallery"></div>
+            <div class="poster-subtitle" id="preview-subtitle"></div>
+          </div>
+          <details class="layout-structure">
+            <summary>查看版式结构说明</summary>
+            <pre id="layout-structure-text"></pre>
+          </details>
         </div>
       </section>
     </main>
 
-    <script src="app.js"></script>
+    <footer>
+      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
+    </footer>
+    <!-- styles.css 之后，app.js 之前 -->
+    <script defer src="placeholder.js?v=3"></script>
+    <script defer src="app.js?v=1"></script>
   </body>
 </html>
