@@ -3506,6 +3506,13 @@ function persistPromptState(stage1Data, state) {
   saveStage1Data(stage1Data, { preserveStage2: true });
 }
 
+// Legacy helper: restorePromptVariants kept for backward compatibility with
+// older callers that expect this global function. Currently a no-op placeholder
+// to avoid ReferenceError when invoked from other scripts.
+function restorePromptVariants(stage1Data, promptManager) {
+  return;
+}
+
 async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange, previewButton } = {}) {
   const container = document.getElementById('prompt-inspector');
   if (!container) return null;
