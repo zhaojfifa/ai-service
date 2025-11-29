@@ -3513,6 +3513,22 @@ function restorePromptVariants(stage1Data, promptManager) {
   return;
 }
 
+// Legacy helper: renderPosterVariantB
+// Used by older Stage2 A/B test flows to render a poster variant safely.
+function renderPosterVariantB(...args) {
+  if (typeof renderPosterVariant === 'function') {
+    try {
+      return renderPosterVariant(...args);
+    } catch (e) {
+      console.warn('renderPosterVariant threw an error, falling back to noop', e);
+      return null;
+    }
+  }
+
+  console.warn('renderPosterVariantB is called but no renderer is available. Args:', args);
+  return null;
+}
+
 async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange, previewButton } = {}) {
   const container = document.getElementById('prompt-inspector');
   if (!container) return null;
