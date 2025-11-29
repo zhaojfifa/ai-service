@@ -92,6 +92,15 @@ let posterGeneratedLayout = null;
 let posterGeneratedImageUrl = null;
 let lastPromptBundle = null;
 
+// New: client-side generation state to track A/B variants and selection
+const generationState = {
+  variants: {
+    A: null,
+    B: null,
+  },
+  selectedVariant: 'A',
+};
+
 const stage2State = {
   poster: {
     brand_name: '',
@@ -4283,6 +4292,72 @@ function initStage2() {
       runGeneration();
     });
 
+    // Variant toggle buttons (A / B)
+    const variantABtn = document.getElementById('variant-a-btn');
+    const variantBBtn = document.getElementById('variant-b-btn');
+
+    const requestVariant = async (candidateIndex) => {
+      try {
+        // Build a full options object for triggerGeneration using local vars
+        const opts = {
+          stage1Data: lastStage1Data,
+          statusElement,
+          posterOutput,
+          aiPreview,
+          aiSpinner,
+          aiPreviewMessage,
+          posterVisual,
+          generatedImage: document.getElementById('vertex-poster-preview-img'),
+          generatedPlaceholder: document.getElementById('vertex-poster-placeholder'),
+          generatedPlaceholderDefault,
+          templatePoster: activeTemplatePoster,
+          promptBundleGroup,
+          promptBundlePre,
+          promptGroup,
+          emailGroup,
+          promptTextarea,
+          emailTextarea,
+          generateButton,
+          regenerateButton,
+          nextButton,
+          promptManager,
+          updatePromptPanels: null,
+          forceVariants: null,
+          abTest: false,
+          candidateIndex,
+        };
+        await triggerGeneration(opts);
+      } catch (e) {
+        console.error('requestVariant failed', e);
+      }
+    };
+
+    if (variantABtn) {
+      variantABtn.addEventListener('click', () => {
+        switchToVariant('A');
+      });
+    }
+
+    if (variantBBtn) {
+      variantBBtn.addEventListener('click', async () => {
+        // If B already exists, simply switch; otherwise request B lazily
+        if (generationState.variants.B) {
+          switchToVariant('B');
+          return;
+        }
+        // disable button while requesting
+        variantBBtn.disabled = true;
+        await requestVariant(1);
+        variantBBtn.disabled = false;
+        // If variant B now exists, switch to it; otherwise leave as-is and show warning
+        if (generationState.variants.B) {
+          switchToVariant('B');
+        } else {
+          setStatus(statusElement, '未生成 B 版：后端可能未返回变体。', 'warning');
+        }
+      });
+    }
+
     if (regenerateButton) {
       regenerateButton.addEventListener('click', () => {
         runGeneration();
@@ -4473,6 +4548,67 @@ function renderPosterResult(result) {
   return posterSrc || null;
 }
 
+// Switch UI to show a specific variant (A or B)
+function switchToVariant(key) {
+  if (!['A', 'B'].includes(key)) return;
+  generationState.selectedVariant = key;
+  const data = generationState.variants[key];
+  if (!data) {
+    // no data for this variant yet: clear preview or show placeholder
+    setStatus(document.getElementById('stage2-status'), `Variant ${key} 尚未生成。`, 'info');
+    return;
+  }
+
+  // Apply response to stage2State (poster & assets)
+  try {
+    const poster = data.poster || {};
+    stage2State.poster = {
+      brand_name: poster.brand_name || stage2State.poster.brand_name,
+      agent_name: poster.agent_name || stage2State.poster.agent_name,
+      headline: poster.title || stage2State.poster.headline,
+      tagline: poster.subtitle || stage2State.poster.tagline,
+      features: Array.isArray(poster.features) ? poster.features : stage2State.poster.features,
+      series: Array.isArray(poster.series) ? poster.series : stage2State.poster.series,
+    };
+
+    const assets = stage2State.assets || {};
+    assets.brand_logo_url = pickImageSrc(poster.brand_logo) || assets.brand_logo_url || '';
+    assets.scenario_url = data?.scenario_image?.url || pickImageSrc(poster.scenario_image) || assets.scenario_url || '';
+    assets.product_url = data?.product_image?.url || pickImageSrc(poster.product_image) || assets.product_url || '';
+    assets.gallery_urls = Array.isArray(data?.gallery_images)
+      ? data.gallery_images.map((entry) => pickImageSrc(entry)).filter(Boolean)
+      : assets.gallery_urls || [];
+    stage2State.assets = assets;
+
+    // Update AI preview image/hinted poster url
+    const posterSrc = extractVertexPosterUrl(data) || pickImageSrc(poster.poster_image) || pickImageSrc(data?.poster_image) || null;
+    if (posterSrc) {
+      const img = document.getElementById('vertex-poster-preview-img');
+      const placeholder = document.getElementById('vertex-poster-placeholder');
+      if (img) {
+        img.src = posterSrc;
+        img.style.display = 'block';
+        img.classList.remove('hidden');
+      }
+      if (placeholder && placeholder.classList) {
+        placeholder.classList.add('hidden');
+      }
+      try { sessionStorage.setItem('latestPosterUrl', posterSrc); } catch (e) {}
+    }
+
+    // update prompt/email fields if present
+    const promptTextarea = document.getElementById('openai-request-prompt');
+    const emailTextarea = document.getElementById('generated-email');
+    if (promptTextarea) promptTextarea.value = data?.prompt || data?.prompt_text || '';
+    if (emailTextarea) emailTextarea.value = data?.email_body || '';
+
+    // finally refresh poster preview area
+    renderPosterResult();
+  } catch (e) {
+    console.warn('switchToVariant failed to apply variant', e);
+  }
+}
+
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
@@ -4586,16 +4722,25 @@ function renderPosterResult() {
   }
 }
 
-function applyVertexPosterResult(data) {
-  console.log('[triggerGeneration] applyVertexPosterResult', data);
+function applyVertexPosterResult(data, candidateIndex = 0) {
+  console.log('[triggerGeneration] applyVertexPosterResult', { candidateIndex, data });
 
   const slotSummary = summariseGenerationSlots(data);
   console.info('[triggerGeneration] slot assets', slotSummary);
 
   surfaceSlotWarnings(slotSummary);
 
+  // store raw response on vertex state
   stage2State.vertex.lastResponse = data || null;
   const assets = stage2State.assets;
+
+  // Store the response into generationState (A/B)
+  try {
+    const key = candidateIndex === 1 ? 'B' : 'A';
+    generationState.variants[key] = data || null;
+  } catch (e) {
+    console.warn('failed to store generationState variant', e);
+  }
 
   if (data?.scenario_image?.url) {
     assets.scenario_url = data.scenario_image.url;
@@ -4611,18 +4756,36 @@ function applyVertexPosterResult(data) {
 
   const posterUrl = extractVertexPosterUrl(data);
   if (posterUrl) {
-    posterGeneratedImageUrl = posterUrl;
-    posterGenerationState.posterUrl = posterUrl;
-    posterGeneratedImage = posterGenerationState.posterUrl;
-    assets.composite_poster_url = posterUrl;
-    try {
-      sessionStorage.setItem('latestPosterUrl', posterUrl);
-    } catch (error) {
-      console.warn('无法缓存最新海报 URL', error);
+    // Keep legacy single-poster globals in sync for backwards compatibility
+    if (candidateIndex === 0) {
+      posterGeneratedImageUrl = posterUrl;
+      posterGenerationState.posterUrl = posterUrl;
+      posterGeneratedImage = posterGenerationState.posterUrl;
+      assets.composite_poster_url = posterUrl;
+      try {
+        sessionStorage.setItem('latestPosterUrl', posterUrl);
+      } catch (error) {
+        console.warn('无法缓存最新海报 URL', error);
+      }
     }
   }
 
-  renderPosterResult();
+  // If the newly-received variant is the currently-selected one, render it.
+  const selected = generationState.selectedVariant || 'A';
+  const selectedData = generationState.variants[selected];
+  if (selectedData && selectedData === data) {
+    // apply the selected variant to UI
+    switchToVariant(selected);
+  } else if (candidateIndex === 0) {
+    // default behaviour: update poster preview with the A result
+    // Merge basic assets into stage2State then render
+    if (data?.scenario_image?.url) assets.scenario_url = data.scenario_image.url;
+    if (data?.product_image?.url) assets.product_url = data.product_image.url;
+    if (Array.isArray(data?.gallery_images)) {
+      assets.gallery_urls = data.gallery_images.map((entry) => pickImageSrc(entry)).filter(Boolean);
+    }
+    renderPosterResult();
+  }
 }
 
 async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
@@ -4726,6 +4889,7 @@ async function triggerGeneration(opts) {
     generateButton, regenerateButton, nextButton,
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
+    candidateIndex = 0,
   } = opts;
 
   try {
@@ -5102,7 +5266,7 @@ async function triggerGeneration(opts) {
       lock_seed: data?.lock_seed ?? null,
     });
 
-    applyVertexPosterResult(data);
+    applyVertexPosterResult(data, candidateIndex);
 
     clearFallbackTimer();
 
