@@ -5213,10 +5213,46 @@ async function triggerGeneration(opts) {
   // 7) 发送（健康探测 + 重试）
   await warmUp(apiCandidates);
   
-  try {
-    // 发送请求：兼容返回 Response 或 JSON
-    const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
-    const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+    try {
+    let data = null;
+    // If this is candidateIndex 1 (Variant B) prefer Stage1-style whole-image pipeline
+    if (candidateIndex === 1) {
+      // Build a simple combined prompt from prompt bundle strings
+      const pb = payload.prompt_bundle || {};
+      const parts = [];
+      if (pb.scenario) parts.push(pb.scenario);
+      if (pb.product) parts.push(pb.product);
+      if (pb.gallery) parts.push(pb.gallery);
+      const combinedPrompt = parts.filter(Boolean).join(' | ');
+
+      try {
+        const imagenPayload = {
+          prompt: combinedPrompt || payload.prompt || combinedPrompt,
+          size: '1024x1024',
+          variants: 1,
+          store: true,
+        };
+        const resp = await postJsonWithRetry(apiCandidates, '/api/imagen/generate', imagenPayload, 1, JSON.stringify(imagenPayload));
+        const json = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+        // Normalize imagen response into a poster-like structure
+        const imgUrl = json?.url || (Array.isArray(json?.results) && json.results[0]?.url) || null;
+        data = {
+          poster_url: imgUrl,
+          poster_image: imgUrl ? { url: imgUrl } : null,
+          poster: imgUrl ? { poster_image: { url: imgUrl } } : null,
+          prompt: combinedPrompt,
+        };
+      } catch (err) {
+        console.warn('[triggerGeneration] imagen generate failed, falling back to /api/generate-poster', err);
+        // fallback to regular poster generation below
+        const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+        data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+      }
+    } else {
+      // 发送请求：兼容返回 Response 或 JSON
+      const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+      data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+    }
 
     console.info('[debug] apiVertexPosterResult', {
       poster_url: data?.poster_url,
