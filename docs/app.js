@@ -3525,18 +3525,94 @@ function restorePromptVariants(stage1Data, promptManager) {
 // Legacy helper: renderPosterVariantB
 // Used by older Stage2 A/B test flows to render a poster variant safely.
 function renderPosterVariantB(...args) {
-  if (typeof renderPosterVariant === 'function') {
-    try {
-      return renderPosterVariant(...args);
-    } catch (e) {
-      console.warn('renderPosterVariant threw an error, falling back to noop', e);
-      return null;
+  try {
+    // Prefer a registered renderer for the current page/stage if available
+    const stage = document.body?.dataset?.stage || 'stage2';
+    const registry = window.posterVariantRenderers || {};
+    const stageRegistry = registry[stage] || null;
+    if (stageRegistry && typeof stageRegistry.B === 'function') {
+      try {
+        return stageRegistry.B(window.stage2PosterPreview || {});
+      } catch (e) {
+        console.warn('[posterPreview] registered B renderer threw', e);
+      }
     }
+
+    // Fallback: try calling global renderPosterVariant if present
+    if (typeof renderPosterVariant === 'function') {
+      try {
+        return renderPosterVariant(...args);
+      } catch (e) {
+        console.warn('renderPosterVariant threw an error, falling back to noop', e);
+        return null;
+      }
+    }
+  } catch (e) {
+    console.warn('renderPosterVariantB encountered an error', e);
   }
 
   console.warn('renderPosterVariantB is called but no renderer is available. Args:', args);
   return null;
 }
+
+// Poster variant renderers registry (can be extended for other pages)
+window.posterVariantRenderers = window.posterVariantRenderers || {};
+
+function renderStage2PosterVariantA(state) {
+  // Keep existing template-based visual behavior
+  const s = state || window.stage2PosterPreview || {};
+  console.debug('[posterPreview] render A', { page: 'stage2', posterUrl: s.posterUrl });
+  try {
+    // Merge backend data into generationState for consistency
+    if (s?.data) {
+      // store into generationState variants so switchToVariant can pick it up
+      generationState.variants.A = s.data;
+    }
+    // Use existing preview mechanisms
+    renderPosterResult(s?.data || generationState.variants.A);
+    refreshPosterLayoutPreview(s?.data || lastPosterResult);
+  } catch (e) {
+    console.warn('[posterPreview] renderStage2PosterVariantA failed', e);
+  }
+}
+
+function renderStage2PosterVariantB(state) {
+  const s = state || window.stage2PosterPreview || {};
+  const previewImg = document.getElementById('vertex-poster-preview-img');
+  const placeholder = document.getElementById('vertex-poster-placeholder');
+  const urlInput = document.getElementById('vertex-poster-url');
+
+  if (!previewImg || !placeholder || !urlInput) {
+    console.warn('[posterPreview] B: preview DOM not found on stage2');
+    return;
+  }
+
+  if (!s || !s.posterUrl) {
+    console.warn('[posterPreview] B: no posterUrl yet, please generate first');
+    setStatus(document.getElementById('stage2-status'), '请先生成海报再切换到 B 版。', 'info');
+    return;
+  }
+
+  previewImg.src = s.posterUrl;
+  previewImg.style.display = 'block';
+  if (previewImg.classList) previewImg.classList.remove('hidden');
+  placeholder.style.display = 'none';
+  if (placeholder.classList) placeholder.classList.add('hidden');
+  urlInput.value = s.posterUrl;
+
+  // Keep generationState in sync
+  try {
+    generationState.variants.B = s.data || generationState.variants.B;
+  } catch (e) {}
+
+  console.debug('[posterPreview] render B', { page: 'stage2', posterUrl: s.posterUrl });
+}
+
+// Register stage2 renderers
+window.posterVariantRenderers['stage2'] = {
+  A: renderStage2PosterVariantA,
+  B: renderStage2PosterVariantB,
+};
 
 async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange, previewButton } = {}) {
   const container = document.getElementById('prompt-inspector');
@@ -4334,24 +4410,66 @@ function initStage2() {
 
     if (variantABtn) {
       variantABtn.addEventListener('click', () => {
-        switchToVariant('A');
+        // Ensure we have a preview state
+        if (!window.stage2PosterPreview) {
+          setStatus(statusElement, '尚未生成海报，请先点击“生成海报与文案”。', 'info');
+          return;
+        }
+        // mark active and update UI classes
+        try { window.stage2PosterPreview.active = 'A'; } catch (e) {}
+        variantABtn.classList.add('active');
+        variantBBtn && variantBBtn.classList.remove('active');
+        console.debug('[posterPreview] switch variant=A');
+
+        const renderer = window.posterVariantRenderers?.['stage2']?.A;
+        if (typeof renderer === 'function') {
+          renderer(window.stage2PosterPreview);
+        } else {
+          switchToVariant('A');
+        }
       });
     }
 
     if (variantBBtn) {
       variantBBtn.addEventListener('click', async () => {
-        // If B already exists, simply switch; otherwise request B lazily
+        // If B already exists, simply switch
         if (generationState.variants.B) {
-          switchToVariant('B');
+          try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
+          variantBBtn.classList.add('active');
+          variantABtn && variantABtn.classList.remove('active');
+          console.debug('[posterPreview] switch variant=B');
+          const renderer = window.posterVariantRenderers?.['stage2']?.B;
+          if (typeof renderer === 'function') {
+            renderer(window.stage2PosterPreview || { data: generationState.variants.B, posterUrl: extractVertexPosterUrl(generationState.variants.B) });
+          } else {
+            switchToVariant('B');
+          }
           return;
         }
+
+        // If no preview state or no poster URL, warn the user instead of trying to switch
+        if (!window.stage2PosterPreview || !window.stage2PosterPreview.posterUrl) {
+          setStatus(statusElement, '尚未生成海报或无可用图片，请先点击“生成海报与文案”。', 'info');
+          return;
+        }
+
         // disable button while requesting
         variantBBtn.disabled = true;
         await requestVariant(1);
         variantBBtn.disabled = false;
-        // If variant B now exists, switch to it; otherwise leave as-is and show warning
+
+        // If variant B now exists, switch to it; otherwise show warning
         if (generationState.variants.B) {
-          switchToVariant('B');
+          try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
+          variantBBtn.classList.add('active');
+          variantABtn && variantABtn.classList.remove('active');
+          console.debug('[posterPreview] switch variant=B');
+          const renderer = window.posterVariantRenderers?.['stage2']?.B;
+          if (typeof renderer === 'function') {
+            renderer(window.stage2PosterPreview || { data: generationState.variants.B, posterUrl: extractVertexPosterUrl(generationState.variants.B) });
+          } else {
+            switchToVariant('B');
+          }
         } else {
           setStatus(statusElement, '未生成 B 版：后端可能未返回变体。', 'warning');
         }
@@ -4604,6 +4722,19 @@ function switchToVariant(key) {
 
     // finally refresh poster preview area
     renderPosterResult();
+    // If a registry renderer exists for stage2, invoke it (keeps A/B renderers consistent)
+    try {
+      const stage = document.body?.dataset?.stage || 'stage2';
+      const registry = window.posterVariantRenderers || {};
+      const stageRegistry = registry[stage] || null;
+      if (stageRegistry && typeof stageRegistry[key] === 'function') {
+        try {
+          stageRegistry[key](window.stage2PosterPreview || { data });
+        } catch (e) {
+          console.warn('[posterPreview] stage renderer threw', e);
+        }
+      }
+    } catch (e) {}
   } catch (e) {
     console.warn('switchToVariant failed to apply variant', e);
   }
@@ -5301,6 +5432,26 @@ async function triggerGeneration(opts) {
       seed: data?.seed ?? null,
       lock_seed: data?.lock_seed ?? null,
     });
+
+    // Store a small stage2 preview state on window for A/B renderers
+    try {
+      const previewState = {
+        hasPoster: Boolean(data?.poster_url || data?.poster_image || data?.poster?.poster_image),
+        data: data || null,
+        posterUrl:
+          data?.poster_url ||
+          data?.poster_image?.url ||
+          (Array.isArray(data?.results) && data.results[0]?.url) ||
+          null,
+        layoutPreview: data?.layout_preview || lastStage1Data?.layout_preview || null,
+        promptBundle: data?.prompt_bundle || null,
+        createdAt: Date.now(),
+      };
+      window.stage2PosterPreview = previewState;
+      console.debug('[posterPreview] stored payload for stage2', window.stage2PosterPreview);
+    } catch (e) {
+      console.warn('[posterPreview] failed to store preview state', e);
+    }
 
     applyVertexPosterResult(data, candidateIndex);
 
@@ -6612,3 +6763,16 @@ if (typeof window.openABModal !== 'function') {
     alert('A/B 测试弹窗暂未实现，目前已完成 AI 海报生成，可以先前往第 3 步使用该海报。');
   };
 }
+
+// Smoke test for Stage2 A/B preview:
+//   1) cd frontend && python -m http.server 5501
+//   2) Open http://localhost:5501/index.html and complete Stage1.
+//   3) Go to Stage2, click "生成海报与文案".
+//   4) Confirm console shows:
+//        [triggerGeneration] /api/generate-poster ...
+//        [posterPreview] stored payload for stage2 ...
+//        [posterPreview] render A ...
+//   5) Click the B button:
+//        [posterPreview] switch variant=B
+//        [posterPreview] render B ...
+//      and .ai-result-box shows the AI poster image with #vertex-poster-preview-img visible.
