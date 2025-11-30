@@ -127,6 +127,11 @@ const stage2State = {
     imageUrl: null,
     error: null,
   },
+  // Simplified B-side fields for UI logic
+  activeVariant: 'A', // 'A' | 'B'
+  bPrompt: null,
+  bImageUrl: null,
+  bLastError: null,
 };
 
 // Stage2 A/B variants state (in-memory)
@@ -3708,6 +3713,13 @@ async function generatePosterVariantB({ useMock = false } = {}) {
 
     stage2State.posterVariantB.status = 'ok';
     stage2State.posterVariantB.imageUrl = imageUrl;
+    // mirror into simplified state
+    stage2State.bImageUrl = imageUrl;
+    stage2State.bLastError = null;
+
+    // update UI
+    try { updateVariantBImage(imageUrl); } catch (e) {}
+    try { setBStatus('B 版海报生成成功。'); } catch (e) {}
 
     // Update DOM for B preview box
     const img = document.getElementById('vertex-poster-preview-img');
@@ -3728,9 +3740,55 @@ async function generatePosterVariantB({ useMock = false } = {}) {
     console.error('[posterVariantB] failed', err);
     stage2State.posterVariantB.status = 'failed';
     stage2State.posterVariantB.error = String((err && err.message) || err);
+    stage2State.bImageUrl = null;
+    stage2State.bLastError = String((err && err.message) || err);
+    try { setBStatus('AI 生图失败，已保留文案，可点击「用文案 Mock 再生成」获取占位图。'); } catch (e) {}
     return null;
   } finally {
     updateVariantButtonsUI();
+  }
+}
+
+// Helpers for B area UI
+function updatePosterBPromptView(text) {
+  try {
+    const el = document.getElementById('poster-b-prompt-view');
+    if (el) {
+      el.textContent = text || '';
+    }
+  } catch (e) {}
+}
+
+function setBStatus(text) {
+  try {
+    const el = document.getElementById('variant-b-status');
+    if (el) {
+      el.textContent = text || '';
+      if (text) el.classList.remove('hidden'); else el.classList.add('hidden');
+    }
+  } catch (e) {}
+}
+
+function updateVariantBImage(url) {
+  try {
+    const img = document.getElementById('vertex-poster-preview-img');
+    const placeholder = document.getElementById('vertex-poster-placeholder');
+    const hiddenUrl = document.getElementById('vertex-poster-url');
+    if (!img || !placeholder || !hiddenUrl) return;
+    if (!url) {
+      img.style.display = 'none';
+      img.removeAttribute('src');
+      placeholder.style.display = '';
+      hiddenUrl.value = '';
+      return;
+    }
+    img.src = url;
+    img.style.display = 'block';
+    if (img.classList) img.classList.remove('hidden');
+    placeholder.style.display = 'none';
+    hiddenUrl.value = url;
+  } catch (e) {
+    console.warn('[updateVariantBImage] failed', e);
   }
 }
 
@@ -4611,6 +4669,51 @@ function initStage2() {
       console.warn('[initStage2] failed to create variant B mock controls', e);
     }
 
+    // A button: switch to template preview
+    if (variantABtn) {
+      variantABtn.addEventListener('click', () => {
+        try {
+          stage2State.activeVariant = 'A';
+          if (posterVisual) posterVisual.classList.remove('hidden');
+          const bVis = document.getElementById('poster-b-visual');
+          if (bVis) bVis.classList.add('hidden');
+          variantABtn.classList.add('active');
+          variantBBtn && variantBBtn.classList.remove('active');
+          // render existing template-based result
+          renderPosterResult();
+        } catch (e) {
+          console.warn('[variantA] click handler failed', e);
+        }
+      });
+    }
+
+    // B generate button (explicit generate control inside B area)
+    try {
+      const bGenerateBtn = document.getElementById('variant-b-generate-btn');
+      if (bGenerateBtn) {
+        bGenerateBtn.addEventListener('click', async () => {
+          try {
+            setBStatus('正在调用 Vertex AI 生图……');
+            bGenerateBtn.disabled = true;
+            await generatePosterVariantB({ useMock: false });
+            bGenerateBtn.disabled = false;
+            const now = stage2State.bImageUrl;
+            if (now) {
+              setBStatus('B 版海报生成成功。');
+            }
+          } catch (e) {
+            console.error('[variant-b-generate-btn] failed', e);
+            setBStatus('AI 生图失败，已保留文案，可点击「用文案 Mock 再生成」获取占位图。');
+          } finally {
+            bGenerateBtn.disabled = false;
+            updateVariantButtonsUI();
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[initStage2] failed to wire variant-b-generate-btn', e);
+    }
+
     const requestVariant = async (candidateIndex) => {
       try {
         // Build a full options object for triggerGeneration using local vars
@@ -4661,6 +4764,8 @@ function initStage2() {
           try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
           variantBBtn.classList.add('active');
           variantABtn && variantABtn.classList.remove('active');
+          const bVis = document.getElementById('poster-b-visual');
+          if (bVis) bVis.classList.remove('hidden');
           const aiBox = document.querySelector('.ai-result-box');
           if (aiBox) aiBox.classList.remove('hidden');
           if (posterVisual) posterVisual.classList.add('hidden');
@@ -5734,6 +5839,9 @@ async function triggerGeneration(opts) {
       try {
         stage2State.posterVariantB = stage2State.posterVariantB || { status: 'idle', prompt: '', imageUrl: null, error: null };
         stage2State.posterVariantB.prompt = data?.prompt || stage2State.posterVariantB.prompt || '';
+        // also set simplified bPrompt and update view
+        stage2State.bPrompt = data?.prompt || stage2State.bPrompt || null;
+        try { updatePosterBPromptView(stage2State.bPrompt); } catch (e) {}
       } catch (e) {
         console.warn('[posterPreview] failed to copy prompt to posterVariantB', e);
       }
