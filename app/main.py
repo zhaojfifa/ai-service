@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import uuid
+import io
 from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
@@ -17,6 +18,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, root_validator
+from PIL import Image, ImageDraw, ImageFont
 
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
@@ -332,6 +334,7 @@ class ImagenGenerateRequest(BaseModel):
             "是否强制写入对象存储。当显式传 false 时若 RETURN_BINARY_DEFAULT=0 将被拒绝。"
         ),
     )
+    force_mock: bool = Field(False, description="是否强制返回后端 Mock 图片（调试/占位用）")
 
     @root_validator(pre=True)
     def _alias_guidance(cls, values: dict[str, object]) -> dict[str, object]:
@@ -392,6 +395,7 @@ def _resolve_dimensions(size: str) -> tuple[int, int]:
 
 
 
+@app.post("/api/image/generate", response_model=ImagenGenerateResponse)
 @app.post("/api/imagen/generate", response_model=ImagenGenerateResponse)
 def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -> Response:
     provider = _get_image_provider()
@@ -418,17 +422,41 @@ def api_imagen_generate(request: Request, request_data: ImagenGenerateRequest) -
     )
 
     try:
-        images = provider.generate(
-            prompt=request_data.prompt,
-            width=width,
-            height=height,
-            negative_prompt=request_data.negative,
-            seed=request_data.seed,
-            guidance_scale=request_data.guidance_scale,
-            add_watermark=request_data.add_watermark,
-            number_of_images=variants,
-            trace_id=rid,
-        )
+        # Support force-mock mode for debugging / placeholder images
+        if getattr(request_data, "force_mock", False):
+            logger.info("force_mock requested - returning mock image bytes", extra={"rid": rid})
+            try:
+                img = Image.new("RGBA", (width, height), (240, 240, 240, 255))
+                draw = ImageDraw.Draw(img)
+                text = "MOCK"
+                try:
+                    font = ImageFont.load_default()
+                except Exception:
+                    font = None
+                if font:
+                    tw, th = draw.textsize(text, font=font)
+                else:
+                    tw, th = draw.textsize(text)
+                draw.text(((width - tw) / 2, (height - th) / 2), text, fill=(60, 60, 60), font=font)
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                images = [buf.read()]
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.exception("Failed to build mock image: %s", exc)
+                raise HTTPException(status_code=500, detail=f"Mock image generation failed: {exc}") from exc
+        else:
+            images = provider.generate(
+                prompt=request_data.prompt,
+                width=width,
+                height=height,
+                negative_prompt=request_data.negative,
+                seed=request_data.seed,
+                guidance_scale=request_data.guidance_scale,
+                add_watermark=request_data.add_watermark,
+                number_of_images=variants,
+                trace_id=rid,
+            )
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - remote dependency

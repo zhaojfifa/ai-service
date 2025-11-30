@@ -120,6 +120,13 @@ const stage2State = {
   vertex: {
     lastResponse: null,
   },
+  // Variant B tracking state (full-image mode)
+  posterVariantB: {
+    status: 'idle', // 'idle' | 'loading' | 'ok' | 'failed'
+    prompt: '',
+    imageUrl: null,
+    error: null,
+  },
 };
 
 // Stage2 A/B variants state (in-memory)
@@ -3637,6 +3644,96 @@ window.posterVariantRenderers['stage2'] = {
   B: renderStage2PosterVariantB,
 };
 
+// Update the UI state for variant B controls (loading / failed hints)
+function updateVariantButtonsUI() {
+  try {
+    const variantBBtn = document.getElementById('variant-b-btn');
+    const mockBtn = document.getElementById('variant-b-mock-btn');
+    const statusEl = document.getElementById('variant-b-status');
+    const b = stage2State.posterVariantB || {};
+
+    if (variantBBtn) {
+      variantBBtn.disabled = b.status === 'loading';
+    }
+    if (mockBtn) {
+      mockBtn.disabled = b.status === 'loading';
+    }
+
+    if (statusEl) {
+      if (b.status === 'failed') {
+        statusEl.textContent = 'AI 生图失败，已保留文案，可点击【用文案 Mock 再生成】获取占位图。';
+        statusEl.classList.remove('hidden');
+      } else if (b.status === 'loading') {
+        statusEl.textContent = '正在生成 B 版图片…';
+        statusEl.classList.remove('hidden');
+      } else {
+        statusEl.textContent = '';
+        statusEl.classList.add('hidden');
+      }
+    }
+  } catch (e) {
+    console.warn('[posterVariantB] updateVariantButtonsUI failed', e);
+  }
+}
+
+// Generate Variant B (full-image) using /api/image/generate. If useMock=true, set force_mock flag.
+async function generatePosterVariantB({ useMock = false } = {}) {
+  const b = stage2State.posterVariantB || {};
+  if (!b.prompt || typeof b.prompt !== 'string' || b.prompt.trim().length === 0) {
+    console.warn('[posterVariantB] no prompt available');
+    return null;
+  }
+
+  stage2State.posterVariantB.status = 'loading';
+  stage2State.posterVariantB.error = null;
+  updateVariantButtonsUI();
+
+  try {
+    const body = {
+      prompt: b.prompt,
+      aspect: '1:1',
+      variants: 1,
+      size: '1024x1024',
+    };
+    if (useMock) body.force_mock = true;
+
+    console.debug('[posterVariantB] request', { body });
+    const apiBaseSetting = (typeof STORAGE_KEYS !== 'undefined' && sessionStorage.getItem(STORAGE_KEYS.apiBase)) || (document.getElementById('api-base') && document.getElementById('api-base').value) || '';
+    const resp = await postJsonWithRetry(apiBaseSetting, '/api/image/generate', body);
+    const json = resp && typeof resp.json === 'function' ? await resp.json() : resp;
+    const imageUrl = json?.image_url || json?.url || (Array.isArray(json?.results) && json.results[0]?.url) || '';
+    if (!imageUrl) {
+      throw new Error('No image_url returned from /api/image/generate');
+    }
+
+    stage2State.posterVariantB.status = 'ok';
+    stage2State.posterVariantB.imageUrl = imageUrl;
+
+    // Update DOM for B preview box
+    const img = document.getElementById('vertex-poster-preview-img');
+    const placeholder = document.getElementById('vertex-poster-placeholder');
+    const hiddenUrl = document.getElementById('vertex-poster-url');
+
+    if (img && placeholder) {
+      img.src = imageUrl;
+      img.style.display = 'block';
+      img.classList.remove('hidden');
+      placeholder.classList.add('hidden');
+    }
+    if (hiddenUrl) hiddenUrl.value = imageUrl;
+
+    console.debug('[posterPreview] render variant=B', { imageUrl });
+    return imageUrl;
+  } catch (err) {
+    console.error('[posterVariantB] failed', err);
+    stage2State.posterVariantB.status = 'failed';
+    stage2State.posterVariantB.error = String((err && err.message) || err);
+    return null;
+  } finally {
+    updateVariantButtonsUI();
+  }
+}
+
 // Generic wrappers for renderPosterVariantA / B used by older callers
 function renderPosterVariantA(state) {
   try {
@@ -4488,6 +4585,32 @@ function initStage2() {
     const variantABtn = document.getElementById('variant-a-btn');
     const variantBBtn = document.getElementById('variant-b-btn');
 
+    // Ensure mock button and status element exist (insert into variant-controls if present)
+    try {
+      const variantControls = document.querySelector('.variant-controls');
+      if (variantControls) {
+        // mock button: only shown/clickable in B mode
+        if (!document.getElementById('variant-b-mock-btn')) {
+          const mockBtn = document.createElement('button');
+          mockBtn.type = 'button';
+          mockBtn.id = 'variant-b-mock-btn';
+          mockBtn.className = 'secondary';
+          mockBtn.style.marginLeft = '8px';
+          mockBtn.textContent = '用文案 Mock 再生成';
+          variantControls.appendChild(mockBtn);
+        }
+        if (!document.getElementById('variant-b-status')) {
+          const statusSpan = document.createElement('span');
+          statusSpan.id = 'variant-b-status';
+          statusSpan.style.marginLeft = '10px';
+          statusSpan.className = 'hint hidden';
+          variantControls.appendChild(statusSpan);
+        }
+      }
+    } catch (e) {
+      console.warn('[initStage2] failed to create variant B mock controls', e);
+    }
+
     const requestVariant = async (candidateIndex) => {
       try {
         // Build a full options object for triggerGeneration using local vars
@@ -4514,66 +4637,65 @@ function initStage2() {
           nextButton,
           promptManager,
           updatePromptPanels: null,
-          forceVariants: null,
-          abTest: false,
-          candidateIndex,
-        };
-        await triggerGeneration(opts);
-      } catch (e) {
-        console.error('requestVariant failed', e);
-      }
-    };
+            variantBBtn.addEventListener('click', async () => {
+              // When user opens B, show B UI and attempt generation if idle
+              try {
+                try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
+                variantBBtn.classList.add('active');
+                variantABtn && variantABtn.classList.remove('active');
 
-    if (variantABtn) {
-      variantABtn.addEventListener('click', () => {
-        // Ensure we have a preview state
-        if (!window.stage2PosterPreview) {
-          setStatus(statusElement, '尚未生成海报，请先点击“生成海报与文案”。', 'info');
-          return;
-        }
-        // mark active and update UI classes
-        try { window.stage2PosterPreview.active = 'A'; } catch (e) {}
-        variantABtn.classList.add('active');
-        variantBBtn && variantBBtn.classList.remove('active');
-        console.debug('[posterPreview] switch variant=A');
+                // Hide template preview and show AI box immediately
+                const aiBox = document.querySelector('.ai-result-box');
+                if (aiBox) aiBox.classList.remove('hidden');
+                if (posterVisual) posterVisual.classList.add('hidden');
 
-        const renderer = window.posterVariantRenderers?.['stage2']?.A;
-        if (typeof renderer === 'function') {
-          renderer(window.stage2PosterPreview);
-        } else {
-          switchToVariant('A');
-        }
-      });
-    }
+                // If Variant B already has an imageUrl, render it
+                const bState = stage2State.posterVariantB || {};
+                if (bState.imageUrl && bState.status === 'ok') {
+                  const renderer = window.posterVariantRenderers?.['stage2']?.B;
+                  if (typeof renderer === 'function') {
+                    renderer({ posterUrl: bState.imageUrl, data: null });
+                  } else {
+                    renderPosterVariantB({ posterUrl: bState.imageUrl, data: null });
+                  }
+                  return;
+                }
 
-    if (variantBBtn) {
-      variantBBtn.addEventListener('click', async () => {
-        // Prefer in-memory posterVariants.B if available
-        const inMemB = posterVariants.B;
-        const genB = generationState.variants.B;
-        if (inMemB && inMemB.url) {
-          try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
-          variantBBtn.classList.add('active');
-          variantABtn && variantABtn.classList.remove('active');
-          console.debug('[posterPreview] switch variant=B');
-          const renderer = window.posterVariantRenderers?.['stage2']?.B;
-          if (typeof renderer === 'function') {
-            renderer({ data: inMemB.data || genB || null, posterUrl: inMemB.url });
-          } else {
-            renderPosterVariantB({ data: inMemB.data || genB || null, posterUrl: inMemB.url });
-          }
-          return;
-        }
+                // If B is idle, attempt full-image generation using the stored prompt
+                if (bState.status === 'idle') {
+                  // trigger generation (non-mock) and wait
+                  variantBBtn.disabled = true;
+                  await generatePosterVariantB({ useMock: false });
+                  variantBBtn.disabled = false;
 
-        if (genB) {
-          try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
-          variantBBtn.classList.add('active');
-          variantABtn && variantABtn.classList.remove('active');
-          console.debug('[posterPreview] switch variant=B (from generationState)');
-          const renderer = window.posterVariantRenderers?.['stage2']?.B;
-          if (typeof renderer === 'function') {
-            renderer(window.stage2PosterPreview || { data: genB, posterUrl: extractVertexPosterUrl(genB) });
-          } else {
+                  // if succeeded, render
+                  const now = stage2State.posterVariantB || {};
+                  if (now.status === 'ok' && now.imageUrl) {
+                    const renderer = window.posterVariantRenderers?.['stage2']?.B;
+                    if (typeof renderer === 'function') {
+                      renderer({ posterUrl: now.imageUrl, data: null });
+                    } else {
+                      renderPosterVariantB({ posterUrl: now.imageUrl, data: null });
+                    }
+                    return;
+                  }
+
+                  // otherwise show failed hint (updateVariantButtonsUI will handle the text)
+                  return;
+                }
+
+                // If B is loading, do nothing (button disabled by updateVariantButtonsUI)
+                if (bState.status === 'loading') return;
+
+                // If B had previously failed, just show the failure hint and allow user to click mock
+                if (bState.status === 'failed') {
+                  updateVariantButtonsUI();
+                  return;
+                }
+              } catch (e) {
+                console.error('[variantBBtn] click handler failed', e);
+              }
+            });
             switchToVariant('B');
           }
           return;
@@ -4614,6 +4736,36 @@ function initStage2() {
         runGeneration();
       });
     }
+
+    // Wire mock-button in B controls (regenerate with force_mock)
+    try {
+      const mockBtn = document.getElementById('variant-b-mock-btn');
+      if (mockBtn) {
+        mockBtn.addEventListener('click', async () => {
+          try {
+            mockBtn.disabled = true;
+            await generatePosterVariantB({ useMock: true });
+            const now = stage2State.posterVariantB || {};
+            if (now.status === 'ok' && now.imageUrl) {
+              const renderer = window.posterVariantRenderers?.['stage2']?.B;
+              if (typeof renderer === 'function') {
+                renderer({ posterUrl: now.imageUrl, data: null });
+              } else {
+                renderPosterVariantB({ posterUrl: now.imageUrl, data: null });
+              }
+            }
+          } catch (e) {
+            console.error('[variant-b-mock-btn] click handler failed', e);
+          } finally {
+            mockBtn.disabled = false;
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('[initStage2] failed to wire variant-b-mock-btn', e);
+    }
+    // reflect initial state in UI
+    try { updateVariantButtonsUI(); } catch (e) {}
 
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
@@ -5582,6 +5734,13 @@ async function triggerGeneration(opts) {
       };
       window.stage2PosterPreview = previewState;
       console.debug('[posterPreview] stored payload for stage2', window.stage2PosterPreview);
+      // copy poster prompt into stage2State.posterVariantB so we can reuse it for full-image B
+      try {
+        stage2State.posterVariantB = stage2State.posterVariantB || { status: 'idle', prompt: '', imageUrl: null, error: null };
+        stage2State.posterVariantB.prompt = data?.prompt || stage2State.posterVariantB.prompt || '';
+      } catch (e) {
+        console.warn('[posterPreview] failed to copy prompt to posterVariantB', e);
+      }
     } catch (e) {
       console.warn('[posterPreview] failed to store preview state', e);
     }
