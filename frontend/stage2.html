@@ -267,23 +267,36 @@
                 <div class="poster-tagline" id="poster-result-tagline"></div>
               </div>
             </section>
-            <div class="ai-result-box">
-              <img
-                id="vertex-poster-preview-img"
-                data-role="vertex-poster-img"
-                alt="AI 生成海报预览"
-                style="max-width: 100%; display: none; border-radius: 8px;"
-                decoding="async"
-              />
-              <div
-                id="vertex-poster-placeholder"
-                data-role="vertex-poster-placeholder"
-                class="poster-preview-placeholder"
-              >
-                AI 生成结果将在这里展示。
+            <section id="poster-b-visual" class="output-group hidden">
+              <h3>整图直出海报（B）</h3>
+
+              <!-- Prompt / 文案 展示 -->
+              <pre id="poster-b-prompt-view" class="poster-b-prompt-view"></pre>
+
+              <div class="ai-result-box">
+                <img
+                  id="vertex-poster-preview-img"
+                  data-role="vertex-poster-img"
+                  alt="AI 生成海报预览"
+                  style="max-width: 100%; display: none; border-radius: 8px;"
+                  decoding="async"
+                />
+                <div
+                  id="vertex-poster-placeholder"
+                  data-role="vertex-poster-placeholder"
+                  class="poster-preview-placeholder"
+                >
+                  AI 生成结果将在这里展示。
+                </div>
+                <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
               </div>
-              <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
-            </div>
+
+              <div class="variant-b-actions">
+                <button id="variant-b-generate-btn" type="button" class="secondary">整图直出海报（B）</button>
+                <button id="variant-b-mock-btn" type="button" class="hidden">用当前文案（Mock）再生成</button>
+                <p id="variant-b-status" class="hint"></p>
+              </div>
+            </section>
           </div>
 
           <div class="actions">
