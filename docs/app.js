@@ -121,6 +121,13 @@ const stage2State = {
     lastResponse: null,
   },
 };
+
+// Stage2 A/B variants state (in-memory)
+const posterVariants = {
+  active: 'A',
+  A: null,
+  B: null,
+};
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
@@ -3568,7 +3575,16 @@ function renderStage2PosterVariantA(state) {
       // store into generationState variants so switchToVariant can pick it up
       generationState.variants.A = s.data;
     }
-    // Use existing preview mechanisms
+    // Hide AI full-image box and show template preview
+    const aiBox = document.querySelector('.ai-result-box');
+    const aiImg = document.getElementById('vertex-poster-preview-img');
+    const aiPlaceholder = document.getElementById('vertex-poster-placeholder');
+    if (aiBox) aiBox.classList.add('hidden');
+    if (aiImg) { aiImg.style.display = 'none'; if (aiImg.classList) aiImg.classList.add('hidden'); }
+    if (aiPlaceholder) { aiPlaceholder.style.display = ''; if (aiPlaceholder.classList) aiPlaceholder.classList.remove('hidden'); }
+
+    // Show template-based preview
+    if (posterVisual) posterVisual.classList.remove('hidden');
     renderPosterResult(s?.data || generationState.variants.A);
     refreshPosterLayoutPreview(s?.data || lastPosterResult);
   } catch (e) {
@@ -3600,6 +3616,13 @@ function renderStage2PosterVariantB(state) {
   if (placeholder.classList) placeholder.classList.add('hidden');
   urlInput.value = s.posterUrl;
 
+  // Hide template preview and show AI result box
+  try {
+    if (posterVisual) posterVisual.classList.add('hidden');
+    const aiBox = document.querySelector('.ai-result-box');
+    if (aiBox) aiBox.classList.remove('hidden');
+  } catch (e) {}
+
   // Keep generationState in sync
   try {
     generationState.variants.B = s.data || generationState.variants.B;
@@ -3613,6 +3636,53 @@ window.posterVariantRenderers['stage2'] = {
   A: renderStage2PosterVariantA,
   B: renderStage2PosterVariantB,
 };
+
+// Generic wrappers for renderPosterVariantA / B used by older callers
+function renderPosterVariantA(state) {
+  try {
+    const stage = document.body?.dataset?.stage || 'stage2';
+    const registry = window.posterVariantRenderers || {};
+    const stageRegistry = registry[stage] || null;
+    if (stageRegistry && typeof stageRegistry.A === 'function') {
+      return stageRegistry.A(state || window.stage2PosterPreview || {});
+    }
+  } catch (e) {
+    console.warn('[posterPreview] renderPosterVariantA wrapper error', e);
+  }
+  // fallback: try to reuse existing mechanisms
+  try {
+    if (state && state.data) {
+      generationState.variants.A = state.data;
+      switchToVariant('A');
+    }
+  } catch (e) {}
+}
+
+function renderPosterVariantB(state) {
+  try {
+    const stage = document.body?.dataset?.stage || 'stage2';
+    const registry = window.posterVariantRenderers || {};
+    const stageRegistry = registry[stage] || null;
+    if (stageRegistry && typeof stageRegistry.B === 'function') {
+      return stageRegistry.B(state || window.stage2PosterPreview || {});
+    }
+  } catch (e) {
+    console.warn('[posterPreview] renderPosterVariantB wrapper error', e);
+  }
+  // fallback behaviour
+  try {
+    const s = state || window.stage2PosterPreview || {};
+    const url = s.posterUrl || (s.data && extractVertexPosterUrl(s.data)) || null;
+    if (url) {
+      const img = document.getElementById('vertex-poster-preview-img');
+      const ph = document.getElementById('vertex-poster-placeholder');
+      const input = document.getElementById('vertex-poster-url');
+      if (img) { img.src = url; img.style.display = 'block'; }
+      if (ph) ph.style.display = 'none';
+      if (input) input.value = url;
+    }
+  } catch (e) {}
+}
 
 async function setupPromptInspector(stage1Data, { promptTextarea, statusElement, onStateChange, previewButton } = {}) {
   const container = document.getElementById('prompt-inspector');
@@ -4183,10 +4253,9 @@ function initStage2() {
       const execute = async () => {
         await loadTemplatePosters({ silent: true, force: true });
         updateTemplatePosterDisplay();
-        const fallbackPoster = activeTemplatePoster
-          ? { ...activeTemplatePoster }
-          : null;
-        return triggerGeneration({
+        const fallbackPoster = activeTemplatePoster ? { ...activeTemplatePoster } : null;
+
+        const baseOpts = {
           stage1Data,
           statusElement,
           layoutStructure,
@@ -4212,7 +4281,54 @@ function initStage2() {
           updatePromptPanels,
           forceVariants: extra.forceVariants ?? 1,
           ...extra,
-        });
+        };
+
+        // 1) Generate Variant A (template-based)
+        console.debug('[posterPreview] start generating A variant');
+        const aData = await triggerGeneration({ ...baseOpts, candidateIndex: 0 });
+        try {
+          posterVariants.A = aData || null;
+          posterVariants.active = 'A';
+        } catch (e) {}
+
+        // Ensure UI shows A result
+        try {
+          const rendererA = window.posterVariantRenderers?.['stage2']?.A;
+          if (typeof rendererA === 'function') {
+            rendererA(window.stage2PosterPreview || { data: aData, posterUrl: extractVertexPosterUrl(aData) });
+          } else {
+            // fallback: apply via existing switchToVariant path
+            generationState.variants.A = aData || null;
+            switchToVariant('A');
+          }
+        } catch (e) {
+          console.warn('[posterPreview] failed to render A after generation', e);
+        }
+
+        // 2) Generate Variant B (full-image) immediately after A
+        console.debug('[posterPreview] switch to B (generating full image)');
+        try {
+          console.debug('[posterVariantB] generating', { prompt: baseOpts.promptBundle || baseOpts.prompt || null });
+        } catch (e) {}
+        const bData = await triggerGeneration({ ...baseOpts, candidateIndex: 1 });
+        // Normalize variant B
+        try {
+          const bUrl = extractVertexPosterUrl(bData) || bData?.poster_url || (Array.isArray(bData?.results) && bData.results[0]?.url) || null;
+          const variantB = { url: bUrl, prompt: bData?.prompt || bData?.prompt_bundle || null, data: bData };
+          posterVariants.B = variantB;
+        } catch (e) {
+          console.warn('[posterPreview] failed to normalise B result', e);
+          posterVariants.B = { url: null, prompt: null, data: bData };
+        }
+
+        // Enable B button if present
+        try {
+          const bBtnEl = document.getElementById('variant-b-btn');
+          if (bBtnEl) bBtnEl.disabled = false;
+        } catch (e) {}
+
+        // Do not auto-switch UI to B; keep showing A. Return both results (A is primary return)
+        return aData;
       };
 
       return execute().catch((error) => console.error(error));
@@ -4432,15 +4548,31 @@ function initStage2() {
 
     if (variantBBtn) {
       variantBBtn.addEventListener('click', async () => {
-        // If B already exists, simply switch
-        if (generationState.variants.B) {
+        // Prefer in-memory posterVariants.B if available
+        const inMemB = posterVariants.B;
+        const genB = generationState.variants.B;
+        if (inMemB && inMemB.url) {
           try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
           variantBBtn.classList.add('active');
           variantABtn && variantABtn.classList.remove('active');
           console.debug('[posterPreview] switch variant=B');
           const renderer = window.posterVariantRenderers?.['stage2']?.B;
           if (typeof renderer === 'function') {
-            renderer(window.stage2PosterPreview || { data: generationState.variants.B, posterUrl: extractVertexPosterUrl(generationState.variants.B) });
+            renderer({ data: inMemB.data || genB || null, posterUrl: inMemB.url });
+          } else {
+            renderPosterVariantB({ data: inMemB.data || genB || null, posterUrl: inMemB.url });
+          }
+          return;
+        }
+
+        if (genB) {
+          try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
+          variantBBtn.classList.add('active');
+          variantABtn && variantABtn.classList.remove('active');
+          console.debug('[posterPreview] switch variant=B (from generationState)');
+          const renderer = window.posterVariantRenderers?.['stage2']?.B;
+          if (typeof renderer === 'function') {
+            renderer(window.stage2PosterPreview || { data: genB, posterUrl: extractVertexPosterUrl(genB) });
           } else {
             switchToVariant('B');
           }
@@ -4453,20 +4585,21 @@ function initStage2() {
           return;
         }
 
-        // disable button while requesting
+        // disable button while requesting the single-variant B
         variantBBtn.disabled = true;
         await requestVariant(1);
         variantBBtn.disabled = false;
 
         // If variant B now exists, switch to it; otherwise show warning
-        if (generationState.variants.B) {
+        const nowB = posterVariants.B || generationState.variants.B;
+        if (nowB) {
           try { window.stage2PosterPreview.active = 'B'; } catch (e) {}
           variantBBtn.classList.add('active');
           variantABtn && variantABtn.classList.remove('active');
           console.debug('[posterPreview] switch variant=B');
           const renderer = window.posterVariantRenderers?.['stage2']?.B;
           if (typeof renderer === 'function') {
-            renderer(window.stage2PosterPreview || { data: generationState.variants.B, posterUrl: extractVertexPosterUrl(generationState.variants.B) });
+            renderer(window.stage2PosterPreview || { data: nowB, posterUrl: extractVertexPosterUrl(nowB) || (nowB.url || null) });
           } else {
             switchToVariant('B');
           }
