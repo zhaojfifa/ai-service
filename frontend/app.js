@@ -4277,8 +4277,14 @@ function initStage2() {
       const b = document.getElementById('ab-preview-B');
       if (a) a.classList.remove('hidden');
       if (b) b.classList.add('hidden');
-      if (variantABtn) variantABtn.classList.add('active');
-      if (variantBBtn) variantBBtn.classList.remove('active');
+      if (variantABtn) {
+        variantABtn.classList.add('is-active');
+        variantABtn.setAttribute('aria-selected', 'true');
+      }
+      if (variantBBtn) {
+        variantBBtn.classList.remove('is-active');
+        variantBBtn.setAttribute('aria-selected', 'false');
+      }
       try {
         const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
         const st = JSON.parse(raw || '{}');
@@ -4291,8 +4297,14 @@ function initStage2() {
       const b = document.getElementById('ab-preview-B');
       if (a) a.classList.add('hidden');
       if (b) b.classList.remove('hidden');
-      if (variantABtn) variantABtn.classList.remove('active');
-      if (variantBBtn) variantBBtn.classList.add('active');
+      if (variantABtn) {
+        variantABtn.classList.remove('is-active');
+        variantABtn.setAttribute('aria-selected', 'false');
+      }
+      if (variantBBtn) {
+        variantBBtn.classList.add('is-active');
+        variantBBtn.setAttribute('aria-selected', 'true');
+      }
       try {
         const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
         const st = JSON.parse(raw || '{}');
@@ -4300,8 +4312,8 @@ function initStage2() {
         sessionStorage.setItem('marketing-poster-stage2-variants', JSON.stringify(st));
       } catch {}
     }
-    if (variantABtn) variantABtn.addEventListener('click', showVariantA);
-    if (variantBBtn) variantBBtn.addEventListener('click', showVariantB);
+    if (variantABtn) variantABtn.addEventListener('click', (e) => { e.preventDefault(); showVariantA(); });
+    if (variantBBtn) variantBBtn.addEventListener('click', (e) => { e.preventDefault(); showVariantB(); });
     // default to A
     showVariantA();
   })();
@@ -5794,11 +5806,29 @@ function initStage3() {
       return;
     }
 
-    assignPosterImage(
-      posterImage,
-      stage2Result.poster_image,
-      `${stage1Data.product_name} 海报预览`
-    );
+    // Prefer active variant (B) when present for preview and sending
+    let chosenPosterImage = stage2Result.poster_image;
+    try {
+      const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+      const st = JSON.parse(raw || '{}');
+      if (
+        st.active === 'B' &&
+        Array.isArray(stage2Result.variants) &&
+        stage2Result.variants[1]
+      ) {
+        const candidate = stage2Result.variants[1];
+        if (
+          candidate.storage_key ||
+          candidate.url ||
+          candidate.data_url ||
+          candidate.remoteUrl
+        ) {
+          chosenPosterImage = candidate;
+        }
+      }
+    } catch (e) {}
+
+    assignPosterImage(posterImage, chosenPosterImage, `${stage1Data.product_name} 海报预览`);
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }
@@ -5832,6 +5862,28 @@ function initStage3() {
       try {
         await warmUp(apiCandidates);
 
+        // Prefer the active variant (B) when sending the attachment
+        let attachmentToSend = stage2Result.poster_image;
+        try {
+          const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+          const st = JSON.parse(raw || '{}');
+          if (
+            st.active === 'B' &&
+            Array.isArray(stage2Result.variants) &&
+            stage2Result.variants[1]
+          ) {
+            const candidate = stage2Result.variants[1];
+            if (
+              candidate.storage_key ||
+              candidate.url ||
+              candidate.data_url ||
+              candidate.remoteUrl
+            ) {
+              attachmentToSend = candidate;
+            }
+          }
+        } catch (e) {}
+
         const response = await postJsonWithRetry(
           apiCandidates,
           '/api/send-email',
@@ -5839,7 +5891,7 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: stage2Result.poster_image,
+            attachment: attachmentToSend,
           },
           1
         );

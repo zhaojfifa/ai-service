@@ -1641,3 +1641,39 @@ main {
 .layout-debug-hidden {
   display: none !important;
 }
+
+/* AB controls layout: keep generate actions left, variant tabs right */
+.generate-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.generate-actions .primary,
+.generate-actions .secondary {
+  white-space: nowrap;
+}
+
+.variant-controls {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.variant-tab {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  border: 1px solid #ff7a8c;
+  background: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.variant-tab.is-active {
+  background: #ff7a8c;
+  color: #fff;
+}

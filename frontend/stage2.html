@@ -169,13 +169,30 @@
               <pre id="layout-structure-text"></pre>
             </div>
             <div class="generate-actions">
-              <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
+              <button id="generate-poster" class="primary" type="button">
+                生成海报与文案
+              </button>
               <button id="regenerate-poster" class="secondary hidden" type="button">
                 再次生成海报
               </button>
-              <div class="variant-controls">
-                <button id="variant-a-btn" type="button">A</button>
-                <button id="variant-b-btn" type="button">B</button>
+
+              <div class="variant-controls" role="tablist" aria-label="选择海报版本">
+                <button
+                  id="variant-a-btn"
+                  type="button"
+                  class="variant-tab is-active"
+                  aria-selected="true"
+                >
+                  A
+                </button>
+                <button
+                  id="variant-b-btn"
+                  type="button"
+                  class="variant-tab"
+                  aria-selected="false"
+                >
+                  B
+                </button>
               </div>
             </div>
             <div class="output-group" id="ai-preview">
@@ -297,24 +314,8 @@
             </div>
           </div>
 
-          <div class="actions">
-            <a class="secondary" href="index.html">返回环节 1</a>
-            <button id="to-stage3" class="primary" type="button" disabled>
-              保存并前往环节 3
-            </button>
-          </footer>
+        </footer>
         </aside>
-
-        <div class="generate-actions">
-          <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
-          <button id="regenerate-poster" class="secondary hidden" type="button">
-            再次生成海报
-          </button>
-          <div class="variant-controls">
-            <button id="variant-a-btn" type="button">A</button>
-            <button id="variant-b-btn" type="button">B</button>
-          </div>
-        </div>
 
         <div class="actions">
           <a class="secondary" href="index.html">返回环节 1</a>
