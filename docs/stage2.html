@@ -157,9 +157,37 @@
             </details>
           </div>
 
-          <footer>
-            <button type="button" id="preview-prompts" class="secondary">
-              预览当前提示词
+          </footer>
+
+          <div class="generate-actions">
+              <button id="generate-poster" class="primary" type="button">
+                生成海报与文案
+              </button>
+              <button id="regenerate-poster" class="secondary hidden" type="button">
+                再次生成海报
+              </button>
+
+              <div class="variant-controls" role="tablist" aria-label="选择海报版本">
+                <button
+                  id="variant-a-btn"
+                  type="button"
+                  class="variant-tab is-active"
+                  aria-selected="true"
+                >
+                  A
+                </button>
+                <button
+                  id="variant-b-btn"
+                  type="button"
+                  class="variant-tab"
+                  aria-selected="false"
+                >
+                  B
+                </button>
+              </div>
+            </div>
+
+          <div id="poster-output" class="hidden">
             </button>
           </div>
 
@@ -204,8 +232,8 @@
             </div>
               <div class="output-group hidden" id="poster-visual">
               <h3>海报预览</h3>
-              <div class="ab-preview-wrapper">
-                <section class="card-section ab-preview" id="ab-preview-A">
+              <div class="ab-preview-wrapper ab-preview-grid">
+                <section class="card-section ab-preview is-active" id="ab-preview-A">
                   <div class="ab-preview-header">A 版 · 槽位排版（推荐）</div>
                   <div id="poster-result" class="poster-preview poster-preview--result">
                     <div class="poster-header">
@@ -263,7 +291,7 @@
                   </div>
                 </section>
 
-                <section class="card-section ab-preview hidden" id="ab-preview-B">
+                <section class="card-section ab-preview" id="ab-preview-B">
                   <div class="ab-preview-header">B 版 · 整版海报</div>
                   <div class="ai-result-box">
                     <img

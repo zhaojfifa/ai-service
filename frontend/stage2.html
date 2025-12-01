@@ -7,6 +7,41 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-stage="stage2">
+    <!--
+    Goal: Refine Stage2 layout for A/B poster flow.
+
+    1. Generate buttons position
+       - The block with id="generate-poster" and id="regenerate-poster"
+         (div.generate-actions) MUST appear *above* the AI preview area,
+         i.e. above <div id="poster-output">.
+       - The A/B variant tabs (div.variant-controls with #variant-a-btn
+         and #variant-b-btn) stay inside .generate-actions, on the same
+         horizontal row as the buttons.
+
+    2. A/B preview layout
+       - Inside #poster-visual, keep both containers #ab-preview-A and
+         #ab-preview-B, but show them as *single full-width views*,
+         not two columns side by side.
+       - Use tab-like behavior:
+           * When A is active, only #ab-preview-A is visible.
+           * When B is active, only #ab-preview-B is visible.
+       - Do NOT change element IDs: #ab-preview-A, #ab-preview-B,
+         #vertex-poster-preview-img, #vertex-poster-url, etc.
+
+    3. Remove duplicated bottom actions
+       - There should be only ONE "返回环节 1 / 保存并前往环节 3" block
+         (div.actions) at the bottom of the card, outside the aside
+         #prompt-inspector.
+       - If there is an extra actions block inside #prompt-inspector,
+         remove that inner one.
+
+    4. Styling (in styles.css, applied to both docs and frontend)
+       - Make .generate-actions a flex row and keep variant-controls to the right.
+       - Make A/B previews full-width single views via .ab-preview.is-active.
+
+    5. Sync docs and frontend
+       - Apply the same changes to docs/stage2.html and docs/styles.css.
+    -->
     <header>
       <div class="header-content">
         <div>
@@ -157,9 +192,37 @@
             </details>
           </div>
 
-          <footer>
-            <button type="button" id="preview-prompts" class="secondary">
-              预览当前提示词
+          </footer>
+
+          <div class="generate-actions">
+              <button id="generate-poster" class="primary" type="button">
+                生成海报与文案
+              </button>
+              <button id="regenerate-poster" class="secondary hidden" type="button">
+                再次生成海报
+              </button>
+
+              <div class="variant-controls" role="tablist" aria-label="选择海报版本">
+                <button
+                  id="variant-a-btn"
+                  type="button"
+                  class="variant-tab is-active"
+                  aria-selected="true"
+                >
+                  A
+                </button>
+                <button
+                  id="variant-b-btn"
+                  type="button"
+                  class="variant-tab"
+                  aria-selected="false"
+                >
+                  B
+                </button>
+              </div>
+            </div>
+
+          <div id="poster-output" class="hidden">
             </button>
           </div>
 
@@ -204,8 +267,8 @@
             </div>
               <div class="output-group hidden" id="poster-visual">
               <h3>海报预览</h3>
-              <div class="ab-preview-wrapper">
-                <section class="card-section ab-preview" id="ab-preview-A">
+              <div class="ab-preview-wrapper ab-preview-grid">
+                <section class="card-section ab-preview is-active" id="ab-preview-A">
                   <div class="ab-preview-header">A 版 · 槽位排版（推荐）</div>
                   <div id="poster-result" class="poster-preview poster-preview--result">
                     <div class="poster-header">
@@ -263,7 +326,7 @@
                   </div>
                 </section>
 
-                <section class="card-section ab-preview hidden" id="ab-preview-B">
+                <section class="card-section ab-preview" id="ab-preview-B">
                   <div class="ab-preview-header">B 版 · 整版海报</div>
                   <div class="ai-result-box">
                     <img

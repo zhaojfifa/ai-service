@@ -294,9 +294,11 @@ main {
 
 .generate-actions {
   display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .stage-summary {
@@ -1585,13 +1587,17 @@ main {
   display: none;
 }
 
-.ab-preview-wrapper {
+.ab-preview-grid {
   display: block;
-  width: 100%;
 }
 
 .ab-preview {
+  display: none;
   width: 100%;
+}
+
+.ab-preview.is-active {
+  display: block;
 }
 
 .poster-preview--a,
