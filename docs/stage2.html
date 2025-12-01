@@ -60,136 +60,106 @@
           </div>
         </div>
 
-        <section class="card prompt-preview-card" aria-label="预览当前提示词">
-          <div class="card-heading">
+        <aside class="prompt-inspector" id="prompt-inspector">
+          <header>
             <div>
-              <h3>预览当前提示词</h3>
-              <p class="hint">实时汇总各槽位提示词与模板默认文案。</p>
+              <h3>提示词 Inspector</h3>
+              <p class="hint">
+                模板限定了生成槽位，可在此查看与微调最终提示词，支持多套 Preset、
+                Seed 锁定与 A/B 生成。
+              </p>
             </div>
-          </div>
-          <div class="prompt-preview-grid">
-            <label class="field">
-              <span>槽位提示词汇总</span>
-              <textarea id="prompt-preview-text" rows="8" readonly></textarea>
-            </label>
-            <label class="field">
-              <span>模板默认英文提示词</span>
-              <textarea id="template-default-prompt" rows="8" readonly></textarea>
-            </label>
-          </div>
+            <div class="seed-controls">
+              <label>
+                <span>Seed</span>
+                <input type="number" id="prompt-seed" min="0" step="1" placeholder="随机" />
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="prompt-lock-seed" />
+                <span>锁定 Seed</span>
+              </label>
+              <label>
+                <span>变体数量</span>
+                <input type="number" id="prompt-variants" min="1" max="3" value="1" />
+              </label>
+            </div>
+          </header>
 
-          <aside class="prompt-inspector" id="prompt-inspector">
-            <header>
-              <div>
-                <h3>提示词 Inspector</h3>
-                <p class="hint">
-                  模板限定了生成槽位，可在此查看与微调最终提示词，支持多套 Preset、
-                  Seed 锁定与 A/B 生成。
-                </p>
-              </div>
-              <div class="seed-controls">
+          <div class="prompt-slot" data-slot="scenario">
+            <div class="slot-header">
+              <h4>场景背景</h4>
+              <select data-preset-select="scenario"></select>
+            </div>
+            <details open>
+              <summary>最终 Prompt</summary>
+              <div class="prompt-editor">
                 <label>
-                  <span>Seed</span>
-                  <input type="number" id="prompt-seed" min="0" step="1" placeholder="随机" />
-                </label>
-                <label class="toggle">
-                  <input type="checkbox" id="prompt-lock-seed" />
-                  <span>锁定 Seed</span>
+                  <span>正向提示词</span>
+                  <textarea data-positive="scenario" rows="3"></textarea>
                 </label>
                 <label>
-                  <span>变体数量</span>
-                  <input type="number" id="prompt-variants" min="1" max="3" value="1" />
+                  <span>负向提示词</span>
+                  <textarea data-negative="scenario" rows="3"></textarea>
                 </label>
-              </div>
-            </header>
-
-            <div class="prompt-slot" data-slot="scenario">
-              <div class="slot-header">
-                <h4>场景背景</h4>
-                <select data-preset-select="scenario"></select>
-              </div>
-              <details open>
-                <summary>最终 Prompt</summary>
-                <div class="prompt-editor">
-                  <label>
-                    <span>正向提示词</span>
-                    <textarea data-positive="scenario" rows="3"></textarea>
-                  </label>
-                  <label>
-                    <span>负向提示词</span>
-                    <textarea data-negative="scenario" rows="3"></textarea>
-                  </label>
-                  <div class="prompt-meta">
-                    <span data-aspect="scenario"></span>
-                    <button type="button" class="link" data-reset="scenario">恢复 Preset</button>
-                  </div>
+                <div class="prompt-meta">
+                  <span data-aspect="scenario"></span>
+                  <button type="button" class="link" data-reset="scenario">恢复 Preset</button>
                 </div>
-              </details>
-            </div>
-
-            <div class="prompt-slot" data-slot="product">
-              <div class="slot-header">
-                <h4>核心产品</h4>
-                <select data-preset-select="product"></select>
               </div>
-              <details open>
-                <summary>最终 Prompt</summary>
-                <div class="prompt-editor">
-                  <label>
-                    <span>正向提示词</span>
-                    <textarea data-positive="product" rows="3"></textarea>
-                  </label>
-                  <label>
-                    <span>负向提示词</span>
-                    <textarea data-negative="product" rows="3"></textarea>
-                  </label>
-                  <div class="prompt-meta">
-                    <span data-aspect="product"></span>
-                    <button type="button" class="link" data-reset="product">恢复 Preset</button>
-                  </div>
-                </div>
-              </details>
-            </div>
+            </details>
+          </div>
 
-            <div class="prompt-slot" data-slot="gallery">
-              <div class="slot-header">
-                <h4>底部系列小图</h4>
-                <select data-preset-select="gallery"></select>
+          <div class="prompt-slot" data-slot="product">
+            <div class="slot-header">
+              <h4>核心产品</h4>
+              <select data-preset-select="product"></select>
+            </div>
+            <details open>
+              <summary>最终 Prompt</summary>
+              <div class="prompt-editor">
+                <label>
+                  <span>正向提示词</span>
+                  <textarea data-positive="product" rows="3"></textarea>
+                </label>
+                <label>
+                  <span>负向提示词</span>
+                  <textarea data-negative="product" rows="3"></textarea>
+                </label>
+                <div class="prompt-meta">
+                  <span data-aspect="product"></span>
+                  <button type="button" class="link" data-reset="product">恢复 Preset</button>
+                </div>
               </div>
-              <details>
-                <summary>最终 Prompt</summary>
-                <div class="prompt-editor">
-                  <label>
-                    <span>正向提示词</span>
-                    <textarea data-positive="gallery" rows="3"></textarea>
-                  </label>
-                  <label>
-                    <span>负向提示词</span>
-                    <textarea data-negative="gallery" rows="3"></textarea>
-                  </label>
-                  <div class="prompt-meta">
-                    <span data-aspect="gallery"></span>
-                    <button type="button" class="link" data-reset="gallery">恢复 Preset</button>
-                  </div>
-                </div>
-              </details>
+            </details>
+          </div>
+
+          <div class="prompt-slot" data-slot="gallery">
+            <div class="slot-header">
+              <h4>底部系列小图</h4>
+              <select data-preset-select="gallery"></select>
             </div>
+            <details>
+              <summary>最终 Prompt</summary>
+              <div class="prompt-editor">
+                <label>
+                  <span>正向提示词</span>
+                  <textarea data-positive="gallery" rows="3"></textarea>
+                </label>
+                <label>
+                  <span>负向提示词</span>
+                  <textarea data-negative="gallery" rows="3"></textarea>
+                </label>
+                <div class="prompt-meta">
+                  <span data-aspect="gallery"></span>
+                  <button type="button" class="link" data-reset="gallery">恢复 Preset</button>
+                </div>
+              </div>
+            </details>
+          </div>
 
-            <footer>
-              <button type="button" id="generate-ab" class="secondary">
-                A/B 生成并对比
-              </button>
-            </footer>
-          </aside>
-        </section>
-
-        <section class="card stage-card" id="ab-card">
-          <h3>A/B 测试功能</h3>
-
-          <div class="generate-actions">
-            <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
-            <button id="regenerate-poster" class="secondary hidden" type="button">
-              再次生成海报
+          <footer>
+            <button type="button" id="preview-prompts" class="secondary">
+              预览当前提示词
             </button>
           </div>
 
@@ -322,9 +292,27 @@
             <button id="to-stage3" class="primary" type="button" disabled>
               保存并前往环节 3
             </button>
+          </footer>
+        </aside>
+
+        <div class="generate-actions">
+          <button id="generate-poster" class="primary" type="button">生成海报与文案</button>
+          <button id="regenerate-poster" class="secondary hidden" type="button">
+            再次生成海报
+          </button>
+          <div class="variant-controls">
+            <button id="variant-a-btn" type="button">A</button>
+            <button id="variant-b-btn" type="button">B</button>
           </div>
-          <p id="stage2-status" role="status" aria-live="polite"></p>
-        </section>
+        </div>
+
+        <div class="actions">
+          <a class="secondary" href="index.html">返回环节 1</a>
+          <button id="to-stage3" class="primary" type="button" disabled>
+            保存并前往环节 3
+          </button>
+        </div>
+        <p id="stage2-status" role="status" aria-live="polite"></p>
       </section>
     </main>
 
