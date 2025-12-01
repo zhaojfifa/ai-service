@@ -4091,7 +4091,26 @@ function initStage2() {
         });
       };
 
-      return execute().catch((error) => console.error(error));
+      // After A completes, kick off B generation (fire-and-forget) so A rendering isn't blocked
+      return execute()
+        .then((res) => {
+          // trigger B generation asynchronously but don't block the UI flow
+          try {
+            if (res) {
+              // trigger B using preserved prompt saved by triggerGeneration
+              setTimeout(() => {
+                void generatePosterVariantB();
+              }, 20);
+            }
+          } catch (e) {
+            console.warn('[variant] failed to auto-start B generation', e);
+          }
+          return res;
+        })
+        .catch((error) => {
+          console.error(error);
+          throw error;
+        });
     };
 
     const needsTemplatePersist = !('template_id' in stage1Data);
@@ -4446,6 +4465,78 @@ function initStage2() {
         const placeholder = document.getElementById('vertex-poster-placeholder');
         if (placeholder) placeholder.textContent = 'AI 生图和 Mock 都失败了，请稍后重试或调整文案。';
         setStatus(statusElement, 'Mock 生成失败，请稍后重试。', 'error');
+      }
+    }
+
+    // Render B from stage2VariantState
+    function renderPosterVariantB() {
+      const img = document.getElementById('vertex-poster-preview-img');
+      const placeholder = document.getElementById('vertex-poster-placeholder');
+      const hiddenInput = document.getElementById('vertex-poster-url');
+
+      const b = stage2VariantState.B || null;
+      if (b && b.url) {
+        if (img) {
+          img.src = b.url;
+          img.style.display = 'block';
+          img.classList.remove('hidden');
+        }
+        if (placeholder) {
+          placeholder.classList.add('hidden');
+        }
+        if (hiddenInput) hiddenInput.value = b.url || '';
+      } else {
+        if (img) {
+          img.removeAttribute('src');
+          img.style.display = 'none';
+        }
+        if (placeholder) {
+          placeholder.classList.remove('hidden');
+          placeholder.textContent = (b && b.error) ? String(b.error) : '当前没有 B 版海报，请先生成或选择 A 版。';
+        }
+        if (hiddenInput) hiddenInput.value = '';
+      }
+    }
+
+    function renderPosterVariantBFromState() {
+      renderPosterVariantB();
+    }
+
+    // Switch active variant and update DOM (show/hide A template preview vs B ai box)
+    function setActiveVariant(variant) {
+      const aBtn = document.getElementById('variant-a-btn');
+      const bBtn = document.getElementById('variant-b-btn');
+      const posterResultEl = document.getElementById('poster-result');
+      const aiBox = document.querySelector('.ai-result-box');
+      const abPreviewA = document.getElementById('ab-preview-A');
+      const abPreviewB = document.getElementById('ab-preview-B');
+
+      stage2VariantState.active = variant === 'B' ? 'B' : 'A';
+      saveStage2VariantState();
+
+      if (aBtn) {
+        aBtn.classList.toggle('active', stage2VariantState.active === 'A');
+        aBtn.setAttribute('aria-pressed', stage2VariantState.active === 'A');
+      }
+      if (bBtn) {
+        bBtn.classList.toggle('active', stage2VariantState.active === 'B');
+        bBtn.setAttribute('aria-pressed', stage2VariantState.active === 'B');
+      }
+
+      if (stage2VariantState.active === 'A') {
+        if (abPreviewA) abPreviewA.classList.remove('hidden');
+        if (posterResultEl) posterResultEl.classList.remove('hidden');
+        if (abPreviewB) abPreviewB.classList.add('hidden');
+        if (aiBox) aiBox.classList.add('hidden');
+        // Render A into structured preview
+        renderPosterVariantAFromState();
+      } else {
+        if (abPreviewA) abPreviewA.classList.add('hidden');
+        if (posterResultEl) posterResultEl.classList.add('hidden');
+        if (abPreviewB) abPreviewB.classList.remove('hidden');
+        if (aiBox) aiBox.classList.remove('hidden');
+        // Render B from saved state
+        renderPosterVariantBFromState();
       }
     }
 
@@ -5952,7 +6043,10 @@ function initStage3() {
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+      // Ensure we have the latest A/B variant state available for Stage3
+      try { loadStage2VariantState(); } catch (e) { /* ignore */ }
+
+      if (!stage1Data || !stage2Result?.poster_image) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
@@ -5996,6 +6090,33 @@ function initStage3() {
       try {
         await warmUp(apiCandidates);
 
+        // Prefer the active variant's poster when assembling the email attachment.
+        // If B is active and has a URL, build a PosterImage-shaped object (width/height
+        // are best-effort from the preview image element; fall back to sensible defaults).
+        let attachment = null;
+        try {
+          if (stage2VariantState && stage2VariantState.active === 'B' && stage2VariantState.B && stage2VariantState.B.url) {
+            const b = stage2VariantState.B;
+            const bUrl = b.url;
+            const imgEl = document.getElementById('vertex-poster-preview-img');
+            const naturalWidth = (imgEl && imgEl.naturalWidth) ? imgEl.naturalWidth : 1024;
+            const naturalHeight = (imgEl && imgEl.naturalHeight) ? imgEl.naturalHeight : 1024;
+            const mediaType = inferImageMediaType(bUrl) || '';
+            attachment = {
+              filename: `poster-b.${guessExtensionFromMime(mediaType)}`,
+              media_type: mediaType || 'image/png',
+              url: bUrl,
+              width: naturalWidth,
+              height: naturalHeight,
+            };
+          } else if (stage2Result && stage2Result.poster_image) {
+            attachment = stage2Result.poster_image;
+          }
+        } catch (e) {
+          console.warn('[stage3] failed to build attachment from variant state', e);
+          attachment = stage2Result?.poster_image || null;
+        }
+
         const response = await postJsonWithRetry(
           apiCandidates,
           '/api/send-email',
@@ -6003,7 +6124,7 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: stage2Result.poster_image,
+            attachment,
           },
           1
         );
