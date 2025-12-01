@@ -4543,6 +4543,42 @@ function applyVertexPosterResult(data) {
   }
 
   renderPosterResult();
+
+  // --- 显示海报区域 & 默认切到 A 版 ---
+  try {
+    const posterOutput = document.getElementById('poster-output');
+    const aiPreview = document.getElementById('ai-preview');
+    const posterVisual = document.getElementById('poster-visual');
+    const abPreviewA = document.getElementById('ab-preview-A');
+    const abPreviewB = document.getElementById('ab-preview-B');
+    const variantABtn = document.getElementById('variant-a-btn');
+    const variantBBtn = document.getElementById('variant-b-btn');
+
+    if (!posterOutput || !aiPreview || !posterVisual) {
+      console.warn('[applyVertexPosterResult] poster containers missing', { posterOutput, aiPreview, posterVisual });
+    } else {
+      // 1. 关闭“AI 生成进度”，打开海报预览
+      posterOutput.classList.remove('hidden');
+      posterVisual.classList.remove('hidden');
+      aiPreview.classList.add('hidden');
+
+      // 2. 默认展示 A 版，隐藏 B 版
+      if (abPreviewA) abPreviewA.classList.remove('hidden');
+      if (abPreviewB) abPreviewB.classList.add('hidden');
+
+      // 3. 同步按钮状态
+      if (variantABtn) {
+        variantABtn.classList.add('is-active');
+        variantABtn.setAttribute('aria-selected', 'true');
+      }
+      if (variantBBtn) {
+        variantBBtn.classList.remove('is-active');
+        variantBBtn.setAttribute('aria-selected', 'false');
+      }
+    }
+  } catch (e) {
+    console.warn('[applyVertexPosterResult] show poster failed', e);
+  }
 }
 
 async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
