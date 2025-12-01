@@ -7,6 +7,41 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-stage="stage2">
+    <!--
+    Goal: Refine Stage2 layout for A/B poster flow.
+
+    1. Generate buttons position
+       - The block with id="generate-poster" and id="regenerate-poster"
+         (div.generate-actions) MUST appear *above* the AI preview area,
+         i.e. above <div id="poster-output">.
+       - The A/B variant tabs (div.variant-controls with #variant-a-btn
+         and #variant-b-btn) stay inside .generate-actions, on the same
+         horizontal row as the buttons.
+
+    2. A/B preview layout
+       - Inside #poster-visual, keep both containers #ab-preview-A and
+         #ab-preview-B, but show them as *single full-width views*,
+         not two columns side by side.
+       - Use tab-like behavior:
+           * When A is active, only #ab-preview-A is visible.
+           * When B is active, only #ab-preview-B is visible.
+       - Do NOT change element IDs: #ab-preview-A, #ab-preview-B,
+         #vertex-poster-preview-img, #vertex-poster-url, etc.
+
+    3. Remove duplicated bottom actions
+       - There should be only ONE "返回环节 1 / 保存并前往环节 3" block
+         (div.actions) at the bottom of the card, outside the aside
+         #prompt-inspector.
+       - If there is an extra actions block inside #prompt-inspector,
+         remove that inner one.
+
+    4. Styling (in styles.css, applied to both docs and frontend)
+       - Make .generate-actions a flex row and keep variant-controls to the right.
+       - Make A/B previews full-width single views via .ab-preview.is-active.
+
+    5. Sync docs and frontend
+       - Apply the same changes to docs/stage2.html and docs/styles.css.
+    -->
     <header>
       <div class="header-content">
         <div>
