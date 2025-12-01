@@ -112,6 +112,34 @@ const stage2State = {
     lastResponse: null,
   },
 };
+// A/B variant state persisted separately (stage2 variants and prompts)
+let stage2VariantState = {
+  active: 'A',
+  A: null, // full poster result from /api/generate-poster
+  B: null, // { url, prompt, provider }
+  lastPromptForB: null,
+};
+const VARIANT_STORAGE_KEY = 'marketing-poster-stage2-variants';
+
+function loadStage2VariantState() {
+  try {
+    const raw = sessionStorage.getItem(VARIANT_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed) return;
+    stage2VariantState = Object.assign({}, stage2VariantState, parsed || {});
+  } catch (e) {
+    console.warn('[variant] failed to load state', e);
+  }
+}
+
+function saveStage2VariantState() {
+  try {
+    sessionStorage.setItem(VARIANT_STORAGE_KEY, JSON.stringify(stage2VariantState));
+  } catch (e) {
+    console.warn('[variant] failed to save state', e);
+  }
+}
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
@@ -4247,6 +4275,167 @@ function initStage2() {
       });
     }
 
+    // Load persisted variant state (A/B) from previous session
+    loadStage2VariantState();
+
+    // Wire attachment radios to act as quick A/B switches
+    const variantRadios = document.querySelectorAll('input[name="posterAttachmentVariant"]');
+    variantRadios.forEach((radio) => {
+      radio.addEventListener('change', (ev) => {
+        const val = ev.target?.value || 'A';
+        if (val === 'B') {
+          stage2VariantState.active = 'B';
+          saveStage2VariantState();
+          // If we already have a B result, render it; otherwise trigger generation
+          if (stage2VariantState.B && stage2VariantState.B.url) {
+            stage2State.assets.poster_url = stage2VariantState.B.url;
+            renderPosterVariantB();
+          } else {
+            void generatePosterVariantB();
+          }
+        } else {
+          stage2VariantState.active = 'A';
+          saveStage2VariantState();
+          // Render A from stored A result (if present)
+          renderPosterVariantAFromState();
+        }
+      });
+    });
+
+    const variantBMockBtn = document.getElementById('variant-b-mock-btn');
+    if (variantBMockBtn) {
+      variantBMockBtn.addEventListener('click', () => {
+        void generatePosterVariantBMock();
+      });
+    }
+
+    // Helper: render A from persisted A result into the structured preview
+    function renderPosterVariantAFromState() {
+      if (!stage2VariantState.A) {
+        console.warn('[variantA] no A data to render');
+        return;
+      }
+      try {
+        // Map A result into stage2State used by existing structured renderer
+        const data = stage2VariantState.A;
+        stage2State.poster = data.poster || stage2State.poster;
+        // update assets (scenario/product/gallery)
+        if (data.scenario_image && (data.scenario_image.url || data.scenario_image.data_url)) {
+          stage2State.assets.scenario_url = data.scenario_image.url || data.scenario_image.data_url || '';
+        }
+        if (data.product_image && (data.product_image.url || data.product_image.data_url)) {
+          stage2State.assets.product_url = data.product_image.url || data.product_image.data_url || '';
+        }
+        if (Array.isArray(data.gallery_images)) {
+          stage2State.assets.gallery_urls = data.gallery_images.map((g) => pickImageSrc(g)).filter(Boolean);
+        }
+        // Clear B preview / vertex image for A rendering
+        const img = document.getElementById('vertex-poster-preview-img');
+        const placeholder = document.getElementById('vertex-poster-placeholder');
+        if (img) {
+          img.removeAttribute('src');
+          img.style.display = 'none';
+        }
+        if (placeholder) {
+          placeholder.classList.remove('hidden');
+          placeholder.textContent = placeholder?.dataset?.default || '当前没有 B 版海报，请先生成或选择 A 版。';
+        }
+
+        renderPosterResult();
+      } catch (e) {
+        console.warn('[variantA] render failed', e);
+      }
+    }
+
+    // Helper: show B error state and reveal mock button
+    function showPosterVariantBErrorState(errorOrMessage) {
+      const img = document.getElementById('vertex-poster-preview-img');
+      const placeholder = document.getElementById('vertex-poster-placeholder');
+      if (img) {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
+      if (placeholder) {
+        placeholder.classList.remove('hidden');
+        placeholder.textContent = 'AI 生图失败，可以点击「用文案 Mock 再生成」基于当前文案生成占位图。';
+      }
+      const mockBtn = document.getElementById('variant-b-mock-btn');
+      if (mockBtn) mockBtn.classList.remove('hidden');
+    }
+
+    // Generate B via /api/image/generate using preserved big prompt
+    async function generatePosterVariantB() {
+      const prompt = stage2VariantState.lastPromptForB || promptTextarea?.value || '';
+      if (!prompt) {
+        console.warn('[posterVariantB] no prompt available, cannot generate B');
+        showPosterVariantBErrorState('no prompt');
+        return;
+      }
+      const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+      if (!apiCandidates.length) {
+        setStatus(statusElement, '未找到后端 API 基址，无法生成 B 版。', 'warning');
+        return;
+      }
+      try {
+        setStatus(statusElement, '正在生成 B 版海报…', 'info');
+        await warmUp(apiCandidates);
+        const payload = { prompt, aspect: '1:1' };
+        const resp = await postJsonWithRetry(apiCandidates, '/api/image/generate', payload, 1);
+        const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+        const url = data?.image_url || data?.url || data?.poster_url || (Array.isArray(data?.results) && data.results[0]?.url) || null;
+        if (!url) throw new Error('未返回图片 URL');
+        stage2VariantState.B = { url, prompt, provider: data.provider || 'vertex' };
+        stage2VariantState.active = 'B';
+        stage2State.assets.poster_url = url;
+        saveStage2VariantState();
+        // hide mock btn when success
+        const mockBtn = document.getElementById('variant-b-mock-btn');
+        if (mockBtn) mockBtn.classList.add('hidden');
+        renderPosterVariantB();
+        setStatus(statusElement, 'B 版生成完成', 'success');
+      } catch (err) {
+        console.error('[posterVariantB] generate failed', err);
+        showPosterVariantBErrorState(err);
+      }
+    }
+
+    // Generate B via mock flag (force mock on backend)
+    async function generatePosterVariantBMock() {
+      const prompt = stage2VariantState.lastPromptForB || promptTextarea?.value || '';
+      if (!prompt) {
+        console.warn('[posterVariantBMock] no prompt available');
+        showPosterVariantBErrorState('no prompt');
+        return;
+      }
+      const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+      if (!apiCandidates.length) {
+        setStatus(statusElement, '未找到后端 API 基址，无法生成 Mock。', 'warning');
+        return;
+      }
+      try {
+        setStatus(statusElement, '正在使用 Mock 生成占位图…', 'info');
+        await warmUp(apiCandidates);
+        const payload = { prompt, aspect: '1:1', force_mock: true };
+        const resp = await postJsonWithRetry(apiCandidates, '/api/image/generate', payload, 1);
+        const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+        const url = data?.image_url || data?.url || data?.poster_url || (Array.isArray(data?.results) && data.results[0]?.url) || null;
+        if (!url) throw new Error('未返回图片 URL');
+        stage2VariantState.B = { url, prompt, provider: data.provider || 'mock' };
+        stage2VariantState.active = 'B';
+        stage2State.assets.poster_url = url;
+        saveStage2VariantState();
+        const mockBtn = document.getElementById('variant-b-mock-btn');
+        if (mockBtn) mockBtn.classList.add('hidden');
+        renderPosterVariantB();
+        setStatus(statusElement, 'Mock 占位图生成完成', 'success');
+      } catch (err) {
+        console.error('[posterVariantBMock] mock generation failed', err);
+        const placeholder = document.getElementById('vertex-poster-placeholder');
+        if (placeholder) placeholder.textContent = 'AI 生图和 Mock 都失败了，请稍后重试或调整文案。';
+        setStatus(statusElement, 'Mock 生成失败，请稍后重试。', 'error');
+      }
+    }
+
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
       if (!stored || !(stored.poster_image || stored.poster_url)) {
@@ -5140,6 +5329,17 @@ async function triggerGeneration(opts) {
     });
 
     applyVertexPosterResult(data);
+
+    // Persist A-variant and last prompt for B so frontend can reuse for A/B flows
+    try {
+      stage2VariantState.A = data || null;
+      // prefer explicit prompt, fall back to prompt bundle
+      stage2VariantState.lastPromptForB =
+        data?.prompt || (lastPromptBundle && (typeof lastPromptBundle === 'string' ? lastPromptBundle : JSON.stringify(lastPromptBundle))) || null;
+      saveStage2VariantState();
+    } catch (e) {
+      console.warn('[variant] unable to persist A result', e);
+    }
 
     clearFallbackTimer();
 
