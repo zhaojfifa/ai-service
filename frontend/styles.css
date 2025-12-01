@@ -1585,10 +1585,13 @@ main {
   display: none;
 }
 
+.ab-preview-wrapper {
+  display: block;
+  width: 100%;
+}
+
 .ab-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 1rem;
+  width: 100%;
 }
 
 .poster-preview--a,

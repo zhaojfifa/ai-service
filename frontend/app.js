@@ -4268,6 +4268,42 @@ function initStage2() {
       }
       window.location.href = 'stage3.html';
     });
+
+    // A/B variant controls: show/hide panels and persist active choice
+    const variantABtn = document.getElementById('variant-a-btn');
+    const variantBBtn = document.getElementById('variant-b-btn');
+    function showVariantA() {
+      const a = document.getElementById('ab-preview-A');
+      const b = document.getElementById('ab-preview-B');
+      if (a) a.classList.remove('hidden');
+      if (b) b.classList.add('hidden');
+      if (variantABtn) variantABtn.classList.add('active');
+      if (variantBBtn) variantBBtn.classList.remove('active');
+      try {
+        const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+        const st = JSON.parse(raw || '{}');
+        st.active = 'A';
+        sessionStorage.setItem('marketing-poster-stage2-variants', JSON.stringify(st));
+      } catch {}
+    }
+    function showVariantB() {
+      const a = document.getElementById('ab-preview-A');
+      const b = document.getElementById('ab-preview-B');
+      if (a) a.classList.add('hidden');
+      if (b) b.classList.remove('hidden');
+      if (variantABtn) variantABtn.classList.remove('active');
+      if (variantBBtn) variantBBtn.classList.add('active');
+      try {
+        const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+        const st = JSON.parse(raw || '{}');
+        st.active = 'B';
+        sessionStorage.setItem('marketing-poster-stage2-variants', JSON.stringify(st));
+      } catch {}
+    }
+    if (variantABtn) variantABtn.addEventListener('click', showVariantA);
+    if (variantBBtn) variantBBtn.addEventListener('click', showVariantB);
+    // default to A
+    showVariantA();
   })();
 }
 function populateStage1Summary(stage1Data, overviewList, templateName) {
