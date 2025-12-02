@@ -44,17 +44,20 @@ function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
   if (!finalUrl) return;
 
   const selectors = [];
-    if (slot === 'gallery') {
-      selectors.push(`[data-role="gallery-preview"][data-index="${index}"]`);
-      selectors.push(`.poster-gallery [data-gallery-index="${index}"] img, .bottom-product-card[data-gallery-index="${index}"] img`);
-      selectors.push(`#preview-gallery figure:nth-child(${index + 1}) img`);
-      selectors.push(`#poster-result .poster-gallery-slot[data-index="${index}"] img`);
-    } else if (slot === 'scenario') {
-      selectors.push('#preview-scenario-image');
-      selectors.push('#poster-result-scenario-image');
-    } else if (slot === 'product') {
-      selectors.push('#preview-product-image');
-      selectors.push('#poster-result-product-image');
+  if (slot === 'gallery') {
+    selectors.push(`[data-role="gallery-preview"][data-index="${index}"]`);
+    selectors.push(
+      `.poster-gallery [data-gallery-index="${index}"] img, .bottom-product-card[data-gallery-index="${index}"] img`
+    );
+    selectors.push(`#preview-gallery figure:nth-child(${index + 1}) img`);
+    selectors.push(`#poster-result .poster-gallery-slot[data-index="${index}"] img`);
+  } else if (slot === 'scenario') {
+    selectors.push('#preview-scenario-image');
+    selectors.push('#poster-result-scenario-image');
+  } else if (slot === 'product') {
+    selectors.push('#preview-product-image');
+    selectors.push('#poster-result-product-image');
+  }
 
   selectors
     .map((selector) => document.querySelectorAll(selector))
