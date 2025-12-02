@@ -4269,53 +4269,76 @@ function initStage2() {
       window.location.href = 'stage3.html';
     });
 
-    // A/B variant controls: show/hide panels and persist active choice
+    // --- A/B variant controls (Stage 2) ---
     const variantABtn = document.getElementById('variant-a-btn');
     const variantBBtn = document.getElementById('variant-b-btn');
-    function showVariantA() {
-      const a = document.getElementById('ab-preview-A');
-      const b = document.getElementById('ab-preview-B');
-      if (a) a.classList.remove('hidden');
-      if (b) b.classList.add('hidden');
+    const abPreviewA = document.getElementById('ab-preview-A');
+    const abPreviewB = document.getElementById('ab-preview-B');
+
+    // Optional: read previous choice from sessionStorage
+    let activeVariant = 'A';
+    try {
+      const raw = sessionStorage.getItem('marketing-poster-stage2-variants');
+      if (raw) {
+        const st = JSON.parse(raw);
+        if (st && (st.active === 'A' || st.active === 'B')) {
+          activeVariant = st.active;
+        }
+      }
+    } catch {
+      activeVariant = 'A';
+    }
+
+    function setActiveVariant(variant) {
+      activeVariant = variant === 'B' ? 'B' : 'A';
+
+      // Toggle tab button styles
       if (variantABtn) {
-        variantABtn.classList.add('is-active');
-        variantABtn.setAttribute('aria-selected', 'true');
+        const isActive = activeVariant === 'A';
+        variantABtn.classList.toggle('is-active', isActive);
+        variantABtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
       }
       if (variantBBtn) {
-        variantBBtn.classList.remove('is-active');
-        variantBBtn.setAttribute('aria-selected', 'false');
+        const isActive = activeVariant === 'B';
+        variantBBtn.classList.toggle('is-active', isActive);
+        variantBBtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
       }
+
+      // Toggle preview panels (A vs B)
+      if (abPreviewA) {
+        abPreviewA.classList.toggle('is-active', activeVariant === 'A');
+      }
+      if (abPreviewB) {
+        abPreviewB.classList.toggle('is-active', activeVariant === 'B');
+      }
+
+      // Persist choice so Stage 3 knows which poster to send
       try {
-        const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
-        const st = JSON.parse(raw || '{}');
-        st.active = 'A';
-        sessionStorage.setItem('marketing-poster-stage2-variants', JSON.stringify(st));
-      } catch {}
-    }
-    function showVariantB() {
-      const a = document.getElementById('ab-preview-A');
-      const b = document.getElementById('ab-preview-B');
-      if (a) a.classList.add('hidden');
-      if (b) b.classList.remove('hidden');
-      if (variantABtn) {
-        variantABtn.classList.remove('is-active');
-        variantABtn.setAttribute('aria-selected', 'false');
+        sessionStorage.setItem(
+          'marketing-poster-stage2-variants',
+          JSON.stringify({ active: activeVariant }),
+        );
+      } catch {
+        // ignore
       }
-      if (variantBBtn) {
-        variantBBtn.classList.add('is-active');
-        variantBBtn.setAttribute('aria-selected', 'true');
-      }
-      try {
-        const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
-        const st = JSON.parse(raw || '{}');
-        st.active = 'B';
-        sessionStorage.setItem('marketing-poster-stage2-variants', JSON.stringify(st));
-      } catch {}
     }
-    if (variantABtn) variantABtn.addEventListener('click', (e) => { e.preventDefault(); showVariantA(); });
-    if (variantBBtn) variantBBtn.addEventListener('click', (e) => { e.preventDefault(); showVariantB(); });
-    // default to A
-    showVariantA();
+
+    if (variantABtn) {
+      variantABtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        setActiveVariant('A');
+      });
+    }
+
+    if (variantBBtn) {
+      variantBBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        setActiveVariant('B');
+      });
+    }
+
+    // Initialise with the last active variant (default A)
+    setActiveVariant(activeVariant);
   })();
 }
 function populateStage1Summary(stage1Data, overviewList, templateName) {
@@ -4543,38 +4566,61 @@ function applyVertexPosterResult(data) {
   }
 
   renderPosterResult();
+  // --- Bind composite poster (B variant) into B preview ---
+  try {
+    const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
+    const vertexPosterPlaceholder = document.getElementById('vertex-poster-placeholder');
+    const vertexPosterUrlInput = document.getElementById('vertex-poster-url');
 
-  // --- 显示海报区域 & 默认切到 A 版 ---
+    if (posterUrl && vertexPosterImg) {
+      vertexPosterImg.src = posterUrl;
+      vertexPosterImg.style.display = 'block';
+      vertexPosterImg.classList.remove('hidden');
+
+      if (vertexPosterPlaceholder) {
+        vertexPosterPlaceholder.classList.add('hidden');
+      }
+
+      if (vertexPosterUrlInput) {
+        vertexPosterUrlInput.value = posterUrl;
+      }
+    }
+  } catch (err) {
+    console.warn('[applyVertexPosterResult] failed to apply B variant image', err);
+  }
+
+  // --- Show poster area and reset active tab to A ---
   try {
     const posterOutput = document.getElementById('poster-output');
     const aiPreview = document.getElementById('ai-preview');
     const posterVisual = document.getElementById('poster-visual');
-    const abPreviewA = document.getElementById('ab-preview-A');
-    const abPreviewB = document.getElementById('ab-preview-B');
-    const variantABtn = document.getElementById('variant-a-btn');
-    const variantBBtn = document.getElementById('variant-b-btn');
 
     if (!posterOutput || !aiPreview || !posterVisual) {
-      console.warn('[applyVertexPosterResult] poster containers missing', { posterOutput, aiPreview, posterVisual });
+      console.warn('[applyVertexPosterResult] poster containers missing', {
+        posterOutput,
+        aiPreview,
+        posterVisual,
+      });
     } else {
-      // 1. 关闭“AI 生成进度”，打开海报预览
       posterOutput.classList.remove('hidden');
       posterVisual.classList.remove('hidden');
       aiPreview.classList.add('hidden');
+    }
 
-      // 2. 默认展示 A 版，隐藏 B 版
-      if (abPreviewA) abPreviewA.classList.remove('hidden');
-      if (abPreviewB) abPreviewB.classList.add('hidden');
+    // Use the same session key as initStage2, but force back to A after a successful generation
+    try {
+      sessionStorage.setItem(
+        'marketing-poster-stage2-variants',
+        JSON.stringify({ active: 'A' }),
+      );
+    } catch {
+      // ignore
+    }
 
-      // 3. 同步按钮状态
-      if (variantABtn) {
-        variantABtn.classList.add('is-active');
-        variantABtn.setAttribute('aria-selected', 'true');
-      }
-      if (variantBBtn) {
-        variantBBtn.classList.remove('is-active');
-        variantBBtn.setAttribute('aria-selected', 'false');
-      }
+    // If the A/B buttons are already wired, we can reuse the click event to update UI
+    const variantABtn = document.getElementById('variant-a-btn');
+    if (variantABtn) {
+      variantABtn.click();
     }
   } catch (e) {
     console.warn('[applyVertexPosterResult] show poster failed', e);
