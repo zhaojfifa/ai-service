@@ -1292,6 +1292,20 @@ main {
   display: none !important;
 }
 
+.lockscreen-template-section {
+  display: none !important;
+}
+
+.variant-b .poster-product-wrapper img,
+.variant-b img[data-role="product-image"] {
+  filter: saturate(0.85) contrast(1.08) brightness(0.95);
+}
+
+.variant-b .poster-product-wrapper {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
 #ai-preview {
   border-top: 1px solid rgba(239, 76, 84, 0.18);
   padding-top: 1rem;
