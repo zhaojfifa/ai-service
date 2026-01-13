@@ -692,7 +692,7 @@ main {
   border-radius: 12px;
 }
 
-.gallery-caption {
+.poster-gallery-slot .gallery-caption {
   position: absolute;
   left: 0;
   right: 0;
@@ -707,19 +707,19 @@ main {
   border-bottom-right-radius: 12px;
 }
 
-.gallery-caption-title,
-.gallery-caption-subtitle {
+.poster-gallery-slot .gallery-caption-title,
+.poster-gallery-slot .gallery-caption-subtitle {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gallery-caption-title {
+.poster-gallery-slot .gallery-caption-title {
   font-weight: 600;
 }
 
-.gallery-caption-subtitle {
+.poster-gallery-slot .gallery-caption-subtitle {
   opacity: 0.85;
   font-size: 11px;
 }
