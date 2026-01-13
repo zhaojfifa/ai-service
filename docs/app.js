@@ -119,6 +119,8 @@ const stage2State = {
     updateProduct: false,
   },
 };
+let stage2HasAttemptedGenerate = false;
+let stage2LastGeneratedAssetFingerprint = null;
 let stage2GenerationSeq = 0;
 let stage2InFlight = false;
 let stage2GenerateInFlight = false;
@@ -129,6 +131,31 @@ const STAGE2_REVEAL_DELAY_MS = 500;
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function fingerprintAssets(assets) {
+  const scenario = assets?.scenario_url || '';
+  const product = assets?.product_url || '';
+  const gallery = Array.isArray(assets?.gallery_urls) ? assets.gallery_urls.join('|') : '';
+  return `${scenario}||${product}||${gallery}`;
+}
+
+function updateRegenerateButtonState() {
+  const button = document.getElementById('regenerate-poster');
+  if (!button) return;
+  if (!stage2HasAttemptedGenerate) {
+    button.classList.add('hidden');
+    button.disabled = true;
+    return;
+  }
+  button.classList.remove('hidden');
+  const currentFingerprint = fingerprintAssets(stage2State.assets);
+  const isDirty =
+    stage2LastGeneratedAssetFingerprint == null
+      ? true
+      : currentFingerprint !== stage2LastGeneratedAssetFingerprint;
+  const shouldDisable = stage2GenerateInFlight || stage2InFlight || !isDirty;
+  button.disabled = shouldDisable;
 }
 
 function setTextIfNonEmpty(el, next, fallback = '') {
@@ -3799,6 +3826,7 @@ function initStage2() {
     const posterTemplateLink = document.getElementById('poster-template-link');
     const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
     const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
+    const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
@@ -3809,6 +3837,7 @@ function initStage2() {
     const emailTextarea = document.getElementById('generated-email');
     const generateButton = document.getElementById('generate-poster');
     const regenerateButton = document.getElementById('regenerate-poster');
+    const promptInspector = document.getElementById('prompt-inspector');
     const nextButton = document.getElementById('to-stage3');
     const overviewList = document.getElementById('stage1-overview');
     const templateSelect = document.getElementById('template-select');
@@ -3820,6 +3849,22 @@ function initStage2() {
 
     if (!generateButton || !nextButton) {
       return;
+    }
+
+    if (posterPreviewSection) {
+      posterPreviewSection.classList.add('hidden');
+    }
+    if (posterGeneratedImage?.classList) {
+      posterGeneratedImage.classList.add('hidden');
+      posterGeneratedImage.removeAttribute('src');
+      posterGeneratedImage.style.display = 'none';
+    }
+    if (posterGeneratedPlaceholder?.classList) {
+      posterGeneratedPlaceholder.classList.add('hidden');
+    }
+    if (regenerateButton) {
+      regenerateButton.classList.add('hidden');
+      regenerateButton.disabled = true;
     }
 
     const stage1Data = loadStage1Data();
@@ -4382,6 +4427,12 @@ function initStage2() {
 
     stage2RunGeneration = (extra = {}) => runGeneration(extra);
     bindStage2GenerateButtonsOnce();
+    updateRegenerateButtonState();
+
+    if (promptInspector) {
+      promptInspector.addEventListener('input', updateRegenerateButtonState);
+      promptInspector.addEventListener('change', updateRegenerateButtonState);
+    }
 
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
@@ -4650,29 +4701,6 @@ function applyVertexPosterResult(data) {
 
   stage2State.vertex.lastResponse = data || null;
   const assets = stage2State.assets;
-  const regenPolicy = stage2State.regenPolicy || {
-    updateScenario: false,
-    updateGallery: false,
-    updateProduct: false,
-  };
-
-  if (regenPolicy.updateScenario) {
-    const scenarioUrl =
-      data?.scenario_image?.url ||
-      data?.scenario_image_url ||
-      data?.images?.scenario ||
-      '';
-    if (scenarioUrl) {
-      assets.scenario_url = scenarioUrl;
-    }
-  }
-
-  if (regenPolicy.updateGallery && Array.isArray(data?.gallery_images)) {
-    assets.gallery_urls = data.gallery_images
-      .map((entry) => pickImageSrc(entry))
-      .filter(Boolean)
-      .slice(0, 4);
-  }
 
   const posterUrl = extractVertexPosterUrl(data);
   if (posterUrl) {
@@ -4815,6 +4843,9 @@ async function triggerGeneration(opts) {
     forceVariants = null, abTest = false,
   } = opts;
   rehydrateStage2PosterFromStage1();
+  const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
+  const priorPosterUrl = posterGenerationState.posterUrl || posterGeneratedImageUrl || null;
+  let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
   stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
   stage2State.regenPolicy = isRegenerate
@@ -5083,6 +5114,8 @@ async function triggerGeneration(opts) {
           poster_image: { ...templatePoster },
           prompt: typeof options.prompt === 'string' ? options.prompt : '',
           email_body: typeof options.email === 'string' ? options.email : '',
+          assets: { ...stage2State.assets },
+          poster: { ...stage2State.poster },
           variants: [],
           seed: null,
           lock_seed: false,
@@ -5110,6 +5143,7 @@ async function triggerGeneration(opts) {
 
   // 7) 发送（健康探测 + 重试）
   try {
+    didAttempt = true;
     await warmUp(apiCandidates);
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
@@ -5193,6 +5227,8 @@ async function triggerGeneration(opts) {
       try {
         const dataToStore = {
           ...data,
+          assets: { ...stage2State.assets },
+          poster: { ...stage2State.poster },
           template_poster: templatePoster ? { ...templatePoster } : null,
         };
         await saveStage2Result(dataToStore);
@@ -5208,6 +5244,13 @@ async function triggerGeneration(opts) {
       setStatus(statusElement, '生成完成但缺少可预览图片，请稍后重试。', 'warning');
     }
 
+    stage2HasAttemptedGenerate = true;
+    if (posterPreviewSection) {
+      posterPreviewSection.classList.remove('hidden');
+    }
+    stage2LastGeneratedAssetFingerprint = fingerprintAssets(stage2State.assets);
+    updateRegenerateButtonState();
+
     return data;
   } catch (error) {
     console.error('[generatePoster] 请求失败', {
@@ -5216,14 +5259,6 @@ async function triggerGeneration(opts) {
       responseJson: error?.responseJson,
       responseText: error?.responseText,
     });
-    posterGenerationState.posterUrl = null;
-    posterGenerationState.promptBundle = null;
-    posterGenerationState.rawResult = null;
-    lastPosterResult = null;
-    lastPromptBundle = null;
-    posterGeneratedImageUrl = null;
-    posterGeneratedImage = null;
-    posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
     const detail = error?.responseJson?.detail || null;
     const quotaExceeded =
       error?.status === 429 &&
@@ -5239,15 +5274,34 @@ async function triggerGeneration(opts) {
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
     if (generatedImage?.classList) {
-      generatedImage.classList.add('hidden');
-      generatedImage.removeAttribute('src');
+      if (priorPosterUrl) {
+        generatedImage.src = priorPosterUrl;
+        generatedImage.style.display = 'block';
+        generatedImage.classList.remove('hidden');
+      } else {
+        generatedImage.classList.add('hidden');
+        generatedImage.removeAttribute('src');
+      }
     }
-    resetGeneratedPlaceholder(decoratedMessage || generatedPlaceholderDefault);
+    if (priorPosterUrl) {
+      hideGeneratedPlaceholder();
+    } else {
+      resetGeneratedPlaceholder(decoratedMessage || generatedPlaceholderDefault);
+    }
     refreshPosterLayoutPreview();
+    if (didAttempt) {
+      stage2HasAttemptedGenerate = true;
+      if (posterPreviewSection) {
+        posterPreviewSection.classList.remove('hidden');
+      }
+      renderPosterResult();
+      updateRegenerateButtonState();
+    }
     return null;
   } finally {
     stage2InFlight = false;
     setStage2ButtonsDisabled(false);
+    updateRegenerateButtonState();
   }
 }
 
