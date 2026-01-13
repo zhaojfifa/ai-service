@@ -4591,9 +4591,10 @@ function renderPosterResult() {
   gallerySlots.forEach((slot, index) => {
     const img = slot.querySelector('img');
     const captionEl = slot.querySelector('.slot-caption');
+    const captionTitleEl = slot.querySelector('[data-gallery-caption-title]');
     const src = assets.gallery_urls?.[index] || logoFallback || '';
     if (img) setImageSrcIfNonEmpty(img, src);
-    if (captionEl) {
+    if (captionEl && !captionTitleEl) {
       const series = poster.series?.[index];
       setTextIfNonEmpty(captionEl, series && series.name ? series.name : '', '待生成');
     }
@@ -4603,6 +4604,51 @@ function renderPosterResult() {
   if (taglineEl) {
     setTextIfNonEmpty(taglineEl, poster.tagline, '待生成');
   }
+
+  renderGalleryCaptions();
+}
+
+function renderGalleryCaptions() {
+  const root = document.getElementById('poster-result');
+  if (!root) return;
+  const slots = root.querySelectorAll('.poster-gallery-slot');
+  if (!slots.length) return;
+
+  const poster = stage2State.poster || {};
+  const stage1Snapshot = loadStage1Data() || lastStage1Data || {};
+  const entries =
+    Array.isArray(poster.gallery_entries) && poster.gallery_entries.length
+      ? poster.gallery_entries
+      : Array.isArray(stage1Snapshot.gallery_entries)
+      ? stage1Snapshot.gallery_entries
+      : [];
+  const seriesFallback = Array.isArray(poster.series) ? poster.series : [];
+
+  slots.forEach((slot, index) => {
+    const entry = entries[index] || {};
+    const captionValue = entry?.caption || entry?.name || '';
+    const title =
+      entry?.title ||
+      (entry?.caption && entry.caption.title) ||
+      (typeof captionValue === 'string' ? captionValue : '') ||
+      seriesFallback[index]?.name ||
+      '';
+    const subtitle =
+      entry?.subtitle ||
+      (entry?.caption && entry.caption.subtitle) ||
+      '';
+
+    const titleEl = slot.querySelector('[data-gallery-caption-title]');
+    const subtitleEl = slot.querySelector('[data-gallery-caption-subtitle]');
+    const fallbackText = '待生成';
+
+    if (titleEl) {
+      setTextIfNonEmpty(titleEl, title, fallbackText);
+    }
+    if (subtitleEl) {
+      setTextIfNonEmpty(subtitleEl, subtitle, fallbackText);
+    }
+  });
 }
 
 function applyVertexPosterResult(data) {
