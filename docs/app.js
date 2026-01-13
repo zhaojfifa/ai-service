@@ -113,7 +113,10 @@ const stage2State = {
   vertex: {
     lastResponse: null,
   },
+  activeVariant: 'A',
 };
+const DEMO_A_NO_AI_IMAGES = true;
+const DEMO_B_AI_IMAGES_TO_ASSETSB = true;
 let stage2GenerationSeq = 0;
 let stage2InFlight = false;
 
@@ -3811,6 +3814,7 @@ function initStage2() {
         : [],
       composite_poster_url: '',
     };
+    stage2State.assetsB = stage2State.assetsB || {};
 
     renderPosterResult();
 
@@ -4362,6 +4366,7 @@ function initStage2() {
 
     function setActiveVariant(variant) {
       activeVariant = variant === 'B' ? 'B' : 'A';
+      stage2State.activeVariant = activeVariant;
 
       // Toggle tab button styles
       if (variantABtn) {
@@ -4626,8 +4631,18 @@ function renderPosterResultB() {
   const { poster, assets } = stage2State;
   const assetsB = stage2State.assetsB || {};
   const logoFallback = assets.brand_logo_url || poster.brand_logo_url || '';
-  const scenarioSrc = assetsB.scenario_url || assets.scenario_url || '';
-  const productSrc = assetsB.product_url || assets.product_url || '';
+  const scenarioSrc =
+    assetsB.scenario_image_url ||
+    assetsB.scenario_url ||
+    assets.scenario_image_url ||
+    assets.scenario_url ||
+    '';
+  const productSrc =
+    assetsB.product_image_url ||
+    assetsB.product_url ||
+    assets.product_image_url ||
+    assets.product_url ||
+    '';
   const galleryUrls = Array.isArray(assetsB.gallery_urls) && assetsB.gallery_urls.length
     ? assetsB.gallery_urls
     : assets.gallery_urls || [];
@@ -4762,6 +4777,23 @@ function renderGalleryCaptions() {
   });
 }
 
+function applyImagesToAssetsB(resp) {
+  stage2State.assetsB = stage2State.assetsB || {};
+  const scenarioUrl =
+    resp?.scenario_image?.url ||
+    resp?.scenario_image_url ||
+    resp?.images?.scenario ||
+    '';
+  const productUrl =
+    resp?.product_image?.url ||
+    resp?.product_image_url ||
+    resp?.images?.product ||
+    '';
+
+  if (scenarioUrl) stage2State.assetsB.scenario_image_url = scenarioUrl;
+  if (productUrl) stage2State.assetsB.product_image_url = productUrl;
+}
+
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
@@ -4770,23 +4802,28 @@ function applyVertexPosterResult(data) {
 
   surfaceSlotWarnings(slotSummary);
 
+  const activeVariant = stage2State.activeVariant || stage2State.variant || 'A';
+  const isA = activeVariant === 'A';
+  const isB = activeVariant === 'B';
+
   stage2State.vertex.lastResponse = data || null;
   const assets = stage2State.assets;
   const assetsB = stage2State.assetsB || (stage2State.assetsB = {});
 
-  if (data?.scenario_image?.url) {
-    assets.scenario_url = data.scenario_image.url;
-    assetsB.scenario_url = data.scenario_image.url;
-  }
-  if (data?.product_image?.url) {
-    assets.product_url = data.product_image.url;
-    assetsB.product_url = data.product_image.url;
-  }
-  if (Array.isArray(data?.gallery_images)) {
-    assets.gallery_urls = data.gallery_images
-      .map((entry) => pickImageSrc(entry))
-      .filter(Boolean);
-    assetsB.gallery_urls = assets.gallery_urls;
+  if (isB && DEMO_B_AI_IMAGES_TO_ASSETSB) {
+    applyImagesToAssetsB(data);
+  } else if (!(isA && DEMO_A_NO_AI_IMAGES)) {
+    if (data?.scenario_image?.url) {
+      assets.scenario_url = data.scenario_image.url;
+    }
+    if (data?.product_image?.url) {
+      assets.product_url = data.product_image.url;
+    }
+    if (Array.isArray(data?.gallery_images)) {
+      assets.gallery_urls = data.gallery_images
+        .map((entry) => pickImageSrc(entry))
+        .filter(Boolean);
+    }
   }
 
   const posterUrl = extractVertexPosterUrl(data);
@@ -4794,8 +4831,12 @@ function applyVertexPosterResult(data) {
     posterGeneratedImageUrl = posterUrl;
     posterGenerationState.posterUrl = posterUrl;
     posterGeneratedImage = posterGenerationState.posterUrl;
-    assets.composite_poster_url = posterUrl;
-    assetsB.composite_poster_url = posterUrl;
+    if (!(isB && DEMO_B_AI_IMAGES_TO_ASSETSB) && !(isA && DEMO_A_NO_AI_IMAGES)) {
+      assets.composite_poster_url = posterUrl;
+    }
+    if (isB && DEMO_B_AI_IMAGES_TO_ASSETSB) {
+      assetsB.composite_poster_url = posterUrl;
+    }
     try {
       sessionStorage.setItem('latestPosterUrl', posterUrl);
     } catch (error) {
@@ -4806,26 +4847,47 @@ function applyVertexPosterResult(data) {
   renderPosterResult();
   renderPosterResultB();
   // --- Bind composite poster (B variant) into B preview ---
-  try {
-    const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
-    const vertexPosterPlaceholder = document.getElementById('vertex-poster-placeholder');
-    const vertexPosterUrlInput = document.getElementById('vertex-poster-url');
+  if (!(isB && DEMO_B_AI_IMAGES_TO_ASSETSB)) {
+    try {
+      const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
+      const vertexPosterPlaceholder = document.getElementById('vertex-poster-placeholder');
+      const vertexPosterUrlInput = document.getElementById('vertex-poster-url');
 
-    if (posterUrl && vertexPosterImg) {
-      vertexPosterImg.src = posterUrl;
-      vertexPosterImg.style.display = 'block';
-      vertexPosterImg.classList.remove('hidden');
+      if (posterUrl && vertexPosterImg) {
+        vertexPosterImg.src = posterUrl;
+        vertexPosterImg.style.display = 'block';
+        vertexPosterImg.classList.remove('hidden');
 
+        if (vertexPosterPlaceholder) {
+          vertexPosterPlaceholder.classList.add('hidden');
+        }
+
+        if (vertexPosterUrlInput) {
+          vertexPosterUrlInput.value = posterUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('[applyVertexPosterResult] failed to apply B variant image', err);
+    }
+  } else {
+    try {
+      const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
+      const vertexPosterPlaceholder = document.getElementById('vertex-poster-placeholder');
+      const vertexPosterUrlInput = document.getElementById('vertex-poster-url');
+      if (vertexPosterImg) {
+        vertexPosterImg.classList.add('hidden');
+        vertexPosterImg.style.display = 'none';
+        vertexPosterImg.removeAttribute('src');
+      }
       if (vertexPosterPlaceholder) {
         vertexPosterPlaceholder.classList.add('hidden');
       }
-
       if (vertexPosterUrlInput) {
-        vertexPosterUrlInput.value = posterUrl;
+        vertexPosterUrlInput.value = '';
       }
+    } catch (err) {
+      console.warn('[applyVertexPosterResult] failed to hide composite preview', err);
     }
-  } catch (err) {
-    console.warn('[applyVertexPosterResult] failed to apply B variant image', err);
   }
 
   // --- Show poster area and reset active tab to A ---
@@ -4969,6 +5031,9 @@ async function triggerGeneration(opts) {
     forceVariants = null, abTest = false,
   } = opts;
   rehydrateStage2PosterFromStage1();
+  const activeVariant = stage2State.activeVariant || stage2State.variant || 'A';
+  const isA = activeVariant === 'A';
+  const isB = activeVariant === 'B';
   if (stage2InFlight) {
     setStatus(statusElement, '生成中，请稍候…', 'info');
     return null;
@@ -5107,6 +5172,10 @@ async function triggerGeneration(opts) {
   };
   
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
+  if (isA && DEMO_A_NO_AI_IMAGES) {
+    payload.generate_images = false;
+    payload.generate_text = true;
+  }
 
   const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
   if (negativeSummary) {
