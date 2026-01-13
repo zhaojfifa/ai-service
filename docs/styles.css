@@ -682,6 +682,7 @@ main {
   flex-direction: column;
   align-items: center;
   font-size: 12px;
+  position: relative;
 }
 
 .poster-gallery-slot img {
@@ -689,6 +690,38 @@ main {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: 12px;
+}
+
+.gallery-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 6px 8px;
+  background: rgba(15, 23, 42, 0.6);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.2;
+  overflow: hidden;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.gallery-caption-title,
+.gallery-caption-subtitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gallery-caption-title {
+  font-weight: 600;
+}
+
+.gallery-caption-subtitle {
+  opacity: 0.85;
+  font-size: 11px;
 }
 
 .poster-tagline {

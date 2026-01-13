@@ -100,6 +100,7 @@ const stage2State = {
     tagline: '',
     features: [],
     series: [],
+    gallery_entries: [],
   },
   assets: {
     brand_logo_url: '',
@@ -112,6 +113,71 @@ const stage2State = {
     lastResponse: null,
   },
 };
+let stage2GenerationSeq = 0;
+let stage2InFlight = false;
+
+function setTextIfNonEmpty(el, next, fallback = '') {
+  if (!el) return;
+  const nextText = typeof next === 'string' ? next.trim() : '';
+  if (nextText) {
+    el.textContent = nextText;
+    return;
+  }
+  const currentText = typeof el.textContent === 'string' ? el.textContent.trim() : '';
+  if (currentText) return;
+  if (fallback != null) el.textContent = String(fallback);
+}
+
+function setImageSrcIfNonEmpty(imgEl, nextUrl) {
+  if (!imgEl) return;
+  const url = typeof nextUrl === 'string' ? nextUrl.trim() : '';
+  if (!url) return;
+  imgEl.src = url;
+  if (imgEl.style) {
+    imgEl.style.visibility = 'visible';
+    if (imgEl.style.display === 'none') {
+      imgEl.style.display = '';
+    }
+  }
+}
+
+function setStage2ButtonsDisabled(disabled) {
+  const generateButton = document.getElementById('generate-poster');
+  const regenerateButton = document.getElementById('regenerate-poster');
+  const variantABtn = document.getElementById('variant-a-btn');
+  const variantBBtn = document.getElementById('variant-b-btn');
+  if (generateButton) generateButton.disabled = disabled;
+  if (regenerateButton) regenerateButton.disabled = disabled;
+  if (variantABtn) variantABtn.disabled = disabled;
+  if (variantBBtn) variantBBtn.disabled = disabled;
+}
+
+function rehydrateStage2PosterFromStage1() {
+  const snapshot = loadStage1Data() || lastStage1Data || null;
+  if (!snapshot) return;
+  const poster = stage2State.poster;
+  if (!poster.brand_name) poster.brand_name = snapshot.brand_name || '';
+  if (!poster.agent_name) poster.agent_name = snapshot.agent_name || '';
+  if (!poster.headline) poster.headline = snapshot.title || '';
+  if (!poster.tagline) {
+    poster.tagline = snapshot.subtitle || snapshot.tagline || snapshot.slogan || '';
+  }
+  if (!Array.isArray(poster.features) || poster.features.length === 0) {
+    poster.features = Array.isArray(snapshot.features)
+      ? snapshot.features.filter(Boolean)
+      : [];
+  }
+  if (!Array.isArray(poster.series) || poster.series.length === 0) {
+    poster.series = Array.isArray(snapshot.gallery_entries)
+      ? snapshot.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
+      : [];
+  }
+  if (!Array.isArray(poster.gallery_entries) || poster.gallery_entries.length === 0) {
+    poster.gallery_entries = Array.isArray(snapshot.gallery_entries)
+      ? snapshot.gallery_entries.filter(Boolean)
+      : [];
+  }
+}
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
@@ -3113,18 +3179,19 @@ const FEATURE_TAG_CLASSNAMES = [
 ];
 
 function renderFeatureTags(target, features) {
-  if (!target) return;
-  target.innerHTML = '';
-  FEATURE_TAG_CLASSNAMES.forEach((className, index) => {
-    const li = document.createElement('li');
-    li.className = className;
-    li.dataset.featureIndex = String(index);
-    const span = document.createElement('span');
-    const text = features?.[index] || '';
-    span.textContent = text;
-    if (!text) li.style.display = 'none';
-    li.appendChild(span);
-    target.appendChild(li);
+  const container = target || document.getElementById('poster-result-feature-list');
+  if (!container) return;
+  const spans = container.querySelectorAll('.feature-tag span');
+  const items = container.querySelectorAll('.feature-tag');
+  const fallbackText = '待生成';
+
+  spans.forEach((span, index) => {
+    const nextText = features?.[index] || '';
+    setTextIfNonEmpty(span, nextText, fallbackText);
+    const item = items[index];
+    if (item) {
+      item.style.display = '';
+    }
   });
 }
 
@@ -3726,6 +3793,9 @@ function initStage2() {
       features: Array.isArray(stage1Data.features) ? stage1Data.features.filter(Boolean) : [],
       series: Array.isArray(stage1Data.gallery_entries)
         ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
+        : [],
+      gallery_entries: Array.isArray(stage1Data.gallery_entries)
+        ? stage1Data.gallery_entries.filter(Boolean)
         : [],
     };
 
@@ -4419,6 +4489,29 @@ function buildPromptBundleStrings(prompts = {}) {
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
+  if (result.poster_image && typeof result.poster_image.url === 'string') {
+    const url = result.poster_image.url.trim();
+    if (url) return url;
+  }
+  if (typeof result.poster_image === 'string') {
+    const url = result.poster_image.trim();
+    if (url) return url;
+  }
+  if (result.poster && typeof result.poster.url === 'string') {
+    const url = result.poster.url.trim();
+    if (url) return url;
+  }
+  if (typeof result.poster === 'string') {
+    const url = result.poster.trim();
+    if (url) return url;
+  }
+  if (result.image && typeof result.image.url === 'string') {
+    const url = result.image.url.trim();
+    if (url) return url;
+  }
+  if (typeof result.url === 'string' && result.url.trim()) {
+    return result.url.trim();
+  }
   if (typeof result.poster_url === 'string' && result.poster_url.length > 0) {
     return result.poster_url;
   }
@@ -4466,35 +4559,26 @@ function renderPosterResult() {
     if (logoSrc) {
       logoImg.src = logoSrc;
       logoImg.style.display = 'block';
-    } else {
-      logoImg.removeAttribute('src');
+    } else if (!logoImg.getAttribute('src')) {
       logoImg.style.display = 'none';
     }
   }
 
   const brandNameEl = document.getElementById('poster-result-brand-name');
   const agentNameEl = document.getElementById('poster-result-agent-name');
-  if (brandNameEl) brandNameEl.textContent = poster.brand_name || '';
-  if (agentNameEl) agentNameEl.textContent = poster.agent_name || '';
+  setTextIfNonEmpty(brandNameEl, poster.brand_name, '待生成');
+  setTextIfNonEmpty(agentNameEl, poster.agent_name, '待生成');
 
   const scenarioImg = document.getElementById('poster-result-scenario-image');
   if (scenarioImg) {
     const src = assets.scenario_url || '';
-    if (src) {
-      scenarioImg.src = src;
-    } else {
-      scenarioImg.removeAttribute('src');
-    }
+    setImageSrcIfNonEmpty(scenarioImg, src);
   }
 
   const productImg = document.getElementById('poster-result-product-image');
   if (productImg) {
     const src = assets.product_url || '';
-    if (src) {
-      productImg.src = src;
-    } else {
-      productImg.removeAttribute('src');
-    }
+    setImageSrcIfNonEmpty(productImg, src);
   }
 
   const featureList = document.getElementById('poster-result-feature-list');
@@ -4507,26 +4591,64 @@ function renderPosterResult() {
   gallerySlots.forEach((slot, index) => {
     const img = slot.querySelector('img');
     const captionEl = slot.querySelector('.slot-caption');
+    const captionTitleEl = slot.querySelector('[data-gallery-caption-title]');
     const src = assets.gallery_urls?.[index] || logoFallback || '';
-    if (img) {
-      if (src) {
-        img.src = src;
-        img.style.visibility = 'visible';
-      } else {
-        img.removeAttribute('src');
-        img.style.visibility = 'hidden';
-      }
-    }
-    if (captionEl) {
+    if (img) setImageSrcIfNonEmpty(img, src);
+    if (captionEl && !captionTitleEl) {
       const series = poster.series?.[index];
-      captionEl.textContent = (series && series.name) || '';
+      setTextIfNonEmpty(captionEl, series && series.name ? series.name : '', '待生成');
     }
   });
 
   const taglineEl = document.getElementById('poster-result-tagline');
   if (taglineEl) {
-    taglineEl.textContent = poster.tagline || '';
+    setTextIfNonEmpty(taglineEl, poster.tagline, '待生成');
   }
+
+  renderGalleryCaptions();
+}
+
+function renderGalleryCaptions() {
+  const root = document.getElementById('poster-result');
+  if (!root) return;
+  const slots = root.querySelectorAll('.poster-gallery-slot');
+  if (!slots.length) return;
+
+  const poster = stage2State.poster || {};
+  const stage1Snapshot = loadStage1Data() || lastStage1Data || {};
+  const entries =
+    Array.isArray(poster.gallery_entries) && poster.gallery_entries.length
+      ? poster.gallery_entries
+      : Array.isArray(stage1Snapshot.gallery_entries)
+      ? stage1Snapshot.gallery_entries
+      : [];
+  const seriesFallback = Array.isArray(poster.series) ? poster.series : [];
+
+  slots.forEach((slot, index) => {
+    const entry = entries[index] || {};
+    const captionValue = entry?.caption || entry?.name || '';
+    const title =
+      entry?.title ||
+      (entry?.caption && entry.caption.title) ||
+      (typeof captionValue === 'string' ? captionValue : '') ||
+      seriesFallback[index]?.name ||
+      '';
+    const subtitle =
+      entry?.subtitle ||
+      (entry?.caption && entry.caption.subtitle) ||
+      '';
+
+    const titleEl = slot.querySelector('[data-gallery-caption-title]');
+    const subtitleEl = slot.querySelector('[data-gallery-caption-subtitle]');
+    const fallbackText = '待生成';
+
+    if (titleEl) {
+      setTextIfNonEmpty(titleEl, title, fallbackText);
+    }
+    if (subtitleEl) {
+      setTextIfNonEmpty(subtitleEl, subtitle, fallbackText);
+    }
+  });
 }
 
 function applyVertexPosterResult(data) {
@@ -4729,11 +4851,21 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
+  rehydrateStage2PosterFromStage1();
+  if (stage2InFlight) {
+    setStatus(statusElement, '生成中，请稍候…', 'info');
+    return null;
+  }
+  const mySeq = ++stage2GenerationSeq;
+  stage2InFlight = true;
+  setStage2ButtonsDisabled(true);
   
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
   if (!apiCandidates.length) {
+    stage2InFlight = false;
+    setStage2ButtonsDisabled(false);
     setStatus(statusElement, '未找到可用后端，请先填写 API 基址。', 'warning');
     return null;
   }
@@ -4837,6 +4969,8 @@ async function triggerGeneration(opts) {
       error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
       'error',
     );
+    stage2InFlight = false;
+    setStage2ButtonsDisabled(false);
     return null;
   }
   
@@ -4914,6 +5048,8 @@ async function triggerGeneration(opts) {
   const rawPayload = JSON.stringify(payload);
   try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
+    stage2InFlight = false;
+    setStage2ButtonsDisabled(false);
     return null;
   }
   
@@ -5005,12 +5141,12 @@ async function triggerGeneration(opts) {
   }
 
   // 7) 发送（健康探测 + 重试）
-  await warmUp(apiCandidates);
-  
   try {
+    await warmUp(apiCandidates);
     // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+    if (mySeq !== stage2GenerationSeq) return null;
 
     const posterUrl =
       data?.poster?.asset_url ||
@@ -5140,6 +5276,9 @@ async function triggerGeneration(opts) {
     resetGeneratedPlaceholder(decoratedMessage || generatedPlaceholderDefault);
     refreshPosterLayoutPreview();
     return null;
+  } finally {
+    stage2InFlight = false;
+    setStage2ButtonsDisabled(false);
   }
 }
 
