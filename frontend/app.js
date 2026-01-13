@@ -109,6 +109,7 @@ const stage2State = {
     gallery_urls: [],
     composite_poster_url: '',
   },
+  assetsB: {},
   vertex: {
     lastResponse: null,
   },
@@ -4382,6 +4383,10 @@ function initStage2() {
         abPreviewB.classList.toggle('is-active', activeVariant === 'B');
       }
 
+      if (activeVariant === 'B') {
+        renderPosterResultB();
+      }
+
       // Persist choice so Stage 3 knows which poster to send
       try {
         sessionStorage.setItem(
@@ -4614,6 +4619,106 @@ function renderPosterResult() {
   renderGalleryCaptions();
 }
 
+function renderPosterResultB() {
+  const root = document.getElementById('poster-result-b');
+  if (!root) return;
+
+  const { poster, assets } = stage2State;
+  const assetsB = stage2State.assetsB || {};
+  const logoFallback = assets.brand_logo_url || poster.brand_logo_url || '';
+  const scenarioSrc = assetsB.scenario_url || assets.scenario_url || '';
+  const productSrc = assetsB.product_url || assets.product_url || '';
+  const galleryUrls = Array.isArray(assetsB.gallery_urls) && assetsB.gallery_urls.length
+    ? assetsB.gallery_urls
+    : assets.gallery_urls || [];
+
+  const logoImg = root.querySelector('#poster-result-brand-logo-b');
+  if (logoImg) {
+    const logoSrc = assetsB.brand_logo_url || assets.brand_logo_url || '';
+    if (logoSrc) {
+      logoImg.src = logoSrc;
+      logoImg.style.display = 'block';
+    } else if (!logoImg.getAttribute('src')) {
+      logoImg.style.display = 'none';
+    }
+  }
+
+  setTextIfNonEmpty(
+    root.querySelector('#poster-result-brand-name-b'),
+    poster.brand_name,
+    '待生成',
+  );
+  setTextIfNonEmpty(
+    root.querySelector('#poster-result-agent-name-b'),
+    poster.agent_name,
+    '待生成',
+  );
+
+  setImageSrcIfNonEmpty(root.querySelector('#poster-result-scenario-image-b'), scenarioSrc);
+  setImageSrcIfNonEmpty(root.querySelector('#poster-result-product-image-b'), productSrc);
+
+  const featureList = root.querySelector('#poster-result-feature-list-b');
+  if (featureList) {
+    const spans = featureList.querySelectorAll('.feature-tag span');
+    const items = featureList.querySelectorAll('.feature-tag');
+    spans.forEach((span, index) => {
+      const nextText = poster.features?.[index] || '';
+      setTextIfNonEmpty(span, nextText, '待生成');
+      const item = items[index];
+      if (item) item.style.display = '';
+    });
+  }
+
+  const gallerySlots = root.querySelectorAll('.poster-gallery-row .poster-gallery-slot');
+  const stage1Snapshot = loadStage1Data() || lastStage1Data || {};
+  const entries =
+    Array.isArray(poster.gallery_entries) && poster.gallery_entries.length
+      ? poster.gallery_entries
+      : Array.isArray(stage1Snapshot.gallery_entries)
+      ? stage1Snapshot.gallery_entries
+      : [];
+  const seriesFallback = Array.isArray(poster.series) ? poster.series : [];
+
+  gallerySlots.forEach((slot, index) => {
+    const img = slot.querySelector('img');
+    const src = galleryUrls?.[index] || logoFallback || '';
+    if (img) setImageSrcIfNonEmpty(img, src);
+
+    const entry = entries[index] || {};
+    const captionValue = entry?.caption || entry?.name || '';
+    const title =
+      entry?.title ||
+      (entry?.caption && entry.caption.title) ||
+      (typeof captionValue === 'string' ? captionValue : '') ||
+      seriesFallback[index]?.name ||
+      '';
+    const subtitle =
+      entry?.subtitle ||
+      (entry?.caption && entry.caption.subtitle) ||
+      '';
+
+    setTextIfNonEmpty(
+      slot.querySelector('[data-gallery-caption-title]'),
+      title,
+      '待生成',
+    );
+    setTextIfNonEmpty(
+      slot.querySelector('[data-gallery-caption-subtitle]'),
+      subtitle,
+      '待生成',
+    );
+  });
+
+  const subheadline =
+    poster?.subheadline ||
+    poster?.subtitle ||
+    poster?.tagline ||
+    poster?.copy?.subheadline ||
+    '';
+  setTextIfNonEmpty(root.querySelector('#poster-result-gallery-subtitle-b'), subheadline, ' ');
+  setTextIfNonEmpty(root.querySelector('#poster-result-tagline-b'), subheadline, ' ');
+}
+
 function renderGalleryCaptions() {
   const root = document.getElementById('poster-result');
   if (!root) return;
@@ -4667,17 +4772,21 @@ function applyVertexPosterResult(data) {
 
   stage2State.vertex.lastResponse = data || null;
   const assets = stage2State.assets;
+  const assetsB = stage2State.assetsB || (stage2State.assetsB = {});
 
   if (data?.scenario_image?.url) {
     assets.scenario_url = data.scenario_image.url;
+    assetsB.scenario_url = data.scenario_image.url;
   }
   if (data?.product_image?.url) {
     assets.product_url = data.product_image.url;
+    assetsB.product_url = data.product_image.url;
   }
   if (Array.isArray(data?.gallery_images)) {
     assets.gallery_urls = data.gallery_images
       .map((entry) => pickImageSrc(entry))
       .filter(Boolean);
+    assetsB.gallery_urls = assets.gallery_urls;
   }
 
   const posterUrl = extractVertexPosterUrl(data);
@@ -4686,6 +4795,7 @@ function applyVertexPosterResult(data) {
     posterGenerationState.posterUrl = posterUrl;
     posterGeneratedImage = posterGenerationState.posterUrl;
     assets.composite_poster_url = posterUrl;
+    assetsB.composite_poster_url = posterUrl;
     try {
       sessionStorage.setItem('latestPosterUrl', posterUrl);
     } catch (error) {
@@ -4694,6 +4804,7 @@ function applyVertexPosterResult(data) {
   }
 
   renderPosterResult();
+  renderPosterResultB();
   // --- Bind composite poster (B variant) into B preview ---
   try {
     const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
