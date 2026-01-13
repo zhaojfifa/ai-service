@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import datetime as dt
+import asyncio
 import json
 import logging
 import os
@@ -19,6 +20,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, root_validator
 from PIL import Image, ImageDraw, ImageFont
+
+_GENERATE_POSTER_SEMAPHORE = asyncio.Semaphore(1)
 
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
@@ -984,19 +987,20 @@ async def generate_poster(request: Request) -> JSONResponse:
         )
 
         # 生成主图与变体
-        result = generate_poster_asset(
-            poster,
-            prompt_text,
-            preview,
-            prompt_bundle=prompt_payload,
-            prompt_details=prompt_details,
-            render_mode=payload.render_mode,
-            variants=payload.variants,
-            seed=payload.seed,
-            lock_seed=payload.lock_seed,
-            trace_id=trace,
-            aspect_closeness=payload.aspect_closeness,
-        )
+        async with _GENERATE_POSTER_SEMAPHORE:
+            result = generate_poster_asset(
+                poster,
+                prompt_text,
+                preview,
+                prompt_bundle=prompt_payload,
+                prompt_details=prompt_details,
+                render_mode=payload.render_mode,
+                variants=payload.variants,
+                seed=payload.seed,
+                lock_seed=payload.lock_seed,
+                trace_id=trace,
+                aspect_closeness=payload.aspect_closeness,
+            )
 
         email_body = compose_marketing_email(poster, result.poster.filename)
         response_bundle: PromptBundle | None = None

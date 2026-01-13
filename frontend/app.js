@@ -119,6 +119,10 @@ const DEMO_A_NO_AI_IMAGES = true;
 const DEMO_B_AI_IMAGES_TO_ASSETSB = true;
 let stage2GenerationSeq = 0;
 let stage2InFlight = false;
+let stage2GenerateInFlight = false;
+let stage2LastClickAt = 0;
+const STAGE2_CLICK_DEBOUNCE_MS = 700;
+let stage2RunGeneration = null;
 
 function setTextIfNonEmpty(el, next, fallback = '') {
   if (!el) return;
@@ -154,6 +158,43 @@ function setStage2ButtonsDisabled(disabled) {
   if (regenerateButton) regenerateButton.disabled = disabled;
   if (variantABtn) variantABtn.disabled = disabled;
   if (variantBBtn) variantBBtn.disabled = disabled;
+}
+
+function setStage2GenerateUiBusy(isBusy) {
+  const btnGen = document.getElementById('generate-poster');
+  const btnRegen = document.getElementById('regenerate-poster');
+  if (btnGen) btnGen.disabled = isBusy;
+  if (btnRegen) btnRegen.disabled = isBusy;
+}
+
+async function runStage2Generation({ isRegenerate = false } = {}) {
+  const now = Date.now();
+  if (stage2GenerateInFlight) return;
+  if (now - stage2LastClickAt < STAGE2_CLICK_DEBOUNCE_MS) return;
+  stage2LastClickAt = now;
+
+  stage2GenerateInFlight = true;
+  setStage2GenerateUiBusy(true);
+  try {
+    if (typeof stage2RunGeneration === 'function') {
+      await stage2RunGeneration({ isRegenerate });
+    }
+  } finally {
+    stage2GenerateInFlight = false;
+    setStage2GenerateUiBusy(false);
+  }
+}
+
+function bindStage2GenerateButtonsOnce() {
+  const btnGen = document.getElementById('generate-poster');
+  if (!btnGen || btnGen.dataset.bound === '1') return;
+  btnGen.dataset.bound = '1';
+  const btnRegen = document.getElementById('regenerate-poster');
+  if (btnRegen) btnRegen.dataset.bound = '1';
+
+  // Stage2 generate/regenerate handlers (single-flight + debounce)
+  btnGen.addEventListener('click', () => void runStage2Generation({ isRegenerate: false }));
+  btnRegen?.addEventListener('click', () => void runStage2Generation({ isRegenerate: true }));
 }
 
 function rehydrateStage2PosterFromStage1() {
@@ -4325,15 +4366,8 @@ function initStage2() {
       });
     }
 
-    generateButton.addEventListener('click', () => {
-      runGeneration();
-    });
-
-    if (regenerateButton) {
-      regenerateButton.addEventListener('click', () => {
-        runGeneration();
-      });
-    }
+    stage2RunGeneration = (extra = {}) => runGeneration(extra);
+    bindStage2GenerateButtonsOnce();
 
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
@@ -5407,6 +5441,7 @@ async function triggerGeneration(opts) {
       if (nextButton) nextButton.disabled = false;
       generateButton.disabled = false;
       if (regenerateButton) regenerateButton.disabled = false;
+      regenerateButton?.classList.remove('hidden');
       try {
         const dataToStore = {
           ...data,
