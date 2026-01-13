@@ -4857,7 +4857,7 @@ function applyVertexPosterResult(data) {
   if (data?.scenario_image?.url) {
     assets.scenario_url = data.scenario_image.url;
   }
-  if (data?.product_image?.url) {
+  if (!assets.product_url && data?.product_image?.url) {
     assets.product_url = data.product_image.url;
   }
   if (Array.isArray(data?.gallery_images)) {
