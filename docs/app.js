@@ -123,6 +123,11 @@ let stage2GenerateInFlight = false;
 let stage2LastClickAt = 0;
 const STAGE2_CLICK_DEBOUNCE_MS = 700;
 let stage2RunGeneration = null;
+const STAGE2_REVEAL_DELAY_MS = 500;
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function setTextIfNonEmpty(el, next, fallback = '') {
   if (!el) return;
@@ -176,9 +181,21 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   stage2GenerateInFlight = true;
   setStage2GenerateUiBusy(true);
   try {
+    const revealA = (async () => {
+      await delay(STAGE2_REVEAL_DELAY_MS);
+      if (typeof window.setActiveVariant === 'function') {
+        window.setActiveVariant('A');
+      }
+      renderPosterResult();
+    })();
+
     if (typeof stage2RunGeneration === 'function') {
       await stage2RunGeneration({ isRegenerate });
     }
+
+    await revealA;
+    renderPosterResult();
+    renderPosterResultB?.();
   } finally {
     stage2GenerateInFlight = false;
     setStage2GenerateUiBusy(false);
@@ -4398,7 +4415,7 @@ function initStage2() {
       activeVariant = 'A';
     }
 
-    function setActiveVariant(variant) {
+    window.setActiveVariant = function setActiveVariant(variant) {
       activeVariant = variant === 'B' ? 'B' : 'A';
       stage2State.activeVariant = activeVariant;
 
@@ -4440,19 +4457,19 @@ function initStage2() {
     if (variantABtn) {
       variantABtn.addEventListener('click', (e) => {
         e.preventDefault();
-        setActiveVariant('A');
+        window.setActiveVariant('A');
       });
     }
 
     if (variantBBtn) {
       variantBBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        setActiveVariant('B');
+        window.setActiveVariant('B');
       });
     }
 
     // Initialise with the last active variant (default A)
-    setActiveVariant(activeVariant);
+    window.setActiveVariant(activeVariant);
   })();
 }
 function populateStage1Summary(stage1Data, overviewList, templateName) {
@@ -4672,10 +4689,10 @@ function renderPosterResultB() {
     assets.scenario_url ||
     '';
   const productSrc =
-    assetsB.product_image_url ||
-    assetsB.product_url ||
     assets.product_image_url ||
     assets.product_url ||
+    assetsB.product_image_url ||
+    assetsB.product_url ||
     '';
   const galleryUrls = Array.isArray(assetsB.gallery_urls) && assetsB.gallery_urls.length
     ? assetsB.gallery_urls
@@ -4818,14 +4835,7 @@ function applyImagesToAssetsB(resp) {
     resp?.scenario_image_url ||
     resp?.images?.scenario ||
     '';
-  const productUrl =
-    resp?.product_image?.url ||
-    resp?.product_image_url ||
-    resp?.images?.product ||
-    '';
-
   if (scenarioUrl) stage2State.assetsB.scenario_image_url = scenarioUrl;
-  if (productUrl) stage2State.assetsB.product_image_url = productUrl;
 }
 
 function applyVertexPosterResult(data) {
@@ -5204,11 +5214,17 @@ async function triggerGeneration(opts) {
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
   };
-  
+
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
   if (isA && DEMO_A_NO_AI_IMAGES) {
     payload.generate_images = false;
     payload.generate_text = true;
+  }
+  if (isB && payload.prompt_bundle?.scenario?.prompt) {
+    payload.prompt_bundle.scenario_b = {
+      ...payload.prompt_bundle.scenario,
+      prompt: `${payload.prompt_bundle.scenario.prompt} Alternate background style, different kitchen decor, different lighting.`,
+    };
   }
 
   const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);

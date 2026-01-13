@@ -1285,7 +1285,11 @@ main {
 }
 
 .hidden {
-  display: none;
+  display: none !important;
+}
+
+.stage2-template-preview {
+  display: none !important;
 }
 
 #ai-preview {
