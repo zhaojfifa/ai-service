@@ -109,7 +109,10 @@ const stage2State = {
     gallery_urls: [],
     composite_poster_url: '',
   },
-  assetsB: {},
+  assetsB: {
+    scenario_url: '',
+    gallery_urls: [],
+  },
   vertex: {
     lastResponse: null,
   },
@@ -4691,8 +4694,6 @@ function renderPosterResultB() {
   const productSrc =
     assets.product_image_url ||
     assets.product_url ||
-    assetsB.product_image_url ||
-    assetsB.product_url ||
     '';
   const galleryUrls = Array.isArray(assetsB.gallery_urls) && assetsB.gallery_urls.length
     ? assetsB.gallery_urls
@@ -4836,6 +4837,12 @@ function applyImagesToAssetsB(resp) {
     resp?.images?.scenario ||
     '';
   if (scenarioUrl) stage2State.assetsB.scenario_url = scenarioUrl;
+  if (Array.isArray(resp?.gallery_images)) {
+    stage2State.assetsB.gallery_urls = resp.gallery_images
+      .map((entry) => pickImageSrc(entry))
+      .filter(Boolean)
+      .slice(0, 4);
+  }
 }
 
 function applyVertexPosterResult(data) {
@@ -4854,16 +4861,8 @@ function applyVertexPosterResult(data) {
   const assets = stage2State.assets;
   const assetsB = stage2State.assetsB || (stage2State.assetsB = {});
 
-  if (data?.scenario_image?.url) {
-    assets.scenario_url = data.scenario_image.url;
-  }
   if (!assets.product_url && data?.product_image?.url) {
     assets.product_url = data.product_image.url;
-  }
-  if (Array.isArray(data?.gallery_images)) {
-    assets.gallery_urls = data.gallery_images
-      .map((entry) => pickImageSrc(entry))
-      .filter(Boolean);
   }
   applyImagesToAssetsB(data);
 
