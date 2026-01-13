@@ -677,6 +677,14 @@ main {
   padding: 12px 16px 8px;
 }
 
+.poster-gallery-subtitle {
+  margin: 10px 0 6px;
+  font-weight: 700;
+  font-size: 18px;
+  color: #e53935;
+  text-align: center;
+}
+
 .poster-gallery-slot {
   display: flex;
   flex-direction: column;
@@ -729,6 +737,14 @@ main {
   font-size: 13px;
   text-align: center;
   color: #64748b;
+}
+
+.poster-bottom-subtitle {
+  margin-top: 10px;
+  font-weight: 500;
+  font-size: 14px;
+  color: #6b7280;
+  text-align: center;
 }
 
 .poster-layout {
