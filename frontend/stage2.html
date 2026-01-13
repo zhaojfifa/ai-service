@@ -44,21 +44,23 @@
           <dl id="stage1-overview"></dl>
         </div>
 
-        <div class="template-picker">
-          <div class="template-picker-control">
-            <label for="template-select">锁版模板</label>
-            <select id="template-select" aria-label="选择模板"></select>
-            <p id="template-description" class="template-description"></p>
+        <section id="lockscreen-template-section" class="lockscreen-template-section">
+          <div class="template-picker">
+            <div class="template-picker-control">
+              <label for="template-select">锁版模板</label>
+              <select id="template-select" aria-label="选择模板"></select>
+              <p id="template-description" class="template-description"></p>
+            </div>
+            <div class="template-preview-wrapper">
+              <canvas
+                id="template-preview-canvas"
+                width="512"
+                height="512"
+                aria-label="模板预览"
+              ></canvas>
+            </div>
           </div>
-          <div class="template-preview-wrapper">
-            <canvas
-              id="template-preview-canvas"
-              width="512"
-              height="512"
-              aria-label="模板预览"
-            ></canvas>
-          </div>
-        </div>
+        </section>
 
         <aside class="prompt-inspector" id="prompt-inspector">
           <header>
@@ -275,7 +277,7 @@
                   </section>
 
                   <!-- B 版 -->
-                  <section class="card-section ab-preview" id="ab-preview-B">
+                  <section class="card-section ab-preview variant-b" id="ab-preview-B">
                     <div class="ab-preview-header">B 版 · 整版海报</div>
                     <div class="ai-result-box hidden" id="b-composite-preview">
                       <img

@@ -4835,7 +4835,7 @@ function applyImagesToAssetsB(resp) {
     resp?.scenario_image_url ||
     resp?.images?.scenario ||
     '';
-  if (scenarioUrl) stage2State.assetsB.scenario_image_url = scenarioUrl;
+  if (scenarioUrl) stage2State.assetsB.scenario_url = scenarioUrl;
 }
 
 function applyVertexPosterResult(data) {
@@ -4854,21 +4854,18 @@ function applyVertexPosterResult(data) {
   const assets = stage2State.assets;
   const assetsB = stage2State.assetsB || (stage2State.assetsB = {});
 
-  if (isB && DEMO_B_AI_IMAGES_TO_ASSETSB) {
-    applyImagesToAssetsB(data);
-  } else if (!(isA && DEMO_A_NO_AI_IMAGES)) {
-    if (data?.scenario_image?.url) {
-      assets.scenario_url = data.scenario_image.url;
-    }
-    if (data?.product_image?.url) {
-      assets.product_url = data.product_image.url;
-    }
-    if (Array.isArray(data?.gallery_images)) {
-      assets.gallery_urls = data.gallery_images
-        .map((entry) => pickImageSrc(entry))
-        .filter(Boolean);
-    }
+  if (data?.scenario_image?.url) {
+    assets.scenario_url = data.scenario_image.url;
   }
+  if (data?.product_image?.url) {
+    assets.product_url = data.product_image.url;
+  }
+  if (Array.isArray(data?.gallery_images)) {
+    assets.gallery_urls = data.gallery_images
+      .map((entry) => pickImageSrc(entry))
+      .filter(Boolean);
+  }
+  applyImagesToAssetsB(data);
 
   const posterUrl = extractVertexPosterUrl(data);
   if (posterUrl) {
