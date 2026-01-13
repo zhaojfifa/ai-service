@@ -4600,10 +4600,16 @@ function renderPosterResult() {
     }
   });
 
-  const taglineEl = document.getElementById('poster-result-tagline');
-  if (taglineEl) {
-    setTextIfNonEmpty(taglineEl, poster.tagline, '待生成');
-  }
+  const gallerySubtitleEl = document.getElementById('poster-result-gallery-subtitle');
+  const bottomSubtitleEl = document.getElementById('poster-result-tagline');
+  const subheadline =
+    poster?.subheadline ||
+    poster?.subtitle ||
+    poster?.tagline ||
+    poster?.copy?.subheadline ||
+    '';
+  setTextIfNonEmpty(gallerySubtitleEl, subheadline, ' ');
+  setTextIfNonEmpty(bottomSubtitleEl, subheadline, ' ');
 
   renderGalleryCaptions();
 }
