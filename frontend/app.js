@@ -109,17 +109,16 @@ const stage2State = {
     gallery_urls: [],
     composite_poster_url: '',
   },
-  assetsB: {
-    scenario_url: '',
-    gallery_urls: [],
-  },
   vertex: {
     lastResponse: null,
   },
-  activeVariant: 'A',
+  generationAction: 'generate',
+  regenPolicy: {
+    updateScenario: false,
+    updateGallery: false,
+    updateProduct: false,
+  },
 };
-const DEMO_A_NO_AI_IMAGES = true;
-const DEMO_B_AI_IMAGES_TO_ASSETSB = true;
 let stage2GenerationSeq = 0;
 let stage2InFlight = false;
 let stage2GenerateInFlight = false;
@@ -160,12 +159,8 @@ function setImageSrcIfNonEmpty(imgEl, nextUrl) {
 function setStage2ButtonsDisabled(disabled) {
   const generateButton = document.getElementById('generate-poster');
   const regenerateButton = document.getElementById('regenerate-poster');
-  const variantABtn = document.getElementById('variant-a-btn');
-  const variantBBtn = document.getElementById('variant-b-btn');
   if (generateButton) generateButton.disabled = disabled;
   if (regenerateButton) regenerateButton.disabled = disabled;
-  if (variantABtn) variantABtn.disabled = disabled;
-  if (variantBBtn) variantBBtn.disabled = disabled;
 }
 
 function setStage2GenerateUiBusy(isBusy) {
@@ -180,15 +175,16 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   if (stage2GenerateInFlight) return;
   if (now - stage2LastClickAt < STAGE2_CLICK_DEBOUNCE_MS) return;
   stage2LastClickAt = now;
+  stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
+  stage2State.regenPolicy = isRegenerate
+    ? { updateScenario: true, updateGallery: true, updateProduct: false }
+    : { updateScenario: false, updateGallery: false, updateProduct: false };
 
   stage2GenerateInFlight = true;
   setStage2GenerateUiBusy(true);
   try {
     const revealA = (async () => {
       await delay(STAGE2_REVEAL_DELAY_MS);
-      if (typeof window.setActiveVariant === 'function') {
-        window.setActiveVariant('A');
-      }
       renderPosterResult();
     })();
 
@@ -198,7 +194,6 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
 
     await revealA;
     renderPosterResult();
-    renderPosterResultB?.();
   } finally {
     stage2GenerateInFlight = false;
     setStage2GenerateUiBusy(false);
@@ -3875,7 +3870,6 @@ function initStage2() {
         : [],
       composite_poster_url: '',
     };
-    stage2State.assetsB = stage2State.assetsB || {};
 
     renderPosterResult();
 
@@ -4397,82 +4391,6 @@ function initStage2() {
       }
       window.location.href = 'stage3.html';
     });
-
-    // --- A/B variant controls (Stage 2) ---
-    const variantABtn = document.getElementById('variant-a-btn');
-    const variantBBtn = document.getElementById('variant-b-btn');
-    const abPreviewA = document.getElementById('ab-preview-A');
-    const abPreviewB = document.getElementById('ab-preview-B');
-
-    // Optional: read previous choice from sessionStorage
-    let activeVariant = 'A';
-    try {
-      const raw = sessionStorage.getItem('marketing-poster-stage2-variants');
-      if (raw) {
-        const st = JSON.parse(raw);
-        if (st && (st.active === 'A' || st.active === 'B')) {
-          activeVariant = st.active;
-        }
-      }
-    } catch {
-      activeVariant = 'A';
-    }
-
-    window.setActiveVariant = function setActiveVariant(variant) {
-      activeVariant = variant === 'B' ? 'B' : 'A';
-      stage2State.activeVariant = activeVariant;
-
-      // Toggle tab button styles
-      if (variantABtn) {
-        const isActive = activeVariant === 'A';
-        variantABtn.classList.toggle('is-active', isActive);
-        variantABtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      }
-      if (variantBBtn) {
-        const isActive = activeVariant === 'B';
-        variantBBtn.classList.toggle('is-active', isActive);
-        variantBBtn.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      }
-
-      // Toggle preview panels (A vs B)
-      if (abPreviewA) {
-        abPreviewA.classList.toggle('is-active', activeVariant === 'A');
-      }
-      if (abPreviewB) {
-        abPreviewB.classList.toggle('is-active', activeVariant === 'B');
-      }
-
-      if (activeVariant === 'B') {
-        renderPosterResultB();
-      }
-
-      // Persist choice so Stage 3 knows which poster to send
-      try {
-        sessionStorage.setItem(
-          'marketing-poster-stage2-variants',
-          JSON.stringify({ active: activeVariant }),
-        );
-      } catch {
-        // ignore
-      }
-    }
-
-    if (variantABtn) {
-      variantABtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        window.setActiveVariant('A');
-      });
-    }
-
-    if (variantBBtn) {
-      variantBBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        window.setActiveVariant('B');
-      });
-    }
-
-    // Initialise with the last active variant (default A)
-    window.setActiveVariant(activeVariant);
   })();
 }
 function populateStage1Summary(stage1Data, overviewList, templateName) {
@@ -4678,114 +4596,6 @@ function renderPosterResult() {
   renderGalleryCaptions();
 }
 
-function renderPosterResultB() {
-  const root = document.getElementById('poster-result-b');
-  if (!root) return;
-
-  const { poster, assets } = stage2State;
-  const assetsB = stage2State.assetsB || {};
-  const logoFallback = assets.brand_logo_url || poster.brand_logo_url || '';
-  const scenarioSrc =
-    assetsB.scenario_image_url ||
-    assetsB.scenario_url ||
-    assets.scenario_image_url ||
-    assets.scenario_url ||
-    '';
-  const productSrc =
-    assets.product_image_url ||
-    assets.product_url ||
-    '';
-  const galleryUrls = Array.isArray(assetsB.gallery_urls) && assetsB.gallery_urls.length
-    ? assetsB.gallery_urls
-    : assets.gallery_urls || [];
-
-  const logoImg = root.querySelector('#poster-result-brand-logo-b');
-  if (logoImg) {
-    const logoSrc = assetsB.brand_logo_url || assets.brand_logo_url || '';
-    if (logoSrc) {
-      logoImg.src = logoSrc;
-      logoImg.style.display = 'block';
-    } else if (!logoImg.getAttribute('src')) {
-      logoImg.style.display = 'none';
-    }
-  }
-
-  setTextIfNonEmpty(
-    root.querySelector('#poster-result-brand-name-b'),
-    poster.brand_name,
-    '待生成',
-  );
-  setTextIfNonEmpty(
-    root.querySelector('#poster-result-agent-name-b'),
-    poster.agent_name,
-    '待生成',
-  );
-
-  setImageSrcIfNonEmpty(root.querySelector('#poster-result-scenario-image-b'), scenarioSrc);
-  setImageSrcIfNonEmpty(root.querySelector('#poster-result-product-image-b'), productSrc);
-
-  const featureList = root.querySelector('#poster-result-feature-list-b');
-  if (featureList) {
-    const spans = featureList.querySelectorAll('.feature-tag span');
-    const items = featureList.querySelectorAll('.feature-tag');
-    spans.forEach((span, index) => {
-      const nextText = poster.features?.[index] || '';
-      setTextIfNonEmpty(span, nextText, '待生成');
-      const item = items[index];
-      if (item) item.style.display = '';
-    });
-  }
-
-  const gallerySlots = root.querySelectorAll('.poster-gallery-row .poster-gallery-slot');
-  const stage1Snapshot = loadStage1Data() || lastStage1Data || {};
-  const entries =
-    Array.isArray(poster.gallery_entries) && poster.gallery_entries.length
-      ? poster.gallery_entries
-      : Array.isArray(stage1Snapshot.gallery_entries)
-      ? stage1Snapshot.gallery_entries
-      : [];
-  const seriesFallback = Array.isArray(poster.series) ? poster.series : [];
-
-  gallerySlots.forEach((slot, index) => {
-    const img = slot.querySelector('img');
-    const src = galleryUrls?.[index] || logoFallback || '';
-    if (img) setImageSrcIfNonEmpty(img, src);
-
-    const entry = entries[index] || {};
-    const captionValue = entry?.caption || entry?.name || '';
-    const title =
-      entry?.title ||
-      (entry?.caption && entry.caption.title) ||
-      (typeof captionValue === 'string' ? captionValue : '') ||
-      seriesFallback[index]?.name ||
-      '';
-    const subtitle =
-      entry?.subtitle ||
-      (entry?.caption && entry.caption.subtitle) ||
-      '';
-
-    setTextIfNonEmpty(
-      slot.querySelector('[data-gallery-caption-title]'),
-      title,
-      '待生成',
-    );
-    setTextIfNonEmpty(
-      slot.querySelector('[data-gallery-caption-subtitle]'),
-      subtitle,
-      '待生成',
-    );
-  });
-
-  const subheadline =
-    poster?.subheadline ||
-    poster?.subtitle ||
-    poster?.tagline ||
-    poster?.copy?.subheadline ||
-    '';
-  setTextIfNonEmpty(root.querySelector('#poster-result-gallery-subtitle-b'), subheadline, ' ');
-  setTextIfNonEmpty(root.querySelector('#poster-result-tagline-b'), subheadline, ' ');
-}
-
 function renderGalleryCaptions() {
   const root = document.getElementById('poster-result');
   if (!root) return;
@@ -4829,21 +4639,6 @@ function renderGalleryCaptions() {
   });
 }
 
-function applyImagesToAssetsB(resp) {
-  stage2State.assetsB = stage2State.assetsB || {};
-  const scenarioUrl =
-    resp?.scenario_image?.url ||
-    resp?.scenario_image_url ||
-    resp?.images?.scenario ||
-    '';
-  if (scenarioUrl) stage2State.assetsB.scenario_url = scenarioUrl;
-  if (Array.isArray(resp?.gallery_images)) {
-    stage2State.assetsB.gallery_urls = resp.gallery_images
-      .map((entry) => pickImageSrc(entry))
-      .filter(Boolean)
-      .slice(0, 4);
-  }
-}
 
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
@@ -4853,30 +4648,38 @@ function applyVertexPosterResult(data) {
 
   surfaceSlotWarnings(slotSummary);
 
-  const activeVariant = stage2State.activeVariant || stage2State.variant || 'A';
-  const isA = activeVariant === 'A';
-  const isB = activeVariant === 'B';
-
   stage2State.vertex.lastResponse = data || null;
   const assets = stage2State.assets;
-  const assetsB = stage2State.assetsB || (stage2State.assetsB = {});
+  const regenPolicy = stage2State.regenPolicy || {
+    updateScenario: false,
+    updateGallery: false,
+    updateProduct: false,
+  };
 
-  if (!assets.product_url && data?.product_image?.url) {
-    assets.product_url = data.product_image.url;
+  if (regenPolicy.updateScenario) {
+    const scenarioUrl =
+      data?.scenario_image?.url ||
+      data?.scenario_image_url ||
+      data?.images?.scenario ||
+      '';
+    if (scenarioUrl) {
+      assets.scenario_url = scenarioUrl;
+    }
   }
-  applyImagesToAssetsB(data);
+
+  if (regenPolicy.updateGallery && Array.isArray(data?.gallery_images)) {
+    assets.gallery_urls = data.gallery_images
+      .map((entry) => pickImageSrc(entry))
+      .filter(Boolean)
+      .slice(0, 4);
+  }
 
   const posterUrl = extractVertexPosterUrl(data);
   if (posterUrl) {
     posterGeneratedImageUrl = posterUrl;
     posterGenerationState.posterUrl = posterUrl;
     posterGeneratedImage = posterGenerationState.posterUrl;
-    if (!(isB && DEMO_B_AI_IMAGES_TO_ASSETSB) && !(isA && DEMO_A_NO_AI_IMAGES)) {
-      assets.composite_poster_url = posterUrl;
-    }
-    if (isB && DEMO_B_AI_IMAGES_TO_ASSETSB) {
-      assetsB.composite_poster_url = posterUrl;
-    }
+    assets.composite_poster_url = posterUrl;
     try {
       sessionStorage.setItem('latestPosterUrl', posterUrl);
     } catch (error) {
@@ -4885,52 +4688,8 @@ function applyVertexPosterResult(data) {
   }
 
   renderPosterResult();
-  renderPosterResultB();
-  // --- Bind composite poster (B variant) into B preview ---
-  if (!(isB && DEMO_B_AI_IMAGES_TO_ASSETSB)) {
-    try {
-      const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
-      const vertexPosterPlaceholder = document.getElementById('vertex-poster-placeholder');
-      const vertexPosterUrlInput = document.getElementById('vertex-poster-url');
 
-      if (posterUrl && vertexPosterImg) {
-        vertexPosterImg.src = posterUrl;
-        vertexPosterImg.style.display = 'block';
-        vertexPosterImg.classList.remove('hidden');
-
-        if (vertexPosterPlaceholder) {
-          vertexPosterPlaceholder.classList.add('hidden');
-        }
-
-        if (vertexPosterUrlInput) {
-          vertexPosterUrlInput.value = posterUrl;
-        }
-      }
-    } catch (err) {
-      console.warn('[applyVertexPosterResult] failed to apply B variant image', err);
-    }
-  } else {
-    try {
-      const vertexPosterImg = document.getElementById('vertex-poster-preview-img');
-      const vertexPosterPlaceholder = document.getElementById('vertex-poster-placeholder');
-      const vertexPosterUrlInput = document.getElementById('vertex-poster-url');
-      if (vertexPosterImg) {
-        vertexPosterImg.classList.add('hidden');
-        vertexPosterImg.style.display = 'none';
-        vertexPosterImg.removeAttribute('src');
-      }
-      if (vertexPosterPlaceholder) {
-        vertexPosterPlaceholder.classList.add('hidden');
-      }
-      if (vertexPosterUrlInput) {
-        vertexPosterUrlInput.value = '';
-      }
-    } catch (err) {
-      console.warn('[applyVertexPosterResult] failed to hide composite preview', err);
-    }
-  }
-
-  // --- Show poster area and reset active tab to A ---
+  // --- Show poster area ---
   try {
     const posterOutput = document.getElementById('poster-output');
     const aiPreview = document.getElementById('ai-preview');
@@ -4948,21 +4707,6 @@ function applyVertexPosterResult(data) {
       aiPreview.classList.add('hidden');
     }
 
-    // Use the same session key as initStage2, but force back to A after a successful generation
-    try {
-      sessionStorage.setItem(
-        'marketing-poster-stage2-variants',
-        JSON.stringify({ active: 'A' }),
-      );
-    } catch {
-      // ignore
-    }
-
-    // If the A/B buttons are already wired, we can reuse the click event to update UI
-    const variantABtn = document.getElementById('variant-a-btn');
-    if (variantABtn) {
-      variantABtn.click();
-    }
   } catch (e) {
     console.warn('[applyVertexPosterResult] show poster failed', e);
   }
@@ -5071,9 +4815,11 @@ async function triggerGeneration(opts) {
     forceVariants = null, abTest = false,
   } = opts;
   rehydrateStage2PosterFromStage1();
-  const activeVariant = stage2State.activeVariant || stage2State.variant || 'A';
-  const isA = activeVariant === 'A';
-  const isB = activeVariant === 'B';
+  const isRegenerate = !!opts.isRegenerate;
+  stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
+  stage2State.regenPolicy = isRegenerate
+    ? { updateScenario: true, updateGallery: true, updateProduct: false }
+    : { updateScenario: false, updateGallery: false, updateProduct: false };
   if (stage2InFlight) {
     setStatus(statusElement, '生成中，请稍候…', 'info');
     return null;
@@ -5212,16 +4958,6 @@ async function triggerGeneration(opts) {
   };
 
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
-  if (isA && DEMO_A_NO_AI_IMAGES) {
-    payload.generate_images = false;
-    payload.generate_text = true;
-  }
-  if (isB && payload.prompt_bundle?.scenario?.prompt) {
-    payload.prompt_bundle.scenario_b = {
-      ...payload.prompt_bundle.scenario,
-      prompt: `${payload.prompt_bundle.scenario.prompt} Alternate background style, different kitchen decor, different lighting.`,
-    };
-  }
 
   const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
   if (negativeSummary) {

@@ -169,25 +169,6 @@
               <button id="regenerate-poster" class="secondary hidden" type="button">
                 再次生成海报
               </button>
-
-              <div class="variant-controls" role="tablist" aria-label="选择海报版本">
-                <button
-                  id="variant-a-btn"
-                  type="button"
-                  class="variant-tab is-active"
-                  aria-selected="true"
-                >
-                  A
-                </button>
-                <button
-                  id="variant-b-btn"
-                  type="button"
-                  class="variant-tab"
-                  aria-selected="false"
-                >
-                  B
-                </button>
-              </div>
             </div>
 
             <!-- 唯一一份 poster-output -->
@@ -276,107 +257,6 @@
                     </div>
                   </section>
 
-                  <!-- B 版 -->
-                  <section class="card-section ab-preview variant-b" id="ab-preview-B">
-                    <div class="ab-preview-header">B 版 · 整版海报</div>
-                    <div class="ai-result-box hidden" id="b-composite-preview">
-                      <img
-                        id="vertex-poster-preview-img"
-                        data-role="vertex-poster-img"
-                        alt="AI 生成海报预览"
-                        style="max-width: 100%; display: none; border-radius: 8px;"
-                        decoding="async"
-                      />
-                      <div
-                        id="vertex-poster-placeholder"
-                        data-role="vertex-poster-placeholder"
-                        class="poster-preview-placeholder"
-                      >
-                        当前没有 B 版海报，请先生成或选择 A 版。
-                      </div>
-                      <input type="hidden" id="vertex-poster-url" name="vertex_poster_url" />
-                      <button id="variant-b-mock-btn" class="hidden" type="button">
-                        用文案 Mock 再生成
-                      </button>
-                    </div>
-                    <div id="b-slot-preview">
-                      <div id="poster-result-b" class="poster-preview poster-preview--result">
-                        <div class="poster-header">
-                          <div class="poster-logo">
-                            <div class="poster-logo-image">
-                              <img id="poster-result-brand-logo-b" alt="品牌 Logo 预览" />
-                            </div>
-                            <div class="poster-brand-name" id="poster-result-brand-name-b"></div>
-                          </div>
-                          <div class="poster-agent" id="poster-result-agent-name-b"></div>
-                        </div>
-
-                        <div class="poster-body">
-                          <div class="poster-left">
-                            <img id="poster-result-scenario-image-b" alt="应用场景预览" />
-                          </div>
-                          <div class="poster-right">
-                            <div class="poster-product-wrapper">
-                              <img id="poster-result-product-image-b" alt="产品渲染图预览" />
-                              <ul id="poster-result-feature-list-b" class="feature-tags">
-                                <li class="feature-tag feature-tag--top" data-feature-index="0"><span></span></li>
-                                <li class="feature-tag feature-tag--middle" data-feature-index="1"><span></span></li>
-                                <li class="feature-tag feature-tag--bottom" data-feature-index="2"><span></span></li>
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div id="poster-result-gallery-subtitle-b" class="poster-gallery-subtitle"></div>
-                        <div class="poster-gallery-row">
-                          <div class="poster-gallery-slot" data-index="0">
-                            <img alt="底部系列小图 1" />
-                            <div class="slot-caption gallery-caption">
-                              <div class="gallery-caption-title" data-gallery-caption-title></div>
-                              <div class="gallery-caption-subtitle" data-gallery-caption-subtitle></div>
-                            </div>
-                          </div>
-                          <div class="poster-gallery-slot" data-index="1">
-                            <img alt="底部系列小图 2" />
-                            <div class="slot-caption gallery-caption">
-                              <div class="gallery-caption-title" data-gallery-caption-title></div>
-                              <div class="gallery-caption-subtitle" data-gallery-caption-subtitle></div>
-                            </div>
-                          </div>
-                          <div class="poster-gallery-slot" data-index="2">
-                            <img alt="底部系列小图 3" />
-                            <div class="slot-caption gallery-caption">
-                              <div class="gallery-caption-title" data-gallery-caption-title></div>
-                              <div class="gallery-caption-subtitle" data-gallery-caption-subtitle></div>
-                            </div>
-                          </div>
-                          <div class="poster-gallery-slot" data-index="3">
-                            <img alt="底部系列小图 4" />
-                            <div class="slot-caption gallery-caption">
-                              <div class="gallery-caption-title" data-gallery-caption-title></div>
-                              <div class="gallery-caption-subtitle" data-gallery-caption-subtitle></div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div class="poster-tagline poster-bottom-subtitle" id="poster-result-tagline-b"></div>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                <div class="attachment-selector">
-                  <label>
-                    <input type="radio" name="posterAttachmentVariant" value="A" checked />
-                    发送 A 版海报（槽位排版）
-                  </label>
-                  <label>
-                    <input type="radio" name="posterAttachmentVariant" value="B" />
-                    发送 B 版海报（整版）
-                  </label>
-                  <small id="variant-b-note" class="hint hidden">
-                    B 版暂不可用，已默认使用 A 版附件。
-                  </small>
                 </div>
               </div>
 
