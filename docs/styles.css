@@ -1296,15 +1296,6 @@ main {
   display: none !important;
 }
 
-.variant-b .poster-product-wrapper img,
-.variant-b img[data-role="product-image"] {
-  filter: saturate(0.85) contrast(1.08) brightness(0.95);
-}
-
-.variant-b .poster-product-wrapper {
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-}
 
 #ai-preview {
   border-top: 1px solid rgba(239, 76, 84, 0.18);
@@ -1690,25 +1681,10 @@ main {
   position: relative;
 }
 
-.ab-poster-image,
-#poster-variant-b-image {
+.ab-poster-image {
   max-width: 100%;
   border-radius: 12px;
   display: none;
-}
-
-.attachment-selector {
-  margin-top: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-#ab-preview-variant-b .poster-preview-placeholder {
-  min-height: 180px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .layout-debug-hidden {
@@ -1728,25 +1704,3 @@ main {
   white-space: nowrap;
 }
 
-.variant-controls {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.variant-tab {
-  min-width: 32px;
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 16px;
-  border: 1px solid #ff7a8c;
-  background: #fff;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.variant-tab.is-active {
-  background: #ff7a8c;
-  color: #fff;
-}
