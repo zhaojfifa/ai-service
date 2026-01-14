@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -14,7 +15,9 @@ from typing import Any, Iterable, List, Optional
 from PIL import Image, ImageFile, UnidentifiedImageError
 
 from app.schemas import PosterImage
+from app.services.storage_bridge import store_image_and_url
 from app.services.s3_client import get_bytes, public_url_for
+from app.services.template_assets import detect_magic, read_template_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,10 @@ class TemplatePosterRecord:
     height: int
     key: str | None = None
     url: str | None = None
+
+
+_TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "frontend" / "templates"
+_TPL_CACHE: dict[str, dict[str, Any]] = {}
 
 
 def _storage_dir() -> Path:
@@ -131,6 +138,60 @@ def _poster_from_record(record: TemplatePosterRecord) -> PosterImage:
     return PosterImage(**payload)
 
 
+def _resolve_template_frame(template_id: str) -> Path:
+    candidates = [
+        _TEMPLATE_ROOT / f"{template_id}_template.png",
+        _TEMPLATE_ROOT / f"{template_id}_template.jpg",
+        _TEMPLATE_ROOT / f"{template_id}_template.jpeg",
+        _TEMPLATE_ROOT / f"{template_id}_template.webp",
+        _TEMPLATE_ROOT / f"{template_id}_template.b64",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise FileNotFoundError(
+        f"template frame file not found for template_id={template_id} under {_TEMPLATE_ROOT}"
+    )
+
+
+def ensure_template_poster_in_r2(template_id: str) -> PosterImage:
+    cached = _TPL_CACHE.get(template_id)
+    if cached:
+        if hasattr(PosterImage, "model_validate"):
+            return PosterImage.model_validate(cached)
+        return PosterImage(**cached)
+
+    src = _resolve_template_frame(template_id)
+    raw = read_template_bytes(src)
+    magic = detect_magic(raw)
+    ext = magic if magic != "unknown" else "png"
+    digest = hashlib.sha256(raw).hexdigest()[:12]
+    key = f"templates/{template_id}/poster-{digest}.{ext}"
+
+    meta = store_image_and_url(raw, ext=ext, key=key, content_type=f"image/{ext}")
+    with Image.open(BytesIO(raw)) as image:
+        width, height = image.size
+
+    payload = {
+        "filename": f"{template_id}-poster.{ext}",
+        "media_type": f"image/{ext}",
+        "key": meta.get("key"),
+        "url": meta.get("url"),
+        "width": width,
+        "height": height,
+    }
+    _TPL_CACHE[template_id] = payload
+    logger.info(
+        "[template] ensure poster in r2 template_id=%s key=%s url=%s",
+        template_id,
+        payload.get("key"),
+        payload.get("url"),
+    )
+    if hasattr(PosterImage, "model_validate"):
+        return PosterImage.model_validate(payload)
+    return PosterImage(**payload)
+
+
 def _load_record(slot: str, meta: dict[str, dict[str, str]]) -> TemplatePosterRecord | None:
     entry = meta.get(slot)
     if not entry:
@@ -180,6 +241,18 @@ def list_template_posters() -> list[PosterImage]:
             continue
         posters.append(_poster_from_record(record))
     return posters
+
+
+def build_slot_posters(template_id: str) -> list[dict[str, PosterImage]]:
+    entries = list_poster_entries()
+    if entries:
+        return entries
+
+    poster = ensure_template_poster_in_r2(template_id)
+    return [
+        {"slot": "variant_a", "poster": poster},
+        {"slot": "variant_b", "poster": poster},
+    ]
 
 
 def iter_template_records() -> Iterable[TemplatePosterRecord]:
@@ -468,6 +541,8 @@ __all__ = [
     "TemplatePosterRecord",
     "list_template_posters",
     "list_poster_entries",
+    "build_slot_posters",
+    "ensure_template_poster_in_r2",
     "save_template_poster",
     "generation_overrides",
     "TemplatePosterError",

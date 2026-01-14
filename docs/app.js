@@ -3878,7 +3878,7 @@ function initStage2() {
     }
 
     if (posterPreviewSection) {
-      posterPreviewSection.classList.add('hidden');
+      posterPreviewSection.classList.remove('hidden');
     }
     if (regenerateButton) {
       regenerateButton.classList.add('hidden');
@@ -4118,7 +4118,8 @@ function initStage2() {
       }
 
       for (const base of candidates) {
-        const url = joinBasePath(base, '/api/template-posters');
+        const templateId = stage1Data?.template_id || DEFAULT_STAGE1.template_id || 'template_dual';
+        const url = joinBasePath(base, `/api/template-posters?template_id=${encodeURIComponent(templateId)}`);
         if (!url) continue;
         try {
           const response = await fetch(url, {
@@ -4161,7 +4162,11 @@ function initStage2() {
       return false;
     };
 
-    void loadTemplatePosters({ silent: true, force: true });
+    void loadTemplatePosters({ silent: true, force: true }).finally(() => {
+      if (posterPreviewSection) {
+        posterPreviewSection.classList.remove('hidden');
+      }
+    });
 
     const updatePromptPanels = (options = {}) => {
       const spec = options.spec || currentTemplateAssets?.spec || null;

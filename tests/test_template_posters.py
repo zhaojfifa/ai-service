@@ -29,7 +29,7 @@ def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch):
     from app.main import app
     import app.services.template_variants as template_variants
 
-    raw_png = base64.b64decode(_encode_png((255, 0, 0)))
+    raw_png = _png_bytes((255, 0, 0))
 
     def fake_get_bytes(key: str):
         assert key == "template-posters/PosterA.png"

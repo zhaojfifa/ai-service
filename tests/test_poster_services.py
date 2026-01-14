@@ -34,7 +34,7 @@ else:
 
 def make_data_url(color: tuple[int, int, int]) -> str:
     del color
-    return "https://cdn.example.com/asset.png"
+    return "r2://bucket/assets/mock.png"
 
 
 def make_png_bytes(color: tuple[int, int, int]) -> bytes:

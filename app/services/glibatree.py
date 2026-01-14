@@ -31,9 +31,9 @@ from app.services.vertex_imagen import _aspect_from_dims, _select_dimension_kwar
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.s3_client import get_bytes, make_key, public_url_for, put_bytes
 from app.services.template_variants import generation_overrides
+from app.services.template_assets import open_image_from_any_template_file
 
 logger = logging.getLogger(__name__)
-PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 vertex_imagen_client: VertexImagen3 | None = None
 
@@ -808,39 +808,6 @@ def _load_template_resources(template_id: str) -> TemplateResources:
     )
 
 
-def _open_image_compat(path: Path, *, kind: str) -> Image.Image:
-    suffix = path.suffix.lower()
-    if suffix == ".b64":
-        text = path.read_text(encoding="utf-8").strip()
-        text = "".join(text.split())
-        raw = base64.b64decode(text, validate=False)
-        logger.info(
-            "poster_asset kind=%s path=%s suffix=.b64 decoded=%d is_png=%s head=%s",
-            kind,
-            str(path),
-            len(raw),
-            raw.startswith(PNG_MAGIC),
-            raw[:16].hex(),
-        )
-        img = Image.open(BytesIO(raw))
-        img.load()
-        return img
-
-    with path.open("rb") as handle:
-        raw = handle.read()
-    logger.info(
-        "poster_asset kind=%s path=%s suffix=%s size=%d head=%s",
-        kind,
-        str(path),
-        suffix,
-        len(raw),
-        raw[:16].hex(),
-    )
-    img = Image.open(BytesIO(raw))
-    img.load()
-    return img
-
-
 def _load_template_asset(
     asset_name: str,
     *,
@@ -855,19 +822,22 @@ def _load_template_asset(
 
     asset_path = TEMPLATE_ROOT / asset_name
     if asset_path.exists():
-        return _open_image_compat(asset_path, kind=kind).convert("RGBA")
+        logger.info("[template] open %s path=%s", kind, asset_path)
+        return open_image_from_any_template_file(asset_path).convert("RGBA")
 
     if asset_path.suffix.lower() != ".b64":
         b64_path = asset_path.with_suffix(".b64")
         if b64_path.exists():
             try:
-                return _open_image_compat(b64_path, kind=kind).convert("RGBA")
+                logger.info("[template] open %s path=%s", kind, b64_path)
+                return open_image_from_any_template_file(b64_path).convert("RGBA")
             except (UnidentifiedImageError, ValueError) as exc:
                 raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
     else:
         png_path = asset_path.with_suffix(".png")
         if png_path.exists():
-            return _open_image_compat(png_path, kind=kind).convert("RGBA")
+            logger.info("[template] open %s path=%s", kind, png_path)
+            return open_image_from_any_template_file(png_path).convert("RGBA")
 
     if required:
         raise FileNotFoundError(f"Template asset missing: {asset_path}")
@@ -1621,25 +1591,16 @@ def _request_glibatree_http(
     else:
         raise ValueError("Unexpected Glibatree response format")
 
-    width = int(payload.get("width", 1024))
-    height = int(payload.get("height", 1024))
     filename = payload.get("filename", "poster.png")
-    media_type = payload.get("media_type", "image/png")
 
     image = _load_image_from_data_url(data_url)
-    if image:
-        composed = image.convert("RGBA")
-        mask_alpha = template.mask_background.split()[3]
-        composed.paste(locked_frame, mask=mask_alpha)
-        return _poster_image_from_pillow(composed, filename)
+    if not image:
+        raise RuntimeError("Unable to decode Glibatree image payload")
 
-    return PosterImage(
-        filename=filename,
-        media_type=media_type,
-        data_url=data_url,
-        width=width,
-        height=height,
-    )
+    composed = image.convert("RGBA")
+    mask_alpha = template.mask_background.split()[3]
+    composed.paste(locked_frame, mask=mask_alpha)
+    return _poster_image_from_pillow(composed, filename)
 
 
 def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Image.Image, b64_data: str) -> PosterImage:
@@ -1647,14 +1608,7 @@ def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Imag
     try:
         generated = Image.open(BytesIO(decoded)).convert("RGBA")
     except UnidentifiedImageError:
-        # 解码失败：回传 data_url 以便前端仍可预览
-        w, h = _parse_size(OPENAI_IMAGE_SIZE)
-        size = template.spec.get("size", {})
-        w = int(size.get("width") or w)
-        h = int(size.get("height") or h)
-        data_url = f"data:image/png;base64,{b64_data}"
-        return PosterImage(filename="poster.png", media_type="image/png",
-                           data_url=data_url, width=w, height=h)
+        raise RuntimeError("Unable to decode OpenAI base64 payload")
 
     # 叠加锁定 UI
     mask_alpha = template.mask_background.split()[3]

@@ -63,8 +63,7 @@ from app.services.r2_client import (
 )
 from app.services.template_variants import (
     TemplatePosterError,
-    fallback_poster_entries,
-    list_poster_entries,
+    build_slot_posters,
     poster_entry_from_record,
     save_template_poster,
 )
@@ -119,18 +118,12 @@ def root_head() -> Response:
 settings = get_settings()
 
 
-def _load_slot_posters() -> list[TemplatePosterEntry]:
-    try:
-        entries = list_poster_entries()
-        return [
-            TemplatePosterEntry(**entry) if isinstance(entry, dict) else entry
-            for entry in entries
-        ]
-    except Exception:
-        return [
-            TemplatePosterEntry(**entry) if isinstance(entry, dict) else entry
-            for entry in fallback_poster_entries()
-        ]
+def _load_slot_posters(template_id: str) -> list[TemplatePosterEntry]:
+    entries = build_slot_posters(template_id)
+    return [
+        TemplatePosterEntry(**entry) if isinstance(entry, dict) else entry
+        for entry in entries
+    ]
 
 
 # 健康检查，确保 Render 能检测端口开放
@@ -901,8 +894,9 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
 
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
-def fetch_template_posters() -> TemplatePosterCollection:
-    entries = _load_slot_posters()
+def fetch_template_posters(template_id: str | None = None) -> TemplatePosterCollection:
+    template_value = template_id or DEFAULT_TEMPLATE_ID
+    entries = _load_slot_posters(template_value)
     return TemplatePosterCollection(posters=entries)
 
 
@@ -1007,7 +1001,7 @@ async def generate_poster(request: Request) -> JSONResponse:
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
-        slot_posters = _load_slot_posters()
+        slot_posters = _load_slot_posters(poster.template_id or DEFAULT_TEMPLATE_ID)
 
         try:
             # 生成主图与变体
@@ -1156,7 +1150,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             email_body=None,
             poster_image=None,
             final_poster=None,
-            slot_posters=_load_slot_posters(),
+            slot_posters=_load_slot_posters(DEFAULT_TEMPLATE_ID),
             error={"code": "poster_generation_failed", "message": str(exc)},
         )
         return JSONResponse(content=_model_dump(response_payload))
