@@ -4216,6 +4216,8 @@ function initStage2() {
           generateButton,
           regenerateButton,
           nextButton,
+          generatedImage: null,
+          disablePosterImage: true,
           promptManager,
           updatePromptPanels,
           forceVariants: extra.forceVariants ?? 1,
@@ -4243,7 +4245,7 @@ function initStage2() {
 
     let templateRegistry = [];
     const handleABTest = () => {
-      alert('Demo 1.0: A/B ??????');
+      alert('Demo 1.0: A/B preview is disabled.');
     };
 
       openABModal?.(baseline, generated) ||
@@ -4757,6 +4759,7 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
+  const { disablePosterImage = false } = opts;
   rehydrateStage2PosterFromStage1();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
   let didAttempt = false;
@@ -4987,13 +4990,172 @@ async function triggerGeneration(opts) {
       fallbackTimerId = null;
     }
   };
-
   const enableTemplateFallback = async (message, options = {}) => {
     if (fallbackTriggered) return;
     fallbackTriggered = true;
     clearFallbackTimer();
 
     if (aiPreview) aiPreview.classList.add('complete');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+
+    const nextPrompt = typeof options.prompt === 'string' ? options.prompt : '';
+    const nextEmail = typeof options.email === 'string' ? options.email : '';
+    const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
+    if (nextButton) nextButton.disabled = !hasCopy;
+
+    if (templatePoster && hasCopy) {
+      try {
+        await saveStage2Result({
+          prompt: nextPrompt,
+          email_body: nextEmail,
+          prompt_bundle: options.prompt_bundle || null,
+          poster_image: { ...templatePoster },
+          poster_url: null,
+          assets: { ...stage2State.assets },
+          poster: { ...stage2State.poster },
+          template_poster: { ...templatePoster },
+          variants: [],
+          seed: null,
+          lock_seed: false,
+          template_fallback: true,
+          template_id: stage1Data.template_id || null,
+        });
+      } catch (error) {
+        console.error('save template fallback failed', error);
+      }
+    }
+
+    const statusLevel = hasCopy ? 'warning' : 'error';
+    const statusMessage = message || (hasCopy
+      ? 'Using template poster; you can proceed to Stage 3.'
+      : 'Generation failed. Please try again.');
+    setStatus(statusElement, statusMessage, statusLevel);
+  };
+
+  if (templatePoster) {
+    fallbackTimerId = setTimeout(() => {
+      void enableTemplateFallback();
+    }, 60_000);
+  }
+
+  try {
+    didAttempt = true;
+    await warmUp(apiCandidates);
+    const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+    const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
+    if (mySeq !== stage2GenerationSeq) return null;
+
+    lastPosterResult = data || null;
+    lastPromptBundle = data?.prompt_bundle || null;
+    posterGenerationState.promptBundle = data?.prompt_bundle || null;
+    posterGenerationState.rawResult = data || null;
+    posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+
+    if (promptBundlePre && promptBundleGroup) {
+      const bundle = lastPromptBundle;
+      const hasBundle =
+        bundle &&
+        ((typeof bundle === 'string' && bundle.trim()) ||
+          (typeof bundle === 'object' && Object.keys(bundle).length));
+      if (hasBundle) {
+        const text = typeof bundle === 'string' ? bundle : JSON.stringify(bundle, null, 2);
+        promptBundlePre.value = text;
+        promptBundleGroup.classList.remove('hidden');
+      } else {
+        promptBundlePre.value = '';
+        promptBundleGroup.classList.add('hidden');
+      }
+    }
+
+    console.info('[triggerGeneration] success', {
+      hasPoster: Boolean(data?.poster_image),
+      variants: Array.isArray(data?.variants) ? data.variants.length : 0,
+      seed: data?.seed ?? null,
+      lock_seed: data?.lock_seed ?? null,
+    });
+
+    applyVertexPosterResult(data);
+
+    clearFallbackTimer();
+
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+
+    const nextPrompt = data?.prompt || '';
+    const nextEmail = data?.email_body || '';
+    if (emailTextarea) emailTextarea.value = nextEmail;
+    if (promptTextarea) promptTextarea.value = nextPrompt;
+
+    const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
+    setStatus(
+      statusElement,
+      hasCopy ? 'Copy generated (template poster).' : 'Request finished (no copy).',
+      hasCopy ? 'success' : 'warning',
+    );
+
+    if (nextButton) nextButton.disabled = !hasCopy;
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    regenerateButton?.classList.remove('hidden');
+
+    if (stage2State.generated) {
+      stage2State.generated.lastCopy = {
+        prompt: nextPrompt,
+        email_body: nextEmail,
+        prompt_bundle: data?.prompt_bundle || null,
+      };
+    }
+
+    try {
+      await saveStage2Result({
+        prompt: nextPrompt,
+        email_body: nextEmail,
+        prompt_bundle: data?.prompt_bundle || null,
+        poster_image: templatePoster ? { ...templatePoster } : null,
+        poster_url: null,
+        assets: { ...stage2State.assets },
+        poster: { ...stage2State.poster },
+        template_poster: templatePoster ? { ...templatePoster } : null,
+        template_fallback: true,
+        template_id: stage1Data.template_id || null,
+        variants: [],
+        seed: data?.seed ?? null,
+        lock_seed: data?.lock_seed ?? null,
+      });
+    } catch (error) {
+      console.error('save stage2 result failed', error);
+    }
+
+    stage2HasAttemptedGenerate = true;
+    if (stage2State.generated) {
+      stage2State.generated.attempted = true;
+    }
+    if (posterPreviewSection) {
+      posterPreviewSection.classList.remove('hidden');
+    }
+    stage2LastGeneratedAssetFingerprint = fingerprintAssets(stage2State.assets);
+    updateRegenerateButtonState();
+
+    return data;
+  } catch (error) {
+    console.error('[generatePoster] request failed', {
+      error,
+      status: error?.status,
+      responseJson: error?.responseJson,
+      responseText: error?.responseText,
+    });
+    const detail = error?.responseJson?.detail || null;
+    const quotaExceeded =
+      error?.status === 429 &&
+      (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
+    const friendlyMessage = quotaExceeded
+      ? 'Image generation quota exceeded. Please try again later or upload existing assets.'
+      : formatPosterGenerationError(error);
+    const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
+    const decoratedMessage = `${friendlyMessage}${statusHint}`;
+    setStatus(statusElement, decoratedMessage, 'error');
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
     refreshPosterLayoutPreview();
@@ -5004,17 +5166,16 @@ async function triggerGeneration(opts) {
     const currentEmail = (emailTextarea?.value || '').trim();
     const hasStoredCopy = Boolean(currentPrompt) || Boolean(currentEmail) || Boolean(storedPrompt) || Boolean(storedEmail);
     if (nextButton) nextButton.disabled = !hasStoredCopy;
-    if (didAttempt) {
-      stage2HasAttemptedGenerate = true;
-      if (stage2State.generated) {
-        stage2State.generated.attempted = true;
-      }
-      if (posterPreviewSection) {
-        posterPreviewSection.classList.remove('hidden');
-      }
-      renderPosterResult();
-      updateRegenerateButtonState();
+
+    stage2HasAttemptedGenerate = true;
+    if (stage2State.generated) {
+      stage2State.generated.attempted = true;
     }
+    if (posterPreviewSection) {
+      posterPreviewSection.classList.remove('hidden');
+    }
+    renderPosterResult();
+    updateRegenerateButtonState();
     return null;
   } finally {
     stage2InFlight = false;

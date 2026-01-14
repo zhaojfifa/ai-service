@@ -1300,6 +1300,22 @@ main {
   display: none !important;
 }
 
+/* demo1.0.2 safety: never render AI-generated poster image block (red box) */
+#ai-poster-wrap,
+#generated-poster-wrap,
+#generated-poster,
+#generated-image,
+#poster-generated-image,
+.generated-poster,
+.generated-result,
+.poster-generated {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+}
+
 .stage2-template-preview {
   display: none !important;
 }
