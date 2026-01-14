@@ -343,6 +343,20 @@ async function loadB64AsDataUrl(url, mime = 'image/png') {
   if (b64.startsWith('data:')) return b64;
   return `data:${mime};base64,${b64}`;
 }
+App.utils.loadImageAny = async (url, mime = 'image/png') => {
+  const img = new Image();
+  img.decoding = 'async';
+  img.crossOrigin = 'anonymous';
+  const resolvedUrl = (url && (url.endsWith('.b64') || url.endsWith('.pre')))
+    ? await loadB64AsDataUrl(url, mime)
+    : url;
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error('模板预览图加载失败'));
+    img.src = resolvedUrl;
+  });
+  return img;
+};
 App.utils.ensureTemplateAssets = (() => {
   const _cache = new Map();
   return async function ensureTemplateAssets(templateId) {
@@ -356,20 +370,7 @@ App.utils.ensureTemplateAssets = (() => {
     const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
-    const imgP  = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.decoding = 'async';
-      img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('模板预览图加载失败'));
-      if (String(imgUrl).endsWith('.b64')) {
-        loadB64AsDataUrl(imgUrl)
-          .then((dataUrl) => { img.src = dataUrl; })
-          .catch(reject);
-      } else {
-        img.src = imgUrl;
-      }
-    });
+    const imgP  = App.utils.loadImageAny(imgUrl, 'image/png');
 
     const payload = { entry, spec: await specP, image: await imgP };
     _cache.set(entry.id, payload);
