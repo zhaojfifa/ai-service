@@ -2,46 +2,41 @@ name: Deploy frontend to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: ["main"]
     paths:
-      - 'frontend/**'
-      - '.github/workflows/deploy-frontend.yml'
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 concurrency:
-  group: 'pages'
+  group: "pages"
   cancel-in-progress: true
 
 jobs:
   deploy:
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
 
     steps:
-      - name: Check out repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
-      - name: Add .nojekyll
+      # Ensure GitHub Pages does NOT run Jekyll processing
+      - name: Disable Jekyll
         run: |
           touch frontend/.nojekyll
-      - name: Decode template assets
-        run: |
-          python scripts/decode_template_assets.py
 
-      # 如有自定义域名，可在此写入 CNAME 文件
-      # - name: Add CNAME
-      #   run: echo "your.domain.com" > frontend/CNAME
-      - name: Upload frontend artifact
+      - name: Upload artifact (frontend)
         uses: actions/upload-pages-artifact@v3
         with:
           path: frontend
