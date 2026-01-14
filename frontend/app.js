@@ -3832,7 +3832,6 @@ function initStage2() {
     const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
     const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
-    const aiPosterWrap = document.getElementById('ai-poster-wrap');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
@@ -3859,9 +3858,6 @@ function initStage2() {
 
     if (posterPreviewSection) {
       posterPreviewSection.classList.add('hidden');
-    }
-    if (aiPosterWrap) {
-      aiPosterWrap.classList.add('hidden');
     }
     if (posterGeneratedImage?.classList) {
       posterGeneratedImage.classList.add('hidden');
@@ -4856,7 +4852,6 @@ async function triggerGeneration(opts) {
   } = opts;
   rehydrateStage2PosterFromStage1();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
-  const aiPosterWrap = document.getElementById('ai-poster-wrap');
   const priorPosterUrl = posterGenerationState.posterUrl || posterGeneratedImageUrl || null;
   let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
@@ -5255,13 +5250,6 @@ async function triggerGeneration(opts) {
       setStatus(statusElement, '生成完成但缺少可预览图片，请稍后重试。', 'warning');
     }
 
-    if (aiPosterWrap) {
-      if (posterGenerationState.posterUrl) {
-        aiPosterWrap.classList.remove('hidden');
-      } else {
-        aiPosterWrap.classList.add('hidden');
-      }
-    }
     stage2HasAttemptedGenerate = true;
     if (stage2State.generated) {
       stage2State.generated.attempted = true;
@@ -5302,13 +5290,6 @@ async function triggerGeneration(opts) {
       } else {
         generatedImage.classList.add('hidden');
         generatedImage.removeAttribute('src');
-      }
-    }
-    if (aiPosterWrap) {
-      if (priorPosterUrl) {
-        aiPosterWrap.classList.remove('hidden');
-      } else {
-        aiPosterWrap.classList.add('hidden');
       }
     }
     if (priorPosterUrl) {

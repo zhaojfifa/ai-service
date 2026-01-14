@@ -1288,6 +1288,14 @@ main {
   display: none !important;
 }
 
+/* demo1.0: never show AI generated poster image area in Stage2 */
+#ai-poster-wrap,
+.ai-poster-wrap,
+.stage2-ai-poster,
+#stage2-ai-poster {
+  display: none !important;
+}
+
 .stage2-template-preview {
   display: none !important;
 }
