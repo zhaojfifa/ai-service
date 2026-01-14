@@ -112,6 +112,10 @@ const stage2State = {
   vertex: {
     lastResponse: null,
   },
+  generated: {
+    attempted: false,
+    lastSuccessPosterUrl: null,
+  },
   generationAction: 'generate',
   regenPolicy: {
     updateScenario: false,
@@ -143,7 +147,8 @@ function fingerprintAssets(assets) {
 function updateRegenerateButtonState() {
   const button = document.getElementById('regenerate-poster');
   if (!button) return;
-  if (!stage2HasAttemptedGenerate) {
+  const attempted = stage2State.generated?.attempted || stage2HasAttemptedGenerate;
+  if (!attempted) {
     button.classList.add('hidden');
     button.disabled = true;
     return;
@@ -3827,6 +3832,7 @@ function initStage2() {
     const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
     const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
+    const aiPosterWrap = document.getElementById('ai-poster-wrap');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
     const promptBundleGroup = document.getElementById('prompt-bundle-group');
@@ -3853,6 +3859,9 @@ function initStage2() {
 
     if (posterPreviewSection) {
       posterPreviewSection.classList.add('hidden');
+    }
+    if (aiPosterWrap) {
+      aiPosterWrap.classList.add('hidden');
     }
     if (posterGeneratedImage?.classList) {
       posterGeneratedImage.classList.add('hidden');
@@ -4706,6 +4715,9 @@ function applyVertexPosterResult(data) {
   if (posterUrl) {
     posterGeneratedImageUrl = posterUrl;
     posterGenerationState.posterUrl = posterUrl;
+    if (stage2State.generated) {
+      stage2State.generated.lastSuccessPosterUrl = posterUrl;
+    }
     posterGeneratedImage = posterGenerationState.posterUrl;
     assets.composite_poster_url = posterUrl;
     try {
@@ -4844,6 +4856,7 @@ async function triggerGeneration(opts) {
   } = opts;
   rehydrateStage2PosterFromStage1();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
+  const aiPosterWrap = document.getElementById('ai-poster-wrap');
   const priorPosterUrl = posterGenerationState.posterUrl || posterGeneratedImageUrl || null;
   let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
@@ -4989,15 +5002,13 @@ async function triggerGeneration(opts) {
   };
 
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
+  payload.variants = 1;
 
   const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
   if (negativeSummary) {
     payload.negatives = negativeSummary;
   }
 
-  if (abTest) {
-    payload.variants = Math.max(2, payload.variants || 2);
-  }
 
   const posterSummary = {
     template_id: posterPayload.template_id,
@@ -5244,7 +5255,17 @@ async function triggerGeneration(opts) {
       setStatus(statusElement, '生成完成但缺少可预览图片，请稍后重试。', 'warning');
     }
 
+    if (aiPosterWrap) {
+      if (posterGenerationState.posterUrl) {
+        aiPosterWrap.classList.remove('hidden');
+      } else {
+        aiPosterWrap.classList.add('hidden');
+      }
+    }
     stage2HasAttemptedGenerate = true;
+    if (stage2State.generated) {
+      stage2State.generated.attempted = true;
+    }
     if (posterPreviewSection) {
       posterPreviewSection.classList.remove('hidden');
     }
@@ -5283,6 +5304,13 @@ async function triggerGeneration(opts) {
         generatedImage.removeAttribute('src');
       }
     }
+    if (aiPosterWrap) {
+      if (priorPosterUrl) {
+        aiPosterWrap.classList.remove('hidden');
+      } else {
+        aiPosterWrap.classList.add('hidden');
+      }
+    }
     if (priorPosterUrl) {
       hideGeneratedPlaceholder();
     } else {
@@ -5291,6 +5319,9 @@ async function triggerGeneration(opts) {
     refreshPosterLayoutPreview();
     if (didAttempt) {
       stage2HasAttemptedGenerate = true;
+      if (stage2State.generated) {
+        stage2State.generated.attempted = true;
+      }
       if (posterPreviewSection) {
         posterPreviewSection.classList.remove('hidden');
       }
