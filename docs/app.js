@@ -3946,7 +3946,6 @@ function initStage2() {
 
     const templatePlaceholderDefault =
       posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
-      posterGeneratedPlaceholder?.textContent?.trim() || '生成结果将在此展示。';
 
     const templateState = {
       loaded: false,
