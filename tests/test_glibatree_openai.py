@@ -56,7 +56,10 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
 
         with patch("app.services.glibatree.OpenAI", return_value=mock_client) as patched_openai, patch(
             "app.services.glibatree.httpx.Client"
-        ) as patched_httpx:
+        ) as patched_httpx, patch(
+            "app.services.glibatree.upload_bytes_to_r2_return_ref",
+            return_value=("r2://bucket/posters/poster.png", "https://cdn.example.com/poster.png"),
+        ):
             httpx_instance = MagicMock()
             patched_httpx.return_value = httpx_instance
 
@@ -82,9 +85,7 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
 
         assert result.filename == "poster.png"
         assert result.media_type == "image/png"
-        assert result.data_url or result.url
-        if result.data_url:
-            assert result.data_url.startswith("data:image/png;base64,")
+        assert result.url == "https://cdn.example.com/poster.png"
 
     def test_openai_client_without_proxy_omits_http_client(self) -> None:
         config = self.make_config(api_url=None, proxy=None)
@@ -110,7 +111,10 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
 
         with patch("app.services.glibatree.OpenAI", return_value=mock_client) as patched_openai, patch(
             "app.services.glibatree.httpx.Client"
-        ) as patched_httpx:
+        ) as patched_httpx, patch(
+            "app.services.glibatree.upload_bytes_to_r2_return_ref",
+            return_value=("r2://bucket/posters/poster.png", "https://cdn.example.com/poster.png"),
+        ):
             result = _request_glibatree_openai_edit(config, "prompt", locked_frame, template)
 
         patched_httpx.assert_not_called()
@@ -126,9 +130,7 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
 
         assert result.media_type == "image/png"
         assert result.filename == "poster.png"
-        assert result.data_url or result.url
-        if result.data_url:
-            assert result.data_url.startswith("data:image/png;base64,")
+        assert result.url == "https://cdn.example.com/poster.png"
 
 
 if __name__ == "__main__":

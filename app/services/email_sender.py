@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import logging
 import smtplib
 from email.message import EmailMessage
@@ -12,6 +11,7 @@ logger = logging.getLogger("ai_service.email_sender")
 
 from app.config import get_settings
 from app.schemas import PosterImage, SendEmailRequest, SendEmailResponse
+from app.services.s3_client import public_url_for
 
 
 def send_email(payload: SendEmailRequest) -> SendEmailResponse:
@@ -76,20 +76,24 @@ def send_email(payload: SendEmailRequest) -> SendEmailResponse:
 
 def _decode_attachment(attachment: PosterImage) -> Tuple[str, bytes, str]:
     if attachment.data_url:
-        header, encoded = attachment.data_url.split(",", 1)
-        if not header.startswith("data:") or ";base64" not in header:
-            raise ValueError("Attachment must be provided as base64 data URL")
-        media_type = header[len("data:"): header.index(";")]
-        content = base64.b64decode(encoded)
-    elif attachment.url:
-        response = requests.get(attachment.url, timeout=30)
+        raise ValueError("Payload contains base64/data_url. Please provide assets by key/url only.")
+
+    url = attachment.url
+    if not url and attachment.key:
+        url = public_url_for(attachment.key)
+
+    if url and url.startswith(("r2://", "s3://")) and attachment.key:
+        url = public_url_for(attachment.key)
+
+    if url:
+        response = requests.get(url, timeout=30)
         response.raise_for_status()
         content = response.content
         media_type = attachment.media_type or response.headers.get(
             "Content-Type", "application/octet-stream"
         )
     else:
-        raise ValueError("Attachment missing data_url or URL source")
+        raise ValueError("Attachment missing url/key source")
 
     filename = attachment.filename or "poster.png"
     return filename, content, media_type

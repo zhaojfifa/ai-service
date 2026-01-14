@@ -36,12 +36,38 @@ class _CompatModel(BaseModel):
 
 
 DATA_URL_RX = re.compile(r"^data:image/[^;]+;base64,", re.IGNORECASE)
+_RAW_BASE64_PREFIXES = ("ivbor", "/9j/", "r0lgod")
+_MAX_INLINE_FIELD = 4096
 
 
 def _reject_data_uri(value: str | None) -> str | None:
     if value and DATA_URL_RX.match(value.strip()):
         raise ValueError("Base64 images are not allowed. Upload to R2 first.")
     return value
+
+
+def _contains_inline_image(value: Any) -> bool:
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return False
+        if DATA_URL_RX.match(text):
+            return True
+        if len(text) > _MAX_INLINE_FIELD:
+            lower = text[:32].lower()
+            if "base64" in text.lower() or any(lower.startswith(prefix) for prefix in _RAW_BASE64_PREFIXES):
+                return True
+        return False
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(key, str) and key.lower() in {"data_url", "data", "base64"}:
+                return True
+            if _contains_inline_image(item):
+                return True
+        return False
+    if isinstance(value, (list, tuple)):
+        return any(_contains_inline_image(item) for item in value)
+    return False
 
 
 class ImageRef(_CompatModel):
@@ -254,6 +280,16 @@ class PosterInput(_CompatModel):
     @classmethod
     def _validate_inline_assets(cls, value: str | None) -> str | None:
         return _reject_data_uri(value)
+
+    @field_validator("base_image_b64", "mask_b64", mode="before")
+    @classmethod
+    def _reject_inline_base64(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        text = str(value).strip()
+        if text:
+            raise ValueError("Payload contains base64/data_url. Please provide assets by key/url only.")
+        return None
 
 
 class PosterImage(_CompatModel):
@@ -629,12 +665,25 @@ class GeneratePosterRequest(_CompatModel):
                 data = dict(data)
                 data["prompt_bundle"] = data.pop("prompts")
             return data
+
+        @model_validator(mode="after")
+        @classmethod
+        def _reject_inline_payload(cls, value: "GeneratePosterRequest") -> "GeneratePosterRequest":
+            if _contains_inline_image(value.model_dump(exclude_none=False)):
+                raise ValueError("Payload contains base64/data_url. Please provide assets by key/url only.")
+            return value
     else:  # Pydantic v1
         @root_validator(pre=True)  # type: ignore[misc]
         def _prompts_alias(cls, values: dict[str, Any]) -> dict[str, Any]:
             if "prompt_bundle" not in values and "prompts" in values:
                 values = dict(values)
                 values["prompt_bundle"] = values.pop("prompts")
+            return values
+
+        @root_validator(pre=False)  # type: ignore[misc]
+        def _reject_inline_payload(cls, values: dict[str, Any]) -> dict[str, Any]:
+            if _contains_inline_image(values):
+                raise ValueError("Payload contains base64/data_url. Please provide assets by key/url only.")
             return values
 
 

@@ -1802,8 +1802,6 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
     digest = hashlib.sha1(image_bytes).hexdigest()[:10]
     storage_key = f"posters/{timestamp}-{digest}-{slug}"
 
-    storage_ref: str | None = None
-    url: str | None = None
     try:
         storage_ref, url = upload_bytes_to_r2_return_ref(
             image_bytes,
@@ -1811,15 +1809,12 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
             content_type="image/png",
         )
         logger.info("R2 upload ok key=%s url=%s", storage_key, url)
-    except Exception as exc:  # pragma: no cover - storage fallback
-        logger.warning(
-            "R2 upload failed; will return data_url instead", extra={"key": storage_key, "error": str(exc)}
+    except Exception as exc:  # pragma: no cover - storage failure
+        logger.error(
+            "R2 upload failed; refusing to return base64 fallback",
+            extra={"key": storage_key, "error": str(exc)},
         )
-
-    data_url: str | None = None
-    if not url:
-        encoded = base64.b64encode(image_bytes).decode("ascii")
-        data_url = f"data:image/png;base64,{encoded}"
+        raise RuntimeError("Poster upload failed; R2 is required.") from exc
 
     key_value: str | None = None
     if storage_ref and "://" in storage_ref:
@@ -1831,7 +1826,6 @@ def _poster_image_from_pillow(image: Image.Image, filename: str) -> PosterImage:
     return PosterImage(
         filename=safe_filename,
         media_type="image/png",
-        data_url=data_url,
         url=url,
         key=key_value,
         width=output.width,

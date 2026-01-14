@@ -934,6 +934,20 @@ async def generate_poster(request: Request) -> JSONResponse:
     trace = _ensure_trace_id(request)
     guard_info = getattr(request.state, "guard_info", {})
     content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > 1_000_000:
+                raise HTTPException(
+                    status_code=413,
+                    detail="请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url",
+                )
+        except ValueError:
+            pass
+    if guard_info.get("has_base64"):
+        raise HTTPException(
+            status_code=422,
+            detail="Payload contains base64/data_url. Please provide assets by key/url only.",
+        )
 
     try:
         raw_payload = await read_json_relaxed(request)

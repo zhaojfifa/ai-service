@@ -1100,12 +1100,13 @@ const assetStore = createAssetStore();
 function getPosterImageSource(image) {
   if (!image || typeof image !== 'object') return '';
   const directUrl = typeof image.url === 'string' ? image.url.trim() : '';
-  if (directUrl && (HTTP_URL_RX.test(directUrl) || directUrl.startsWith('data:'))) {
+  if (directUrl && HTTP_URL_RX.test(directUrl)) {
     return directUrl;
   }
-  const dataUrl = typeof image.data_url === 'string' ? image.data_url.trim() : '';
-  if (dataUrl && dataUrl.startsWith('data:')) {
-    return dataUrl;
+  const key = typeof image.key === 'string' ? image.key.trim() : '';
+  if (key) {
+    const derived = toAssetUrl(key);
+    return HTTP_URL_RX.test(derived) ? derived : '';
   }
   return '';
 }
@@ -1149,14 +1150,39 @@ function isSamePosterImage(a, b) {
   if (urlA && urlB && urlA === urlB) {
     return true;
   }
-  const dataA = typeof a.data_url === 'string' ? a.data_url : '';
-  const dataB = typeof b.data_url === 'string' ? b.data_url : '';
-  if (dataA && dataB && dataA === dataB) {
-    return true;
-  }
-  const keyA = typeof a.storage_key === 'string' ? a.storage_key : '';
-  const keyB = typeof b.storage_key === 'string' ? b.storage_key : '';
+  const keyA = typeof a.key === 'string' ? a.key : (typeof a.storage_key === 'string' ? a.storage_key : '');
+  const keyB = typeof b.key === 'string' ? b.key : (typeof b.storage_key === 'string' ? b.storage_key : '');
   return Boolean(keyA && keyB && keyA === keyB);
+}
+
+function normalisePosterImageForStorage(image, fallbackUrl) {
+  if (!image || typeof image !== 'object') return null;
+  const filename = typeof image.filename === 'string' && image.filename.trim()
+    ? image.filename.trim()
+    : 'poster.png';
+  const mediaType = typeof image.media_type === 'string' && image.media_type
+    ? image.media_type
+    : 'image/png';
+  const width = typeof image.width === 'number' ? image.width : null;
+  const height = typeof image.height === 'number' ? image.height : null;
+  const key = typeof image.key === 'string' ? image.key.trim() : '';
+  let url = typeof image.url === 'string' ? image.url.trim() : '';
+  if (!url && typeof fallbackUrl === 'string') {
+    url = fallbackUrl.trim();
+  }
+  if (!url && key) {
+    const derived = toAssetUrl(key);
+    if (HTTP_URL_RX.test(derived)) url = derived;
+  }
+  if (!url && !key) return null;
+  return {
+    filename,
+    media_type: mediaType,
+    width,
+    height,
+    key: key || null,
+    url: url || null,
+  };
 }
 
 // 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
@@ -5012,11 +5038,11 @@ async function triggerGeneration(opts) {
           prompt: nextPrompt,
           email_body: nextEmail,
           prompt_bundle: options.prompt_bundle || null,
-          poster_image: { ...templatePoster },
+          poster_image: null,
           poster_url: null,
           assets: { ...stage2State.assets },
           poster: { ...stage2State.poster },
-          template_poster: { ...templatePoster },
+          template_poster: null,
           variants: [],
           seed: null,
           lock_seed: false,
@@ -5114,11 +5140,11 @@ async function triggerGeneration(opts) {
         prompt: nextPrompt,
         email_body: nextEmail,
         prompt_bundle: data?.prompt_bundle || null,
-        poster_image: templatePoster ? { ...templatePoster } : null,
-        poster_url: null,
+        poster_image: data?.poster_image || null,
+        poster_url: data?.poster_url || null,
         assets: { ...stage2State.assets },
         poster: { ...stage2State.poster },
-        template_poster: templatePoster ? { ...templatePoster } : null,
+        template_poster: null,
         template_fallback: true,
         template_id: stage1Data.template_id || null,
         variants: [],
@@ -5797,83 +5823,36 @@ async function loadHtml2Canvas() {
 async function saveStage2Result(data) {
   if (!data) return;
 
-  let previousKey = null;
-  const previousVariantKeys = new Set();
-  const existingRaw = sessionStorage.getItem(STORAGE_KEYS.stage2);
-  if (existingRaw) {
-    try {
-      const existing = JSON.parse(existingRaw);
-      previousKey = existing?.poster_image?.storage_key || null;
-      if (Array.isArray(existing?.variants)) {
-        existing.variants.forEach((variant) => {
-          if (variant?.storage_key) {
-            previousVariantKeys.add(variant.storage_key);
-          }
-        });
-      }
-    } catch (error) {
-      console.warn('无法解析现有的环节 2 数据，跳过旧键清理。', error);
-    }
-  }
-
   const payload = { ...data };
-  if (data.poster_image) {
-    const key = data.poster_image.storage_key || createId();
-    const source = getPosterImageSource(data.poster_image);
-    if (source) {
-      await assetStore.put(key, source);
-    }
-    payload.poster_image = {
-      filename: data.poster_image.filename,
-      media_type: data.poster_image.media_type,
-      width: data.poster_image.width,
-      height: data.poster_image.height,
-      storage_key: key,
-    };
-    if (previousKey && previousKey !== key) {
-      await assetStore.delete(previousKey).catch(() => undefined);
-    }
+  const normalisedPoster = normalisePosterImageForStorage(
+    data.poster_image || null,
+    data.poster_url || null
+  );
+  if (normalisedPoster) {
+    payload.poster_image = normalisedPoster;
+  } else {
+    delete payload.poster_image;
   }
 
   if (Array.isArray(data.variants)) {
-    payload.variants = [];
-    const usedVariantKeys = new Set();
-    for (const variant of data.variants) {
-      if (!variant) continue;
-      const key = variant.storage_key || createId();
-      const source = getPosterImageSource(variant);
-      if (source) {
-        await assetStore.put(key, source);
-      }
-      payload.variants.push({
-        filename: variant.filename,
-        media_type: variant.media_type,
-        width: variant.width,
-        height: variant.height,
-        storage_key: key,
-      });
-      usedVariantKeys.add(key);
-    }
-    previousVariantKeys.forEach((key) => {
-      if (!usedVariantKeys.has(key)) {
-        void assetStore.delete(key).catch(() => undefined);
-      }
-    });
+    payload.variants = data.variants
+      .map((variant) => normalisePosterImageForStorage(variant))
+      .filter(Boolean);
   }
 
   try {
     sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
   } catch (error) {
     if (isQuotaError(error)) {
-      console.warn('sessionStorage 容量不足，正在覆盖旧的环节 2 结果。', error);
+      console.warn('sessionStorage ?????????????2???', error);
       try {
         sessionStorage.removeItem(STORAGE_KEYS.stage2);
         sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
       } catch (innerError) {
-        console.error('无法保存环节 2 结果，已放弃持久化。', innerError);
+        console.error('?????? 2 ??????????', innerError);
       }
     } else {
-      console.error('保存环节 2 结果失败。', error);
+      console.error('???? 2 ?????', error);
     }
   }
 }
@@ -5883,24 +5862,6 @@ async function loadStage2Result() {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed?.poster_image?.storage_key) {
-      const storedValue = await assetStore.get(parsed.poster_image.storage_key);
-      if (storedValue) {
-        applyStoredAssetValue(parsed.poster_image, storedValue);
-      }
-    }
-    if (Array.isArray(parsed?.variants)) {
-      await Promise.all(
-        parsed.variants.map(async (variant) => {
-          if (variant?.storage_key) {
-            const storedValue = await assetStore.get(variant.storage_key);
-            if (storedValue) {
-              applyStoredAssetValue(variant, storedValue);
-            }
-          }
-        })
-      );
-    }
     return parsed;
   } catch (error) {
     console.error('Unable to parse stage2 result', error);
@@ -5943,12 +5904,7 @@ function initStage3() {
         stage2Result.variants[1]
       ) {
         const candidate = stage2Result.variants[1];
-        if (
-          candidate.storage_key ||
-          candidate.url ||
-          candidate.data_url ||
-          candidate.remoteUrl
-        ) {
+        if (candidate.key || candidate.url) {
           chosenPosterImage = candidate;
         }
       }
@@ -5999,16 +5955,18 @@ function initStage3() {
             stage2Result.variants[1]
           ) {
             const candidate = stage2Result.variants[1];
-            if (
-              candidate.storage_key ||
-              candidate.url ||
-              candidate.data_url ||
-              candidate.remoteUrl
-            ) {
+            if (candidate.key || candidate.url) {
               attachmentToSend = candidate;
             }
           }
         } catch (e) {}
+
+        const attachmentPayload = normalisePosterImageForStorage(attachmentToSend);
+        if (!attachmentPayload) {
+          setStatus(statusElement, '附件缺少有效的 URL/Key，无法发送邮件。', 'error');
+          sendButton.disabled = false;
+          return;
+        }
 
         const response = await postJsonWithRetry(
           apiCandidates,
@@ -6017,7 +5975,7 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: attachmentToSend,
+            attachment: attachmentPayload,
           },
           1
         );
