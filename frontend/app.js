@@ -1,3 +1,6 @@
+const BASE_URL = new URL("./", window.location.href);
+
+// 用法示例：fetch(new URL("templates/registry.json", BASE_URL))
 
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
