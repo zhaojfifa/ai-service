@@ -5152,13 +5152,16 @@ async function triggerGeneration(opts) {
     }
 
     try {
-    const finalPoster = data?.final_poster || data?.poster_image || null;
+    const slotPrimary = slotPosters.find((item) => item.slot === 'variant_a')?.poster
+      || slotPosters[0]?.poster
+      || null;
+    const finalPoster = data?.final_poster || null;
     await saveStage2Result({
       prompt: nextPrompt,
       email_body: nextEmail,
       prompt_bundle: data?.prompt_bundle || null,
-      poster_image: finalPoster,
-      poster_url: data?.poster_url || finalPoster?.url || null,
+      poster_image: slotPrimary,
+      poster_url: slotPrimary?.url || null,
       assets: { ...stage2State.assets },
       poster: { ...stage2State.poster },
       template_poster: null,
@@ -5918,7 +5921,7 @@ function initStage3() {
     const slotPosters = Array.isArray(stage2Result.slot_posters)
       ? stage2Result.slot_posters.map((item) => item?.poster).filter(Boolean)
       : [];
-    let chosenPosterImage = stage2Result.final_poster || stage2Result.poster_image || null;
+    let chosenPosterImage = stage2Result.poster_image || null;
     try {
       const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
       const st = JSON.parse(raw || '{}');
@@ -5973,11 +5976,6 @@ function initStage3() {
         await warmUp(apiCandidates);
 
         const attachments = [];
-        const finalPoster = stage2Result.final_poster || stage2Result.poster_image || null;
-        const finalPayload = normalisePosterImageForStorage(finalPoster);
-        if (finalPayload) {
-          attachments.push(finalPayload);
-        }
         slotPosters.forEach((poster) => {
           const payload = normalisePosterImageForStorage(poster);
           if (!payload) return;

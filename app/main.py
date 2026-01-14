@@ -67,6 +67,7 @@ from app.services.template_variants import (
     poster_entry_from_record,
     save_template_poster,
 )
+from app.services.template_assets import get_default_template_id, list_template_ids
 from app.services.vertex_imagen import init_vertex
 from app.services.storage_bridge import store_image_and_url
 from app.services.vertex_imagen3 import VertexImagen3
@@ -895,7 +896,7 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
 def fetch_template_posters(template_id: str | None = None) -> TemplatePosterCollection:
-    template_value = template_id or DEFAULT_TEMPLATE_ID
+    template_value = template_id or get_default_template_id(list_template_ids())
     entries = _load_slot_posters(template_value)
     return TemplatePosterCollection(posters=entries)
 
@@ -1001,7 +1002,11 @@ async def generate_poster(request: Request) -> JSONResponse:
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
-        slot_posters = _load_slot_posters(poster.template_id or DEFAULT_TEMPLATE_ID)
+        template_id_value = poster.template_id or get_default_template_id(list_template_ids())
+        slot_posters = _load_slot_posters(template_id_value)
+        slot_primary = None
+        if slot_posters:
+            slot_primary = slot_posters[0].poster if hasattr(slot_posters[0], "poster") else slot_posters[0].get("poster")
 
         try:
             # 生成主图与变体
@@ -1023,11 +1028,11 @@ async def generate_poster(request: Request) -> JSONResponse:
             logger.exception("Poster generation failed; returning slot_posters only", extra={"trace": trace})
             response_payload = GeneratePosterResponse(
                 status="fallback",
-                hasPoster=False,
+                hasPoster=bool(slot_primary),
                 layout_preview=preview,
                 prompt=prompt_text,
                 email_body=compose_marketing_email(poster, "poster.png"),
-                poster_image=None,
+                poster_image=slot_primary,
                 final_poster=None,
                 prompt_details=prompt_details,
                 prompt_bundle=payload.prompt_bundle,
@@ -1090,7 +1095,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
-            poster_image=result.poster,
+            poster_image=slot_primary,
             final_poster=result.poster,
             prompt_details=result.prompt_details,
             prompt_bundle=response_bundle,
@@ -1106,8 +1111,8 @@ async def generate_poster(request: Request) -> JSONResponse:
             slot_posters=slot_posters,
         )
 
-        primary_url = response_payload.poster_url or getattr(result.poster, "url", None)
-        primary_key = response_payload.poster_key or getattr(result.poster, "key", None)
+        primary_url = getattr(slot_primary, "url", None) if slot_primary else None
+        primary_key = getattr(slot_primary, "key", None) if slot_primary else None
 
         update_kwargs: dict[str, Any] = {"results": None}
         if primary_url:
@@ -1150,7 +1155,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             email_body=None,
             poster_image=None,
             final_poster=None,
-            slot_posters=_load_slot_posters(DEFAULT_TEMPLATE_ID),
+            slot_posters=_load_slot_posters(get_default_template_id(list_template_ids())),
             error={"code": "poster_generation_failed", "message": str(exc)},
         )
         return JSONResponse(content=_model_dump(response_payload))

@@ -5,6 +5,8 @@ import binascii
 import logging
 from io import BytesIO
 from pathlib import Path
+import json
+import os
 
 from PIL import Image
 
@@ -71,3 +73,24 @@ def open_image_from_any_template_file(path: Path) -> Image.Image:
     img = Image.open(BytesIO(raw))
     img.load()
     return img
+
+
+def list_template_ids() -> list[str]:
+    registry_path = Path(__file__).resolve().parents[2] / "frontend" / "templates" / "registry.json"
+    if not registry_path.exists():
+        return ["template_dual"]
+    try:
+        data = json.loads(registry_path.read_text(encoding="utf-8"))
+        items = data if isinstance(data, list) else data.get("templates", [])
+        return [item.get("id") for item in items if isinstance(item, dict) and item.get("id")]
+    except Exception:
+        return ["template_dual"]
+
+
+def get_default_template_id(template_ids: list[str]) -> str:
+    env_value = (os.getenv("POSTER_DEFAULT_TEMPLATE_ID") or "").strip()
+    if env_value and env_value in template_ids:
+        return env_value
+    if "template_dual" in template_ids:
+        return "template_dual"
+    return template_ids[0] if template_ids else "template_dual"
