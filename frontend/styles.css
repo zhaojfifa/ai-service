@@ -1292,7 +1292,11 @@ main {
 #ai-poster-wrap,
 .ai-poster-wrap,
 .stage2-ai-poster,
-#stage2-ai-poster {
+#stage2-ai-poster,
+#generated-poster-image,
+#poster-visual,
+.poster-preview--generated,
+.poster-preview--ai {
   display: none !important;
 }
 
