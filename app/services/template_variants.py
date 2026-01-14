@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import os
@@ -24,12 +23,6 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 DEFAULT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
 DEFAULT_SLOTS = ("variant_a", "variant_b")
-FALLBACK_POSTER_DATA_URL = (
-    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwC"
-    "AAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
-)
-FALLBACK_POSTER_WIDTH = 1
-FALLBACK_POSTER_HEIGHT = 1
 
 
 class TemplatePosterError(ValueError):
@@ -125,23 +118,9 @@ def _remove_existing_slot_files(slot: str) -> None:
 
 
 def _poster_from_record(record: TemplatePosterRecord) -> PosterImage:
-    raw: bytes | None = None
-    if record.path and record.path.exists():
-        with record.path.open("rb") as handle:
-            raw = handle.read()
-    elif record.key:
-        try:
-            raw = get_bytes(record.key)
-        except Exception:  # pragma: no cover - network/config failure fallback
-            logger.warning("Failed to fetch template poster %s from R2", record.key)
-
-    data_url: str | None = None
-    if raw:
-        data_url = f"data:{record.content_type};base64,{base64.b64encode(raw).decode()}"
     payload = {
         "filename": record.filename,
         "media_type": record.content_type,
-        "data_url": data_url,
         "url": record.url,
         "key": record.key,
         "width": record.width,
@@ -447,19 +426,7 @@ def list_poster_entries() -> list[dict[str, PosterImage]]:
 def fallback_poster_entries() -> list[dict[str, PosterImage]]:
     """Return minimal placeholder posters when no template assets exist."""
 
-    posters: list[dict[str, PosterImage]] = []
-    for slot in DEFAULT_SLOTS:
-        poster = PosterImage(
-            filename=f"{slot}-placeholder.png",
-            media_type="image/png",
-            key=None,
-            data_url=FALLBACK_POSTER_DATA_URL,
-            url=None,
-            width=FALLBACK_POSTER_WIDTH,
-            height=FALLBACK_POSTER_HEIGHT,
-        )
-        posters.append({"slot": slot, "poster": poster})
-    return posters
+    return []
 
 
 def generation_overrides(desired: int) -> list[PosterImage]:
@@ -483,8 +450,8 @@ def generation_overrides(desired: int) -> list[PosterImage]:
         payload = {
             "filename": source.filename,
             "media_type": source.media_type,
-            "data_url": source.data_url,
             "url": source.url,
+            "key": source.key,
             "width": source.width,
             "height": source.height,
         }

@@ -313,6 +313,13 @@ class PosterImage(_CompatModel):
     width: int = Field(..., gt=0)
     height: int = Field(..., gt=0)
 
+    @field_validator("data_url", mode="before")
+    @classmethod
+    def _reject_data_url(cls, value: Any) -> Any:
+        if isinstance(value, str) and value.strip():
+            raise ValueError("Payload contains base64/data_url. Please provide assets by key/url only.")
+        return None
+
 # ------------------------------------------------------------------------------
 # Prompt 归一化工具
 # ------------------------------------------------------------------------------
@@ -586,6 +593,13 @@ class TemplatePosterUploadRequest(_CompatModel):
     def _reject_data_url_key(cls, value: str | None) -> str | None:
         return _reject_data_uri(value)
 
+    @field_validator("data")
+    @classmethod
+    def _reject_inline_data(cls, value: str | None) -> str | None:
+        if value and value.strip():
+            raise ValueError("Payload contains base64/data_url. Please provide assets by key/url only.")
+        return None
+
 class TemplatePosterEntry(_CompatModel):
     slot: Literal["variant_a", "variant_b"]
     poster: PosterImage
@@ -698,6 +712,7 @@ class PosterImageAsset(_CompatModel):
 class GeneratePosterResponse(_CompatModel):
     """Aggregated response after preparing all marketing assets."""
 
+    status: Literal["ok", "fallback"] = "ok"
     hasPoster: bool = True
     layout_preview: Optional[str] = None
 
@@ -705,6 +720,7 @@ class GeneratePosterResponse(_CompatModel):
     prompt: Optional[str] = None
     email_body: Optional[str] = None
     poster_image: Optional[PosterImage] = None
+    final_poster: Optional[PosterImage] = None
 
     poster_url: Optional[HttpUrl] = Field(
         None,
@@ -713,6 +729,14 @@ class GeneratePosterResponse(_CompatModel):
     poster_key: Optional[str] = Field(
         None,
         description="Storage key associated with the primary poster URL.",
+    )
+    slot_posters: list[TemplatePosterEntry] = Field(
+        default_factory=list,
+        description="Template slot posters returned for fallback display and email attachments.",
+    )
+    error: dict[str, Any] | None = Field(
+        None,
+        description="Optional error details when generation fails.",
     )
 
     prompt_details: dict[str, str] | None = Field(
@@ -822,6 +846,10 @@ class SendEmailRequest(_CompatModel):
     attachment: Optional[PosterImage] = Field(
         None,
         description="Optional poster attachment. When omitted the email will be sent without attachments.",
+    )
+    attachments: list[PosterImage] = Field(
+        default_factory=list,
+        description="Optional list of poster attachments (URL/key only).",
     )
 
 class SendEmailResponse(_CompatModel):

@@ -119,6 +119,20 @@ def root_head() -> Response:
 settings = get_settings()
 
 
+def _load_slot_posters() -> list[TemplatePosterEntry]:
+    try:
+        entries = list_poster_entries()
+        return [
+            TemplatePosterEntry(**entry) if isinstance(entry, dict) else entry
+            for entry in entries
+        ]
+    except Exception:
+        return [
+            TemplatePosterEntry(**entry) if isinstance(entry, dict) else entry
+            for entry in fallback_poster_entries()
+        ]
+
+
 # 健康检查，确保 Render 能检测端口开放
 @app.get("/health")
 def health() -> dict[str, bool]:
@@ -888,13 +902,7 @@ def upload_template_poster(request_data: TemplatePosterUploadRequest) -> Templat
 
 @app.get("/api/template-posters", response_model=TemplatePosterCollection)
 def fetch_template_posters() -> TemplatePosterCollection:
-    try:
-        entries = list_poster_entries()
-    except Exception as exc:  # pragma: no cover - unexpected IO failure
-        logger.exception("Failed to load template posters")
-        raise HTTPException(status_code=500, detail="无法加载模板列表，请稍后重试。") from exc
-    if not entries:
-        entries = fallback_poster_entries()
+    entries = _load_slot_posters()
     return TemplatePosterCollection(posters=entries)
 
 
@@ -999,22 +1007,44 @@ async def generate_poster(request: Request) -> JSONResponse:
         prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(
             poster, prompt_payload
         )
+        slot_posters = _load_slot_posters()
 
-        # 生成主图与变体
-        async with _GENERATE_POSTER_SEMAPHORE:
-            result = generate_poster_asset(
-                poster,
-                prompt_text,
-                preview,
-                prompt_bundle=prompt_payload,
+        try:
+            # 生成主图与变体
+            async with _GENERATE_POSTER_SEMAPHORE:
+                result = generate_poster_asset(
+                    poster,
+                    prompt_text,
+                    preview,
+                    prompt_bundle=prompt_payload,
+                    prompt_details=prompt_details,
+                    render_mode=payload.render_mode,
+                    variants=payload.variants,
+                    seed=payload.seed,
+                    lock_seed=payload.lock_seed,
+                    trace_id=trace,
+                    aspect_closeness=payload.aspect_closeness,
+                )
+        except Exception as exc:
+            logger.exception("Poster generation failed; returning slot_posters only", extra={"trace": trace})
+            response_payload = GeneratePosterResponse(
+                status="fallback",
+                hasPoster=False,
+                layout_preview=preview,
+                prompt=prompt_text,
+                email_body=compose_marketing_email(poster, "poster.png"),
+                poster_image=None,
+                final_poster=None,
                 prompt_details=prompt_details,
-                render_mode=payload.render_mode,
-                variants=payload.variants,
+                prompt_bundle=payload.prompt_bundle,
+                slot_posters=slot_posters,
+                error={"code": "poster_generation_failed", "message": str(exc)},
+                variants=[],
+                scores=None,
                 seed=payload.seed,
                 lock_seed=payload.lock_seed,
-                trace_id=trace,
-                aspect_closeness=payload.aspect_closeness,
             )
+            return JSONResponse(content=_model_dump(response_payload))
 
         email_body = compose_marketing_email(poster, result.poster.filename)
         response_bundle: PromptBundle | None = None
@@ -1061,10 +1091,13 @@ async def generate_poster(request: Request) -> JSONResponse:
             },
         )
         response_payload = GeneratePosterResponse(
+            status="ok",
+            hasPoster=True,
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
             poster_image=result.poster,
+            final_poster=result.poster,
             prompt_details=result.prompt_details,
             prompt_bundle=response_bundle,
             variants=result.variants,
@@ -1076,6 +1109,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             scenario_image=_stored_to_asset(result.scenario_image),
             product_image=_stored_to_asset(result.product_image),
             gallery_images=[_stored_to_asset(item) for item in result.gallery_images or [] if _stored_to_asset(item)],
+            slot_posters=slot_posters,
         )
 
         primary_url = response_payload.poster_url or getattr(result.poster, "url", None)
@@ -1112,24 +1146,20 @@ async def generate_poster(request: Request) -> JSONResponse:
         headers["X-Request-Trace"] = trace
         return JSONResponse(content=_model_dump(response_payload), headers=headers)
 
-    except ResourceExhausted as exc:
-        logger.warning(
-            "Vertex quota exceeded for imagen3", extra={"trace": trace, "error": str(exc)}
-        )
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "vertex_quota_exceeded",
-                "message": "Google Vertex 图像模型日配额已用尽，请稍后重试或改用本地上传。",
-                "provider": "vertex",
-            },
-        ) from exc
     except Exception as exc:  # defensive logging
         logger.exception("Failed to generate poster", extra={"trace": trace})
-        raise HTTPException(
-            status_code=500,
-            detail={"error": "poster_generation_failed", "message": str(exc)},
-        ) from exc
+        response_payload = GeneratePosterResponse(
+            status="fallback",
+            hasPoster=False,
+            layout_preview=None,
+            prompt=None,
+            email_body=None,
+            poster_image=None,
+            final_poster=None,
+            slot_posters=_load_slot_posters(),
+            error={"code": "poster_generation_failed", "message": str(exc)},
+        )
+        return JSONResponse(content=_model_dump(response_payload))
 
 
 @app.post("/api/send-email", response_model=SendEmailResponse)

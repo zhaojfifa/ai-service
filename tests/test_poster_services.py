@@ -33,13 +33,17 @@ else:
 
 
 def make_data_url(color: tuple[int, int, int]) -> str:
+    del color
+    return "https://cdn.example.com/asset.png"
+
+
+def make_png_bytes(color: tuple[int, int, int]) -> bytes:
     if Image is None:  # pragma: no cover - skip path
         raise RuntimeError("Pillow is required for this helper")
     image = Image.new("RGB", (120, 120), color)
     buffer = BytesIO()
     image.save(buffer, format="PNG")
-    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
-    return f"data:image/png;base64,{encoded}"
+    return buffer.getvalue()
 
 
 @unittest.skipIf(DEPENDENCY_ERROR is not None, f"Missing dependency: {DEPENDENCY_ERROR}")
@@ -128,33 +132,49 @@ class PosterServiceTests(unittest.TestCase):
             payload = self.poster.dict()
         payload.update(
             {
-                "brand_logo": make_data_url((255, 0, 0)),
-                "scenario_asset": make_data_url((0, 200, 0)),
-                "product_asset": make_data_url((0, 0, 255)),
+                "brand_logo_key": "brand/logo.png",
+                "scenario_key": "scenario/scene.png",
+                "product_key": "product/item.png",
                 "gallery_items": [
-                    {"asset": make_data_url((245, 220, 0)), "caption": f"系列 {i+1}"}
+                    {"key": f"gallery/{i+1}.png", "caption": f"系列 {i+1}"}
                     for i in range(3)
                 ],
             }
         )
         poster = PosterInput(**payload)  # type: ignore[arg-type]
 
-        preview = render_layout_preview(poster)
-        prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(poster)
-        result = generate_poster_asset(
-            poster,
-            prompt_text,
-            preview,
-            prompt_bundle=prompt_bundle,
-            prompt_details=prompt_details,
-        )
+        asset_map = {
+            "brand/logo.png": make_png_bytes((255, 0, 0)),
+            "scenario/scene.png": make_png_bytes((0, 200, 0)),
+            "product/item.png": make_png_bytes((0, 0, 255)),
+            "gallery/1.png": make_png_bytes((245, 220, 0)),
+            "gallery/2.png": make_png_bytes((245, 220, 0)),
+            "gallery/3.png": make_png_bytes((245, 220, 0)),
+        }
+
+        captured = {}
+        def fake_upload(data, **_kwargs):
+            captured["bytes"] = data
+            return ("r2://bucket/posters/demo.png", "https://cdn.example.com/demo.png")
+
+        with patch("app.services.glibatree.get_bytes", side_effect=lambda key: asset_map[key]), patch(
+            "app.services.glibatree.upload_bytes_to_r2_return_ref",
+            side_effect=fake_upload,
+        ):
+            preview = render_layout_preview(poster)
+            prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(poster)
+            result = generate_poster_asset(
+                poster,
+                prompt_text,
+                preview,
+                prompt_bundle=prompt_bundle,
+                prompt_details=prompt_details,
+            )
         asset = result.poster
 
-        if not asset.data_url:
-            self.skipTest("Poster asset delivered via remote URL; base64 fallback disabled")
-
-        _header, encoded = asset.data_url.split(",", 1)
-        image = Image.open(BytesIO(base64.b64decode(encoded))).convert("RGB")
+        if not captured.get("bytes"):
+            self.skipTest("Poster bytes were not captured")
+        image = Image.open(BytesIO(captured["bytes"])).convert("RGB")
 
         spec_path = Path("frontend/templates/template_dual_spec.json")
         spec = json.loads(spec_path.read_text(encoding="utf-8"))

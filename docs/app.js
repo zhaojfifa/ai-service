@@ -1185,6 +1185,19 @@ function normalisePosterImageForStorage(image, fallbackUrl) {
   };
 }
 
+function normaliseSlotPosters(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const slot = typeof entry.slot === 'string' ? entry.slot : null;
+      const poster = normalisePosterImageForStorage(entry.poster || null);
+      if (!slot || !poster) return null;
+      return { slot, poster };
+    })
+    .filter(Boolean);
+}
+
 // 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
 // 返回 { key, put_url, get_url, r2_url, public_url, etag, content_type, size }
 async function r2PresignPut(folder, file, bases, options = {}) {
@@ -3328,18 +3341,6 @@ function saveStage1Data(data, options = {}) {
     }
   }
   if (!preserveStage2) {
-    const stage2Raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
-    if (stage2Raw) {
-      try {
-        const stage2Meta = JSON.parse(stage2Raw);
-        const key = stage2Meta?.poster_image?.storage_key;
-        if (key) {
-          void assetStore.delete(key);
-        }
-      } catch (error) {
-        console.warn('清理环节 2 缓存时解析失败。', error);
-      }
-    }
     sessionStorage.removeItem(STORAGE_KEYS.stage2);
   }
 }
@@ -5079,6 +5080,16 @@ async function triggerGeneration(opts) {
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+    const slotPosters = normaliseSlotPosters(data?.slot_posters || []);
+    if (slotPosters.length) {
+      const variantA = slotPosters.find((item) => item.slot === 'variant_a')?.poster || null;
+      const variantB = slotPosters.find((item) => item.slot === 'variant_b')?.poster || null;
+      templateState.poster = variantA;
+      templateState.variantA = variantA;
+      templateState.variantB = variantB;
+      templateState.loaded = true;
+      updateTemplatePosterDisplay();
+    }
 
     if (promptBundlePre && promptBundleGroup) {
       const bundle = lastPromptBundle;
@@ -5136,21 +5147,23 @@ async function triggerGeneration(opts) {
     }
 
     try {
-      await saveStage2Result({
-        prompt: nextPrompt,
-        email_body: nextEmail,
-        prompt_bundle: data?.prompt_bundle || null,
-        poster_image: data?.poster_image || null,
-        poster_url: data?.poster_url || null,
-        assets: { ...stage2State.assets },
-        poster: { ...stage2State.poster },
-        template_poster: null,
-        template_fallback: true,
-        template_id: stage1Data.template_id || null,
-        variants: [],
-        seed: data?.seed ?? null,
-        lock_seed: data?.lock_seed ?? null,
-      });
+    const finalPoster = data?.final_poster || data?.poster_image || null;
+    await saveStage2Result({
+      prompt: nextPrompt,
+      email_body: nextEmail,
+      prompt_bundle: data?.prompt_bundle || null,
+      poster_image: finalPoster,
+      poster_url: data?.poster_url || finalPoster?.url || null,
+      assets: { ...stage2State.assets },
+      poster: { ...stage2State.poster },
+      template_poster: null,
+      slot_posters: slotPosters,
+      template_fallback: true,
+      template_id: stage1Data.template_id || null,
+      variants: [],
+      seed: data?.seed ?? null,
+      lock_seed: data?.lock_seed ?? null,
+    });
     } catch (error) {
       console.error('save stage2 result failed', error);
     }
@@ -5833,6 +5846,9 @@ async function saveStage2Result(data) {
   } else {
     delete payload.poster_image;
   }
+  if (Array.isArray(data.slot_posters)) {
+    payload.slot_posters = normaliseSlotPosters(data.slot_posters);
+  }
 
   if (Array.isArray(data.variants)) {
     payload.variants = data.variants
@@ -5894,7 +5910,10 @@ function initStage3() {
     }
 
     // Prefer active variant (B) when present for preview and sending
-    let chosenPosterImage = stage2Result.poster_image;
+    const slotPosters = Array.isArray(stage2Result.slot_posters)
+      ? stage2Result.slot_posters.map((item) => item?.poster).filter(Boolean)
+      : [];
+    let chosenPosterImage = stage2Result.final_poster || stage2Result.poster_image || null;
     try {
       const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
       const st = JSON.parse(raw || '{}');
@@ -5909,6 +5928,10 @@ function initStage3() {
         }
       }
     } catch (e) {}
+
+    if (!chosenPosterImage && slotPosters.length) {
+      chosenPosterImage = slotPosters[0];
+    }
 
     assignPosterImage(posterImage, chosenPosterImage, `${stage1Data.product_name} 海报预览`);
     if (posterCaption) {
@@ -5944,25 +5967,27 @@ function initStage3() {
       try {
         await warmUp(apiCandidates);
 
-        // Prefer the active variant (B) when sending the attachment
-        let attachmentToSend = stage2Result.poster_image;
-        try {
-          const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
-          const st = JSON.parse(raw || '{}');
+        const attachments = [];
+        const finalPoster = stage2Result.final_poster || stage2Result.poster_image || null;
+        const finalPayload = normalisePosterImageForStorage(finalPoster);
+        if (finalPayload) {
+          attachments.push(finalPayload);
+        }
+        slotPosters.forEach((poster) => {
+          const payload = normalisePosterImageForStorage(poster);
+          if (!payload) return;
           if (
-            st.active === 'B' &&
-            Array.isArray(stage2Result.variants) &&
-            stage2Result.variants[1]
+            attachments.some(
+              (existing) =>
+                (existing.key && existing.key === payload.key) ||
+                (existing.url && existing.url === payload.url)
+            )
           ) {
-            const candidate = stage2Result.variants[1];
-            if (candidate.key || candidate.url) {
-              attachmentToSend = candidate;
-            }
+            return;
           }
-        } catch (e) {}
-
-        const attachmentPayload = normalisePosterImageForStorage(attachmentToSend);
-        if (!attachmentPayload) {
+          attachments.push(payload);
+        });
+        if (!attachments.length) {
           setStatus(statusElement, '附件缺少有效的 URL/Key，无法发送邮件。', 'error');
           sendButton.disabled = false;
           return;
@@ -5975,7 +6000,7 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: attachmentPayload,
+            attachments,
           },
           1
         );

@@ -39,8 +39,11 @@ def send_email(payload: SendEmailRequest) -> SendEmailResponse:
         message["Subject"] = payload.subject
         message.set_content(payload.body)
 
+        attachments = payload.attachments or []
         if payload.attachment:
-            filename, content, media_type = _decode_attachment(payload.attachment)
+            attachments = [payload.attachment, *attachments]
+        for attachment in attachments:
+            filename, content, media_type = _decode_attachment(attachment)
             maintype, subtype = media_type.split("/", 1)
             message.add_attachment(
                 content, maintype=maintype, subtype=subtype, filename=filename

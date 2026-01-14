@@ -8,6 +8,7 @@ from pydantic import Field
 from app.schemas import DATA_URL_RX, _CompatModel, field_validator
 
 _ALLOWED_URL_PREFIXES = ("r2://", "s3://", "gs://", "https://", "http://")
+_MAX_INLINE_FIELD = 4096
 
 
 class AssetUrl(_CompatModel):
@@ -52,7 +53,9 @@ class AssetUrl(_CompatModel):
         if not text:
             raise ValueError("asset url cannot be empty")
         if DATA_URL_RX.match(text):
-            raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
+            raise ValueError("base64 not allowed — upload to R2/GCS and pass key/url")
+        if len(text) > _MAX_INLINE_FIELD:
+            raise ValueError("asset url too long; base64/data_url not allowed")
         if not text.startswith(_ALLOWED_URL_PREFIXES):
             raise ValueError("invalid url; expected r2://, s3://, gs:// or http(s)")
         return text
@@ -66,7 +69,9 @@ class AssetUrl(_CompatModel):
         if not text:
             return None
         if DATA_URL_RX.match(text):
-            raise ValueError("base64 not allowed – upload to R2/GCS and pass key/url")
+            raise ValueError("base64 not allowed — upload to R2/GCS and pass key/url")
+        if len(text) > _MAX_INLINE_FIELD:
+            raise ValueError("asset key too long; base64/data_url not allowed")
         return text
 
 

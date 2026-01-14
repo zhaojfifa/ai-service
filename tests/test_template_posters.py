@@ -54,7 +54,6 @@ def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch):
     assert data["poster"]["media_type"] == "image/png"
     assert data["poster"]["width"] == 64
     assert data["poster"]["height"] == 64
-    assert data["poster"]["data_url"].startswith("data:image/png;base64,")
     assert data["poster"]["url"].startswith("https://cdn.example.com/")
     assert data["poster"]["key"] == key
 
