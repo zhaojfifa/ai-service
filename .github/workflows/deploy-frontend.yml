@@ -41,44 +41,28 @@ jobs:
           test -f frontend/templates/registry.json
           ls -la frontend/templates | head -n 50
 
-      - name: Build Pages artifact directory (_site)
-      run: |
-        rm -rf _site
-        mkdir -p _site
-        cp -r frontend/* _site/
+      - name: Assemble Pages site
+        run: |
+          rm -rf site
+          mkdir -p site
+          cp -r frontend/* site/
 
-        # Ensure templates are present at site root: /templates/*
-        mkdir -p _site/templates
-        if [ -d "frontend/templates" ]; then
-          cp -r frontend/templates/* _site/templates/
-        fi
-        if [ -d "templates" ]; then
-          # optional: if someone placed assets at repo-root/templates, merge them too
-          cp -r templates/* _site/templates/ || true
-        fi
+          # Ensure templates are present at site root: /templates/*
+          mkdir -p site/templates
+          if [ -d "templates" ]; then
+            cp -r templates/* site/templates/
+          fi
 
-        # Disable Jekyll
-        touch _site/.nojekyll
+          # Disable Jekyll
+          touch site/.nojekyll
 
-        # Write build info
-        python - <<'INNER'
-import json, os, subprocess, time
-sha = subprocess.check_output(["git","rev-parse","HEAD"]).decode().strip()
-info = {"git_sha": sha, "built_at": int(time.time())}
-open("_site/build-info.json","w",encoding="utf-8").write(json.dumps(info, ensure_ascii=False, indent=2))
-INNER
+          test -f site/templates/registry.json
+          ls -la site/templates | head -n 50
 
-        echo "=== _site root ==="
-        ls -la _site | head -n 50
-        echo "=== _site/templates ==="
-        ls -la _site/templates | head -n 50
-
-        test -f _site/templates/registry.json
-
-    - name: Upload artifact (frontend)
+      - name: Upload artifact (frontend)
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
