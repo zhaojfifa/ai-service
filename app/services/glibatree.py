@@ -33,6 +33,7 @@ from app.services.s3_client import get_bytes, make_key, public_url_for, put_byte
 from app.services.template_variants import generation_overrides
 
 logger = logging.getLogger(__name__)
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 vertex_imagen_client: VertexImagen3 | None = None
 
@@ -794,9 +795,9 @@ def _load_template_resources(template_id: str) -> TemplateResources:
     mask_bg_asset = assets.get("mask_background", "")
     mask_scene_asset = assets.get("mask_scene", "")
 
-    template_image = _load_template_asset(template_asset)
-    mask_background = _load_template_asset(mask_bg_asset)
-    mask_scene = _load_template_asset(mask_scene_asset, required=False)
+    template_image = _load_template_asset(template_asset, kind="template")
+    mask_background = _load_template_asset(mask_bg_asset, kind="mask_background")
+    mask_scene = _load_template_asset(mask_scene_asset, kind="mask_scene", required=False)
 
     return TemplateResources(
         id=template_id,
@@ -807,27 +808,69 @@ def _load_template_resources(template_id: str) -> TemplateResources:
     )
 
 
-def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Image | None:
+def _open_image_compat(path: Path, *, kind: str) -> Image.Image:
+    suffix = path.suffix.lower()
+    if suffix == ".b64":
+        text = path.read_text(encoding="utf-8").strip()
+        text = "".join(text.split())
+        raw = base64.b64decode(text, validate=False)
+        logger.info(
+            "poster_asset kind=%s path=%s suffix=.b64 decoded=%d is_png=%s head=%s",
+            kind,
+            str(path),
+            len(raw),
+            raw.startswith(PNG_MAGIC),
+            raw[:16].hex(),
+        )
+        img = Image.open(BytesIO(raw))
+        img.load()
+        return img
+
+    with path.open("rb") as handle:
+        raw = handle.read()
+    logger.info(
+        "poster_asset kind=%s path=%s suffix=%s size=%d head=%s",
+        kind,
+        str(path),
+        suffix,
+        len(raw),
+        raw[:16].hex(),
+    )
+    img = Image.open(BytesIO(raw))
+    img.load()
+    return img
+
+
+def _load_template_asset(
+    asset_name: str,
+    *,
+    kind: str,
+    required: bool = True,
+) -> Image.Image | None:
     """Load a template asset from PNG or its Base64-encoded fallback."""
     if not asset_name:
         if required:
             raise FileNotFoundError("Template asset name is empty")
         return None
 
-    png_path = TEMPLATE_ROOT / asset_name
-    if png_path.exists():
-        return Image.open(png_path).convert("RGBA")
+    asset_path = TEMPLATE_ROOT / asset_name
+    if asset_path.exists():
+        return _open_image_compat(asset_path, kind=kind).convert("RGBA")
 
-    b64_path = png_path.with_suffix(".b64")
-    if b64_path.exists():
-        try:
-            decoded = base64.b64decode(b64_path.read_text(encoding="utf-8"))
-            return Image.open(BytesIO(decoded)).convert("RGBA")
-        except (UnidentifiedImageError, ValueError) as exc:
-            raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
+    if asset_path.suffix.lower() != ".b64":
+        b64_path = asset_path.with_suffix(".b64")
+        if b64_path.exists():
+            try:
+                return _open_image_compat(b64_path, kind=kind).convert("RGBA")
+            except (UnidentifiedImageError, ValueError) as exc:
+                raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
+    else:
+        png_path = asset_path.with_suffix(".png")
+        if png_path.exists():
+            return _open_image_compat(png_path, kind=kind).convert("RGBA")
 
     if required:
-        raise FileNotFoundError(f"Template asset missing: {png_path}")
+        raise FileNotFoundError(f"Template asset missing: {asset_path}")
 
     return None
 

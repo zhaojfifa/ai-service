@@ -11,6 +11,7 @@ try:
     from app.schemas import PosterGalleryItem, PosterInput
     from app.services.glibatree import (
         TemplateResources,
+        _load_template_resources,
         generate_poster_asset,
         prepare_poster_assets,
     )
@@ -80,6 +81,11 @@ class PosterServiceTests(unittest.TestCase):
             with self.subTest(feature=feature):
                 self.assertIn(feature, email)
         self.assertIn(poster_image_filename, email)
+
+    def test_load_template_resources_supports_b64_assets(self) -> None:
+        template = _load_template_resources("template_dual")
+        self.assertIsNotNone(template.template)
+        self.assertIsNotNone(template.mask_background)
 
     def test_preview_mentions_ai_generation_when_prompt_modes(self) -> None:
         update = {
