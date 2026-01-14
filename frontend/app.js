@@ -77,8 +77,6 @@ let posterLayoutRoot = null;
 
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
 const posterGenerationState = {
-  /** 海报成品图 URL（R2 的公开地址） */
-  posterUrl: null,
   /** 本次生成用到的 prompt 结构，用于展示 / 调试 */
   promptBundle: null,
   /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
@@ -89,7 +87,6 @@ let posterGeneratedImage = null;
 let posterGeneratedLayout = null;
 
 // stage2：缓存最近一次生成结果与提示词，便于预览与回放
-let posterGeneratedImageUrl = null;
 let lastPromptBundle = null;
 
 const stage2State = {
@@ -111,6 +108,10 @@ const stage2State = {
   },
   vertex: {
     lastResponse: null,
+  },
+  generated: {
+    attempted: false,
+    lastSuccessPosterUrl: null,
   },
   generationAction: 'generate',
   regenPolicy: {
@@ -143,7 +144,8 @@ function fingerprintAssets(assets) {
 function updateRegenerateButtonState() {
   const button = document.getElementById('regenerate-poster');
   if (!button) return;
-  if (!stage2HasAttemptedGenerate) {
+  const attempted = stage2State.generated?.attempted || stage2HasAttemptedGenerate;
+  if (!attempted) {
     button.classList.add('hidden');
     button.disabled = true;
     return;
@@ -3820,12 +3822,9 @@ function initStage2() {
     const aiPreview = document.getElementById('ai-preview');
     const aiSpinner = document.getElementById('ai-spinner');
     const aiPreviewMessage = document.getElementById('ai-preview-message');
-    const posterVisual = document.getElementById('poster-visual');
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
-    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
-    const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
     const promptGroup = document.getElementById('prompt-group');
     const promptDefaultGroup = document.getElementById('prompt-default-group');
@@ -3853,14 +3852,6 @@ function initStage2() {
 
     if (posterPreviewSection) {
       posterPreviewSection.classList.add('hidden');
-    }
-    if (posterGeneratedImage?.classList) {
-      posterGeneratedImage.classList.add('hidden');
-      posterGeneratedImage.removeAttribute('src');
-      posterGeneratedImage.style.display = 'none';
-    }
-    if (posterGeneratedPlaceholder?.classList) {
-      posterGeneratedPlaceholder.classList.add('hidden');
     }
     if (regenerateButton) {
       regenerateButton.classList.add('hidden');
@@ -3955,8 +3946,6 @@ function initStage2() {
 
     const templatePlaceholderDefault =
       posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
-    const generatedPlaceholderDefault =
-      posterGeneratedPlaceholder?.textContent?.trim() || '生成结果将在此展示。';
 
     const templateState = {
       loaded: false,
@@ -4217,11 +4206,7 @@ function initStage2() {
           aiPreview,
           aiSpinner,
           aiPreviewMessage,
-          posterVisual,
-          generatedImage: posterGeneratedImage,
           templatePoster: fallbackPoster,
-          generatedPlaceholder: posterGeneratedPlaceholder,
-          generatedPlaceholderDefault,
           promptGroup,
           promptBundleGroup,
           promptBundlePre,
@@ -4231,6 +4216,8 @@ function initStage2() {
           generateButton,
           regenerateButton,
           nextButton,
+          generatedImage: null,
+          disablePosterImage: true,
           promptManager,
           updatePromptPanels,
           forceVariants: extra.forceVariants ?? 1,
@@ -4257,39 +4244,9 @@ function initStage2() {
     }
 
     let templateRegistry = [];
-
     const handleABTest = () => {
-      if (!posterGenerationState.posterUrl) {
-        alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
-        return;
-      }
-
-      const templateImgEl = document.querySelector("[data-role='template-preview-image']") || null;
-      const baseline = templateImgEl
-        ? {
-            url: templateImgEl.src,
-            width:
-              typeof templateImgEl.naturalWidth === 'number' && templateImgEl.naturalWidth > 0
-                ? templateImgEl.naturalWidth
-                : templateImgEl.width || 0,
-            height:
-              typeof templateImgEl.naturalHeight === 'number' && templateImgEl.naturalHeight > 0
-                ? templateImgEl.naturalHeight
-                : templateImgEl.height || 0,
-          }
-        : activeTemplatePoster
-        ? {
-            url: getPosterImageSource(activeTemplatePoster),
-            width: activeTemplatePoster.width || 0,
-            height: activeTemplatePoster.height || 0,
-          }
-        : null;
-
-      const generated = {
-        url: posterGenerationState.posterUrl,
-        width: posterGenerationState.rawResult?.poster_image?.width || 0,
-        height: posterGenerationState.rawResult?.poster_image?.height || 0,
-      };
+      alert('Demo 1.0: A/B preview is disabled.');
+    };
 
       openABModal?.(baseline, generated) ||
         alert('已准备好最新生成结果，可在右侧预览卡片查看。');
@@ -4700,44 +4657,8 @@ function applyVertexPosterResult(data) {
   surfaceSlotWarnings(slotSummary);
 
   stage2State.vertex.lastResponse = data || null;
-  const assets = stage2State.assets;
-
-  const posterUrl = extractVertexPosterUrl(data);
-  if (posterUrl) {
-    posterGeneratedImageUrl = posterUrl;
-    posterGenerationState.posterUrl = posterUrl;
-    posterGeneratedImage = posterGenerationState.posterUrl;
-    assets.composite_poster_url = posterUrl;
-    try {
-      sessionStorage.setItem('latestPosterUrl', posterUrl);
-    } catch (error) {
-      console.warn('无法缓存最新海报 URL', error);
-    }
-  }
 
   renderPosterResult();
-
-  // --- Show poster area ---
-  try {
-    const posterOutput = document.getElementById('poster-output');
-    const aiPreview = document.getElementById('ai-preview');
-    const posterVisual = document.getElementById('poster-visual');
-
-    if (!posterOutput || !aiPreview || !posterVisual) {
-      console.warn('[applyVertexPosterResult] poster containers missing', {
-        posterOutput,
-        aiPreview,
-        posterVisual,
-      });
-    } else {
-      posterOutput.classList.remove('hidden');
-      posterVisual.classList.remove('hidden');
-      aiPreview.classList.add('hidden');
-    }
-
-  } catch (e) {
-    console.warn('[applyVertexPosterResult] show poster failed', e);
-  }
 }
 
 async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
@@ -4830,10 +4751,6 @@ async function triggerGeneration(opts) {
   const {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
-    posterVisual,
-    generatedImage = null,
-    generatedPlaceholder,
-    generatedPlaceholderDefault = '生成结果将在此展示。',
     templatePoster = null,
     promptBundleGroup,
     promptBundlePre,
@@ -4842,9 +4759,9 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
+  const { disablePosterImage = false } = opts;
   rehydrateStage2PosterFromStage1();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
-  const priorPosterUrl = posterGenerationState.posterUrl || posterGeneratedImageUrl || null;
   let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
   stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
@@ -4989,15 +4906,13 @@ async function triggerGeneration(opts) {
   };
 
   const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
+  payload.variants = 1;
 
   const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
   if (negativeSummary) {
     payload.negatives = negativeSummary;
   }
 
-  if (abTest) {
-    payload.variants = Math.max(2, payload.variants || 2);
-  }
 
   const posterSummary = {
     template_id: posterPayload.template_id,
@@ -5060,26 +4975,8 @@ async function triggerGeneration(opts) {
   if (aiPreview) aiPreview.classList.remove('complete');
   if (aiSpinner) aiSpinner.classList.remove('hidden');
   if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
-  if (posterVisual) posterVisual.classList.remove('hidden');
-  posterGenerationState.posterUrl = null;
   posterGeneratedImage = null;
   posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
-  const resetGeneratedPlaceholder = (message) => {
-    if (!generatedPlaceholder) return;
-    generatedPlaceholder.textContent = message || generatedPlaceholderDefault;
-    generatedPlaceholder.classList.remove('hidden');
-  };
-  const hideGeneratedPlaceholder = () => {
-    if (!generatedPlaceholder) return;
-    generatedPlaceholder.textContent = generatedPlaceholderDefault;
-    generatedPlaceholder.classList.add('hidden');
-  };
-  if (generatedImage?.classList) {
-    generatedImage.classList.add('hidden');
-    generatedImage.removeAttribute('src');
-    generatedImage.style.display = 'none';
-  }
-  resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
   if (emailGroup) emailGroup.classList.add('hidden');
   if (nextButton) nextButton.disabled = true;
@@ -5093,29 +4990,30 @@ async function triggerGeneration(opts) {
       fallbackTimerId = null;
     }
   };
-
   const enableTemplateFallback = async (message, options = {}) => {
     if (fallbackTriggered) return;
     fallbackTriggered = true;
     clearFallbackTimer();
-    if (aiSpinner) aiSpinner.classList.add('hidden');
+
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage?.classList) {
-      generatedImage.classList.add('hidden');
-      generatedImage.removeAttribute('src');
-    }
-    resetGeneratedPlaceholder('AI 生成超时，已回退到模板海报。');
-    if (nextButton) nextButton.disabled = false;
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    if (templatePoster) {
+    if (aiSpinner) aiSpinner.classList.add('hidden');
+
+    const nextPrompt = typeof options.prompt === 'string' ? options.prompt : '';
+    const nextEmail = typeof options.email === 'string' ? options.email : '';
+    const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
+    if (nextButton) nextButton.disabled = !hasCopy;
+
+    if (templatePoster && hasCopy) {
       try {
         await saveStage2Result({
+          prompt: nextPrompt,
+          email_body: nextEmail,
+          prompt_bundle: options.prompt_bundle || null,
           poster_image: { ...templatePoster },
-          prompt: typeof options.prompt === 'string' ? options.prompt : '',
-          email_body: typeof options.email === 'string' ? options.email : '',
+          poster_url: null,
           assets: { ...stage2State.assets },
           poster: { ...stage2State.poster },
+          template_poster: { ...templatePoster },
           variants: [],
           seed: null,
           lock_seed: false,
@@ -5123,15 +5021,14 @@ async function triggerGeneration(opts) {
           template_id: stage1Data.template_id || null,
         });
       } catch (error) {
-        console.error('保存模板海报失败', error);
+        console.error('save template fallback failed', error);
       }
     }
-    const statusLevel = templatePoster ? 'warning' : 'error';
-    const statusMessage =
-      message ||
-      (templatePoster
-        ? 'AI 生成超时，已回退到模板海报，可前往环节 3。'
-        : 'AI 生成超时，且没有可用的模板海报。');
+
+    const statusLevel = hasCopy ? 'warning' : 'error';
+    const statusMessage = message || (hasCopy
+      ? 'Using template poster; you can proceed to Stage 3.'
+      : 'Generation failed. Please try again.');
     setStatus(statusElement, statusMessage, statusLevel);
   };
 
@@ -5141,31 +5038,17 @@ async function triggerGeneration(opts) {
     }, 60_000);
   }
 
-  // 7) 发送（健康探测 + 重试）
   try {
     didAttempt = true;
     await warmUp(apiCandidates);
-    // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
     if (mySeq !== stage2GenerationSeq) return null;
 
-    const posterUrl =
-      data?.poster?.asset_url ||
-      data?.poster?.url ||
-      data?.poster_url ||
-      data?.poster_image?.url ||
-      (Array.isArray(data?.results) && data.results[0]?.url) ||
-      null;
-
     lastPosterResult = data || null;
     lastPromptBundle = data?.prompt_bundle || null;
-    posterGeneratedImageUrl = posterUrl || null;
-
-    posterGenerationState.posterUrl = posterUrl;
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
-    posterGeneratedImage = posterGenerationState.posterUrl;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
 
     if (promptBundlePre && promptBundleGroup) {
@@ -5195,56 +5078,58 @@ async function triggerGeneration(opts) {
 
     clearFallbackTimer();
 
-    let assigned = false;
-    if (posterGenerationState.posterUrl && generatedImage?.classList) {
-      generatedImage.src = posterGenerationState.posterUrl;
-      generatedImage.style.display = 'block';
-      generatedImage.classList.remove('hidden');
-      hideGeneratedPlaceholder();
-      assigned = true;
-    } else {
-      if (generatedImage?.classList) {
-        generatedImage.classList.add('hidden');
-        generatedImage.removeAttribute('src');
-        generatedImage.style.display = 'none';
-      }
-      resetGeneratedPlaceholder('生成结果缺少可预览图片。');
-    }
-
-    posterVisual && posterVisual.classList.remove('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
     if (aiSpinner) aiSpinner.classList.add('hidden');
 
-    if (emailTextarea) emailTextarea.value = data.email_body || '';
-    if (promptTextarea) promptTextarea.value = data.prompt || '';
+    const nextPrompt = data?.prompt || '';
+    const nextEmail = data?.email_body || '';
+    if (emailTextarea) emailTextarea.value = nextEmail;
+    if (promptTextarea) promptTextarea.value = nextPrompt;
 
-    if (assigned) {
-      setStatus(statusElement, '生成完成', 'success');
-      if (nextButton) nextButton.disabled = false;
-      generateButton.disabled = false;
-      if (regenerateButton) regenerateButton.disabled = false;
-      regenerateButton?.classList.remove('hidden');
-      try {
-        const dataToStore = {
-          ...data,
-          assets: { ...stage2State.assets },
-          poster: { ...stage2State.poster },
-          template_poster: templatePoster ? { ...templatePoster } : null,
-        };
-        await saveStage2Result(dataToStore);
-      } catch (error) {
-        console.error('保存环节 2 结果失败。', error);
-      }
-    } else if (templatePoster) {
-      await enableTemplateFallback('生成结果缺少可预览图片，已回退到模板海报，可直接前往环节 3。', {
-        prompt: data?.prompt || '',
-        email: data?.email_body || '',
+    const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
+    setStatus(
+      statusElement,
+      hasCopy ? 'Copy generated (template poster).' : 'Request finished (no copy).',
+      hasCopy ? 'success' : 'warning',
+    );
+
+    if (nextButton) nextButton.disabled = !hasCopy;
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    regenerateButton?.classList.remove('hidden');
+
+    if (stage2State.generated) {
+      stage2State.generated.lastCopy = {
+        prompt: nextPrompt,
+        email_body: nextEmail,
+        prompt_bundle: data?.prompt_bundle || null,
+      };
+    }
+
+    try {
+      await saveStage2Result({
+        prompt: nextPrompt,
+        email_body: nextEmail,
+        prompt_bundle: data?.prompt_bundle || null,
+        poster_image: templatePoster ? { ...templatePoster } : null,
+        poster_url: null,
+        assets: { ...stage2State.assets },
+        poster: { ...stage2State.poster },
+        template_poster: templatePoster ? { ...templatePoster } : null,
+        template_fallback: true,
+        template_id: stage1Data.template_id || null,
+        variants: [],
+        seed: data?.seed ?? null,
+        lock_seed: data?.lock_seed ?? null,
       });
-    } else {
-      setStatus(statusElement, '生成完成但缺少可预览图片，请稍后重试。', 'warning');
+    } catch (error) {
+      console.error('save stage2 result failed', error);
     }
 
     stage2HasAttemptedGenerate = true;
+    if (stage2State.generated) {
+      stage2State.generated.attempted = true;
+    }
     if (posterPreviewSection) {
       posterPreviewSection.classList.remove('hidden');
     }
@@ -5253,7 +5138,7 @@ async function triggerGeneration(opts) {
 
     return data;
   } catch (error) {
-    console.error('[generatePoster] 请求失败', {
+    console.error('[generatePoster] request failed', {
       error,
       status: error?.status,
       responseJson: error?.responseJson,
@@ -5264,7 +5149,7 @@ async function triggerGeneration(opts) {
       error?.status === 429 &&
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
     const friendlyMessage = quotaExceeded
-      ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+      ? 'Image generation quota exceeded. Please try again later or upload existing assets.'
       : formatPosterGenerationError(error);
     const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
     const decoratedMessage = `${friendlyMessage}${statusHint}`;
@@ -5273,30 +5158,24 @@ async function triggerGeneration(opts) {
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
-    if (generatedImage?.classList) {
-      if (priorPosterUrl) {
-        generatedImage.src = priorPosterUrl;
-        generatedImage.style.display = 'block';
-        generatedImage.classList.remove('hidden');
-      } else {
-        generatedImage.classList.add('hidden');
-        generatedImage.removeAttribute('src');
-      }
-    }
-    if (priorPosterUrl) {
-      hideGeneratedPlaceholder();
-    } else {
-      resetGeneratedPlaceholder(decoratedMessage || generatedPlaceholderDefault);
-    }
     refreshPosterLayoutPreview();
-    if (didAttempt) {
-      stage2HasAttemptedGenerate = true;
-      if (posterPreviewSection) {
-        posterPreviewSection.classList.remove('hidden');
-      }
-      renderPosterResult();
-      updateRegenerateButtonState();
+
+    const storedPrompt = stage2State.generated?.lastCopy?.prompt || '';
+    const storedEmail = stage2State.generated?.lastCopy?.email_body || '';
+    const currentPrompt = (promptTextarea?.value || '').trim();
+    const currentEmail = (emailTextarea?.value || '').trim();
+    const hasStoredCopy = Boolean(currentPrompt) || Boolean(currentEmail) || Boolean(storedPrompt) || Boolean(storedEmail);
+    if (nextButton) nextButton.disabled = !hasStoredCopy;
+
+    stage2HasAttemptedGenerate = true;
+    if (stage2State.generated) {
+      stage2State.generated.attempted = true;
     }
+    if (posterPreviewSection) {
+      posterPreviewSection.classList.remove('hidden');
+    }
+    renderPosterResult();
+    updateRegenerateButtonState();
     return null;
   } finally {
     stage2InFlight = false;
