@@ -4244,13 +4244,45 @@ function initStage2() {
     }
 
     let templateRegistry = [];
-    const handleABTest = () => {
-      alert('Demo 1.0: A/B preview is disabled.');
-    };
 
-      openABModal?.(baseline, generated) ||
-        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
+    const defaultNotify = (msg) => {
+      // 默认降级到 console，实际项目请传入 Toast/Modal 组件
+      console.info(msg);
     };
+    
+    async function handleABTest({
+      openABModal,
+      baseline,
+      generated,
+      notify = defaultNotify,
+      messages = {
+        disabled: 'Demo 1.0: A/B preview is disabled.',
+        ready: '已准备好最新生成结果，可在右侧预览卡片查看。'
+      }
+    } = {}) {
+      // 先通知（非阻塞）
+      notify(messages.disabled);
+    
+      try {
+        // 支持 openABModal 为 undefined、同步返回值或返回 Promise
+        const result = openABModal?.(baseline, generated);
+        const opened = result instanceof Promise ? await result : result;
+    
+        if (!opened) {
+          notify(messages.ready);
+        }
+    
+        return Boolean(opened);
+      } catch (err) {
+        // 出错时记录并降级提示
+        console.error('handleABTest error:', err);
+        notify(messages.ready);
+        return false;
+      }
+    }
+
+
+   
 
     promptManager = await setupPromptInspector(stage1Data, {
       promptTextarea,
