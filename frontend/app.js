@@ -335,6 +335,14 @@ App.utils.loadTemplateRegistry = (() => {
 })();
 
 /** 按模板 id 返回 { entry, spec, image }（带缓存） */
+// Load .b64 preview files and convert them to data URLs for Image().
+async function loadB64AsDataUrl(url, mime = 'image/png') {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('无法加载模板预览图资源');
+  const b64 = (await r.text()).trim();
+  if (b64.startsWith('data:')) return b64;
+  return `data:${mime};base64,${b64}`;
+}
 App.utils.ensureTemplateAssets = (() => {
   const _cache = new Map();
   return async function ensureTemplateAssets(templateId) {
@@ -354,7 +362,13 @@ App.utils.ensureTemplateAssets = (() => {
       img.crossOrigin = 'anonymous';
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error('模板预览图加载失败'));
-      img.src = imgUrl;
+      if (String(imgUrl).endsWith('.b64')) {
+        loadB64AsDataUrl(imgUrl)
+          .then((dataUrl) => { img.src = dataUrl; })
+          .catch(reject);
+      } else {
+        img.src = imgUrl;
+      }
     });
 
     const payload = { entry, spec: await specP, image: await imgP };
