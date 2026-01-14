@@ -2,6 +2,9 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
+// Always resolve assets relative to the current document base.
+App.utils.assetUrl = (relPath) => new URL(relPath, document.baseURI).toString();
+
 const VERTEX_IMAGE_TAG_CLASSNAMES = {
   scenario: 'slot-scenario',
   product: 'slot-product',
@@ -316,7 +319,7 @@ App.utils.loadTemplateRegistry = (() => {
   let _registryP;
   return async function loadTemplateRegistry() {
     if (!_registryP) {
-      _registryP = fetch(App.utils.assetUrl?.('templates/registry.json') || 'templates/registry.json')
+      _registryP = fetch(App.utils.assetUrl('templates/registry.json'))
         .then(r => {
           if (!r.ok) throw new Error('无法加载模板清单');
           return r.json();
@@ -341,8 +344,8 @@ App.utils.ensureTemplateAssets = (() => {
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
 
-    const specUrl = App.utils.assetUrl?.(`templates/${entry.spec}`) || `templates/${entry.spec}`;
-    const imgUrl  = App.utils.assetUrl?.(`templates/${entry.preview}`) || `templates/${entry.preview}`;
+    const specUrl = App.utils.assetUrl(`templates/${entry.spec}`);
+    const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
     const imgP  = new Promise((resolve, reject) => {
@@ -421,13 +424,8 @@ function resolveDocumentAssetBase() {
 }
 
 function assetUrl(path) {
-  if (!path) return resolveDocumentAssetBase();
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(path)) {
-    return path;
-  }
-  const base = resolveDocumentAssetBase();
-  const normalised = path.startsWith('/') ? path.slice(1) : path;
-  return new URL(normalised, base).toString();
+  if (!path) return new URL('', document.baseURI).toString();
+  return new URL(path, document.baseURI).toString();
 }
 
 App.utils.assetUrl = assetUrl;
@@ -3995,8 +3993,7 @@ function initStage2() {
         templateImage?.currentSrc ||
         templateImage?.src ||
         (entryPreview
-          ? App.utils.assetUrl?.(`templates/${entryPreview}`) ||
-            `templates/${entryPreview}`
+          ? App.utils.assetUrl(`templates/${entryPreview}`)
           : null);
 
       if (!fallbackSrc) {

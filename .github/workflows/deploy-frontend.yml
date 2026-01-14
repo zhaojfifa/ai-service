@@ -36,6 +36,11 @@ jobs:
         run: |
           touch frontend/.nojekyll
 
+      - name: Assert templates exist
+        run: |
+          test -f frontend/templates/registry.json
+          ls -la frontend/templates | head -n 50
+
       - name: Upload artifact (frontend)
         uses: actions/upload-pages-artifact@v3
         with:
