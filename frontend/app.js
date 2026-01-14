@@ -4246,14 +4246,17 @@ function initStage2() {
       layoutStructure.textContent = stage1Data.layout_preview;
     }
 
-    let templateRegistry = [];
-    const handleABTest = () => {
-      alert('Demo 1.0: A/B preview is disabled.');
-    };
+   let templateRegistry = [];
+  const handleABTest = () => {
+    alert('Demo 1.0: A/B preview is disabled.');
+  
+    // keep behavior: if openABModal exists and returns truthy, fine; otherwise show fallback alert
+    const opened = openABModal?.(baseline, generated);
+    if (!opened) {
+      alert('已准备好最新生成结果，可在右侧预览卡片查看。');
+    }
+  };
 
-      openABModal?.(baseline, generated) ||
-        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
-    };
 
     promptManager = await setupPromptInspector(stage1Data, {
       promptTextarea,
