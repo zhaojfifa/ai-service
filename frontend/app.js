@@ -315,7 +315,7 @@ App.utils.loadTemplateRegistry = (() => {
   let _registryP;
   return async function loadTemplateRegistry() {
     if (!_registryP) {
-      _registryP = fetch(App.utils.assetUrl?.('templates/registry.json') || 'templates/registry.json')
+      _registryP = fetch(App.utils.assetUrl('templates/registry.json'))
         .then(r => {
           if (!r.ok) throw new Error('无法加载模板清单');
           return r.json();
@@ -331,6 +331,19 @@ App.utils.loadTemplateRegistry = (() => {
 })();
 
 /** 按模板 id 返回 { entry, spec, image }（带缓存） */
+App.utils.b64ToObjectUrl = async (url, mime = 'image/png') => {
+  if (!url || !url.endsWith('.b64')) return url;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch b64 asset: ${url}`);
+  let text = (await res.text()).trim();
+  text = text.replace(/^data:.*;base64,/, '');
+  const binStr = atob(text);
+  const len = binStr.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = binStr.charCodeAt(i);
+  const blob = new Blob([bytes], { type: mime });
+  return URL.createObjectURL(blob);
+};
 App.utils.ensureTemplateAssets = (() => {
   const _cache = new Map();
   return async function ensureTemplateAssets(templateId) {
@@ -340,18 +353,22 @@ App.utils.ensureTemplateAssets = (() => {
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
 
-    const specUrl = App.utils.assetUrl?.(`templates/${entry.spec}`) || `templates/${entry.spec}`;
-    const imgUrl  = App.utils.assetUrl?.(`templates/${entry.preview}`) || `templates/${entry.preview}`;
+    const specUrl = App.utils.assetUrl(`templates/${entry.spec}`);
+    const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
-    const imgP  = new Promise((resolve, reject) => {
+    const imgP  = (async () => {
       const img = new Image();
       img.decoding = 'async';
       img.crossOrigin = 'anonymous';
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('模板预览图加载失败'));
-      img.src = imgUrl;
-    });
+      const resolvedUrl = await App.utils.b64ToObjectUrl(imgUrl, 'image/png');
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error('模板预览图加载失败'));
+        img.src = resolvedUrl;
+      });
+      return img;
+    })();
 
     const payload = { entry, spec: await specP, image: await imgP };
     _cache.set(entry.id, payload);
