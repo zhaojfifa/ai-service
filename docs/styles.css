@@ -1704,3 +1704,27 @@ main {
   white-space: nowrap;
 }
 
+
+/* Demo 1.0: never render AI poster image preview block */
+#poster-visual,
+#vertex-poster-preview-img,
+#vertex-poster-placeholder,
+.ai-result-box {
+  display: none !important;
+}
+
+/* demo1.0.2 safety: never render AI-generated poster image block (red box) */
+#ai-poster-wrap,
+#generated-poster-wrap,
+#generated-poster,
+#generated-image,
+#poster-generated-image,
+.generated-poster,
+.generated-result,
+.poster-generated {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+}

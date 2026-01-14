@@ -1732,3 +1732,11 @@ main {
   white-space: nowrap;
 }
 
+
+/* Demo 1.0: never render AI poster image preview block */
+#poster-visual,
+#vertex-poster-preview-img,
+#vertex-poster-placeholder,
+.ai-result-box {
+  display: none !important;
+}
