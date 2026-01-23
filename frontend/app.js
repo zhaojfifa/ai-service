@@ -122,6 +122,7 @@ const stage2State = {
     updateGallery: false,
     updateProduct: false,
   },
+  renderMode: 'kitposter1_a',
 };
 let stage2HasAttemptedGenerate = false;
 let stage2LastGeneratedAssetFingerprint = null;
@@ -132,9 +133,95 @@ let stage2LastClickAt = 0;
 const STAGE2_CLICK_DEBOUNCE_MS = 700;
 let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
+const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function initStage2RenderModeControl(promptInspector, statusElement) {
+  if (!promptInspector) return null;
+  const header = promptInspector.querySelector('header');
+  if (!header) return null;
+
+  const seedControls = header.querySelector('.seed-controls');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'seed-controls';
+  wrapper.style.marginTop = '8px';
+
+  const label = document.createElement('label');
+  const labelText = document.createElement('span');
+  labelText.textContent = 'Render Mode';
+  const select = document.createElement('select');
+  select.id = 'stage2-render-mode';
+  select.innerHTML = `
+    <option value="kitposter1_a">KitPoster A (default)</option>
+    <option value="kitposter1_b">KitPoster B</option>
+    <option value="locked">Legacy locked</option>
+  `;
+
+  label.appendChild(labelText);
+  label.appendChild(select);
+  wrapper.appendChild(label);
+
+  const hint = document.createElement('p');
+  hint.className = 'hint';
+  hint.textContent = 'KitPoster 1.0 uses locked inpaint; Legacy locked falls back to old pipeline.';
+  wrapper.appendChild(hint);
+
+  if (seedControls && seedControls.parentNode) {
+    seedControls.parentNode.insertBefore(wrapper, seedControls.nextSibling);
+  } else {
+    header.appendChild(wrapper);
+  }
+
+  const stored = sessionStorage.getItem(STAGE2_RENDER_MODE_KEY);
+  const defaultMode = stored || stage2State.renderMode || 'kitposter1_a';
+  stage2State.renderMode = defaultMode;
+  select.value = defaultMode;
+
+  select.addEventListener('change', () => {
+    stage2State.renderMode = select.value;
+    sessionStorage.setItem(STAGE2_RENDER_MODE_KEY, select.value);
+    if (statusElement) {
+      setStatus(statusElement, `Render mode set to ${select.value}.`, 'info');
+    }
+  });
+
+  return select;
+}
+
+function ensureStage2FinalPosterPreview(container) {
+  if (!container) return null;
+  let wrapper = document.getElementById('stage2-final-poster');
+  if (wrapper) return wrapper;
+
+  wrapper = document.createElement('div');
+  wrapper.id = 'stage2-final-poster';
+  wrapper.className = 'output-group hidden';
+
+  const title = document.createElement('h3');
+  title.textContent = 'Final Poster (KitPoster)';
+
+  const link = document.createElement('a');
+  link.id = 'stage2-final-poster-link';
+  link.className = 'poster-preview-link hidden';
+  link.target = '_blank';
+  link.rel = 'noreferrer';
+  link.textContent = 'Open full image';
+
+  const img = document.createElement('img');
+  img.id = 'stage2-final-poster-image';
+  img.alt = 'Final poster preview';
+  img.style.maxWidth = '100%';
+  img.style.display = 'block';
+
+  wrapper.appendChild(title);
+  wrapper.appendChild(link);
+  wrapper.appendChild(img);
+
+  container.appendChild(wrapper);
+  return wrapper;
 }
 
 function fingerprintAssets(assets) {
@@ -396,7 +483,7 @@ function buildPromptSlot(prefix) {
 function buildGeneratePayload() {
   return {
     poster: collectStage1Data(form, state, { strict: false }),
-    render_mode: state.renderMode || 'locked',
+    render_mode: state.renderMode || stage2State.renderMode || 'kitposter1_a',
     variants: Number(state.variants || 2),
     seed: state.seed ?? null,
     lock_seed: !!state.lockSeed,
@@ -3858,6 +3945,7 @@ function initStage2() {
     const apiBaseInput = document.getElementById('api-base');
     const posterLayout = document.getElementById('posterB-layout');
     const exportPosterButton = document.getElementById('export-poster-b');
+    let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
       return;
@@ -3880,6 +3968,16 @@ function initStage2() {
       }
       return;
     }
+
+    if (!warningElement && statusElement?.parentNode) {
+      warningElement = document.createElement('p');
+      warningElement.id = 'stage2-warning';
+      warningElement.className = 'hint hidden';
+      statusElement.parentNode.insertBefore(warningElement, statusElement.nextSibling);
+    }
+
+    initStage2RenderModeControl(promptInspector, statusElement);
+    ensureStage2FinalPosterPreview(posterOutput);
 
     await hydrateStage1DataAssets(stage1Data);
 
@@ -4523,6 +4621,10 @@ function buildPromptBundleStrings(prompts = {}) {
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
+  if (result.final_poster && typeof result.final_poster.url === 'string') {
+    const url = result.final_poster.url.trim();
+    if (url) return url;
+  }
   if (result.poster_image && typeof result.poster_image.url === 'string') {
     const url = result.poster_image.url.trim();
     if (url) return url;
@@ -4691,6 +4793,43 @@ function renderGalleryCaptions() {
   });
 }
 
+function updateStage2Warnings(data) {
+  const warningElement = document.getElementById('stage2-warning');
+  if (!warningElement) return;
+
+  const warnings = [];
+  const rawWarnings = data?.prompt_details?.warnings || data?.warnings || '';
+  if (typeof rawWarnings === 'string' && rawWarnings.trim()) {
+    rawWarnings.split(',').forEach((item) => {
+      const token = item.trim();
+      if (!token) return;
+      if (token === 'vertex_quota_exhausted_fallback') {
+        warnings.push('配额受限，已使用本地兜底渲染。');
+      } else if (token === 'vertex_edit_failed_fallback') {
+        warnings.push('AI 编辑失败，已使用本地兜底渲染。');
+      } else if (token === 'kitposter1_locked_frame_fallback') {
+        warnings.push('已使用锁版模板兜底渲染。');
+      } else if (token === 'vertex_unavailable_fallback') {
+        warnings.push('Vertex 未启用，已使用本地兜底渲染。');
+      } else {
+        warnings.push(token);
+      }
+    });
+  }
+  if (data?.fallback_used) {
+    warnings.push('已触发 fallback。');
+  }
+
+  if (!warnings.length) {
+    warningElement.classList.add('hidden');
+    warningElement.textContent = '';
+    return;
+  }
+
+  warningElement.textContent = `提示：${warnings.join(' ')}`;
+  warningElement.classList.remove('hidden');
+}
+
 
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
@@ -4699,6 +4838,26 @@ function applyVertexPosterResult(data) {
   console.info('[triggerGeneration] slot assets', slotSummary);
 
   surfaceSlotWarnings(slotSummary);
+  updateStage2Warnings(data);
+
+  const finalPosterUrl = extractVertexPosterUrl(data);
+  const finalWrapper = document.getElementById('stage2-final-poster');
+  const finalImg = document.getElementById('stage2-final-poster-image');
+  const finalLink = document.getElementById('stage2-final-poster-link');
+  if (finalWrapper && finalImg) {
+    if (finalPosterUrl) {
+      finalImg.src = finalPosterUrl;
+      finalWrapper.classList.remove('hidden');
+      if (finalLink) {
+        finalLink.href = finalPosterUrl;
+        finalLink.classList.remove('hidden');
+      }
+    } else {
+      finalImg.removeAttribute('src');
+      finalWrapper.classList.add('hidden');
+      finalLink?.classList.add('hidden');
+    }
+  }
 
   stage2State.vertex.lastResponse = data || null;
 
@@ -4943,7 +5102,7 @@ async function triggerGeneration(opts) {
   
   const requestBase = {
     poster: posterPayload,
-    render_mode: 'locked',
+    render_mode: stage2State.renderMode || 'kitposter1_a',
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
@@ -5019,6 +5178,7 @@ async function triggerGeneration(opts) {
   if (aiPreview) aiPreview.classList.remove('complete');
   if (aiSpinner) aiSpinner.classList.remove('hidden');
   if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
+  updateStage2Warnings(null);
   posterGeneratedImage = null;
   posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -5133,7 +5293,7 @@ async function triggerGeneration(opts) {
     const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
     setStatus(
       statusElement,
-      hasCopy ? 'Copy generated (template poster).' : 'Request finished (no copy).',
+      hasCopy ? 'Copy generated.' : 'Request finished (no copy).',
       hasCopy ? 'success' : 'warning',
     );
 
@@ -5151,16 +5311,17 @@ async function triggerGeneration(opts) {
     }
 
     try {
+      const finalPoster = data?.final_poster || data?.poster_image || null;
       await saveStage2Result({
         prompt: nextPrompt,
         email_body: nextEmail,
         prompt_bundle: data?.prompt_bundle || null,
-        poster_image: templatePoster ? { ...templatePoster } : null,
+        poster_image: finalPoster ? { ...finalPoster } : templatePoster ? { ...templatePoster } : null,
         poster_url: null,
         assets: { ...stage2State.assets },
         poster: { ...stage2State.poster },
         template_poster: templatePoster ? { ...templatePoster } : null,
-        template_fallback: true,
+        template_fallback: Boolean(data?.fallback_used),
         template_id: stage1Data.template_id || null,
         variants: [],
         seed: data?.seed ?? null,
