@@ -662,6 +662,7 @@ class GeneratePosterResponse(_CompatModel):
     prompt: Optional[str] = None
     email_body: Optional[str] = None
     poster_image: Optional[PosterImage] = None
+    final_poster: Optional[PosterImage] = None
 
     poster_url: Optional[HttpUrl] = Field(
         None,
@@ -734,6 +735,14 @@ class GeneratePosterResponse(_CompatModel):
     fallback_used: Optional[bool] = Field(
         None,
         description="Indicates whether the backend fell back to non-Vertex image generation.",
+    )
+    degraded: Optional[bool] = Field(
+        None,
+        description="True when the response is a conservative deliverable due to downstream constraints.",
+    )
+    degraded_reason: Optional[str] = Field(
+        None,
+        description="Reason for degraded output, e.g. quota_exhausted/edit_model_not_enabled.",
     )
 
     @field_validator("prompt_bundle", mode="before")

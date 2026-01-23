@@ -457,6 +457,8 @@ class PosterGenerationResult:
     trace_ids: list[str] = field(default_factory=list)
     fallback_used: bool = False
     provider: str | None = None
+    degraded: bool = False
+    degraded_reason: str | None = None
     scenario_image: StoredImage | None = None
     product_image: StoredImage | None = None
     gallery_images: list[StoredImage] = field(default_factory=list)
@@ -1211,6 +1213,8 @@ def generate_poster_asset(
     override_variants = override_posters[1:] if len(override_posters) > 1 else []
     used_override_primary = False
     warnings: list[str] = []
+    degraded = False
+    degraded_reason: str | None = None
 
     provider_label = (
         vertex_imagen_client.__class__.__name__
@@ -1449,14 +1453,23 @@ def generate_poster_asset(
         except ResourceExhausted:
             fallback_used = True
             warnings.append("vertex_quota_exhausted_fallback")
+            if is_kitposter1:
+                degraded = True
+                degraded_reason = degraded_reason or "quota_exhausted"
             logger.exception(
                 "Vertex Imagen3 quota exhausted; falling back",
                 extra={"trace": trace_id},
             )
-        except Exception:
+        except Exception as exc:
             fallback_used = True
             if is_kitposter1:
                 warnings.append("vertex_edit_failed_fallback")
+                degraded = True
+                message = str(exc).lower()
+                if "edit support is disabled" in message or "enable_edit" in message:
+                    degraded_reason = degraded_reason or "edit_model_not_enabled"
+                else:
+                    degraded_reason = degraded_reason or "vertex_edit_failed"
             logger.exception(
                 "Vertex Imagen3 generation failed; falling back",
                 extra={"trace": trace_id},
@@ -1466,7 +1479,12 @@ def generate_poster_asset(
         fallback_used = True
         if vertex_imagen_client is None:
             warnings.append("vertex_unavailable_fallback")
+            degraded = True
+            degraded_reason = degraded_reason or "vertex_unavailable"
         warnings.append("kitposter1_locked_frame_fallback")
+        if not degraded:
+            degraded = True
+            degraded_reason = degraded_reason or "locked_frame_fallback"
         mock_frame = _render_template_frame(poster, template, fill_background=True)
         primary = _poster_image_from_pillow(mock_frame, f"{template.id}_kitposter1.png")
         provider_label = "KitPoster1Fallback"
@@ -1596,6 +1614,8 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
         provider=provider_label,
+        degraded=degraded,
+        degraded_reason=degraded_reason,
         scenario_image=scenario_asset,
         product_image=product_asset,
         gallery_images=gallery_assets,
@@ -1621,9 +1641,11 @@ def generate_poster_asset(
 
     if is_kitposter1:
         logger.info(
-            "[kitposter1] done vertex_calls=%s fallback=%s",
+            "[kitposter1] done mode=%s vertex_calls=%s degraded=%s trace_id=%s",
+            kit_variant,
             _count_vertex_calls(vertex_traces),
-            fallback_used,
+            degraded,
+            trace_id,
         )
 
     return result
