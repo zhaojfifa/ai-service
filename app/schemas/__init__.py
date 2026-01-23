@@ -595,7 +595,13 @@ class TemplateLayout(_CompatModel):
 class GeneratePosterRequest(_CompatModel):
     poster: PosterInput
 
-    render_mode: Literal["locked", "hybrid", "free"] = "locked"
+    render_mode: Literal[
+        "locked",
+        "hybrid",
+        "free",
+        "kitposter1_a",
+        "kitposter1_b",
+    ] = "locked"
 
     variants: int = Field(1, ge=1, le=3, description="Number of variants to generate (1–3).")
 

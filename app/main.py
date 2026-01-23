@@ -1064,8 +1064,8 @@ async def generate_poster(request: Request) -> JSONResponse:
             gallery_images=[_stored_to_asset(item) for item in result.gallery_images or [] if _stored_to_asset(item)],
         )
 
-        primary_url = response_payload.poster_url or getattr(result.poster, "url", None)
-        primary_key = response_payload.poster_key or getattr(result.poster, "key", None)
+        primary_url = getattr(result.poster, "url", None) or response_payload.poster_url
+        primary_key = getattr(result.poster, "key", None) or response_payload.poster_key
 
         update_kwargs: dict[str, Any] = {"results": None}
         if primary_url:

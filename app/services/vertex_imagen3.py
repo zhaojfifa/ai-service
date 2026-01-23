@@ -13,6 +13,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from PIL import Image as PILImage, ImageDraw
 from google.cloud import aiplatform
+from google.api_core.exceptions import ResourceExhausted
 from vertexai import init as vertex_init
 from vertexai.preview.vision_models import (
     ImageGenerationModel,
@@ -72,7 +73,10 @@ class VertexImagen3:
         self.project = os.getenv("GCP_PROJECT_ID") or ""
         self.location = os.getenv("GCP_LOCATION", "us-central1")
         self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate-001")
-        self.model_edit_name = os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-edit")
+        self.model_edit_name = (
+            os.getenv("VERTEX_IMAGEN_EDIT_MODEL")
+            or os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-capability-001")
+        )
         self.enable_edit = os.getenv("VERTEX_IMAGEN_ENABLE_EDIT", "").lower() in {"1", "true", "yes"}
         self.model_edit = self.model_edit_name if self.enable_edit else None
         self.timeout = int(os.getenv("VERTEX_TIMEOUT_SECONDS", "60") or "60")
@@ -100,10 +104,12 @@ class VertexImagen3:
             self._edit_params = set()
 
         logger.info(
-            "[vertex3.model] params generate=%s edit=%s enabled=%s",
+            "[vertex3.model] generate_model=%s edit_model=%s enabled=%s params_generate=%s params_edit=%s",
+            self.model_generate,
+            self.model_edit_name if self.enable_edit else None,
+            self.enable_edit,
             sorted(self._generate_params),
             sorted(self._edit_params) if self._edit_params else [],
-            self.enable_edit,
         )
 
     # ---------- 生图 ----------
@@ -252,7 +258,24 @@ class VertexImagen3:
         if "request_timeout" in self._edit_params:
             kwargs["request_timeout"] = self.timeout
 
-        images = self._edit_model.edit_image(**kwargs)
+        retry_delays = [1.5, 3.0]
+        attempt = 0
+        while True:
+            try:
+                images = self._edit_model.edit_image(**kwargs)
+                break
+            except ResourceExhausted as exc:
+                if attempt >= len(retry_delays):
+                    raise
+                sleep_seconds = retry_delays[attempt]
+                logger.warning(
+                    "[vertex.retry] reason=quota attempt=%s sleep=%.1fs",
+                    attempt + 1,
+                    sleep_seconds,
+                )
+                time.sleep(sleep_seconds)
+                attempt += 1
+                continue
         if not images:
             raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
 

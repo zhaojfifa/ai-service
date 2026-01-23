@@ -17,6 +17,7 @@ from typing import Any, Optional, Tuple
 
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from google.api_core.exceptions import ResourceExhausted
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -482,6 +483,41 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def _mask_b64_from_template(template: TemplateResources) -> str | None:
+    mask = template.mask_background
+    if not mask:
+        return None
+    alpha = mask.split()[3]
+    buffer = BytesIO()
+    alpha.convert("L").save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _invert_mask_b64(mask_b64: str) -> str:
+    decoded = base64.b64decode(mask_b64)
+    with Image.open(BytesIO(decoded)) as img:
+        base = img.convert("L")
+        inverted = ImageOps.invert(base)
+    buffer = BytesIO()
+    inverted.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _is_kitposter1(render_mode: str) -> bool:
+    return (render_mode or "").strip().lower() in {"kitposter1_a", "kitposter1_b"}
+
+
+def _kitposter1_variant(render_mode: str) -> str:
+    mode = (render_mode or "").strip().lower()
+    if mode.endswith("_b"):
+        return "b"
+    return "a"
+
+
+def _count_vertex_calls(trace_ids: list[str]) -> int:
+    return len([trace for trace in trace_ids if trace])
+
+
 def _shorten_asset_value(value: str) -> str:
     text = value.strip()
     if len(text) <= 64:
@@ -646,6 +682,8 @@ def _generate_poster_with_vertex(
     *,
     prompt_details: dict[str, str] | None = None,
     trace_id: str | None = None,
+    force_edit: bool = False,
+    force_mask_b64: str | None = None,
 ) -> tuple[PosterImage, dict[str, Any]]:
     width_default, height_default = _template_dimensions(template, locked_frame)
 
@@ -667,7 +705,7 @@ def _generate_poster_with_vertex(
     mask_b64 = getattr(poster, "mask_b64", None)
     region_rect = getattr(poster, "region_rect", None)
 
-    should_edit = bool(base_image_b64 or mask_b64 or region_rect)
+    should_edit = bool(force_edit or base_image_b64 or mask_b64 or region_rect)
     request_trace = trace_id or uuid.uuid4().hex[:8]
     telemetry: dict[str, Any] = {
         "request_trace": request_trace,
@@ -690,12 +728,16 @@ def _generate_poster_with_vertex(
     start = time.time()
     try:
         if should_edit:
-            base_bytes = (
-                base64.b64decode(base_image_b64)
-                if base_image_b64
-                else _image_to_png_bytes(locked_frame)
-            )
-            mask_arg = mask_b64 or _default_mask_b64(template)
+            if force_edit:
+                base_bytes = _image_to_png_bytes(locked_frame)
+                mask_arg = force_mask_b64 or _default_mask_b64(template)
+            else:
+                base_bytes = (
+                    base64.b64decode(base_image_b64)
+                    if base_image_b64
+                    else _image_to_png_bytes(locked_frame)
+                )
+                mask_arg = mask_b64 or _default_mask_b64(template)
             payload = client.edit_bytes(
                 base_image_bytes=base_bytes,
                 prompt=prompt,
@@ -1130,11 +1172,14 @@ def generate_poster_asset(
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
     _assert_assets_use_ref_only(poster)
 
-    desired_variants = max(1, variants)
-    override_posters = generation_overrides(desired_variants)
+    is_kitposter1 = _is_kitposter1(render_mode)
+    kit_variant = _kitposter1_variant(render_mode) if is_kitposter1 else None
+    desired_variants = 1 if is_kitposter1 else max(1, variants)
+    override_posters = [] if is_kitposter1 else generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
     override_variants = override_posters[1:] if len(override_posters) > 1 else []
     used_override_primary = False
+    warnings: list[str] = []
 
     provider_label = (
         vertex_imagen_client.__class__.__name__
@@ -1158,6 +1203,13 @@ def generate_poster_asset(
         )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
+    if is_kitposter1:
+        logger.info(
+            "[kitposter1] start mode=%s variant=%s",
+            render_mode,
+            kit_variant,
+        )
+
     settings = get_settings()
     primary: PosterImage | None = None
     variant_images: list[PosterImage] = []
@@ -1168,8 +1220,9 @@ def generate_poster_asset(
     scenario_slot_asset: StoredImage | None = None
     product_slot_asset: StoredImage | None = None
     gallery_slot_assets: list[StoredImage] = []
+    kit_mask_b64: str | None = None
 
-    if vertex_imagen_client is not None:
+    if vertex_imagen_client is not None and not is_kitposter1:
         scenario_prompt, scenario_negative, scenario_aspect = _slot_prompt(
             prompt_bundle or {}, "scenario", default_aspect="1:1"
         )
@@ -1309,6 +1362,23 @@ def generate_poster_asset(
                     extra={"trace": trace_id, "gallery_index": idx},
                 )
 
+    if is_kitposter1:
+        raw_mask_b64 = _mask_b64_from_template(template)
+        if raw_mask_b64:
+            kit_mask_b64 = _invert_mask_b64(raw_mask_b64)
+        if kit_variant == "b":
+            prompt = (
+                f"{prompt}\n\n"
+                "KitPoster1.0 mode B: warm, cozy, soft kitchen ambience, minimal, no clutter.\n"
+                "Do not add props or extra elements. Do not add text or logos."
+            )
+        else:
+            prompt = (
+                f"{prompt}\n\n"
+                "KitPoster1.0 mode A: Swiss minimal, subtle, clean lighting, no extra props.\n"
+                "Do not add text or logos. Do not cover existing pixels."
+            )
+
     logger.info(
         "[vertex] generate_poster start",
         extra={
@@ -1328,7 +1398,7 @@ def generate_poster_asset(
         },
     )
 
-    if vertex_imagen_client is not None:
+    if vertex_imagen_client is not None and not (is_kitposter1 and primary is not None):
         try:
             primary, telemetry = _generate_poster_with_vertex(
                 vertex_imagen_client,
@@ -1338,20 +1408,44 @@ def generate_poster_asset(
                 template,
                 prompt_details=prompt_details,
                 trace_id=trace_id,
+                force_edit=is_kitposter1,
+                force_mask_b64=kit_mask_b64,
             )
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
             provider_label = getattr(vertex_imagen_client, "__class__", VertexImagen3).__name__
+        except ResourceExhausted:
+            fallback_used = True
+            warnings.append("vertex_quota_exhausted_fallback")
+            logger.exception(
+                "Vertex Imagen3 quota exhausted; falling back",
+                extra={"trace": trace_id},
+            )
         except Exception:
             fallback_used = True
+            if is_kitposter1:
+                warnings.append("vertex_edit_failed_fallback")
             logger.exception(
                 "Vertex Imagen3 generation failed; falling back",
                 extra={"trace": trace_id},
             )
 
+    if is_kitposter1 and primary is None:
+        fallback_used = True
+        if vertex_imagen_client is None:
+            warnings.append("vertex_unavailable_fallback")
+        warnings.append("kitposter1_locked_frame_fallback")
+        mock_frame = _render_template_frame(poster, template, fill_background=True)
+        primary = _poster_image_from_pillow(mock_frame, f"{template.id}_kitposter1.png")
+        provider_label = "KitPoster1Fallback"
+
     http_payload: dict[str, Any] | None = None
-    if settings.glibatree.is_configured and settings.glibatree.api_url:
+    if (
+        not is_kitposter1
+        and settings.glibatree.is_configured
+        and settings.glibatree.api_url
+    ):
         http_payload = _generate_payload(
             poster,
             prompt,
@@ -1367,6 +1461,8 @@ def generate_poster_asset(
         )
 
     if (
+        not is_kitposter1
+        and
         primary is None
         and settings.glibatree.is_configured
         and settings.glibatree.api_url
@@ -1474,6 +1570,11 @@ def generate_poster_asset(
         gallery_images=gallery_assets,
     )
 
+    if result.prompt_details is not None and render_mode:
+        result.prompt_details.setdefault("render_mode", render_mode)
+    if warnings and result.prompt_details is not None:
+        result.prompt_details["warnings"] = ",".join(warnings)
+
     logger.info(
         "[vertex] generate_poster done",
         extra={
@@ -1486,6 +1587,13 @@ def generate_poster_asset(
             "vertex_traces": vertex_traces,
         },
     )
+
+    if is_kitposter1:
+        logger.info(
+            "[kitposter1] done vertex_calls=%s fallback=%s",
+            _count_vertex_calls(vertex_traces),
+            fallback_used,
+        )
 
     return result
 
