@@ -111,6 +111,31 @@ main {
   margin-top: 0;
 }
 
+.stage1-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.stage1-layout form {
+  flex: 1 1 58%;
+}
+
+.stage1-layout .preview {
+  flex: 1 1 42%;
+  order: -1;
+}
+
+@media (max-width: 960px) {
+  .stage1-layout {
+    flex-direction: column;
+  }
+
+  .stage1-layout .preview {
+    order: 0;
+  }
+}
+
 .layout-fields {
   display: flex;
   flex-direction: column;
@@ -1266,6 +1291,48 @@ main {
 
 .output-group {
   margin-top: 1.5rem;
+}
+
+.stage2-preview {
+  margin: 1.5rem 0;
+}
+
+.stage2-preview .ai-result-box {
+  border: 1px dashed #d9e2ec;
+  border-radius: 14px;
+  padding: 1.5rem;
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.stage2-preview canvas,
+.stage2-preview img {
+  max-width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.poster-meta {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  color: #52606d;
+}
+
+.poster-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.stage2-controls {
+  margin: 1.5rem 0;
 }
 
 #poster-output img {

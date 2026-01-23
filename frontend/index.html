@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
-    <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>环节 1 · 素材输入与版式预览</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body data-stage="stage1">
     <header>
@@ -39,6 +38,7 @@
           按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
           点击“保存并前往环节 2”继续流程。
         </p>
+        <div class="stage1-layout">
         <form id="poster-form" novalidate>
           <fieldset class="fieldset">
             <legend>模板选择</legend>
@@ -114,7 +114,6 @@
                     id="scenario_prompt"
                     name="scenario_image"
                     rows="3"
-                    required
                     data-material-input="scenario"
                     data-role="scenario-positive-prompt"
                   ></textarea>
@@ -220,12 +219,6 @@
           </fieldset>
         </form>
 
-        <div class="actions">
-          <button id="build-preview" class="primary" type="button">构建版式预览</button>
-          <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
-        </div>
-        <p id="stage1-status" role="status" aria-live="polite"></p>
-
         <div class="preview" id="preview-container">
           <h3>版式预览</h3>
           <div id="layout-preview" class="poster-preview">
@@ -262,6 +255,15 @@
             <pre id="layout-structure-text"></pre>
           </details>
         </div>
+
+
+                </div>
+
+        <div class="actions">
+          <button id="build-preview" class="primary" type="button">构建版式预览</button>
+          <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
+        </div>
+        <p id="stage1-status" role="status" aria-live="polite"></p>
       </section>
     </main>
 
@@ -269,7 +271,7 @@
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
     <!-- styles.css 之后，app.js 之前 -->
-    <script defer src="./placeholder.js?v=3"></script>
-    <script defer src="./app.js?v=1"></script>
+    <script defer src="placeholder.js?v=3"></script>
+    <script defer src="app.js?v=1"></script>
   </body>
 </html>

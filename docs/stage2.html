@@ -39,16 +39,72 @@
           Designer 生成海报、提示词与营销文案。
         </p>
 
+        <section class="stage2-preview">
+          <h3>????</h3>
+          <div class="ai-result-box">
+            <canvas
+              id="stage2-template-preview"
+              width="512"
+              height="512"
+              aria-label="????"
+            ></canvas>
+            <img
+              id="final-poster-img"
+              class="poster-preview-image hidden"
+              alt="??????"
+              decoding="async"
+            />
+            <div id="final-poster-placeholder" class="poster-preview-placeholder">
+              ???????????
+            </div>
+          </div>
+          <div class="poster-meta">
+            <div>poster_key?<code id="final-poster-key">-</code></div>
+            <div class="poster-actions">
+              <button id="final-poster-copy" type="button" class="secondary subtle">????</button>
+              <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">????</a>
+            </div>
+          </div>
+          <p id="stage2-warning" class="hint hidden"></p>
+        </section>
+
+
+        
         <div class="stage-summary" id="stage1-summary">
-          <h3>素材概览</h3>
+          <h3>????</h3>
           <dl id="stage1-overview"></dl>
         </div>
+
+        <section class="stage2-controls">
+          <h3>????</h3>
+          <div class="seed-controls">
+            <label>
+              <span>Render Mode</span>
+              <select id="stage2-render-mode">
+                <option value="kitposter1_a" selected>KitPoster A????</option>
+                <option value="kitposter1_b">KitPoster B????</option>
+              </select>
+            </label>
+            <label>
+              <span>Seed</span>
+              <input type="number" id="prompt-seed" min="0" step="1" placeholder="??" />
+            </label>
+            <label class="toggle">
+              <input type="checkbox" id="prompt-lock-seed" />
+              <span>?? Seed</span>
+            </label>
+            <label>
+              <span>????</span>
+              <input type="number" id="prompt-variants" min="1" max="3" value="1" />
+            </label>
+          </div>
+        </section>
 
         <section id="lockscreen-template-section" class="lockscreen-template-section">
           <div class="template-picker">
             <div class="template-picker-control">
-              <label for="template-select">锁版模板</label>
-              <select id="template-select" aria-label="选择模板"></select>
+              <label for="template-select">????</label>
+              <select id="template-select" aria-label="????"></select>
               <p id="template-description" class="template-description"></p>
             </div>
             <div class="template-preview-wrapper">
@@ -56,13 +112,15 @@
                 id="template-preview-canvas"
                 width="512"
                 height="512"
-                aria-label="模板预览"
+                aria-label="????"
               ></canvas>
             </div>
           </div>
         </section>
 
-        <aside class="prompt-inspector" id="prompt-inspector">
+<details class="advanced-panel" id="stage2-advanced">
+          <summary>Advanced</summary>
+          <aside class="prompt-inspector" id="prompt-inspector">
           <header>
             <div>
               <h3>提示词 Inspector</h3>
@@ -71,27 +129,7 @@
                 Seed 锁定与 A/B 生成。
               </p>
             </div>
-            <div class="seed-controls">
-              <label>
-                <span>Seed</span>
-                <input type="number" id="prompt-seed" min="0" step="1" placeholder="随机" />
-              </label>
-              <label class="toggle">
-                <input type="checkbox" id="prompt-lock-seed" />
-                <span>锁定 Seed</span>
-              </label>
-              <label>
-                <span>变体数量</span>
-                <input type="number" id="prompt-variants" min="1" max="3" value="1" />
-              </label>
-            </div>
-          </header>
-
-          <div class="prompt-slot" data-slot="scenario">
-            <div class="slot-header">
-              <h4>场景背景</h4>
-              <select data-preset-select="scenario"></select>
-            </div>
+            
             <details open>
               <summary>最终 Prompt</summary>
               <div class="prompt-editor">
@@ -298,6 +336,7 @@
             </div>
           </footer>
         </aside>
+        </details>
 
         <div class="actions">
           <a class="secondary" href="index.html">返回环节 1</a>
