@@ -856,20 +856,51 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
             raise FileNotFoundError("Template asset name is empty")
         return None
 
-    png_path = TEMPLATE_ROOT / asset_name
-    if png_path.exists():
-        return Image.open(png_path).convert("RGBA")
+    asset_name = asset_name.strip()
+    asset_path = TEMPLATE_ROOT / asset_name
+    suffix = asset_path.suffix.lower()
 
-    b64_path = png_path.with_suffix(".b64")
+    # If caller passed a .b64 file, decode it (do NOT Image.open on it)
+    if suffix == ".b64":
+        b64_path = asset_path
+        if b64_path.exists():
+            try:
+                s = b64_path.read_text(encoding="utf-8").strip()
+                if s.startswith("data:image/"):
+                    comma = s.find(",")
+                    if comma != -1:
+                        s = s[comma + 1 :].strip()
+                s = s.strip().strip('"').strip("'")
+                decoded = base64.b64decode(s)
+                return Image.open(BytesIO(decoded)).convert("RGBA")
+            except (UnidentifiedImageError, ValueError) as exc:
+                raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
+
+        if required:
+            raise FileNotFoundError(f"Template asset missing: {b64_path}")
+        return None
+
+    # Normal image path
+    if asset_path.exists():
+        return Image.open(asset_path).convert("RGBA")
+
+    # Base64 fallback: same basename with .b64 suffix
+    b64_path = asset_path.with_suffix(".b64")
     if b64_path.exists():
         try:
-            decoded = base64.b64decode(b64_path.read_text(encoding="utf-8"))
+            s = b64_path.read_text(encoding="utf-8").strip()
+            if s.startswith("data:image/"):
+                comma = s.find(",")
+                if comma != -1:
+                    s = s[comma + 1 :].strip()
+            s = s.strip().strip('"').strip("'")
+            decoded = base64.b64decode(s)
             return Image.open(BytesIO(decoded)).convert("RGBA")
         except (UnidentifiedImageError, ValueError) as exc:
             raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
 
     if required:
-        raise FileNotFoundError(f"Template asset missing: {png_path}")
+        raise FileNotFoundError(f"Template asset missing: {asset_path}")
 
     return None
 
