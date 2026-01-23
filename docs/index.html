@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>环节 1 · 素材输入与版式预览</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=kit1.0.4" />
   </head>
   <body data-stage="stage1">
     <header>
@@ -45,6 +45,13 @@
               <label class="field">
                 <span>选择锁版模板</span>
                 <select id="template-select-stage1" name="template_id" required></select>
+              </label>
+              <label class="field">
+                <span>KitPoster 渲染模式</span>
+                <select id="render-mode-select" name="render_mode">
+                  <option value="kitposter1_a" selected>KitPoster A（保守）</option>
+                  <option value="kitposter1_b">KitPoster B（增强）</option>
+                </select>
               </label>
               <div class="template-meta">
                 <p id="template-description-stage1" class="template-description"></p>
@@ -113,7 +120,6 @@
                     id="scenario_prompt"
                     name="scenario_image"
                     rows="3"
-                    required
                     data-material-input="scenario"
                     data-role="scenario-positive-prompt"
                   ></textarea>
@@ -190,7 +196,7 @@
             </div>
             <div class="gallery-upload">
               <div>
-                <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
+                <span class="field-label" data-gallery-label>底部产品小图（0-4 张，可选）</span>
                 <p class="micro-copy" data-gallery-description>
                   每个条目由一张产品小图和一段系列说明组成，可上传现成图像，也可
                   仅输入描述让 AI 生成。
@@ -268,7 +274,7 @@
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
     <!-- styles.css 之后，app.js 之前 -->
-    <script defer src="placeholder.js?v=3"></script>
-    <script defer src="app.js?v=1"></script>
+    <script defer src="placeholder.js?v=kit1.0.4"></script>
+    <script defer src="app.js?v=kit1.0.4"></script>
   </body>
 </html>
