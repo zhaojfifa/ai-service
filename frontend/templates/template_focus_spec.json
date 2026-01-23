@@ -4,9 +4,9 @@
   "version": "2025.02",
   "size": {"width": 1024, "height": 1024},
   "assets": {
-    "template": "template_focus_template.b64",
-    "mask_background": "template_focus_mask_bg.b64",
-    "mask_scene": "template_focus_mask_scene.b64"
+    "template": "template_focus_template.png",
+    "mask_background": "template_focus_mask_bg.png",
+    "mask_scene": "template_focus_mask_scene.png"
   },
   "materials": {
     "brand_logo": {"type": "image", "label": "品牌 Logo", "mode": "place"},
