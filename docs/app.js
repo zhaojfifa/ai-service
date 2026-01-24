@@ -612,6 +612,8 @@ function hasInlineStage1Assets(stage1Data) {
   if (hasInlineDataUrl(stage1Data.product_asset)) return true;
   if (hasInlineDataUrl(stage1Data.product_asset_extra_1)) return true;
   if (hasInlineDataUrl(stage1Data.product_asset_extra_2)) return true;
+  if (hasInlineDataUrl(stage1Data.product_image_1)) return true;
+  if (hasInlineDataUrl(stage1Data.product_image_2)) return true;
   const entries = Array.isArray(stage1Data.gallery_entries) ? stage1Data.gallery_entries : [];
   return entries.some((entry) => hasInlineDataUrl(entry?.asset));
 }
@@ -1173,7 +1175,7 @@ const STORAGE_KEYS = {
   stage2: 'marketing-poster-stage2-result',
 };
 
-const DEFAULT_STAGE1 = {
+const LEGACY_DEFAULT_STAGE1 = {
   brand_name: '厨匠ChefCraft',
   agent_name: '星辉渠道服务中心',
   scenario_image: '现代开放式厨房中智能蒸烤一体机的沉浸式体验',
@@ -1193,6 +1195,24 @@ const DEFAULT_STAGE1 = {
   subtitle: '智能蒸烤 · 家宴轻松掌控',
 };
 
+const MODE_S_DEFAULT_STAGE1 = {
+  brand_name: 'ChefCraft',
+  brand_color: '#ef4c54',
+  price: '',
+  promo: '',
+  channel: 'email',
+  intent: 'default',
+  title: 'Upgrade your kitchen with ChefCraft',
+  bullets: [
+    'Fast preheat and even cooking',
+    'Stainless steel finish with easy cleaning',
+    'Smart controls for daily convenience',
+  ],
+  template_id: 'template_dual',
+};
+
+const DEFAULT_STAGE1 = MODE_S ? MODE_S_DEFAULT_STAGE1 : LEGACY_DEFAULT_STAGE1;
+
 const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
 const templateCache = new Map();
 let templateRegistryPromise = null;
@@ -1208,6 +1228,7 @@ const placeholderImages = {
   brandLogo: createPlaceholder('品牌\\nLogo'),
   scenario: createPlaceholder('应用场景'),
   product: createPlaceholder('产品渲染'),
+  productAlt: createPlaceholder('产品\\n备用'),
 };
 
 const galleryPlaceholderCache = new Map();
@@ -1500,6 +1521,7 @@ function updateMaterialUrlDisplay(field, asset) {
 
 function init() {
   apiBaseInput = document.getElementById('api-base');
+  loadBuildInfo();
   loadApiBase();
   if (apiBaseInput) {
     apiBaseInput.addEventListener('change', saveApiBase);
@@ -1524,6 +1546,22 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 
+async function loadBuildInfo() {
+  const el = document.getElementById('build-info');
+  if (!el) return;
+  try {
+    const url = new URL('build-info.json', document.baseURI).toString();
+    const response = await fetch(url, { cache: 'no-store' });
+    if (!response.ok) throw new Error('build info unavailable');
+    const data = await response.json();
+    const commit = (data?.commit || 'local').toString();
+    const builtAt = data?.builtAt ? String(data.builtAt) : '';
+    el.textContent = builtAt ? `build ${commit} · ${builtAt}` : `build ${commit}`;
+  } catch {
+    el.textContent = '';
+  }
+}
+
 function loadApiBase() {
   if (!apiBaseInput) return;
   const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
@@ -1543,6 +1581,10 @@ function saveApiBase() {
 }
 
 function initStage1() {
+  if (MODE_S) {
+    initStage1ModeS();
+    return;
+  }
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
   const nextButton = document.getElementById('go-to-stage2');
@@ -2384,7 +2426,132 @@ void mountTemplateChooserStage1();
   });
 }
 
+function initStage1ModeS() {
+  const form = document.getElementById('poster-form');
+  const buildPreviewButton = document.getElementById('build-preview');
+  const nextButton = document.getElementById('go-to-stage2');
+  const statusElement = document.getElementById('stage1-status');
+  const layoutStructure = document.getElementById('layout-structure-text');
+
+  if (!form || !buildPreviewButton || !nextButton) {
+    return;
+  }
+
+  const inlinePreviews = {
+    product_image_1: document.querySelector('[data-inline-preview="product_image_1"]'),
+    product_image_2: document.querySelector('[data-inline-preview="product_image_2"]'),
+  };
+
+  const state = {
+    productImage1: null,
+    productImage2: null,
+    previewBuilt: false,
+    templateId: DEFAULT_STAGE1.template_id,
+    templateLabel: '',
+  };
+
+  const refreshPreview = () => {
+    if (!form) return null;
+    const payload = collectStage1Data(form, state, { strict: false });
+    const layoutPreview = buildLayoutPreview(payload);
+    if (layoutStructure) {
+      layoutStructure.textContent = layoutPreview;
+    }
+    return payload;
+  };
+
+  const stored = loadStage1Data();
+  if (stored) {
+    void (async () => {
+      await applyStage1DataToForm(stored, form, state, inlinePreviews);
+      state.previewBuilt = Boolean(stored.preview_built);
+      if (layoutStructure && stored.layout_preview) {
+        layoutStructure.textContent = stored.layout_preview;
+      }
+      refreshPreview();
+    })();
+  } else {
+    applyStage1Defaults(form);
+    updateInlinePlaceholders(inlinePreviews);
+    refreshPreview();
+  }
+
+  attachSingleImageHandler(
+    form.querySelector('input[name="product_image_1"]'),
+    'productImage1',
+    inlinePreviews.product_image_1,
+    state,
+    refreshPreview,
+    statusElement
+  );
+
+  attachSingleImageHandler(
+    form.querySelector('input[name="product_image_2"]'),
+    'productImage2',
+    inlinePreviews.product_image_2,
+    state,
+    refreshPreview,
+    statusElement
+  );
+
+  form.addEventListener('input', () => {
+    state.previewBuilt = false;
+    refreshPreview();
+  });
+
+  const persist = (payload, previewBuilt) => {
+    const layoutPreview = buildLayoutPreview(payload);
+    const serialised = serialiseStage1Data(payload, state, layoutPreview, previewBuilt);
+    saveStage1Data(serialised);
+    if (layoutStructure) {
+      layoutStructure.textContent = layoutPreview;
+    }
+  };
+
+  buildPreviewButton.addEventListener('click', () => {
+    const relaxedPayload = collectStage1Data(form, state, { strict: false });
+    try {
+      const strictPayload = collectStage1Data(form, state, { strict: true });
+      state.previewBuilt = true;
+      persist(strictPayload, true);
+      setStatus(statusElement, 'Draft saved. Ready for Stage 2.', 'success');
+    } catch (error) {
+      state.previewBuilt = false;
+      persist(relaxedPayload, false);
+      const reason = error?.message || 'Please complete required fields.';
+      setStatus(statusElement, reason, 'warning');
+    }
+  });
+
+  nextButton.addEventListener('click', () => {
+    try {
+      const payload = collectStage1Data(form, state, { strict: true });
+      state.previewBuilt = true;
+      persist(payload, true);
+      setStatus(statusElement, 'Stage 1 saved. Moving to Stage 2.', 'info');
+      window.location.href = 'stage2.html';
+    } catch (error) {
+      setStatus(statusElement, error.message || 'Please complete required fields.', 'error');
+    }
+  });
+}
+
 function applyStage1Defaults(form) {
+  if (MODE_S) {
+    for (const [key, value] of Object.entries(DEFAULT_STAGE1)) {
+      const element = form.elements.namedItem(key);
+      if (element && typeof value === 'string') {
+        element.value = value;
+      }
+    }
+
+    const bulletInputs = form.querySelectorAll('input[name="bullets"]');
+    bulletInputs.forEach((input, index) => {
+      input.value = DEFAULT_STAGE1.bullets?.[index] ?? '';
+    });
+    return;
+  }
+
   for (const [key, value] of Object.entries(DEFAULT_STAGE1)) {
     const element = form.elements.namedItem(key);
     if (element && typeof value === 'string') {
@@ -2430,9 +2597,43 @@ function updateInlinePlaceholders(inlinePreviews) {
   if (inlinePreviews.product_asset) inlinePreviews.product_asset.src = placeholderImages.product;
   if (inlinePreviews.product_asset_extra_1) inlinePreviews.product_asset_extra_1.src = placeholderImages.product;
   if (inlinePreviews.product_asset_extra_2) inlinePreviews.product_asset_extra_2.src = placeholderImages.product;
+  if (inlinePreviews.product_image_1) inlinePreviews.product_image_1.src = placeholderImages.product;
+  if (inlinePreviews.product_image_2) inlinePreviews.product_image_2.src = placeholderImages.productAlt;
 }
 
 async function applyStage1DataToForm(data, form, state, inlinePreviews) {
+  if (MODE_S) {
+    for (const key of ['brand_name', 'brand_color', 'price', 'promo', 'channel', 'intent', 'title']) {
+      const element = form.elements.namedItem(key);
+      if (element && typeof data[key] === 'string') {
+        element.value = data[key];
+      }
+    }
+
+    const bullets = Array.isArray(data.bullets) && data.bullets.length
+      ? data.bullets
+      : DEFAULT_STAGE1.bullets || [];
+    const bulletInputs = form.querySelectorAll('input[name="bullets"]');
+    bulletInputs.forEach((input, index) => {
+      input.value = bullets[index] ?? '';
+    });
+
+    state.productImage1 = await rehydrateStoredAsset(data.product_image_1);
+    state.productImage2 = await rehydrateStoredAsset(data.product_image_2);
+    state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
+    state.templateLabel = data.template_label || '';
+
+    if (inlinePreviews.product_image_1) {
+      inlinePreviews.product_image_1.src =
+        state.productImage1?.dataUrl || placeholderImages.product;
+    }
+    if (inlinePreviews.product_image_2) {
+      inlinePreviews.product_image_2.src =
+        state.productImage2?.dataUrl || placeholderImages.productAlt;
+    }
+    return;
+  }
+
   for (const key of ['brand_name', 'agent_name', 'scenario_image', 'product_name', 'channel', 'intent', 'title', 'subtitle']) {
     const element = form.elements.namedItem(key);
     if (element && typeof data[key] === 'string') {
@@ -2543,6 +2744,12 @@ function attachSingleImageHandler(
   statusElement
 ) {
   if (!input) return;
+  const placeholderForKey = (valueKey) => {
+    if (valueKey === 'brandLogo') return placeholderImages.brandLogo;
+    if (valueKey === 'scenario') return placeholderImages.scenario;
+    if (valueKey === 'productImage2') return placeholderImages.productAlt;
+    return placeholderImages.product;
+  };
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
@@ -2550,13 +2757,7 @@ function attachSingleImageHandler(
       state[key] = null;
       state.previewBuilt = false;
       if (inlinePreview) {
-        const placeholder =
-          key === 'brandLogo'
-            ? placeholderImages.brandLogo
-            : key === 'scenario'
-            ? placeholderImages.scenario
-            : placeholderImages.product;
-        inlinePreview.src = placeholder;
+        inlinePreview.src = placeholderForKey(key);
       }
       if (key === 'brandLogo') {
         updateMaterialUrlDisplay('brand_logo', state[key]);
@@ -2571,6 +2772,8 @@ function attachSingleImageHandler(
         product: 'product',
         productExtra1: 'product',
         productExtra2: 'product',
+        productImage1: 'product',
+        productImage2: 'product',
       };
       const folder = folderMap[key] || 'uploads';
       const requireUploadOptions =
@@ -2589,12 +2792,7 @@ function attachSingleImageHandler(
         requireUploadOptions
       );
       if (inlinePreview) {
-        inlinePreview.src = state[key]?.dataUrl ||
-          (key === 'brandLogo'
-            ? placeholderImages.brandLogo
-            : key === 'scenario'
-            ? placeholderImages.scenario
-            : placeholderImages.product);
+        inlinePreview.src = state[key]?.dataUrl || placeholderForKey(key);
       }
       if (key === 'brandLogo') {
         updateMaterialUrlDisplay('brand_logo', state[key]);
@@ -2974,23 +3172,55 @@ function renderGalleryItems(state, container, options = {}) {
   });
 }
 function buildModeSGalleryEntries(state) {
-  const extras = [
-    { id: 'extra_product_1', caption: '????? 1', asset: state.productExtra1 },
-    { id: 'extra_product_2', caption: '????? 2', asset: state.productExtra2 },
-  ];
-  return extras
-    .filter((entry) => Boolean(entry.asset))
-    .map((entry) => ({
-      id: entry.id,
-      caption: entry.caption,
-      asset: entry.asset,
-      mode: 'upload',
-      prompt: null,
-    }));
+  return [];
 }
 
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
+  if (MODE_S) {
+    const bullets = formData
+      .getAll('bullets')
+      .map((bullet) => bullet.toString().trim())
+      .filter((bullet) => bullet.length > 0);
+
+    const payload = {
+      brand_name: formData.get('brand_name')?.toString().trim() || '',
+      brand_color: formData.get('brand_color')?.toString().trim() || '',
+      price: formData.get('price')?.toString().trim() || '',
+      promo: formData.get('promo')?.toString().trim() || '',
+      channel: formData.get('channel')?.toString().trim() || '',
+      intent: formData.get('intent')?.toString().trim() || '',
+      title: formData.get('title')?.toString().trim() || '',
+      bullets,
+      product_image_1: state.productImage1,
+      product_image_2: state.productImage2,
+      template_id: state.templateId || DEFAULT_STAGE1.template_id,
+    };
+
+    if (strict) {
+      if (!payload.product_image_1) {
+        throw new Error('Product image 1 is required.');
+      }
+      if (!payload.title) {
+        throw new Error('Title is required.');
+      }
+      if (!payload.channel) {
+        throw new Error('Channel is required.');
+      }
+      if (!payload.intent) {
+        throw new Error('Intent is required.');
+      }
+      if (bullets.length < 3) {
+        throw new Error('Please provide at least 3 bullets.');
+      }
+      if (bullets.length > 5) {
+        throw new Error('Please keep bullets to 5 or fewer.');
+      }
+    }
+
+    return payload;
+  }
+
   const payload = {
     brand_name: formData.get('brand_name')?.toString().trim() || '',
     agent_name: formData.get('agent_name')?.toString().trim() || '',
@@ -3408,6 +3638,24 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 }
 
 function buildLayoutPreview(payload) {
+  if (MODE_S) {
+    const bullets = Array.isArray(payload.bullets) ? payload.bullets : [];
+    const lines = [
+      'Mode S summary',
+      `Channel: ${payload.channel || 'missing'}`,
+      `Intent: ${payload.intent || 'missing'}`,
+      `Title: ${payload.title || 'missing'}`,
+      `Bullets: ${bullets.length}`,
+      `Brand: ${payload.brand_name || 'n/a'}`,
+      `Brand color: ${payload.brand_color || 'n/a'}`,
+      `Price: ${payload.price || 'n/a'}`,
+      `Promo: ${payload.promo || 'n/a'}`,
+      `Product image 1: ${payload.product_image_1 ? 'ready' : 'missing'}`,
+      `Product image 2: ${payload.product_image_2 ? 'ready' : 'missing'}`,
+    ];
+    return lines.join('\n');
+  }
+
   const templateLine =
     payload.template_label || payload.template_id || DEFAULT_STAGE1.template_id;
   const logoLine = payload.brand_logo
@@ -3455,6 +3703,25 @@ function buildLayoutPreview(payload) {
 }
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
+  if (MODE_S) {
+    return {
+      brand_name: payload.brand_name,
+      brand_color: payload.brand_color || null,
+      price: payload.price || '',
+      promo: payload.promo || '',
+      channel: payload.channel || null,
+      intent: payload.intent || null,
+      title: payload.title,
+      bullets: payload.bullets || [],
+      product_image_1: serialiseAssetForStorage(state.productImage1),
+      product_image_2: serialiseAssetForStorage(state.productImage2),
+      template_id: state.templateId || DEFAULT_STAGE1.template_id,
+      template_label: state.templateLabel || '',
+      layout_preview: layoutPreview,
+      preview_built: previewBuilt,
+    };
+  }
+
   return {
     brand_name: payload.brand_name,
     agent_name: payload.agent_name,
@@ -4124,7 +4391,7 @@ function initStage2() {
     }
 
     stage2State.renderMode = MODE_S ? MODE_S_RENDER_MODE : stage2State.renderMode;
-    if (!warningElement && statusElement?.parentNode) {
+    if (!MODE_S && !warningElement && statusElement?.parentNode) {
       warningElement = document.createElement('p');
       warningElement.id = 'stage2-warning';
       warningElement.className = 'hint hidden';
@@ -5030,9 +5297,9 @@ function applyVertexPosterResult(data) {
       if (!finalPosterUrl) return;
       try {
         await navigator.clipboard.writeText(finalPosterUrl);
-        copyButton.textContent = '???';
+        copyButton.textContent = 'Copied';
         setTimeout(() => {
-          copyButton.textContent = '????';
+          copyButton.textContent = 'Copy URL';
         }, 1200);
       } catch (error) {
         console.warn('????', error);
@@ -5109,32 +5376,7 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
 }
 
 async function buildModeSGalleryItems(stage1, apiCandidates) {
-  const result = [];
-  const entries = Array.isArray(stage1?.gallery_entries)
-    ? stage1.gallery_entries.filter(Boolean)
-    : [];
-
-  for (const entry of entries) {
-    if (!entry?.asset) continue;
-    const caption = entry?.caption?.trim() || 'Series';
-    const ref = await normaliseAssetReference(entry.asset, {
-      field: 'poster.gallery_items[]',
-      required: false,
-      apiCandidates,
-      folder: 'gallery',
-    });
-    if (ref && (ref.key || ref.url)) {
-      result.push({
-        caption,
-        key: ref.key || null,
-        asset: ref.url || null,
-        mode: 'upload',
-        prompt: null,
-      });
-    }
-  }
-
-  return result;
+  return [];
 }
 
 function formatPosterGenerationError(error) {
@@ -5214,7 +5456,79 @@ async function triggerGeneration(opts) {
   let scenarioRef;
   let productRef;
   let galleryItems;
+  let productImage1Ref;
+  let productImage2Ref;
   try {
+    if (MODE_S) {
+      const safeText = (value, fallback) => {
+        const text = typeof value === 'string' ? value.trim() : '';
+        return text || fallback;
+      };
+
+      productImage1Ref = await normaliseAssetReference(stage1Data.product_image_1, {
+        field: 'poster.product_image_1',
+        required: true,
+        apiCandidates,
+        folder: 'product',
+      });
+      productImage2Ref = await normaliseAssetReference(stage1Data.product_image_2, {
+        field: 'poster.product_image_2',
+        required: false,
+        apiCandidates,
+        folder: 'product',
+      }, productImage1Ref);
+
+      const bullets = Array.isArray(stage1Data.bullets)
+        ? stage1Data.bullets.filter(Boolean)
+        : [];
+      const title = safeText(stage1Data.title, 'Poster');
+      const channel = safeText(stage1Data.channel, 'direct');
+      const intent = safeText(stage1Data.intent, 'default');
+      const brandName = safeText(stage1Data.brand_name, 'Brand');
+      const promo = safeText(stage1Data.promo, '');
+      const price = safeText(stage1Data.price, '');
+      const subtitle = safeText(stage1Data.promo || stage1Data.price, title);
+      const seriesDescription = safeText(
+        stage1Data.promo || stage1Data.price || stage1Data.intent,
+        title
+      );
+
+      if (productImage1Ref?.url) {
+        assertAssetUrl('product_image_1', productImage1Ref.url);
+      }
+
+      posterPayload = {
+        brand_name: brandName,
+        agent_name: channel,
+        scenario_image: intent || title,
+        product_name: title,
+        channel,
+        intent,
+        brand_color: stage1Data.brand_color || null,
+        price: price || null,
+        promo: promo || null,
+        template_id: templateId || DEFAULT_STAGE1.template_id,
+        features: bullets,
+        title,
+        subtitle,
+        series_description: seriesDescription,
+        product_image_1: productImage1Ref?.url || null,
+        product_image_1_key: productImage1Ref?.key || null,
+        product_image_2: productImage2Ref?.url || null,
+        product_image_2_key: productImage2Ref?.key || null,
+        product_key: productImage1Ref?.key || null,
+        product_asset: productImage1Ref?.url || null,
+        scenario_key: productImage2Ref?.key || null,
+        scenario_asset: productImage2Ref?.url || null,
+        scenario_mode: 'upload',
+        product_mode: 'upload',
+        gallery_items: [],
+        gallery_label: null,
+        gallery_limit: 0,
+        gallery_allows_prompt: false,
+        gallery_allows_upload: false,
+      };
+    } else {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
       required: true,
@@ -5236,11 +5550,7 @@ async function triggerGeneration(opts) {
       folder: 'product',
     }, brandLogoRef);
 
-    if (MODE_S) {
-      galleryItems = await buildModeSGalleryItems(stage1Data, apiCandidates);
-    } else {
-      galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
-    }
+    galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
 
     const features = Array.isArray(stage1Data.features)
       ? stage1Data.features.filter(Boolean)
@@ -5296,6 +5606,7 @@ async function triggerGeneration(opts) {
       gallery_allows_prompt: stage1Data.gallery_allows_prompt !== false,
       gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
     };
+    }
   } catch (error) {
     console.error('[triggerGeneration] asset normalisation failed', error);
     setStatus(
@@ -5506,13 +5817,14 @@ async function triggerGeneration(opts) {
     if (promptTextarea) promptTextarea.value = nextPrompt;
 
     const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
+    const canProceed = MODE_S ? Boolean(data?.final_poster) : hasCopy;
     setStatus(
       statusElement,
       hasCopy ? 'Copy generated.' : 'Request finished (no copy).',
       hasCopy ? 'success' : 'warning',
     );
 
-    if (nextButton) nextButton.disabled = !hasCopy;
+    if (nextButton) nextButton.disabled = !canProceed;
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     regenerateButton?.classList.remove('hidden');
@@ -5588,7 +5900,8 @@ async function triggerGeneration(opts) {
     const currentPrompt = (promptTextarea?.value || '').trim();
     const currentEmail = (emailTextarea?.value || '').trim();
     const hasStoredCopy = Boolean(currentPrompt) || Boolean(currentEmail) || Boolean(storedPrompt) || Boolean(storedEmail);
-    if (nextButton) nextButton.disabled = !hasStoredCopy;
+    const canProceed = MODE_S ? Boolean(lastPosterResult?.final_poster) : hasStoredCopy;
+    if (nextButton) nextButton.disabled = !canProceed;
 
     stage2HasAttemptedGenerate = true;
     if (stage2State.generated) {
@@ -6314,9 +6627,10 @@ function initStage3() {
       return;
     }
 
-    assignPosterImage(posterImage, finalPoster, `${stage1Data.product_name} ????`);
+    assignPosterImage(posterImage, finalPoster, stage1Data.title || 'Final poster');
     if (posterCaption) {
-      posterCaption.textContent = `${stage1Data.brand_name} / ${stage1Data.agent_name}`;
+      const captionParts = [stage1Data.brand_name, stage1Data.title].filter(Boolean);
+      posterCaption.textContent = captionParts.join(' / ');
     }
     if (posterUrlInput) {
       posterUrlInput.value = finalPoster.url || '';
@@ -6398,10 +6712,10 @@ function initStage3() {
 
 // ✉️ 构造邮件标题
 function buildEmailSubject(stage1Data) {
-  const brand = stage1Data.brand_name || '品牌';
-  const agent = stage1Data.agent_name ? `（${stage1Data.agent_name}）` : '';
-  const product = stage1Data.product_name || '产品';
-  return `${brand}${agent} ${product} 市场推广海报`;
+  const brand = stage1Data.brand_name || 'Brand';
+  const intent = stage1Data.intent ? ` (${stage1Data.intent})` : '';
+  const title = stage1Data.title || 'Poster';
+  return `${brand}${intent} ${title}`.trim();
 }
 function setStatus(element, message, level = 'info') {
   if (!element) return;
@@ -6579,6 +6893,8 @@ async function hydrateStage1DataAssets(stage1Data) {
   stage1Data.product_asset = await rehydrateStoredAsset(stage1Data.product_asset);
   stage1Data.product_asset_extra_1 = await rehydrateStoredAsset(stage1Data.product_asset_extra_1);
   stage1Data.product_asset_extra_2 = await rehydrateStoredAsset(stage1Data.product_asset_extra_2);
+  stage1Data.product_image_1 = await rehydrateStoredAsset(stage1Data.product_image_1);
+  stage1Data.product_image_2 = await rehydrateStoredAsset(stage1Data.product_image_2);
   if (Array.isArray(stage1Data.gallery_entries)) {
     stage1Data.gallery_entries = await Promise.all(
       stage1Data.gallery_entries.map(async (entry) => ({
