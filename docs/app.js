@@ -5196,6 +5196,30 @@ function renderGalleryCaptions() {
   });
 }
 
+function updateGenerationMetaPanel(data) {
+  const recipeEl = document.getElementById('gen-meta-recipe');
+  const seedEl = document.getElementById('gen-meta-seed');
+  const fallbackEl = document.getElementById('gen-meta-fallback');
+  const fallbackReasonEl = document.getElementById('gen-meta-fallback-reason');
+  const gateEl = document.getElementById('gen-meta-gate');
+
+  const recipe = data?.recipe_id || data?.meta?.recipe_id || 'N/A';
+  const seed = data?.seed || data?.meta?.seed || 'N/A';
+  const fallbackUsed =
+    typeof data?.fallback_used === 'boolean'
+      ? String(data.fallback_used)
+      : data?.meta?.fallback_used ?? 'N/A';
+  const fallbackReason =
+    data?.fallback_reason || data?.meta?.fallback_reason || 'N/A';
+  const gateSummary = data?.gate_summary || data?.meta?.gate_summary || 'N/A';
+
+  if (recipeEl) recipeEl.textContent = recipe;
+  if (seedEl) seedEl.textContent = seed;
+  if (fallbackEl) fallbackEl.textContent = fallbackUsed;
+  if (fallbackReasonEl) fallbackReasonEl.textContent = fallbackReason;
+  if (gateEl) gateEl.textContent = gateSummary;
+}
+
 function updateStage2Warnings(data) {
   const warningElement = document.getElementById('stage2-warning');
   if (!warningElement) return;
@@ -5226,30 +5250,6 @@ function updateStage2Warnings(data) {
     const reason = data?.degraded_reason ? `?${data.degraded_reason}?` : '';
     warnings.push(`????????${reason}`);
   }
-
-function updateGenerationMetaPanel(data) {
-  const recipeEl = document.getElementById('gen-meta-recipe');
-  const seedEl = document.getElementById('gen-meta-seed');
-  const fallbackEl = document.getElementById('gen-meta-fallback');
-  const fallbackReasonEl = document.getElementById('gen-meta-fallback-reason');
-  const gateEl = document.getElementById('gen-meta-gate');
-
-  const recipe = data?.recipe_id || data?.meta?.recipe_id || 'N/A';
-  const seed = data?.seed || data?.meta?.seed || 'N/A';
-  const fallbackUsed =
-    typeof data?.fallback_used === 'boolean'
-      ? String(data.fallback_used)
-      : data?.meta?.fallback_used ?? 'N/A';
-  const fallbackReason =
-    data?.fallback_reason || data?.meta?.fallback_reason || 'N/A';
-  const gateSummary = data?.gate_summary || data?.meta?.gate_summary || 'N/A';
-
-  if (recipeEl) recipeEl.textContent = recipe;
-  if (seedEl) seedEl.textContent = seed;
-  if (fallbackEl) fallbackEl.textContent = fallbackUsed;
-  if (fallbackReasonEl) fallbackReasonEl.textContent = fallbackReason;
-  if (gateEl) gateEl.textContent = gateSummary;
-}
 
   if (!warnings.length) {
     warningElement.classList.add('hidden');
