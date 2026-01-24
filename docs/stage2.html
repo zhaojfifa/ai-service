@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stage 2 - Generate Poster</title>
-    <link rel="stylesheet" href="./styles.css?v=a05fbdf" />
+    <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
   </head>
   <body data-stage="stage2">
     <header>
@@ -74,6 +74,59 @@
           </dl>
         </section>
 
+        <section class="gen-meta-panel">
+          <h3>Draft Snapshot</h3>
+          <p id="stage2-draft-status" class="hint"></p>
+          <p id="stage2-draft-keys" class="hint"></p>
+          <dl class="gen-meta-list">
+            <div><dt>brand_name</dt><dd id="draft-brand-name">N/A</dd></div>
+            <div><dt>brand_color</dt><dd id="draft-brand-color">N/A</dd></div>
+            <div><dt>price</dt><dd id="draft-price">N/A</dd></div>
+            <div><dt>promo</dt><dd id="draft-promo">N/A</dd></div>
+            <div><dt>channel</dt><dd id="draft-channel">N/A</dd></div>
+            <div><dt>intent</dt><dd id="draft-intent">N/A</dd></div>
+            <div><dt>title</dt><dd id="draft-title">N/A</dd></div>
+            <div><dt>image_1</dt><dd id="draft-image-1">N/A</dd></div>
+            <div><dt>image_2</dt><dd id="draft-image-2">N/A</dd></div>
+          </dl>
+          <div class="draft-bullets">
+            <p class="hint">Bullets</p>
+            <ul id="draft-bullets"></ul>
+          </div>
+        </section>
+
+        <section class="debug-panel">
+          <h3>Debug / Params</h3>
+          <details open>
+            <summary>Incoming Draft (Stage1)</summary>
+            <div class="debug-actions">
+              <button id="debug-copy-draft" type="button" class="secondary subtle">Copy JSON</button>
+            </div>
+            <textarea id="debug-draft" readonly></textarea>
+          </details>
+          <details>
+            <summary>Request Payload (POST /api/generate-poster)</summary>
+            <div class="debug-actions">
+              <button id="debug-copy-payload" type="button" class="secondary subtle">Copy JSON</button>
+            </div>
+            <textarea id="debug-payload" readonly></textarea>
+          </details>
+          <details>
+            <summary>Prompt Preview</summary>
+            <div class="debug-actions">
+              <button id="debug-copy-prompt" type="button" class="secondary subtle">Copy</button>
+            </div>
+            <textarea id="debug-prompt-preview" readonly></textarea>
+          </details>
+          <details>
+            <summary>Server Response</summary>
+            <div class="debug-actions">
+              <button id="debug-copy-response" type="button" class="secondary subtle">Copy JSON</button>
+            </div>
+            <textarea id="debug-response" readonly></textarea>
+          </details>
+        </section>
+
         <div class="actions">
           <a class="secondary" href="index.html">Back to Stage 1</a>
           <button id="to-stage3" class="primary" type="button" disabled>
@@ -88,7 +141,7 @@
       <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
     <script defer src="./placeholder.js?v=3"></script>
-    <script defer src="./app.js?v=a05fbdf"></script>
+    <script defer src="./app.js?v=0cbaf65"></script>
   </body>
 </html>
 

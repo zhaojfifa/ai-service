@@ -266,6 +266,88 @@ function setTextIfNonEmpty(el, next, fallback = '') {
   if (fallback != null) el.textContent = String(fallback);
 }
 
+function setText(elId, text) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const value = typeof text === 'string' ? text : String(text ?? '');
+  if ('value' in el) {
+    el.value = value;
+    return;
+  }
+  el.textContent = value;
+}
+
+function renderJson(elId, obj) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const payload = obj == null ? '' : JSON.stringify(obj, null, 2);
+  if ('value' in el) {
+    el.value = payload;
+  } else {
+    el.textContent = payload;
+  }
+}
+
+function buildPromptPreview(payload) {
+  if (!payload || typeof payload !== 'object') return '';
+  const bundle = payload.prompt_bundle || payload.prompts || null;
+  const lines = [];
+  if (bundle && typeof bundle === 'object') {
+    Object.keys(bundle).forEach((slot) => {
+      const entry = bundle[slot];
+      if (entry == null) return;
+      if (typeof entry === 'string') {
+        lines.push(`${slot}: ${entry}`);
+      } else {
+        const preview = entry.prompt || entry.positive || entry.text || '';
+        const neg = entry.negative || entry.negative_prompt || '';
+        if (preview) lines.push(`${slot}: ${preview}`);
+        if (neg) lines.push(`${slot} (negative): ${neg}`);
+      }
+    });
+  }
+  if (typeof payload.final_prompt === 'string' && payload.final_prompt.trim()) {
+    lines.push(`final_prompt: ${payload.final_prompt.trim()}`);
+  }
+  return lines.join('\n').trim();
+}
+
+function updateDebugPanels({ draft, payload, response } = {}) {
+  if (draft !== undefined) {
+    stage2State.debugDraft = draft;
+    renderJson('debug-draft', draft);
+  }
+  if (payload !== undefined) {
+    stage2State.debugPayload = payload;
+    renderJson('debug-payload', payload);
+    setText('debug-prompt-preview', buildPromptPreview(payload));
+  }
+  if (response !== undefined) {
+    stage2State.debugResponse = response;
+    renderJson('debug-response', response);
+  }
+}
+
+function bindCopyButton(buttonId, getText) {
+  const button = document.getElementById(buttonId);
+  if (!button || button.dataset.bound === 'true') return;
+  button.dataset.bound = 'true';
+  button.addEventListener('click', async () => {
+    const text = typeof getText === 'function' ? getText() : '';
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      const original = button.textContent;
+      button.textContent = 'Copied';
+      setTimeout(() => {
+        button.textContent = original || 'Copy';
+      }, 1200);
+    } catch (error) {
+      console.warn('Copy failed', error);
+    }
+  });
+}
+
 function setImageSrcIfNonEmpty(imgEl, nextUrl) {
   if (!imgEl) return;
   const url = typeof nextUrl === 'string' ? nextUrl.trim() : '';
@@ -1179,6 +1261,7 @@ const STORAGE_KEYS = {
   stage1: 'marketing-poster-stage1-data',
   stage2: 'marketing-poster-stage2-result',
 };
+const DRAFT_STORAGE_KEY = 'kitposter:draft';
 
 const LEGACY_DEFAULT_STAGE1 = {
   brand_name: '厨匠ChefCraft',
@@ -3820,6 +3903,13 @@ function saveStage1Data(data, options = {}) {
     }
     sessionStorage.removeItem(STORAGE_KEYS.stage2);
   }
+
+  try {
+    const draft = buildDraftFromStage1Data(data);
+    saveDraft(draft);
+  } catch (error) {
+    console.warn('Unable to save draft snapshot', error);
+  }
 }
 
 function loadStage1Data() {
@@ -3831,6 +3921,130 @@ function loadStage1Data() {
     console.error('Unable to parse stage1 data', error);
     return null;
   }
+}
+
+function safeParseJson(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function buildDraftFromStage1Data(stage1Data) {
+  if (!stage1Data || typeof stage1Data !== 'object') return {};
+  const bullets = Array.isArray(stage1Data.bullets) ? stage1Data.bullets : [];
+  return {
+    core: {
+      brand_name: stage1Data.brand_name || '',
+      brand_color: stage1Data.brand_color || '',
+      price: stage1Data.price || '',
+      promo: stage1Data.promo || '',
+      title: stage1Data.title || '',
+      bullets,
+      product_image_1: stage1Data.product_image_1 || null,
+      product_image_2: stage1Data.product_image_2 || null,
+    },
+    messaging: {
+      channel: stage1Data.channel || '',
+      intent: stage1Data.intent || '',
+    },
+    poster: stage1Data,
+    prompt_bundle: stage1Data.prompt_bundle || null,
+  };
+}
+
+function saveDraft(draft) {
+  const payload = typeof draft === 'object' && draft ? draft : {};
+  const encoded = JSON.stringify(payload);
+  localStorage.setItem(DRAFT_STORAGE_KEY, encoded);
+  sessionStorage.setItem(DRAFT_STORAGE_KEY, encoded);
+}
+
+function loadDraft() {
+  const fromLocal = safeParseJson(localStorage.getItem(DRAFT_STORAGE_KEY));
+  if (fromLocal && typeof fromLocal === 'object') return fromLocal;
+  const fromSession = safeParseJson(sessionStorage.getItem(DRAFT_STORAGE_KEY));
+  if (fromSession && typeof fromSession === 'object') return fromSession;
+  const stage1Data = loadStage1Data();
+  return buildDraftFromStage1Data(stage1Data);
+}
+
+function pickDraftImageRef(asset) {
+  if (!asset) return null;
+  if (typeof asset === 'string') return asset;
+  return (
+    asset.r2Key ||
+    asset.remoteUrl ||
+    asset.url ||
+    asset.publicUrl ||
+    asset.dataUrl ||
+    asset.data_url ||
+    null
+  );
+}
+
+function buildGeneratePosterPayload(draft) {
+  const core = draft?.core || {};
+  const messaging = draft?.messaging || {};
+  const posterSource = draft?.poster || {};
+  const bullets = Array.isArray(core.bullets) ? core.bullets : [];
+  const title = core.title || posterSource.title || '';
+  return {
+    poster: {
+      brand_name: core.brand_name || posterSource.brand_name || '',
+      agent_name: posterSource.agent_name || messaging.channel || '',
+      scenario_image: posterSource.scenario_image || messaging.intent || '',
+      product_name: posterSource.product_name || title || '',
+      channel: messaging.channel || posterSource.channel || null,
+      intent: messaging.intent || posterSource.intent || null,
+      template_id: posterSource.template_id || DEFAULT_STAGE1.template_id,
+      features: bullets,
+      title,
+      subtitle: posterSource.subtitle || posterSource.tagline || '',
+      series_description: posterSource.series_description || '',
+      brand_color: core.brand_color || posterSource.brand_color || null,
+      price: core.price || posterSource.price || null,
+      promo: core.promo || posterSource.promo || null,
+      product_image_1: pickDraftImageRef(core.product_image_1),
+      product_image_2: pickDraftImageRef(core.product_image_2),
+    },
+    render_mode: stage2State.renderMode || 'kitposter1_a',
+    variants: 1,
+    seed: 0,
+    lock_seed: true,
+    prompt_bundle: draft?.prompt_bundle || null,
+  };
+}
+
+function renderDraftSnapshot(draft) {
+  const core = draft?.core || {};
+  const messaging = draft?.messaging || {};
+  const bullets = Array.isArray(core.bullets) ? core.bullets : [];
+  setText('draft-brand-name', core.brand_name || 'N/A');
+  setText('draft-brand-color', core.brand_color || 'N/A');
+  setText('draft-price', core.price || 'N/A');
+  setText('draft-promo', core.promo || 'N/A');
+  setText('draft-channel', messaging.channel || 'N/A');
+  setText('draft-intent', messaging.intent || 'N/A');
+  setText('draft-title', core.title || 'N/A');
+  setText('draft-image-1', pickDraftImageRef(core.product_image_1) || 'N/A');
+  setText('draft-image-2', pickDraftImageRef(core.product_image_2) || 'N/A');
+
+  const bulletsList = document.getElementById('draft-bullets');
+  if (bulletsList) {
+    bulletsList.innerHTML = '';
+    bullets.forEach((item) => {
+      const li = document.createElement('li');
+      li.textContent = item;
+      bulletsList.appendChild(li);
+    });
+  }
+
+  const draftKeys = draft && typeof draft === 'object' ? Object.keys(draft) : [];
+  setText('stage2-draft-status', `Draft loaded: ${draftKeys.length ? 'yes' : 'no'}`);
+  setText('stage2-draft-keys', draftKeys.length ? `Draft keys: ${draftKeys.join(', ')}` : 'Draft keys: none');
 }
 function loadPromptPresets() {
   if (!promptPresetPromise) {
@@ -4377,6 +4591,15 @@ function initStage2() {
       return;
     }
 
+    const draft = loadDraft();
+    stage2State.draft = draft;
+    renderDraftSnapshot(draft);
+    updateDebugPanels({ draft });
+    bindCopyButton('debug-copy-draft', () => JSON.stringify(stage2State.debugDraft || {}, null, 2));
+    bindCopyButton('debug-copy-payload', () => JSON.stringify(stage2State.debugPayload || {}, null, 2));
+    bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
+    bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
+
     if (posterPreviewSection) {
       posterPreviewSection.classList.add('hidden');
     }
@@ -4386,6 +4609,17 @@ function initStage2() {
     }
 
     const stage1Data = loadStage1Data();
+    const previewPayload = buildGeneratePosterPayload(draft);
+    updateDebugPanels({ payload: previewPayload });
+    if (MODE_S && (!previewPayload.prompt_bundle || !Object.keys(previewPayload.prompt_bundle || {}).length)) {
+      try {
+        const bundle = await buildModeSPromptBundle(stage1Data);
+        previewPayload.prompt_bundle = bundle;
+        updateDebugPanels({ payload: previewPayload });
+      } catch (error) {
+        console.warn('[debug] unable to build prompt bundle preview', error);
+      }
+    }
     if (!stage1Data || !stage1Data.preview_built) {
       setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
       generateButton.disabled = true;
@@ -5648,6 +5882,8 @@ async function triggerGeneration(opts) {
     payload.prompt_bundle = promptBundleStrings;
   }
 
+  updateDebugPanels({ draft: stage2State.draft, payload });
+
   const posterSummary = {
     template_id: posterPayload.template_id,
     scenario_mode: posterPayload.scenario_mode,
@@ -5785,6 +6021,7 @@ async function triggerGeneration(opts) {
     if (mySeq !== stage2GenerationSeq) return null;
 
     lastPosterResult = data || null;
+    updateDebugPanels({ response: data });
     lastPromptBundle = data?.prompt_bundle || null;
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;

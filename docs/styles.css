@@ -1306,6 +1306,32 @@ main {
   background: #f9fafb;
 }
 
+.debug-panel {
+  margin-top: 16px;
+}
+
+.debug-panel details {
+  margin-top: 12px;
+}
+
+.debug-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.debug-panel textarea {
+  width: 100%;
+  min-height: 160px;
+  font-size: 0.85rem;
+  font-family: "SFMono-Regular", "Consolas", "Liberation Mono", "Menlo", monospace;
+}
+
+.draft-bullets ul {
+  margin: 4px 0 0 20px;
+}
+
 .gen-meta-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
