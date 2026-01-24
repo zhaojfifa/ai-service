@@ -118,6 +118,7 @@ const stage2State = {
     updateGallery: false,
     updateProduct: false,
   },
+  renderMode: 'kitposter1_a',
 };
 let stage2HasAttemptedGenerate = false;
 let stage2LastGeneratedAssetFingerprint = null;
@@ -128,9 +129,27 @@ let stage2LastClickAt = 0;
 const STAGE2_CLICK_DEBOUNCE_MS = 700;
 let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
+const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function initStage2RenderModeControl(stage1Data) {
+  const select = document.getElementById('stage2-render-mode');
+  if (!select) return null;
+  const stored = sessionStorage.getItem(STAGE2_RENDER_MODE_KEY);
+  const fallback = stage1Data?.render_mode || stage2State.renderMode || 'kitposter1_a';
+  const initial = stored || fallback;
+  stage2State.renderMode = initial;
+  select.value = initial;
+
+  select.addEventListener('change', () => {
+    stage2State.renderMode = select.value || 'kitposter1_a';
+    sessionStorage.setItem(STAGE2_RENDER_MODE_KEY, stage2State.renderMode);
+  });
+
+  return select;
 }
 
 function fingerprintAssets(assets) {
@@ -376,7 +395,7 @@ function buildPromptSlot(prefix) {
 function buildGeneratePayload() {
   return {
     poster: collectStage1Data(form, state, { strict: false }),
-    render_mode: state.renderMode || 'locked',
+    render_mode: state.renderMode || DEFAULT_STAGE1.render_mode || 'kitposter1_a',
     variants: Number(state.variants || 2),
     seed: state.seed ?? null,
     lock_seed: !!state.lockSeed,
@@ -492,6 +511,46 @@ function normalizePosterAssets(stage1Data) {
   });
 
   return { scenario_asset, scenario_key, product_asset, product_key, gallery_items };
+}
+
+function assetHasInlineOnly(asset) {
+  if (!asset) return false;
+  if (typeof asset === 'string') {
+    return DATA_URL_PAYLOAD_RX.test(asset.trim());
+  }
+  if (typeof asset !== 'object') return false;
+  const inlineCandidates = [asset.dataUrl, asset.data_url, asset.asset];
+  const hasInline = inlineCandidates.some(
+    (value) => typeof value === 'string' && DATA_URL_PAYLOAD_RX.test(value.trim())
+  );
+  if (!hasInline) return false;
+  const hasKeyOrUrl = Boolean(
+    asset.key ||
+      asset.r2Key ||
+      asset.storage_key ||
+      asset.remoteUrl ||
+      asset.url ||
+      asset.publicUrl ||
+      asset.cdnUrl
+  );
+  return !hasKeyOrUrl;
+}
+
+function listInlineAssetFields(stage1Data) {
+  if (!stage1Data) return [];
+  const issues = [];
+  if (assetHasInlineOnly(stage1Data.brand_logo)) issues.push('brand_logo');
+  if (assetHasInlineOnly(stage1Data.scenario_asset)) issues.push('scenario_asset');
+  if (assetHasInlineOnly(stage1Data.product_asset)) issues.push('product_asset');
+  const galleryEntries = Array.isArray(stage1Data.gallery_entries)
+    ? stage1Data.gallery_entries
+    : [];
+  galleryEntries.forEach((entry, index) => {
+    if (assetHasInlineOnly(entry?.asset)) {
+      issues.push(`gallery_entries[${index}]`);
+    }
+  });
+  return issues;
 }
 
 function joinBasePath(base, path) {
@@ -1057,6 +1116,7 @@ const DEFAULT_STAGE1 = {
   template_id: 'template_dual',
   scenario_mode: 'upload',
   product_mode: 'upload',
+  render_mode: 'kitposter1_a',
   features: [
     '一键蒸烤联动，精准锁鲜',
     '360° 智能热风循环，均匀受热',
@@ -1476,6 +1536,7 @@ function initStage1() {
     galleryAllowsUpload: true,
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
     galleryType: 'image',
+    renderMode: DEFAULT_STAGE1.render_mode || 'kitposter1_a',
   };
 
   updateMaterialUrlDisplay('brand_logo', state.brandLogo);
@@ -1545,6 +1606,14 @@ function initStage1() {
       void switchAssetMode('product', value, modeContext);
     });
   });
+
+  const renderModeSelect = form.elements.namedItem('render_mode');
+  if (renderModeSelect && 'addEventListener' in renderModeSelect) {
+    renderModeSelect.addEventListener('change', () => {
+      state.renderMode = renderModeSelect.value || DEFAULT_STAGE1.render_mode || 'kitposter1_a';
+      refreshPreview();
+    });
+  }
 
   const getMaterialLabel = (key, material) =>
     (material && typeof material.label === 'string' && material.label.trim()) ||
@@ -2281,8 +2350,10 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
 
   const scenarioModeValue = data.scenario_mode || DEFAULT_STAGE1.scenario_mode;
   const productModeValue = data.product_mode || DEFAULT_STAGE1.product_mode;
+  const renderModeValue = data.render_mode || DEFAULT_STAGE1.render_mode || 'kitposter1_a';
   state.scenarioMode = scenarioModeValue;
   state.productMode = productModeValue;
+  state.renderMode = renderModeValue;
 
   const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
   scenarioModeInputs.forEach((input) => {
@@ -2293,6 +2364,11 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   productModeInputs.forEach((input) => {
     input.checked = input.value === productModeValue;
   });
+
+  const renderModeSelect = form.elements.namedItem('render_mode');
+  if (renderModeSelect && 'value' in renderModeSelect) {
+    renderModeSelect.value = renderModeValue;
+  }
 
   const productPrompt = form.elements.namedItem('product_prompt');
   if (productPrompt && 'value' in productPrompt) {
@@ -2826,6 +2902,10 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
   payload.product_mode = state.productMode || 'upload';
+  payload.render_mode = formData.get('render_mode')?.toString().trim()
+    || state.renderMode
+    || DEFAULT_STAGE1.render_mode
+    || 'kitposter1_a';
   const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
   payload.product_prompt = productPromptValue || null;
   payload.scenario_prompt =
@@ -2835,6 +2915,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
 
   if (strict) {
+    const isKitPoster1 = String(payload.render_mode || '').startsWith('kitposter1');
     const missing = [];
     for (const [key, value] of Object.entries(payload)) {
       if (
@@ -2847,6 +2928,8 @@ function collectStage1Data(form, state, { strict = false } = {}) {
           'product_mode',
           'product_prompt',
           'scenario_prompt',
+          'scenario_image',
+          'render_mode',
         ].includes(key)
       ) {
         continue;
@@ -2858,20 +2941,26 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
-    if (galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
+    if (!isKitPoster1 && galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
       throw new Error(
         `请准备至少 ${galleryLimit} 个${galleryLabel}（上传或 AI 生成）并填写对应文案。`
       );
     }
     const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
     if (captionsIncomplete) {
-      throw new Error(`请为每个${galleryLabel}填写文案说明。`);
+      throw new Error(`请为已填写的${galleryLabel}补充文案说明。`);
     }
     const promptMissing = galleryEntries.some(
       (entry) => entry.mode === 'prompt' && !entry.prompt
     );
     if (promptMissing) {
       throw new Error(`选择 AI 生成的${galleryLabel}需要提供文字描述。`);
+    }
+    if (payload.product_mode === 'upload' && !payload.product_asset) {
+      throw new Error('主图为必填，请上传产品主图。');
+    }
+    if (payload.product_mode === 'prompt' && !payload.product_prompt) {
+      throw new Error('主图为必填，请补充产品主图的文字描述。');
     }
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
@@ -3217,7 +3306,7 @@ function buildLayoutPreview(payload) {
             : `    · ${galleryLabel}${index + 1}：${entry.caption || '系列说明待补充'}`
         )
         .join('\n')
-    : `    · ${galleryLabel}待准备（可上传或 AI 生成 ${galleryLimit} 项素材，并附文字说明）。`;
+    : `    · ${galleryLabel}可选（0~${galleryLimit} 项，允许留空）。`;
 
   return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
     payload.agent_name || '代理名待填写'
@@ -3236,6 +3325,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     series_description: payload.series_description,
     scenario_mode: state.scenarioMode || 'upload',
     product_mode: state.productMode || 'upload',
+    render_mode: state.renderMode || DEFAULT_STAGE1.render_mode || 'kitposter1_a',
     product_prompt: payload.product_prompt,
     scenario_prompt: payload.scenario_prompt,
     brand_logo: serialiseAssetForStorage(state.brandLogo),
@@ -3876,6 +3966,13 @@ function initStage2() {
       }
       return;
     }
+
+    if (!sessionStorage.getItem(STAGE2_RENDER_MODE_KEY) && stage1Data.render_mode) {
+      stage2State.renderMode = stage1Data.render_mode;
+      sessionStorage.setItem(STAGE2_RENDER_MODE_KEY, stage1Data.render_mode);
+    }
+
+    initStage2RenderModeControl(stage1Data);
 
     await hydrateStage1DataAssets(stage1Data);
 
@@ -4522,6 +4619,10 @@ function buildPromptBundleStrings(prompts = {}) {
 function extractVertexPosterUrl(result) {
   if (!result) return null;
 
+  if (result.final_poster && typeof result.final_poster.url === 'string') {
+    const url = result.final_poster.url.trim();
+    if (url) return url;
+  }
   if (result.poster_image && typeof result.poster_image.url === 'string') {
     const url = result.poster_image.url.trim();
     if (url) return url;
@@ -4578,6 +4679,55 @@ function extractVertexPosterUrl(result) {
   }
 
   return null;
+}
+
+function setFinalPosterPreview(url) {
+  const img = document.getElementById('final-poster-img');
+  const link = document.getElementById('final-poster-link');
+  if (!img || !link) return;
+  const src = typeof url === 'string' ? url.trim() : '';
+  if (src) {
+    img.src = src;
+    img.classList.remove('hidden');
+    link.href = src;
+    link.classList.remove('hidden');
+    return;
+  }
+  img.removeAttribute('src');
+  img.classList.add('hidden');
+  link.removeAttribute('href');
+  link.classList.add('hidden');
+}
+
+function updateStage2Warnings(result) {
+  const warningEl = document.getElementById('stage2-warning');
+  if (!warningEl) return;
+  const degraded = result?.degraded === true;
+  const reason = typeof result?.degraded_reason === 'string' ? result.degraded_reason : '';
+  const warnings = Array.isArray(result?.warnings) ? result.warnings : [];
+  let message = '';
+
+  if (degraded) {
+    const suffix =
+      reason === 'quota_exhausted'
+        ? '配额受限'
+        : reason === 'edit_model_not_enabled'
+        ? '编辑模型未启用'
+        : reason
+        ? reason
+        : '模型限制';
+    message = `已生成保守版海报（${suffix}，未启用增强渲染），可直接下载投放。建议稍后重试获取增强版。`;
+  } else if (warnings.length) {
+    message = `注意：${warnings.join('；')}`;
+  }
+
+  if (message) {
+    warningEl.textContent = message;
+    warningEl.classList.remove('hidden');
+  } else {
+    warningEl.textContent = '';
+    warningEl.classList.add('hidden');
+  }
 }
 
 function renderPosterResult() {
@@ -4708,6 +4858,7 @@ function applyVertexPosterResult(data) {
     posterGenerationState.posterUrl = posterUrl;
     posterGeneratedImage = posterGenerationState.posterUrl;
     assets.composite_poster_url = posterUrl;
+    setFinalPosterPreview(posterUrl);
     try {
       sessionStorage.setItem('latestPosterUrl', posterUrl);
     } catch (error) {
@@ -4715,6 +4866,7 @@ function applyVertexPosterResult(data) {
     }
   }
 
+  updateStage2Warnings(data);
   renderPosterResult();
 
   // --- Show poster area ---
@@ -4786,18 +4938,6 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
       continue;
     }
 
-    if (logoRef && (logoRef.url || logoRef.key)) {
-      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
-      result.push({
-        caption,
-        key: logoRef.key || null,
-        asset: logoRef.url || null,
-        mode: 'upload',
-        prompt: null,
-      });
-      continue;
-    }
-
     console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
   }
 
@@ -4858,6 +4998,7 @@ async function triggerGeneration(opts) {
   const mySeq = ++stage2GenerationSeq;
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
+  updateStage2Warnings(null);
   
 
   // 1) 选可用 API 基址
@@ -4871,6 +5012,18 @@ async function triggerGeneration(opts) {
 
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
+
+  const inlineIssues = listInlineAssetFields(stage1Data);
+  if (inlineIssues.length) {
+    setStatus(
+      statusElement,
+      `检测到本地 base64 预览：${inlineIssues.join(', ')}。请回到 stage1 上传素材或提供可访问 URL。`,
+      'error'
+    );
+    stage2InFlight = false;
+    setStage2ButtonsDisabled(false);
+    return null;
+  }
 
   // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
   const templateId = stage1Data.template_id;
@@ -4895,7 +5048,7 @@ async function triggerGeneration(opts) {
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      required: true,
+      required: false,
       apiCandidates,
       folder: 'scenario',
     }, brandLogoRef);
@@ -4982,7 +5135,7 @@ async function triggerGeneration(opts) {
   
   const requestBase = {
     poster: posterPayload,
-    render_mode: 'locked',
+    render_mode: stage2State.renderMode || 'kitposter1_a',
     variants: clampVariants(reqFromInspector.variants ?? 1),
     seed: reqFromInspector.seed ?? null,
     lock_seed: !!reqFromInspector.lockSeed,
@@ -5079,6 +5232,7 @@ async function triggerGeneration(opts) {
     generatedImage.removeAttribute('src');
     generatedImage.style.display = 'none';
   }
+  setFinalPosterPreview(null);
   resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
   if (emailGroup) emailGroup.classList.add('hidden');
@@ -5150,13 +5304,7 @@ async function triggerGeneration(opts) {
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
     if (mySeq !== stage2GenerationSeq) return null;
 
-    const posterUrl =
-      data?.poster?.asset_url ||
-      data?.poster?.url ||
-      data?.poster_url ||
-      data?.poster_image?.url ||
-      (Array.isArray(data?.results) && data.results[0]?.url) ||
-      null;
+    const posterUrl = extractVertexPosterUrl(data);
 
     lastPosterResult = data || null;
     lastPromptBundle = data?.prompt_bundle || null;
@@ -5225,8 +5373,12 @@ async function triggerGeneration(opts) {
       if (regenerateButton) regenerateButton.disabled = false;
       regenerateButton?.classList.remove('hidden');
       try {
+        const finalPoster = data?.final_poster || data?.poster_image || null;
+        const finalPosterRecord = finalPoster ? { ...finalPoster } : null;
         const dataToStore = {
           ...data,
+          final_poster: finalPosterRecord,
+          poster_image: finalPosterRecord || data?.poster_image || null,
           assets: { ...stage2State.assets },
           poster: { ...stage2State.poster },
           template_poster: templatePoster ? { ...templatePoster } : null,
@@ -6026,6 +6178,46 @@ async function loadStage2Result() {
   }
 }
 
+function resolvePosterUrlForPreview(record) {
+  if (!record || typeof record !== 'object') return null;
+  if (typeof record.url === 'string' && record.url.trim()) {
+    return record.url.trim();
+  }
+  const key = record.key || record.storage_key || record.r2Key || null;
+  if (key) {
+    const derived = toAssetUrl(String(key));
+    return derived || null;
+  }
+  return null;
+}
+
+function sanitizeAttachmentForSend(record) {
+  if (!record || typeof record !== 'object') {
+    return { error: '未找到可发送的海报附件' };
+  }
+  const key = record.key || record.storage_key || record.r2Key || null;
+  const url = resolvePosterUrlForPreview(record);
+  if (!key && !url) {
+    const inline = typeof record.data_url === 'string' ? record.data_url.trim() : '';
+    if (inline && DATA_URL_PAYLOAD_RX.test(inline)) {
+      return { error: '检测到 base64 图片，请回到 stage1 上传素材后再发送' };
+    }
+    return { error: '附件缺少可访问的 key/url' };
+  }
+  return {
+    attachment: {
+      filename: record.filename || 'poster.png',
+      media_type:
+        record.media_type || record.mediaType || inferImageMediaType(url || '') || 'image/png',
+      width: typeof record.width === 'number' ? record.width : null,
+      height: typeof record.height === 'number' ? record.height : null,
+      key: key || null,
+      storage_key: record.storage_key || (key ? String(key) : null),
+      url: url || null,
+    },
+  };
+}
+
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
@@ -6044,35 +6236,41 @@ function initStage3() {
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
 
-    if (!stage1Data || !stage2Result?.poster_image) {
+    if (!stage1Data || (!stage2Result?.final_poster && !stage2Result?.poster_image)) {
       setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    // Prefer active variant (B) when present for preview and sending
-    let chosenPosterImage = stage2Result.poster_image;
-    try {
-      const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
-      const st = JSON.parse(raw || '{}');
-      if (
-        st.active === 'B' &&
-        Array.isArray(stage2Result.variants) &&
-        stage2Result.variants[1]
-      ) {
-        const candidate = stage2Result.variants[1];
+    // Prefer final_poster when available; fallback to active variant for legacy results
+    let chosenPosterImage = stage2Result.final_poster || stage2Result.poster_image;
+    if (!stage2Result.final_poster) {
+      try {
+        const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+        const st = JSON.parse(raw || '{}');
         if (
-          candidate.storage_key ||
-          candidate.url ||
-          candidate.data_url ||
-          candidate.remoteUrl
+          st.active === 'B' &&
+          Array.isArray(stage2Result.variants) &&
+          stage2Result.variants[1]
         ) {
-          chosenPosterImage = candidate;
+          const candidate = stage2Result.variants[1];
+          if (
+            candidate.storage_key ||
+            candidate.url ||
+            candidate.data_url ||
+            candidate.remoteUrl
+          ) {
+            chosenPosterImage = candidate;
+          }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
 
-    assignPosterImage(posterImage, chosenPosterImage, `${stage1Data.product_name} 海报预览`);
+    const previewPoster = chosenPosterImage
+      ? { ...chosenPosterImage, url: resolvePosterUrlForPreview(chosenPosterImage) || chosenPosterImage.url }
+      : null;
+
+    assignPosterImage(posterImage, previewPoster, `${stage1Data.product_name} 海报预览`);
     if (posterCaption) {
       posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }
@@ -6106,27 +6304,36 @@ function initStage3() {
       try {
         await warmUp(apiCandidates);
 
-        // Prefer the active variant (B) when sending the attachment
-        let attachmentToSend = stage2Result.poster_image;
-        try {
-          const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
-          const st = JSON.parse(raw || '{}');
-          if (
-            st.active === 'B' &&
-            Array.isArray(stage2Result.variants) &&
-            stage2Result.variants[1]
-          ) {
-            const candidate = stage2Result.variants[1];
+        // Prefer final_poster when available; fallback to active variant for legacy results
+        let attachmentToSend = stage2Result.final_poster || stage2Result.poster_image;
+        if (!stage2Result.final_poster) {
+          try {
+            const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+            const st = JSON.parse(raw || '{}');
             if (
-              candidate.storage_key ||
-              candidate.url ||
-              candidate.data_url ||
-              candidate.remoteUrl
+              st.active === 'B' &&
+              Array.isArray(stage2Result.variants) &&
+              stage2Result.variants[1]
             ) {
-              attachmentToSend = candidate;
+              const candidate = stage2Result.variants[1];
+              if (
+                candidate.storage_key ||
+                candidate.url ||
+                candidate.data_url ||
+                candidate.remoteUrl
+              ) {
+                attachmentToSend = candidate;
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
+
+        const sanitized = sanitizeAttachmentForSend(attachmentToSend);
+        if (sanitized.error) {
+          setStatus(statusElement, sanitized.error, 'error');
+          sendButton.disabled = false;
+          return;
+        }
 
         const response = await postJsonWithRetry(
           apiCandidates,
@@ -6135,7 +6342,7 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: attachmentToSend,
+            attachment: sanitized.attachment,
           },
           1
         );

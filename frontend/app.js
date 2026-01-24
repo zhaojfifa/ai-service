@@ -1159,6 +1159,7 @@ const DEFAULT_STAGE1 = {
   template_id: 'template_dual',
   scenario_mode: 'upload',
   product_mode: 'upload',
+  render_mode: 'kitposter1_a',
   features: [
     '一键蒸烤联动，精准锁鲜',
     '360° 智能热风循环，均匀受热',
@@ -1578,6 +1579,7 @@ function initStage1() {
     galleryAllowsUpload: true,
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
     galleryType: 'image',
+    renderMode: DEFAULT_STAGE1.render_mode || 'kitposter1_a',
   };
 
   updateMaterialUrlDisplay('brand_logo', state.brandLogo);
@@ -1647,6 +1649,14 @@ function initStage1() {
       void switchAssetMode('product', value, modeContext);
     });
   });
+
+  const renderModeSelect = form.elements.namedItem('render_mode');
+  if (renderModeSelect && 'addEventListener' in renderModeSelect) {
+    renderModeSelect.addEventListener('change', () => {
+      state.renderMode = renderModeSelect.value || DEFAULT_STAGE1.render_mode || 'kitposter1_a';
+      refreshPreview();
+    });
+  }
 
   const getMaterialLabel = (key, material) =>
     (material && typeof material.label === 'string' && material.label.trim()) ||
@@ -2383,8 +2393,10 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
 
   const scenarioModeValue = data.scenario_mode || DEFAULT_STAGE1.scenario_mode;
   const productModeValue = data.product_mode || DEFAULT_STAGE1.product_mode;
+  const renderModeValue = data.render_mode || DEFAULT_STAGE1.render_mode || 'kitposter1_a';
   state.scenarioMode = scenarioModeValue;
   state.productMode = productModeValue;
+  state.renderMode = renderModeValue;
 
   const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
   scenarioModeInputs.forEach((input) => {
@@ -2395,6 +2407,11 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   productModeInputs.forEach((input) => {
     input.checked = input.value === productModeValue;
   });
+
+  const renderModeSelect = form.elements.namedItem('render_mode');
+  if (renderModeSelect && 'value' in renderModeSelect) {
+    renderModeSelect.value = renderModeValue;
+  }
 
   const productPrompt = form.elements.namedItem('product_prompt');
   if (productPrompt && 'value' in productPrompt) {
@@ -2928,6 +2945,10 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
   payload.product_mode = state.productMode || 'upload';
+  payload.render_mode = formData.get('render_mode')?.toString().trim()
+    || state.renderMode
+    || DEFAULT_STAGE1.render_mode
+    || 'kitposter1_a';
   const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
   payload.product_prompt = productPromptValue || null;
   payload.scenario_prompt =
@@ -2937,6 +2958,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
 
   if (strict) {
+    const isKitPoster1 = String(payload.render_mode || '').startsWith('kitposter1');
     const missing = [];
     for (const [key, value] of Object.entries(payload)) {
       if (
@@ -2949,6 +2971,8 @@ function collectStage1Data(form, state, { strict = false } = {}) {
           'product_mode',
           'product_prompt',
           'scenario_prompt',
+          'scenario_image',
+          'render_mode',
         ].includes(key)
       ) {
         continue;
@@ -2960,20 +2984,26 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
-    if (galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
+    if (!isKitPoster1 && galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
       throw new Error(
         `请准备至少 ${galleryLimit} 个${galleryLabel}（上传或 AI 生成）并填写对应文案。`
       );
     }
     const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
     if (captionsIncomplete) {
-      throw new Error(`请为每个${galleryLabel}填写文案说明。`);
+      throw new Error(`请为已填写的${galleryLabel}补充文案说明。`);
     }
     const promptMissing = galleryEntries.some(
       (entry) => entry.mode === 'prompt' && !entry.prompt
     );
     if (promptMissing) {
       throw new Error(`选择 AI 生成的${galleryLabel}需要提供文字描述。`);
+    }
+    if (payload.product_mode === 'upload' && !payload.product_asset) {
+      throw new Error('主图为必填，请上传产品主图。');
+    }
+    if (payload.product_mode === 'prompt' && !payload.product_prompt) {
+      throw new Error('主图为必填，请补充产品主图的文字描述。');
     }
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
@@ -3319,7 +3349,7 @@ function buildLayoutPreview(payload) {
             : `    · ${galleryLabel}${index + 1}：${entry.caption || '系列说明待补充'}`
         )
         .join('\n')
-    : `    · ${galleryLabel}待准备（可上传或 AI 生成 ${galleryLimit} 项素材，并附文字说明）。`;
+    : `    · ${galleryLabel}可选（0~${galleryLimit} 项，允许留空）。`;
 
   return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
     payload.agent_name || '代理名待填写'
@@ -3338,6 +3368,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     series_description: payload.series_description,
     scenario_mode: state.scenarioMode || 'upload',
     product_mode: state.productMode || 'upload',
+    render_mode: state.renderMode || DEFAULT_STAGE1.render_mode || 'kitposter1_a',
     product_prompt: payload.product_prompt,
     scenario_prompt: payload.scenario_prompt,
     brand_logo: serialiseAssetForStorage(state.brandLogo),
@@ -3967,6 +3998,12 @@ function initStage2() {
         regenerateButton.disabled = true;
       }
       return;
+    }
+
+    const storedRenderMode = sessionStorage.getItem(STAGE2_RENDER_MODE_KEY);
+    if (!storedRenderMode && stage1Data.render_mode) {
+      stage2State.renderMode = stage1Data.render_mode;
+      sessionStorage.setItem(STAGE2_RENDER_MODE_KEY, stage1Data.render_mode);
     }
 
     if (!warningElement && statusElement?.parentNode) {
@@ -4798,6 +4835,9 @@ function updateStage2Warnings(data) {
   if (!warningElement) return;
 
   const warnings = [];
+  if (data?.degraded) {
+    warnings.push('已生成保守版海报（因配额/模型限制未启用增强渲染），可直接下载投放。建议稍后重试获取增强版。');
+  }
   const rawWarnings = data?.prompt_details?.warnings || data?.warnings || '';
   if (typeof rawWarnings === 'string' && rawWarnings.trim()) {
     rawWarnings.split(',').forEach((item) => {
@@ -4816,7 +4856,7 @@ function updateStage2Warnings(data) {
       }
     });
   }
-  if (data?.fallback_used) {
+  if (data?.fallback_used && !data?.degraded) {
     warnings.push('已触发 fallback。');
   }
 
@@ -4840,7 +4880,7 @@ function applyVertexPosterResult(data) {
   surfaceSlotWarnings(slotSummary);
   updateStage2Warnings(data);
 
-  const finalPosterUrl = extractVertexPosterUrl(data);
+  const finalPosterUrl = data?.final_poster?.url || extractVertexPosterUrl(data);
   const finalWrapper = document.getElementById('stage2-final-poster');
   const finalImg = document.getElementById('stage2-final-poster-image');
   const finalLink = document.getElementById('stage2-final-poster-link');
@@ -4910,19 +4950,7 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
       continue;
     }
 
-    if (logoRef && (logoRef.url || logoRef.key)) {
-      console.info('[triggerGeneration] gallery empty, fallback to brand logo', { index: i, caption });
-      result.push({
-        caption,
-        key: logoRef.key || null,
-        asset: logoRef.url || null,
-        mode: 'upload',
-        prompt: null,
-      });
-      continue;
-    }
-
-    console.warn('[triggerGeneration] gallery empty and no brand logo available, skip slot', { index: i, caption });
+    console.warn('[triggerGeneration] gallery empty, skip slot', { index: i, caption });
   }
 
   return result;
@@ -5015,7 +5043,7 @@ async function triggerGeneration(opts) {
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      required: true,
+      required: false,
       apiCandidates,
       folder: 'scenario',
     }, brandLogoRef);
