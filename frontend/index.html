@@ -39,7 +39,49 @@
           按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
           点击“保存并前往环节 2”继续流程。
         </p>
-        <form id="poster-form" novalidate>
+        
+
+                <div class="stage1-layout">
+          <div class="stage1-left">
+<div class="preview" id="preview-container">
+          <h3>版式预览</h3>
+          <div id="layout-preview" class="poster-preview">
+            <div class="poster-header">
+              <div class="poster-logo">
+                <div class="poster-logo-image">
+                  <img id="preview-brand-logo" alt="品牌 Logo 预览" />
+                </div>
+                <div class="poster-brand-name" id="preview-brand-name"></div>
+              </div>
+              <div class="poster-agent" id="preview-agent-name"></div>
+            </div>
+            <div class="poster-body">
+              <div class="poster-left">
+                <img id="preview-scenario-image" alt="应用场景预览" />
+              </div>
+              <div class="poster-right">
+                <div class="poster-product-wrapper">
+                  <img id="preview-product-image" alt="产品渲染图预览" />
+                  <ul id="preview-feature-list" class="feature-tags">
+                    <li class="feature-tag feature-tag--top" data-feature-index="0"><span></span></li>
+                    <li class="feature-tag feature-tag--middle" data-feature-index="1"><span></span></li>
+                    <li class="feature-tag feature-tag--bottom" data-feature-index="2"><span></span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div class="poster-title" id="preview-title"></div>
+            <div class="poster-gallery" id="preview-gallery"></div>
+            <div class="poster-subtitle" id="preview-subtitle"></div>
+          </div>
+          <details class="layout-structure">
+            <summary>查看版式结构说明</summary>
+            <pre id="layout-structure-text"></pre>
+          </details>
+        </div>
+          </div>
+          <div class="stage1-right">
+<form id="poster-form" novalidate>
           <fieldset class="fieldset">
             <legend>模板选择</legend>
             <div class="template-select-grid">
@@ -91,13 +133,13 @@
           <fieldset class="fieldset">
             <legend>图像素材区</legend>
             <div class="image-zones">
-              <div class="image-stack">
+              <div class="image-stack mode-s-hidden">
                 <div class="mode-toggle" data-mode-target="scenario">
                   <span data-material-toggle-label="scenario">场景素材来源</span>
                   <label data-mode-option="scenario-upload">
                     <input type="radio" name="scenario_mode" value="upload" checked /> 上传图像
                   </label>
-                  <label data-mode-option="scenario-prompt">
+                  <label data-mode-option="scenario-prompt" class="mode-s-hidden">
                     <input type="radio" name="scenario_mode" value="prompt" /> 文字生成
                   </label>
                 </div>
@@ -114,11 +156,10 @@
                     id="scenario_prompt"
                     name="scenario_image"
                     rows="3"
-                    required
                     data-material-input="scenario"
                     data-role="scenario-positive-prompt"
                   ></textarea>
-                  <div class="slot-actions">
+                  <div class="slot-actions mode-s-hidden">
                     <button type="button" id="btn-generate-scenario" class="secondary">
                       AI 生成场景图
                     </button>
@@ -132,7 +173,7 @@
                   <label data-mode-option="product-upload">
                     <input type="radio" name="product_mode" value="upload" checked /> 上传图像
                   </label>
-                  <label data-mode-option="product-prompt">
+                  <label data-mode-option="product-prompt" class="mode-s-hidden">
                     <input type="radio" name="product_mode" value="prompt" /> 文字生成
                   </label>
                 </div>
@@ -143,11 +184,27 @@
                     <img data-inline-preview="product_asset" alt="产品渲染图预览" />
                   </div>
                 </label>
+
+                <label class="field file-field optional" data-material-field="product-extra-1">
+                  <span>????? 1????</span>
+                  <input type="file" name="product_asset_extra_1" accept="image/*" />
+                  <div class="inline-preview">
+                    <img data-inline-preview="product_asset_extra_1" alt="????? 1 ??" />
+                  </div>
+                </label>
+                <label class="field file-field optional" data-material-field="product-extra-2">
+                  <span>????? 2????</span>
+                  <input type="file" name="product_asset_extra_2" accept="image/*" />
+                  <div class="inline-preview">
+                    <img data-inline-preview="product_asset_extra_2" alt="????? 2 ??" />
+                  </div>
+                </label>
+
                 <label class="field">
                   <span>主产品名称</span>
                   <input type="text" name="product_name" required />
                 </label>
-                <label class="field optional" data-mode-visible="product:prompt" data-material-prompt="product">
+                <label class="field optional mode-s-hidden" data-mode-visible="product:prompt" data-material-prompt="product">
                   <span data-material-prompt-label="product">产品图生成描述（可选补充）</span>
                   <textarea
                     id="product_prompt"
@@ -157,7 +214,7 @@
                     data-material-input="product-prompt"
                     data-role="product-positive-prompt"
                   ></textarea>
-                  <div class="slot-actions">
+                  <div class="slot-actions mode-s-hidden">
                     <button type="button" id="btn-generate-product" class="secondary">
                       AI 生成主产品图
                     </button>
@@ -181,6 +238,23 @@
             <legend>文字字段与底部产品</legend>
             <div class="grid text-grid">
               <label class="field">
+                <span>????</span>
+                <select name="channel" required>
+                  <option value="email">Email</option>
+                  <option value="ecommerce">??</option>
+                  <option value="social">??</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>????</span>
+                <select name="intent" required>
+                  <option value="default">??</option>
+                  <option value="launch">????</option>
+                  <option value="promotion">??</option>
+                  <option value="retargeting">??</option>
+                </select>
+              </label>
+              <label class="field">
                 <span>标题文案（大号粗体红字）</span>
                 <input type="text" name="title" required />
               </label>
@@ -189,7 +263,7 @@
                 <input type="text" name="subtitle" required />
               </label>
             </div>
-            <div class="gallery-upload">
+            <div class="gallery-upload mode-s-hidden">
               <div>
                 <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
                 <p class="micro-copy" data-gallery-description>
@@ -216,52 +290,19 @@
                 hidden
               />
             </div>
-            <div id="gallery-items" class="gallery-items" aria-live="polite"></div>
+            <div id="gallery-items" class="gallery-items mode-s-hidden" aria-live="polite"></div>
           </fieldset>
         </form>
+          </div>
+        </div>
 
-        <div class="actions">
+<div class="actions">
           <button id="build-preview" class="primary" type="button">构建版式预览</button>
           <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
         </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
-        <div class="preview" id="preview-container">
-          <h3>版式预览</h3>
-          <div id="layout-preview" class="poster-preview">
-            <div class="poster-header">
-              <div class="poster-logo">
-                <div class="poster-logo-image">
-                  <img id="preview-brand-logo" alt="品牌 Logo 预览" />
-                </div>
-                <div class="poster-brand-name" id="preview-brand-name"></div>
-              </div>
-              <div class="poster-agent" id="preview-agent-name"></div>
-            </div>
-            <div class="poster-body">
-              <div class="poster-left">
-                <img id="preview-scenario-image" alt="应用场景预览" />
-              </div>
-              <div class="poster-right">
-                <div class="poster-product-wrapper">
-                  <img id="preview-product-image" alt="产品渲染图预览" />
-                  <ul id="preview-feature-list" class="feature-tags">
-                    <li class="feature-tag feature-tag--top" data-feature-index="0"><span></span></li>
-                    <li class="feature-tag feature-tag--middle" data-feature-index="1"><span></span></li>
-                    <li class="feature-tag feature-tag--bottom" data-feature-index="2"><span></span></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div class="poster-title" id="preview-title"></div>
-            <div class="poster-gallery" id="preview-gallery"></div>
-            <div class="poster-subtitle" id="preview-subtitle"></div>
-          </div>
-          <details class="layout-structure">
-            <summary>查看版式结构说明</summary>
-            <pre id="layout-structure-text"></pre>
-          </details>
-        </div>
+        
       </section>
     </main>
 
