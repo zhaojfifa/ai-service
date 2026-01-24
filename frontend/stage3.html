@@ -49,8 +49,12 @@
             </figure>
             <div class="prompt-wrapper">
               <label class="field">
-                <span>Glibatree 提示词</span>
-                <textarea id="stage3-prompt" rows="12" readonly></textarea>
+                <span>Final Poster URL</span>
+                <input id="stage3-poster-url" type="url" readonly />
+              </label>
+              <label class="field">
+                <span>Final Poster Key</span>
+                <input id="stage3-poster-key" type="text" readonly />
               </label>
             </div>
           </div>
@@ -75,7 +79,7 @@
 
         <div class="actions">
           <a class="secondary" href="stage2.html">返回环节 2</a>
-          <button id="send-email" class="primary" type="button">发送营销邮件</button>
+          <button id="send-email" class="primary" type="button" disabled>发送营销邮件</button>
         </div>
         <p id="stage3-status" role="status" aria-live="polite"></p>
       </section>

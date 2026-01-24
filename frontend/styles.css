@@ -1288,6 +1288,33 @@ main {
   display: none !important;
 }
 
+.mode-s-hidden {
+  display: none !important;
+}
+
+.gen-meta-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.gen-meta-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.gen-meta-list dt {
+  font-weight: 600;
+}
+
+.gen-meta-list dd {
+  margin: 0;
+}
+
 /* demo1.0: never show AI generated poster image area in Stage2 */
 #ai-poster-wrap,
 .ai-poster-wrap,
