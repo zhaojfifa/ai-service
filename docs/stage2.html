@@ -1,20 +1,22 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>环节 2 · AI 海报生成</title>
+    <title>Stage 2 - Generate Poster</title>
     <link rel="stylesheet" href="./styles.css?v=demo1.0.2" />
   </head>
   <body data-stage="stage2">
     <header>
       <div class="header-content">
         <div>
-          <h1>营销海报生成工作流</h1>
-          <p>使用环节 1 的素材调用 FastAPI 后端生成海报与营销文案。</p></div>
+          <h1>Marketing Poster Builder</h1>
+          <p>Generate the final poster from Mode S inputs.</p>
+          <div id="build-info" class="build-info"></div>
+        </div>
         <label class="api-config">
-          <span>后端 API 地址</span>
+          <span>Backend API Base</span>
           <input
             type="url"
             id="api-base"
@@ -22,29 +24,21 @@
           />
         </label>
       </div>
-      <nav class="stage-nav" aria-label="流程导航">
-        <a href="index.html">环节 1 · 素材输入与版式预览</a>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <span class="active">环节 2 · AI 海报生成</span>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <a href="stage3.html">环节 3 · 邮件发送</a>
+      <nav class="stage-nav" aria-label="Workflow navigation">
+        <a href="index.html">Stage 1 - Core Assets</a>
+        <span class="nav-arrow" aria-hidden="true">-></span>
+        <span class="active">Stage 2 - Generate Poster</span>
+        <span class="nav-arrow" aria-hidden="true">-></span>
+        <a href="stage3.html">Stage 3 - Send Email</a>
       </nav>
     </header>
 
     <main>
       <section class="card stage-card">
-        <h2>环节 2 · 调用后端生成海报</h2>
+        <h2>Stage 2 - Final Poster</h2>
         <p class="hint">
-          确认环节 1 的素材信息后，调用 Render 托管的 FastAPI 服务，让 Glibatree Art
-          Designer 生成海报、提示词与营销文案。
+          Generate the final poster. Mode S returns a single final_poster only.
         </p>
-
-        <div class="stage-summary" id="stage1-summary">
-          <h3>素材概览</h3>
-          <dl id="stage1-overview"></dl>
-        </div>
-
-        <div id="layout-structure-text" class="hidden"></div>
 
         <section class="stage2-preview" id="poster-output">
           <h3>Final Poster</h3>
@@ -59,12 +53,10 @@
               <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Open URL</a>
             </div>
           </div>
-          <p id="stage2-warning" class="hint hidden"></p>
         </section>
 
         <div class="actions">
-          <button id="generate-poster" class="primary" type="button">Copy URL</button>
-          <button id="regenerate-poster" class="secondary hidden" type="button">Copy URL</button>
+          <button id="generate-poster" class="primary" type="button">Generate</button>
         </div>
         <div id="ai-preview" class="hidden">
           <div id="ai-spinner" class="hidden"></div>
@@ -82,32 +74,10 @@
           </dl>
         </section>
 
-        
-
-        <section id="lockscreen-template-section" class="lockscreen-template-section">
-          <div class="template-picker">
-            <div class="template-picker-control">
-              <label for="template-select">锁版模板</label>
-              <select id="template-select" aria-label="选择模板"></select>
-              <p id="template-description" class="template-description"></p>
-            </div>
-            <div class="template-preview-wrapper">
-              <canvas
-                id="template-preview-canvas"
-                width="512"
-                height="512"
-                aria-label="模板预览"
-              ></canvas>
-            </div>
-          </div>
-        </section>
-
-        
-
         <div class="actions">
-          <a class="secondary" href="index.html">返回环节 1</a>
+          <a class="secondary" href="index.html">Back to Stage 1</a>
           <button id="to-stage3" class="primary" type="button" disabled>
-            保存并前往环节 3
+            Save and Continue to Stage 3
           </button>
         </div>
         <p id="stage2-status" role="status" aria-live="polite"></p>
@@ -115,9 +85,8 @@
     </main>
 
     <footer>
-      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
+      <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
-    <!-- styles.css?v=demo1.0.2 之后，app.js 之前 -->
     <script defer src="./placeholder.js?v=3"></script>
     <script defer src="./app.js?v=demo1.0.2"></script>
   </body>

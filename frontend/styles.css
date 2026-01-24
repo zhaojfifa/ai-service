@@ -70,6 +70,12 @@ header {
   color: #52606d;
 }
 
+.build-info {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #7b8794;
+}
+
 .api-config {
   display: flex;
   flex-direction: column;
