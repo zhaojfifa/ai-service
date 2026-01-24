@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
+    <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>环节 3 · 邮件发送</title>
-    <link rel="stylesheet" href="styles.css?v=kit1.0.4" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-stage="stage3">
     <header>
@@ -48,8 +49,12 @@
             </figure>
             <div class="prompt-wrapper">
               <label class="field">
-                <span>Glibatree 提示词</span>
-                <textarea id="stage3-prompt" rows="12" readonly></textarea>
+                <span>Final Poster URL</span>
+                <input id="stage3-poster-url" type="url" readonly />
+              </label>
+              <label class="field">
+                <span>Final Poster Key</span>
+                <input id="stage3-poster-key" type="text" readonly />
               </label>
             </div>
           </div>
@@ -74,7 +79,7 @@
 
         <div class="actions">
           <a class="secondary" href="stage2.html">返回环节 2</a>
-          <button id="send-email" class="primary" type="button">发送营销邮件</button>
+          <button id="send-email" class="primary" type="button" disabled>发送营销邮件</button>
         </div>
         <p id="stage3-status" role="status" aria-live="polite"></p>
       </section>
@@ -84,6 +89,6 @@
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
 
-    <script src="app.js?v=kit1.0.4" type="module"></script>
+    <script src="./app.js" type="module"></script>
   </body>
 </html>

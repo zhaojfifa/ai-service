@@ -1288,6 +1288,61 @@ main {
   display: none !important;
 }
 
+.mode-s-hidden {
+  display: none !important;
+}
+
+.gen-meta-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.gen-meta-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.gen-meta-list dt {
+  font-weight: 600;
+}
+
+.gen-meta-list dd {
+  margin: 0;
+}
+
+/* demo1.0: never show AI generated poster image area in Stage2 */
+#ai-poster-wrap,
+.ai-poster-wrap,
+.stage2-ai-poster,
+#stage2-ai-poster,
+#generated-poster-image,
+#poster-visual,
+.poster-preview--generated,
+.poster-preview--ai {
+  display: none !important;
+}
+
+/* demo1.0.2 safety: never render AI-generated poster image block (red box) */
+#ai-poster-wrap,
+#generated-poster-wrap,
+#generated-poster,
+#generated-image,
+#poster-generated-image,
+.generated-poster,
+.generated-result,
+.poster-generated {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+}
+
 .stage2-template-preview {
   display: none !important;
 }
@@ -1704,3 +1759,11 @@ main {
   white-space: nowrap;
 }
 
+
+/* Demo 1.0: never render AI poster image preview block */
+#poster-visual,
+#vertex-poster-preview-img,
+#vertex-poster-placeholder,
+.ai-result-box {
+  display: none !important;
+}

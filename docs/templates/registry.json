@@ -3,14 +3,14 @@
     "id": "template_dual",
     "name": "双列功能模板",
     "spec": "template_dual_spec.json",
-    "preview": "template_dual_template.png",
+    "preview": "template_dual_template.b64",
     "description": "左侧场景 + 右侧产品的经典厨电布局，搭配 4 条功能点与底部系列小图。"
   },
   {
     "id": "template_focus",
     "name": "聚焦主体模板",
     "spec": "template_focus_spec.json",
-    "preview": "template_focus_template.png",
+    "preview": "template_focus_template.b64",
     "description": "主产品居中、左侧列出功能卖点，适合突出单品气质与系列对比。"
   }
 ]
