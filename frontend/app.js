@@ -5265,7 +5265,9 @@ function updateStage2Warnings(data) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  updateStage2Warnings(data);
+  if (typeof updateStage2Warnings === 'function') {
+    updateStage2Warnings(data);
+  }
 
   const finalPoster = data?.final_poster ?? null;
   const finalPosterUrl = extractVertexPosterUrl(data);
@@ -5312,7 +5314,9 @@ function applyVertexPosterResult(data) {
     };
   }
 
-  updateGenerationMetaPanel(data);
+  if (typeof updateGenerationMetaPanel === 'function') {
+    updateGenerationMetaPanel(data);
+  }
 }
 
 
