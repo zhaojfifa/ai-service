@@ -63,6 +63,20 @@ def _rect_mask_bytes(w: int, h: int, x: int, y: int, rw: int, rh: int) -> bytes:
     return bio.getvalue()
 
 
+def _vimage_from_bytes(data: bytes, suffix: str = ".png") -> VImage:
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
+        handle.write(data)
+        handle.flush()
+        path = handle.name
+    try:
+        return VImage.load_from_file(path)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
 class VertexImagen3:
     """Google Vertex AI Imagen3 适配层：生图 + 局部编辑。"""
 
@@ -209,7 +223,7 @@ class VertexImagen3:
         if not base_image_bytes:
             raise RuntimeError("edit_bytes requires base_image (bytes or b64)")
 
-        base_vimg = VImage.load_from_bytes(base_image_bytes)
+        base_vimg = _vimage_from_bytes(base_image_bytes)
         width_px, height_px, size_token = _normalise_dimensions(
             size, width, height, default="1024x1024"
         )
@@ -217,14 +231,14 @@ class VertexImagen3:
         trace_id = uuid.uuid4().hex[:8]
         vmask: Optional[VImage] = None
         if mask_b64:
-            vmask = VImage.load_from_bytes(base64.b64decode(mask_b64))
+            vmask = _vimage_from_bytes(base64.b64decode(mask_b64))
         elif region_rect:
             rx = int(region_rect.get("x", 0))
             ry = int(region_rect.get("y", 0))
             rw = int(region_rect.get("width", width_px))
             rh = int(region_rect.get("height", height_px))
             m_bytes = _rect_mask_bytes(width_px, height_px, rx, ry, rw, rh)
-            vmask = VImage.load_from_bytes(m_bytes)
+            vmask = _vimage_from_bytes(m_bytes)
 
         size_kwargs, size_mode = _select_dimension_kwargs(
             self._edit_params, width_px, height_px, _aspect_from_dims(width_px, height_px)
