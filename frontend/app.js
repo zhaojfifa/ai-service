@@ -346,10 +346,16 @@ function rehydrateStage2PosterFromStage1() {
     poster.tagline = snapshot.subtitle || snapshot.tagline || snapshot.slogan || '';
   }
   if (!Array.isArray(poster.features) || poster.features.length === 0) {
-    poster.features = Array.isArray(snapshot.features)
-      ? snapshot.features.filter(Boolean)
-      : [];
+    const fromFeatures = Array.isArray(snapshot.features) ? snapshot.features : [];
+    const fromBullets = Array.isArray(snapshot.bullets) ? snapshot.bullets : [];
+    const merged = (fromFeatures.length ? fromFeatures : fromBullets)
+      .map((value) => (typeof value === 'string' ? value.trim() : value))
+      .filter(Boolean);
+    poster.features = merged;
   }
+  if (!poster.price && snapshot.price) poster.price = snapshot.price;
+  if (!poster.promo && snapshot.promo) poster.promo = snapshot.promo;
+  if (!poster.brand_color && snapshot.brand_color) poster.brand_color = snapshot.brand_color;
   if (!Array.isArray(poster.series) || poster.series.length === 0) {
     poster.series = Array.isArray(snapshot.gallery_entries)
       ? snapshot.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
@@ -598,6 +604,7 @@ function normalizePosterAssets(stage1Data) {
   });
 
   return { scenario_asset, scenario_key, product_asset, product_key, gallery_items };
+}
 
 function hasInlineDataUrl(asset) {
   if (!asset) return false;
@@ -616,8 +623,6 @@ function hasInlineStage1Assets(stage1Data) {
   if (hasInlineDataUrl(stage1Data.product_image_2)) return true;
   const entries = Array.isArray(stage1Data.gallery_entries) ? stage1Data.gallery_entries : [];
   return entries.some((entry) => hasInlineDataUrl(entry?.asset));
-}
-
 }
 
 function joinBasePath(base, path) {
