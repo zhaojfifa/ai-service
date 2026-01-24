@@ -598,7 +598,6 @@ function normalizePosterAssets(stage1Data) {
   });
 
   return { scenario_asset, scenario_key, product_asset, product_key, gallery_items };
-}
 
 function hasInlineDataUrl(asset) {
   if (!asset) return false;
