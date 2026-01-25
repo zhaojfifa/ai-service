@@ -19,6 +19,11 @@ from vertexai.preview.vision_models import (
     ImageGenerationModel,
     Image as VImage,
 )
+try:
+    from vertexai.preview.vision_models import RawReferenceImage, MaskReferenceImage
+except Exception:
+    RawReferenceImage = None
+    MaskReferenceImage = None
 
 from app.services.vertex_imagen import (
     _aspect_from_dims,
@@ -247,28 +252,25 @@ class VertexImagen3:
         if not base_image_bytes:
             raise RuntimeError("edit_bytes requires base_image (bytes or b64)")
 
-        base_vimg = _vimage_from_bytes(base_image_bytes)
         width_px, height_px, size_token = _normalise_dimensions(
             size, width, height, default="1024x1024"
         )
 
         trace_id = uuid.uuid4().hex[:8]
-        vmask: Optional[VImage] = None
+        mask_bytes: Optional[bytes] = None
         if mask_b64:
-            vmask = _vimage_from_bytes(base64.b64decode(mask_b64))
+            mask_bytes = base64.b64decode(mask_b64)
         elif region_rect:
             rx = int(region_rect.get("x", 0))
             ry = int(region_rect.get("y", 0))
             rw = int(region_rect.get("width", width_px))
             rh = int(region_rect.get("height", height_px))
-            m_bytes = _rect_mask_bytes(width_px, height_px, rx, ry, rw, rh)
-            vmask = _vimage_from_bytes(m_bytes)
+            mask_bytes = _rect_mask_bytes(width_px, height_px, rx, ry, rw, rh)
 
         size_kwargs, size_mode = _select_dimension_kwargs(
             self._edit_params, width_px, height_px, _aspect_from_dims(width_px, height_px)
         )
         kwargs: Dict[str, Any] = {
-            "base_image": base_vimg,
             "prompt": prompt,
             "number_of_images": 1,
         }
@@ -278,23 +280,43 @@ class VertexImagen3:
             kwargs["negative_prompt"] = negative_prompt
         if self.seed is not None and "seed" in self._edit_params:
             kwargs["seed"] = self.seed
-        if vmask and "mask" in self._edit_params:
-            kwargs["mask"] = vmask
         if guidance is not None and "guidance_scale" in self._edit_params:
             kwargs["guidance_scale"] = guidance
         kwargs.update(size_kwargs)
-        if vmask is not None:
-            if "mask_mode" in self._edit_params and "mask_mode" not in kwargs:
-                kwargs["mask_mode"] = "MASK_MODE_USER_PROVIDED"
-            if "edit_mode" in self._edit_params and "edit_mode" not in kwargs:
-                kwargs["edit_mode"] = "EDIT_MODE_INPAINTING"
+
+        used_reference_images = (
+            "reference_images" in self._edit_params
+            and RawReferenceImage is not None
+            and MaskReferenceImage is not None
+        )
+        vmask: Optional[VImage] = None
+        if used_reference_images:
+            ref_images = [RawReferenceImage(image=base_image_bytes, reference_id=0)]
+            if mask_bytes is not None:
+                ref_images.append(
+                    MaskReferenceImage(
+                        image=mask_bytes,
+                        reference_id=1,
+                        mask_mode="user_provided",
+                    )
+                )
+            kwargs["reference_images"] = ref_images
+            if "edit_mode" in self._edit_params:
+                kwargs["edit_mode"] = "inpainting-insert"
+        else:
+            base_vimg = _vimage_from_bytes(base_image_bytes)
+            kwargs["base_image"] = base_vimg
+            if mask_bytes is not None:
+                vmask = _vimage_from_bytes(mask_bytes)
+                if "mask" in self._edit_params:
+                    kwargs["mask"] = vmask
 
         logger.info(
             "[vertex3.call>%s] mode=edit size=%s mode=%s mask=%s guidance=%s",
             trace_id,
             size_token,
             size_mode,
-            bool(vmask),
+            bool(mask_bytes),
             guidance,
         )
         start = time.time()
@@ -342,7 +364,7 @@ class VertexImagen3:
                 "negative_prompt": negative_prompt,
                 "edit_mode": kwargs.get("edit_mode"),
                 "mask_mode": kwargs.get("mask_mode"),
-                "has_mask": bool(vmask),
+                "has_mask": bool(mask_bytes),
                 "size_token": size_token,
                 "width_px": width_px,
                 "height_px": height_px,

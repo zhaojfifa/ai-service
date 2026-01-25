@@ -1809,21 +1809,43 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
     return image.convert("RGBA")
 
 
+def _fallback_default_scenario_image() -> Image.Image:
+    base_dir = Path(__file__).resolve().parent
+    candidates = [
+        base_dir / "assets" / "default_scenario.png",
+        base_dir / "assets" / "default_scenario.jpg",
+        base_dir / "templates" / "default_scenario.png",
+        base_dir / "templates" / "scenarios" / "default.png",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                return Image.open(candidate).convert("RGBA")
+            except Exception:
+                continue
+    return Image.new("RGBA", (1024, 1024), (238, 240, 244, 255))
+
+
 def _load_image_from_key(key: str | None) -> Image.Image | None:
     if not key:
         return None
     if key.startswith("r2://"):
         key = key[5:]
+    is_default = key == "default" or key.endswith("/default")
     try:
         payload = get_bytes(key)
     except Exception as exc:
         logger.warning("Unable to download object %s from R2: %s", key, exc)
+        if is_default:
+            return _fallback_default_scenario_image()
         return None
 
     try:
         return Image.open(BytesIO(payload)).convert("RGBA")
     except Exception as exc:
         logger.warning("Downloaded asset %s is not a valid image: %s", key, exc)
+        if is_default:
+            return _fallback_default_scenario_image()
         return None
 
 

@@ -85,7 +85,7 @@ class StoredImage(_CompatModel):
     """Metadata returned after writing an image to object storage."""
 
     key: str = Field(..., description="Object storage key for the stored image.")
-    url: HttpUrl = Field(..., description="Public URL that can be used to access the image.")
+    url: str = Field(..., description="Public URL that can be used to access the image.")
     content_type: str = Field("image/png", description="Stored MIME type.")
     width: int | None = Field(None, ge=0, description="Width in pixels, when known.")
     height: int | None = Field(None, ge=0, description="Height in pixels, when known.")
@@ -646,7 +646,7 @@ class GeneratePosterRequest(_CompatModel):
 
 class PosterImageAsset(_CompatModel):
     key: str
-    url: HttpUrl
+    url: str
     width: Optional[int] = None
     height: Optional[int] = None
     content_type: Optional[str] = None
@@ -664,7 +664,7 @@ class GeneratePosterResponse(_CompatModel):
     poster_image: Optional[PosterImage] = None
     final_poster: Optional[PosterImage] = None
 
-    poster_url: Optional[HttpUrl] = Field(
+    poster_url: Optional[str] = Field(
         None,
         description="Primary poster URL stored in R2/GCS for downstream consumers.",
     )
