@@ -11,7 +11,7 @@ import uuid
 import io
 from functools import lru_cache
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from google.api_core.exceptions import ResourceExhausted
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -790,6 +790,29 @@ def _ensure_trace_id(request: Request) -> str:
     return trace
 
 
+def _sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
+    essential = {"X-Request-Trace", "X-Vertex-Trace", "X-Vertex-Fallback"}
+    safe: dict[str, str] = {}
+    for key, value in (headers or {}).items():
+        if value is None:
+            continue
+        text = str(value)
+        if len(text) > 1024:
+            continue
+        try:
+            text.encode("latin-1")
+            safe[key] = text
+            continue
+        except UnicodeEncodeError:
+            if key not in essential:
+                continue
+        encoded = quote(text, safe="")
+        if len(encoded) > 1024:
+            continue
+        safe[key] = f"utf8:{encoded}"
+    return safe
+
+
 async def read_json_relaxed(request: Request) -> dict:
     try:
         payload = await request.json()
@@ -1099,7 +1122,8 @@ async def generate_poster(request: Request) -> JSONResponse:
         if result.fallback_used:
             headers["X-Vertex-Fallback"] = "1"
         headers["X-Request-Trace"] = trace
-        return JSONResponse(content=_model_dump(response_payload), headers=headers)
+        safe_headers = _sanitize_headers(headers)
+        return JSONResponse(content=_model_dump(response_payload), headers=safe_headers)
 
     except ResourceExhausted as exc:
         logger.warning(
