@@ -25,6 +25,7 @@ from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput, StoredImage
+from app.schemas.kitposter import KitPosterDraft
 from app.schemas.poster import PosterPayload
 from app.templates.layouts import load_layout
 from app.services.storage_bridge import store_image_and_url
@@ -459,6 +460,7 @@ class PosterGenerationResult:
     provider: str | None = None
     degraded: bool = False
     degraded_reason: str | None = None
+    warnings: list[str] = field(default_factory=list)
     scenario_image: StoredImage | None = None
     product_image: StoredImage | None = None
     gallery_images: list[StoredImage] = field(default_factory=list)
@@ -1188,6 +1190,111 @@ def _render_template_frame(
     return canvas
 
 
+def _validate_kitposter_draft(draft: KitPosterDraft) -> KitPosterDraft:
+    return draft
+
+
+def _resolve_assets_for_draft(draft: KitPosterDraft | None, warnings: list[str]) -> None:
+    if draft is None:
+        return
+    warnings.append("scenario_fallback_used")
+
+
+def _generate_or_edit_poster(
+    *,
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    prompt_bundle: dict[str, Any] | None,
+    prompt_details: dict[str, str] | None,
+    render_mode: str,
+    variants: int,
+    seed: int | None,
+    lock_seed: bool,
+    trace_id: str | None,
+    aspect_closeness: float | None,
+) -> PosterGenerationResult:
+    return generate_poster_asset(
+        poster,
+        prompt,
+        preview,
+        prompt_bundle=prompt_bundle,
+        prompt_details=prompt_details,
+        render_mode=render_mode,
+        variants=variants,
+        seed=seed,
+        lock_seed=lock_seed,
+        trace_id=trace_id,
+        aspect_closeness=aspect_closeness,
+    )
+
+
+def run_kitposter_state_machine(
+    *,
+    draft: KitPosterDraft | None,
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    prompt_bundle: dict[str, Any] | None,
+    prompt_details: dict[str, str] | None,
+    render_mode: str,
+    variants: int,
+    seed: int | None,
+    lock_seed: bool,
+    trace_id: str | None,
+    aspect_closeness: float | None,
+    quality_mode: str | None,
+) -> tuple[PosterGenerationResult, list[str], bool, str]:
+    warnings: list[str] = []
+    degraded = False
+    quality_mode_used = quality_mode or "stable"
+
+    if draft is not None:
+        _validate_kitposter_draft(draft)
+    _resolve_assets_for_draft(draft, warnings)
+
+    try:
+        result = _generate_or_edit_poster(
+            poster=poster,
+            prompt=prompt,
+            preview=preview,
+            prompt_bundle=prompt_bundle,
+            prompt_details=prompt_details,
+            render_mode=render_mode,
+            variants=variants,
+            seed=seed,
+            lock_seed=lock_seed,
+            trace_id=trace_id,
+            aspect_closeness=aspect_closeness,
+        )
+    except Exception:
+        if quality_mode == "creative":
+            warnings.append("creative_failed_fallback_to_stable")
+            degraded = True
+            quality_mode_used = "stable"
+            result = _generate_or_edit_poster(
+                poster=poster,
+                prompt=prompt,
+                preview=preview,
+                prompt_bundle=prompt_bundle,
+                prompt_details=prompt_details,
+                render_mode=render_mode,
+                variants=variants,
+                seed=seed,
+                lock_seed=lock_seed,
+                trace_id=trace_id,
+                aspect_closeness=aspect_closeness,
+            )
+        else:
+            raise
+
+    if warnings:
+        result.warnings = sorted(set(result.warnings + warnings))
+    if degraded:
+        result.degraded = True
+    return result, warnings, degraded, quality_mode_used
+
+
 def generate_poster_asset(
     poster: PosterInput,
     prompt: str,
@@ -1616,6 +1723,7 @@ def generate_poster_asset(
         provider=provider_label,
         degraded=degraded,
         degraded_reason=degraded_reason,
+        warnings=warnings,
         scenario_image=scenario_asset,
         product_image=product_asset,
         gallery_images=gallery_assets,
@@ -1812,6 +1920,7 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
 def _fallback_default_scenario_image() -> Image.Image:
     base_dir = Path(__file__).resolve().parent
     candidates = [
+        base_dir.parents[1] / "assets" / "scenes" / "default.png",
         base_dir / "assets" / "default_scenario.png",
         base_dir / "assets" / "default_scenario.jpg",
         base_dir / "templates" / "default_scenario.png",

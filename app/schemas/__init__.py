@@ -655,6 +655,27 @@ class PosterImageAsset(_CompatModel):
 class GeneratePosterResponse(_CompatModel):
     """Aggregated response after preparing all marketing assets."""
 
+    status: str | None = Field(
+        None, description="Request status, e.g. success or error."
+    )
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Warning codes emitted during generation.",
+    )
+    degraded: Optional[bool] = Field(
+        None,
+        description="True when the response is a conservative deliverable due to downstream constraints.",
+    )
+    run_id: Optional[str] = Field(
+        None,
+        description="Deterministic run identifier for idempotency/debugging.",
+    )
+    seed_used: Optional[int] = Field(
+        None, description="Seed actually used for generation, when available."
+    )
+    quality_mode_used: Optional[str] = Field(
+        None, description="Quality mode used for the run (stable or creative)."
+    )
     hasPoster: bool = True
     layout_preview: Optional[str] = None
 
@@ -735,10 +756,6 @@ class GeneratePosterResponse(_CompatModel):
     fallback_used: Optional[bool] = Field(
         None,
         description="Indicates whether the backend fell back to non-Vertex image generation.",
-    )
-    degraded: Optional[bool] = Field(
-        None,
-        description="True when the response is a conservative deliverable due to downstream constraints.",
     )
     degraded_reason: Optional[str] = Field(
         None,
