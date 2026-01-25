@@ -4,7 +4,7 @@
     <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stage 1 - Mode S Core Assets</title>
+    <title>Stage 1 - Assets & Copy (Mode S)</title>
     <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
   </head>
   <body data-stage="stage1">
@@ -12,7 +12,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Mode S collects core assets for KitPoster 1.0 generation.</p>
+          <p>Upload core materials and confirm previews. Mode S controls how assets are used, not layout.</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -25,7 +25,7 @@
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
-        <span class="active">Stage 1 - Core Assets</span>
+        <span class="active">Stage 1 - Assets & Copy</span>
         <span class="nav-arrow" aria-hidden="true">-></span>
         <a href="stage2.html">Stage 2 - Generate Poster</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
@@ -35,110 +35,239 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 1 - Core Assets (Mode S)</h2>
+        <h2>Stage 1 - Assets & Copy (Mode S)</h2>
         <p class="hint">
-          Required: product image 1, title, bullets (3-5), channel, intent. Optional:
-          product image 2, brand name, brand color, price, promo.
+          Upload core materials and confirm previews. Mode S controls how assets are used, not layout.
         </p>
+      </section>
 
-        <form id="poster-form" novalidate>
-          <fieldset class="fieldset">
-            <legend>Core Assets</legend>
-            <div class="grid">
-              <label class="field file-field">
-                <span>Product image 1 (required)</span>
-                <input type="file" name="product_image_1" accept="image/*" required />
-                <div class="inline-preview" role="presentation">
-                  <img data-inline-preview="product_image_1" alt="Product image 1 preview" />
-                </div>
-              </label>
-              <label class="field file-field optional">
-                <span>Product image 2 (optional)</span>
-                <input type="file" name="product_image_2" accept="image/*" />
-                <div class="inline-preview" role="presentation">
-                  <img data-inline-preview="product_image_2" alt="Product image 2 preview" />
-                </div>
-              </label>
-              <label class="field optional">
-                <span>Brand name</span>
-                <input type="text" name="brand_name" />
-              </label>
-              <label class="field optional">
-                <span>Brand color</span>
-                <input type="color" name="brand_color" />
-              </label>
-              <label class="field optional">
-                <span>Price</span>
-                <input type="text" name="price" />
-              </label>
-              <label class="field optional">
-                <span>Promo</span>
-                <input type="text" name="promo" />
-              </label>
-            </div>
-          </fieldset>
+      <form id="poster-form" novalidate>
+        <section class="card stage-card">
+          <h3>Top Banner Assets</h3>
+          <p class="hint">Optional but recommended. Logo and brand info improve consistency.</p>
+          <div class="grid">
+            <label class="field file-field optional">
+              <span>Brand Logo (optional)</span>
+              <input type="file" name="brand_logo" accept="image/*" />
+              <div class="inline-preview" role="presentation">
+                <img data-inline-preview="brand_logo" alt="Brand logo preview" />
+              </div>
+              <small class="hint">PNG/SVG preferred. Transparent background recommended.</small>
+              <small id="brand-logo-status" class="hint">Logo URL: not uploaded</small>
+            </label>
+            <label class="field">
+              <span>Brand name</span>
+              <input type="text" name="brand_name" placeholder="e.g., ChefCraft" />
+            </label>
+            <label class="field optional">
+              <span>Agent / Channel name (optional)</span>
+              <input type="text" name="agent_name" placeholder="e.g., Email / Dealer A" />
+            </label>
+          </div>
+        </section>
 
-          <fieldset class="fieldset">
-            <legend>Messaging</legend>
-            <div class="grid">
-              <label class="field">
-                <span>Channel</span>
-                <select name="channel" required>
-                  <option value="email">Email</option>
-                  <option value="ecommerce">Ecommerce</option>
-                  <option value="social">Social</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Intent</span>
-                <select name="intent" required>
-                  <option value="default">Default</option>
-                  <option value="launch">Launch</option>
-                  <option value="promotion">Promotion</option>
-                  <option value="retargeting">Retargeting</option>
-                </select>
-              </label>
-              <label class="field">
-                <span>Title</span>
-                <input type="text" name="title" required />
-              </label>
-              <label class="field optional">
-                <span>Tagline (optional)</span>
-                <input type="text" name="tagline" />
-              </label>
+        <section class="card stage-card">
+          <h3>Image Assets</h3>
+          <p class="hint">These images are used to generate the poster visuals. You must provide at least one product image.</p>
+
+          <div class="grid">
+            <label class="field file-field optional">
+              <span>Scenario image (optional)</span>
+              <input type="file" name="scenario_asset" accept="image/*" />
+              <div class="inline-preview" role="presentation">
+                <img data-inline-preview="scenario_asset" alt="Scenario preview" />
+              </div>
+              <small class="hint">If empty, system uses default scenario. If provided, it will be used as background reference.</small>
+            </label>
+            <label class="field">
+              <span>Scenario selection</span>
+              <select name="scenario_image">
+                <option value="default">Default</option>
+                <option value="modern_kitchen">Modern kitchen</option>
+                <option value="living_room">Living room</option>
+                <option value="studio">Studio</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid">
+            <label class="field file-field">
+              <span>Product image 1 (required)</span>
+              <input type="file" name="product_image_1" accept="image/*" required />
+              <div class="inline-preview" role="presentation">
+                <img data-inline-preview="product_image_1" alt="Product image 1 preview" />
+              </div>
+              <small class="hint">Clear product photo. Prefer clean background.</small>
+            </label>
+            <label class="field file-field optional">
+              <span>Product image 2 (optional)</span>
+              <input type="file" name="product_image_2" accept="image/*" />
+              <div class="inline-preview" role="presentation">
+                <img data-inline-preview="product_image_2" alt="Product image 2 preview" />
+              </div>
+              <small class="hint">Optional second angle/detail shot.</small>
+            </label>
+          </div>
+        </section>
+
+        <section class="card stage-card">
+          <h3>Copy & Bottom Products</h3>
+          <p class="hint">Copy must fit safe areas automatically. Bottom thumbnails are optional (0-4).</p>
+
+          <div class="grid">
+            <label class="field">
+              <span>Title (required)</span>
+              <input type="text" name="title" placeholder="1-2 lines recommended" required />
+              <small class="hint">If too long, system will shrink text or add ellipsis.</small>
+            </label>
+            <label class="field optional">
+              <span>Tagline (optional)</span>
+              <input type="text" name="tagline" placeholder="Short brand line" />
+            </label>
+          </div>
+
+          <div class="feature-fields">
+            <span class="feature-label">Bullets (optional, up to 4)</span>
+            <small class="hint">Short phrases recommended.</small>
+            <div class="feature-grid">
+              <input type="text" name="bullets" placeholder="Optional" />
+              <input type="text" name="bullets" placeholder="Optional" />
+              <input type="text" name="bullets" placeholder="Optional" />
+              <input type="text" name="bullets" placeholder="Optional" />
             </div>
-            <div class="feature-fields">
-              <span class="feature-label">Bullets (3-5 required)</span>
-              <div class="feature-grid">
-                <input type="text" name="bullets" required />
-                <input type="text" name="bullets" required />
-                <input type="text" name="bullets" required />
-                <input type="text" name="bullets" placeholder="Optional" />
-                <input type="text" name="bullets" placeholder="Optional" />
+          </div>
+
+          <div class="bottom-thumbnails">
+            <div class="section-header">
+              <h4>Bottom thumbnails (optional, 0-4)</h4>
+              <p class="hint">Upload up to 4 small product images. If empty, system will proceed without blocking.</p>
+            </div>
+            <div id="bottom-thumbnails" class="thumbnail-grid">
+              <div class="thumbnail-slot" data-slot-index="0">
+                <div class="thumbnail-preview">
+                  <img data-bottom-preview="0" alt="Bottom slot 1 preview" />
+                  <span class="slot-placeholder">Empty</span>
+                </div>
+                <div class="thumbnail-actions">
+                  <label class="button-like">
+                    Upload / Replace
+                    <input type="file" name="bottom_slot_1" accept="image/*" />
+                  </label>
+                  <button type="button" class="secondary" data-bottom-clear="0">Clear</button>
+                </div>
+              </div>
+              <div class="thumbnail-slot" data-slot-index="1">
+                <div class="thumbnail-preview">
+                  <img data-bottom-preview="1" alt="Bottom slot 2 preview" />
+                  <span class="slot-placeholder">Empty</span>
+                </div>
+                <div class="thumbnail-actions">
+                  <label class="button-like">
+                    Upload / Replace
+                    <input type="file" name="bottom_slot_2" accept="image/*" />
+                  </label>
+                  <button type="button" class="secondary" data-bottom-clear="1">Clear</button>
+                </div>
+              </div>
+              <div class="thumbnail-slot" data-slot-index="2">
+                <div class="thumbnail-preview">
+                  <img data-bottom-preview="2" alt="Bottom slot 3 preview" />
+                  <span class="slot-placeholder">Empty</span>
+                </div>
+                <div class="thumbnail-actions">
+                  <label class="button-like">
+                    Upload / Replace
+                    <input type="file" name="bottom_slot_3" accept="image/*" />
+                  </label>
+                  <button type="button" class="secondary" data-bottom-clear="2">Clear</button>
+                </div>
+              </div>
+              <div class="thumbnail-slot" data-slot-index="3">
+                <div class="thumbnail-preview">
+                  <img data-bottom-preview="3" alt="Bottom slot 4 preview" />
+                  <span class="slot-placeholder">Empty</span>
+                </div>
+                <div class="thumbnail-actions">
+                  <label class="button-like">
+                    Upload / Replace
+                    <input type="file" name="bottom_slot_4" accept="image/*" />
+                  </label>
+                  <button type="button" class="secondary" data-bottom-clear="3">Clear</button>
+                </div>
               </div>
             </div>
-          </fieldset>
-        </form>
-
-        <div class="actions">
-          <button id="build-preview" class="primary" type="button">Save Draft</button>
-          <button id="go-to-stage2" class="secondary" type="button">Save and Continue</button>
-        </div>
-        <p id="stage1-status" role="status" aria-live="polite"></p>
-      </section>
-
-      <section class="card wireframe-card">
-        <h3>Template Wireframe Preview</h3>
-        <p class="hint">Text safe areas preview with live fitting.</p>
-        <div id="stage1-wireframe" class="wireframe-preview" data-template="template_dual">
-          <div class="wireframe-canvas">
-            <div class="wireframe-slot wireframe-slot--title" data-slot="title"></div>
-            <div class="wireframe-slot wireframe-slot--bullets" data-slot="bullets"></div>
-            <div class="wireframe-slot wireframe-slot--tagline" data-slot="tagline"></div>
           </div>
-        </div>
-        <p id="wireframe-warning" class="hint"></p>
-      </section>
+
+          <label class="field inline optional">
+            <input type="checkbox" name="allow_auto_fill" checked />
+            <span>Allow auto-fill (Mode S asset utilization)</span>
+          </label>
+        </section>
+
+        <section class="card wireframe-card">
+          <h3>Material Preview</h3>
+          <p class="hint">Confirm how your assets and copy will appear in the poster structure.</p>
+          <div id="stage1-wireframe" class="wireframe-preview" data-template="template_dual">
+            <div class="wireframe-canvas">
+              <div class="wireframe-slot wireframe-slot--title" data-slot="title"></div>
+              <div class="wireframe-slot wireframe-slot--bullets" data-slot="bullets"></div>
+              <div class="wireframe-slot wireframe-slot--tagline" data-slot="tagline"></div>
+            </div>
+          </div>
+          <p id="wireframe-warning" class="hint"></p>
+
+          <div class="material-preview-assets" id="material-preview-assets">
+            <div class="preview-row">
+              <div class="preview-thumb" data-asset-slot="scenario">
+                <img alt="Scenario preview" />
+                <span class="slot-placeholder">Using default scenario</span>
+                <span class="slot-label">Scenario</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="product1">
+                <img alt="Product image 1 preview" />
+                <span class="slot-placeholder">Missing</span>
+                <span class="slot-label">Product 1</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="product2">
+                <img alt="Product image 2 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Product 2</span>
+              </div>
+            </div>
+            <div class="preview-row preview-bottom">
+              <div class="preview-thumb" data-asset-slot="bottom-0">
+                <img alt="Bottom slot 1 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 1</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="bottom-1">
+                <img alt="Bottom slot 2 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 2</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="bottom-2">
+                <img alt="Bottom slot 3 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 3</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="bottom-3">
+                <img alt="Bottom slot 4 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 4</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card stage-card">
+          <div class="actions">
+            <button id="build-preview" class="primary" type="button">Save Draft</button>
+            <button id="go-to-stage2" class="secondary" type="button">Save and Continue</button>
+          </div>
+          <p id="stage1-status" role="status" aria-live="polite"></p>
+          <p class="hint">Draft saved. Ready for Stage 2.</p>
+        </section>
+      </form>
     </main>
 
     <footer>
@@ -148,4 +277,3 @@
     <script defer src="./app.js?v=0cbaf65"></script>
   </body>
 </html>
-

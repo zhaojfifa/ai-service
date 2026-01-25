@@ -144,6 +144,8 @@ const stage2State = {
     showBullets: true,
     titleScale: 1,
     qualityMode: 'stable',
+    titleSize: 'M',
+    fallbackStableClicked: false,
   },
   renderMode: 'kitposter1_a',
 };
@@ -629,6 +631,181 @@ function updateWireframePreview(
   if (warningEl) {
     warningEl.textContent = didEllipsis ? 'Some text was truncated to fit the safe areas.' : '';
   }
+}
+
+function ensureGalleryEntries(state, count = 4) {
+  if (!state) return [];
+  if (!Array.isArray(state.galleryEntries)) {
+    state.galleryEntries = [];
+  }
+  for (let i = 0; i < count; i += 1) {
+    if (!state.galleryEntries[i]) {
+      state.galleryEntries[i] = {
+        id: createId(),
+        caption: '',
+        asset: null,
+        mode: 'upload',
+        prompt: null,
+      };
+    }
+  }
+  state.galleryEntries = state.galleryEntries.slice(0, count);
+  return state.galleryEntries;
+}
+
+function updatePreviewSlot(slot, asset, placeholderText) {
+  if (!slot) return;
+  const img = slot.querySelector('img');
+  const placeholder = slot.querySelector('.slot-placeholder');
+  const src = pickImageSrc(asset);
+  if (src && img) {
+    img.src = src;
+    img.style.display = 'block';
+    if (placeholder) {
+      placeholder.classList.add('hidden');
+    }
+    return;
+  }
+  if (img) {
+    img.removeAttribute('src');
+    img.style.display = 'none';
+  }
+  if (placeholder) {
+    if (placeholderText) {
+      placeholder.textContent = placeholderText;
+    }
+    placeholder.classList.remove('hidden');
+  }
+}
+
+function updateMaterialPreviewAssets(container, assets, labels = {}) {
+  if (!container) return;
+  const scenarioSlot = container.querySelector('[data-asset-slot="scenario"]');
+  const product1Slot = container.querySelector('[data-asset-slot="product1"]');
+  const product2Slot = container.querySelector('[data-asset-slot="product2"]');
+  const scenarioLabel = labels.scenario || 'Using default scenario';
+  updatePreviewSlot(scenarioSlot, assets?.scenario, scenarioLabel);
+  updatePreviewSlot(product1Slot, assets?.product1, 'Missing');
+  updatePreviewSlot(product2Slot, assets?.product2, 'Empty');
+
+  const bottomEntries = Array.isArray(assets?.bottom) ? assets.bottom : [];
+  for (let i = 0; i < 4; i += 1) {
+    const slot = container.querySelector(`[data-asset-slot="bottom-${i}"]`);
+    const entry = bottomEntries[i];
+    updatePreviewSlot(slot, entry?.asset || entry, 'Empty');
+  }
+}
+
+function updateBottomThumbnailsUi(container, state) {
+  if (!container) return;
+  const entries = Array.isArray(state?.galleryEntries) ? state.galleryEntries : [];
+  const slots = container.querySelectorAll('[data-slot-index]');
+  slots.forEach((slot) => {
+    const index = Number(slot.getAttribute('data-slot-index') || '0');
+    const previewImg = slot.querySelector(`[data-bottom-preview="${index}"]`);
+    const placeholder = slot.querySelector('.slot-placeholder');
+    const src = pickImageSrc(entries[index]?.asset);
+    if (src && previewImg) {
+      previewImg.src = src;
+      previewImg.style.display = 'block';
+      if (placeholder) placeholder.classList.add('hidden');
+    } else {
+      if (previewImg) {
+        previewImg.removeAttribute('src');
+        previewImg.style.display = 'none';
+      }
+      if (placeholder) placeholder.classList.remove('hidden');
+    }
+  });
+}
+
+function bindModeSOptionalAsset(input, key, inlinePreview, state, refreshPreview, statusElement, folder) {
+  if (!input) return;
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      await deleteStoredAsset(state[key]);
+      state[key] = null;
+      if (inlinePreview) {
+        inlinePreview.src =
+          key === 'brandLogo' ? placeholderImages.brandLogo : placeholderImages.scenario;
+      }
+      refreshPreview();
+      return;
+    }
+    try {
+      state[key] = await prepareAssetFromFile(folder || 'uploads', file, state[key], statusElement);
+      if (inlinePreview) {
+        inlinePreview.src = state[key]?.dataUrl || inlinePreview.src;
+      }
+      state.previewBuilt = false;
+      refreshPreview();
+    } catch (error) {
+      console.error(error);
+      const message =
+        error instanceof Error ? error.message : '处理图片素材时发生错误，请重试。';
+      setStatus(statusElement, message, 'error');
+    }
+  });
+}
+
+function bindModeSBottomThumbnails(container, state, statusElement, refreshPreview) {
+  if (!container) return;
+  ensureGalleryEntries(state, 4);
+  const slots = container.querySelectorAll('[data-slot-index]');
+  slots.forEach((slot) => {
+    const index = Number(slot.getAttribute('data-slot-index') || '0');
+    const fileInput = slot.querySelector('input[type="file"]');
+    const clearButton = slot.querySelector('[data-bottom-clear]');
+    const previewImg = slot.querySelector(`[data-bottom-preview="${index}"]`);
+    const placeholder = slot.querySelector('.slot-placeholder');
+    const updateSlotPreview = () => {
+      const entry = state.galleryEntries[index];
+      const src = pickImageSrc(entry?.asset);
+      if (src && previewImg) {
+        previewImg.src = src;
+        previewImg.style.display = 'block';
+        if (placeholder) placeholder.classList.add('hidden');
+      } else {
+        if (previewImg) {
+          previewImg.removeAttribute('src');
+          previewImg.style.display = 'none';
+        }
+        if (placeholder) placeholder.classList.remove('hidden');
+      }
+    };
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        try {
+          const entry = state.galleryEntries[index];
+          entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
+          state.previewBuilt = false;
+          updateSlotPreview();
+          refreshPreview?.();
+        } catch (error) {
+          console.error(error);
+          setStatus(statusElement, '上传底部缩略图时发生错误。', 'error');
+        }
+      });
+    }
+
+    if (clearButton) {
+      clearButton.addEventListener('click', async () => {
+        const entry = state.galleryEntries[index];
+        await deleteStoredAsset(entry.asset);
+        entry.asset = null;
+        state.previewBuilt = false;
+        updateSlotPreview();
+        refreshPreview?.();
+      });
+    }
+
+    updateSlotPreview();
+  });
+  updateBottomThumbnailsUi(container, state);
 }
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
 // 生成成功后 A/B 对比按钮才可使用。
@@ -1443,6 +1620,8 @@ const LEGACY_DEFAULT_STAGE1 = {
 
 const MODE_S_DEFAULT_STAGE1 = {
   brand_name: 'ChefCraft',
+  agent_name: '',
+  scenario_image: 'default',
   brand_color: '#ef4c54',
   price: '',
   promo: '',
@@ -1454,6 +1633,8 @@ const MODE_S_DEFAULT_STAGE1 = {
     'Stainless steel finish with easy cleaning',
     'Smart controls for daily convenience',
   ],
+  tagline: '',
+  allow_auto_fill: true,
   template_id: 'template_dual',
 };
 
@@ -2681,22 +2862,44 @@ function initStage1ModeS() {
   const layoutStructure = document.getElementById('layout-structure-text');
   const wireframe = document.getElementById('stage1-wireframe');
   const wireframeWarning = document.getElementById('wireframe-warning');
+  const bottomThumbnails = document.getElementById('bottom-thumbnails');
+  const materialPreviewAssets = document.getElementById('material-preview-assets');
+  const brandLogoStatus = document.getElementById('brand-logo-status');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
   }
 
   const inlinePreviews = {
+    brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
+    scenario_asset: document.querySelector('[data-inline-preview="scenario_asset"]'),
     product_image_1: document.querySelector('[data-inline-preview="product_image_1"]'),
     product_image_2: document.querySelector('[data-inline-preview="product_image_2"]'),
   };
 
   const state = {
+    brandLogo: null,
+    scenario: null,
     productImage1: null,
     productImage2: null,
+    galleryEntries: [],
+    galleryLimit: 4,
     previewBuilt: false,
     templateId: DEFAULT_STAGE1.template_id,
     templateLabel: '',
+  };
+
+  const updateBrandLogoStatus = () => {
+    if (!brandLogoStatus) return;
+    const url = state.brandLogo?.remoteUrl || state.brandLogo?.url || '';
+    const key = state.brandLogo?.r2Key || '';
+    if (url) {
+      brandLogoStatus.textContent = `Logo URL: ${url}`;
+    } else if (key) {
+      brandLogoStatus.textContent = `Logo URL: ${key}`;
+    } else {
+      brandLogoStatus.textContent = 'Logo URL: not uploaded';
+    }
   };
 
   const refreshPreview = () => {
@@ -2716,6 +2919,21 @@ function initStage1ModeS() {
       state.templateId || DEFAULT_STAGE1.template_id,
       wireframeWarning
     );
+    const scenarioLabel = payload.scenario_image && payload.scenario_image !== 'default'
+      ? `Scenario: ${payload.scenario_image}`
+      : 'Using default scenario';
+    updateMaterialPreviewAssets(
+      materialPreviewAssets,
+      {
+        scenario: state.scenario,
+        product1: state.productImage1,
+        product2: state.productImage2,
+        bottom: state.galleryEntries,
+      },
+      { scenario: scenarioLabel }
+    );
+    updateBottomThumbnailsUi(bottomThumbnails, state);
+    updateBrandLogoStatus();
     return payload;
   };
 
@@ -2735,6 +2953,9 @@ function initStage1ModeS() {
     refreshPreview();
   }
 
+  ensureGalleryEntries(state, 4);
+  bindModeSBottomThumbnails(bottomThumbnails, state, statusElement, refreshPreview);
+
   attachSingleImageHandler(
     form.querySelector('input[name="product_image_1"]'),
     'productImage1',
@@ -2751,6 +2972,26 @@ function initStage1ModeS() {
     state,
     refreshPreview,
     statusElement
+  );
+
+  bindModeSOptionalAsset(
+    form.querySelector('input[name="brand_logo"]'),
+    'brandLogo',
+    inlinePreviews.brand_logo,
+    state,
+    refreshPreview,
+    statusElement,
+    'brand-logo'
+  );
+
+  bindModeSOptionalAsset(
+    form.querySelector('input[name="scenario_asset"]'),
+    'scenario',
+    inlinePreviews.scenario_asset,
+    state,
+    refreshPreview,
+    statusElement,
+    'scenario'
   );
 
   form.addEventListener('input', () => {
@@ -2808,6 +3049,10 @@ function applyStage1Defaults(form) {
     bulletInputs.forEach((input, index) => {
       input.value = DEFAULT_STAGE1.bullets?.[index] ?? '';
     });
+    const allowAutoFill = form.elements.namedItem('allow_auto_fill');
+    if (allowAutoFill && 'checked' in allowAutoFill) {
+      allowAutoFill.checked = DEFAULT_STAGE1.allow_auto_fill !== false;
+    }
     return;
   }
 
@@ -2862,11 +3107,16 @@ function updateInlinePlaceholders(inlinePreviews) {
 
 async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   if (MODE_S) {
-    for (const key of ['brand_name', 'brand_color', 'price', 'promo', 'channel', 'intent', 'title', 'tagline']) {
+    for (const key of ['brand_name', 'agent_name', 'brand_color', 'price', 'promo', 'channel', 'intent', 'title', 'tagline', 'scenario_image']) {
       const element = form.elements.namedItem(key);
       if (element && typeof data[key] === 'string') {
         element.value = data[key];
       }
+    }
+
+    const allowAutoFill = form.elements.namedItem('allow_auto_fill');
+    if (allowAutoFill && 'checked' in allowAutoFill) {
+      allowAutoFill.checked = data.allow_auto_fill !== false;
     }
 
     const bullets = Array.isArray(data.bullets) && data.bullets.length
@@ -2877,11 +3127,33 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
       input.value = bullets[index] ?? '';
     });
 
+    state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
+    state.scenario = await rehydrateStoredAsset(data.scenario_asset);
     state.productImage1 = await rehydrateStoredAsset(data.product_image_1);
     state.productImage2 = await rehydrateStoredAsset(data.product_image_2);
+    state.galleryEntries = Array.isArray(data.gallery_entries)
+      ? await Promise.all(
+        data.gallery_entries.map(async (entry) => ({
+          id: entry.id || createId(),
+          caption: entry.caption || '',
+          asset: await rehydrateStoredAsset(entry.asset),
+          mode: 'upload',
+          prompt: null,
+        }))
+      )
+      : [];
+    ensureGalleryEntries(state, 4);
     state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
     state.templateLabel = data.template_label || '';
 
+    if (inlinePreviews.brand_logo) {
+      inlinePreviews.brand_logo.src =
+        state.brandLogo?.dataUrl || placeholderImages.brandLogo;
+    }
+    if (inlinePreviews.scenario_asset) {
+      inlinePreviews.scenario_asset.src =
+        state.scenario?.dataUrl || placeholderImages.scenario;
+    }
     if (inlinePreviews.product_image_1) {
       inlinePreviews.product_image_1.src =
         state.productImage1?.dataUrl || placeholderImages.product;
@@ -3442,18 +3714,37 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       .map((bullet) => bullet.toString().trim())
       .filter((bullet) => bullet.length > 0);
 
+    const channel =
+      formData.get('channel')?.toString().trim() || MODE_S_DEFAULT_STAGE1.channel || '';
+    const intent =
+      formData.get('intent')?.toString().trim() || MODE_S_DEFAULT_STAGE1.intent || '';
     const payload = {
       brand_name: formData.get('brand_name')?.toString().trim() || '',
+      agent_name: formData.get('agent_name')?.toString().trim() || '',
       brand_color: formData.get('brand_color')?.toString().trim() || '',
       price: formData.get('price')?.toString().trim() || '',
       promo: formData.get('promo')?.toString().trim() || '',
-      channel: formData.get('channel')?.toString().trim() || '',
-      intent: formData.get('intent')?.toString().trim() || '',
+      channel,
+      intent,
+      scenario_image:
+        formData.get('scenario_image')?.toString().trim() || MODE_S_DEFAULT_STAGE1.scenario_image || 'default',
       title: formData.get('title')?.toString().trim() || '',
       tagline: formData.get('tagline')?.toString().trim() || '',
+      allow_auto_fill: formData.get('allow_auto_fill') === 'on',
       bullets,
+      brand_logo: state.brandLogo || null,
+      scenario_asset: state.scenario || null,
       product_image_1: state.productImage1,
       product_image_2: state.productImage2,
+      gallery_entries: Array.isArray(state.galleryEntries)
+        ? state.galleryEntries.map((entry) => ({
+            id: entry.id,
+            caption: entry.caption || '',
+            asset: entry.asset || null,
+            mode: 'upload',
+            prompt: null,
+          }))
+        : [],
       template_id: state.templateId || DEFAULT_STAGE1.template_id,
     };
 
@@ -3464,17 +3755,8 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       if (!payload.title) {
         throw new Error('Title is required.');
       }
-      if (!payload.channel) {
-        throw new Error('Channel is required.');
-      }
-      if (!payload.intent) {
-        throw new Error('Intent is required.');
-      }
-      if (bullets.length < 3) {
-        throw new Error('Please provide at least 3 bullets.');
-      }
-      if (bullets.length > 5) {
-        throw new Error('Please keep bullets to 5 or fewer.');
+      if (bullets.length > 4) {
+        throw new Error('Please keep bullets to 4 or fewer.');
       }
     }
 
@@ -3966,16 +4248,28 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
   if (MODE_S) {
     return {
       brand_name: payload.brand_name,
+      agent_name: payload.agent_name || '',
       brand_color: payload.brand_color || null,
       price: payload.price || '',
       promo: payload.promo || '',
       channel: payload.channel || null,
       intent: payload.intent || null,
+      scenario_image: payload.scenario_image || MODE_S_DEFAULT_STAGE1.scenario_image,
       title: payload.title,
       tagline: payload.tagline || '',
+      allow_auto_fill: payload.allow_auto_fill !== false,
       bullets: payload.bullets || [],
+      brand_logo: serialiseAssetForStorage(state.brandLogo),
+      scenario_asset: serialiseAssetForStorage(state.scenario),
       product_image_1: serialiseAssetForStorage(state.productImage1),
       product_image_2: serialiseAssetForStorage(state.productImage2),
+      gallery_entries: (state.galleryEntries || []).map((entry) => ({
+        id: entry.id,
+        caption: entry.caption || '',
+        asset: serialiseAssetForStorage(entry.asset),
+        mode: 'upload',
+        prompt: null,
+      })),
       template_id: state.templateId || DEFAULT_STAGE1.template_id,
       template_label: state.templateLabel || '',
       layout_preview: layoutPreview,
@@ -4185,6 +4479,7 @@ function buildKitPosterDraftFromSource(source, adjustments, renderMode) {
     },
     options: {
       quality_mode: adjustments?.qualityMode || 'stable',
+      allow_auto_fill: typeof payload.allow_auto_fill === 'boolean' ? payload.allow_auto_fill : true,
     },
   };
 }
@@ -4802,10 +5097,17 @@ function initStage2() {
     const exportPosterButton = document.getElementById('export-poster-b');
     const stage2Wireframe = document.getElementById('stage2-wireframe');
     const stage2WireframeWarning = document.getElementById('stage2-wireframe-warning');
+    const stage2MaterialPreview = document.getElementById('stage2-material-preview');
     const toggleBulletsInput = document.getElementById('toggle-bullets');
     const titleSizePreset = document.getElementById('title-size-preset');
     const fallbackStableButton = document.getElementById('fallback-stable');
     const assetFallbackWarning = document.getElementById('asset-fallback-warning');
+    const scenePreset = document.getElementById('scene-preset');
+    const productPreset = document.getElementById('product-preset');
+    const bottomPreset = document.getElementById('bottom-preset');
+    const sceneSummary = document.getElementById('scene-summary');
+    const productSummary = document.getElementById('product-summary');
+    const bottomSummary = document.getElementById('bottom-summary');
     let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
@@ -4820,6 +5122,19 @@ function initStage2() {
     bindCopyButton('debug-copy-payload', () => JSON.stringify(stage2State.debugPayload || {}, null, 2));
     bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
     bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
+
+    const bindPresetSummary = (selectEl, summaryEl) => {
+      if (!selectEl || !summaryEl) return;
+      const update = () => {
+        const label = selectEl.options[selectEl.selectedIndex]?.textContent || selectEl.value;
+        summaryEl.textContent = `Preset applied: ${label}`;
+      };
+      selectEl.addEventListener('change', update);
+      update();
+    };
+    bindPresetSummary(scenePreset, sceneSummary);
+    bindPresetSummary(productPreset, productSummary);
+    bindPresetSummary(bottomPreset, bottomSummary);
 
     if (posterPreviewSection) {
       posterPreviewSection.classList.add('hidden');
@@ -4846,6 +5161,17 @@ function initStage2() {
           showBullets: stage2State.adjustments.showBullets,
         }
       );
+      updateMaterialPreviewAssets(stage2MaterialPreview, {
+        scenario: stage1Data.scenario_asset || null,
+        product1: stage1Data.product_image_1 || null,
+        product2: stage1Data.product_image_2 || null,
+        bottom: stage1Data.gallery_entries || [],
+      }, {
+        scenario:
+          stage1Data.scenario_image && stage1Data.scenario_image !== 'default'
+            ? `Scenario: ${stage1Data.scenario_image}`
+            : 'Using default scenario',
+      });
     };
 
     if (toggleBulletsInput) {
@@ -4861,9 +5187,11 @@ function initStage2() {
     if (titleSizePreset) {
       titleSizePreset.value = 'M';
       stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
+      stage2State.adjustments.titleSize = titleSizePreset.value;
       titleSizePreset.addEventListener('change', () => {
         const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
         stage2State.adjustments.titleScale = next;
+        stage2State.adjustments.titleSize = titleSizePreset.value;
         refreshStage2Wireframe();
         updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
       });
@@ -4875,6 +5203,8 @@ function initStage2() {
           showBullets: true,
           titleScale: 1,
           qualityMode: 'stable',
+          titleSize: 'M',
+          fallbackStableClicked: true,
         };
         if (toggleBulletsInput) toggleBulletsInput.checked = true;
         if (titleSizePreset) titleSizePreset.value = 'M';
@@ -5670,18 +6000,26 @@ function renderPosterResult() {
   }
 
   const gallerySlots = root.querySelectorAll('.poster-gallery-slot');
-  const logoFallback = assets.brand_logo_url || poster.brand_logo_url || '';
+  const logoFallback = MODE_S ? '' : (assets.brand_logo_url || poster.brand_logo_url || '');
   gallerySlots.forEach((slot, index) => {
     const img = slot.querySelector('img');
     const captionEl = slot.querySelector('.slot-caption');
     const captionTitleEl = slot.querySelector('[data-gallery-caption-title]');
     const src = assets.gallery_urls?.[index] || logoFallback || '';
     if (img) {
-      applyImageWithFallback(
-        img,
-        [src, logoFallback, placeholderImages.product],
-        fallbackWarning
-      );
+      if (src) {
+        slot.classList.remove('empty');
+        img.style.display = 'block';
+        applyImageWithFallback(
+          img,
+          [src, logoFallback, placeholderImages.product],
+          fallbackWarning
+        );
+      } else {
+        slot.classList.add('empty');
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
     }
     if (captionEl && !captionTitleEl) {
       const series = poster.series?.[index];
@@ -5935,7 +6273,32 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
 }
 
 async function buildModeSGalleryItems(stage1, apiCandidates) {
-  return [];
+  const entries = Array.isArray(stage1?.gallery_entries)
+    ? stage1.gallery_entries.filter(Boolean)
+    : [];
+  const items = [];
+  for (let i = 0; i < Math.min(entries.length, 4); i += 1) {
+    const entry = entries[i];
+    if (!entry?.asset) {
+      continue;
+    }
+    const ref = await normaliseAssetReference(entry.asset, {
+      field: `poster.gallery_items[${i}]`,
+      required: false,
+      apiCandidates,
+      folder: 'gallery',
+    });
+    if (ref && (ref.url || ref.key)) {
+      items.push({
+        caption: entry.caption || `Slot ${i + 1}`,
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode: 'upload',
+        prompt: null,
+      });
+    }
+  }
+  return items;
 }
 
 function formatPosterGenerationError(error) {
@@ -5988,7 +6351,26 @@ async function triggerGeneration(opts) {
   const mySeq = ++stage2GenerationSeq;
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
-  
+
+  const t0 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+  const instrumentation = {
+    bottom_count: Array.isArray(stage1Data?.gallery_entries)
+      ? stage1Data.gallery_entries.filter((entry) => entry?.asset).length
+      : 0,
+    has_scenario: Boolean(stage1Data?.scenario_asset),
+    has_product2: Boolean(stage1Data?.product_image_2),
+    title_len: (stage1Data?.title || '').length,
+    bullets_count: Array.isArray(stage1Data?.bullets)
+      ? stage1Data.bullets.filter(Boolean).length
+      : 0,
+    adjustments: {
+      showBullets: stage2State.adjustments.showBullets !== false,
+      titleSize: stage2State.adjustments.titleSize || 'M',
+      fallbackStableClicked: Boolean(stage2State.adjustments.fallbackStableClicked),
+    },
+    t0,
+  };
+
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -6036,6 +6418,20 @@ async function triggerGeneration(opts) {
         apiCandidates,
         folder: 'product',
       }, productImage1Ref);
+      brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
+        field: 'poster.brand_logo',
+        required: false,
+        apiCandidates,
+        folder: 'brand-logo',
+      });
+      scenarioRef = await normaliseAssetReference(stage1Data.scenario_asset, {
+        field: 'poster.scenario_image',
+        required: false,
+        apiCandidates,
+        folder: 'scenario',
+      }, brandLogoRef || productImage1Ref);
+
+      galleryItems = await buildModeSGalleryItems(stage1Data, apiCandidates);
 
       const showBullets = stage2State.adjustments?.showBullets !== false;
       const bullets = Array.isArray(stage1Data.bullets)
@@ -6060,8 +6456,8 @@ async function triggerGeneration(opts) {
 
       posterPayload = {
         brand_name: brandName,
-        agent_name: channel,
-        scenario_image: intent || title,
+        agent_name: safeText(stage1Data.agent_name, channel),
+        scenario_image: safeText(stage1Data.scenario_image, intent || title),
         product_name: title,
         channel,
         intent,
@@ -6077,17 +6473,19 @@ async function triggerGeneration(opts) {
         product_image_1_key: productImage1Ref?.key || null,
         product_image_2: productImage2Ref?.url || null,
         product_image_2_key: productImage2Ref?.key || null,
+        brand_logo: brandLogoRef?.url || null,
+        brand_logo_key: brandLogoRef?.key || null,
         product_key: productImage1Ref?.key || null,
         product_asset: productImage1Ref?.url || null,
-        scenario_key: productImage2Ref?.key || null,
-        scenario_asset: productImage2Ref?.url || null,
+        scenario_key: scenarioRef?.key || null,
+        scenario_asset: scenarioRef?.url || null,
         scenario_mode: 'upload',
         product_mode: 'upload',
-        gallery_items: [],
-        gallery_label: null,
-        gallery_limit: 0,
+        gallery_items: galleryItems || [],
+        gallery_label: 'Slot',
+        gallery_limit: 4,
         gallery_allows_prompt: false,
-        gallery_allows_upload: false,
+        gallery_allows_upload: true,
       };
     } else {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
@@ -6486,6 +6884,14 @@ async function triggerGeneration(opts) {
     updateRegenerateButtonState();
     return null;
   } finally {
+    const t1 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    const durationMs = Math.round(Math.max(0, t1 - instrumentation.t0));
+    console.log({
+      ...instrumentation,
+      t1,
+      duration_ms: durationMs,
+    });
+    stage2State.adjustments.fallbackStableClicked = false;
     stage2InFlight = false;
     setStage2ButtonsDisabled(false);
     updateRegenerateButtonState();

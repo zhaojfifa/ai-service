@@ -12,7 +12,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Generate the final poster from Mode S inputs.</p>
+          <p>Stage 2 aligns controls to the asset categories used by operators.</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -25,7 +25,7 @@
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
-        <a href="index.html">Stage 1 - Core Assets</a>
+        <a href="index.html">Stage 1 - Assets & Copy</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
         <span class="active">Stage 2 - Generate Poster</span>
         <span class="nav-arrow" aria-hidden="true">-></span>
@@ -35,10 +35,8 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 2 - Final Poster</h2>
-        <p class="hint">
-          Generate the final poster. Mode S returns a single final_poster only.
-        </p>
+        <h2>Stage 2 - Poster Controls (Mode S)</h2>
+        <p class="hint">Scene Background, Core Product, and Bottom Thumbnails map to operator mental model.</p>
 
         <section class="stage2-preview" id="poster-output">
           <h3>Final Poster</h3>
@@ -55,17 +53,45 @@
           </div>
         </section>
 
-        <div class="actions">
-          <button id="generate-poster" class="primary" type="button">Generate</button>
-        </div>
-        <div id="ai-preview" class="hidden">
-          <div id="ai-spinner" class="hidden"></div>
-          <p id="ai-preview-message" class="hint"></p>
-        </div>
-        <p id="asset-fallback-warning" class="hint hidden"></p>
+        <section class="control-panels">
+          <div class="panel">
+            <h3>Scene Background</h3>
+            <label class="field">
+              <span>Preset</span>
+              <select id="scene-preset">
+                <option value="default">Default</option>
+                <option value="modern_kitchen">Modern kitchen</option>
+                <option value="living_room">Living room</option>
+              </select>
+            </label>
+            <p class="hint" id="scene-summary">Preset applied</p>
+          </div>
+          <div class="panel">
+            <h3>Core Product</h3>
+            <label class="field">
+              <span>Preset</span>
+              <select id="product-preset">
+                <option value="auto">Auto</option>
+                <option value="clean_bg">Clean background</option>
+              </select>
+            </label>
+            <p class="hint" id="product-summary">Preset applied</p>
+          </div>
+          <div class="panel">
+            <h3>Bottom Series Thumbnails</h3>
+            <label class="field">
+              <span>Preset</span>
+              <select id="bottom-preset">
+                <option value="auto">Auto</option>
+                <option value="empty">Leave empty</option>
+              </select>
+            </label>
+            <p class="hint" id="bottom-summary">Preset applied</p>
+          </div>
+        </section>
 
         <section class="micro-controls" id="stage2-controls">
-          <h3>Stage 2 Adjustments</h3>
+          <h3>Operator Adjustments</h3>
           <div class="control-grid">
             <label class="field inline">
               <input type="checkbox" id="toggle-bullets" checked />
@@ -83,6 +109,15 @@
           </div>
         </section>
 
+        <div class="actions">
+          <button id="generate-poster" class="primary" type="button">Generate poster & copy</button>
+        </div>
+        <div id="ai-preview" class="hidden">
+          <div id="ai-spinner" class="hidden"></div>
+          <p id="ai-preview-message" class="hint"></p>
+        </div>
+        <p id="asset-fallback-warning" class="hint hidden"></p>
+
         <section class="card wireframe-card">
           <h3>Wireframe Preview</h3>
           <div id="stage2-wireframe" class="wireframe-preview" data-template="template_dual">
@@ -93,7 +128,67 @@
             </div>
           </div>
           <p id="stage2-wireframe-warning" class="hint"></p>
+
+          <div class="material-preview-assets" id="stage2-material-preview">
+            <div class="preview-row">
+              <div class="preview-thumb" data-asset-slot="scenario">
+                <img alt="Scenario preview" />
+                <span class="slot-placeholder">Using default scenario</span>
+                <span class="slot-label">Scenario</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="product1">
+                <img alt="Product image 1 preview" />
+                <span class="slot-placeholder">Missing</span>
+                <span class="slot-label">Product 1</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="product2">
+                <img alt="Product image 2 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Product 2</span>
+              </div>
+            </div>
+            <div class="preview-row preview-bottom">
+              <div class="preview-thumb" data-asset-slot="bottom-0">
+                <img alt="Bottom slot 1 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 1</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="bottom-1">
+                <img alt="Bottom slot 2 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 2</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="bottom-2">
+                <img alt="Bottom slot 3 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 3</span>
+              </div>
+              <div class="preview-thumb" data-asset-slot="bottom-3">
+                <img alt="Bottom slot 4 preview" />
+                <span class="slot-placeholder">Empty</span>
+                <span class="slot-label">Slot 4</span>
+              </div>
+            </div>
+          </div>
         </section>
+
+        <details class="advanced-panel">
+          <summary>Advanced</summary>
+          <div class="advanced-grid">
+            <label class="field">
+              <span>Scenario prompt (optional)</span>
+              <textarea rows="3" placeholder="Optional prompt for scene"></textarea>
+            </label>
+            <label class="field">
+              <span>Product prompt (optional)</span>
+              <textarea rows="3" placeholder="Optional prompt for product"></textarea>
+            </label>
+            <label class="field">
+              <span>Bottom thumbnails prompt (optional)</span>
+              <textarea rows="3" placeholder="Optional prompt for bottom series"></textarea>
+            </label>
+          </div>
+        </details>
 
         <section class="gen-meta-panel">
           <h3>Generation Metadata</h3>
@@ -176,4 +271,3 @@
     <script defer src="./app.js?v=0cbaf65"></script>
   </body>
 </html>
-
