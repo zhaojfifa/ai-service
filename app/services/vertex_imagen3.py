@@ -24,6 +24,14 @@ try:
 except Exception:
     VMaskMode = None
     VEditMode = None
+try:
+    from vertexai.preview.vision_models import (
+        ImageGenerationReferenceImage,
+        ImageGenerationReferenceType,
+    )
+except Exception:  # pragma: no cover
+    ImageGenerationReferenceImage = None  # type: ignore
+    ImageGenerationReferenceType = None  # type: ignore
 
 from app.services.vertex_imagen import (
     _aspect_from_dims,
@@ -89,6 +97,45 @@ def _enum_or_str(enum_cls: Any, attr: str, fallback: str) -> Any:
     except Exception:
         pass
     return fallback
+
+
+def _wrap_reference_image(img: VImage) -> Any:
+    """
+    Vertex SDK expects reference_images items to have `.reference_image`.
+    Prefer the official ImageGenerationReferenceImage when available.
+    """
+    if ImageGenerationReferenceImage is None:
+        return img
+
+    try:
+        if ImageGenerationReferenceType is not None and hasattr(
+            ImageGenerationReferenceType, "REFERENCE_IMAGE"
+        ):
+            return ImageGenerationReferenceImage(
+                reference_image=img,
+                reference_type=getattr(ImageGenerationReferenceType, "REFERENCE_IMAGE"),
+            )
+        return ImageGenerationReferenceImage(reference_image=img)
+    except TypeError:
+        pass
+
+    try:
+        if ImageGenerationReferenceType is not None and hasattr(
+            ImageGenerationReferenceType, "REFERENCE_IMAGE"
+        ):
+            return ImageGenerationReferenceImage(
+                image=img,
+                reference_type=getattr(ImageGenerationReferenceType, "REFERENCE_IMAGE"),
+            )
+        return ImageGenerationReferenceImage(image=img)
+    except TypeError:
+        pass
+
+    class _Shim:
+        def __init__(self, reference_image: VImage) -> None:
+            self.reference_image = reference_image
+
+    return _Shim(img)
 
 
 class VertexImagen3:
@@ -274,7 +321,7 @@ class VertexImagen3:
             kwargs["guidance"] = guidance
         kwargs.update(size_kwargs)
         if "reference_images" in self._edit_params and "reference_images" not in kwargs:
-            kwargs["reference_images"] = [base_vimg]
+            kwargs["reference_images"] = [_wrap_reference_image(base_vimg)]
         if vmask is not None:
             if "mask_mode" in self._edit_params and "mask_mode" not in kwargs:
                 kwargs["mask_mode"] = _enum_or_str(
@@ -322,7 +369,7 @@ class VertexImagen3:
                     and not retried_context_image
                 ):
                     if "reference_images" in self._edit_params:
-                        kwargs["reference_images"] = [base_vimg]
+                        kwargs["reference_images"] = [_wrap_reference_image(base_vimg)]
                     retried_context_image = True
                     continue
                 raise
