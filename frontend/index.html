@@ -102,6 +102,10 @@
                 <span>Title</span>
                 <input type="text" name="title" required />
               </label>
+              <label class="field optional">
+                <span>Tagline (optional)</span>
+                <input type="text" name="tagline" />
+              </label>
             </div>
             <div class="feature-fields">
               <span class="feature-label">Bullets (3-5 required)</span>
@@ -121,6 +125,19 @@
           <button id="go-to-stage2" class="secondary" type="button">Save and Continue</button>
         </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="card wireframe-card">
+        <h3>Template Wireframe Preview</h3>
+        <p class="hint">Text safe areas preview with live fitting.</p>
+        <div id="stage1-wireframe" class="wireframe-preview" data-template="template_dual">
+          <div class="wireframe-canvas">
+            <div class="wireframe-slot wireframe-slot--title" data-slot="title"></div>
+            <div class="wireframe-slot wireframe-slot--bullets" data-slot="bullets"></div>
+            <div class="wireframe-slot wireframe-slot--tagline" data-slot="tagline"></div>
+          </div>
+        </div>
+        <p id="wireframe-warning" class="hint"></p>
       </section>
     </main>
 

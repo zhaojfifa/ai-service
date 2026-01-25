@@ -237,6 +237,68 @@ main {
   color: #7b8794;
 }
 
+.wireframe-card {
+  margin-top: 1.5rem;
+}
+
+.wireframe-preview {
+  max-width: 520px;
+  width: 100%;
+  margin: 0.75rem 0 0;
+}
+
+.wireframe-canvas {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: linear-gradient(135deg, #f3f5f7, #e6eaee);
+  border: 1px dashed #c7ced6;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.wireframe-slot {
+  position: absolute;
+  border: 1px dashed rgba(15, 23, 42, 0.4);
+  padding: 6px 8px;
+  box-sizing: border-box;
+  color: #0f172a;
+  font-weight: 600;
+  font-size: 18px;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  overflow: hidden;
+}
+
+.wireframe-slot--bullets {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.wireframe-slot[data-ellipsis="1"] {
+  background: rgba(255, 247, 237, 0.8);
+}
+
+.micro-controls {
+  margin-top: 1rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.4);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+.control-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: center;
+}
+
+.control-grid .field.inline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .gallery-items {
   display: grid;
   gap: 1rem;
