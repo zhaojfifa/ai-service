@@ -19,6 +19,11 @@ from vertexai.preview.vision_models import (
     ImageGenerationModel,
     Image as VImage,
 )
+try:
+    from vertexai.preview.vision_models import MaskMode as VMaskMode, EditMode as VEditMode
+except Exception:
+    VMaskMode = None
+    VEditMode = None
 
 from app.services.vertex_imagen import (
     _aspect_from_dims,
@@ -75,6 +80,15 @@ def _vimage_from_bytes(data: bytes, suffix: str = ".png") -> VImage:
             os.remove(path)
         except OSError:
             pass
+
+
+def _enum_or_str(enum_cls: Any, attr: str, fallback: str) -> Any:
+    try:
+        if enum_cls is not None and hasattr(enum_cls, attr):
+            return getattr(enum_cls, attr)
+    except Exception:
+        pass
+    return fallback
 
 
 class VertexImagen3:
@@ -259,6 +273,17 @@ class VertexImagen3:
         if guidance is not None and "guidance" in self._edit_params:
             kwargs["guidance"] = guidance
         kwargs.update(size_kwargs)
+        if "reference_images" in self._edit_params and "reference_images" not in kwargs:
+            kwargs["reference_images"] = [base_vimg]
+        if vmask is not None:
+            if "mask_mode" in self._edit_params and "mask_mode" not in kwargs:
+                kwargs["mask_mode"] = _enum_or_str(
+                    VMaskMode, "USER_PROVIDED", "MASK_MODE_USER_PROVIDED"
+                )
+            if "edit_mode" in self._edit_params and "edit_mode" not in kwargs:
+                kwargs["edit_mode"] = _enum_or_str(
+                    VEditMode, "INPAINTING", "EDIT_MODE_INPAINTING"
+                )
 
         logger.info(
             "[vertex3.call>%s] mode=edit size=%s mode=%s mask=%s guidance=%s",
@@ -274,6 +299,7 @@ class VertexImagen3:
 
         retry_delays = [1.5, 3.0]
         attempt = 0
+        retried_context_image = False
         while True:
             try:
                 images = self._edit_model.edit_image(**kwargs)
@@ -290,6 +316,16 @@ class VertexImagen3:
                 time.sleep(sleep_seconds)
                 attempt += 1
                 continue
+            except Exception as exc:
+                if (
+                    "Must provide at least one context_image" in str(exc)
+                    and not retried_context_image
+                ):
+                    if "reference_images" in self._edit_params:
+                        kwargs["reference_images"] = [base_vimg]
+                    retried_context_image = True
+                    continue
+                raise
         if not images:
             raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
 
