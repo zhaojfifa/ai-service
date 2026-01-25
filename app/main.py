@@ -9,6 +9,7 @@ import logging
 import os
 import uuid
 import io
+import hashlib
 from functools import lru_cache
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -43,10 +44,12 @@ from app.schemas import (
     TemplatePosterEntry,
     TemplatePosterUploadRequest,
 )
+from app.schemas.kitposter import KitPosterDraft
 from app.services.email_sender import send_email
 from app.services.glibatree import (
     configure_vertex_imagen,
     generate_poster_asset,
+    run_kitposter_state_machine,
     generate_slot_image,
 )
 from app.services.image_provider.factory import get_provider
@@ -813,6 +816,47 @@ def _sanitize_headers(headers: dict[str, str]) -> dict[str, str]:
     return safe
 
 
+def _extract_product_images(payload: dict[str, Any]) -> list[str]:
+    items: list[str] = []
+    if not isinstance(payload, dict):
+        return items
+    images = payload.get("product_images")
+    if isinstance(images, list):
+        for item in images:
+            if isinstance(item, str) and item.strip():
+                items.append(item.strip())
+    for key in ("product_image_1", "product_image_2", "product_asset", "product_key"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            items.append(value.strip())
+    return items
+
+
+def _build_run_id(payload: Any, seed: int | None) -> str:
+    encoded = jsonable_encoder(payload, exclude_none=True)
+    text = json.dumps(encoded, ensure_ascii=False, sort_keys=True)
+    if seed is not None:
+        text = f"{text}|seed:{seed}"
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+
+def _validate_kitposter_draft(raw_payload: dict[str, Any]) -> KitPosterDraft | None:
+    draft_payload = raw_payload.get("draft") or raw_payload.get("poster_draft")
+    if not draft_payload:
+        return None
+    try:
+        if hasattr(KitPosterDraft, "model_validate"):
+            return KitPosterDraft.model_validate(draft_payload)
+        return KitPosterDraft.parse_obj(draft_payload)
+    except ValidationError as exc:
+        detail = {
+            "error_code": "invalid_draft",
+            "message": "Draft validation failed.",
+            "details": exc.errors(),
+        }
+        raise HTTPException(status_code=422, detail=detail) from exc
+
+
 async def read_json_relaxed(request: Request) -> dict:
     try:
         payload = await request.json()
@@ -961,6 +1005,19 @@ async def generate_poster(request: Request) -> JSONResponse:
     try:
         raw_payload = await read_json_relaxed(request)
         raw_assets = _summarise_assets(raw_payload.get("poster", {})) if isinstance(raw_payload, dict) else {}
+        draft = _validate_kitposter_draft(raw_payload)
+        render_mode_raw = raw_payload.get("render_mode") if isinstance(raw_payload, dict) else None
+        if render_mode_raw in {"kitposter1_a", "kitposter1_b"} and draft is None:
+            poster_payload = raw_payload.get("poster", {}) if isinstance(raw_payload, dict) else {}
+            if not _extract_product_images(poster_payload):
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "error_code": "product_images_required",
+                        "message": "At least one product image is required.",
+                        "details": {"field": "product_images"},
+                    },
+                )
         logger.info(
             "generate_poster request received",
             extra={
@@ -1011,19 +1068,44 @@ async def generate_poster(request: Request) -> JSONResponse:
 
         # 生成主图与变体
         async with _GENERATE_POSTER_SEMAPHORE:
-            result = generate_poster_asset(
-                poster,
-                prompt_text,
-                preview,
-                prompt_bundle=prompt_payload,
-                prompt_details=prompt_details,
-                render_mode=payload.render_mode,
-                variants=payload.variants,
-                seed=payload.seed,
-                lock_seed=payload.lock_seed,
-                trace_id=trace,
-                aspect_closeness=payload.aspect_closeness,
+            seed_value = (
+                draft.options.seed
+                if draft is not None and draft.options.seed is not None
+                else payload.seed
             )
+            if draft is not None or payload.render_mode in {"kitposter1_a", "kitposter1_b"}:
+                result, extra_warnings, degraded_extra, quality_mode_used = run_kitposter_state_machine(
+                    draft=draft,
+                    poster=poster,
+                    prompt=prompt_text,
+                    preview=preview,
+                    prompt_bundle=prompt_payload,
+                    prompt_details=prompt_details,
+                    render_mode=payload.render_mode,
+                    variants=payload.variants,
+                    seed=seed_value,
+                    lock_seed=payload.lock_seed,
+                    trace_id=trace,
+                    aspect_closeness=payload.aspect_closeness,
+                    quality_mode=(draft.options.quality_mode if draft is not None else "stable"),
+                )
+            else:
+                result = generate_poster_asset(
+                    poster,
+                    prompt_text,
+                    preview,
+                    prompt_bundle=prompt_payload,
+                    prompt_details=prompt_details,
+                    render_mode=payload.render_mode,
+                    variants=payload.variants,
+                    seed=seed_value,
+                    lock_seed=payload.lock_seed,
+                    trace_id=trace,
+                    aspect_closeness=payload.aspect_closeness,
+                )
+                extra_warnings = []
+                degraded_extra = False
+                quality_mode_used = "stable"
 
         email_body = compose_marketing_email(poster, result.poster.filename)
         response_bundle: PromptBundle | None = None
@@ -1069,7 +1151,16 @@ async def generate_poster(request: Request) -> JSONResponse:
                 "provider": getattr(result, "provider", None),
             },
         )
+        warnings = sorted(set((result.warnings or []) + extra_warnings))
+        run_id = _build_run_id(draft or raw_payload, seed_value)
+        seed_used = result.seed if result.seed is not None else seed_value
         response_payload = GeneratePosterResponse(
+            status="success",
+            warnings=warnings,
+            degraded=result.degraded or degraded_extra,
+            run_id=run_id,
+            seed_used=seed_used,
+            quality_mode_used=quality_mode_used,
             layout_preview=preview,
             prompt=prompt_text,
             email_body=email_body,
@@ -1083,7 +1174,6 @@ async def generate_poster(request: Request) -> JSONResponse:
             lock_seed=result.lock_seed,
             vertex_trace_ids=result.trace_ids or None,
             fallback_used=result.fallback_used if result.fallback_used else None,
-            degraded=result.degraded if result.degraded else None,
             degraded_reason=result.degraded_reason,
             scenario_image=_stored_to_asset(result.scenario_image),
             product_image=_stored_to_asset(result.product_image),

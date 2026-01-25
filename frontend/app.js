@@ -46,8 +46,9 @@ function buildGeneratedAssetFromUrl(url, key) {
 
 function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
   const logoImg = document.getElementById('preview-brand-logo');
-  const finalUrl = url || logoFallback || logoImg?.src || '';
-  if (!finalUrl) return;
+  const fallbackWarning = document.getElementById('asset-fallback-warning');
+  const candidates = [];
+  if (typeof url === 'string' && url.trim()) candidates.push(url.trim());
 
   const selectors = [];
   if (slot === 'gallery') {
@@ -65,13 +66,27 @@ function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
     selectors.push('#poster-result-product-image');
   }
 
+  if (slot === 'scenario') {
+    candidates.push(DEFAULT_SCENARIO_ASSET, placeholderImages.scenario);
+  } else if (slot === 'product') {
+    candidates.push(placeholderImages.product);
+  } else {
+    if (typeof logoFallback === 'string' && logoFallback.trim()) {
+      candidates.push(logoFallback.trim());
+    }
+    if (logoImg?.src) {
+      candidates.push(logoImg.src);
+    }
+  }
+
+  if (!candidates.length) return;
+
   selectors
     .map((selector) => document.querySelectorAll(selector))
     .forEach((nodeList) => {
       nodeList.forEach((img) => {
         if (img && img.tagName === 'IMG') {
-          img.src = finalUrl;
-          img.style.visibility = 'visible';
+          applyImageWithFallback(img, candidates, fallbackWarning);
         }
       });
     });
@@ -124,6 +139,11 @@ const stage2State = {
     updateScenario: false,
     updateGallery: false,
     updateProduct: false,
+  },
+  adjustments: {
+    showBullets: true,
+    titleScale: 1,
+    qualityMode: 'stable',
   },
   renderMode: 'kitposter1_a',
 };
@@ -361,6 +381,43 @@ function setImageSrcIfNonEmpty(imgEl, nextUrl) {
   }
 }
 
+function showAssetFallbackWarning(warningEl) {
+  if (!warningEl) return;
+  warningEl.textContent = 'Fallback asset used.';
+  warningEl.classList.remove('hidden');
+}
+
+function applyImageWithFallback(imgEl, sources, warningEl) {
+  if (!imgEl) return false;
+  const candidates = (Array.isArray(sources) ? sources : [sources])
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean);
+  if (!candidates.length) return false;
+
+  let index = 0;
+  const loadAt = (idx) => {
+    const src = candidates[idx];
+    if (!src) return;
+    imgEl.src = src;
+    if (imgEl.style) {
+      imgEl.style.visibility = 'visible';
+      if (imgEl.style.display === 'none') {
+        imgEl.style.display = '';
+      }
+    }
+  };
+
+  imgEl.onerror = () => {
+    index += 1;
+    if (index < candidates.length) {
+      showAssetFallbackWarning(warningEl);
+      loadAt(index);
+    }
+  };
+  loadAt(index);
+  return true;
+}
+
 function setStage2ButtonsDisabled(disabled) {
   const generateButton = document.getElementById('generate-poster');
   const regenerateButton = document.getElementById('regenerate-poster');
@@ -472,6 +529,107 @@ const TEMPLATE_DUAL_LAYOUT = {
     tagline: { x: 0.10, y: 0.96, w: 0.80, h: 0.03, type: 'text', align: 'center' },
   },
 };
+
+const TEXT_SAFE_AREAS = {
+  template_dual: {
+    title: { x: 0.08, y: 0.68, w: 0.84, h: 0.10, maxLines: 2, baselineFontPx: 40, minFontPx: 18 },
+    bullets: { x: 0.08, y: 0.78, w: 0.84, h: 0.14, maxLines: 4, baselineFontPx: 18, minFontPx: 12, lineGap: 4 },
+    tagline: { x: 0.10, y: 0.92, w: 0.80, h: 0.05, maxLines: 1, baselineFontPx: 16, minFontPx: 10 },
+  },
+  template_single: {
+    title: { x: 0.08, y: 0.64, w: 0.84, h: 0.12, maxLines: 2, baselineFontPx: 42, minFontPx: 20 },
+    bullets: { x: 0.08, y: 0.76, w: 0.84, h: 0.16, maxLines: 4, baselineFontPx: 18, minFontPx: 12, lineGap: 4 },
+    tagline: { x: 0.10, y: 0.92, w: 0.80, h: 0.05, maxLines: 1, baselineFontPx: 16, minFontPx: 10 },
+  },
+};
+
+const TITLE_SCALE_PRESETS = { S: 0.85, M: 1, L: 1.2 };
+
+function applyWireframeLayout(container, templateId) {
+  if (!container) return;
+  const spec = TEXT_SAFE_AREAS[templateId] || TEXT_SAFE_AREAS.template_dual;
+  Object.entries(spec).forEach(([slot, box]) => {
+    const el = container.querySelector(`[data-slot="${slot}"]`);
+    if (!el) return;
+    el.style.left = `${box.x * 100}%`;
+    el.style.top = `${box.y * 100}%`;
+    el.style.width = `${box.w * 100}%`;
+    el.style.height = `${box.h * 100}%`;
+  });
+}
+
+function fitTextToBox(el, text, config, { scale = 1 } = {}) {
+  if (!el || !config) return { didEllipsis: false, fontPx: 0 };
+  const baseline = Math.round(config.baselineFontPx * scale);
+  const minFontPx = Math.round(config.minFontPx * scale);
+  const lineGap = typeof config.lineGap === 'number' ? config.lineGap : 4;
+  const content = typeof text === 'string' ? text.trim() : '';
+  el.textContent = content;
+  el.dataset.ellipsis = '0';
+
+  let fontPx = baseline;
+  const applyFont = () => {
+    el.style.fontSize = `${fontPx}px`;
+    el.style.lineHeight = `${fontPx + lineGap}px`;
+  };
+
+  applyFont();
+  while (fontPx > minFontPx) {
+    if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) break;
+    fontPx -= 1;
+    applyFont();
+  }
+
+  let didEllipsis = false;
+  if (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth) {
+    let trimmed = content;
+    while (trimmed.length > 0) {
+      trimmed = trimmed.slice(0, -1).trim();
+      el.textContent = `${trimmed}\u2026`;
+      applyFont();
+      if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) {
+        didEllipsis = true;
+        break;
+      }
+    }
+  }
+
+  if (didEllipsis) {
+    el.dataset.ellipsis = '1';
+  } else {
+    el.dataset.ellipsis = '0';
+  }
+  return { didEllipsis, fontPx };
+}
+
+function updateWireframePreview(
+  container,
+  data,
+  templateId,
+  warningEl,
+  { titleScale = 1, showBullets = true } = {}
+) {
+  if (!container) return;
+  applyWireframeLayout(container, templateId);
+  const spec = TEXT_SAFE_AREAS[templateId] || TEXT_SAFE_AREAS.template_dual;
+  const titleEl = container.querySelector('[data-slot="title"]');
+  const bulletsEl = container.querySelector('[data-slot="bullets"]');
+  const taglineEl = container.querySelector('[data-slot="tagline"]');
+
+  const titleText = data?.title || '';
+  const bullets = Array.isArray(data?.bullets) ? data.bullets.filter(Boolean) : [];
+  const bulletsText = showBullets ? bullets.map((b) => `• ${b}`).join('\n') : '';
+  const taglineText = data?.tagline || '';
+
+  const titleFit = fitTextToBox(titleEl, titleText, spec.title, { scale: titleScale });
+  const bulletFit = fitTextToBox(bulletsEl, bulletsText, spec.bullets, { scale: 1 });
+  const taglineFit = fitTextToBox(taglineEl, taglineText, spec.tagline, { scale: 1 });
+
+  const didEllipsis = titleFit.didEllipsis || bulletFit.didEllipsis || taglineFit.didEllipsis;
+  if (warningEl) {
+    warningEl.textContent = didEllipsis ? 'Some text was truncated to fit the safe areas.' : '';
+  }
+}
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
 // 生成成功后 A/B 对比按钮才可使用。
 
@@ -1318,6 +1476,7 @@ const placeholderImages = {
   product: createPlaceholder('产品渲染'),
   productAlt: createPlaceholder('产品\\n备用'),
 };
+const DEFAULT_SCENARIO_ASSET = App.utils.assetUrl('assets/scenes/default.png');
 
 const galleryPlaceholderCache = new Map();
 
@@ -2520,6 +2679,8 @@ function initStage1ModeS() {
   const nextButton = document.getElementById('go-to-stage2');
   const statusElement = document.getElementById('stage1-status');
   const layoutStructure = document.getElementById('layout-structure-text');
+  const wireframe = document.getElementById('stage1-wireframe');
+  const wireframeWarning = document.getElementById('wireframe-warning');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
@@ -2545,6 +2706,16 @@ function initStage1ModeS() {
     if (layoutStructure) {
       layoutStructure.textContent = layoutPreview;
     }
+    updateWireframePreview(
+      wireframe,
+      {
+        title: payload.title || '',
+        bullets: payload.bullets || [],
+        tagline: payload.tagline || payload.promo || '',
+      },
+      state.templateId || DEFAULT_STAGE1.template_id,
+      wireframeWarning
+    );
     return payload;
   };
 
@@ -2691,7 +2862,7 @@ function updateInlinePlaceholders(inlinePreviews) {
 
 async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   if (MODE_S) {
-    for (const key of ['brand_name', 'brand_color', 'price', 'promo', 'channel', 'intent', 'title']) {
+    for (const key of ['brand_name', 'brand_color', 'price', 'promo', 'channel', 'intent', 'title', 'tagline']) {
       const element = form.elements.namedItem(key);
       if (element && typeof data[key] === 'string') {
         element.value = data[key];
@@ -3279,6 +3450,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       channel: formData.get('channel')?.toString().trim() || '',
       intent: formData.get('intent')?.toString().trim() || '',
       title: formData.get('title')?.toString().trim() || '',
+      tagline: formData.get('tagline')?.toString().trim() || '',
       bullets,
       product_image_1: state.productImage1,
       product_image_2: state.productImage2,
@@ -3800,6 +3972,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       channel: payload.channel || null,
       intent: payload.intent || null,
       title: payload.title,
+      tagline: payload.tagline || '',
       bullets: payload.bullets || [],
       product_image_1: serialiseAssetForStorage(state.productImage1),
       product_image_2: serialiseAssetForStorage(state.productImage2),
@@ -3942,6 +4115,7 @@ function buildDraftFromStage1Data(stage1Data) {
       price: stage1Data.price || '',
       promo: stage1Data.promo || '',
       title: stage1Data.title || '',
+      tagline: stage1Data.tagline || '',
       bullets,
       product_image_1: stage1Data.product_image_1 || null,
       product_image_2: stage1Data.product_image_2 || null,
@@ -3985,12 +4159,52 @@ function pickDraftImageRef(asset) {
   );
 }
 
+function getKitPosterVariant(renderMode) {
+  if (renderMode === 'kitposter1_b') return 'b';
+  return 'a';
+}
+
+function buildKitPosterDraftFromSource(source, adjustments, renderMode) {
+  const payload = source && typeof source === 'object' ? source : {};
+  const bullets = Array.isArray(payload.bullets) ? payload.bullets.filter(Boolean) : [];
+  const productImages = [];
+  const image1 = pickDraftImageRef(payload.product_image_1 || payload.productImage1);
+  const image2 = pickDraftImageRef(payload.product_image_2 || payload.productImage2);
+  if (image1) productImages.push(image1);
+  if (image2) productImages.push(image2);
+
+  const showBullets = adjustments?.showBullets !== false;
+  return {
+    template_id: payload.template_id || DEFAULT_STAGE1.template_id,
+    variant: getKitPosterVariant(renderMode),
+    product_images: productImages,
+    copy: {
+      title: payload.title || '',
+      bullets: showBullets ? bullets : [],
+      tagline: payload.tagline || payload.promo || null,
+    },
+    options: {
+      quality_mode: adjustments?.qualityMode || 'stable',
+    },
+  };
+}
+
 function buildGeneratePosterPayload(draft) {
   const core = draft?.core || {};
   const messaging = draft?.messaging || {};
   const posterSource = draft?.poster || {};
   const bullets = Array.isArray(core.bullets) ? core.bullets : [];
   const title = core.title || posterSource.title || '';
+  const showBullets = stage2State.adjustments?.showBullets !== false;
+  const renderMode = stage2State.renderMode || 'kitposter1_a';
+  const stage1Snapshot = loadStage1Data();
+  const draftSource = stage1Snapshot || core || posterSource;
+  const draftPayload = buildKitPosterDraftFromSource(
+    draftSource,
+    stage2State.adjustments,
+    renderMode
+  );
+  const featureBullets = showBullets ? bullets : [];
   return {
     poster: {
       brand_name: core.brand_name || posterSource.brand_name || '',
@@ -4000,9 +4214,9 @@ function buildGeneratePosterPayload(draft) {
       channel: messaging.channel || posterSource.channel || null,
       intent: messaging.intent || posterSource.intent || null,
       template_id: posterSource.template_id || DEFAULT_STAGE1.template_id,
-      features: bullets,
+      features: featureBullets,
       title,
-      subtitle: posterSource.subtitle || posterSource.tagline || '',
+      subtitle: posterSource.subtitle || posterSource.tagline || core.tagline || '',
       series_description: posterSource.series_description || '',
       brand_color: core.brand_color || posterSource.brand_color || null,
       price: core.price || posterSource.price || null,
@@ -4010,7 +4224,8 @@ function buildGeneratePosterPayload(draft) {
       product_image_1: pickDraftImageRef(core.product_image_1),
       product_image_2: pickDraftImageRef(core.product_image_2),
     },
-    render_mode: stage2State.renderMode || 'kitposter1_a',
+    draft: draftPayload,
+    render_mode: renderMode,
     variants: 1,
     seed: 0,
     lock_seed: true,
@@ -4585,6 +4800,12 @@ function initStage2() {
     const apiBaseInput = document.getElementById('api-base');
     const posterLayout = document.getElementById('posterB-layout');
     const exportPosterButton = document.getElementById('export-poster-b');
+    const stage2Wireframe = document.getElementById('stage2-wireframe');
+    const stage2WireframeWarning = document.getElementById('stage2-wireframe-warning');
+    const toggleBulletsInput = document.getElementById('toggle-bullets');
+    const titleSizePreset = document.getElementById('title-size-preset');
+    const fallbackStableButton = document.getElementById('fallback-stable');
+    const assetFallbackWarning = document.getElementById('asset-fallback-warning');
     let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
@@ -4609,6 +4830,60 @@ function initStage2() {
     }
 
     const stage1Data = loadStage1Data();
+    const refreshStage2Wireframe = () => {
+      if (!stage1Data || !stage2Wireframe) return;
+      updateWireframePreview(
+        stage2Wireframe,
+        {
+          title: stage1Data.title || '',
+          bullets: stage1Data.bullets || [],
+          tagline: stage1Data.tagline || stage1Data.promo || '',
+        },
+        stage1Data.template_id || DEFAULT_STAGE1.template_id,
+        stage2WireframeWarning,
+        {
+          titleScale: stage2State.adjustments.titleScale,
+          showBullets: stage2State.adjustments.showBullets,
+        }
+      );
+    };
+
+    if (toggleBulletsInput) {
+      toggleBulletsInput.checked = stage2State.adjustments.showBullets !== false;
+      toggleBulletsInput.addEventListener('change', () => {
+        stage2State.adjustments.showBullets = toggleBulletsInput.checked;
+        refreshStage2Wireframe();
+        renderPosterResult();
+        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
+      });
+    }
+
+    if (titleSizePreset) {
+      titleSizePreset.value = 'M';
+      stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
+      titleSizePreset.addEventListener('change', () => {
+        const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
+        stage2State.adjustments.titleScale = next;
+        refreshStage2Wireframe();
+        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
+      });
+    }
+
+    if (fallbackStableButton) {
+      fallbackStableButton.addEventListener('click', () => {
+        stage2State.adjustments = {
+          showBullets: true,
+          titleScale: 1,
+          qualityMode: 'stable',
+        };
+        if (toggleBulletsInput) toggleBulletsInput.checked = true;
+        if (titleSizePreset) titleSizePreset.value = 'M';
+        refreshStage2Wireframe();
+        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
+        setStatus(statusElement, 'Fallback to stable mode requested.', 'info');
+        void runStage2Generation({ isRegenerate: true });
+      });
+    }
     const previewPayload = buildGeneratePosterPayload(draft);
     updateDebugPanels({ payload: previewPayload });
     if (MODE_S && (!previewPayload.prompt_bundle || !Object.keys(previewPayload.prompt_bundle || {}).length)) {
@@ -4628,6 +4903,8 @@ function initStage2() {
       }
       return;
     }
+
+    refreshStage2Wireframe();
 
     stage2State.renderMode = MODE_S ? MODE_S_RENDER_MODE : stage2State.renderMode;
     if (!MODE_S && !warningElement && statusElement?.parentNode) {
@@ -4662,12 +4939,20 @@ function initStage2() {
       console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
     }
 
+    const stage1Features = Array.isArray(stage1Data.features)
+      ? stage1Data.features.filter(Boolean)
+      : [];
+    const stage1Bullets = Array.isArray(stage1Data.bullets)
+      ? stage1Data.bullets.filter(Boolean)
+      : [];
+    const stage2Features = stage1Features.length ? stage1Features : stage1Bullets;
+
     stage2State.poster = {
       brand_name: stage1Data.brand_name || '',
       agent_name: stage1Data.agent_name || '',
       headline: stage1Data.title || '',
-      tagline: stage1Data.subtitle || '',
-      features: Array.isArray(stage1Data.features) ? stage1Data.features.filter(Boolean) : [],
+      tagline: stage1Data.subtitle || stage1Data.tagline || '',
+      features: stage2Features,
       series: Array.isArray(stage1Data.gallery_entries)
         ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
         : [],
@@ -4701,6 +4986,15 @@ function initStage2() {
           exportPosterButton.disabled = true;
           const html2canvas = await loadHtml2Canvas();
           if (!posterLayoutRoot || !html2canvas) return;
+          const imagesReady = await waitForImagesReady(posterLayoutRoot, 5000);
+          const fontsReady = await waitForFontsReady(4000);
+          if (!imagesReady || !fontsReady) {
+            setStatus(
+              statusElement,
+              '截图准备超时，可能存在未加载资源。',
+              'warning'
+            );
+          }
           const canvas = await html2canvas(posterLayoutRoot, {
             backgroundColor: '#ffffff',
             scale: 2,
@@ -5325,6 +5619,11 @@ function renderPosterResult() {
   if (!root) return;
 
   const { poster, assets } = stage2State;
+  const fallbackWarning = document.getElementById('asset-fallback-warning');
+  if (fallbackWarning) {
+    fallbackWarning.textContent = '';
+    fallbackWarning.classList.add('hidden');
+  }
 
   const logoImg = document.getElementById('poster-result-brand-logo');
   if (logoImg) {
@@ -5345,18 +5644,29 @@ function renderPosterResult() {
   const scenarioImg = document.getElementById('poster-result-scenario-image');
   if (scenarioImg) {
     const src = assets.scenario_url || '';
-    setImageSrcIfNonEmpty(scenarioImg, src);
+    applyImageWithFallback(
+      scenarioImg,
+      [src, DEFAULT_SCENARIO_ASSET, placeholderImages.scenario],
+      fallbackWarning
+    );
   }
 
   const productImg = document.getElementById('poster-result-product-image');
   if (productImg) {
     const src = assets.product_url || '';
-    setImageSrcIfNonEmpty(productImg, src);
+    applyImageWithFallback(
+      productImg,
+      [src, placeholderImages.product],
+      fallbackWarning
+    );
   }
 
   const featureList = document.getElementById('poster-result-feature-list');
   if (featureList) {
-    renderFeatureTags(featureList, (poster.features || []).slice(0, 3));
+    const features = stage2State.adjustments?.showBullets !== false
+      ? (poster.features || [])
+      : [];
+    renderFeatureTags(featureList, features.slice(0, 3));
   }
 
   const gallerySlots = root.querySelectorAll('.poster-gallery-slot');
@@ -5366,7 +5676,13 @@ function renderPosterResult() {
     const captionEl = slot.querySelector('.slot-caption');
     const captionTitleEl = slot.querySelector('[data-gallery-caption-title]');
     const src = assets.gallery_urls?.[index] || logoFallback || '';
-    if (img) setImageSrcIfNonEmpty(img, src);
+    if (img) {
+      applyImageWithFallback(
+        img,
+        [src, logoFallback, placeholderImages.product],
+        fallbackWarning
+      );
+    }
     if (captionEl && !captionTitleEl) {
       const series = poster.series?.[index];
       setTextIfNonEmpty(captionEl, series && series.name ? series.name : '', '待生成');
@@ -5721,6 +6037,7 @@ async function triggerGeneration(opts) {
         folder: 'product',
       }, productImage1Ref);
 
+      const showBullets = stage2State.adjustments?.showBullets !== false;
       const bullets = Array.isArray(stage1Data.bullets)
         ? stage1Data.bullets.filter(Boolean)
         : [];
@@ -5730,7 +6047,8 @@ async function triggerGeneration(opts) {
       const brandName = safeText(stage1Data.brand_name, 'Brand');
       const promo = safeText(stage1Data.promo, '');
       const price = safeText(stage1Data.price, '');
-      const subtitle = safeText(stage1Data.promo || stage1Data.price, title);
+      const tagline = safeText(stage1Data.tagline || stage1Data.promo || stage1Data.price, '');
+      const subtitle = safeText(tagline, title);
       const seriesDescription = safeText(
         stage1Data.promo || stage1Data.price || stage1Data.intent,
         title
@@ -5751,7 +6069,7 @@ async function triggerGeneration(opts) {
         price: price || null,
         promo: promo || null,
         template_id: templateId || DEFAULT_STAGE1.template_id,
-        features: bullets,
+        features: showBullets ? bullets : [],
         title,
         subtitle,
         series_description: seriesDescription,
@@ -5869,9 +6187,10 @@ async function triggerGeneration(opts) {
     ? await buildModeSPromptBundle(stage1Data)
     : buildPromptBundleStrings(reqFromInspector.prompts || {});
 
+  const renderMode = MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a');
   const requestBase = {
     poster: posterPayload,
-    render_mode: MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a'),
+    render_mode: renderMode,
     variants: MODE_S ? 1 : clampVariants(reqFromInspector.variants ?? 1),
     seed: MODE_S ? 0 : (reqFromInspector.seed ?? null),
     lock_seed: MODE_S ? true : !!reqFromInspector.lockSeed,
@@ -5880,6 +6199,13 @@ async function triggerGeneration(opts) {
   const payload = { ...requestBase };
   if (promptBundleStrings) {
     payload.prompt_bundle = promptBundleStrings;
+  }
+  if (MODE_S) {
+    payload.draft = buildKitPosterDraftFromSource(
+      stage1Data,
+      stage2State.adjustments,
+      renderMode
+    );
   }
 
   updateDebugPanels({ draft: stage2State.draft, payload });
@@ -6771,6 +7097,45 @@ async function loadHtml2Canvas() {
   });
 
   return html2CanvasLoader;
+}
+
+async function waitForImagesReady(container, timeoutMs = 4000) {
+  if (!container) return true;
+  const images = Array.from(container.querySelectorAll('img'));
+  if (!images.length) return true;
+  const pending = images.filter((img) => !(img.complete && img.naturalWidth > 0));
+  if (!pending.length) return true;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      resolve(false);
+    }, timeoutMs);
+    let remaining = pending.length;
+    const done = () => {
+      if (settled) return;
+      remaining -= 1;
+      if (remaining <= 0) {
+        settled = true;
+        clearTimeout(timer);
+        resolve(true);
+      }
+    };
+    pending.forEach((img) => {
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+    });
+  });
+}
+
+async function waitForFontsReady(timeoutMs = 3000) {
+  if (!document.fonts || !document.fonts.ready) return true;
+  return Promise.race([
+    document.fonts.ready.then(() => true).catch(() => false),
+    delay(timeoutMs).then(() => false),
+  ]);
 }
 
 async function saveStage2Result(data) {
