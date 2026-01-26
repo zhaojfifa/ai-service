@@ -1722,6 +1722,125 @@ main {
   font-size: 0.85rem;
 }
 
+.thumbnail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.thumbnail-slot {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.thumbnail-preview {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e2e8f0;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbnail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnail-slot.empty .thumbnail-preview img {
+  display: none;
+}
+
+.thumbnail-preview .slot-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-size: 0.9rem;
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.thumbnail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.thumbnail-actions .button-like {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.thumbnail-actions .button-like input[type='file'] {
+  display: none;
+}
+
+.material-preview-assets {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.material-preview-assets .preview-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.material-preview-assets .preview-thumb {
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  background: #f8fafc;
+}
+
+.material-preview-assets .preview-thumb img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #e2e8f0;
+}
+
+.material-preview-assets .preview-thumb.empty img {
+  display: none;
+}
+
+.material-preview-assets .slot-placeholder {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.material-preview-assets .slot-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
 @media (max-width: 640px) {
   .slot-actions {
     flex-direction: column;

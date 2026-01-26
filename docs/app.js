@@ -630,6 +630,168 @@ function updateWireframePreview(
     warningEl.textContent = didEllipsis ? 'Some text was truncated to fit the safe areas.' : '';
   }
 }
+
+function ensureGalleryEntries(state, limit = 4) {
+  if (!state) return;
+  if (!Array.isArray(state.galleryEntries)) {
+    state.galleryEntries = [];
+  }
+  if (typeof limit === 'number' && limit >= 0) {
+    state.galleryEntries = state.galleryEntries.slice(0, limit);
+  }
+}
+
+function updateMaterialPreviewAssets(container, assets = {}, labels = {}) {
+  if (!container) return;
+  const setSlot = (slotKey, asset, options = {}) => {
+    const slot = container.querySelector(`[data-asset-slot="${slotKey}"]`);
+    if (!slot) return;
+    const img = slot.querySelector('img');
+    const placeholder = slot.querySelector('.slot-placeholder');
+    const src = pickImageSrc(asset) || '';
+    if (img) {
+      if (src) {
+        img.src = src;
+        img.style.display = 'block';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
+    }
+    if (placeholder) {
+      placeholder.textContent = src ? (options.filledLabel || 'Ready') : (options.emptyLabel || 'Empty');
+    }
+    slot.classList.toggle('empty', !src);
+  };
+
+  setSlot('scenario', assets.scenario, {
+    emptyLabel: labels.scenario || 'Using default scenario',
+  });
+  setSlot('product1', assets.product1, {
+    emptyLabel: 'Missing',
+  });
+  setSlot('product2', assets.product2, {
+    emptyLabel: 'Empty',
+  });
+
+  const bottom = Array.isArray(assets.bottom) ? assets.bottom : [];
+  for (let i = 0; i < 4; i += 1) {
+    const entry = bottom[i];
+    const asset = entry?.asset || entry || null;
+    setSlot(`bottom-${i}`, asset, { emptyLabel: 'Empty' });
+  }
+}
+
+function updateBottomThumbnailsUi(container, state) {
+  if (!container || !state) return;
+  const entries = Array.isArray(state.galleryEntries) ? state.galleryEntries : [];
+  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
+    const index = Number(slot.dataset.slotIndex || 0);
+    const entry = entries[index];
+    const img = slot.querySelector(`[data-bottom-preview="${index}"]`);
+    const placeholder = slot.querySelector('.slot-placeholder');
+    const src = pickImageSrc(entry?.asset || null) || '';
+    if (img) {
+      if (src) {
+        img.src = src;
+        img.style.display = 'block';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
+    }
+    if (placeholder) {
+      placeholder.textContent = src ? 'Ready' : 'Empty';
+    }
+    slot.classList.toggle('empty', !src);
+  });
+}
+
+function bindModeSBottomThumbnails(container, state, statusElement, refreshPreview) {
+  if (!container || !state) return;
+  ensureGalleryEntries(state, 4);
+  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
+    const index = Number(slot.dataset.slotIndex || 0);
+    const fileInput = slot.querySelector('input[type="file"]');
+    const clearButton = slot.querySelector(`[data-bottom-clear="${index}"]`);
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        try {
+          const existing = state.galleryEntries[index] || { id: createId(), caption: '' };
+          const asset = await prepareAssetFromFile('gallery', file, existing.asset, statusElement);
+          state.galleryEntries[index] = { ...existing, asset };
+          state.previewBuilt = false;
+          updateBottomThumbnailsUi(container, state);
+          refreshPreview?.();
+        } catch (error) {
+          console.error(error);
+          setStatus(statusElement, 'Failed to process bottom thumbnail.', 'error');
+        } finally {
+          fileInput.value = '';
+        }
+      });
+    }
+
+    if (clearButton) {
+      clearButton.addEventListener('click', async () => {
+        const entry = state.galleryEntries[index];
+        if (entry?.asset) {
+          await deleteStoredAsset(entry.asset);
+        }
+        state.galleryEntries[index] = null;
+        state.previewBuilt = false;
+        updateBottomThumbnailsUi(container, state);
+        refreshPreview?.();
+      });
+    }
+  });
+}
+
+function bindModeSOptionalAsset(
+  input,
+  key,
+  inlinePreview,
+  state,
+  refreshPreview,
+  statusElement,
+  folder = 'uploads'
+) {
+  if (!input || !state) return;
+  const placeholderForKey = (valueKey) => {
+    if (valueKey === 'brandLogo') return placeholderImages.brandLogo;
+    if (valueKey === 'scenario') return placeholderImages.scenario;
+    if (valueKey === 'productImage2') return placeholderImages.productAlt;
+    return placeholderImages.product;
+  };
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      await deleteStoredAsset(state[key]);
+      state[key] = null;
+      state.previewBuilt = false;
+      if (inlinePreview) {
+        inlinePreview.src = placeholderForKey(key);
+      }
+      refreshPreview?.();
+      return;
+    }
+    try {
+      state[key] = await prepareAssetFromFile(folder, file, state[key], statusElement);
+      if (inlinePreview) {
+        inlinePreview.src = state[key]?.dataUrl || placeholderForKey(key);
+      }
+      state.previewBuilt = false;
+      refreshPreview?.();
+    } catch (error) {
+      console.error(error);
+      setStatus(statusElement, 'Failed to process image asset.', 'error');
+    }
+  });
+}
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
 // 生成成功后 A/B 对比按钮才可使用。
 
@@ -3136,18 +3298,19 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     state.scenario = await rehydrateStoredAsset(data.scenario_asset);
     state.productImage1 = await rehydrateStoredAsset(data.product_image_1);
     state.productImage2 = await rehydrateStoredAsset(data.product_image_2);
-    state.galleryEntries = Array.isArray(data.gallery_entries)
-      ? await Promise.all(
-        data.gallery_entries.map(async (entry) => ({
+      const storedGallery = Array.isArray(data.gallery_entries)
+        ? data.gallery_entries.filter(Boolean)
+        : [];
+      state.galleryEntries = await Promise.all(
+        storedGallery.map(async (entry) => ({
           id: entry.id || createId(),
           caption: entry.caption || '',
           asset: await rehydrateStoredAsset(entry.asset),
           mode: 'upload',
           prompt: null,
         }))
-      )
-      : [];
-    ensureGalleryEntries(state, 4);
+      );
+      ensureGalleryEntries(state, 4);
     state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
     state.templateLabel = data.template_label || '';
     state.templateVariant = data.template_variant || 'a';
@@ -3724,11 +3887,14 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       formData.get('channel')?.toString().trim() || MODE_S_DEFAULT_STAGE1.channel || '';
     const intent =
       formData.get('intent')?.toString().trim() || MODE_S_DEFAULT_STAGE1.intent || '';
-    const payload = {
-      brand_name: formData.get('brand_name')?.toString().trim() || '',
-      agent_name: formData.get('agent_name')?.toString().trim() || '',
-      brand_color: formData.get('brand_color')?.toString().trim() || '',
-      price: formData.get('price')?.toString().trim() || '',
+      const modeSGalleryEntries = Array.isArray(state.galleryEntries)
+        ? state.galleryEntries.filter((entry) => entry && entry.asset)
+        : [];
+      const payload = {
+        brand_name: formData.get('brand_name')?.toString().trim() || '',
+        agent_name: formData.get('agent_name')?.toString().trim() || '',
+        brand_color: formData.get('brand_color')?.toString().trim() || '',
+        price: formData.get('price')?.toString().trim() || '',
       promo: formData.get('promo')?.toString().trim() || '',
       channel,
       intent,
@@ -3744,21 +3910,19 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       features: bullets,
       brand_logo: state.brandLogo || null,
       scenario_asset: state.scenario || null,
-      product_asset: state.productImage1 || null,
-      product_image_1: state.productImage1,
-      product_image_2: state.productImage2,
-      gallery_entries: Array.isArray(state.galleryEntries)
-        ? state.galleryEntries.map((entry) => ({
-            id: entry.id,
-            caption: entry.caption || '',
-            asset: entry.asset || null,
-            mode: 'upload',
-            prompt: null,
-          }))
-        : [],
-      template_id: state.templateId || DEFAULT_STAGE1.template_id,
-      template_variant: formData.get('template_variant')?.toString().trim() || 'a',
-    };
+        product_asset: state.productImage1 || null,
+        product_image_1: state.productImage1,
+        product_image_2: state.productImage2,
+        gallery_entries: modeSGalleryEntries.map((entry) => ({
+          id: entry.id,
+          caption: entry.caption || '',
+          asset: entry.asset || null,
+          mode: 'upload',
+          prompt: null,
+        })),
+        template_id: state.templateId || DEFAULT_STAGE1.template_id,
+        template_variant: formData.get('template_variant')?.toString().trim() || 'a',
+      };
 
     if (strict) {
       if (!payload.product_image_1) {
@@ -4277,15 +4441,17 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       product_asset: serialiseAssetForStorage(state.productImage1),
       product_image_1: serialiseAssetForStorage(state.productImage1),
       product_image_2: serialiseAssetForStorage(state.productImage2),
-      gallery_entries: (state.galleryEntries || []).map((entry) => ({
-        id: entry.id,
-        caption: entry.caption || '',
-        asset: serialiseAssetForStorage(entry.asset),
-        mode: 'upload',
-        prompt: null,
-      })),
-      template_id: state.templateId || DEFAULT_STAGE1.template_id,
-      template_variant: state.templateVariant || payload.template_variant || 'a',
+        gallery_entries: (state.galleryEntries || [])
+          .filter((entry) => entry && entry.asset)
+          .map((entry) => ({
+            id: entry.id,
+            caption: entry.caption || '',
+            asset: serialiseAssetForStorage(entry.asset),
+            mode: 'upload',
+            prompt: null,
+          })),
+        template_id: state.templateId || DEFAULT_STAGE1.template_id,
+        template_variant: state.templateVariant || payload.template_variant || 'a',
       template_label: state.templateLabel || '',
       layout_preview: layoutPreview,
       preview_built: previewBuilt,
