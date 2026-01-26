@@ -140,11 +140,13 @@ const stage2State = {
     updateGallery: false,
     updateProduct: false,
   },
-  adjustments: {
-    showBullets: true,
-    titleScale: 1,
-    qualityMode: 'stable',
-  },
+    adjustments: {
+      showBullets: true,
+      titleScale: 1,
+      qualityMode: 'stable',
+      titleSize: 'M',
+      fallbackStableClicked: false,
+    },
   renderMode: 'kitposter1_a',
 };
 let stage2HasAttemptedGenerate = false;
@@ -437,6 +439,8 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   if (stage2GenerateInFlight) return;
   if (now - stage2LastClickAt < STAGE2_CLICK_DEBOUNCE_MS) return;
   stage2LastClickAt = now;
+  const t0 = Date.now();
+  const stage1Snapshot = loadStage1Data() || {};
   stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
   stage2State.regenPolicy = isRegenerate
     ? { updateScenario: true, updateGallery: true, updateProduct: false }
@@ -459,6 +463,26 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   } finally {
     stage2GenerateInFlight = false;
     setStage2GenerateUiBusy(false);
+    const t1 = Date.now();
+    const bullets = Array.isArray(stage1Snapshot?.bullets) ? stage1Snapshot.bullets.filter(Boolean) : [];
+    const bottomEntries = Array.isArray(stage1Snapshot?.gallery_entries)
+      ? stage1Snapshot.gallery_entries.filter((entry) => entry && entry.asset)
+      : [];
+    console.log({
+      bottom_count: bottomEntries.length,
+      has_scenario: Boolean(stage1Snapshot?.scenario_asset || stage1Snapshot?.scenario_image),
+      has_product2: Boolean(stage1Snapshot?.product_image_2),
+      title_len: (stage1Snapshot?.title || '').length,
+      bullets_count: bullets.length,
+      adjustments: {
+        showBullets: stage2State.adjustments?.showBullets !== false,
+        titleSize: stage2State.adjustments?.titleSize || 'M',
+        fallbackStableClicked: Boolean(stage2State.adjustments?.fallbackStableClicked),
+      },
+      t0,
+      t1,
+      duration_ms: t1 - t0,
+    });
   }
 }
 
@@ -5001,6 +5025,25 @@ function applyPromptStateToInspector(state, elements, presets) {
   }
 }
 
+function updatePromptSummaryLines(state, presets) {
+  if (!state?.slots) return;
+  const presetMap = presets?.presets || {};
+  PROMPT_SLOTS.forEach((slot) => {
+    const summaryEl = document.querySelector(`[data-preset-summary="${slot}"]`);
+    if (!summaryEl) return;
+    const entry = state.slots?.[slot] || {};
+    const presetLabel = entry.preset ? (presetMap[entry.preset]?.label || entry.preset) : '';
+    const hasCustom = Boolean((entry.positive || '').trim() || (entry.negative || '').trim());
+    let summary = 'No preset';
+    if (presetLabel) {
+      summary = hasCustom ? `${presetLabel} (custom)` : presetLabel;
+    } else if (hasCustom) {
+      summary = 'Custom';
+    }
+    summaryEl.textContent = summary;
+  });
+}
+
 function populatePresetSelect(select, presets, slot) {
   if (!select) return;
   select.innerHTML = '';
@@ -5081,8 +5124,10 @@ async function setupPromptInspector(
 
   const state = createPromptState(stage1Data, presets);
   applyPromptStateToInspector(state, elements, presets);
+  updatePromptSummaryLines(state, presets);
 
   const emitStateChange = () => {
+    updatePromptSummaryLines(state, presets);
     if (typeof onStateChange === 'function') {
       onStateChange(clonePromptState(state), presets);
     }
@@ -5296,9 +5341,9 @@ function initStage2() {
     bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
     bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
 
-    if (posterPreviewSection) {
-      posterPreviewSection.classList.add('hidden');
-    }
+      if (posterPreviewSection) {
+        posterPreviewSection.classList.remove('hidden');
+      }
     if (regenerateButton) {
       regenerateButton.classList.add('hidden');
       regenerateButton.disabled = true;
@@ -5333,26 +5378,30 @@ function initStage2() {
       });
     }
 
-    if (titleSizePreset) {
-      titleSizePreset.value = 'M';
-      stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
-      titleSizePreset.addEventListener('change', () => {
-        const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
-        stage2State.adjustments.titleScale = next;
-        refreshStage2Wireframe();
-        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
-      });
-    }
+      if (titleSizePreset) {
+        titleSizePreset.value = 'M';
+        stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
+        stage2State.adjustments.titleSize = titleSizePreset.value;
+        titleSizePreset.addEventListener('change', () => {
+          const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
+          stage2State.adjustments.titleScale = next;
+          stage2State.adjustments.titleSize = titleSizePreset.value;
+          refreshStage2Wireframe();
+          updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
+        });
+      }
 
-    if (fallbackStableButton) {
-      fallbackStableButton.addEventListener('click', () => {
-        stage2State.adjustments = {
-          showBullets: true,
-          titleScale: 1,
-          qualityMode: 'stable',
-        };
-        if (toggleBulletsInput) toggleBulletsInput.checked = true;
-        if (titleSizePreset) titleSizePreset.value = 'M';
+      if (fallbackStableButton) {
+        fallbackStableButton.addEventListener('click', () => {
+          stage2State.adjustments = {
+            showBullets: true,
+            titleScale: 1,
+            qualityMode: 'stable',
+            titleSize: 'M',
+            fallbackStableClicked: true,
+          };
+          if (toggleBulletsInput) toggleBulletsInput.checked = true;
+          if (titleSizePreset) titleSizePreset.value = 'M';
         refreshStage2Wireframe();
         updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
         setStatus(statusElement, 'Fallback to stable mode requested.', 'info');
@@ -6136,6 +6185,16 @@ function renderPosterResult() {
       [src, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
       fallbackWarning
     );
+  }
+
+  const titleEl = document.getElementById('poster-result-title');
+  if (titleEl) {
+    const headline =
+      poster?.headline ||
+      poster?.title ||
+      poster?.copy?.headline ||
+      '';
+    setTextIfNonEmpty(titleEl, headline, ' ');
   }
 
   const featureList = document.getElementById('poster-result-feature-list');
