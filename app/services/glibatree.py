@@ -17,6 +17,7 @@ from typing import Any, Optional, Tuple
 
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from google.api_core.exceptions import ResourceExhausted
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -24,6 +25,7 @@ from pydantic import ValidationError
 
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput, StoredImage
+from app.schemas.kitposter import KitPosterDraft
 from app.schemas.poster import PosterPayload
 from app.templates.layouts import load_layout
 from app.services.storage_bridge import store_image_and_url
@@ -456,6 +458,9 @@ class PosterGenerationResult:
     trace_ids: list[str] = field(default_factory=list)
     fallback_used: bool = False
     provider: str | None = None
+    degraded: bool = False
+    degraded_reason: str | None = None
+    warnings: list[str] = field(default_factory=list)
     scenario_image: StoredImage | None = None
     product_image: StoredImage | None = None
     gallery_images: list[StoredImage] = field(default_factory=list)
@@ -480,6 +485,41 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
     buffer = BytesIO()
     inverted.convert("L").save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _mask_b64_from_template(template: TemplateResources) -> str | None:
+    mask = template.mask_background
+    if not mask:
+        return None
+    alpha = mask.split()[3]
+    buffer = BytesIO()
+    alpha.convert("L").save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _invert_mask_b64(mask_b64: str) -> str:
+    decoded = base64.b64decode(mask_b64)
+    with Image.open(BytesIO(decoded)) as img:
+        base = img.convert("L")
+        inverted = ImageOps.invert(base)
+    buffer = BytesIO()
+    inverted.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _is_kitposter1(render_mode: str) -> bool:
+    return (render_mode or "").strip().lower() in {"kitposter1_a", "kitposter1_b"}
+
+
+def _kitposter1_variant(render_mode: str) -> str:
+    mode = (render_mode or "").strip().lower()
+    if mode.endswith("_b"):
+        return "b"
+    return "a"
+
+
+def _count_vertex_calls(trace_ids: list[str]) -> int:
+    return len([trace for trace in trace_ids if trace])
 
 
 def _shorten_asset_value(value: str) -> str:
@@ -646,6 +686,8 @@ def _generate_poster_with_vertex(
     *,
     prompt_details: dict[str, str] | None = None,
     trace_id: str | None = None,
+    force_edit: bool = False,
+    force_mask_b64: str | None = None,
 ) -> tuple[PosterImage, dict[str, Any]]:
     width_default, height_default = _template_dimensions(template, locked_frame)
 
@@ -667,7 +709,7 @@ def _generate_poster_with_vertex(
     mask_b64 = getattr(poster, "mask_b64", None)
     region_rect = getattr(poster, "region_rect", None)
 
-    should_edit = bool(base_image_b64 or mask_b64 or region_rect)
+    should_edit = bool(force_edit or base_image_b64 or mask_b64 or region_rect)
     request_trace = trace_id or uuid.uuid4().hex[:8]
     telemetry: dict[str, Any] = {
         "request_trace": request_trace,
@@ -690,12 +732,16 @@ def _generate_poster_with_vertex(
     start = time.time()
     try:
         if should_edit:
-            base_bytes = (
-                base64.b64decode(base_image_b64)
-                if base_image_b64
-                else _image_to_png_bytes(locked_frame)
-            )
-            mask_arg = mask_b64 or _default_mask_b64(template)
+            if force_edit:
+                base_bytes = _image_to_png_bytes(locked_frame)
+                mask_arg = force_mask_b64 or _default_mask_b64(template)
+            else:
+                base_bytes = (
+                    base64.b64decode(base_image_b64)
+                    if base_image_b64
+                    else _image_to_png_bytes(locked_frame)
+                )
+                mask_arg = mask_b64 or _default_mask_b64(template)
             payload = client.edit_bytes(
                 base_image_bytes=base_bytes,
                 prompt=prompt,
@@ -814,20 +860,51 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
             raise FileNotFoundError("Template asset name is empty")
         return None
 
-    png_path = TEMPLATE_ROOT / asset_name
-    if png_path.exists():
-        return Image.open(png_path).convert("RGBA")
+    asset_name = asset_name.strip()
+    asset_path = TEMPLATE_ROOT / asset_name
+    suffix = asset_path.suffix.lower()
 
-    b64_path = png_path.with_suffix(".b64")
+    # If caller passed a .b64 file, decode it (do NOT Image.open on it)
+    if suffix == ".b64":
+        b64_path = asset_path
+        if b64_path.exists():
+            try:
+                s = b64_path.read_text(encoding="utf-8").strip()
+                if s.startswith("data:image/"):
+                    comma = s.find(",")
+                    if comma != -1:
+                        s = s[comma + 1 :].strip()
+                s = s.strip().strip('"').strip("'")
+                decoded = base64.b64decode(s)
+                return Image.open(BytesIO(decoded)).convert("RGBA")
+            except (UnidentifiedImageError, ValueError) as exc:
+                raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
+
+        if required:
+            raise FileNotFoundError(f"Template asset missing: {b64_path}")
+        return None
+
+    # Normal image path
+    if asset_path.exists():
+        return Image.open(asset_path).convert("RGBA")
+
+    # Base64 fallback: same basename with .b64 suffix
+    b64_path = asset_path.with_suffix(".b64")
     if b64_path.exists():
         try:
-            decoded = base64.b64decode(b64_path.read_text(encoding="utf-8"))
+            s = b64_path.read_text(encoding="utf-8").strip()
+            if s.startswith("data:image/"):
+                comma = s.find(",")
+                if comma != -1:
+                    s = s[comma + 1 :].strip()
+            s = s.strip().strip('"').strip("'")
+            decoded = base64.b64decode(s)
             return Image.open(BytesIO(decoded)).convert("RGBA")
         except (UnidentifiedImageError, ValueError) as exc:
             raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
 
     if required:
-        raise FileNotFoundError(f"Template asset missing: {png_path}")
+        raise FileNotFoundError(f"Template asset missing: {asset_path}")
 
     return None
 
@@ -1113,6 +1190,111 @@ def _render_template_frame(
     return canvas
 
 
+def _validate_kitposter_draft(draft: KitPosterDraft) -> KitPosterDraft:
+    return draft
+
+
+def _resolve_assets_for_draft(draft: KitPosterDraft | None, warnings: list[str]) -> None:
+    if draft is None:
+        return
+    warnings.append("scenario_fallback_used")
+
+
+def _generate_or_edit_poster(
+    *,
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    prompt_bundle: dict[str, Any] | None,
+    prompt_details: dict[str, str] | None,
+    render_mode: str,
+    variants: int,
+    seed: int | None,
+    lock_seed: bool,
+    trace_id: str | None,
+    aspect_closeness: float | None,
+) -> PosterGenerationResult:
+    return generate_poster_asset(
+        poster,
+        prompt,
+        preview,
+        prompt_bundle=prompt_bundle,
+        prompt_details=prompt_details,
+        render_mode=render_mode,
+        variants=variants,
+        seed=seed,
+        lock_seed=lock_seed,
+        trace_id=trace_id,
+        aspect_closeness=aspect_closeness,
+    )
+
+
+def run_kitposter_state_machine(
+    *,
+    draft: KitPosterDraft | None,
+    poster: PosterInput,
+    prompt: str,
+    preview: str,
+    prompt_bundle: dict[str, Any] | None,
+    prompt_details: dict[str, str] | None,
+    render_mode: str,
+    variants: int,
+    seed: int | None,
+    lock_seed: bool,
+    trace_id: str | None,
+    aspect_closeness: float | None,
+    quality_mode: str | None,
+) -> tuple[PosterGenerationResult, list[str], bool, str]:
+    warnings: list[str] = []
+    degraded = False
+    quality_mode_used = quality_mode or "stable"
+
+    if draft is not None:
+        _validate_kitposter_draft(draft)
+    _resolve_assets_for_draft(draft, warnings)
+
+    try:
+        result = _generate_or_edit_poster(
+            poster=poster,
+            prompt=prompt,
+            preview=preview,
+            prompt_bundle=prompt_bundle,
+            prompt_details=prompt_details,
+            render_mode=render_mode,
+            variants=variants,
+            seed=seed,
+            lock_seed=lock_seed,
+            trace_id=trace_id,
+            aspect_closeness=aspect_closeness,
+        )
+    except Exception:
+        if quality_mode == "creative":
+            warnings.append("creative_failed_fallback_to_stable")
+            degraded = True
+            quality_mode_used = "stable"
+            result = _generate_or_edit_poster(
+                poster=poster,
+                prompt=prompt,
+                preview=preview,
+                prompt_bundle=prompt_bundle,
+                prompt_details=prompt_details,
+                render_mode=render_mode,
+                variants=variants,
+                seed=seed,
+                lock_seed=lock_seed,
+                trace_id=trace_id,
+                aspect_closeness=aspect_closeness,
+            )
+        else:
+            raise
+
+    if warnings:
+        result.warnings = sorted(set(result.warnings + warnings))
+    if degraded:
+        result.degraded = True
+    return result, warnings, degraded, quality_mode_used
+
+
 def generate_poster_asset(
     poster: PosterInput,
     prompt: str,
@@ -1130,11 +1312,16 @@ def generate_poster_asset(
     """Generate a poster image using locked templates with an OpenAI edit fallback."""
     _assert_assets_use_ref_only(poster)
 
-    desired_variants = max(1, variants)
-    override_posters = generation_overrides(desired_variants)
+    is_kitposter1 = _is_kitposter1(render_mode)
+    kit_variant = _kitposter1_variant(render_mode) if is_kitposter1 else None
+    desired_variants = 1 if is_kitposter1 else max(1, variants)
+    override_posters = [] if is_kitposter1 else generation_overrides(desired_variants)
     override_primary = override_posters[0] if override_posters else None
     override_variants = override_posters[1:] if len(override_posters) > 1 else []
     used_override_primary = False
+    warnings: list[str] = []
+    degraded = False
+    degraded_reason: str | None = None
 
     provider_label = (
         vertex_imagen_client.__class__.__name__
@@ -1158,6 +1345,13 @@ def generate_poster_asset(
         )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
 
+    if is_kitposter1:
+        logger.info(
+            "[kitposter1] start mode=%s variant=%s",
+            render_mode,
+            kit_variant,
+        )
+
     settings = get_settings()
     primary: PosterImage | None = None
     variant_images: list[PosterImage] = []
@@ -1168,8 +1362,9 @@ def generate_poster_asset(
     scenario_slot_asset: StoredImage | None = None
     product_slot_asset: StoredImage | None = None
     gallery_slot_assets: list[StoredImage] = []
+    kit_mask_b64: str | None = None
 
-    if vertex_imagen_client is not None:
+    if vertex_imagen_client is not None and not is_kitposter1:
         scenario_prompt, scenario_negative, scenario_aspect = _slot_prompt(
             prompt_bundle or {}, "scenario", default_aspect="1:1"
         )
@@ -1309,6 +1504,23 @@ def generate_poster_asset(
                     extra={"trace": trace_id, "gallery_index": idx},
                 )
 
+    if is_kitposter1:
+        raw_mask_b64 = _mask_b64_from_template(template)
+        if raw_mask_b64:
+            kit_mask_b64 = _invert_mask_b64(raw_mask_b64)
+        if kit_variant == "b":
+            prompt = (
+                f"{prompt}\n\n"
+                "KitPoster1.0 mode B: warm, cozy, soft kitchen ambience, minimal, no clutter.\n"
+                "Do not add props or extra elements. Do not add text or logos."
+            )
+        else:
+            prompt = (
+                f"{prompt}\n\n"
+                "KitPoster1.0 mode A: Swiss minimal, subtle, clean lighting, no extra props.\n"
+                "Do not add text or logos. Do not cover existing pixels."
+            )
+
     logger.info(
         "[vertex] generate_poster start",
         extra={
@@ -1328,7 +1540,7 @@ def generate_poster_asset(
         },
     )
 
-    if vertex_imagen_client is not None:
+    if vertex_imagen_client is not None and not (is_kitposter1 and primary is not None):
         try:
             primary, telemetry = _generate_poster_with_vertex(
                 vertex_imagen_client,
@@ -1338,20 +1550,58 @@ def generate_poster_asset(
                 template,
                 prompt_details=prompt_details,
                 trace_id=trace_id,
+                force_edit=is_kitposter1,
+                force_mask_b64=kit_mask_b64,
             )
             trace_value = telemetry.get("vertex_trace") or telemetry.get("request_trace")
             if trace_value:
                 vertex_traces.append(str(trace_value))
             provider_label = getattr(vertex_imagen_client, "__class__", VertexImagen3).__name__
-        except Exception:
+        except ResourceExhausted:
             fallback_used = True
+            warnings.append("vertex_quota_exhausted_fallback")
+            if is_kitposter1:
+                degraded = True
+                degraded_reason = degraded_reason or "quota_exhausted"
+            logger.exception(
+                "Vertex Imagen3 quota exhausted; falling back",
+                extra={"trace": trace_id},
+            )
+        except Exception as exc:
+            fallback_used = True
+            if is_kitposter1:
+                warnings.append("vertex_edit_failed_fallback")
+                degraded = True
+                message = str(exc).lower()
+                if "edit support is disabled" in message or "enable_edit" in message:
+                    degraded_reason = degraded_reason or "edit_model_not_enabled"
+                else:
+                    degraded_reason = degraded_reason or "vertex_edit_failed"
             logger.exception(
                 "Vertex Imagen3 generation failed; falling back",
                 extra={"trace": trace_id},
             )
 
+    if is_kitposter1 and primary is None:
+        fallback_used = True
+        if vertex_imagen_client is None:
+            warnings.append("vertex_unavailable_fallback")
+            degraded = True
+            degraded_reason = degraded_reason or "vertex_unavailable"
+        warnings.append("kitposter1_locked_frame_fallback")
+        if not degraded:
+            degraded = True
+            degraded_reason = degraded_reason or "locked_frame_fallback"
+        mock_frame = _render_template_frame(poster, template, fill_background=True)
+        primary = _poster_image_from_pillow(mock_frame, f"{template.id}_kitposter1.png")
+        provider_label = "KitPoster1Fallback"
+
     http_payload: dict[str, Any] | None = None
-    if settings.glibatree.is_configured and settings.glibatree.api_url:
+    if (
+        not is_kitposter1
+        and settings.glibatree.is_configured
+        and settings.glibatree.api_url
+    ):
         http_payload = _generate_payload(
             poster,
             prompt,
@@ -1367,6 +1617,8 @@ def generate_poster_asset(
         )
 
     if (
+        not is_kitposter1
+        and
         primary is None
         and settings.glibatree.is_configured
         and settings.glibatree.api_url
@@ -1469,10 +1721,18 @@ def generate_poster_asset(
         trace_ids=vertex_traces,
         fallback_used=fallback_used,
         provider=provider_label,
+        degraded=degraded,
+        degraded_reason=degraded_reason,
+        warnings=warnings,
         scenario_image=scenario_asset,
         product_image=product_asset,
         gallery_images=gallery_assets,
     )
+
+    if result.prompt_details is not None and render_mode:
+        result.prompt_details.setdefault("render_mode", render_mode)
+    if warnings and result.prompt_details is not None:
+        result.prompt_details["warnings"] = ",".join(warnings)
 
     logger.info(
         "[vertex] generate_poster done",
@@ -1486,6 +1746,15 @@ def generate_poster_asset(
             "vertex_traces": vertex_traces,
         },
     )
+
+    if is_kitposter1:
+        logger.info(
+            "[kitposter1] done mode=%s vertex_calls=%s degraded=%s trace_id=%s",
+            kit_variant,
+            _count_vertex_calls(vertex_traces),
+            degraded,
+            trace_id,
+        )
 
     return result
 
@@ -1648,21 +1917,44 @@ def _load_image_from_data_url(data_url: str | None) -> Image.Image | None:
     return image.convert("RGBA")
 
 
+def _fallback_default_scenario_image() -> Image.Image:
+    base_dir = Path(__file__).resolve().parent
+    candidates = [
+        base_dir.parents[1] / "assets" / "scenes" / "default.png",
+        base_dir / "assets" / "default_scenario.png",
+        base_dir / "assets" / "default_scenario.jpg",
+        base_dir / "templates" / "default_scenario.png",
+        base_dir / "templates" / "scenarios" / "default.png",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                return Image.open(candidate).convert("RGBA")
+            except Exception:
+                continue
+    return Image.new("RGBA", (1024, 1024), (238, 240, 244, 255))
+
+
 def _load_image_from_key(key: str | None) -> Image.Image | None:
     if not key:
         return None
     if key.startswith("r2://"):
         key = key[5:]
+    is_default = key == "default" or key.endswith("/default")
     try:
         payload = get_bytes(key)
     except Exception as exc:
         logger.warning("Unable to download object %s from R2: %s", key, exc)
+        if is_default:
+            return _fallback_default_scenario_image()
         return None
 
     try:
         return Image.open(BytesIO(payload)).convert("RGBA")
     except Exception as exc:
         logger.warning("Downloaded asset %s is not a valid image: %s", key, exc)
+        if is_default:
+            return _fallback_default_scenario_image()
         return None
 
 
