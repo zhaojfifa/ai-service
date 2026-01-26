@@ -67,9 +67,9 @@ function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
   }
 
   if (slot === 'scenario') {
-    candidates.push(DEFAULT_SCENARIO_ASSET, placeholderImages.scenario);
+    candidates.push(DEFAULT_SCENARIO_ASSET, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.scenario);
   } else if (slot === 'product') {
-    candidates.push(placeholderImages.product);
+    candidates.push(LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product);
   } else {
     if (typeof logoFallback === 'string' && logoFallback.trim()) {
       candidates.push(logoFallback.trim());
@@ -140,13 +140,13 @@ const stage2State = {
     updateGallery: false,
     updateProduct: false,
   },
-  adjustments: {
-    showBullets: true,
-    titleScale: 1,
-    qualityMode: 'stable',
-    titleSize: 'M',
-    fallbackStableClicked: false,
-  },
+    adjustments: {
+      showBullets: true,
+      titleScale: 1,
+      qualityMode: 'stable',
+      titleSize: 'M',
+      fallbackStableClicked: false,
+    },
   renderMode: 'kitposter1_a',
 };
 let stage2HasAttemptedGenerate = false;
@@ -439,6 +439,8 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   if (stage2GenerateInFlight) return;
   if (now - stage2LastClickAt < STAGE2_CLICK_DEBOUNCE_MS) return;
   stage2LastClickAt = now;
+  const t0 = Date.now();
+  const stage1Snapshot = loadStage1Data() || {};
   stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
   stage2State.regenPolicy = isRegenerate
     ? { updateScenario: true, updateGallery: true, updateProduct: false }
@@ -461,6 +463,26 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   } finally {
     stage2GenerateInFlight = false;
     setStage2GenerateUiBusy(false);
+    const t1 = Date.now();
+    const bullets = Array.isArray(stage1Snapshot?.bullets) ? stage1Snapshot.bullets.filter(Boolean) : [];
+    const bottomEntries = Array.isArray(stage1Snapshot?.gallery_entries)
+      ? stage1Snapshot.gallery_entries.filter((entry) => entry && entry.asset)
+      : [];
+    console.log({
+      bottom_count: bottomEntries.length,
+      has_scenario: Boolean(stage1Snapshot?.scenario_asset || stage1Snapshot?.scenario_image),
+      has_product2: Boolean(stage1Snapshot?.product_image_2),
+      title_len: (stage1Snapshot?.title || '').length,
+      bullets_count: bullets.length,
+      adjustments: {
+        showBullets: stage2State.adjustments?.showBullets !== false,
+        titleSize: stage2State.adjustments?.titleSize || 'M',
+        fallbackStableClicked: Boolean(stage2State.adjustments?.fallbackStableClicked),
+      },
+      t0,
+      t1,
+      duration_ms: t1 - t0,
+    });
   }
 }
 
@@ -633,161 +655,106 @@ function updateWireframePreview(
   }
 }
 
-function ensureGalleryEntries(state, count = 4) {
-  if (!state) return [];
+function ensureGalleryEntries(state, limit = 4) {
+  if (!state) return;
   if (!Array.isArray(state.galleryEntries)) {
     state.galleryEntries = [];
   }
-  for (let i = 0; i < count; i += 1) {
-    if (!state.galleryEntries[i]) {
-      state.galleryEntries[i] = {
-        id: createId(),
-        caption: '',
-        asset: null,
-        mode: 'upload',
-        prompt: null,
-      };
-    }
-  }
-  state.galleryEntries = state.galleryEntries.slice(0, count);
-  return state.galleryEntries;
-}
-
-function updatePreviewSlot(slot, asset, placeholderText) {
-  if (!slot) return;
-  const img = slot.querySelector('img');
-  const placeholder = slot.querySelector('.slot-placeholder');
-  const src = pickImageSrc(asset);
-  if (src && img) {
-    img.src = src;
-    img.style.display = 'block';
-    if (placeholder) {
-      placeholder.classList.add('hidden');
-    }
-    return;
-  }
-  if (img) {
-    img.removeAttribute('src');
-    img.style.display = 'none';
-  }
-  if (placeholder) {
-    if (placeholderText) {
-      placeholder.textContent = placeholderText;
-    }
-    placeholder.classList.remove('hidden');
+  if (typeof limit === 'number' && limit >= 0) {
+    state.galleryEntries = state.galleryEntries.slice(0, limit);
   }
 }
 
-function updateMaterialPreviewAssets(container, assets, labels = {}) {
+function updateMaterialPreviewAssets(container, assets = {}, labels = {}) {
   if (!container) return;
-  const scenarioSlot = container.querySelector('[data-asset-slot="scenario"]');
-  const product1Slot = container.querySelector('[data-asset-slot="product1"]');
-  const product2Slot = container.querySelector('[data-asset-slot="product2"]');
-  const scenarioLabel = labels.scenario || 'Using default scenario';
-  updatePreviewSlot(scenarioSlot, assets?.scenario, scenarioLabel);
-  updatePreviewSlot(product1Slot, assets?.product1, 'Missing');
-  updatePreviewSlot(product2Slot, assets?.product2, 'Empty');
+  const setSlot = (slotKey, asset, options = {}) => {
+    const slot = container.querySelector(`[data-asset-slot="${slotKey}"]`);
+    if (!slot) return;
+    const img = slot.querySelector('img');
+    const placeholder = slot.querySelector('.slot-placeholder');
+    const src = pickImageSrc(asset) || '';
+    if (img) {
+      if (src) {
+        img.src = src;
+        img.style.display = 'block';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
+      }
+    }
+    if (placeholder) {
+      placeholder.textContent = src ? (options.filledLabel || 'Ready') : (options.emptyLabel || 'Empty');
+    }
+    slot.classList.toggle('empty', !src);
+  };
 
-  const bottomEntries = Array.isArray(assets?.bottom) ? assets.bottom : [];
+  setSlot('scenario', assets.scenario, {
+    emptyLabel: labels.scenario || 'Using default scenario',
+  });
+  setSlot('product1', assets.product1, {
+    emptyLabel: 'Missing',
+  });
+  setSlot('product2', assets.product2, {
+    emptyLabel: 'Empty',
+  });
+
+  const bottom = Array.isArray(assets.bottom) ? assets.bottom : [];
   for (let i = 0; i < 4; i += 1) {
-    const slot = container.querySelector(`[data-asset-slot="bottom-${i}"]`);
-    const entry = bottomEntries[i];
-    updatePreviewSlot(slot, entry?.asset || entry, 'Empty');
+    const entry = bottom[i];
+    const asset = entry?.asset || entry || null;
+    setSlot(`bottom-${i}`, asset, { emptyLabel: 'Empty' });
   }
 }
 
 function updateBottomThumbnailsUi(container, state) {
-  if (!container) return;
-  const entries = Array.isArray(state?.galleryEntries) ? state.galleryEntries : [];
-  const slots = container.querySelectorAll('[data-slot-index]');
-  slots.forEach((slot) => {
-    const index = Number(slot.getAttribute('data-slot-index') || '0');
-    const previewImg = slot.querySelector(`[data-bottom-preview="${index}"]`);
+  if (!container || !state) return;
+  const entries = Array.isArray(state.galleryEntries) ? state.galleryEntries : [];
+  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
+    const index = Number(slot.dataset.slotIndex || 0);
+    const entry = entries[index];
+    const img = slot.querySelector(`[data-bottom-preview="${index}"]`);
     const placeholder = slot.querySelector('.slot-placeholder');
-    const src = pickImageSrc(entries[index]?.asset);
-    if (src && previewImg) {
-      previewImg.src = src;
-      previewImg.style.display = 'block';
-      if (placeholder) placeholder.classList.add('hidden');
-    } else {
-      if (previewImg) {
-        previewImg.removeAttribute('src');
-        previewImg.style.display = 'none';
+    const src = pickImageSrc(entry?.asset || null) || '';
+    if (img) {
+      if (src) {
+        img.src = src;
+        img.style.display = 'block';
+      } else {
+        img.removeAttribute('src');
+        img.style.display = 'none';
       }
-      if (placeholder) placeholder.classList.remove('hidden');
     }
-  });
-}
-
-function bindModeSOptionalAsset(input, key, inlinePreview, state, refreshPreview, statusElement, folder) {
-  if (!input) return;
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    if (!file) {
-      await deleteStoredAsset(state[key]);
-      state[key] = null;
-      if (inlinePreview) {
-        inlinePreview.src =
-          key === 'brandLogo' ? placeholderImages.brandLogo : placeholderImages.scenario;
-      }
-      refreshPreview();
-      return;
+    if (placeholder) {
+      placeholder.textContent = src ? 'Ready' : 'Empty';
     }
-    try {
-      state[key] = await prepareAssetFromFile(folder || 'uploads', file, state[key], statusElement);
-      if (inlinePreview) {
-        inlinePreview.src = state[key]?.dataUrl || inlinePreview.src;
-      }
-      state.previewBuilt = false;
-      refreshPreview();
-    } catch (error) {
-      console.error(error);
-      const message =
-        error instanceof Error ? error.message : '处理图片素材时发生错误，请重试。';
-      setStatus(statusElement, message, 'error');
-    }
+    slot.classList.toggle('empty', !src);
   });
 }
 
 function bindModeSBottomThumbnails(container, state, statusElement, refreshPreview) {
-  if (!container) return;
+  if (!container || !state) return;
   ensureGalleryEntries(state, 4);
-  const slots = container.querySelectorAll('[data-slot-index]');
-  slots.forEach((slot) => {
-    const index = Number(slot.getAttribute('data-slot-index') || '0');
+  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
+    const index = Number(slot.dataset.slotIndex || 0);
     const fileInput = slot.querySelector('input[type="file"]');
-    const clearButton = slot.querySelector('[data-bottom-clear]');
-    const previewImg = slot.querySelector(`[data-bottom-preview="${index}"]`);
-    const placeholder = slot.querySelector('.slot-placeholder');
-    const updateSlotPreview = () => {
-      const entry = state.galleryEntries[index];
-      const src = pickImageSrc(entry?.asset);
-      if (src && previewImg) {
-        previewImg.src = src;
-        previewImg.style.display = 'block';
-        if (placeholder) placeholder.classList.add('hidden');
-      } else {
-        if (previewImg) {
-          previewImg.removeAttribute('src');
-          previewImg.style.display = 'none';
-        }
-        if (placeholder) placeholder.classList.remove('hidden');
-      }
-    };
+    const clearButton = slot.querySelector(`[data-bottom-clear="${index}"]`);
 
     if (fileInput) {
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files?.[0];
         if (!file) return;
         try {
-          const entry = state.galleryEntries[index];
-          entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
+          const existing = state.galleryEntries[index] || { id: createId(), caption: '' };
+          const asset = await prepareAssetFromFile('gallery', file, existing.asset, statusElement);
+          state.galleryEntries[index] = { ...existing, asset };
           state.previewBuilt = false;
-          updateSlotPreview();
+          updateBottomThumbnailsUi(container, state);
           refreshPreview?.();
         } catch (error) {
           console.error(error);
-          setStatus(statusElement, '上传底部缩略图时发生错误。', 'error');
+          setStatus(statusElement, 'Failed to process bottom thumbnail.', 'error');
+        } finally {
+          fileInput.value = '';
         }
       });
     }
@@ -795,17 +762,59 @@ function bindModeSBottomThumbnails(container, state, statusElement, refreshPrevi
     if (clearButton) {
       clearButton.addEventListener('click', async () => {
         const entry = state.galleryEntries[index];
-        await deleteStoredAsset(entry.asset);
-        entry.asset = null;
+        if (entry?.asset) {
+          await deleteStoredAsset(entry.asset);
+        }
+        state.galleryEntries[index] = null;
         state.previewBuilt = false;
-        updateSlotPreview();
+        updateBottomThumbnailsUi(container, state);
         refreshPreview?.();
       });
     }
-
-    updateSlotPreview();
   });
-  updateBottomThumbnailsUi(container, state);
+}
+
+function bindModeSOptionalAsset(
+  input,
+  key,
+  inlinePreview,
+  state,
+  refreshPreview,
+  statusElement,
+  folder = 'uploads'
+) {
+  if (!input || !state) return;
+  const placeholderForKey = (valueKey) => {
+    if (valueKey === 'brandLogo') return placeholderImages.brandLogo;
+    if (valueKey === 'scenario') return placeholderImages.scenario;
+    if (valueKey === 'productImage2') return placeholderImages.productAlt;
+    return placeholderImages.product;
+  };
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    if (!file) {
+      await deleteStoredAsset(state[key]);
+      state[key] = null;
+      state.previewBuilt = false;
+      if (inlinePreview) {
+        inlinePreview.src = placeholderForKey(key);
+      }
+      refreshPreview?.();
+      return;
+    }
+    try {
+      state[key] = await prepareAssetFromFile(folder, file, state[key], statusElement);
+      if (inlinePreview) {
+        inlinePreview.src = state[key]?.dataUrl || placeholderForKey(key);
+      }
+      state.previewBuilt = false;
+      refreshPreview?.();
+    } catch (error) {
+      console.error(error);
+      setStatus(statusElement, 'Failed to process image asset.', 'error');
+    }
+  });
 }
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
 // 生成成功后 A/B 对比按钮才可使用。
@@ -1634,6 +1643,7 @@ const MODE_S_DEFAULT_STAGE1 = {
     'Smart controls for daily convenience',
   ],
   tagline: '',
+  product_name: '',
   allow_auto_fill: true,
   template_id: 'template_dual',
 };
@@ -1658,6 +1668,7 @@ const placeholderImages = {
   productAlt: createPlaceholder('产品\\n备用'),
 };
 const DEFAULT_SCENARIO_ASSET = App.utils.assetUrl('assets/scenes/default.png');
+const LOCAL_PLACEHOLDER_IMAGE = App.utils.assetUrl('assets/placeholders/empty.png');
 
 const galleryPlaceholderCache = new Map();
 
@@ -2859,16 +2870,34 @@ function initStage1ModeS() {
   const buildPreviewButton = document.getElementById('build-preview');
   const nextButton = document.getElementById('go-to-stage2');
   const statusElement = document.getElementById('stage1-status');
+  const previewContainer = document.getElementById('preview-container');
   const layoutStructure = document.getElementById('layout-structure-text');
   const wireframe = document.getElementById('stage1-wireframe');
   const wireframeWarning = document.getElementById('wireframe-warning');
   const bottomThumbnails = document.getElementById('bottom-thumbnails');
   const materialPreviewAssets = document.getElementById('material-preview-assets');
   const brandLogoStatus = document.getElementById('brand-logo-status');
+  const templateSelectStage1 = document.getElementById('template-select-stage1');
+  const templateVariantStage1 = document.getElementById('template-variant-stage1');
+  const templateDescriptionStage1 = document.getElementById('template-description-stage1');
+  const templateCanvasStage1 = document.getElementById('template-preview-stage1');
+  const stage1FallbackWarning = document.getElementById('stage1-fallback-warning');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
   }
+
+  const previewElements = {
+    brandLogo: document.getElementById('preview-brand-logo'),
+    brandName: document.getElementById('preview-brand-name'),
+    agentName: document.getElementById('preview-agent-name'),
+    scenarioImage: document.getElementById('preview-scenario-image'),
+    productImage: document.getElementById('preview-product-image'),
+    featureList: document.getElementById('preview-feature-list'),
+    title: document.getElementById('preview-title'),
+    subtitle: document.getElementById('preview-subtitle'),
+    gallery: document.getElementById('preview-gallery'),
+  };
 
   const inlinePreviews = {
     brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
@@ -2887,7 +2916,11 @@ function initStage1ModeS() {
     previewBuilt: false,
     templateId: DEFAULT_STAGE1.template_id,
     templateLabel: '',
+    templateVariant: 'a',
   };
+
+  let currentLayoutPreview = '';
+  let templateRegistry = [];
 
   const updateBrandLogoStatus = () => {
     if (!brandLogoStatus) return;
@@ -2904,11 +2937,17 @@ function initStage1ModeS() {
 
   const refreshPreview = () => {
     if (!form) return null;
+    if (stage1FallbackWarning) {
+      stage1FallbackWarning.textContent = '';
+      stage1FallbackWarning.classList.add('hidden');
+    }
+
     const payload = collectStage1Data(form, state, { strict: false });
     const layoutPreview = buildLayoutPreview(payload);
     if (layoutStructure) {
       layoutStructure.textContent = layoutPreview;
     }
+
     updateWireframePreview(
       wireframe,
       {
@@ -2919,6 +2958,7 @@ function initStage1ModeS() {
       state.templateId || DEFAULT_STAGE1.template_id,
       wireframeWarning
     );
+
     const scenarioLabel = payload.scenario_image && payload.scenario_image !== 'default'
       ? `Scenario: ${payload.scenario_image}`
       : 'Using default scenario';
@@ -2934,6 +2974,51 @@ function initStage1ModeS() {
     );
     updateBottomThumbnailsUi(bottomThumbnails, state);
     updateBrandLogoStatus();
+
+    const previewPayload = {
+      ...payload,
+      features: payload.bullets || [],
+      subtitle: payload.tagline || payload.promo || '',
+      brand_logo: payload.brand_logo,
+      scenario_asset: payload.scenario_asset,
+      product_asset: payload.product_asset || payload.product_image_1,
+      gallery_entries: payload.gallery_entries || [],
+    };
+    currentLayoutPreview = updatePosterPreview(
+      previewPayload,
+      state,
+      previewElements,
+      layoutStructure,
+      previewContainer
+    );
+
+    if (previewElements.brandLogo) {
+      applyImageWithFallback(
+        previewElements.brandLogo,
+        [pickImageSrc(state.brandLogo), LOCAL_PLACEHOLDER_IMAGE, placeholderImages.brandLogo],
+        stage1FallbackWarning
+      );
+    }
+    if (previewElements.scenarioImage) {
+      applyImageWithFallback(
+        previewElements.scenarioImage,
+        [
+          pickImageSrc(state.scenario),
+          DEFAULT_SCENARIO_ASSET,
+          LOCAL_PLACEHOLDER_IMAGE,
+          placeholderImages.scenario,
+        ],
+        stage1FallbackWarning
+      );
+    }
+    if (previewElements.productImage) {
+      applyImageWithFallback(
+        previewElements.productImage,
+        [pickImageSrc(state.productImage1), LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
+        stage1FallbackWarning
+      );
+    }
+
     return payload;
   };
 
@@ -2945,12 +3030,102 @@ function initStage1ModeS() {
       if (layoutStructure && stored.layout_preview) {
         layoutStructure.textContent = stored.layout_preview;
       }
+      if (templateVariantStage1) {
+        templateVariantStage1.value = state.templateVariant || 'a';
+      }
       refreshPreview();
     })();
   } else {
     applyStage1Defaults(form);
     updateInlinePlaceholders(inlinePreviews);
     refreshPreview();
+  }
+
+  const refreshTemplatePreviewStage1 = async (templateId) => {
+    if (!templateCanvasStage1) return;
+    try {
+      const assets = await App.utils.ensureTemplateAssets(templateId);
+      const ctx = templateCanvasStage1.getContext('2d');
+      if (!ctx) return;
+      const { width, height } = templateCanvasStage1;
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, 0, width, height);
+      const img = assets.image;
+      const scale = Math.min(width / img.width, height / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      const ox = (width - dw) / 2;
+      const oy = (height - dh) / 2;
+      ctx.drawImage(img, ox, oy, dw, dh);
+      if (templateDescriptionStage1) {
+        templateDescriptionStage1.textContent = assets.entry?.description || '';
+      }
+    } catch (error) {
+      console.error('[template preview] failed', error);
+      if (templateDescriptionStage1) {
+        templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
+      }
+    }
+  };
+
+  const mountTemplateChooserStage1 = async () => {
+    if (!templateSelectStage1) return;
+    try {
+      templateRegistry = await App.utils.loadTemplateRegistry();
+    } catch (error) {
+      console.error('[registry] load failed', error);
+      setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json。', 'warning');
+      return;
+    }
+    if (!Array.isArray(templateRegistry) || templateRegistry.length === 0) {
+      setStatus(statusElement, '模板列表为空，请确认 templates/registry.json。', 'warning');
+      return;
+    }
+
+    templateSelectStage1.innerHTML = '';
+    templateRegistry.forEach((entry) => {
+      const option = document.createElement('option');
+      option.value = entry.id;
+      option.textContent = entry.name || entry.id;
+      templateSelectStage1.appendChild(option);
+    });
+
+    const storedData = loadStage1Data();
+    if (storedData?.template_id) {
+      state.templateId = storedData.template_id;
+      state.templateLabel = storedData.template_label || '';
+    } else if (templateRegistry[0]) {
+      state.templateId = templateRegistry[0].id;
+      state.templateLabel = templateRegistry[0].name || '';
+    }
+    templateSelectStage1.value = state.templateId;
+
+    if (templateVariantStage1) {
+      templateVariantStage1.value = state.templateVariant || 'a';
+    }
+
+    await refreshTemplatePreviewStage1(state.templateId);
+
+    templateSelectStage1.addEventListener('change', async (event) => {
+      const value = event.target.value || DEFAULT_STAGE1.template_id;
+      state.templateId = value;
+      const entry = templateRegistry.find((item) => item.id === value);
+      state.templateLabel = entry?.name || '';
+      state.previewBuilt = false;
+      refreshPreview();
+      await refreshTemplatePreviewStage1(value);
+    });
+  };
+
+  void mountTemplateChooserStage1();
+
+  if (templateVariantStage1) {
+    templateVariantStage1.addEventListener('change', () => {
+      state.templateVariant = templateVariantStage1.value || 'a';
+      state.previewBuilt = false;
+      refreshPreview();
+    });
   }
 
   ensureGalleryEntries(state, 4);
@@ -3000,7 +3175,7 @@ function initStage1ModeS() {
   });
 
   const persist = (payload, previewBuilt) => {
-    const layoutPreview = buildLayoutPreview(payload);
+    const layoutPreview = currentLayoutPreview || buildLayoutPreview(payload);
     const serialised = serialiseStage1Data(payload, state, layoutPreview, previewBuilt);
     saveStage1Data(serialised);
     if (layoutStructure) {
@@ -3014,11 +3189,11 @@ function initStage1ModeS() {
       const strictPayload = collectStage1Data(form, state, { strict: true });
       state.previewBuilt = true;
       persist(strictPayload, true);
-      setStatus(statusElement, 'Draft saved. Ready for Stage 2.', 'success');
+      setStatus(statusElement, '版式预览已构建，可继续下一环节。', 'success');
     } catch (error) {
       state.previewBuilt = false;
       persist(relaxedPayload, false);
-      const reason = error?.message || 'Please complete required fields.';
+      const reason = error?.message || '请补全必填素材。';
       setStatus(statusElement, reason, 'warning');
     }
   });
@@ -3028,10 +3203,10 @@ function initStage1ModeS() {
       const payload = collectStage1Data(form, state, { strict: true });
       state.previewBuilt = true;
       persist(payload, true);
-      setStatus(statusElement, 'Stage 1 saved. Moving to Stage 2.', 'info');
+      setStatus(statusElement, '素材已保存，正在跳转至环节 2。', 'info');
       window.location.href = 'stage2.html';
     } catch (error) {
-      setStatus(statusElement, error.message || 'Please complete required fields.', 'error');
+      setStatus(statusElement, error.message || '请先完成版式预览后再继续。', 'error');
     }
   });
 }
@@ -3052,6 +3227,10 @@ function applyStage1Defaults(form) {
     const allowAutoFill = form.elements.namedItem('allow_auto_fill');
     if (allowAutoFill && 'checked' in allowAutoFill) {
       allowAutoFill.checked = DEFAULT_STAGE1.allow_auto_fill !== false;
+    }
+    const templateVariant = form.elements.namedItem('template_variant');
+    if (templateVariant && 'value' in templateVariant) {
+      templateVariant.value = 'a';
     }
     return;
   }
@@ -3107,7 +3286,19 @@ function updateInlinePlaceholders(inlinePreviews) {
 
 async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   if (MODE_S) {
-    for (const key of ['brand_name', 'agent_name', 'brand_color', 'price', 'promo', 'channel', 'intent', 'title', 'tagline', 'scenario_image']) {
+    for (const key of [
+      'brand_name',
+      'agent_name',
+      'brand_color',
+      'price',
+      'promo',
+      'channel',
+      'intent',
+      'title',
+      'tagline',
+      'scenario_image',
+      'product_name',
+    ]) {
       const element = form.elements.namedItem(key);
       if (element && typeof data[key] === 'string') {
         element.value = data[key];
@@ -3131,20 +3322,22 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     state.scenario = await rehydrateStoredAsset(data.scenario_asset);
     state.productImage1 = await rehydrateStoredAsset(data.product_image_1);
     state.productImage2 = await rehydrateStoredAsset(data.product_image_2);
-    state.galleryEntries = Array.isArray(data.gallery_entries)
-      ? await Promise.all(
-        data.gallery_entries.map(async (entry) => ({
+      const storedGallery = Array.isArray(data.gallery_entries)
+        ? data.gallery_entries.filter(Boolean)
+        : [];
+      state.galleryEntries = await Promise.all(
+        storedGallery.map(async (entry) => ({
           id: entry.id || createId(),
           caption: entry.caption || '',
           asset: await rehydrateStoredAsset(entry.asset),
           mode: 'upload',
           prompt: null,
         }))
-      )
-      : [];
-    ensureGalleryEntries(state, 4);
+      );
+      ensureGalleryEntries(state, 4);
     state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
     state.templateLabel = data.template_label || '';
+    state.templateVariant = data.template_variant || 'a';
 
     if (inlinePreviews.brand_logo) {
       inlinePreviews.brand_logo.src =
@@ -3718,35 +3911,42 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       formData.get('channel')?.toString().trim() || MODE_S_DEFAULT_STAGE1.channel || '';
     const intent =
       formData.get('intent')?.toString().trim() || MODE_S_DEFAULT_STAGE1.intent || '';
-    const payload = {
-      brand_name: formData.get('brand_name')?.toString().trim() || '',
-      agent_name: formData.get('agent_name')?.toString().trim() || '',
-      brand_color: formData.get('brand_color')?.toString().trim() || '',
-      price: formData.get('price')?.toString().trim() || '',
+      const modeSGalleryEntries = Array.isArray(state.galleryEntries)
+        ? state.galleryEntries.filter((entry) => entry && entry.asset)
+        : [];
+      const payload = {
+        brand_name: formData.get('brand_name')?.toString().trim() || '',
+        agent_name: formData.get('agent_name')?.toString().trim() || '',
+        brand_color: formData.get('brand_color')?.toString().trim() || '',
+        price: formData.get('price')?.toString().trim() || '',
       promo: formData.get('promo')?.toString().trim() || '',
       channel,
       intent,
       scenario_image:
-        formData.get('scenario_image')?.toString().trim() || MODE_S_DEFAULT_STAGE1.scenario_image || 'default',
+        formData.get('scenario_image')?.toString().trim() ||
+        MODE_S_DEFAULT_STAGE1.scenario_image ||
+        'default',
+      product_name: formData.get('product_name')?.toString().trim() || '',
       title: formData.get('title')?.toString().trim() || '',
       tagline: formData.get('tagline')?.toString().trim() || '',
       allow_auto_fill: formData.get('allow_auto_fill') === 'on',
       bullets,
+      features: bullets,
       brand_logo: state.brandLogo || null,
       scenario_asset: state.scenario || null,
-      product_image_1: state.productImage1,
-      product_image_2: state.productImage2,
-      gallery_entries: Array.isArray(state.galleryEntries)
-        ? state.galleryEntries.map((entry) => ({
-            id: entry.id,
-            caption: entry.caption || '',
-            asset: entry.asset || null,
-            mode: 'upload',
-            prompt: null,
-          }))
-        : [],
-      template_id: state.templateId || DEFAULT_STAGE1.template_id,
-    };
+        product_asset: state.productImage1 || null,
+        product_image_1: state.productImage1,
+        product_image_2: state.productImage2,
+        gallery_entries: modeSGalleryEntries.map((entry) => ({
+          id: entry.id,
+          caption: entry.caption || '',
+          asset: entry.asset || null,
+          mode: 'upload',
+          prompt: null,
+        })),
+        template_id: state.templateId || DEFAULT_STAGE1.template_id,
+        template_variant: formData.get('template_variant')?.toString().trim() || 'a',
+      };
 
     if (strict) {
       if (!payload.product_image_1) {
@@ -4255,22 +4455,27 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       channel: payload.channel || null,
       intent: payload.intent || null,
       scenario_image: payload.scenario_image || MODE_S_DEFAULT_STAGE1.scenario_image,
+      product_name: payload.product_name || '',
       title: payload.title,
       tagline: payload.tagline || '',
       allow_auto_fill: payload.allow_auto_fill !== false,
       bullets: payload.bullets || [],
       brand_logo: serialiseAssetForStorage(state.brandLogo),
       scenario_asset: serialiseAssetForStorage(state.scenario),
+      product_asset: serialiseAssetForStorage(state.productImage1),
       product_image_1: serialiseAssetForStorage(state.productImage1),
       product_image_2: serialiseAssetForStorage(state.productImage2),
-      gallery_entries: (state.galleryEntries || []).map((entry) => ({
-        id: entry.id,
-        caption: entry.caption || '',
-        asset: serialiseAssetForStorage(entry.asset),
-        mode: 'upload',
-        prompt: null,
-      })),
-      template_id: state.templateId || DEFAULT_STAGE1.template_id,
+        gallery_entries: (state.galleryEntries || [])
+          .filter((entry) => entry && entry.asset)
+          .map((entry) => ({
+            id: entry.id,
+            caption: entry.caption || '',
+            asset: serialiseAssetForStorage(entry.asset),
+            mode: 'upload',
+            prompt: null,
+          })),
+        template_id: state.templateId || DEFAULT_STAGE1.template_id,
+        template_variant: state.templateVariant || payload.template_variant || 'a',
       template_label: state.templateLabel || '',
       layout_preview: layoutPreview,
       preview_built: previewBuilt,
@@ -4479,7 +4684,6 @@ function buildKitPosterDraftFromSource(source, adjustments, renderMode) {
     },
     options: {
       quality_mode: adjustments?.qualityMode || 'stable',
-      allow_auto_fill: typeof payload.allow_auto_fill === 'boolean' ? payload.allow_auto_fill : true,
     },
   };
 }
@@ -4821,6 +5025,25 @@ function applyPromptStateToInspector(state, elements, presets) {
   }
 }
 
+function updatePromptSummaryLines(state, presets) {
+  if (!state?.slots) return;
+  const presetMap = presets?.presets || {};
+  PROMPT_SLOTS.forEach((slot) => {
+    const summaryEl = document.querySelector(`[data-preset-summary="${slot}"]`);
+    if (!summaryEl) return;
+    const entry = state.slots?.[slot] || {};
+    const presetLabel = entry.preset ? (presetMap[entry.preset]?.label || entry.preset) : '';
+    const hasCustom = Boolean((entry.positive || '').trim() || (entry.negative || '').trim());
+    let summary = 'No preset';
+    if (presetLabel) {
+      summary = hasCustom ? `${presetLabel} (custom)` : presetLabel;
+    } else if (hasCustom) {
+      summary = 'Custom';
+    }
+    summaryEl.textContent = summary;
+  });
+}
+
 function populatePresetSelect(select, presets, slot) {
   if (!select) return;
   select.innerHTML = '';
@@ -4901,8 +5124,10 @@ async function setupPromptInspector(
 
   const state = createPromptState(stage1Data, presets);
   applyPromptStateToInspector(state, elements, presets);
+  updatePromptSummaryLines(state, presets);
 
   const emitStateChange = () => {
+    updatePromptSummaryLines(state, presets);
     if (typeof onStateChange === 'function') {
       onStateChange(clonePromptState(state), presets);
     }
@@ -5097,17 +5322,10 @@ function initStage2() {
     const exportPosterButton = document.getElementById('export-poster-b');
     const stage2Wireframe = document.getElementById('stage2-wireframe');
     const stage2WireframeWarning = document.getElementById('stage2-wireframe-warning');
-    const stage2MaterialPreview = document.getElementById('stage2-material-preview');
     const toggleBulletsInput = document.getElementById('toggle-bullets');
     const titleSizePreset = document.getElementById('title-size-preset');
     const fallbackStableButton = document.getElementById('fallback-stable');
     const assetFallbackWarning = document.getElementById('asset-fallback-warning');
-    const scenePreset = document.getElementById('scene-preset');
-    const productPreset = document.getElementById('product-preset');
-    const bottomPreset = document.getElementById('bottom-preset');
-    const sceneSummary = document.getElementById('scene-summary');
-    const productSummary = document.getElementById('product-summary');
-    const bottomSummary = document.getElementById('bottom-summary');
     let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
@@ -5123,22 +5341,9 @@ function initStage2() {
     bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
     bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
 
-    const bindPresetSummary = (selectEl, summaryEl) => {
-      if (!selectEl || !summaryEl) return;
-      const update = () => {
-        const label = selectEl.options[selectEl.selectedIndex]?.textContent || selectEl.value;
-        summaryEl.textContent = `Preset applied: ${label}`;
-      };
-      selectEl.addEventListener('change', update);
-      update();
-    };
-    bindPresetSummary(scenePreset, sceneSummary);
-    bindPresetSummary(productPreset, productSummary);
-    bindPresetSummary(bottomPreset, bottomSummary);
-
-    if (posterPreviewSection) {
-      posterPreviewSection.classList.add('hidden');
-    }
+      if (posterPreviewSection) {
+        posterPreviewSection.classList.remove('hidden');
+      }
     if (regenerateButton) {
       regenerateButton.classList.add('hidden');
       regenerateButton.disabled = true;
@@ -5161,17 +5366,6 @@ function initStage2() {
           showBullets: stage2State.adjustments.showBullets,
         }
       );
-      updateMaterialPreviewAssets(stage2MaterialPreview, {
-        scenario: stage1Data.scenario_asset || null,
-        product1: stage1Data.product_image_1 || null,
-        product2: stage1Data.product_image_2 || null,
-        bottom: stage1Data.gallery_entries || [],
-      }, {
-        scenario:
-          stage1Data.scenario_image && stage1Data.scenario_image !== 'default'
-            ? `Scenario: ${stage1Data.scenario_image}`
-            : 'Using default scenario',
-      });
     };
 
     if (toggleBulletsInput) {
@@ -5184,30 +5378,30 @@ function initStage2() {
       });
     }
 
-    if (titleSizePreset) {
-      titleSizePreset.value = 'M';
-      stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
-      stage2State.adjustments.titleSize = titleSizePreset.value;
-      titleSizePreset.addEventListener('change', () => {
-        const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
-        stage2State.adjustments.titleScale = next;
+      if (titleSizePreset) {
+        titleSizePreset.value = 'M';
+        stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
         stage2State.adjustments.titleSize = titleSizePreset.value;
-        refreshStage2Wireframe();
-        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
-      });
-    }
+        titleSizePreset.addEventListener('change', () => {
+          const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
+          stage2State.adjustments.titleScale = next;
+          stage2State.adjustments.titleSize = titleSizePreset.value;
+          refreshStage2Wireframe();
+          updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
+        });
+      }
 
-    if (fallbackStableButton) {
-      fallbackStableButton.addEventListener('click', () => {
-        stage2State.adjustments = {
-          showBullets: true,
-          titleScale: 1,
-          qualityMode: 'stable',
-          titleSize: 'M',
-          fallbackStableClicked: true,
-        };
-        if (toggleBulletsInput) toggleBulletsInput.checked = true;
-        if (titleSizePreset) titleSizePreset.value = 'M';
+      if (fallbackStableButton) {
+        fallbackStableButton.addEventListener('click', () => {
+          stage2State.adjustments = {
+            showBullets: true,
+            titleScale: 1,
+            qualityMode: 'stable',
+            titleSize: 'M',
+            fallbackStableClicked: true,
+          };
+          if (toggleBulletsInput) toggleBulletsInput.checked = true;
+          if (titleSizePreset) titleSizePreset.value = 'M';
         refreshStage2Wireframe();
         updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
         setStatus(statusElement, 'Fallback to stable mode requested.', 'info');
@@ -5236,7 +5430,9 @@ function initStage2() {
 
     refreshStage2Wireframe();
 
-    stage2State.renderMode = MODE_S ? MODE_S_RENDER_MODE : stage2State.renderMode;
+    const variantMode =
+      stage1Data?.template_variant === 'b' ? 'kitposter1_b' : 'kitposter1_a';
+    stage2State.renderMode = MODE_S ? variantMode : stage2State.renderMode;
     if (!MODE_S && !warningElement && statusElement?.parentNode) {
       warningElement = document.createElement('p');
       warningElement.id = 'stage2-warning';
@@ -5976,7 +6172,7 @@ function renderPosterResult() {
     const src = assets.scenario_url || '';
     applyImageWithFallback(
       scenarioImg,
-      [src, DEFAULT_SCENARIO_ASSET, placeholderImages.scenario],
+      [src, DEFAULT_SCENARIO_ASSET, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.scenario],
       fallbackWarning
     );
   }
@@ -5986,9 +6182,19 @@ function renderPosterResult() {
     const src = assets.product_url || '';
     applyImageWithFallback(
       productImg,
-      [src, placeholderImages.product],
+      [src, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
       fallbackWarning
     );
+  }
+
+  const titleEl = document.getElementById('poster-result-title');
+  if (titleEl) {
+    const headline =
+      poster?.headline ||
+      poster?.title ||
+      poster?.copy?.headline ||
+      '';
+    setTextIfNonEmpty(titleEl, headline, ' ');
   }
 
   const featureList = document.getElementById('poster-result-feature-list');
@@ -6012,7 +6218,7 @@ function renderPosterResult() {
         img.style.display = 'block';
         applyImageWithFallback(
           img,
-          [src, logoFallback, placeholderImages.product],
+          [src, logoFallback, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
           fallbackWarning
         );
       } else {
@@ -6273,32 +6479,7 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
 }
 
 async function buildModeSGalleryItems(stage1, apiCandidates) {
-  const entries = Array.isArray(stage1?.gallery_entries)
-    ? stage1.gallery_entries.filter(Boolean)
-    : [];
-  const items = [];
-  for (let i = 0; i < Math.min(entries.length, 4); i += 1) {
-    const entry = entries[i];
-    if (!entry?.asset) {
-      continue;
-    }
-    const ref = await normaliseAssetReference(entry.asset, {
-      field: `poster.gallery_items[${i}]`,
-      required: false,
-      apiCandidates,
-      folder: 'gallery',
-    });
-    if (ref && (ref.url || ref.key)) {
-      items.push({
-        caption: entry.caption || `Slot ${i + 1}`,
-        key: ref.key || null,
-        asset: ref.url || null,
-        mode: 'upload',
-        prompt: null,
-      });
-    }
-  }
-  return items;
+  return [];
 }
 
 function formatPosterGenerationError(error) {
@@ -6351,26 +6532,7 @@ async function triggerGeneration(opts) {
   const mySeq = ++stage2GenerationSeq;
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
-
-  const t0 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-  const instrumentation = {
-    bottom_count: Array.isArray(stage1Data?.gallery_entries)
-      ? stage1Data.gallery_entries.filter((entry) => entry?.asset).length
-      : 0,
-    has_scenario: Boolean(stage1Data?.scenario_asset),
-    has_product2: Boolean(stage1Data?.product_image_2),
-    title_len: (stage1Data?.title || '').length,
-    bullets_count: Array.isArray(stage1Data?.bullets)
-      ? stage1Data.bullets.filter(Boolean).length
-      : 0,
-    adjustments: {
-      showBullets: stage2State.adjustments.showBullets !== false,
-      titleSize: stage2State.adjustments.titleSize || 'M',
-      fallbackStableClicked: Boolean(stage2State.adjustments.fallbackStableClicked),
-    },
-    t0,
-  };
-
+  
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
@@ -6418,20 +6580,6 @@ async function triggerGeneration(opts) {
         apiCandidates,
         folder: 'product',
       }, productImage1Ref);
-      brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
-        field: 'poster.brand_logo',
-        required: false,
-        apiCandidates,
-        folder: 'brand-logo',
-      });
-      scenarioRef = await normaliseAssetReference(stage1Data.scenario_asset, {
-        field: 'poster.scenario_image',
-        required: false,
-        apiCandidates,
-        folder: 'scenario',
-      }, brandLogoRef || productImage1Ref);
-
-      galleryItems = await buildModeSGalleryItems(stage1Data, apiCandidates);
 
       const showBullets = stage2State.adjustments?.showBullets !== false;
       const bullets = Array.isArray(stage1Data.bullets)
@@ -6441,6 +6589,7 @@ async function triggerGeneration(opts) {
       const channel = safeText(stage1Data.channel, 'direct');
       const intent = safeText(stage1Data.intent, 'default');
       const brandName = safeText(stage1Data.brand_name, 'Brand');
+      const productName = safeText(stage1Data.product_name, title);
       const promo = safeText(stage1Data.promo, '');
       const price = safeText(stage1Data.price, '');
       const tagline = safeText(stage1Data.tagline || stage1Data.promo || stage1Data.price, '');
@@ -6456,9 +6605,9 @@ async function triggerGeneration(opts) {
 
       posterPayload = {
         brand_name: brandName,
-        agent_name: safeText(stage1Data.agent_name, channel),
-        scenario_image: safeText(stage1Data.scenario_image, intent || title),
-        product_name: title,
+        agent_name: channel,
+        scenario_image: intent || title,
+        product_name: productName,
         channel,
         intent,
         brand_color: stage1Data.brand_color || null,
@@ -6473,19 +6622,17 @@ async function triggerGeneration(opts) {
         product_image_1_key: productImage1Ref?.key || null,
         product_image_2: productImage2Ref?.url || null,
         product_image_2_key: productImage2Ref?.key || null,
-        brand_logo: brandLogoRef?.url || null,
-        brand_logo_key: brandLogoRef?.key || null,
         product_key: productImage1Ref?.key || null,
         product_asset: productImage1Ref?.url || null,
-        scenario_key: scenarioRef?.key || null,
-        scenario_asset: scenarioRef?.url || null,
+        scenario_key: productImage2Ref?.key || null,
+        scenario_asset: productImage2Ref?.url || null,
         scenario_mode: 'upload',
         product_mode: 'upload',
-        gallery_items: galleryItems || [],
-        gallery_label: 'Slot',
-        gallery_limit: 4,
+        gallery_items: [],
+        gallery_label: null,
+        gallery_limit: 0,
         gallery_allows_prompt: false,
-        gallery_allows_upload: true,
+        gallery_allows_upload: false,
       };
     } else {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
@@ -6884,14 +7031,6 @@ async function triggerGeneration(opts) {
     updateRegenerateButtonState();
     return null;
   } finally {
-    const t1 = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
-    const durationMs = Math.round(Math.max(0, t1 - instrumentation.t0));
-    console.log({
-      ...instrumentation,
-      t1,
-      duration_ms: durationMs,
-    });
-    stage2State.adjustments.fallbackStableClicked = false;
     stage2InFlight = false;
     setStage2ButtonsDisabled(false);
     updateRegenerateButtonState();

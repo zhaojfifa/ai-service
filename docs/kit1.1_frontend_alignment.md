@@ -1,38 +1,60 @@
-﻿# Kit1.1 Frontend Alignment
+﻿# KitPoster 1.1 Frontend Alignment (Mode S)
 
 ## Scope
-- Frontend-only adjustments (static pages + JS utilities).
-- Keep existing backend routes and payloads.
-- Mode S focuses on asset utilization, not layout editing.
+- Frontend-only (static HTML/CSS/JS).
+- No backend route or business-layer changes.
+- Mode S affects asset utilization only (allow_auto_fill), not layout editing.
 
-## Stage 1 - Assets & Copy (Mode S)
-- Header: "Stage 1 - Assets & Copy (Mode S)" with Mode S subtext.
-- Sections in order:
-  1) Top Banner Assets (logo optional, brand name, agent/channel name).
-  2) Image Assets (scenario optional + selection; product image 1 required, product image 2 optional).
-  3) Copy & Bottom Products (title required, bullets optional 0-4, tagline optional, bottom thumbnails optional 0-4).
-  4) Material Preview (wireframe safe areas + asset thumbnails + bottom slots).
-  5) Actions (Save Draft / Save and Continue).
-- Bottom thumbnails: always show 4 slots; upload/replace/clear; empty is allowed.
-- Asset visualization: any uploaded image shows immediate preview.
+## Stage 1 Layout (Partitioned Upload)
+1) Template selection
+   - Template select + variant (A/B) visible.
+   - Template preview canvas + description.
 
-## Stage 2 - Categorized Controls
-- Visible panels: Scene Background, Core Product, Bottom Series Thumbnails.
-- Operator adjustments: show bullets, title size S/M/L, fallback to stable.
-- Advanced prompt editing must be under a collapsed Advanced block.
-- Preview: wireframe + bottom slots; empty slots remain clean (no blocking errors).
-- Results area shows poster key + copy/open URL controls.
+2) Image assets
+   - Scenario image upload (optional) + preview.
+   - Product image 1 (required) + preview.
+   - Product image 2 (optional) + preview.
+   - Scenario description + product description inputs stay visible.
+   - Brand logo + brand name + agent/channel name remain visible.
 
-## Instrumentation (console-only)
-On Generate click, log:
-- bottom_count, has_scenario, has_product2, title_len, bullets_count
-- adjustments: showBullets, titleSize, fallbackStableClicked
-- t0, t1, duration_ms
+3) Copy fields
+   - Title required.
+   - Bullets optional (0–4).
+   - Tagline optional.
 
-## Storage
-- Preserve draft storage under kitposter:draft.
-- Bottom thumbnails stored as an array length 0-4.
+4) Bottom thumbnails
+   - 4 slots always visible.
+   - Upload/replace/clear per slot.
+   - 0–4 allowed, no blocking validation.
 
-## Notes
-- No new dependencies.
-- Do not introduce new backend endpoints.
+5) Layout preview
+   - Wireframe preview with safe areas (fitTextToBox).
+   - Poster preview DOM (#preview-*) for operators.
+   - Empty thumbnails render clean placeholders.
+   - Fallback warning shown on image load fallbacks.
+
+## Validation Rules
+- Required: product image 1 + title.
+- Optional: scenario, product image 2, bullets (0–4), tagline, bottom thumbnails (0–4).
+- No minimum bullets requirement.
+
+## Stage 2 Controls
+- Categorized panels: Scene Background / Core Product / Bottom Series Thumbnails.
+- Operator adjustments: show bullets, title size (S/M/L), fallback to stable.
+- Advanced prompt editing is under a collapsed <details> block.
+- Wireframe + material preview stays visible; empty slots show placeholders.
+
+## Preview Safety
+- fitTextToBox reduces font size until it fits; min size then ellipsis.
+- Truncation warning shown below preview.
+
+## Image Fallbacks
+- onError fallback chain for critical images:
+  1) default scenario asset (if applicable)
+  2) local placeholder asset
+  3) inline placeholder
+- Fallback warning is non-blocking.
+
+## Draft Storage
+- Persist: template_id, template_variant, scenario/product assets, copy fields,
+  bottom thumbnails array (0–4), allow_auto_fill.

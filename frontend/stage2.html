@@ -12,7 +12,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Stage 2 aligns controls to the asset categories used by operators.</p>
+          <p>Generate the final poster from Mode S inputs.</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -25,7 +25,7 @@
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
-        <a href="index.html">Stage 1 - Assets & Copy</a>
+        <a href="index.html">Stage 1 - Core Assets</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
         <span class="active">Stage 2 - Generate Poster</span>
         <span class="nav-arrow" aria-hidden="true">-></span>
@@ -35,8 +35,10 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 2 - Poster Controls (Mode S)</h2>
-        <p class="hint">Scene Background, Core Product, and Bottom Thumbnails map to operator mental model.</p>
+        <h2>Stage 2 - Final Poster</h2>
+        <p class="hint">
+          Generate the final poster. Mode S returns a single final_poster only.
+        </p>
 
         <section class="stage2-preview" id="poster-output">
           <h3>Final Poster</h3>
@@ -53,45 +55,17 @@
           </div>
         </section>
 
-        <section class="control-panels">
-          <div class="panel">
-            <h3>Scene Background</h3>
-            <label class="field">
-              <span>Preset</span>
-              <select id="scene-preset">
-                <option value="default">Default</option>
-                <option value="modern_kitchen">Modern kitchen</option>
-                <option value="living_room">Living room</option>
-              </select>
-            </label>
-            <p class="hint" id="scene-summary">Preset applied</p>
-          </div>
-          <div class="panel">
-            <h3>Core Product</h3>
-            <label class="field">
-              <span>Preset</span>
-              <select id="product-preset">
-                <option value="auto">Auto</option>
-                <option value="clean_bg">Clean background</option>
-              </select>
-            </label>
-            <p class="hint" id="product-summary">Preset applied</p>
-          </div>
-          <div class="panel">
-            <h3>Bottom Series Thumbnails</h3>
-            <label class="field">
-              <span>Preset</span>
-              <select id="bottom-preset">
-                <option value="auto">Auto</option>
-                <option value="empty">Leave empty</option>
-              </select>
-            </label>
-            <p class="hint" id="bottom-summary">Preset applied</p>
-          </div>
-        </section>
+        <div class="actions">
+          <button id="generate-poster" class="primary" type="button">Generate</button>
+        </div>
+        <div id="ai-preview" class="hidden">
+          <div id="ai-spinner" class="hidden"></div>
+          <p id="ai-preview-message" class="hint"></p>
+        </div>
+        <p id="asset-fallback-warning" class="hint hidden"></p>
 
         <section class="micro-controls" id="stage2-controls">
-          <h3>Operator Adjustments</h3>
+          <h3>Stage 2 Adjustments</h3>
           <div class="control-grid">
             <label class="field inline">
               <input type="checkbox" id="toggle-bullets" checked />
@@ -109,14 +83,104 @@
           </div>
         </section>
 
-        <div class="actions">
-          <button id="generate-poster" class="primary" type="button">Generate poster & copy</button>
-        </div>
-        <div id="ai-preview" class="hidden">
-          <div id="ai-spinner" class="hidden"></div>
-          <p id="ai-preview-message" class="hint"></p>
-        </div>
-        <p id="asset-fallback-warning" class="hint hidden"></p>
+        <section id="prompt-inspector" class="prompt-inspector">
+          <header>
+            <div>
+              <h3>Prompt Presets (Operator Controls)</h3>
+              <p class="hint">Scene background, core product, and bottom thumbnails presets.</p>
+            </div>
+            <div class="seed-controls">
+              <label>
+                <span>Seed</span>
+                <input type="number" id="prompt-seed" placeholder="auto" />
+              </label>
+              <label class="toggle">
+                <input type="checkbox" id="prompt-lock-seed" />
+                <span>Lock seed</span>
+              </label>
+              <label>
+                <span>Variants</span>
+                <input type="number" id="prompt-variants" min="1" max="3" value="2" />
+              </label>
+            </div>
+          </header>
+          <div class="prompt-preview-grid">
+            <section class="prompt-slot">
+              <div class="slot-header">
+                <h4>Scene Background</h4>
+                <select data-preset-select="scenario"></select>
+              </div>
+              <p class="hint" data-preset-summary="scenario">Preset applied</p>
+            </section>
+            <section class="prompt-slot">
+              <div class="slot-header">
+                <h4>Core Product</h4>
+                <select data-preset-select="product"></select>
+              </div>
+              <p class="hint" data-preset-summary="product">Preset applied</p>
+            </section>
+            <section class="prompt-slot">
+              <div class="slot-header">
+                <h4>Bottom Series Thumbnails</h4>
+                <select data-preset-select="gallery"></select>
+              </div>
+              <p class="hint" data-preset-summary="gallery">Preset applied</p>
+            </section>
+          </div>
+
+          <details>
+            <summary>Advanced (Prompt Editing)</summary>
+            <div class="prompt-editor">
+              <label>
+                <span>Scene background positive</span>
+                <textarea data-positive="scenario" placeholder="Positive prompt"></textarea>
+              </label>
+              <label>
+                <span>Scene background negative</span>
+                <textarea data-negative="scenario" placeholder="Negative prompt"></textarea>
+              </label>
+              <p class="hint" data-aspect="scenario"></p>
+              <button type="button" class="secondary subtle" data-reset="scenario">Reset to preset</button>
+
+              <label>
+                <span>Core product positive</span>
+                <textarea data-positive="product" placeholder="Positive prompt"></textarea>
+              </label>
+              <label>
+                <span>Core product negative</span>
+                <textarea data-negative="product" placeholder="Negative prompt"></textarea>
+              </label>
+              <p class="hint" data-aspect="product"></p>
+              <button type="button" class="secondary subtle" data-reset="product">Reset to preset</button>
+
+              <label>
+                <span>Bottom thumbnails positive</span>
+                <textarea data-positive="gallery" placeholder="Positive prompt"></textarea>
+              </label>
+              <label>
+                <span>Bottom thumbnails negative</span>
+                <textarea data-negative="gallery" placeholder="Negative prompt"></textarea>
+              </label>
+              <p class="hint" data-aspect="gallery"></p>
+              <button type="button" class="secondary subtle" data-reset="gallery">Reset to preset</button>
+            </div>
+            <div class="prompt-meta">
+              <button id="preview-prompts" type="button" class="secondary">Refresh Prompt Preview</button>
+            </div>
+            <div id="prompt-group" class="prompt-preview-card hidden">
+              <h4>Prompt Preview</h4>
+              <textarea id="openai-request-prompt" readonly></textarea>
+            </div>
+            <div id="prompt-default-group" class="prompt-preview-card hidden">
+              <h4>Template Default Prompt</h4>
+              <textarea id="template-default-prompt" readonly></textarea>
+            </div>
+            <div id="prompt-bundle-group" class="prompt-preview-card hidden">
+              <h4>Prompt Bundle (JSON)</h4>
+              <textarea id="prompt-bundle-json" readonly></textarea>
+            </div>
+          </details>
+        </section>
 
         <section class="card wireframe-card">
           <h3>Wireframe Preview</h3>
@@ -128,67 +192,70 @@
             </div>
           </div>
           <p id="stage2-wireframe-warning" class="hint"></p>
-
-          <div class="material-preview-assets" id="stage2-material-preview">
-            <div class="preview-row">
-              <div class="preview-thumb" data-asset-slot="scenario">
-                <img alt="Scenario preview" />
-                <span class="slot-placeholder">Using default scenario</span>
-                <span class="slot-label">Scenario</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="product1">
-                <img alt="Product image 1 preview" />
-                <span class="slot-placeholder">Missing</span>
-                <span class="slot-label">Product 1</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="product2">
-                <img alt="Product image 2 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Product 2</span>
-              </div>
-            </div>
-            <div class="preview-row preview-bottom">
-              <div class="preview-thumb" data-asset-slot="bottom-0">
-                <img alt="Bottom slot 1 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 1</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="bottom-1">
-                <img alt="Bottom slot 2 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 2</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="bottom-2">
-                <img alt="Bottom slot 3 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 3</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="bottom-3">
-                <img alt="Bottom slot 4 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 4</span>
-              </div>
-            </div>
-          </div>
         </section>
 
-        <details class="advanced-panel">
-          <summary>Advanced</summary>
-          <div class="advanced-grid">
-            <label class="field">
-              <span>Scenario prompt (optional)</span>
-              <textarea rows="3" placeholder="Optional prompt for scene"></textarea>
-            </label>
-            <label class="field">
-              <span>Product prompt (optional)</span>
-              <textarea rows="3" placeholder="Optional prompt for product"></textarea>
-            </label>
-            <label class="field">
-              <span>Bottom thumbnails prompt (optional)</span>
-              <textarea rows="3" placeholder="Optional prompt for bottom series"></textarea>
-            </label>
+        <section id="stage2-poster-preview-section" class="card stage-card">
+          <h3>Layout Preview</h3>
+          <div id="poster-result" class="poster-preview poster-preview--result">
+            <div class="poster-header">
+              <div class="poster-logo">
+                <div class="poster-logo-image">
+                  <img id="poster-result-brand-logo" alt="Brand logo" />
+                </div>
+                <div class="poster-brand-name" id="poster-result-brand-name">Brand</div>
+              </div>
+              <div class="poster-agent" id="poster-result-agent-name">Channel</div>
+            </div>
+            <div class="poster-body">
+              <div class="poster-left">
+                <img id="poster-result-scenario-image" alt="Scenario" />
+              </div>
+              <div class="poster-right">
+                <div class="poster-product-wrapper">
+                  <img id="poster-result-product-image" alt="Product" />
+                  <ul id="poster-result-feature-list" class="feature-tags">
+                    <li class="feature-tag feature-tag--top"><span></span></li>
+                    <li class="feature-tag feature-tag--middle"><span></span></li>
+                    <li class="feature-tag feature-tag--bottom"><span></span></li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div id="poster-result-title" class="poster-title">Title</div>
+            <div id="poster-result-gallery-subtitle" class="poster-gallery-subtitle">Series</div>
+            <div class="poster-gallery-row">
+              <div class="poster-gallery-slot" data-index="0">
+                <img alt="Series 1" />
+                <div class="gallery-caption">
+                  <span class="gallery-caption-title" data-gallery-caption-title></span>
+                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+                </div>
+              </div>
+              <div class="poster-gallery-slot" data-index="1">
+                <img alt="Series 2" />
+                <div class="gallery-caption">
+                  <span class="gallery-caption-title" data-gallery-caption-title></span>
+                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+                </div>
+              </div>
+              <div class="poster-gallery-slot" data-index="2">
+                <img alt="Series 3" />
+                <div class="gallery-caption">
+                  <span class="gallery-caption-title" data-gallery-caption-title></span>
+                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+                </div>
+              </div>
+              <div class="poster-gallery-slot" data-index="3">
+                <img alt="Series 4" />
+                <div class="gallery-caption">
+                  <span class="gallery-caption-title" data-gallery-caption-title></span>
+                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+                </div>
+              </div>
+            </div>
+            <div id="poster-result-tagline" class="poster-tagline">Tagline</div>
           </div>
-        </details>
+        </section>
 
         <section class="gen-meta-panel">
           <h3>Generation Metadata</h3>
@@ -271,3 +338,4 @@
     <script defer src="./app.js?v=0cbaf65"></script>
   </body>
 </html>
+

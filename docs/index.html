@@ -12,7 +12,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Upload core materials and confirm previews. Mode S controls how assets are used, not layout.</p>
+          <p>Mode S focuses on asset utilization, not layout editing.</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -35,16 +35,33 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 1 - Assets & Copy (Mode S)</h2>
-        <p class="hint">
-          Upload core materials and confirm previews. Mode S controls how assets are used, not layout.
-        </p>
+        <h2>Stage 1 — Assets & Copy (Mode S)</h2>
+        <p class="hint">Upload assets, confirm previews, then continue. Mode S changes utilization logic only.</p>
       </section>
 
       <form id="poster-form" novalidate>
         <section class="card stage-card">
-          <h3>Top Banner Assets</h3>
-          <p class="hint">Optional but recommended. Logo and brand info improve consistency.</p>
+          <h3>Template Selection</h3>
+          <div class="grid">
+            <label class="field">
+              <span>Template</span>
+              <select id="template-select-stage1" name="template_id"></select>
+            </label>
+            <label class="field">
+              <span>Variant</span>
+              <select id="template-variant-stage1" name="template_variant">
+                <option value="a">Variant A</option>
+                <option value="b">Variant B</option>
+              </select>
+            </label>
+          </div>
+          <p id="template-description-stage1" class="hint"></p>
+          <canvas id="template-preview-stage1" width="360" height="220" aria-label="Template preview"></canvas>
+        </section>
+
+        <section class="card stage-card">
+          <h3>Image Assets</h3>
+          <p class="hint">Scenario + product images and descriptions stay visible for operators.</p>
           <div class="grid">
             <label class="field file-field optional">
               <span>Brand Logo (optional)</span>
@@ -64,11 +81,6 @@
               <input type="text" name="agent_name" placeholder="e.g., Email / Dealer A" />
             </label>
           </div>
-        </section>
-
-        <section class="card stage-card">
-          <h3>Image Assets</h3>
-          <p class="hint">These images are used to generate the poster visuals. You must provide at least one product image.</p>
 
           <div class="grid">
             <label class="field file-field optional">
@@ -77,16 +89,11 @@
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="scenario_asset" alt="Scenario preview" />
               </div>
-              <small class="hint">If empty, system uses default scenario. If provided, it will be used as background reference.</small>
+              <small class="hint">If empty, default scenario is used.</small>
             </label>
             <label class="field">
-              <span>Scenario selection</span>
-              <select name="scenario_image">
-                <option value="default">Default</option>
-                <option value="modern_kitchen">Modern kitchen</option>
-                <option value="living_room">Living room</option>
-                <option value="studio">Studio</option>
-              </select>
+              <span>Scenario description</span>
+              <input type="text" name="scenario_image" placeholder="Default scenario" />
             </label>
           </div>
 
@@ -107,17 +114,16 @@
               </div>
               <small class="hint">Optional second angle/detail shot.</small>
             </label>
+            <label class="field">
+              <span>Product description</span>
+              <input type="text" name="product_name" placeholder="Short product descriptor" />
+            </label>
           </div>
-        </section>
-
-        <section class="card stage-card">
-          <h3>Copy & Bottom Products</h3>
-          <p class="hint">Copy must fit safe areas automatically. Bottom thumbnails are optional (0-4).</p>
 
           <div class="grid">
             <label class="field">
               <span>Title (required)</span>
-              <input type="text" name="title" placeholder="1-2 lines recommended" required />
+              <input type="text" name="title" placeholder="1–2 lines recommended" required />
               <small class="hint">If too long, system will shrink text or add ellipsis.</small>
             </label>
             <label class="field optional">
@@ -136,68 +142,65 @@
               <input type="text" name="bullets" placeholder="Optional" />
             </div>
           </div>
+        </section>
 
-          <div class="bottom-thumbnails">
-            <div class="section-header">
-              <h4>Bottom thumbnails (optional, 0-4)</h4>
-              <p class="hint">Upload up to 4 small product images. If empty, system will proceed without blocking.</p>
+        <section class="card stage-card">
+          <h3>Bottom thumbnails (optional, 0-4)</h3>
+          <p class="hint">Upload up to 4 small product images. Empty slots are allowed.</p>
+          <div id="bottom-thumbnails" class="thumbnail-grid">
+            <div class="thumbnail-slot" data-slot-index="0">
+              <div class="thumbnail-preview">
+                <img data-bottom-preview="0" alt="Bottom slot 1 preview" />
+                <span class="slot-placeholder">Empty</span>
+              </div>
+              <div class="thumbnail-actions">
+                <label class="button-like">
+                  Upload / Replace
+                  <input type="file" name="bottom_slot_1" accept="image/*" />
+                </label>
+                <button type="button" class="secondary" data-bottom-clear="0">Clear</button>
+              </div>
             </div>
-            <div id="bottom-thumbnails" class="thumbnail-grid">
-              <div class="thumbnail-slot" data-slot-index="0">
-                <div class="thumbnail-preview">
-                  <img data-bottom-preview="0" alt="Bottom slot 1 preview" />
-                  <span class="slot-placeholder">Empty</span>
-                </div>
-                <div class="thumbnail-actions">
-                  <label class="button-like">
-                    Upload / Replace
-                    <input type="file" name="bottom_slot_1" accept="image/*" />
-                  </label>
-                  <button type="button" class="secondary" data-bottom-clear="0">Clear</button>
-                </div>
+            <div class="thumbnail-slot" data-slot-index="1">
+              <div class="thumbnail-preview">
+                <img data-bottom-preview="1" alt="Bottom slot 2 preview" />
+                <span class="slot-placeholder">Empty</span>
               </div>
-              <div class="thumbnail-slot" data-slot-index="1">
-                <div class="thumbnail-preview">
-                  <img data-bottom-preview="1" alt="Bottom slot 2 preview" />
-                  <span class="slot-placeholder">Empty</span>
-                </div>
-                <div class="thumbnail-actions">
-                  <label class="button-like">
-                    Upload / Replace
-                    <input type="file" name="bottom_slot_2" accept="image/*" />
-                  </label>
-                  <button type="button" class="secondary" data-bottom-clear="1">Clear</button>
-                </div>
+              <div class="thumbnail-actions">
+                <label class="button-like">
+                  Upload / Replace
+                  <input type="file" name="bottom_slot_2" accept="image/*" />
+                </label>
+                <button type="button" class="secondary" data-bottom-clear="1">Clear</button>
               </div>
-              <div class="thumbnail-slot" data-slot-index="2">
-                <div class="thumbnail-preview">
-                  <img data-bottom-preview="2" alt="Bottom slot 3 preview" />
-                  <span class="slot-placeholder">Empty</span>
-                </div>
-                <div class="thumbnail-actions">
-                  <label class="button-like">
-                    Upload / Replace
-                    <input type="file" name="bottom_slot_3" accept="image/*" />
-                  </label>
-                  <button type="button" class="secondary" data-bottom-clear="2">Clear</button>
-                </div>
+            </div>
+            <div class="thumbnail-slot" data-slot-index="2">
+              <div class="thumbnail-preview">
+                <img data-bottom-preview="2" alt="Bottom slot 3 preview" />
+                <span class="slot-placeholder">Empty</span>
               </div>
-              <div class="thumbnail-slot" data-slot-index="3">
-                <div class="thumbnail-preview">
-                  <img data-bottom-preview="3" alt="Bottom slot 4 preview" />
-                  <span class="slot-placeholder">Empty</span>
-                </div>
-                <div class="thumbnail-actions">
-                  <label class="button-like">
-                    Upload / Replace
-                    <input type="file" name="bottom_slot_4" accept="image/*" />
-                  </label>
-                  <button type="button" class="secondary" data-bottom-clear="3">Clear</button>
-                </div>
+              <div class="thumbnail-actions">
+                <label class="button-like">
+                  Upload / Replace
+                  <input type="file" name="bottom_slot_3" accept="image/*" />
+                </label>
+                <button type="button" class="secondary" data-bottom-clear="2">Clear</button>
+              </div>
+            </div>
+            <div class="thumbnail-slot" data-slot-index="3">
+              <div class="thumbnail-preview">
+                <img data-bottom-preview="3" alt="Bottom slot 4 preview" />
+                <span class="slot-placeholder">Empty</span>
+              </div>
+              <div class="thumbnail-actions">
+                <label class="button-like">
+                  Upload / Replace
+                  <input type="file" name="bottom_slot_4" accept="image/*" />
+                </label>
+                <button type="button" class="secondary" data-bottom-clear="3">Clear</button>
               </div>
             </div>
           </div>
-
           <label class="field inline optional">
             <input type="checkbox" name="allow_auto_fill" checked />
             <span>Allow auto-fill (Mode S asset utilization)</span>
@@ -205,8 +208,8 @@
         </section>
 
         <section class="card wireframe-card">
-          <h3>Material Preview</h3>
-          <p class="hint">Confirm how your assets and copy will appear in the poster structure.</p>
+          <h3>Material Preview / Layout Preview</h3>
+          <p class="hint">Live preview uses safe areas. Text will shrink or truncate as needed.</p>
           <div id="stage1-wireframe" class="wireframe-preview" data-template="template_dual">
             <div class="wireframe-canvas">
               <div class="wireframe-slot wireframe-slot--title" data-slot="title"></div>
@@ -215,6 +218,39 @@
             </div>
           </div>
           <p id="wireframe-warning" class="hint"></p>
+          <p id="stage1-fallback-warning" class="hint hidden"></p>
+
+          <div id="preview-container" class="preview">
+            <div class="poster-preview">
+              <div class="poster-header">
+                <div class="poster-logo">
+                  <div class="poster-logo-image">
+                    <img id="preview-brand-logo" alt="Brand logo" />
+                  </div>
+                  <div class="poster-brand-name" id="preview-brand-name">Brand</div>
+                </div>
+                <div class="poster-agent" id="preview-agent-name">Channel</div>
+              </div>
+              <div class="poster-body">
+                <div class="poster-left">
+                  <img id="preview-scenario-image" alt="Scenario" />
+                </div>
+                <div class="poster-right">
+                  <div class="poster-product-wrapper">
+                    <img id="preview-product-image" alt="Product" />
+                    <ul id="preview-feature-list" class="feature-tags">
+                      <li class="feature-tag feature-tag--top"><span></span></li>
+                      <li class="feature-tag feature-tag--middle"><span></span></li>
+                      <li class="feature-tag feature-tag--bottom"><span></span></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              <div id="preview-title" class="poster-title">Title</div>
+              <div id="preview-gallery" class="poster-gallery"></div>
+              <div id="preview-subtitle" class="poster-subtitle">Tagline</div>
+            </div>
+          </div>
 
           <div class="material-preview-assets" id="material-preview-assets">
             <div class="preview-row">
@@ -261,11 +297,10 @@
 
         <section class="card stage-card">
           <div class="actions">
-            <button id="build-preview" class="primary" type="button">Save Draft</button>
-            <button id="go-to-stage2" class="secondary" type="button">Save and Continue</button>
+            <button id="build-preview" class="primary" type="button">构建版式预览</button>
+            <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
           </div>
           <p id="stage1-status" role="status" aria-live="polite"></p>
-          <p class="hint">Draft saved. Ready for Stage 2.</p>
         </section>
       </form>
     </main>
