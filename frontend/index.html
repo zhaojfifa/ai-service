@@ -114,7 +114,6 @@
                     id="scenario_prompt"
                     name="scenario_image"
                     rows="3"
-                    required
                     data-material-input="scenario"
                     data-role="scenario-positive-prompt"
                   ></textarea>
@@ -167,9 +166,9 @@
                 <div class="feature-fields">
                   <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
                   <div class="feature-grid">
-                    <input type="text" name="features" required />
-                    <input type="text" name="features" required />
-                    <input type="text" name="features" required />
+                    <input type="text" name="features" />
+                    <input type="text" name="features" />
+                    <input type="text" name="features" />
                     <input type="text" name="features" placeholder="可选" />
                   </div>
                 </div>
@@ -186,44 +185,75 @@
               </label>
               <label class="field">
                 <span>副标题文案（左下 / 右下角）</span>
-                <input type="text" name="subtitle" required />
+                <input type="text" name="subtitle" />
               </label>
             </div>
-            <div class="gallery-upload">
+            <div class="bottom-thumbnails">
               <div>
-                <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
-                <p class="micro-copy" data-gallery-description>
-                  每个条目由一张产品小图和一段系列说明组成，可上传现成图像，也可
-                  仅输入描述让 AI 生成。
+                <span class="field-label">???????0-4?????</span>
+                <p class="micro-copy">
+                  ??? 0?4 ???????????? Mode S????????????
                 </p>
               </div>
-              <button type="button" id="add-gallery-item" class="secondary" data-gallery-upload>
-                上传底部产品小图
-              </button>
-              <button
-                type="button"
-                id="add-gallery-placeholder"
-                class="secondary subtle"
-                data-gallery-prompt
-              >
-                添加 AI 生成条目
-              </button>
-              <input
-                type="file"
-                id="gallery-file-input"
-                accept="image/*"
-                multiple
-                hidden
-              />
+              <label class="field inline optional">
+                <input type="checkbox" name="allow_auto_fill" checked />
+                <span>Allow auto-fill (Mode S asset utilization)</span>
+              </label>
+              <div id="bottom-thumbnails" class="thumbnail-grid" aria-live="polite">
+                <div class="thumbnail-slot" data-slot-index="0">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="0" alt="???? 1 ??" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      ?? / ??
+                      <input type="file" name="bottom_slot_1" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="0">??</button>
+                  </div>
+                </div>
+                <div class="thumbnail-slot" data-slot-index="1">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="1" alt="???? 2 ??" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      ?? / ??
+                      <input type="file" name="bottom_slot_2" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="1">??</button>
+                  </div>
+                </div>
+                <div class="thumbnail-slot" data-slot-index="2">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="2" alt="???? 3 ??" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      ?? / ??
+                      <input type="file" name="bottom_slot_3" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="2">??</button>
+                  </div>
+                </div>
+                <div class="thumbnail-slot" data-slot-index="3">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="3" alt="???? 4 ??" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      ?? / ??
+                      <input type="file" name="bottom_slot_4" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="3">??</button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div id="gallery-items" class="gallery-items" aria-live="polite"></div>
-          </fieldset>
-        </form>
-
-        <div class="actions">
-          <button id="build-preview" class="primary" type="button">构建版式预览</button>
-          <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
-        </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
         <div class="preview" id="preview-container">
