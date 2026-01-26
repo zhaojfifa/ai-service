@@ -13,11 +13,17 @@ from typing import Any, Dict, Optional, Tuple
 
 from PIL import Image as PILImage, ImageDraw
 from google.cloud import aiplatform
+from google.api_core.exceptions import ResourceExhausted
 from vertexai import init as vertex_init
 from vertexai.preview.vision_models import (
     ImageGenerationModel,
     Image as VImage,
 )
+try:
+    from vertexai.preview.vision_models import RawReferenceImage, MaskReferenceImage
+except Exception:
+    RawReferenceImage = None
+    MaskReferenceImage = None
 
 from app.services.vertex_imagen import (
     _aspect_from_dims,
@@ -62,6 +68,34 @@ def _rect_mask_bytes(w: int, h: int, x: int, y: int, rw: int, rh: int) -> bytes:
     return bio.getvalue()
 
 
+def _vimage_from_bytes(data: bytes, suffix: str = ".png") -> VImage:
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
+        handle.write(data)
+        handle.flush()
+        path = handle.name
+    try:
+        return VImage.load_from_file(path)
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+def _sanitize_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    sanitized: Dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key in {"base_image", "mask", "reference_images"}:
+            sanitized[key] = "<Image>"
+        elif isinstance(value, (bytes, bytearray)):
+            sanitized[key] = "<bytes>"
+        elif isinstance(value, str) and value.startswith("data:"):
+            sanitized[key] = "<data_url>"
+        else:
+            sanitized[key] = value
+    return sanitized
+
+
 class VertexImagen3:
     """Google Vertex AI Imagen3 适配层：生图 + 局部编辑。"""
 
@@ -72,7 +106,10 @@ class VertexImagen3:
         self.project = os.getenv("GCP_PROJECT_ID") or ""
         self.location = os.getenv("GCP_LOCATION", "us-central1")
         self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate-001")
-        self.model_edit_name = os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-edit")
+        self.model_edit_name = (
+            os.getenv("VERTEX_IMAGEN_EDIT_MODEL")
+            or os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-capability-001")
+        )
         self.enable_edit = os.getenv("VERTEX_IMAGEN_ENABLE_EDIT", "").lower() in {"1", "true", "yes"}
         self.model_edit = self.model_edit_name if self.enable_edit else None
         self.timeout = int(os.getenv("VERTEX_TIMEOUT_SECONDS", "60") or "60")
@@ -100,10 +137,12 @@ class VertexImagen3:
             self._edit_params = set()
 
         logger.info(
-            "[vertex3.model] params generate=%s edit=%s enabled=%s",
+            "[vertex3.model] generate_model=%s edit_model=%s enabled=%s params_generate=%s params_edit=%s",
+            self.model_generate,
+            self.model_edit_name if self.enable_edit else None,
+            self.enable_edit,
             sorted(self._generate_params),
             sorted(self._edit_params) if self._edit_params else [],
-            self.enable_edit,
         )
 
     # ---------- 生图 ----------
@@ -140,8 +179,8 @@ class VertexImagen3:
             kwargs["negative_prompt"] = negative_prompt
         if self.seed is not None and "seed" in self._generate_params:
             kwargs["seed"] = self.seed
-        if guidance is not None and "guidance" in self._generate_params:
-            kwargs["guidance"] = guidance
+        if guidance is not None and "guidance_scale" in self._generate_params:
+            kwargs["guidance_scale"] = guidance
         kwargs.update(size_kwargs)
 
         logger.info(
@@ -174,7 +213,17 @@ class VertexImagen3:
             elapsed_ms,
         )
         if return_trace:
-            return data, trace_id
+            trace_payload = {
+                "trace_id": trace_id,
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "size_token": size_token,
+                "width_px": width_px,
+                "height_px": height_px,
+                "kwargs_keys": sorted(kwargs.keys()),
+                "kwargs": _sanitize_kwargs(kwargs),
+            }
+            return data, json.dumps(trace_payload, ensure_ascii=False)
         return data
 
     # ---------- 局部编辑 / Inpainting ----------
@@ -203,28 +252,25 @@ class VertexImagen3:
         if not base_image_bytes:
             raise RuntimeError("edit_bytes requires base_image (bytes or b64)")
 
-        base_vimg = VImage.load_from_bytes(base_image_bytes)
         width_px, height_px, size_token = _normalise_dimensions(
             size, width, height, default="1024x1024"
         )
 
         trace_id = uuid.uuid4().hex[:8]
-        vmask: Optional[VImage] = None
+        mask_bytes: Optional[bytes] = None
         if mask_b64:
-            vmask = VImage.load_from_bytes(base64.b64decode(mask_b64))
+            mask_bytes = base64.b64decode(mask_b64)
         elif region_rect:
             rx = int(region_rect.get("x", 0))
             ry = int(region_rect.get("y", 0))
             rw = int(region_rect.get("width", width_px))
             rh = int(region_rect.get("height", height_px))
-            m_bytes = _rect_mask_bytes(width_px, height_px, rx, ry, rw, rh)
-            vmask = VImage.load_from_bytes(m_bytes)
+            mask_bytes = _rect_mask_bytes(width_px, height_px, rx, ry, rw, rh)
 
         size_kwargs, size_mode = _select_dimension_kwargs(
             self._edit_params, width_px, height_px, _aspect_from_dims(width_px, height_px)
         )
         kwargs: Dict[str, Any] = {
-            "base_image": base_vimg,
             "prompt": prompt,
             "number_of_images": 1,
         }
@@ -234,25 +280,67 @@ class VertexImagen3:
             kwargs["negative_prompt"] = negative_prompt
         if self.seed is not None and "seed" in self._edit_params:
             kwargs["seed"] = self.seed
-        if vmask and "mask" in self._edit_params:
-            kwargs["mask"] = vmask
-        if guidance is not None and "guidance" in self._edit_params:
-            kwargs["guidance"] = guidance
+        if guidance is not None and "guidance_scale" in self._edit_params:
+            kwargs["guidance_scale"] = guidance
         kwargs.update(size_kwargs)
+
+        used_reference_images = (
+            "reference_images" in self._edit_params
+            and RawReferenceImage is not None
+            and MaskReferenceImage is not None
+        )
+        vmask: Optional[VImage] = None
+        if used_reference_images:
+            ref_images = [RawReferenceImage(image=base_image_bytes, reference_id=0)]
+            if mask_bytes is not None:
+                ref_images.append(
+                    MaskReferenceImage(
+                        image=mask_bytes,
+                        reference_id=1,
+                        mask_mode="user_provided",
+                    )
+                )
+            kwargs["reference_images"] = ref_images
+            if "edit_mode" in self._edit_params:
+                kwargs["edit_mode"] = "inpainting-insert"
+        else:
+            base_vimg = _vimage_from_bytes(base_image_bytes)
+            kwargs["base_image"] = base_vimg
+            if mask_bytes is not None:
+                vmask = _vimage_from_bytes(mask_bytes)
+                if "mask" in self._edit_params:
+                    kwargs["mask"] = vmask
 
         logger.info(
             "[vertex3.call>%s] mode=edit size=%s mode=%s mask=%s guidance=%s",
             trace_id,
             size_token,
             size_mode,
-            bool(vmask),
+            bool(mask_bytes),
             guidance,
         )
         start = time.time()
         if "request_timeout" in self._edit_params:
             kwargs["request_timeout"] = self.timeout
 
-        images = self._edit_model.edit_image(**kwargs)
+        retry_delays = [1.5, 3.0]
+        attempt = 0
+        while True:
+            try:
+                images = self._edit_model.edit_image(**kwargs)
+                break
+            except ResourceExhausted as exc:
+                if attempt >= len(retry_delays):
+                    raise
+                sleep_seconds = retry_delays[attempt]
+                logger.warning(
+                    "[vertex.retry] reason=quota attempt=%s sleep=%.1fs",
+                    attempt + 1,
+                    sleep_seconds,
+                )
+                time.sleep(sleep_seconds)
+                attempt += 1
+                continue
         if not images:
             raise RuntimeError("Vertex Imagen3 edit_image returned empty list")
 
@@ -270,5 +358,18 @@ class VertexImagen3:
             elapsed_ms,
         )
         if return_trace:
-            return data, trace_id
+            trace_payload = {
+                "trace_id": trace_id,
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "edit_mode": kwargs.get("edit_mode"),
+                "mask_mode": kwargs.get("mask_mode"),
+                "has_mask": bool(mask_bytes),
+                "size_token": size_token,
+                "width_px": width_px,
+                "height_px": height_px,
+                "kwargs_keys": sorted(kwargs.keys()),
+                "kwargs": _sanitize_kwargs(kwargs),
+            }
+            return data, json.dumps(trace_payload, ensure_ascii=False)
         return data
