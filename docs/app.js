@@ -131,21 +131,45 @@ function bindBottomThumbnails(container, state, statusElement, refreshPreview) {
       fileInput.addEventListener('change', async () => {
         const file = fileInput.files?.[0];
         if (!file) return;
+        const entry = state.galleryEntries[index] || {
+          id: `gallery-${index}-${Date.now()}`,
+          caption: '',
+          asset: null,
+          mode: 'upload',
+          prompt: '',
+        };
+        const localUrl = URL.createObjectURL(file);
+        entry.asset = {
+          ...(entry.asset || {}),
+          dataUrl: localUrl,
+          remoteUrl: entry.asset?.remoteUrl || null,
+          r2Key: entry.asset?.r2Key || null,
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          lastModified: file.lastModified,
+        };
+        state.galleryEntries[index] = entry;
+        const previewImg = slot.querySelector(`[data-bottom-preview="${index}"]`);
+        const placeholder = slot.querySelector('.slot-placeholder');
+        if (previewImg) {
+          previewImg.src = localUrl;
+          previewImg.style.display = 'block';
+        }
+        if (placeholder) {
+          placeholder.textContent = 'Ready';
+        }
+        slot.classList.remove('empty');
+        state.previewBuilt = false;
+        refreshPreview?.();
         try {
-          const entry = state.galleryEntries[index] || {
-            id: `gallery-${index}-${Date.now()}`,
-            caption: '',
-            asset: null,
-            mode: 'upload',
-            prompt: '',
-          };
           entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
           state.galleryEntries[index] = entry;
           state.previewBuilt = false;
           refreshPreview?.();
         } catch (error) {
           console.error(error);
-          setStatus(statusElement, '底部小图处理失败，请重试。', 'error');
+          setStatus(statusElement, 'Upload failed. Check API Base is https / CORS.', 'error');
         } finally {
           fileInput.value = '';
         }
@@ -612,6 +636,16 @@ async function loadB64AsDataUrl(url, mime = 'image/png') {
   if (b64.startsWith('data:')) return b64;
   return `data:${mime};base64,${b64}`;
 }
+async function loadPlaceholderImage(label = 'Template Preview') {
+  const img = new Image();
+  img.decoding = 'async';
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
+    img.onerror = () => reject(new Error('placeholder image load failed'));
+    img.src = createPlaceholder(label);
+  });
+  return img;
+}
 App.utils.loadImageAny = async (url, mime = 'image/png') => {
   const img = new Image();
   img.decoding = 'async';
@@ -637,25 +671,36 @@ App.utils.ensureTemplateAssets = (() => {
 
     const specCandidates = buildTemplatePathCandidates(entry.spec);
     const previewCandidates = buildTemplatePathCandidates(entry.preview);
-    const specResult = await fetchFirstOkJson(specCandidates);
+    let specResult = null;
+    if (specCandidates.length) {
+      try {
+        specResult = await fetchFirstOkJson(specCandidates);
+      } catch (error) {
+        console.warn('[template spec] load failed, fallback to null', error);
+        specResult = null;
+      }
+    }
     const imgUrl = App.utils.assetUrl(previewCandidates[0] || entry.preview);
     let img;
     let imgErrors = [];
-    for (const candidate of previewCandidates) {
-      const resolved = App.utils.assetUrl(candidate);
-      try {
-        img = await App.utils.loadImageAny(resolved, 'image/png');
-        imgUrl = resolved;
-        break;
-      } catch (error) {
-        imgErrors.push(`${resolved} (${error?.message || error})`);
+    if (previewCandidates.length) {
+      for (const candidate of previewCandidates) {
+        const resolved = App.utils.assetUrl(candidate);
+        try {
+          img = await App.utils.loadImageAny(resolved, 'image/png');
+          imgUrl = resolved;
+          break;
+        } catch (error) {
+          imgErrors.push(`${resolved} (${error?.message || error})`);
+        }
       }
     }
     if (!img) {
-      throw new Error(`模板预览加载失败: ${imgErrors.join(', ')}`);
+      console.warn('[template preview] load failed, using placeholder', imgErrors);
+      img = await loadPlaceholderImage(entry?.name || entry?.id || 'Template Preview');
     }
 
-    const payload = { entry, spec: specResult.data, image: img };
+    const payload = { entry, spec: specResult?.data || null, image: img };
     _cache.set(entry.id, payload);
     return payload;
   };
@@ -754,6 +799,13 @@ function normaliseBase(base) {
   if (!base) return null;
   try {
     const parsed = new URL(base, window.location.href);
+    if (
+      window.location.protocol === 'https:' &&
+      parsed.protocol === 'http:' &&
+      /onrender\.com$/i.test(parsed.hostname)
+    ) {
+      parsed.protocol = 'https:';
+    }
     const path = parsed.pathname.replace(/\/+$/, '');
     const normalizedPath = path || '';
     return `${parsed.origin}${normalizedPath}`;
@@ -2663,6 +2715,22 @@ function attachSingleImageHandler(
       refreshPreview();
       return;
     }
+    const localUrl = URL.createObjectURL(file);
+    if (inlinePreview) {
+      inlinePreview.src = localUrl;
+    }
+    state[key] = {
+      ...(state[key] || {}),
+      dataUrl: localUrl,
+      remoteUrl: state[key]?.remoteUrl || null,
+      r2Key: state[key]?.r2Key || null,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      lastModified: file.lastModified,
+    };
+    state.previewBuilt = false;
+    refreshPreview();
     try {
       const folderMap = {
         brandLogo: 'brand-logo',
@@ -2702,8 +2770,8 @@ function attachSingleImageHandler(
       console.error(error);
       const message =
         error instanceof Error
-          ? error.message || '处理图片素材时发生错误，请重试。'
-          : '处理图片素材时发生错误，请重试。';
+          ? (error.message || 'Upload failed. Check API Base is https / CORS.')
+          : 'Upload failed. Check API Base is https / CORS.';
       setStatus(statusElement, message, 'error');
     }
   });
@@ -2915,6 +2983,20 @@ function renderGalleryItems(state, container, options = {}) {
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
+      const localUrl = URL.createObjectURL(file);
+      entry.asset = {
+        ...(entry.asset || {}),
+        dataUrl: localUrl,
+        remoteUrl: entry.asset?.remoteUrl || null,
+        r2Key: entry.asset?.r2Key || null,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: file.lastModified,
+      };
+      previewImage.src = localUrl;
+      state.previewBuilt = false;
+      onChange?.();
       try {
         entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
         previewImage.src = pickImageSrc(entry.asset) || placeholder;
@@ -2922,7 +3004,7 @@ function renderGalleryItems(state, container, options = {}) {
         onChange?.();
       } catch (error) {
         console.error(error);
-        setStatus(statusElement, '上传或读取底部产品小图时发生错误。', 'error');
+        setStatus(statusElement, 'Upload failed. Check API Base is https / CORS.', 'error');
       }
     });
     if (!allowUpload) {
@@ -3126,6 +3208,10 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   if (strict) {
     const missing = [];
+    const isBlobAsset = (asset) =>
+      Boolean(asset && typeof asset.dataUrl === 'string' && asset.dataUrl.startsWith('blob:'));
+    const hasRemoteAsset = (asset) =>
+      Boolean(asset && (asset.remoteUrl || asset.r2Key || asset.url || asset.publicUrl));
       const optionalKeys = new Set([
         'brand_name',
         'agent_name',
@@ -3156,6 +3242,9 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       }
     if (!payload.product_asset) {
       throw new Error('请至少上传 1 张产品图。');
+    }
+    if (isBlobAsset(payload.product_asset) && !hasRemoteAsset(payload.product_asset)) {
+      throw new Error('Upload failed. Check API Base is https / CORS.');
     }
     if (!payload.title) {
       throw new Error('请填写标题文案。');
@@ -6517,13 +6606,14 @@ function serialiseAssetForStorage(asset) {
   if (!asset) return null;
   const { key, name, type, size, lastModified, dataUrl, remoteUrl, r2Key } = asset;
   const isDataUrl = typeof dataUrl === 'string' && dataUrl.startsWith('data:');
+  const isBlobUrl = typeof dataUrl === 'string' && dataUrl.startsWith('blob:');
   return {
     key: key || null,
     name: name || null,
     type: type || null,
     size: typeof size === 'number' ? size : null,
     lastModified: typeof lastModified === 'number' ? lastModified : null,
-    remoteUrl: !isDataUrl ? dataUrl || remoteUrl || null : remoteUrl || null,
+    remoteUrl: !isDataUrl && !isBlobUrl ? dataUrl || remoteUrl || null : remoteUrl || null,
     r2Key: r2Key || null,
   };
 }
