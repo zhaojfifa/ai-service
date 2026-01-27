@@ -3,11 +3,12 @@
   <head>
     <base href="./">
     <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>环节 1 · 素材输入与版式预览</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body data-stage="stage1">
+  <body data-stage="stage1" data-page="stage1">
     <header>
       <div class="header-content">
         <div>
@@ -19,7 +20,6 @@
           <input
             type="url"
             id="api-base"
-            value="https://ai-service-x758.onrender.com"
             placeholder="https://ai-service-x758.onrender.com"
           />
         </label>
@@ -115,6 +115,7 @@
                     id="scenario_prompt"
                     name="scenario_image"
                     rows="3"
+                    required
                     data-material-input="scenario"
                     data-role="scenario-positive-prompt"
                   ></textarea>
@@ -167,9 +168,9 @@
                 <div class="feature-fields">
                   <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
                   <div class="feature-grid">
-                    <input type="text" name="features" />
-                    <input type="text" name="features" />
-                    <input type="text" name="features" />
+                    <input type="text" name="features" required />
+                    <input type="text" name="features" required />
+                    <input type="text" name="features" required />
                     <input type="text" name="features" placeholder="可选" />
                   </div>
                 </div>
@@ -186,75 +187,44 @@
               </label>
               <label class="field">
                 <span>副标题文案（左下 / 右下角）</span>
-                <input type="text" name="subtitle" />
+                <input type="text" name="subtitle" required />
               </label>
             </div>
-            <div class="bottom-thumbnails">
+            <div class="gallery-upload">
               <div>
-                <span class="field-label">底部产品小图（0-4 张，可选）</span>
-                <p class="micro-copy">
-                  支持上传 0-4 张小图，不上传也可继续。Mode S 可复用产品图自动填充。
+                <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
+                <p class="micro-copy" data-gallery-description>
+                  每个条目由一张产品小图和一段系列说明组成，可上传现成图像，也可
+                  仅输入描述让 AI 生成。
                 </p>
               </div>
-              <label class="field inline optional">
-                <input type="checkbox" name="allow_auto_fill" checked />
-                <span>Allow auto-fill (Mode S asset utilization)</span>
-              </label>
-              <div id="bottom-thumbnails" class="thumbnail-grid" aria-live="polite">
-                <div class="thumbnail-slot" data-slot-index="0">
-                  <div class="thumbnail-preview">
-                    <img data-bottom-preview="0" alt="底部小图 1 预览" />
-                    <span class="slot-placeholder">Empty</span>
-                  </div>
-                  <div class="thumbnail-actions">
-                    <label class="button-like">
-                      上传 / 替换
-                      <input type="file" name="bottom_slot_1" accept="image/*" />
-                    </label>
-                    <button type="button" class="secondary" data-bottom-clear="0">??</button>
-                  </div>
-                </div>
-                <div class="thumbnail-slot" data-slot-index="1">
-                  <div class="thumbnail-preview">
-                    <img data-bottom-preview="1" alt="底部小图 2 预览" />
-                    <span class="slot-placeholder">Empty</span>
-                  </div>
-                  <div class="thumbnail-actions">
-                    <label class="button-like">
-                      上传 / 替换
-                      <input type="file" name="bottom_slot_2" accept="image/*" />
-                    </label>
-                    <button type="button" class="secondary" data-bottom-clear="1">??</button>
-                  </div>
-                </div>
-                <div class="thumbnail-slot" data-slot-index="2">
-                  <div class="thumbnail-preview">
-                    <img data-bottom-preview="2" alt="底部小图 3 预览" />
-                    <span class="slot-placeholder">Empty</span>
-                  </div>
-                  <div class="thumbnail-actions">
-                    <label class="button-like">
-                      上传 / 替换
-                      <input type="file" name="bottom_slot_3" accept="image/*" />
-                    </label>
-                    <button type="button" class="secondary" data-bottom-clear="2">??</button>
-                  </div>
-                </div>
-                <div class="thumbnail-slot" data-slot-index="3">
-                  <div class="thumbnail-preview">
-                    <img data-bottom-preview="3" alt="底部小图 4 预览" />
-                    <span class="slot-placeholder">Empty</span>
-                  </div>
-                  <div class="thumbnail-actions">
-                    <label class="button-like">
-                      上传 / 替换
-                      <input type="file" name="bottom_slot_4" accept="image/*" />
-                    </label>
-                    <button type="button" class="secondary" data-bottom-clear="3">??</button>
-                  </div>
-                </div>
-              </div>
+              <button type="button" id="add-gallery-item" class="secondary" data-gallery-upload>
+                上传底部产品小图
+              </button>
+              <button
+                type="button"
+                id="add-gallery-placeholder"
+                class="secondary subtle"
+                data-gallery-prompt
+              >
+                添加 AI 生成条目
+              </button>
+              <input
+                type="file"
+                id="gallery-file-input"
+                accept="image/*"
+                multiple
+                hidden
+              />
             </div>
+            <div id="gallery-items" class="gallery-items" aria-live="polite"></div>
+          </fieldset>
+        </form>
+
+        <div class="actions">
+          <button id="build-preview" class="primary" type="button">构建版式预览</button>
+          <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
+        </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
         <div class="preview" id="preview-container">
@@ -302,5 +272,13 @@
     <!-- styles.css 之后，app.js 之前 -->
     <script defer src="./placeholder.js?v=4"></script>
     <script defer src="./app.js?v=2"></script>
-  </body>
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('[Stage1] DOMContentLoaded', window.location.href);
+      if (window.initStage1 && !window.__stage1Init) {
+        window.initStage1();
+      }
+    });
+  </script>
+</body>
 </html>

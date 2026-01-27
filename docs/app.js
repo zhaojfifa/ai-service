@@ -74,263 +74,6 @@ function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
     });
 }
 
-const DERIVED_THUMB_COUNT = 4;
-const derivedPreviewCache = new Map();
-const STAGE1_PREVIEW_ONLY = true;
-
-function ensureBottomSlots(state, count = DERIVED_THUMB_COUNT) {
-  if (!state) return;
-  if (!Array.isArray(state.galleryEntries)) {
-    state.galleryEntries = [];
-  }
-  while (state.galleryEntries.length < count) {
-    state.galleryEntries.push({
-      id: `gallery-${state.galleryEntries.length}-${Date.now()}`,
-      caption: '',
-      asset: null,
-      mode: 'upload',
-      prompt: '',
-    });
-  }
-  if (state.galleryEntries.length > count) {
-    state.galleryEntries = state.galleryEntries.slice(0, count);
-  }
-}
-
-function updateBottomThumbnailsUi(container, sources = []) {
-  if (!container) return;
-  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
-    const index = Number(slot.dataset.slotIndex || 0);
-    const img = slot.querySelector(`[data-bottom-preview="${index}"]`);
-    const placeholder = slot.querySelector('.slot-placeholder');
-    const src = sources[index] || '';
-    if (img) {
-      if (src) {
-        img.src = src;
-        img.style.display = 'block';
-      } else {
-        img.removeAttribute('src');
-        img.style.display = 'none';
-      }
-    }
-    if (placeholder) {
-      placeholder.textContent = src ? 'Ready' : 'Empty';
-    }
-    slot.classList.toggle('empty', !src);
-  });
-}
-
-function bindBottomThumbnails(container, state, statusElement, refreshPreview) {
-  if (!container || !state) return;
-  ensureBottomSlots(state);
-  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
-    const index = Number(slot.dataset.slotIndex || 0);
-    const fileInput = slot.querySelector('input[type="file"]');
-    const clearButton = slot.querySelector(`[data-bottom-clear="${index}"]`);
-    if (fileInput) {
-      fileInput.addEventListener('change', async () => {
-        const file = fileInput.files?.[0];
-        if (!file) return;
-        const entry = state.galleryEntries[index] || {
-          id: `gallery-${index}-${Date.now()}`,
-          caption: '',
-          asset: null,
-          mode: 'upload',
-          prompt: '',
-        };
-        const localUrl = URL.createObjectURL(file);
-        entry.asset = {
-          ...(entry.asset || {}),
-          dataUrl: localUrl,
-          remoteUrl: entry.asset?.remoteUrl || null,
-          r2Key: entry.asset?.r2Key || null,
-          name: file.name,
-          type: file.type,
-          size: file.size,
-          lastModified: file.lastModified,
-        };
-        state.galleryEntries[index] = entry;
-        const previewImg = slot.querySelector(`[data-bottom-preview="${index}"]`);
-        const placeholder = slot.querySelector('.slot-placeholder');
-        if (previewImg) {
-          previewImg.src = localUrl;
-          previewImg.style.display = 'block';
-        }
-        if (placeholder) {
-          placeholder.textContent = 'Ready';
-        }
-        slot.classList.remove('empty');
-        state.previewBuilt = false;
-        refreshPreview?.();
-        try {
-          entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
-          state.galleryEntries[index] = entry;
-          state.previewBuilt = false;
-          refreshPreview?.();
-        } catch (error) {
-          console.error(error);
-          setStatus(statusElement, 'Upload failed. Check API Base is https / CORS.', 'error');
-        } finally {
-          fileInput.value = '';
-        }
-      });
-    }
-    if (clearButton) {
-      clearButton.addEventListener('click', async () => {
-        const entry = state.galleryEntries[index];
-        if (entry?.asset) {
-          await deleteStoredAsset(entry.asset);
-        }
-        state.galleryEntries[index] = {
-          id: entry?.id || `gallery-${index}-${Date.now()}`,
-          caption: '',
-          asset: null,
-          mode: 'upload',
-          prompt: '',
-        };
-        state.previewBuilt = false;
-        refreshPreview?.();
-      });
-    }
-  });
-}
-
-function loadImageForDerive(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.decoding = 'async';
-    img.crossOrigin = 'anonymous';
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('derived image load failed'));
-    img.src = src;
-  });
-}
-
-function cropToAspect(img, aspect, anchorX, anchorY) {
-  const imgAspect = img.width / img.height;
-  let cropW;
-  let cropH;
-  if (imgAspect > aspect) {
-    cropH = img.height;
-    cropW = cropH * aspect;
-  } else {
-    cropW = img.width;
-    cropH = cropW / aspect;
-  }
-  const maxX = Math.max(0, img.width - cropW);
-  const maxY = Math.max(0, img.height - cropH);
-  const sx = Math.round(maxX * anchorX);
-  const sy = Math.round(maxY * anchorY);
-  return { sx, sy, sw: cropW, sh: cropH };
-}
-
-function deriveScenarioFromProduct(img, width = 1200, height = 900) {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  ctx.filter = 'blur(16px)';
-  const scale = Math.max(width / img.width, height / img.height);
-  const dw = img.width * scale;
-  const dh = img.height * scale;
-  const dx = (width - dw) / 2;
-  const dy = (height - dh) / 2;
-  ctx.drawImage(img, dx, dy, dw, dh);
-  ctx.filter = 'none';
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
-  ctx.fillRect(0, 0, width, height);
-  const vignette = ctx.createRadialGradient(
-    width / 2,
-    height / 2,
-    Math.min(width, height) * 0.2,
-    width / 2,
-    height / 2,
-    Math.max(width, height) * 0.7
-  );
-  vignette.addColorStop(0, 'rgba(0,0,0,0)');
-  vignette.addColorStop(1, 'rgba(0,0,0,0.25)');
-  ctx.fillStyle = vignette;
-  ctx.fillRect(0, 0, width, height);
-  try {
-    return canvas.toDataURL('image/png');
-  } catch {
-    return null;
-  }
-}
-
-function deriveThumbnailsFromProduct(img, count = DERIVED_THUMB_COUNT) {
-  const anchors = [
-    { x: 0.5, y: 0.5 },
-    { x: 0.2, y: 0.2 },
-    { x: 0.8, y: 0.2 },
-    { x: 0.5, y: 0.8 },
-  ];
-  const rotations = [0, -2, 1.5, -1];
-  const results = [];
-  for (let i = 0; i < count; i += 1) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 360;
-    canvas.height = 270;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      results.push(null);
-      continue;
-    }
-    ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    const rotate = (rotations[i] || 0) * (Math.PI / 180);
-    ctx.rotate(rotate);
-    ctx.filter = 'contrast(1.05) saturate(1.05)';
-    const { sx, sy, sw, sh } = cropToAspect(img, 4 / 3, anchors[i]?.x ?? 0.5, anchors[i]?.y ?? 0.5);
-    ctx.drawImage(
-      img,
-      sx,
-      sy,
-      sw,
-      sh,
-      -canvas.width / 2,
-      -canvas.height / 2,
-      canvas.width,
-      canvas.height
-    );
-    ctx.restore();
-    try {
-      results.push(canvas.toDataURL('image/png'));
-    } catch {
-      results.push(null);
-    }
-  }
-  return results;
-}
-
-async function deriveAssetsFromProduct(productSrc) {
-  if (!productSrc) return null;
-  if (derivedPreviewCache.has(productSrc)) return derivedPreviewCache.get(productSrc);
-  const img = await loadImageForDerive(productSrc);
-  const scenario = deriveScenarioFromProduct(img);
-  const thumbs = deriveThumbnailsFromProduct(img);
-  const payload = { scenario, thumbs };
-  derivedPreviewCache.set(productSrc, payload);
-  return payload;
-}
-
-function disableStage1GenerationButtons(form) {
-  const ids = ['btn-generate-scenario', 'btn-generate-product'];
-  ids.forEach((id) => {
-    const btn = document.getElementById(id);
-    if (btn) {
-      btn.disabled = true;
-      btn.title = 'Stage1 预览不触发后端生成';
-    }
-  });
-  const galleryButtons = form?.querySelectorAll?.('[data-role="gallery-generate"]') || [];
-  galleryButtons.forEach((btn) => {
-    btn.disabled = true;
-    btn.title = 'Stage1 预览不触发后端生成';
-  });
-}
-
 let lastStage1Data = null;
 let lastPosterResult = null;
 let posterLayoutRoot = null;
@@ -571,55 +314,24 @@ function healthPathsFor(base) {
 }
 // ===== 共享：模板资源助手（全局唯一出口） =====
 
-function extractTemplateRegistry(data) {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === 'object') {
-    if (Array.isArray(data.templates)) return data.templates;
-    if (Array.isArray(data.items)) return data.items;
-  }
-  return [];
-}
-
-async function fetchFirstOkJson(paths) {
-  const errors = [];
-  for (const relPath of paths) {
-    const url = App.utils.assetUrl(relPath);
-    try {
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) {
-        errors.push(`${url} (${response.status})`);
-        continue;
-      }
-      return { url, data: await response.json() };
-    } catch (error) {
-      errors.push(`${url} (${error?.message || error})`);
-    }
-  }
-  throw new Error(`模板资源加载失败: ${errors.join(', ')}`);
-}
-
-function buildTemplatePathCandidates(path) {
-  if (!path) return [];
-  if (/^https?:\/\//i.test(path)) return [path];
-  if (path.startsWith('templates/') || path.startsWith('frontend/templates/')) {
-    return [path];
-  }
-  return [`templates/${path}`, `frontend/templates/${path}`];
-}
-
 /** 从 templates/registry.json 读取模板清单（带缓存） */
 App.utils.loadTemplateRegistry = (() => {
   let _registryP;
   return async function loadTemplateRegistry() {
     if (!_registryP) {
-      _registryP = fetchFirstOkJson([
-        'templates/registry.json',
-        'frontend/templates/registry.json',
-      ])
-        .then(({ data }) => extractTemplateRegistry(data))
-        .then((list) => (Array.isArray(list) ? list : []))
-        .catch((err) => {
-          _registryP = null; // 失败时允许下次重试
+      const url = staticUrl('templates/registry.json');
+      _registryP = fetch(url, { cache: 'no-store' })
+        .then(r => {
+          if (!r.ok) throw new Error(`registry fetch failed: ${r.status} ${url}`);
+          return r.json();
+        })
+        .then(list => {
+          if (Array.isArray(list)) return list;
+          if (list && typeof list === 'object' && Array.isArray(list.templates)) return list.templates;
+          return [];
+        })
+        .catch(err => {
+          _registryP = null; // reset cache on failure?
           throw err;
         });
     }
@@ -635,16 +347,6 @@ async function loadB64AsDataUrl(url, mime = 'image/png') {
   const b64 = (await r.text()).trim();
   if (b64.startsWith('data:')) return b64;
   return `data:${mime};base64,${b64}`;
-}
-async function loadPlaceholderImage(label = 'Template Preview') {
-  const img = new Image();
-  img.decoding = 'async';
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = () => reject(new Error('placeholder image load failed'));
-    img.src = createPlaceholder(label);
-  });
-  return img;
 }
 App.utils.loadImageAny = async (url, mime = 'image/png') => {
   const img = new Image();
@@ -669,38 +371,13 @@ App.utils.ensureTemplateAssets = (() => {
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
 
-    const specCandidates = buildTemplatePathCandidates(entry.spec);
-    const previewCandidates = buildTemplatePathCandidates(entry.preview);
-    let specResult = null;
-    if (specCandidates.length) {
-      try {
-        specResult = await fetchFirstOkJson(specCandidates);
-      } catch (error) {
-        console.warn('[template spec] load failed, fallback to null', error);
-        specResult = null;
-      }
-    }
-    let imgUrl = App.utils.assetUrl(previewCandidates[0] || entry.preview);
-    let img;
-    let imgErrors = [];
-    if (previewCandidates.length) {
-      for (const candidate of previewCandidates) {
-        const resolved = App.utils.assetUrl(candidate);
-        try {
-          img = await App.utils.loadImageAny(resolved, 'image/png');
-          imgUrl = resolved;
-          break;
-        } catch (error) {
-          imgErrors.push(`${resolved} (${error?.message || error})`);
-        }
-      }
-    }
-    if (!img) {
-      console.warn('[template preview] load failed, using placeholder', imgErrors);
-      img = await loadPlaceholderImage(entry?.name || entry?.id || 'Template Preview');
-    }
+    const specUrl = staticUrl(`templates/${entry.spec}`);
+    const imgUrl  = staticUrl(`templates/${entry.preview}`);
 
-    const payload = { entry, spec: specResult?.data || null, image: img };
+    const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
+    const imgP  = App.utils.loadImageAny(imgUrl, 'image/png');
+
+    const payload = { entry, spec: await specP, image: await imgP };
     _cache.set(entry.id, payload);
     return payload;
   };
@@ -766,12 +443,23 @@ function resolveDocumentAssetBase() {
   return documentAssetBase;
 }
 
+function pageBaseUrl() {
+  return new URL('.', window.location.href);
+}
+
+function staticUrl(relPath) {
+  if (!relPath) return pageBaseUrl().toString();
+  if (/^https?:\/\//i.test(relPath)) return relPath;
+  return new URL(relPath.replace(/^\/+/, ''), pageBaseUrl()).toString();
+}
+
 function assetUrl(path) {
   if (!path) return new URL('', document.baseURI).toString();
   return new URL(path, document.baseURI).toString();
 }
 
 App.utils.assetUrl = assetUrl;
+App.utils.staticUrl = staticUrl;
 
 // Layout helpers for relative-coordinates templates
 App.utils.resolveRect = function resolveRect(slot, canvasWidth, canvasHeight, parentRect) {
@@ -799,13 +487,6 @@ function normaliseBase(base) {
   if (!base) return null;
   try {
     const parsed = new URL(base, window.location.href);
-    if (
-      window.location.protocol === 'https:' &&
-      parsed.protocol === 'http:' &&
-      /onrender\.com$/i.test(parsed.hostname)
-    ) {
-      parsed.protocol = 'https:';
-    }
     const path = parsed.pathname.replace(/\/+$/, '');
     const normalizedPath = path || '';
     return `${parsed.origin}${normalizedPath}`;
@@ -1407,7 +1088,6 @@ const DEFAULT_STAGE1 = {
   template_id: 'template_dual',
   scenario_mode: 'upload',
   product_mode: 'upload',
-  allow_auto_fill: true,
   features: [
     '一键蒸烤联动，精准锁鲜',
     '360° 智能热风循环，均匀受热',
@@ -1417,6 +1097,10 @@ const DEFAULT_STAGE1 = {
   title: '焕新厨房效率，打造大厨级美味',
   subtitle: '智能蒸烤 · 家宴轻松掌控',
 };
+
+const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
+const templateCache = new Map();
+let templateRegistryPromise = null;
 
 const PROMPT_PRESETS_PATH = 'prompts/presets.json';
 let promptPresetPromise = null;
@@ -1695,6 +1379,33 @@ function updateMaterialUrlDisplay(field, asset) {
 
 // ==== 兜底：保持原命名的 loadTemplateRegistry（放在 init() 之前）====
 (function ensureLoadTemplateRegistry() {
+  const REG_PATH = (typeof TEMPLATE_REGISTRY_PATH === 'string' && TEMPLATE_REGISTRY_PATH)
+    ? TEMPLATE_REGISTRY_PATH
+    : 'templates/registry.json';
+
+  if (typeof window.loadTemplateRegistry !== 'function') {
+    let _tmplRegistryPromise = null;
+    window.loadTemplateRegistry = async function loadTemplateRegistry() {
+      if (!_tmplRegistryPromise) {
+        const url = staticUrl(REG_PATH);
+        _tmplRegistryPromise = fetch(url, { cache: 'no-store' })
+          .then((r) => {
+            if (!r.ok) throw new Error(`registry fetch failed: ${r.status} ${url}`);
+            return r.json();
+          })
+          .then((arr) => {
+            if (Array.isArray(arr)) return arr;
+            if (arr && typeof arr === 'object' && Array.isArray(arr.templates)) return arr.templates;
+            return [];
+          })
+          .catch((err) => {
+            _tmplRegistryPromise = null; // reset cache on failure
+            throw err;
+          });
+      }
+      return _tmplRegistryPromise;
+    };
+  }
 })();
 
 function init() {
@@ -1742,6 +1453,8 @@ function saveApiBase() {
 }
 
 function initStage1() {
+  if (window.__stage1Init) return;
+  window.__stage1Init = true;
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
   const nextButton = document.getElementById('go-to-stage2');
@@ -1752,11 +1465,9 @@ function initStage1() {
   const galleryPlaceholderButton = document.getElementById('add-gallery-placeholder');
   const galleryFileInput = document.getElementById('gallery-file-input');
   const galleryItemsContainer = document.getElementById('gallery-items');
-  const bottomThumbnails = document.getElementById('bottom-thumbnails');
   const templateSelectStage1 = document.getElementById('template-select-stage1');
   const templateDescriptionStage1 = document.getElementById('template-description-stage1');
   const templateCanvasStage1 = document.getElementById('template-preview-stage1');
-  const allowAutoFillInput = form.elements.namedItem('allow_auto_fill');
   
 
   if (!form || !buildPreviewButton || !nextButton) {
@@ -1774,8 +1485,6 @@ function initStage1() {
     subtitle: document.getElementById('preview-subtitle'),
     gallery: document.getElementById('preview-gallery'),
   };
-  const scenarioPreview = document.getElementById('scenario_preview');
-  const productPreview = document.getElementById('product_preview');
 
   const inlinePreviews = {
     brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
@@ -1800,21 +1509,17 @@ function initStage1() {
     productAllowsPrompt: true,
     productAllowsUpload: true,
     templateSpec: null,
-    galleryLimit: DERIVED_THUMB_COUNT,
-    galleryAllowsPrompt: false,
+    galleryLimit: 4,
+    galleryAllowsPrompt: true,
     galleryAllowsUpload: true,
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
     galleryType: 'image',
-    allowAutoFill: DEFAULT_STAGE1.allow_auto_fill !== false,
   };
-
-  ensureBottomSlots(state);
 
   updateMaterialUrlDisplay('brand_logo', state.brandLogo);
 
   let currentLayoutPreview = '';
   let templateRegistry = [];
-  let previewDeriveSeq = 0;
 
   const refreshPreview = () => {
     if (!form) return null;
@@ -1826,46 +1531,6 @@ function initStage1() {
       layoutStructure,
       previewContainer
     );
-    const allowAutoFill = allowAutoFillInput ? allowAutoFillInput.checked : state.allowAutoFill !== false;
-    state.allowAutoFill = allowAutoFill;
-    const productSrc = pickImageSrc(state.product);
-    const scenarioSrc = pickImageSrc(state.scenario);
-    const gallerySrcs = state.galleryEntries.map((entry) => pickImageSrc(entry?.asset) || '');
-    const logoFallback = pickImageSrc(state.brandLogo);
-
-    if (productSrc) {
-      applySlotImagePreview('product', 0, productSrc, { logoFallback });
-      if (productPreview) productPreview.src = productSrc;
-    }
-    if (scenarioSrc) {
-      applySlotImagePreview('scenario', 0, scenarioSrc, { logoFallback });
-      if (scenarioPreview) scenarioPreview.src = scenarioSrc;
-    }
-    updateBottomThumbnailsUi(bottomThumbnails, gallerySrcs);
-
-    const seq = ++previewDeriveSeq;
-    if (allowAutoFill && productSrc) {
-      deriveAssetsFromProduct(productSrc)
-        .then((derived) => {
-          if (!derived || seq !== previewDeriveSeq) return;
-          const derivedScenario = scenarioSrc || derived.scenario;
-          if (!scenarioSrc && derivedScenario) {
-            applySlotImagePreview('scenario', 0, derivedScenario, { logoFallback });
-            if (scenarioPreview) scenarioPreview.src = derivedScenario;
-          }
-          const finalGallery = gallerySrcs.slice();
-          derived.thumbs.forEach((thumb, index) => {
-            if (!finalGallery[index] && thumb) {
-              finalGallery[index] = thumb;
-              applySlotImagePreview('gallery', index, thumb, { logoFallback });
-            }
-          });
-          updateBottomThumbnailsUi(bottomThumbnails, finalGallery);
-        })
-        .catch((error) => {
-          console.warn('[preview] derived assets failed', error);
-        });
-    }
     return payload;
   };
 
@@ -2218,10 +1883,6 @@ function initStage1() {
   try {
     const assets =  await App.utils.ensureTemplateAssets(templateId); // 原有：加载模板资源 {entry,spec,image}
     await applyTemplateMaterialsStage1(assets.spec);       // 原有：同步材料开关/占位说明等
-    state.galleryLimit = DERIVED_THUMB_COUNT;
-    state.galleryAllowsPrompt = false;
-    state.galleryAllowsUpload = true;
-    ensureBottomSlots(state);
 
     const ctx = templateCanvasStage1.getContext('2d');
     if (!ctx) return;
@@ -2245,7 +1906,7 @@ function initStage1() {
   } catch (err) {
     console.error('[template preview] failed:', err);
     if (templateDescriptionStage1) {
-      templateDescriptionStage1.textContent = '模板资源加载失败，请刷新或检查部署资源。';
+      templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
     }
     const ctx = templateCanvasStage1?.getContext?.('2d');
     if (ctx) {
@@ -2254,7 +1915,7 @@ function initStage1() {
       ctx.fillRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
       ctx.fillStyle = '#6b7280';
       ctx.font = '16px "Noto Sans SC", sans-serif';
-      ctx.fillText('模板资源加载失败', 24, 48);
+      ctx.fillText('模板预览加载失败', 24, 48);
     }
   }
   }
@@ -2266,11 +1927,11 @@ async function mountTemplateChooserStage1() {
     templateRegistry = await App.utils.loadTemplateRegistry();
   } catch (e) {
     console.error('[registry] load failed:', e);
-    setStatus(statusElement, '模板资源加载失败，请刷新或检查部署资源。', 'warning');
+    setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json 与静态路径。', 'warning');
     return;
   }
   if (!Array.isArray(templateRegistry) || templateRegistry.length === 0) {
-    setStatus(statusElement, '模板资源加载失败，请刷新或检查部署资源。', 'warning');
+    setStatus(statusElement, '模板列表为空，请确认 templates/registry.json 格式。', 'warning');
     return;
   }
 
@@ -2332,8 +1993,44 @@ async function mountTemplateChooserStage1() {
   });
 }
 
-  // 注意：不要用顶层 await
-  void mountTemplateChooserStage1();
+// 注意：不要用顶层 await
+void mountTemplateChooserStage1();
+  if (templateSelectStage1) {
+    App.utils.loadTemplateRegistry()
+      .then(async (registry) => {
+        templateRegistry = registry;
+        templateSelectStage1.innerHTML = '';
+        registry.forEach((entry) => {
+          const option = document.createElement('option');
+          option.value = entry.id;
+          option.textContent = entry.name;
+          templateSelectStage1.appendChild(option);
+        });
+        const activeEntry = registry.find((entry) => entry.id === state.templateId);
+        if (!activeEntry && registry[0]) {
+          state.templateId = registry[0].id;
+          state.templateLabel = registry[0].name || '';
+        } else if (activeEntry) {
+          state.templateLabel = activeEntry.name || state.templateLabel;
+        }
+        templateSelectStage1.value = state.templateId;
+        await refreshTemplatePreviewStage1(state.templateId);
+      })
+      .catch((error) => {
+        console.error(error);
+        setStatus(statusElement, '无法加载模板列表，请检查 templates 目录。', 'warning');
+      });
+
+    templateSelectStage1.addEventListener('change', async (event) => {
+      const value = event.target.value || DEFAULT_STAGE1.template_id;
+      state.templateId = value;
+      const entry = templateRegistry.find((item) => item.id === value);
+      state.templateLabel = entry?.name || '';
+      state.previewBuilt = false;
+      refreshPreview();
+      await refreshTemplatePreviewStage1(value);
+    });
+  }
 
   attachSingleImageHandler(
     form.querySelector('input[name="brand_logo"]'),
@@ -2359,14 +2056,6 @@ async function mountTemplateChooserStage1() {
     refreshPreview,
     statusElement
   );
-
-  if (allowAutoFillInput) {
-    allowAutoFillInput.addEventListener('change', () => {
-      state.allowAutoFill = allowAutoFillInput.checked;
-      refreshPreview();
-    });
-  }
-  bindBottomThumbnails(bottomThumbnails, state, statusElement, refreshPreview);
 
   bindSlotGenerationButtons(form, state, inlinePreviews, {
     refreshPreview,
@@ -2516,7 +2205,14 @@ async function mountTemplateChooserStage1() {
   });
 
   buildPreviewButton.addEventListener('click', () => {
-    const relaxedPayload = refreshPreview();
+    const relaxedPayload = collectStage1Data(form, state, { strict: false });
+    currentLayoutPreview = updatePosterPreview(
+      relaxedPayload,
+      state,
+      previewElements,
+      layoutStructure,
+      previewContainer
+    );
 
     try {
       const strictPayload = collectStage1Data(form, state, { strict: true });
@@ -2551,7 +2247,13 @@ async function mountTemplateChooserStage1() {
   nextButton.addEventListener('click', () => {
     try {
       const payload = collectStage1Data(form, state, { strict: true });
-      refreshPreview();
+      currentLayoutPreview = updatePosterPreview(
+        payload,
+        state,
+        previewElements,
+        layoutStructure,
+        previewContainer
+      );
       state.previewBuilt = true;
       const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
       saveStage1Data(serialised);
@@ -2591,10 +2293,6 @@ function applyStage1Defaults(form) {
   if (productPrompt && 'value' in productPrompt) {
     productPrompt.value = '';
   }
-  const allowAutoFill = form.elements.namedItem('allow_auto_fill');
-  if (allowAutoFill && 'checked' in allowAutoFill) {
-    allowAutoFill.checked = DEFAULT_STAGE1.allow_auto_fill !== false;
-  }
 }
 
 function updateInlinePlaceholders(inlinePreviews) {
@@ -2609,10 +2307,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     if (element && typeof data[key] === 'string') {
       element.value = data[key];
     }
-  }
-  const allowAutoFill = form.elements.namedItem('allow_auto_fill');
-  if (allowAutoFill && 'checked' in allowAutoFill) {
-    allowAutoFill.checked = data.allow_auto_fill !== false;
   }
 
   const features = Array.isArray(data.features) && data.features.length
@@ -2662,12 +2356,13 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
         }))
       )
     : [];
-  state.galleryLimit = DERIVED_THUMB_COUNT;
+  state.galleryLimit = typeof data.gallery_limit === 'number' ? data.gallery_limit : state.galleryLimit;
   state.galleryLabel = data.gallery_label || state.galleryLabel;
-  state.galleryAllowsPrompt = false;
-  state.galleryAllowsUpload = true;
-  ensureBottomSlots(state);
-  state.allowAutoFill = data.allow_auto_fill !== false;
+  state.galleryAllowsPrompt = data.gallery_allows_prompt !== false;
+  state.galleryAllowsUpload = data.gallery_allows_upload !== false;
+  if (state.galleryEntries.length > state.galleryLimit) {
+    state.galleryEntries = state.galleryEntries.slice(0, state.galleryLimit);
+  }
   state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
   state.templateLabel = data.template_label || '';
 
@@ -2685,6 +2380,18 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   }
 }
 
+function bindImagePreview(inputEl, imgEl) {
+  if (!inputEl || !imgEl) return null;
+  let lastObjectUrl = null;
+  return function previewFile(file) {
+    if (!file) return;
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(file);
+    imgEl.src = lastObjectUrl;
+    imgEl.style.visibility = 'visible';
+  };
+}
+
 function attachSingleImageHandler(
   input,
   key,
@@ -2694,6 +2401,7 @@ function attachSingleImageHandler(
   statusElement
 ) {
   if (!input) return;
+  const previewFile = bindImagePreview(input, inlinePreview);
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
@@ -2715,22 +2423,7 @@ function attachSingleImageHandler(
       refreshPreview();
       return;
     }
-    const localUrl = URL.createObjectURL(file);
-    if (inlinePreview) {
-      inlinePreview.src = localUrl;
-    }
-    state[key] = {
-      ...(state[key] || {}),
-      dataUrl: localUrl,
-      remoteUrl: state[key]?.remoteUrl || null,
-      r2Key: state[key]?.r2Key || null,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      lastModified: file.lastModified,
-    };
-    state.previewBuilt = false;
-    refreshPreview();
+    if (previewFile) previewFile(file);
     try {
       const folderMap = {
         brandLogo: 'brand-logo',
@@ -2770,8 +2463,8 @@ function attachSingleImageHandler(
       console.error(error);
       const message =
         error instanceof Error
-          ? (error.message || 'Upload failed. Check API Base is https / CORS.')
-          : 'Upload failed. Check API Base is https / CORS.';
+          ? error.message || '处理图片素材时发生错误，请重试。'
+          : '处理图片素材时发生错误，请重试。';
       setStatus(statusElement, message, 'error');
     }
   });
@@ -2983,20 +2676,6 @@ function renderGalleryItems(state, container, options = {}) {
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files?.[0];
       if (!file) return;
-      const localUrl = URL.createObjectURL(file);
-      entry.asset = {
-        ...(entry.asset || {}),
-        dataUrl: localUrl,
-        remoteUrl: entry.asset?.remoteUrl || null,
-        r2Key: entry.asset?.r2Key || null,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        lastModified: file.lastModified,
-      };
-      previewImage.src = localUrl;
-      state.previewBuilt = false;
-      onChange?.();
       try {
         entry.asset = await prepareAssetFromFile('gallery', file, entry.asset, statusElement);
         previewImage.src = pickImageSrc(entry.asset) || placeholder;
@@ -3004,7 +2683,7 @@ function renderGalleryItems(state, container, options = {}) {
         onChange?.();
       } catch (error) {
         console.error(error);
-        setStatus(statusElement, 'Upload failed. Check API Base is https / CORS.', 'error');
+        setStatus(statusElement, '上传或读取底部产品小图时发生错误。', 'error');
       }
     });
     if (!allowUpload) {
@@ -3161,7 +2840,6 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     product_name: formData.get('product_name')?.toString().trim() || '',
     title: formData.get('title')?.toString().trim() || '',
     subtitle: formData.get('subtitle')?.toString().trim() || '',
-    allow_auto_fill: formData.get('allow_auto_fill') === 'on',
   };
 
   const features = formData
@@ -3171,18 +2849,20 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   payload.features = features;
 
-  const galleryLimit = DERIVED_THUMB_COUNT;
+  const galleryLimit = state.galleryLimit || 4;
   const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
 
-  const galleryEntries = (state.galleryEntries || []).slice(0, galleryLimit).map((entry) => ({
-    id: entry?.id || `gallery-${Date.now()}`,
-    caption: (entry?.caption || '').trim(),
-    asset: entry?.asset || null,
-    mode: 'upload',
-    prompt: null,
+  const galleryEntries = state.galleryEntries.slice(0, galleryLimit).map((entry) => ({
+    id: entry.id,
+    caption: entry.caption.trim(),
+    asset: entry.asset,
+    mode: entry.mode || 'upload',
+    prompt: entry.prompt?.trim() || null,
   }));
 
-  const validGalleryEntries = galleryEntries.filter((entry) => Boolean(entry.asset));
+  const validGalleryEntries = galleryEntries.filter((entry) =>
+    entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
+  );
 
   payload.series_description = validGalleryEntries.length
     ? validGalleryEntries
@@ -3193,7 +2873,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.brand_logo = state.brandLogo;
   payload.scenario_asset = state.scenario;
   payload.product_asset = state.product;
-  payload.gallery_entries = validGalleryEntries;
+  payload.gallery_entries = galleryEntries;
   payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
   payload.template_label = state.templateLabel || '';
   payload.scenario_mode = state.scenarioMode || 'upload';
@@ -3204,50 +2884,46 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
   payload.gallery_label = galleryLabel;
   payload.gallery_limit = galleryLimit;
-  payload.gallery_allows_prompt = false;
+  payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
 
   if (strict) {
     const missing = [];
-    const isBlobAsset = (asset) =>
-      Boolean(asset && typeof asset.dataUrl === 'string' && asset.dataUrl.startsWith('blob:'));
-    const hasRemoteAsset = (asset) =>
-      Boolean(asset && (asset.remoteUrl || asset.r2Key || asset.url || asset.publicUrl));
-      const optionalKeys = new Set([
-        'brand_name',
-        'agent_name',
-        'scenario_image',
-        'product_name',
-        'subtitle',
-        'series_description',
-      ]);
-      for (const [key, value] of Object.entries(payload)) {
-        if (
-          [
-            'brand_logo',
-            'scenario_asset',
-            'product_asset',
-            'gallery_entries',
-            'scenario_mode',
-            'product_mode',
-            'product_prompt',
-            'scenario_prompt',
-            'allow_auto_fill',
-          ].includes(key) || optionalKeys.has(key)
-        ) {
-          continue;
-        }
-        if (typeof value === 'string' && !value) {
-          missing.push(key);
-        }
+    for (const [key, value] of Object.entries(payload)) {
+      if (
+        [
+          'brand_logo',
+          'scenario_asset',
+          'product_asset',
+          'gallery_entries',
+          'scenario_mode',
+          'product_mode',
+          'product_prompt',
+          'scenario_prompt',
+        ].includes(key)
+      ) {
+        continue;
       }
-    if (!payload.product_asset) {
-      throw new Error('请至少上传 1 张产品图。');
+      if (typeof value === 'string' && !value) {
+        missing.push(key);
+      }
     }
-    if (isBlobAsset(payload.product_asset) && !hasRemoteAsset(payload.product_asset)) {
-      throw new Error('Upload failed. Check API Base is https / CORS.');
+    if (payload.features.length < 3) {
+      throw new Error('请填写至少 3 条产品功能点。');
     }
-    if (!payload.title) {
-      throw new Error('请填写标题文案。');
+    if (galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
+      throw new Error(
+        `请准备至少 ${galleryLimit} 个${galleryLabel}（上传或 AI 生成）并填写对应文案。`
+      );
+    }
+    const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
+    if (captionsIncomplete) {
+      throw new Error(`请为每个${galleryLabel}填写文案说明。`);
+    }
+    const promptMissing = galleryEntries.some(
+      (entry) => entry.mode === 'prompt' && !entry.prompt
+    );
+    if (promptMissing) {
+      throw new Error(`选择 AI 生成的${galleryLabel}需要提供文字描述。`);
     }
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
@@ -3292,10 +2968,6 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
   const { refreshPreview, statusElement } = options;
   const posterForm = form || document.getElementById('poster-form');
   if (!posterForm) return;
-  if (STAGE1_PREVIEW_ONLY) {
-    disableStage1GenerationButtons(posterForm);
-    return;
-  }
 
   const scenarioPreview = document.getElementById('scenario_preview');
   const productPreview = document.getElementById('product_preview');
@@ -3501,7 +3173,7 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     ) || null;
   };
 
-    const logoFallback = assetSrc(state.brandLogo) || '';
+  const logoFallback = assetSrc(state.brandLogo) || placeholderImages.brandLogo;
 
   if (brandLogo) {
     brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
@@ -3525,12 +3197,12 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     subtitle.textContent = payload.subtitle || '副标题文案';
   }
 
-    if (featureList) {
-      const featuresForPreview = payload.features.length
-        ? payload.features
-        : [];
-      renderFeatureTags(featureList, featuresForPreview.slice(0, 3));
-    }
+  if (featureList) {
+    const featuresForPreview = payload.features.length
+      ? payload.features
+      : DEFAULT_STAGE1.features;
+    renderFeatureTags(featureList, featuresForPreview.slice(0, 3));
+  }
 
   if (gallery) {
     gallery.innerHTML = '';
@@ -3544,8 +3216,8 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       figure.dataset.galleryIndex = String(index);
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
-        const gallerySrc = assetSrc(entry?.asset) || '';
-        img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
+      const gallerySrc = assetSrc(entry?.asset) || logoFallback;
+      img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
       img.alt = `${galleryLabel} ${index + 1} 预览`;
       caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
       figure.appendChild(img);
@@ -3613,7 +3285,6 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     features: payload.features,
     title: payload.title,
     subtitle: payload.subtitle,
-    allow_auto_fill: payload.allow_auto_fill !== false,
     series_description: payload.series_description,
     scenario_mode: state.scenarioMode || 'upload',
     product_mode: state.productMode || 'upload',
@@ -3622,20 +3293,18 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     brand_logo: serialiseAssetForStorage(state.brandLogo),
     scenario_asset: serialiseAssetForStorage(state.scenario),
     product_asset: serialiseAssetForStorage(state.product),
-    gallery_entries: state.galleryEntries
-      .filter((entry) => entry && entry.asset)
-      .map((entry) => ({
-        id: entry.id,
-        caption: entry.caption,
-        asset: serialiseAssetForStorage(entry.asset),
-        mode: 'upload',
-        prompt: null,
-      })),
+    gallery_entries: state.galleryEntries.map((entry) => ({
+      id: entry.id,
+      caption: entry.caption,
+      asset: serialiseAssetForStorage(entry.asset),
+      mode: entry.mode || 'upload',
+      prompt: entry.prompt || null,
+    })),
     template_id: state.templateId || DEFAULT_STAGE1.template_id,
     template_label: state.templateLabel || '',
     gallery_limit: state.galleryLimit || 4,
     gallery_label: state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery,
-    gallery_allows_prompt: false,
+    gallery_allows_prompt: state.galleryAllowsPrompt !== false,
     gallery_allows_upload: state.galleryAllowsUpload !== false,
     layout_preview: layoutPreview,
     preview_built: previewBuilt,
@@ -6606,14 +6275,13 @@ function serialiseAssetForStorage(asset) {
   if (!asset) return null;
   const { key, name, type, size, lastModified, dataUrl, remoteUrl, r2Key } = asset;
   const isDataUrl = typeof dataUrl === 'string' && dataUrl.startsWith('data:');
-  const isBlobUrl = typeof dataUrl === 'string' && dataUrl.startsWith('blob:');
   return {
     key: key || null,
     name: name || null,
     type: type || null,
     size: typeof size === 'number' ? size : null,
     lastModified: typeof lastModified === 'number' ? lastModified : null,
-    remoteUrl: !isDataUrl && !isBlobUrl ? dataUrl || remoteUrl || null : remoteUrl || null,
+    remoteUrl: !isDataUrl ? dataUrl || remoteUrl || null : remoteUrl || null,
     r2Key: r2Key || null,
   };
 }
