@@ -331,7 +331,7 @@ App.utils.loadTemplateRegistry = (() => {
           return [];
         })
         .catch(err => {
-          _registryP = null; // reset cache on failure?
+          _registryP = null; // reset cache on failure
           throw err;
         });
     }
