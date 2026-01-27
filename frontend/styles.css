@@ -70,6 +70,12 @@ header {
   color: #52606d;
 }
 
+.build-info {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #7b8794;
+}
+
 .api-config {
   display: flex;
   flex-direction: column;
@@ -1010,115 +1016,6 @@ main {
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
 }
 
-#layout-preview.poster-preview {
-  aspect-ratio: 3 / 4;
-  overflow: hidden;
-}
-
-#preview-scenario-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-#preview-product-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #ffffff;
-}
-
-#preview-title,
-#preview-subtitle {
-  max-height: 4.8em;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-#preview-gallery {
-  gap: 0.6rem;
-  grid-auto-rows: 1fr;
-}
-
-#preview-gallery img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.thumbnail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-}
-
-.thumbnail-slot {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0.75rem;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.thumbnail-preview {
-  position: relative;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #e2e8f0;
-  min-height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.thumbnail-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.thumbnail-slot.empty .thumbnail-preview img {
-  display: none;
-}
-
-.thumbnail-preview .slot-placeholder {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #475569;
-  font-size: 0.9rem;
-  background: rgba(248, 250, 252, 0.85);
-}
-
-.thumbnail-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.thumbnail-actions .button-like {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  background: #0f172a;
-  color: #fff;
-  font-size: 0.85rem;
-  cursor: pointer;
-  text-align: center;
-}
-
-.thumbnail-actions .button-like input[type='file'] {
-  display: none;
-}
-
 .poster-brand-name,
 .poster-agent {
   display: flex;
@@ -1395,6 +1292,33 @@ main {
 
 .hidden {
   display: none !important;
+}
+
+.mode-s-hidden {
+  display: none !important;
+}
+
+.gen-meta-panel {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.gen-meta-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.gen-meta-list dt {
+  font-weight: 600;
+}
+
+.gen-meta-list dd {
+  margin: 0;
 }
 
 /* demo1.0: never show AI generated poster image area in Stage2 */

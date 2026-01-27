@@ -1,22 +1,23 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <base href="./">
     <meta charset="utf-8" />
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>环节 1 · 素材输入与版式预览</title>
+    <title>Stage 1 - Mode S Core Assets</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body data-stage="stage1" data-page="stage1">
     <header>
       <div class="header-content">
         <div>
-          <h1>营销海报生成工作流</h1>
-          <p>按照三个环节完成素材准备、AI 生成与邮件分发。</p>
+          <h1>Marketing Poster Builder</h1>
+          <p>Mode S collects core assets for KitPoster 1.0 generation.</p>
+          <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
-          <span>后端 API 地址</span>
+          <span>Backend API Base</span>
           <input
             type="url"
             id="api-base"
@@ -24,12 +25,12 @@
           />
         </label>
       </div>
-      <nav class="stage-nav" aria-label="流程导航">
-        <span class="active">环节 1 · 素材输入与版式预览</span>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <a href="stage2.html">环节 2 · AI 海报生成</a>
-        <span class="nav-arrow" aria-hidden="true">→</span>
-        <a href="stage3.html">环节 3 · 邮件发送</a>
+      <nav class="stage-nav" aria-label="Workflow navigation">
+        <span class="active">Stage 1 - Core Assets</span>
+        <span class="nav-arrow" aria-hidden="true">-></span>
+        <a href="stage2.html">Stage 2 - Generate Poster</a>
+        <span class="nav-arrow" aria-hidden="true">-></span>
+        <a href="stage3.html">Stage 3 - Send Email</a>
       </nav>
     </header>
 
@@ -267,17 +268,14 @@
     </main>
 
     <footer>
-      <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
+      <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
-    <!-- styles.css 之后，app.js 之前 -->
     <script defer src="./placeholder.js?v=4"></script>
     <script defer src="./app.js?v=2"></script>
     <script>
     window.addEventListener('DOMContentLoaded', () => {
       console.log('[Stage1] DOMContentLoaded', window.location.href);
-      if (window.initStage1 && !window.__stage1Init) {
-        window.initStage1();
-      }
+      if (window.initStage1) window.initStage1();
     });
   </script>
 </body>
