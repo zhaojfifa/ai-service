@@ -680,7 +680,7 @@ App.utils.ensureTemplateAssets = (() => {
         specResult = null;
       }
     }
-    const imgUrl = App.utils.assetUrl(previewCandidates[0] || entry.preview);
+    let imgUrl = App.utils.assetUrl(previewCandidates[0] || entry.preview);
     let img;
     let imgErrors = [];
     if (previewCandidates.length) {
