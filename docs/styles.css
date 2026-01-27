@@ -1010,6 +1010,115 @@ main {
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.12);
 }
 
+#layout-preview.poster-preview {
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+}
+
+#preview-scenario-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#preview-product-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #ffffff;
+}
+
+#preview-title,
+#preview-subtitle {
+  max-height: 4.8em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+#preview-gallery {
+  gap: 0.6rem;
+  grid-auto-rows: 1fr;
+}
+
+#preview-gallery img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.thumbnail-slot {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.thumbnail-preview {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e2e8f0;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thumbnail-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumbnail-slot.empty .thumbnail-preview img {
+  display: none;
+}
+
+.thumbnail-preview .slot-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-size: 0.9rem;
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.thumbnail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.thumbnail-actions .button-like {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: center;
+}
+
+.thumbnail-actions .button-like input[type='file'] {
+  display: none;
+}
+
 .poster-brand-name,
 .poster-agent {
   display: flex;
@@ -1286,6 +1395,34 @@ main {
 
 .hidden {
   display: none !important;
+}
+
+/* demo1.0: never show AI generated poster image area in Stage2 */
+#ai-poster-wrap,
+.ai-poster-wrap,
+.stage2-ai-poster,
+#stage2-ai-poster,
+#generated-poster-image,
+#poster-visual,
+.poster-preview--generated,
+.poster-preview--ai {
+  display: none !important;
+}
+
+/* demo1.0.2 safety: never render AI-generated poster image block (red box) */
+#ai-poster-wrap,
+#generated-poster-wrap,
+#generated-poster,
+#generated-image,
+#poster-generated-image,
+.generated-poster,
+.generated-result,
+.poster-generated {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
 }
 
 .stage2-template-preview {
@@ -1704,3 +1841,11 @@ main {
   white-space: nowrap;
 }
 
+
+/* Demo 1.0: never render AI poster image preview block */
+#poster-visual,
+#vertex-poster-preview-img,
+#vertex-poster-placeholder,
+.ai-result-box {
+  display: none !important;
+}
