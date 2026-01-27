@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
   <head>
+    <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>环节 2 · AI 海报生成</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=demo1.0.2" />
   </head>
   <body data-stage="stage2">
     <header>
@@ -187,25 +188,6 @@
                   <p id="ai-preview-message">等待调用 Glibatree Art Designer…</p>
                 </div>
               </div>
-
-              <div class="output-group hidden" id="poster-visual">
-                <h3>海报预览</h3>
-                <div class="ai-result-box">
-                  <img
-                    id="vertex-poster-preview-img"
-                    data-role="vertex-poster-img"
-                    class="poster-preview-image hidden"
-                    alt="AI 生成海报预览"
-                    decoding="async"
-                  />
-                  <div
-                    id="vertex-poster-placeholder"
-                    data-role="vertex-poster-placeholder"
-                    class="poster-preview-placeholder hidden"
-                  >
-                    AI 海报预览将显示在此处。
-                  </div>
-                </div>
                 <section id="stage2-poster-preview-section" class="hidden">
                 <div class="ab-preview-wrapper ab-preview-grid">
                   <!-- A 版 -->
@@ -276,7 +258,6 @@
 
                 </div>
               </section>
-              </div>
 
               <div class="output-group hidden" id="prompt-group">
                 <h3>实际 OpenAI 提示词</h3>
@@ -312,8 +293,8 @@
     <footer>
       <small>前端托管于 GitHub Pages，后端由 Render 提供服务。</small>
     </footer>
-    <!-- styles.css 之后，app.js 之前 -->
-    <script defer src="placeholder.js?v=3"></script>
-    <script defer src="app.js?v=1"></script>
+    <!-- styles.css?v=demo1.0.2 之后，app.js 之前 -->
+    <script defer src="./placeholder.js?v=3"></script>
+    <script defer src="./app.js?v=demo1.0.2"></script>
   </body>
 </html>

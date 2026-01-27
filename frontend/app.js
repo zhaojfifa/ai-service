@@ -319,14 +319,19 @@ App.utils.loadTemplateRegistry = (() => {
   let _registryP;
   return async function loadTemplateRegistry() {
     if (!_registryP) {
-      _registryP = fetch(App.utils.assetUrl('templates/registry.json'))
+      const url = staticUrl('templates/registry.json');
+      _registryP = fetch(url, { cache: 'no-store' })
         .then(r => {
-          if (!r.ok) throw new Error('无法加载模板清单');
+          if (!r.ok) throw new Error(`registry fetch failed: ${r.status} ${url}`);
           return r.json();
         })
-        .then(list => (Array.isArray(list) ? list : []))
+        .then(list => {
+          if (Array.isArray(list)) return list;
+          if (list && typeof list === 'object' && Array.isArray(list.templates)) return list.templates;
+          return [];
+        })
         .catch(err => {
-          _registryP = null; // 失败时允许下次重试
+          _registryP = null; // reset cache on failure?
           throw err;
         });
     }
@@ -366,8 +371,8 @@ App.utils.ensureTemplateAssets = (() => {
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
 
-    const specUrl = App.utils.assetUrl(`templates/${entry.spec}`);
-    const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
+    const specUrl = staticUrl(`templates/${entry.spec}`);
+    const imgUrl  = staticUrl(`templates/${entry.preview}`);
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
     const imgP  = App.utils.loadImageAny(imgUrl, 'image/png');
@@ -438,12 +443,23 @@ function resolveDocumentAssetBase() {
   return documentAssetBase;
 }
 
+function pageBaseUrl() {
+  return new URL('.', window.location.href);
+}
+
+function staticUrl(relPath) {
+  if (!relPath) return pageBaseUrl().toString();
+  if (/^https?:\/\//i.test(relPath)) return relPath;
+  return new URL(relPath.replace(/^\/+/, ''), pageBaseUrl()).toString();
+}
+
 function assetUrl(path) {
   if (!path) return new URL('', document.baseURI).toString();
   return new URL(path, document.baseURI).toString();
 }
 
 App.utils.assetUrl = assetUrl;
+App.utils.staticUrl = staticUrl;
 
 // Layout helpers for relative-coordinates templates
 App.utils.resolveRect = function resolveRect(slot, canvasWidth, canvasHeight, parentRect) {
@@ -1371,14 +1387,19 @@ function updateMaterialUrlDisplay(field, asset) {
     let _tmplRegistryPromise = null;
     window.loadTemplateRegistry = async function loadTemplateRegistry() {
       if (!_tmplRegistryPromise) {
-        _tmplRegistryPromise = fetch(assetUrl(REG_PATH))
+        const url = staticUrl(REG_PATH);
+        _tmplRegistryPromise = fetch(url, { cache: 'no-store' })
           .then((r) => {
-            if (!r.ok) throw new Error('无法加载模板清单');
+            if (!r.ok) throw new Error(`registry fetch failed: ${r.status} ${url}`);
             return r.json();
           })
-          .then((arr) => (Array.isArray(arr) ? arr : []))
+          .then((arr) => {
+            if (Array.isArray(arr)) return arr;
+            if (arr && typeof arr === 'object' && Array.isArray(arr.templates)) return arr.templates;
+            return [];
+          })
           .catch((err) => {
-            _tmplRegistryPromise = null; // 失败允许下次重试
+            _tmplRegistryPromise = null; // reset cache on failure
             throw err;
           });
       }
@@ -1432,6 +1453,8 @@ function saveApiBase() {
 }
 
 function initStage1() {
+  if (window.__stage1Init) return;
+  window.__stage1Init = true;
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
   const nextButton = document.getElementById('go-to-stage2');
@@ -2357,6 +2380,18 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   }
 }
 
+function bindImagePreview(inputEl, imgEl) {
+  if (!inputEl || !imgEl) return null;
+  let lastObjectUrl = null;
+  return function previewFile(file) {
+    if (!file) return;
+    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+    lastObjectUrl = URL.createObjectURL(file);
+    imgEl.src = lastObjectUrl;
+    imgEl.style.visibility = 'visible';
+  };
+}
+
 function attachSingleImageHandler(
   input,
   key,
@@ -2366,6 +2401,7 @@ function attachSingleImageHandler(
   statusElement
 ) {
   if (!input) return;
+  const previewFile = bindImagePreview(input, inlinePreview);
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
@@ -2387,6 +2423,7 @@ function attachSingleImageHandler(
       refreshPreview();
       return;
     }
+    if (previewFile) previewFile(file);
     try {
       const folderMap = {
         brandLogo: 'brand-logo',
