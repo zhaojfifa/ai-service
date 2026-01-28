@@ -1,23 +1,21 @@
-<!DOCTYPE html>
-<html lang="en">
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
   <head>
     <base href="./">
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stage 1 - Mode S Core Assets</title>
+    <title>鐜妭 1 路 绱犳潗杈撳叆涓庣増寮忛瑙?/title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body data-stage="stage1" data-page="stage1">
+  <body data-stage="stage1">
     <header>
       <div class="header-content">
         <div>
-          <h1>Marketing Poster Builder</h1>
-          <p>Mode S collects core assets for KitPoster 1.0 generation.</p>
-          <div id="build-info" class="build-info"></div>
+          <h1>钀ラ攢娴锋姤鐢熸垚宸ヤ綔娴?/h1>
+          <p>鎸夌収涓変釜鐜妭瀹屾垚绱犳潗鍑嗗銆丄I 鐢熸垚涓庨偖浠跺垎鍙戙€?/p>
         </div>
         <label class="api-config">
-          <span>Backend API Base</span>
+          <span>鍚庣 API 鍦板潃</span>
           <input
             type="url"
             id="api-base"
@@ -25,28 +23,28 @@
           />
         </label>
       </div>
-      <nav class="stage-nav" aria-label="Workflow navigation">
-        <span class="active">Stage 1 - Core Assets</span>
-        <span class="nav-arrow" aria-hidden="true">-></span>
-        <a href="stage2.html">Stage 2 - Generate Poster</a>
-        <span class="nav-arrow" aria-hidden="true">-></span>
-        <a href="stage3.html">Stage 3 - Send Email</a>
+      <nav class="stage-nav" aria-label="娴佺▼瀵艰埅">
+        <span class="active">鐜妭 1 路 绱犳潗杈撳叆涓庣増寮忛瑙?/span>
+        <span class="nav-arrow" aria-hidden="true">鈫?/span>
+        <a href="stage2.html">鐜妭 2 路 AI 娴锋姤鐢熸垚</a>
+        <span class="nav-arrow" aria-hidden="true">鈫?/span>
+        <a href="stage3.html">鐜妭 3 路 閭欢鍙戦€?/a>
       </nav>
     </header>
 
     <main>
       <section class="card stage-card">
-        <h2>环节 1 · 素材输入与版式预览</h2>
+        <h2>鐜妭 1 路 绱犳潗杈撳叆涓庣増寮忛瑙?/h2>
         <p class="hint">
-          按照给定版式上传图像素材，填写文字说明，并实时查看分区预览。完成后
-          点击“保存并前往环节 2”继续流程。
+          鎸夌収缁欏畾鐗堝紡涓婁紶鍥惧儚绱犳潗锛屽～鍐欐枃瀛楄鏄庯紝骞跺疄鏃舵煡鐪嬪垎鍖洪瑙堛€傚畬鎴愬悗
+          鐐瑰嚮鈥滀繚瀛樺苟鍓嶅線鐜妭 2鈥濈户缁祦绋嬨€?
         </p>
         <form id="poster-form" novalidate>
           <fieldset class="fieldset">
-            <legend>模板选择</legend>
+            <legend>妯℃澘閫夋嫨</legend>
             <div class="template-select-grid">
               <label class="field">
-                <span>选择锁版模板</span>
+                <span>閫夋嫨閿佺増妯℃澘</span>
                 <select id="template-select-stage1" name="template_id" required></select>
               </label>
               <div class="template-meta">
@@ -55,124 +53,123 @@
                   id="template-preview-stage1"
                   width="360"
                   height="360"
-                  aria-label="模板预览"
+                  aria-label="妯℃澘棰勮"
                 ></canvas>
               </div>
             </div>
           </fieldset>
 
           <fieldset class="fieldset">
-            <legend>顶部横条</legend>
+            <legend>椤堕儴妯潯</legend>
             <div class="grid top-banner-grid">
               <label class="field file-field" data-material-field="brand_logo">
-                <span data-material-label="brand_logo">品牌 Logo 上传</span>
+                <span data-material-label="brand_logo">鍝佺墝 Logo 涓婁紶</span>
                 <input type="file" name="brand_logo" accept="image/*" />
                 <div class="inline-preview" role="presentation">
-                  <img data-inline-preview="brand_logo" alt="品牌 Logo 预览" />
+                  <img data-inline-preview="brand_logo" alt="鍝佺墝 Logo 棰勮" />
                 </div>
                 <div
                   class="asset-url"
                   data-material-url="brand_logo"
-                  data-label="品牌 Logo URL："
+                  data-label="鍝佺墝 Logo URL锛?
                   aria-live="polite"
                 >
-                  品牌 Logo URL：尚未上传
+                  鍝佺墝 Logo URL锛氬皻鏈笂浼?
                 </div>
               </label>
               <label class="field">
-                <span>品牌名称</span>
-                <input type="text" name="brand_name" required />
+                <span>鍝佺墝鍚嶇О</span>
+                <input type="text" name="brand_name" />
               </label>
               <label class="field">
-                <span>品牌代理名 / 分销名</span>
-                <input type="text" name="agent_name" required />
+                <span>鍝佺墝浠ｇ悊鍚?/ 鍒嗛攢鍚?/span>
+                <input type="text" name="agent_name" />
               </label>
             </div>
           </fieldset>
 
           <fieldset class="fieldset">
-            <legend>图像素材区</legend>
+            <legend>鍥惧儚绱犳潗鍖?/legend>
             <div class="image-zones">
               <div class="image-stack">
                 <div class="mode-toggle" data-mode-target="scenario">
-                  <span data-material-toggle-label="scenario">场景素材来源</span>
+                  <span data-material-toggle-label="scenario">鍦烘櫙绱犳潗鏉ユ簮</span>
                   <label data-mode-option="scenario-upload">
-                    <input type="radio" name="scenario_mode" value="upload" checked /> 上传图像
+                    <input type="radio" name="scenario_mode" value="upload" checked /> 涓婁紶鍥惧儚
                   </label>
                   <label data-mode-option="scenario-prompt">
-                    <input type="radio" name="scenario_mode" value="prompt" /> 文字生成
+                    <input type="radio" name="scenario_mode" value="prompt" /> 鏂囧瓧鐢熸垚
                   </label>
                 </div>
                 <label class="field file-field" data-material-field="scenario">
-                  <span data-material-label="scenario">应用场景图上传</span>
+                  <span data-material-label="scenario">搴旂敤鍦烘櫙鍥句笂浼?/span>
                   <input type="file" name="scenario_asset" accept="image/*" />
                   <div class="inline-preview">
-                    <img data-inline-preview="scenario_asset" alt="应用场景预览" />
+                    <img data-inline-preview="scenario_asset" alt="搴旂敤鍦烘櫙棰勮" />
                   </div>
                 </label>
                 <label class="field" data-material-description-container="scenario">
-                  <span data-material-description="scenario">应用场景描述（上传或 AI 生成时都会用到）</span>
+                  <span data-material-description="scenario">搴旂敤鍦烘櫙鎻忚堪锛堜笂浼犳垨 AI 鐢熸垚鏃堕兘浼氱敤鍒帮級</span>
                   <textarea
                     id="scenario_prompt"
                     name="scenario_image"
                     rows="3"
-                    required
                     data-material-input="scenario"
                     data-role="scenario-positive-prompt"
                   ></textarea>
                   <div class="slot-actions">
                     <button type="button" id="btn-generate-scenario" class="secondary">
-                      AI 生成场景图
+                      AI 鐢熸垚鍦烘櫙鍥?
                     </button>
-                    <img id="scenario_preview" class="slot-preview" alt="场景图预览" />
+                    <img id="scenario_preview" class="slot-preview" alt="鍦烘櫙鍥鹃瑙? />
                   </div>
                 </label>
               </div>
               <div class="image-stack">
                 <div class="mode-toggle" data-mode-target="product">
-                  <span data-material-toggle-label="product">主产品素材来源</span>
+                  <span data-material-toggle-label="product">涓讳骇鍝佺礌鏉愭潵婧?/span>
                   <label data-mode-option="product-upload">
-                    <input type="radio" name="product_mode" value="upload" checked /> 上传图像
+                    <input type="radio" name="product_mode" value="upload" checked /> 涓婁紶鍥惧儚
                   </label>
                   <label data-mode-option="product-prompt">
-                    <input type="radio" name="product_mode" value="prompt" /> 文字生成
+                    <input type="radio" name="product_mode" value="prompt" /> 鏂囧瓧鐢熸垚
                   </label>
                 </div>
                 <label class="field file-field" data-material-field="product">
-                  <span data-material-label="product">产品 45° 渲染图上传</span>
+                  <span data-material-label="product">浜у搧 45掳 娓叉煋鍥句笂浼?/span>
                   <input type="file" name="product_asset" accept="image/*" />
                   <div class="inline-preview">
-                    <img data-inline-preview="product_asset" alt="产品渲染图预览" />
+                    <img data-inline-preview="product_asset" alt="浜у搧娓叉煋鍥鹃瑙? />
                   </div>
                 </label>
                 <label class="field">
-                  <span>主产品名称</span>
-                  <input type="text" name="product_name" required />
+                  <span>涓讳骇鍝佸悕绉?/span>
+                  <input type="text" name="product_name" />
                 </label>
                 <label class="field optional" data-mode-visible="product:prompt" data-material-prompt="product">
-                  <span data-material-prompt-label="product">产品图生成描述（可选补充）</span>
+                  <span data-material-prompt-label="product">浜у搧鍥剧敓鎴愭弿杩帮紙鍙€夎ˉ鍏咃級</span>
                   <textarea
                     id="product_prompt"
                     name="product_prompt"
                     rows="3"
-                    placeholder="补充产品材质、角度、使用场景等信息"
+                    placeholder="琛ュ厖浜у搧鏉愯川銆佽搴︺€佷娇鐢ㄥ満鏅瓑淇℃伅"
                     data-material-input="product-prompt"
                     data-role="product-positive-prompt"
                   ></textarea>
                   <div class="slot-actions">
                     <button type="button" id="btn-generate-product" class="secondary">
-                      AI 生成主产品图
+                      AI 鐢熸垚涓讳骇鍝佸浘
                     </button>
-                    <img id="product_preview" class="slot-preview" alt="主产品预览" />
+                    <img id="product_preview" class="slot-preview" alt="涓讳骇鍝侀瑙? />
                   </div>
                 </label>
                 <div class="feature-fields">
-                  <span class="feature-label">功能点（描述产品 45° 渲染图，填写 3-4 条）</span>
+                  <span class="feature-label">鍔熻兘鐐癸紙鎻忚堪浜у搧 45掳 娓叉煋鍥撅紝濉啓 3-4 鏉★級</span>
                   <div class="feature-grid">
-                    <input type="text" name="features" required />
-                    <input type="text" name="features" required />
-                    <input type="text" name="features" required />
-                    <input type="text" name="features" placeholder="可选" />
+                    <input type="text" name="features" />
+                    <input type="text" name="features" />
+                    <input type="text" name="features" />
+                    <input type="text" name="features" placeholder="鍙€? />
                   </div>
                 </div>
               </div>
@@ -180,61 +177,92 @@
           </fieldset>
 
           <fieldset class="fieldset">
-            <legend>文字字段与底部产品</legend>
+            <legend>鏂囧瓧瀛楁涓庡簳閮ㄤ骇鍝?/legend>
             <div class="grid text-grid">
               <label class="field">
-                <span>标题文案（大号粗体红字）</span>
-                <input type="text" name="title" required />
+                <span>鏍囬鏂囨锛堝ぇ鍙风矖浣撶孩瀛楋級</span>
+                <input type="text" name="title" />
               </label>
               <label class="field">
-                <span>副标题文案（左下 / 右下角）</span>
-                <input type="text" name="subtitle" required />
+                <span>鍓爣棰樻枃妗堬紙宸︿笅 / 鍙充笅瑙掞級</span>
+                <input type="text" name="subtitle" />
               </label>
             </div>
-            <div class="gallery-upload">
+            <div class="bottom-thumbnails">
               <div>
-                <span class="field-label" data-gallery-label>底部产品小图（3-4 张，支持多选）</span>
-                <p class="micro-copy" data-gallery-description>
-                  每个条目由一张产品小图和一段系列说明组成，可上传现成图像，也可
-                  仅输入描述让 AI 生成。
+                <span class="field-label">底部产品小图（0–4 张，可选）</span>
+                <p class="micro-copy">
+                  默认不强制上传。可手动上传 0–4 张；如勾选自动补全，系统会在渲染时尽量复用已有素材自动填充空槽位。
                 </p>
               </div>
-              <button type="button" id="add-gallery-item" class="secondary" data-gallery-upload>
-                上传底部产品小图
-              </button>
-              <button
-                type="button"
-                id="add-gallery-placeholder"
-                class="secondary subtle"
-                data-gallery-prompt
-              >
-                添加 AI 生成条目
-              </button>
-              <input
-                type="file"
-                id="gallery-file-input"
-                accept="image/*"
-                multiple
-                hidden
-              />
+              <label class="field inline optional">
+                <input type="checkbox" name="allow_auto_fill" checked />
+                <span>Allow auto-fill (Mode S asset utilization)</span>
+              </label>
+              <div id="bottom-thumbnails" class="thumbnail-grid" aria-live="polite">
+                <div class="thumbnail-slot" data-slot-index="0">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="0" alt="底部小图 1 预览" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      上传 / 替换
+                      <input type="file" name="bottom_slot_1" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="0">??</button>
+                  </div>
+                </div>
+                <div class="thumbnail-slot" data-slot-index="1">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="1" alt="底部小图 2 预览" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      上传 / 替换
+                      <input type="file" name="bottom_slot_2" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="1">??</button>
+                  </div>
+                </div>
+                <div class="thumbnail-slot" data-slot-index="2">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="2" alt="底部小图 3 预览" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      上传 / 替换
+                      <input type="file" name="bottom_slot_3" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="2">??</button>
+                  </div>
+                </div>
+                <div class="thumbnail-slot" data-slot-index="3">
+                  <div class="thumbnail-preview">
+                    <img data-bottom-preview="3" alt="底部小图 4 预览" />
+                    <span class="slot-placeholder">Empty</span>
+                  </div>
+                  <div class="thumbnail-actions">
+                    <label class="button-like">
+                      上传 / 替换
+                      <input type="file" name="bottom_slot_4" accept="image/*" />
+                    </label>
+                    <button type="button" class="secondary" data-bottom-clear="3">??</button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div id="gallery-items" class="gallery-items" aria-live="polite"></div>
-          </fieldset>
-        </form>
-
-        <div class="actions">
-          <button id="build-preview" class="primary" type="button">构建版式预览</button>
-          <button id="go-to-stage2" class="secondary" type="button">保存并前往环节 2</button>
-        </div>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
         <div class="preview" id="preview-container">
-          <h3>版式预览</h3>
+          <h3>鐗堝紡棰勮</h3>
           <div id="layout-preview" class="poster-preview">
             <div class="poster-header">
               <div class="poster-logo">
                 <div class="poster-logo-image">
-                  <img id="preview-brand-logo" alt="品牌 Logo 预览" />
+                  <img id="preview-brand-logo" alt="鍝佺墝 Logo 棰勮" />
                 </div>
                 <div class="poster-brand-name" id="preview-brand-name"></div>
               </div>
@@ -242,11 +270,11 @@
             </div>
             <div class="poster-body">
               <div class="poster-left">
-                <img id="preview-scenario-image" alt="应用场景预览" />
+                <img id="preview-scenario-image" alt="搴旂敤鍦烘櫙棰勮" />
               </div>
               <div class="poster-right">
                 <div class="poster-product-wrapper">
-                  <img id="preview-product-image" alt="产品渲染图预览" />
+                  <img id="preview-product-image" alt="浜у搧娓叉煋鍥鹃瑙? />
                   <ul id="preview-feature-list" class="feature-tags">
                     <li class="feature-tag feature-tag--top" data-feature-index="0"><span></span></li>
                     <li class="feature-tag feature-tag--middle" data-feature-index="1"><span></span></li>
@@ -260,7 +288,7 @@
             <div class="poster-subtitle" id="preview-subtitle"></div>
           </div>
           <details class="layout-structure">
-            <summary>查看版式结构说明</summary>
+            <summary>鏌ョ湅鐗堝紡缁撴瀯璇存槑</summary>
             <pre id="layout-structure-text"></pre>
           </details>
         </div>
@@ -268,15 +296,10 @@
     </main>
 
     <footer>
-      <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
+      <small>鍓嶇鎵樼浜?GitHub Pages锛屽悗绔敱 Render 鎻愪緵鏈嶅姟銆?/small>
     </footer>
+    <!-- styles.css 涔嬪悗锛宎pp.js 涔嬪墠 -->
     <script defer src="./placeholder.js?v=4"></script>
     <script defer src="./app.js?v=2"></script>
-    <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      console.log('[Stage1] DOMContentLoaded', window.location.href);
-      if (window.initStage1) window.initStage1();
-    });
-  </script>
-</body>
+  </body>
 </html>
