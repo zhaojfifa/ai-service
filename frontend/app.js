@@ -1433,9 +1433,9 @@ function initStage1() {
   const galleryPlaceholderButton = document.getElementById('add-gallery-placeholder');
   const galleryFileInput = document.getElementById('gallery-file-input');
   const galleryItemsContainer = document.getElementById('gallery-items');
-  const templateSelectStage1 = document.getElementById('template-select-stage1');
-  const templateDescriptionStage1 = document.getElementById('template-description-stage1');
-  const templateCanvasStage1 = document.getElementById('template-preview-stage1');
+  const templateSelectStage1 = document.getElementById('template-select') || document.getElementById('template-select-stage1');
+  const templateDescriptionStage1 = document.getElementById('template-description') || document.getElementById('template-description-stage1');
+  const templateCanvasStage1 = document.getElementById('template-preview') || document.getElementById('template-preview-stage1');
   
 
   if (!form || !buildPreviewButton || !nextButton) {
