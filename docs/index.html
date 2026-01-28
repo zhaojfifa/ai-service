@@ -40,8 +40,8 @@
       </section>
 
       <form id="poster-form" novalidate>
-        <section class="card stage-card">
-          <h3>Template Selection</h3>
+        <fieldset id="s1-template" class="card stage-card">
+          <legend>Template Selection</legend>
           <div class="grid">
             <label class="field">
               <span>Template</span>
@@ -57,10 +57,10 @@
           </div>
           <p id="template-description-stage1" class="hint"></p>
           <canvas id="template-preview-stage1" width="360" height="220" aria-label="Template preview"></canvas>
-        </section>
+        </fieldset>
 
-        <section class="card stage-card">
-          <h3>Image Assets</h3>
+        <fieldset id="s1-brand" class="card stage-card">
+          <legend>Brand</legend>
           <p class="hint">Scenario + product images and descriptions stay visible for operators.</p>
           <div class="grid">
             <label class="field file-field optional">
@@ -81,7 +81,10 @@
               <input type="text" name="agent_name" placeholder="e.g., Email / Dealer A" />
             </label>
           </div>
+        </fieldset>
 
+        <fieldset id="s1-core-assets" class="card stage-card">
+          <legend>Core Assets</legend>
           <div class="grid">
             <label class="field file-field optional">
               <span>Scenario image (optional)</span>
@@ -142,10 +145,10 @@
               <input type="text" name="bullets" placeholder="Optional" />
             </div>
           </div>
-        </section>
+        </fieldset>
 
-        <section class="card stage-card">
-          <h3>Bottom thumbnails (optional, 0-4)</h3>
+                <fieldset id="s1-bottom-thumbs" class="card stage-card">
+          <legend>Bottom thumbnails (optional, 0-4)</legend>
           <p class="hint">Upload up to 4 small product images. Empty slots are allowed.</p>
           <div id="bottom-thumbnails" class="thumbnail-grid">
             <div class="thumbnail-slot" data-slot-index="0">
@@ -205,21 +208,10 @@
             <input type="checkbox" name="allow_auto_fill" checked />
             <span>Allow auto-fill (Mode S asset utilization)</span>
           </label>
-        </section>
-
-        <section class="card wireframe-card">
+        </fieldset>
+<section class="card wireframe-card">
           <h3>Material Preview / Layout Preview</h3>
           <p class="hint">Live preview uses safe areas. Text will shrink or truncate as needed.</p>
-          <div id="stage1-wireframe" class="wireframe-preview" data-template="template_dual">
-            <div class="wireframe-canvas">
-              <div class="wireframe-slot wireframe-slot--title" data-slot="title"></div>
-              <div class="wireframe-slot wireframe-slot--bullets" data-slot="bullets"></div>
-              <div class="wireframe-slot wireframe-slot--tagline" data-slot="tagline"></div>
-            </div>
-          </div>
-          <p id="wireframe-warning" class="hint"></p>
-          <p id="stage1-fallback-warning" class="hint hidden"></p>
-
           <div id="preview-container" class="preview">
             <div class="poster-preview">
               <div class="poster-header">
@@ -249,48 +241,6 @@
               <div id="preview-title" class="poster-title">Title</div>
               <div id="preview-gallery" class="poster-gallery"></div>
               <div id="preview-subtitle" class="poster-subtitle">Tagline</div>
-            </div>
-          </div>
-
-          <div class="material-preview-assets" id="material-preview-assets">
-            <div class="preview-row">
-              <div class="preview-thumb" data-asset-slot="scenario">
-                <img alt="Scenario preview" />
-                <span class="slot-placeholder">Using default scenario</span>
-                <span class="slot-label">Scenario</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="product1">
-                <img alt="Product image 1 preview" />
-                <span class="slot-placeholder">Missing</span>
-                <span class="slot-label">Product 1</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="product2">
-                <img alt="Product image 2 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Product 2</span>
-              </div>
-            </div>
-            <div class="preview-row preview-bottom">
-              <div class="preview-thumb" data-asset-slot="bottom-0">
-                <img alt="Bottom slot 1 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 1</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="bottom-1">
-                <img alt="Bottom slot 2 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 2</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="bottom-2">
-                <img alt="Bottom slot 3 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 3</span>
-              </div>
-              <div class="preview-thumb" data-asset-slot="bottom-3">
-                <img alt="Bottom slot 4 preview" />
-                <span class="slot-placeholder">Empty</span>
-                <span class="slot-label">Slot 4</span>
-              </div>
             </div>
           </div>
         </section>
