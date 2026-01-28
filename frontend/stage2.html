@@ -182,18 +182,6 @@
           </details>
         </section>
 
-        <section class="card wireframe-card">
-          <h3>Wireframe Preview</h3>
-          <div id="stage2-wireframe" class="wireframe-preview" data-template="template_dual">
-            <div class="wireframe-canvas">
-              <div class="wireframe-slot wireframe-slot--title" data-slot="title"></div>
-              <div class="wireframe-slot wireframe-slot--bullets" data-slot="bullets"></div>
-              <div class="wireframe-slot wireframe-slot--tagline" data-slot="tagline"></div>
-            </div>
-          </div>
-          <p id="stage2-wireframe-warning" class="hint"></p>
-        </section>
-
         <section id="stage2-poster-preview-section" class="card stage-card">
           <h3>Layout Preview</h3>
           <div id="poster-result" class="poster-preview poster-preview--result">
@@ -257,7 +245,10 @@
           </div>
         </section>
 
-        <section class="gen-meta-panel">
+        <details class="advanced-panels">
+          <summary>Advanced (Metadata / Debug)</summary>
+          <p class="hint">For operators only. Normally you do not need these panels.</p>
+          <section class="gen-meta-panel">
           <h3>Generation Metadata</h3>
           <dl class="gen-meta-list">
             <div><dt>recipe_id</dt><dd id="gen-meta-recipe">N/A</dd></div>
@@ -266,7 +257,8 @@
             <div><dt>fallback_reason</dt><dd id="gen-meta-fallback-reason">N/A</dd></div>
             <div><dt>gate_summary</dt><dd id="gen-meta-gate">N/A</dd></div>
           </dl>
-        </section>
+          </section>
+        </details>
 
         <section class="gen-meta-panel">
           <h3>Draft Snapshot</h3>
