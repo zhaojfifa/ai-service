@@ -1,11 +1,9 @@
 ﻿<!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <base href="./">
-    <meta charset="utf-8" />
+  <head>    <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>鐜妭 1 路 绱犳潗杈撳叆涓庣増寮忛瑙?/title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="/ai-service/styles.css?v=4" />
   </head>
   <body data-stage="stage1">
     <header>
@@ -45,12 +43,12 @@
             <div class="template-select-grid">
               <label class="field">
                 <span>閫夋嫨閿佺増妯℃澘</span>
-                <select id="template-select-stage1" name="template_id" required></select>
+                <select id="template-select" name="template_id" required></select>
               </label>
               <div class="template-meta">
-                <p id="template-description-stage1" class="template-description"></p>
+                <p id="template-description" class="template-description"></p>
                 <canvas
-                  id="template-preview-stage1"
+                  id="template-preview"
                   width="360"
                   height="360"
                   aria-label="妯℃澘棰勮"
@@ -254,6 +252,8 @@
                 </div>
               </div>
             </div>
+        </fieldset>
+        </form>
         <p id="stage1-status" role="status" aria-live="polite"></p>
 
         <div class="preview" id="preview-container">
@@ -299,7 +299,7 @@
       <small>鍓嶇鎵樼浜?GitHub Pages锛屽悗绔敱 Render 鎻愪緵鏈嶅姟銆?/small>
     </footer>
     <!-- styles.css 涔嬪悗锛宎pp.js 涔嬪墠 -->
-    <script defer src="./placeholder.js?v=4"></script>
-    <script defer src="./app.js?v=2"></script>
+    <script defer src="/ai-service/placeholder.js?v=4"></script>
+    <script defer src="/ai-service/app.js?v=4"></script>
   </body>
 </html>
