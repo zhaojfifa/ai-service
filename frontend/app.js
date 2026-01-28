@@ -1,4 +1,4 @@
-
+﻿
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
@@ -12,7 +12,7 @@ const VERTEX_IMAGE_TAG_CLASSNAMES = {
 };
 let apiBaseInput;
 
-// 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
+// 缁熶竴浠庡悗绔浘鐗囧璞￠噷鎷?src锛屽吋瀹?vertex/url 鍜屾棫鐨?asset/dataUrl
 function pickImageSrc(img) {
   if (!img) return null;
   if (typeof img === 'string') return img;
@@ -78,18 +78,18 @@ let lastStage1Data = null;
 let lastPosterResult = null;
 let posterLayoutRoot = null;
 
-// --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
+// --- Stage2: 缂撳瓨鏈€杩戜竴娆＄敓鎴愮粨鏋滐紝缁?A/B 瀵规瘮銆侀噸鏀句娇鐢?---
 const posterGenerationState = {
-  /** 本次生成用到的 prompt 结构，用于展示 / 调试 */
+  /** 鏈鐢熸垚鐢ㄥ埌鐨?prompt 缁撴瀯锛岀敤浜庡睍绀?/ 璋冭瘯 */
   promptBundle: null,
-  /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
+  /** Vertex / Glibatree 杩斿洖鐨勫師濮嬪搷搴旓紝蹇呰鏃跺彲鍋氭洿澶氳皟璇?*/
   rawResult: null,
 };
-// 兼容旧版调用：确保引用不存在的全局变量时不会抛出 ReferenceError
+// 鍏煎鏃х増璋冪敤锛氱‘淇濆紩鐢ㄤ笉瀛樺湪鐨勫叏灞€鍙橀噺鏃朵笉浼氭姏鍑?ReferenceError
 let posterGeneratedImage = null;
 let posterGeneratedLayout = null;
 
-// stage2：缓存最近一次生成结果与提示词，便于预览与回放
+// stage2锛氱紦瀛樻渶杩戜竴娆＄敓鎴愮粨鏋滀笌鎻愮ず璇嶏紝渚夸簬棰勮涓庡洖鏀?
 let lastPromptBundle = null;
 
 const stage2State = {
@@ -185,8 +185,6 @@ function setImageSrcIfNonEmpty(imgEl, nextUrl) {
     if (imgEl.style.display === 'none') {
       imgEl.style.display = '';
     }
-  }
-}
 
 function setStage2ButtonsDisabled(disabled) {
   const generateButton = document.getElementById('generate-poster');
@@ -230,7 +228,6 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
     stage2GenerateInFlight = false;
     setStage2GenerateUiBusy(false);
   }
-}
 
 function bindStage2GenerateButtonsOnce() {
   const btnGen = document.getElementById('generate-poster');
@@ -269,8 +266,7 @@ function rehydrateStage2PosterFromStage1() {
       ? snapshot.gallery_entries.filter(Boolean)
       : [];
   }
-}
-// 双列功能模板的归一化布局（随容器等比缩放）
+// 鍙屽垪鍔熻兘妯℃澘鐨勫綊涓€鍖栧竷灞€锛堥殢瀹瑰櫒绛夋瘮缂╂斁锛?
 const TEMPLATE_DUAL_LAYOUT = {
   canvas: { width: 1024, height: 1024 },
   slots: {
@@ -293,10 +289,10 @@ const TEMPLATE_DUAL_LAYOUT = {
     tagline: { x: 0.10, y: 0.96, w: 0.80, h: 0.03, type: 'text', align: 'center' },
   },
 };
-// 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
-// 生成成功后 A/B 对比按钮才可使用。
+// 蹇€熻嚜娴嬶細鍦?stage2 椤甸潰鐐瑰嚮鈥滅敓鎴愭捣鎶ヤ笌鏂囨鈥濆簲瀹屾垚璇锋眰涓旀棤 posterGenerationState 鏈畾涔夋姤閿欙紝
+// 鐢熸垚鎴愬姛鍚?A/B 瀵规瘮鎸夐挳鎵嶅彲浣跨敤銆?
 
-// 1) 新增：按域名决定健康检查路径
+// 1) 鏂板锛氭寜鍩熷悕鍐冲畾鍋ュ悍妫€鏌ヨ矾寰?
 function isRenderHost(base) {
   try {
     const u = new URL(base, location.href);
@@ -304,17 +300,16 @@ function isRenderHost(base) {
   } catch {
     return false;
   }
-}
 
 function healthPathsFor(base) {
-  // Render 后端只有 /health，且通常无 CORS
+  // Render 鍚庣鍙湁 /health锛屼笖閫氬父鏃?CORS
   if (isRenderHost(base)) return ['/health'];
-  // Worker（或网关）提供 /api/health（带 CORS）
+  // Worker锛堟垨缃戝叧锛夋彁渚?/api/health锛堝甫 CORS锛?
   return ['/api/health', '/health'];
 }
-// ===== 共享：模板资源助手（全局唯一出口） =====
+// ===== 鍏变韩锛氭ā鏉胯祫婧愬姪鎵嬶紙鍏ㄥ眬鍞竴鍑哄彛锛?=====
 
-/** 从 templates/registry.json 读取模板清单（带缓存） */
+/** 浠?templates/registry.json 璇诲彇妯℃澘娓呭崟锛堝甫缂撳瓨锛?*/
 App.utils.loadTemplateRegistry = (() => {
   let _registryP;
   return async function loadTemplateRegistry() {
@@ -339,11 +334,11 @@ App.utils.loadTemplateRegistry = (() => {
   };
 })();
 
-/** 按模板 id 返回 { entry, spec, image }（带缓存） */
+/** 鎸夋ā鏉?id 杩斿洖 { entry, spec, image }锛堝甫缂撳瓨锛?*/
 // Load .b64 preview files and convert them to data URLs for Image().
 async function loadB64AsDataUrl(url, mime = 'image/png') {
   const r = await fetch(url);
-  if (!r.ok) throw new Error('无法加载模板预览图资源');
+  if (!r.ok) throw new Error('鏃犳硶鍔犺浇妯℃澘棰勮鍥捐祫婧?);
   const b64 = (await r.text()).trim();
   if (b64.startsWith('data:')) return b64;
   return `data:${mime};base64,${b64}`;
@@ -357,7 +352,7 @@ App.utils.loadImageAny = async (url, mime = 'image/png') => {
     : url;
   await new Promise((resolve, reject) => {
     img.onload = resolve;
-    img.onerror = () => reject(new Error('模板预览图加载失败'));
+    img.onerror = () => reject(new Error('妯℃澘棰勮鍥惧姞杞藉け璐?));
     img.src = resolvedUrl;
   });
   return img;
@@ -369,12 +364,12 @@ App.utils.ensureTemplateAssets = (() => {
 
     const registry = await App.utils.loadTemplateRegistry();
     const entry = registry.find(i => i.id === templateId) || registry[0];
-    if (!entry) throw new Error('模板列表为空');
+    if (!entry) throw new Error('妯℃澘鍒楄〃涓虹┖');
 
     const specUrl = staticUrl(`templates/${entry.spec}`);
     const imgUrl  = staticUrl(`templates/${entry.preview}`);
 
-    const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
+    const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('鏃犳硶鍔犺浇妯℃澘瑙勮寖'); return r.json(); });
     const imgP  = App.utils.loadImageAny(imgUrl, 'image/png');
 
     const payload = { entry, spec: await specP, image: await imgP };
@@ -389,10 +384,10 @@ const HEALTH_CACHE = new Map();
 let documentAssetBase = null;
 
 //
-// 组装 prompts —— 每个槽都是对象
+// 缁勮 prompts 鈥斺€?姣忎釜妲介兘鏄璞?
 function buildPromptSlot(prefix) {
   return {
-    preset:  getValue(`#${prefix}-preset`),     // 你的原有取值方法
+    preset:  getValue(`#${prefix}-preset`),     // 浣犵殑鍘熸湁鍙栧€兼柟娉?
     positive:getValue(`#${prefix}-positive`),
     negative:getValue(`#${prefix}-negative`),
     aspect:  getValue(`#${prefix}-aspect`)
@@ -413,20 +408,19 @@ function buildGeneratePayload() {
   };
 }
 
-// 串行触发，避免免费实例并发卡死
+// 涓茶瑙﹀彂锛岄伩鍏嶅厤璐瑰疄渚嬪苟鍙戝崱姝?
 async function runGeneration() {
   setBusy(true);
   try {
     const payloadA = buildGeneratePayload();
-    await triggerGeneration(payloadA);   // 先等第一个完成
+    await triggerGeneration(payloadA);   // 鍏堢瓑绗竴涓畬鎴?
     if (state.abMode) {
-      const payloadB = buildGeneratePayload(); // 若有B，第二次再发
+      const payloadB = buildGeneratePayload(); // 鑻ユ湁B锛岀浜屾鍐嶅彂
       await triggerGeneration(payloadB);
     }
   } finally {
     setBusy(false);
   }
-}
 
 function resolveDocumentAssetBase() {
   if (documentAssetBase) return documentAssetBase;
@@ -494,8 +488,7 @@ function normaliseBase(base) {
     console.warn('[normaliseBase] invalid base', base, error);
     return null;
   }
-}
-// 把 stage1Data 中的素材“二选一”规范化为 key 或小 dataURL
+// 鎶?stage1Data 涓殑绱犳潗鈥滀簩閫変竴鈥濊鑼冨寲涓?key 鎴栧皬 dataURL
 function normalizePosterAssets(stage1Data) {
   const pickImage = (asset) => {
     if (!asset) return { asset: null, key: null };
@@ -535,13 +528,12 @@ function joinBasePath(base, path) {
 
 function ensureArray(value) {
   if (Array.isArray(value)) return value.filter(Boolean);
-  if (typeof value === 'string' && value.trim()) return [value.trim()];
   return [];
 }
 
 
 
-// 读取候选 API 基址（修复：避免 STORAGE_KEYS 的 TDZ）
+// 璇诲彇鍊欓€?API 鍩哄潃锛堜慨澶嶏細閬垮厤 STORAGE_KEYS 鐨?TDZ锛?
 function getApiCandidates(extra) {
   const candidates = new Set();
   const add = (v) => {
@@ -554,7 +546,7 @@ function getApiCandidates(extra) {
   const inputValue = document.getElementById('api-base')?.value;
   add(inputValue);
 
-  // 避免对未初始化的 STORAGE_KEYS 访问；直接用字面量 key
+  // 閬垮厤瀵规湭鍒濆鍖栫殑 STORAGE_KEYS 璁块棶锛涚洿鎺ョ敤瀛楅潰閲?key
   add(localStorage.getItem('marketing-poster-api-base'));
 
   const ds = document.body?.dataset ?? {};
@@ -581,7 +573,7 @@ async function probeBase(base, { force } = {}) {
     return cached.ok;
   }
 
-  const paths = healthPathsFor(base);           // ← 关键：按域名取路径
+  const paths = healthPathsFor(base);           // 鈫?鍏抽敭锛氭寜鍩熷悕鍙栬矾寰?
   for (const path of paths) {
     const url = joinBasePath(base, path);
     if (!url) continue;
@@ -599,7 +591,6 @@ async function probeBase(base, { force } = {}) {
     } catch (error) {
       console.warn('[probeBase] failed', base, path, error);
     }
-  }
 
   HEALTH_CACHE.set(base, { ok: false, timestamp: Date.now() });
   return false;
@@ -619,7 +610,7 @@ async function warmUp(baseOrBases, { force } = {}) {
 
   const task = Promise.allSettled(targets.map((base) => probeBase(base, { force })));
   warmUpLocks.set(lockKey, task);
-  // 任务结束后释放锁
+  // 浠诲姟缁撴潫鍚庨噴鏀鹃攣
   task.finally(() => warmUpLocks.delete(lockKey));
   return task;
 }
@@ -637,7 +628,6 @@ async function pickHealthyBase(baseOrBases) {
     if (cached && cached.ok && now - cached.timestamp < HEALTH_CACHE_TTL) {
       return base;
     }
-  }
 
   const results = await warmUp(bases, { force: true });
   for (let i = 0; i < bases.length; i += 1) {
@@ -645,21 +635,19 @@ async function pickHealthyBase(baseOrBases) {
     if (outcome && outcome.status === 'fulfilled' && outcome.value) {
       return bases[i];
     }
-  }
   return null;
 }
 
 App.utils.pickHealthyBase = pickHealthyBase;
 
-// 请求体大小校验（发送前统一做）
-// 校验字符串体积并阻断超大 dataURL
+// 璇锋眰浣撳ぇ灏忔牎楠岋紙鍙戦€佸墠缁熶竴鍋氾級
+// 鏍￠獙瀛楃涓蹭綋绉苟闃绘柇瓒呭ぇ dataURL
 function validatePayloadSize(raw) {
   const hasBase64 = /data:[^;]+;base64,/i.test(raw);
-  // 300KB 是你当前防御阈值，可按需调整
+  // 300KB 鏄綘褰撳墠闃插尽闃堝€硷紝鍙寜闇€璋冩暣
   if (hasBase64 || raw.length > 300_000) {
-    throw new Error('请求体过大或包含 base64 图片，请先上传素材到 R2，仅传输 key/url。');
+    throw new Error('璇锋眰浣撹繃澶ф垨鍖呭惈 base64 鍥剧墖锛岃鍏堜笂浼犵礌鏉愬埌 R2锛屼粎浼犺緭 key/url銆?);
   }
-}
 
 const DATA_URL_PAYLOAD_RX = /^data:image\/[a-z0-9.+-]+;base64,/i;
 const HTTP_URL_RX = /^https?:\/\//i;
@@ -697,9 +685,8 @@ function toAssetUrl(input) {
 
 function assertAssetUrl(fieldLabel, value) {
   if (!value || !isUrlLike(value)) {
-    throw new Error(`${fieldLabel} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+    throw new Error(`${fieldLabel} 蹇呴』鏄?r2://銆乻3://銆乬s:// 鎴?http(s) 鐨?URL锛岃鍏堜笂浼犲埌 R2锛屼粎浼?Key/URL`);
   }
-}
 
 function guessExtensionFromMime(mime) {
   if (!mime) return 'png';
@@ -714,7 +701,7 @@ function guessExtensionFromMime(mime) {
 async function dataUrlToFile(dataUrl, nameHint = 'asset') {
   const response = await fetch(dataUrl);
   if (!response.ok) {
-    throw new Error('无法解析内联图片，请重新上传素材。');
+    throw new Error('鏃犳硶瑙ｆ瀽鍐呰仈鍥剧墖锛岃閲嶆柊涓婁紶绱犳潗銆?);
   }
   const blob = await response.blob();
   const mime = blob.type || inferImageMediaType(dataUrl) || 'image/png';
@@ -735,12 +722,9 @@ function estimatePayloadBytes(data) {
     console.warn('[client] unable to estimate payload size', error);
     return -1;
   }
-}
 
 function payloadContainsDataUrl(value) {
-  if (typeof value === 'string') return DATA_URL_PAYLOAD_RX.test(value);
   if (Array.isArray(value)) return value.some(payloadContainsDataUrl);
-  if (value && typeof value === 'object') {
     return Object.values(value).some(payloadContainsDataUrl);
   }
   return false;
@@ -768,7 +752,7 @@ async function normaliseAssetReference(
 
   const ensureUploaderAvailable = () => {
     if (!candidates.length) {
-      throw new Error(`${field} 检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url`);
+      throw new Error(`${field} 妫€娴嬪埌 base64 鍥剧墖锛岃鍏堜笂浼犲埌 R2/GCS锛屼粎浼?key/url`);
     }
   };
 
@@ -795,11 +779,11 @@ async function normaliseAssetReference(
     const { file } = await dataUrlToFile(dataUrl, safeHint);
     const result = await uploadFileToR2(folder, file, { bases: candidates });
     if (!result.uploaded || (!result.url && !result.key)) {
-      throw new Error(`${field} 上传失败，请稍后重试。`);
+      throw new Error(`${field} 涓婁紶澶辫触锛岃绋嶅悗閲嶈瘯銆俙);
     }
     const finalUrl = result.url || toAssetUrl(result.key);
     if (!finalUrl || !isUrlLike(finalUrl)) {
-      throw new Error(`${field} 上传失败，无法解析生成的 URL。`);
+      throw new Error(`${field} 涓婁紶澶辫触锛屾棤娉曡В鏋愮敓鎴愮殑 URL銆俙);
     }
     return {
       key: result.key ? result.key.replace(/^\/+/, '') : null,
@@ -812,14 +796,14 @@ async function normaliseAssetReference(
     const logoKey = brandLogo?.key || brandLogo?.r2Key || null;
     const logoUrl = brandLogo?.url || brandLogo?.remoteUrl || brandLogo?.cdnUrl || null;
     if (!logoKey && !logoUrl) {
-      throw new Error(`${field} 使用 logo 兜底失败: 品牌 Logo 缺少 URL/Key`);
+      throw new Error(`${field} 浣跨敤 logo 鍏滃簳澶辫触: 鍝佺墝 Logo 缂哄皯 URL/Key`);
     }
     asset = { ...asset, key: logoKey || asset.key || null, url: logoUrl || asset.url || null, mode: 'upload' };
   }
 
   if (!asset) {
     if (mustHaveUpload) {
-      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+      throw new Error(`${field} 缂哄皯宸蹭笂浼犵殑 URL/Key锛岃鍏堝畬鎴愮礌鏉愪笂浼犮€俙);
     }
     return { key: null, url: null };
   }
@@ -828,7 +812,7 @@ async function normaliseAssetReference(
     const trimmed = asset.trim();
     if (!trimmed) {
       if (mustHaveUpload) {
-        throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+        throw new Error(`${field} 缂哄皯宸蹭笂浼犵殑 URL/Key锛岃鍏堝畬鎴愮礌鏉愪笂浼犮€俙);
       }
       return { key: null, url: null };
     }
@@ -837,13 +821,11 @@ async function normaliseAssetReference(
       if (uploaded) {
         return uploaded;
       }
-    }
     const resolved = toAssetUrl(trimmed);
     if (!isUrlLike(resolved)) {
       if (mustHaveUpload) {
-        throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+        throw new Error(`${field} 蹇呴』鏄?r2://銆乻3://銆乬s:// 鎴?http(s) 鐨?URL锛岃鍏堜笂浼犲埌 R2锛屼粎浼?Key/URL`);
       }
-    }
     return { key: HTTP_URL_RX.test(trimmed) ? null : trimmed.replace(/^\/+/, ''), url: isUrlLike(resolved) ? resolved : null };
   }
 
@@ -867,7 +849,6 @@ async function normaliseAssetReference(
     if (!HTTP_URL_RX.test(trimmed) && !keyCandidate) {
       keyCandidate = normaliseKey(trimmed) || keyCandidate;
     }
-  }
 
   if (!resolvedUrl && inlineCandidate) {
     const uploaded = await uploadInlineAsset(inlineCandidate);
@@ -879,27 +860,25 @@ async function normaliseAssetReference(
         asset.remoteUrl = uploaded.url;
         asset.dataUrl = uploaded.url;
       }
-      console.info(`[normaliseAssetReference] 已将 ${field} 的 base64 预览上传至 R2/GCS。`);
+      console.info(`[normaliseAssetReference] 宸插皢 ${field} 鐨?base64 棰勮涓婁紶鑷?R2/GCS銆俙);
     }
-  }
 
   if (!resolvedUrl && keyCandidate) {
     const derivedUrl = toAssetUrl(keyCandidate);
     if (isUrlLike(derivedUrl)) {
       resolvedUrl = derivedUrl;
     }
-  }
 
   if (!resolvedUrl) {
     if (mustHaveUpload) {
-      throw new Error(`${field} 缺少已上传的 URL/Key，请先完成素材上传。`);
+      throw new Error(`${field} 缂哄皯宸蹭笂浼犵殑 URL/Key锛岃鍏堝畬鎴愮礌鏉愪笂浼犮€俙);
     }
     return { key: keyCandidate || null, url: null };
   }
 
   if (!isUrlLike(resolvedUrl)) {
     if (mustHaveUpload) {
-      throw new Error(`${field} 必须是 r2://、s3://、gs:// 或 http(s) 的 URL，请先上传到 R2，仅传 Key/URL`);
+      throw new Error(`${field} 蹇呴』鏄?r2://銆乻3://銆乬s:// 鎴?http(s) 鐨?URL锛岃鍏堜笂浼犲埌 R2锛屼粎浼?Key/URL`);
     }
     return { key: keyCandidate || null, url: null };
   }
@@ -936,12 +915,11 @@ function ensureUploadedAndLog(path, payload, rawPayload) {
     } catch (error) {
       console.warn('[client] stringify payload failed', error);
     }
-  }
 
   const size = estimatePayloadBytes(bodyString ?? payload);
   const hasBase64 = payloadContainsDataUrl(bodyString ?? payload);
   const preview = typeof bodyString === 'string'
-    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}…(+${bodyString.length - 512} chars)` : bodyString)
+    ? (bodyString.length > 512 ? `${bodyString.slice(0, 512)}鈥?+${bodyString.length - 512} chars)` : bodyString)
     : null;
 
   console.log(`[client] pre-check ${path}`, {
@@ -952,10 +930,10 @@ function ensureUploadedAndLog(path, payload, rawPayload) {
   });
 
   if (hasBase64) {
-    throw new Error('检测到 base64 图片，请先上传到 R2/GCS，仅传 key/url');
+    throw new Error('妫€娴嬪埌 base64 鍥剧墖锛岃鍏堜笂浼犲埌 R2/GCS锛屼粎浼?key/url');
   }
   if (MAX > 0 && size > MAX) {
-    throw new Error(`请求体过大(${size}B)，请仅传 key/url`);
+    throw new Error(`璇锋眰浣撹繃澶?${size}B)锛岃浠呬紶 key/url`);
   }
 
   return {
@@ -965,19 +943,19 @@ function ensureUploadedAndLog(path, payload, rawPayload) {
   };
 }
 
-// 完整替换 app.js 里的 postJsonWithRetry
-// 发送请求：始终 JSON/UTF-8，支持多基址与重试
-// 发送请求：始终 JSON/UTF-8，支持多基址与重试
+// 瀹屾暣鏇挎崲 app.js 閲岀殑 postJsonWithRetry
+// 鍙戦€佽姹傦細濮嬬粓 JSON/UTF-8锛屾敮鎸佸鍩哄潃涓庨噸璇?
+// 鍙戦€佽姹傦細濮嬬粓 JSON/UTF-8锛屾敮鎸佸鍩哄潃涓庨噸璇?
 async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
-  // 1) 规范化候选基址
+  // 1) 瑙勮寖鍖栧€欓€夊熀鍧€
   const bases = (window.resolveApiBases?.(apiBaseOrBases))
     ?? (Array.isArray(apiBaseOrBases) ? apiBaseOrBases
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
-  if (!bases.length) throw new Error('未配置后端 API 地址');
+  if (!bases.length) throw new Error('鏈厤缃悗绔?API 鍦板潃');
 
   const inspection = ensureUploadedAndLog(path, payload, rawPayload);
 
-  // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
+  // 2) 缁勫寘锛堝閮ㄥ凡缁欏瓧绗︿覆灏变笉鍐嶄簩娆?JSON.stringify锛?
   const bodyRaw = (typeof rawPayload === 'string')
     ? rawPayload
     : inspection.bodyString ?? JSON.stringify(payload);
@@ -986,15 +964,15 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   const previewSnippet = (() => {
     if (typeof bodyRaw !== 'string') return '';
     const limit = 512;
-    return bodyRaw.length <= limit ? bodyRaw : `${bodyRaw.slice(0, limit)}…(+${bodyRaw.length - limit} chars)`;
+    return bodyRaw.length <= limit ? bodyRaw : `${bodyRaw.slice(0, limit)}鈥?+${bodyRaw.length - limit} chars)`;
   })();
 
-  // 3) 粗略体积 & dataURL 防御
+  // 3) 绮楃暐浣撶Н & dataURL 闃插尽
   if (typeof bodyRaw === 'string' && (/data:[^;]+;base64,/.test(bodyRaw) || bodyRaw.length > 300000)) {
-    throw new Error('请求体过大或包含 base64 图片，请确保素材已直传并仅传 key/url。');
+    throw new Error('璇锋眰浣撹繃澶ф垨鍖呭惈 base64 鍥剧墖锛岃纭繚绱犳潗宸茬洿浼犲苟浠呬紶 key/url銆?);
   }
 
-  // 4) 选择健康基址
+  // 4) 閫夋嫨鍋ュ悍鍩哄潃
   let base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
   const urlFor = (b) => `${String(b).replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
   let lastErr = null;
@@ -1004,8 +982,8 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
 
     for (const b of order) {
       const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
-      const url = urlFor(b);                               // ← 定义 url
+      const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 瓒呮椂
+      const url = urlFor(b);                               // 鈫?瀹氫箟 url
       try {
         const headers = {
           'Content-Type': 'application/json; charset=UTF-8',
@@ -1031,7 +1009,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
 
         const text = await res.text();
         let json = null;
-        try { json = text ? JSON.parse(text) : null; } catch { /* 非 JSON */ }
+        try { json = text ? JSON.parse(text) : null; } catch { /* 闈?JSON */ }
 
         if (!res.ok) {
           const detail = (json && (json.detail || json.message)) || text || `HTTP ${res.status}`;
@@ -1045,7 +1023,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         }
 
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
-        return json ?? {}; // 保持旧版语义：返回 JSON 对象
+        return json ?? {}; // 淇濇寔鏃х増璇箟锛氳繑鍥?JSON 瀵硅薄
       } catch (e) {
         console.warn(`${logPrefix} failed`, {
           attempt: attempt + 1,
@@ -1056,19 +1034,18 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         });
         lastErr = e;
         if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
-        base = null; // 该轮失败，下一轮重新挑
+        base = null; // 璇ヨ疆澶辫触锛屼笅涓€杞噸鏂版寫
       } finally {
         clearTimeout(timer);
       }
-    }
 
-    // 整轮失败后：热身 + 等待 + 重选
+    // 鏁磋疆澶辫触鍚庯細鐑韩 + 绛夊緟 + 閲嶉€?
     try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
     await new Promise(r => setTimeout(r, 800));
     base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
   }
 
-  throw lastErr || new Error('请求失败');
+  throw lastErr || new Error('璇锋眰澶辫触');
 }
 
 App.utils.postJsonWithRetry = postJsonWithRetry;
@@ -1081,21 +1058,21 @@ const STORAGE_KEYS = {
 };
 
 const DEFAULT_STAGE1 = {
-  brand_name: '厨匠ChefCraft',
-  agent_name: '星辉渠道服务中心',
-  scenario_image: '现代开放式厨房中智能蒸烤一体机的沉浸式体验',
-  product_name: 'ChefCraft 智能蒸烤大师',
+  brand_name: '鍘ㄥ尃ChefCraft',
+  agent_name: '鏄熻緣娓犻亾鏈嶅姟涓績',
+  scenario_image: '鐜颁唬寮€鏀惧紡鍘ㄦ埧涓櫤鑳借捀鐑や竴浣撴満鐨勬矇娴稿紡浣撻獙',
+  product_name: 'ChefCraft 鏅鸿兘钂哥儰澶у笀',
   template_id: 'template_dual',
   scenario_mode: 'upload',
   product_mode: 'upload',
   features: [
-    '一键蒸烤联动，精准锁鲜',
-    '360° 智能热风循环，均匀受热',
-    '高温自清洁腔体，省心维护',
-    'Wi-Fi 远程操控，云端菜谱推送',
+    '涓€閿捀鐑よ仈鍔紝绮惧噯閿侀矞',
+    '360掳 鏅鸿兘鐑寰幆锛屽潎鍖€鍙楃儹',
+    '楂樻俯鑷竻娲佽厰浣擄紝鐪佸績缁存姢',
+    'Wi-Fi 杩滅▼鎿嶆帶锛屼簯绔彍璋辨帹閫?,
   ],
-  title: '焕新厨房效率，打造大厨级美味',
-  subtitle: '智能蒸烤 · 家宴轻松掌控',
+  title: '鐒曟柊鍘ㄦ埧鏁堢巼锛屾墦閫犲ぇ鍘ㄧ骇缇庡懗',
+  subtitle: '鏅鸿兘钂哥儰 路 瀹跺杞绘澗鎺屾帶',
 };
 
 const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
@@ -1110,18 +1087,18 @@ const DEFAULT_PROMPT_VARIANTS = 1;
 const DEFAULT_EMAIL_RECIPIENT = 'client@example.com';
 
 const placeholderImages = {
-  brandLogo: createPlaceholder('品牌\\nLogo'),
-  scenario: createPlaceholder('应用场景'),
-  product: createPlaceholder('产品渲染'),
+  brandLogo: createPlaceholder('鍝佺墝\\nLogo'),
+  scenario: createPlaceholder('搴旂敤鍦烘櫙'),
+  product: createPlaceholder('浜у搧娓叉煋'),
 };
 
 const galleryPlaceholderCache = new Map();
 
 const MATERIAL_DEFAULT_LABELS = {
-  brand_logo: '品牌 Logo',
-  scenario: '应用场景图',
-  product: '主产品渲染图',
-  gallery: '底部产品小图',
+  brand_logo: '鍝佺墝 Logo',
+  scenario: '搴旂敤鍦烘櫙鍥?,
+  product: '涓讳骇鍝佹覆鏌撳浘',
+  gallery: '搴曢儴浜у搧灏忓浘',
 };
 
 const assetStore = createAssetStore();
@@ -1188,16 +1165,16 @@ function isSamePosterImage(a, b) {
   return Boolean(keyA && keyB && keyA === keyB);
 }
 
-// 预签名上传：向后端申请 R2 PUT 地址，并可直接完成上传
-// 返回 { key, put_url, get_url, r2_url, public_url, etag, content_type, size }
+// 棰勭鍚嶄笂浼狅細鍚戝悗绔敵璇?R2 PUT 鍦板潃锛屽苟鍙洿鎺ュ畬鎴愪笂浼?
+// 杩斿洖 { key, put_url, get_url, r2_url, public_url, etag, content_type, size }
 async function r2PresignPut(folder, file, bases, options = {}) {
-  if (!file) throw new Error('没有可上传的文件');
+  if (!file) throw new Error('娌℃湁鍙笂浼犵殑鏂囦欢');
 
   const retry = options.retry ?? 1;
-  const contentType = file.type || 'image/png'; // 图片默认 image/png 更稳
+  const contentType = file.type || 'image/png'; // 鍥剧墖榛樿 image/png 鏇寸ǔ
   const size = (typeof file.size === 'number') ? file.size : null;
 
-  // 1) 申请预签名
+  // 1) 鐢宠棰勭鍚?
   const payload = {
     folder: folder || 'uploads',
     filename: file.name || 'upload.bin',
@@ -1207,7 +1184,7 @@ async function r2PresignPut(folder, file, bases, options = {}) {
   const resp = await postJsonWithRetry(bases, '/api/r2/presign-put', payload, retry);
   const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
 
-  if (!data || typeof data !== 'object') throw new Error('预签名接口返回异常');
+  if (!data || typeof data !== 'object') throw new Error('棰勭鍚嶆帴鍙ｈ繑鍥炲紓甯?);
   const {
     key,
     put_url: putUrl,
@@ -1215,20 +1192,20 @@ async function r2PresignPut(folder, file, bases, options = {}) {
     r2_url: r2Url,
     public_url: legacyPublicUrl,
   } = data;
-  if (!key || !putUrl) throw new Error('预签名接口缺少 key 或 put_url');
+  if (!key || !putUrl) throw new Error('棰勭鍚嶆帴鍙ｇ己灏?key 鎴?put_url');
   const normalizedR2 = r2Url || null;
   const readableUrl = getUrl || legacyPublicUrl || null;
 
-  // 2) 直接上传到 R2（options.upload === false 可只要签名不上传）
+  // 2) 鐩存帴涓婁紶鍒?R2锛坥ptions.upload === false 鍙彧瑕佺鍚嶄笉涓婁紶锛?
   if (options.upload !== false) {
     const putRes = await fetch(putUrl, {
       method: 'PUT',
-      headers: { 'Content-Type': contentType }, // 关键：写入正确 Content-Type
+      headers: { 'Content-Type': contentType }, // 鍏抽敭锛氬啓鍏ユ纭?Content-Type
       body: file,
     });
     if (!putRes.ok) {
       const txt = await putRes.text().catch(() => '');
-      throw new Error(`R2 上传失败：HTTP ${putRes.status} ${putRes.statusText} ${txt || ''}`.trim());
+      throw new Error(`R2 涓婁紶澶辫触锛欻TTP ${putRes.status} ${putRes.statusText} ${txt || ''}`.trim());
     }
     const etag = putRes.headers.get('etag') || null;
     return {
@@ -1243,7 +1220,7 @@ async function r2PresignPut(folder, file, bases, options = {}) {
     };
   }
 
-  // 仅返回签名信息
+  // 浠呰繑鍥炵鍚嶄俊鎭?
   return {
     key,
     put_url: putUrl,
@@ -1275,9 +1252,8 @@ async function uploadFileToR2(folder, file, options = {}) {
       });
       if (!putResponse.ok) {
         const detail = await putResponse.text();
-        throw new Error(detail || '上传到 R2 失败，请稍后重试。');
+        throw new Error(detail || '涓婁紶鍒?R2 澶辫触锛岃绋嶅悗閲嶈瘯銆?);
       }
-    }
     const selectHttpUrl = (value) => {
       if (typeof value !== 'string') return null;
       const trimmed = value.trim();
@@ -1295,12 +1271,12 @@ async function uploadFileToR2(folder, file, options = {}) {
       presign,
     };
   } catch (error) {
-    console.error('[uploadFileToR2] 直传失败', error);
+    console.error('[uploadFileToR2] 鐩翠紶澶辫触', error);
     if (error instanceof TypeError) {
       const origin = (typeof window !== 'undefined' && window.location)
         ? window.location.origin
-        : '当前站点';
-      const message = `R2 上传失败：请确认对象存储的 CORS 规则已允许 ${origin} 执行 PUT 请求。`;
+        : '褰撳墠绔欑偣';
+      const message = `R2 涓婁紶澶辫触锛氳纭瀵硅薄瀛樺偍鐨?CORS 瑙勫垯宸插厑璁?${origin} 鎵ц PUT 璇锋眰銆俙;
       const corsError = new Error(message);
       corsError.code = 'R2_CORS_BLOCKED';
       throw corsError;
@@ -1308,9 +1284,8 @@ async function uploadFileToR2(folder, file, options = {}) {
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error('上传到 R2 失败，请稍后重试。');
+    throw new Error('涓婁紶鍒?R2 澶辫触锛岃绋嶅悗閲嶈瘯銆?);
   }
-}
 
 App.utils.r2PresignPut = r2PresignPut;
 App.utils.uploadFileToR2 = uploadFileToR2;
@@ -1323,14 +1298,13 @@ function applyStoredAssetValue(target, storedValue) {
   } else {
     target.url = storedValue;
   }
-}
 
 function updateMaterialUrlDisplay(field, asset) {
   const container = document.querySelector(`[data-material-url="${field}"]`);
   if (!container) return;
 
-  const label = container.dataset.label || '素材 URL：';
-  const prefix = label.endsWith('：') ? label : `${label}：`;
+  const label = container.dataset.label || '绱犳潗 URL锛?;
+  const prefix = label.endsWith('锛?) ? label : `${label}锛歚;
   const urlCandidates = [];
   if (asset) {
     if (typeof asset === 'string') {
@@ -1350,8 +1324,6 @@ function updateMaterialUrlDisplay(field, asset) {
       if (typeof dataUrl === 'string' && HTTP_URL_RX.test(dataUrl)) {
         urlCandidates.push(dataUrl);
       }
-    }
-  }
 
   const url = urlCandidates.find(Boolean) || null;
   container.textContent = '';
@@ -1371,13 +1343,12 @@ function updateMaterialUrlDisplay(field, asset) {
   } else {
     const placeholder = document.createElement('span');
     placeholder.classList.add('asset-url-empty');
-    placeholder.textContent = '尚未上传';
+    placeholder.textContent = '灏氭湭涓婁紶';
     container.appendChild(placeholder);
     container.classList.remove('has-url');
   }
-}
 
-// ==== 兜底：保持原命名的 loadTemplateRegistry（放在 init() 之前）====
+// ==== 鍏滃簳锛氫繚鎸佸師鍛藉悕鐨?loadTemplateRegistry锛堟斁鍦?init() 涔嬪墠锛?===
 (function ensureLoadTemplateRegistry() {
   const REG_PATH = (typeof TEMPLATE_REGISTRY_PATH === 'string' && TEMPLATE_REGISTRY_PATH)
     ? TEMPLATE_REGISTRY_PATH
@@ -1430,7 +1401,6 @@ function init() {
     default:
       break;
   }
-}
 
 document.addEventListener('DOMContentLoaded', init);
 
@@ -1440,7 +1410,6 @@ function loadApiBase() {
   if (stored) {
     apiBaseInput.value = stored;
   }
-}
 
 function saveApiBase() {
   if (!apiBaseInput) return;
@@ -1450,7 +1419,6 @@ function saveApiBase() {
   } else {
     localStorage.removeItem(STORAGE_KEYS.apiBase);
   }
-}
 
 function initStage1() {
   if (window.__stage1Init) return;
@@ -1552,7 +1520,7 @@ function initStage1() {
         forcePromptOnly: state.galleryAllowsUpload === false,
         promptPlaceholder:
           state.templateSpec?.materials?.gallery?.promptPlaceholder ||
-          '描述要生成的小图内容',
+          '鎻忚堪瑕佺敓鎴愮殑灏忓浘鍐呭',
       });
       refreshPreview();
     })();
@@ -1570,7 +1538,6 @@ function initStage1() {
   scenarioModeRadios.forEach((radio) => {
     radio.addEventListener('change', (event) => {
       if (!radio.checked) return;
-      const value = radio.value === 'prompt' ? 'prompt' : 'upload';
       void switchAssetMode('scenario', value, modeContext);
     });
   });
@@ -1579,7 +1546,6 @@ function initStage1() {
   productModeRadios.forEach((radio) => {
     radio.addEventListener('change', (event) => {
       if (!radio.checked) return;
-      const value = radio.value === 'prompt' ? 'prompt' : 'upload';
       void switchAssetMode('product', value, modeContext);
     });
   });
@@ -1596,7 +1562,7 @@ function initStage1() {
     const brandLabel = getMaterialLabel('brand_logo', brandMaterial);
     const brandField = form.querySelector('[data-material-field="brand_logo"] [data-material-label="brand_logo"]');
     if (brandField) {
-      brandField.textContent = `${brandLabel}上传`;
+      brandField.textContent = `${brandLabel}涓婁紶`;
     }
 
     const scenarioMaterial = materials.scenario || {};
@@ -1611,7 +1577,7 @@ function initStage1() {
 
     const scenarioToggleLabel = form.querySelector('[data-material-toggle-label="scenario"]');
     if (scenarioToggleLabel) {
-      scenarioToggleLabel.textContent = `${scenarioLabel}素材来源`;
+      scenarioToggleLabel.textContent = `${scenarioLabel}绱犳潗鏉ユ簮`;
     }
     const scenarioToggle = form.querySelector('[data-mode-target="scenario"]');
     const scenarioUploadOption = form.querySelector('[data-mode-option="scenario-upload"]');
@@ -1639,7 +1605,7 @@ function initStage1() {
 
     const scenarioFileLabel = form.querySelector('[data-material-label="scenario"]');
     if (scenarioFileLabel) {
-      scenarioFileLabel.textContent = `${scenarioLabel}上传`;
+      scenarioFileLabel.textContent = `${scenarioLabel}涓婁紶`;
       scenarioFileLabel.classList.toggle('hidden', !scenarioAllowsUpload);
     }
     const scenarioFieldWrapper = form.querySelector('[data-material-field="scenario"]');
@@ -1653,13 +1619,13 @@ function initStage1() {
     const scenarioDescription = form.querySelector('[data-material-description="scenario"]');
     if (scenarioDescription) {
       scenarioDescription.textContent = scenarioAllowsPrompt
-        ? `${scenarioLabel}描述（上传或 AI 生成时都会用到）`
-        : `${scenarioLabel}描述`;
+        ? `${scenarioLabel}鎻忚堪锛堜笂浼犳垨 AI 鐢熸垚鏃堕兘浼氱敤鍒帮級`
+        : `${scenarioLabel}鎻忚堪`;
     }
     const scenarioTextarea = form.querySelector('[data-material-input="scenario"]');
     if (scenarioTextarea) {
       scenarioTextarea.placeholder =
-        scenarioMaterial.promptPlaceholder || `描述${scenarioLabel}的氛围与细节`;
+        scenarioMaterial.promptPlaceholder || `鎻忚堪${scenarioLabel}鐨勬皼鍥翠笌缁嗚妭`;
     }
     let scenarioChanged = false;
     if (!scenarioAllowsUpload) {
@@ -1686,7 +1652,6 @@ function initStage1() {
       if (scenarioPromptRadio) {
         scenarioPromptRadio.checked = false;
       }
-    }
     if (scenarioChanged) {
       state.previewBuilt = false;
     }
@@ -1703,7 +1668,7 @@ function initStage1() {
 
     const productToggleLabel = form.querySelector('[data-material-toggle-label="product"]');
     if (productToggleLabel) {
-      productToggleLabel.textContent = `${productLabel}素材来源`;
+      productToggleLabel.textContent = `${productLabel}绱犳潗鏉ユ簮`;
     }
     const productToggle = form.querySelector('[data-mode-target="product"]');
     const productUploadOption = form.querySelector('[data-mode-option="product-upload"]');
@@ -1731,7 +1696,7 @@ function initStage1() {
 
     const productFileLabel = form.querySelector('[data-material-label="product"]');
     if (productFileLabel) {
-      productFileLabel.textContent = `${productLabel}上传`;
+      productFileLabel.textContent = `${productLabel}涓婁紶`;
       productFileLabel.classList.toggle('hidden', !productAllowsUpload);
     }
     const productFieldWrapper = form.querySelector('[data-material-field="product"]');
@@ -1749,13 +1714,13 @@ function initStage1() {
     const productPromptLabel = form.querySelector('[data-material-prompt-label="product"]');
     if (productPromptLabel) {
       productPromptLabel.textContent = productAllowsPrompt
-        ? `${productLabel}生成描述（可选补充）`
-        : `${productLabel}说明`;
+        ? `${productLabel}鐢熸垚鎻忚堪锛堝彲閫夎ˉ鍏咃級`
+        : `${productLabel}璇存槑`;
     }
     const productPromptInput = form.querySelector('[data-material-input="product-prompt"]');
     if (productPromptInput) {
       productPromptInput.placeholder =
-        productMaterial.promptPlaceholder || `补充${productLabel}的材质、角度等信息`;
+        productMaterial.promptPlaceholder || `琛ュ厖${productLabel}鐨勬潗璐ㄣ€佽搴︾瓑淇℃伅`;
     }
     let productChanged = false;
     if (!productAllowsUpload) {
@@ -1782,7 +1747,6 @@ function initStage1() {
       if (productPromptRadio) {
         productPromptRadio.checked = false;
       }
-    }
     if (productChanged) {
       state.previewBuilt = false;
     }
@@ -1837,27 +1801,27 @@ function initStage1() {
 
     const galleryLabelElement = document.querySelector('[data-gallery-label]');
     if (galleryLabelElement) {
-      galleryLabelElement.textContent = `${galleryLabel}（${galleryLimit} 项，支持多选）`;
+      galleryLabelElement.textContent = `${galleryLabel}锛?{galleryLimit} 椤癸紝鏀寔澶氶€夛級`;
     }
     const galleryDescription = document.querySelector('[data-gallery-description]');
     if (galleryDescription) {
       galleryDescription.textContent = !galleryAllowsUpload
-        ? `每个条目需通过文字描述生成，共 ${galleryLimit} 项，请填写系列说明。`
+        ? `姣忎釜鏉＄洰闇€閫氳繃鏂囧瓧鎻忚堪鐢熸垚锛屽叡 ${galleryLimit} 椤癸紝璇峰～鍐欑郴鍒楄鏄庛€俙
         : galleryAllowsPrompt
-        ? `每个条目由一张图像与系列说明组成，可上传或使用 AI 生成，共需 ${galleryLimit} 项。`
-        : `请上传 ${galleryLimit} 张${galleryLabel}并填写对应说明。`;
+        ? `姣忎釜鏉＄洰鐢变竴寮犲浘鍍忎笌绯诲垪璇存槑缁勬垚锛屽彲涓婁紶鎴栦娇鐢?AI 鐢熸垚锛屽叡闇€ ${galleryLimit} 椤广€俙
+        : `璇蜂笂浼?${galleryLimit} 寮?{galleryLabel}骞跺～鍐欏搴旇鏄庛€俙;
     }
     const galleryUploadButton = document.querySelector('[data-gallery-upload]');
     if (galleryUploadButton) {
-      galleryUploadButton.textContent = `上传${galleryLabel}`;
+      galleryUploadButton.textContent = `涓婁紶${galleryLabel}`;
       galleryUploadButton.classList.toggle('hidden', !galleryAllowsUpload);
       galleryUploadButton.disabled = !galleryAllowsUpload;
     }
     const galleryPromptButton = document.querySelector('[data-gallery-prompt]');
     if (galleryPromptButton) {
-      const promptText = galleryLabel.includes('条目')
-        ? '添加 AI 生成条目'
-        : `添加 AI 生成${galleryLabel}`;
+      const promptText = galleryLabel.includes('鏉＄洰')
+        ? '娣诲姞 AI 鐢熸垚鏉＄洰'
+        : `娣诲姞 AI 鐢熸垚${galleryLabel}`;
       galleryPromptButton.textContent = promptText;
       galleryPromptButton.classList.toggle('hidden', !galleryAllowsPrompt);
     }
@@ -1873,7 +1837,7 @@ function initStage1() {
       allowPrompt: galleryAllowsPrompt,
       forcePromptOnly: !galleryAllowsUpload,
       promptPlaceholder:
-        galleryMaterial.promptPlaceholder || '描述要生成的小图内容',
+        galleryMaterial.promptPlaceholder || '鎻忚堪瑕佺敓鎴愮殑灏忓浘鍐呭',
     });
     refreshPreview();
   }
@@ -1881,8 +1845,8 @@ function initStage1() {
   async function refreshTemplatePreviewStage1(templateId) {
   if (!templateCanvasStage1) return;
   try {
-    const assets =  await App.utils.ensureTemplateAssets(templateId); // 原有：加载模板资源 {entry,spec,image}
-    await applyTemplateMaterialsStage1(assets.spec);       // 原有：同步材料开关/占位说明等
+    const assets =  await App.utils.ensureTemplateAssets(templateId); // 鍘熸湁锛氬姞杞芥ā鏉胯祫婧?{entry,spec,image}
+    await applyTemplateMaterialsStage1(assets.spec);       // 鍘熸湁锛氬悓姝ユ潗鏂欏紑鍏?鍗犱綅璇存槑绛?
 
     const ctx = templateCanvasStage1.getContext('2d');
     if (!ctx) return;
@@ -1906,7 +1870,7 @@ function initStage1() {
   } catch (err) {
     console.error('[template preview] failed:', err);
     if (templateDescriptionStage1) {
-      templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
+      templateDescriptionStage1.textContent = '妯℃澘棰勮鍔犺浇澶辫触锛岃妫€鏌?templates 璧勬簮銆?;
     }
     const ctx = templateCanvasStage1?.getContext?.('2d');
     if (ctx) {
@@ -1915,27 +1879,25 @@ function initStage1() {
       ctx.fillRect(0, 0, templateCanvasStage1.width, templateCanvasStage1.height);
       ctx.fillStyle = '#6b7280';
       ctx.font = '16px "Noto Sans SC", sans-serif';
-      ctx.fillText('模板预览加载失败', 24, 48);
+      ctx.fillText('妯℃澘棰勮鍔犺浇澶辫触', 24, 48);
     }
-  }
-  }
 async function mountTemplateChooserStage1() {
   if (!templateSelectStage1) return;
 
-  // 1) 加载 registry（保持原名）
+  // 1) 鍔犺浇 registry锛堜繚鎸佸師鍚嶏級
   try {
     templateRegistry = await App.utils.loadTemplateRegistry();
   } catch (e) {
     console.error('[registry] load failed:', e);
-    setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json 与静态路径。', 'warning');
+    setStatus(statusElement, '鏃犳硶鍔犺浇妯℃澘鍒楄〃锛岃妫€鏌?templates/registry.json 涓庨潤鎬佽矾寰勩€?, 'warning');
     return;
   }
   if (!Array.isArray(templateRegistry) || templateRegistry.length === 0) {
-    setStatus(statusElement, '模板列表为空，请确认 templates/registry.json 格式。', 'warning');
+    setStatus(statusElement, '妯℃澘鍒楄〃涓虹┖锛岃纭 templates/registry.json 鏍煎紡銆?, 'warning');
     return;
   }
 
-  // 2) 填充下拉
+  // 2) 濉厖涓嬫媺
   templateSelectStage1.innerHTML = '';
   templateRegistry.forEach((entry) => {
     const opt = document.createElement('option');
@@ -1944,7 +1906,7 @@ async function mountTemplateChooserStage1() {
     templateSelectStage1.appendChild(opt);
   });
 
-  // 3) 恢复/设置默认选项
+  // 3) 鎭㈠/璁剧疆榛樿閫夐」
   const stored = loadStage1Data();
   if (stored?.template_id) {
     state.templateId = stored.template_id;
@@ -1956,10 +1918,10 @@ async function mountTemplateChooserStage1() {
   }
   templateSelectStage1.value = state.templateId;
 
-  // 4) 预览一次
+  // 4) 棰勮涓€娆?
   await refreshTemplatePreviewStage1(state.templateId);
 
-  // 立即持久化一次（不必等“构建预览”）
+  // 绔嬪嵆鎸佷箙鍖栦竴娆★紙涓嶅繀绛夆€滄瀯寤洪瑙堚€濓級
   const quickPersist = () => {
     try {
       const relaxedPayload = collectStage1Data(form, state, { strict: false });
@@ -1978,22 +1940,22 @@ async function mountTemplateChooserStage1() {
   };
   quickPersist();
 
-  // 5) 绑定切换
+  // 5) 缁戝畾鍒囨崲
   templateSelectStage1.addEventListener('change', async (ev) => {
     const value = ev.target.value || DEFAULT_STAGE1.template_id;
     state.templateId = value;
     const entry = templateRegistry.find((x) => x.id === value);
     state.templateLabel = entry?.name || '';
 
-    state.previewBuilt = false; // 切换模板 => 预览需重建
-    setStatus(statusElement, '已切换模板，请重新构建版式预览或继续到环节 2 生成。', 'info');
+    state.previewBuilt = false; // 鍒囨崲妯℃澘 => 棰勮闇€閲嶅缓
+    setStatus(statusElement, '宸插垏鎹㈡ā鏉匡紝璇烽噸鏂版瀯寤虹増寮忛瑙堟垨缁х画鍒扮幆鑺?2 鐢熸垚銆?, 'info');
 
     quickPersist();
     await refreshTemplatePreviewStage1(value);
   });
 }
 
-// 注意：不要用顶层 await
+// 娉ㄦ剰锛氫笉瑕佺敤椤跺眰 await
 void mountTemplateChooserStage1();
   if (templateSelectStage1) {
     App.utils.loadTemplateRegistry()
@@ -2018,7 +1980,7 @@ void mountTemplateChooserStage1();
       })
       .catch((error) => {
         console.error(error);
-        setStatus(statusElement, '无法加载模板列表，请检查 templates 目录。', 'warning');
+        setStatus(statusElement, '鏃犳硶鍔犺浇妯℃澘鍒楄〃锛岃妫€鏌?templates 鐩綍銆?, 'warning');
       });
 
     templateSelectStage1.addEventListener('change', async (event) => {
@@ -2074,7 +2036,7 @@ void mountTemplateChooserStage1();
     forcePromptOnly: state.galleryAllowsUpload === false,
     promptPlaceholder:
       state.templateSpec?.materials?.gallery?.promptPlaceholder ||
-      '描述要生成的小图内容',
+      '鎻忚堪瑕佺敓鎴愮殑灏忓浘鍐呭',
   });
 
   refreshPreview();
@@ -2084,7 +2046,7 @@ void mountTemplateChooserStage1();
       if (!state.galleryAllowsUpload) {
         setStatus(
           statusElement,
-          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}由模板限定为 AI 生成，请通过“添加 AI 生成条目”补充素材。`,
+          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}鐢辨ā鏉块檺瀹氫负 AI 鐢熸垚锛岃閫氳繃鈥滄坊鍔?AI 鐢熸垚鏉＄洰鈥濊ˉ鍏呯礌鏉愩€俙,
           'info'
         );
         return;
@@ -2097,7 +2059,7 @@ void mountTemplateChooserStage1();
         event.target.value = '';
         setStatus(
           statusElement,
-          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}当前仅支持文字描述生成。`,
+          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}褰撳墠浠呮敮鎸佹枃瀛楁弿杩扮敓鎴愩€俙,
           'warning'
         );
         return;
@@ -2111,7 +2073,7 @@ void mountTemplateChooserStage1();
       if (remaining <= 0) {
         setStatus(
           statusElement,
-          `最多仅支持上传 ${limit} 张${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}。`,
+          `鏈€澶氫粎鏀寔涓婁紶 ${limit} 寮?{state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}銆俙,
           'warning'
         );
         galleryFileInput.value = '';
@@ -2131,9 +2093,8 @@ void mountTemplateChooserStage1();
           });
         } catch (error) {
           console.error(error);
-          setStatus(statusElement, '上传或读取底部产品小图时发生错误。', 'error');
+          setStatus(statusElement, '涓婁紶鎴栬鍙栧簳閮ㄤ骇鍝佸皬鍥炬椂鍙戠敓閿欒銆?, 'error');
         }
-      }
       galleryFileInput.value = '';
       state.previewBuilt = false;
       renderGalleryItems(state, galleryItemsContainer, {
@@ -2148,7 +2109,7 @@ void mountTemplateChooserStage1();
         forcePromptOnly: state.galleryAllowsUpload === false,
         promptPlaceholder:
           state.templateSpec?.materials?.gallery?.promptPlaceholder ||
-          '描述要生成的小图内容',
+          '鎻忚堪瑕佺敓鎴愮殑灏忓浘鍐呭',
       });
       refreshPreview();
     });
@@ -2159,7 +2120,7 @@ void mountTemplateChooserStage1();
       if (!state.galleryAllowsPrompt) {
         setStatus(
           statusElement,
-          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}仅支持上传图像素材。`,
+          `${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}浠呮敮鎸佷笂浼犲浘鍍忕礌鏉愩€俙,
           'info'
         );
         return;
@@ -2168,7 +2129,7 @@ void mountTemplateChooserStage1();
       if (state.galleryEntries.length >= limit) {
         setStatus(
           statusElement,
-          `最多仅支持 ${limit} 个${state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}条目。`,
+          `鏈€澶氫粎鏀寔 ${limit} 涓?{state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery}鏉＄洰銆俙,
           'warning'
         );
         return;
@@ -2193,7 +2154,7 @@ void mountTemplateChooserStage1();
         forcePromptOnly: state.galleryAllowsUpload === false,
         promptPlaceholder:
           state.templateSpec?.materials?.gallery?.promptPlaceholder ||
-          '描述要生成的小图内容',
+          '鎻忚堪瑕佺敓鎴愮殑灏忓浘鍐呭',
       });
       refreshPreview();
     });
@@ -2224,7 +2185,7 @@ void mountTemplateChooserStage1();
         true
       );
       saveStage1Data(serialised);
-      setStatus(statusElement, '版式预览已构建，可继续下一环节。', 'success');
+      setStatus(statusElement, '鐗堝紡棰勮宸叉瀯寤猴紝鍙户缁笅涓€鐜妭銆?, 'success');
     } catch (error) {
       console.warn(error);
       state.previewBuilt = false;
@@ -2235,10 +2196,10 @@ void mountTemplateChooserStage1();
         false
       );
       saveStage1Data(serialised);
-      const reason = error?.message || '请补全必填素材。';
+      const reason = error?.message || '璇疯ˉ鍏ㄥ繀濉礌鏉愩€?;
       setStatus(
         statusElement,
-        `预览已更新，但${reason.replace(/^[，。]?/, '')}`,
+        `棰勮宸叉洿鏂帮紝浣?{reason.replace(/^[锛屻€俔?/, '')}`,
         'warning'
       );
     }
@@ -2257,11 +2218,11 @@ void mountTemplateChooserStage1();
       state.previewBuilt = true;
       const serialised = serialiseStage1Data(payload, state, currentLayoutPreview, true);
       saveStage1Data(serialised);
-      setStatus(statusElement, '素材已保存，正在跳转至环节 2。', 'info');
+      setStatus(statusElement, '绱犳潗宸蹭繚瀛橈紝姝ｅ湪璺宠浆鑷崇幆鑺?2銆?, 'info');
       window.location.href = 'stage2.html';
     } catch (error) {
       console.error(error);
-      setStatus(statusElement, error.message || '请先完成版式预览后再继续。', 'error');
+      setStatus(statusElement, error.message || '璇峰厛瀹屾垚鐗堝紡棰勮鍚庡啀缁х画銆?, 'error');
     }
   });
 }
@@ -2269,10 +2230,8 @@ void mountTemplateChooserStage1();
 function applyStage1Defaults(form) {
   for (const [key, value] of Object.entries(DEFAULT_STAGE1)) {
     const element = form.elements.namedItem(key);
-    if (element && typeof value === 'string') {
       element.value = value;
     }
-  }
 
   const featureInputs = form.querySelectorAll('input[name="features"]');
   featureInputs.forEach((input, index) => {
@@ -2281,19 +2240,16 @@ function applyStage1Defaults(form) {
 
   const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
   scenarioModeInputs.forEach((input) => {
-    input.checked = input.value === DEFAULT_STAGE1.scenario_mode;
   });
 
   const productModeInputs = form.querySelectorAll('input[name="product_mode"]');
   productModeInputs.forEach((input) => {
-    input.checked = input.value === DEFAULT_STAGE1.product_mode;
   });
 
   const productPrompt = form.elements.namedItem('product_prompt');
   if (productPrompt && 'value' in productPrompt) {
     productPrompt.value = '';
   }
-}
 
 function updateInlinePlaceholders(inlinePreviews) {
   if (inlinePreviews.brand_logo) inlinePreviews.brand_logo.src = placeholderImages.brandLogo;
@@ -2307,7 +2263,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     if (element && typeof data[key] === 'string') {
       element.value = data[key];
     }
-  }
 
   const features = Array.isArray(data.features) && data.features.length
     ? data.features
@@ -2324,12 +2279,10 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
 
   const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
   scenarioModeInputs.forEach((input) => {
-    input.checked = input.value === scenarioModeValue;
   });
 
   const productModeInputs = form.querySelectorAll('input[name="product_mode"]');
   productModeInputs.forEach((input) => {
-    input.checked = input.value === productModeValue;
   });
 
   const productPrompt = form.elements.namedItem('product_prompt');
@@ -2378,7 +2331,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   if (inlinePreviews.product_asset) {
     inlinePreviews.product_asset.src = state.product?.dataUrl || placeholderImages.product;
   }
-}
 
 function bindImagePreview(inputEl, imgEl) {
   if (!inputEl || !imgEl) return null;
@@ -2436,7 +2388,7 @@ function attachSingleImageHandler(
           ? {
               requireUpload: true,
               requireUploadMessage:
-                '品牌 Logo 必须上传到 R2/GCS，仅传递 URL 或 Key。',
+                '鍝佺墝 Logo 蹇呴』涓婁紶鍒?R2/GCS锛屼粎浼犻€?URL 鎴?Key銆?,
             }
           : {};
       state[key] = await prepareAssetFromFile(
@@ -2463,8 +2415,8 @@ function attachSingleImageHandler(
       console.error(error);
       const message =
         error instanceof Error
-          ? error.message || '处理图片素材时发生错误，请重试。'
-          : '处理图片素材时发生错误，请重试。';
+          ? error.message || '澶勭悊鍥剧墖绱犳潗鏃跺彂鐢熼敊璇紝璇烽噸璇曘€?
+          : '澶勭悊鍥剧墖绱犳潗鏃跺彂鐢熼敊璇紝璇烽噸璇曘€?;
       setStatus(statusElement, message, 'error');
     }
   });
@@ -2488,7 +2440,6 @@ function applyModeToInputs(target, state, form, inlinePreviews, options = {}) {
     } else {
       promptField.classList.remove('mode-visible');
     }
-  }
 
   if (!initial) {
     const inlineKey = `${target}_asset`;
@@ -2497,8 +2448,6 @@ function applyModeToInputs(target, state, form, inlinePreviews, options = {}) {
       inlinePreview.src =
         target === 'scenario' ? placeholderImages.scenario : placeholderImages.product;
     }
-  }
-}
 
 async function switchAssetMode(target, mode, context) {
   const { form, state, inlinePreviews, refreshPreview } = context;
@@ -2540,7 +2489,6 @@ async function switchAssetMode(target, mode, context) {
       inlinePreview.src =
         target === 'scenario' ? placeholderImages.scenario : placeholderImages.product;
     }
-  }
 
   state.previewBuilt = false;
   refreshPreview?.();
@@ -2555,7 +2503,7 @@ function renderGalleryItems(state, container, options = {}) {
     onChange,
     allowPrompt = true,
     forcePromptOnly = false,
-    promptPlaceholder = '描述要生成的小图内容',
+    promptPlaceholder = '鎻忚堪瑕佺敓鎴愮殑灏忓浘鍐呭',
     form,
     inlinePreviews,
   } = options;
@@ -2599,7 +2547,7 @@ function renderGalleryItems(state, container, options = {}) {
     const removeButton = document.createElement('button');
     removeButton.type = 'button';
     removeButton.classList.add('secondary');
-    removeButton.textContent = '移除';
+    removeButton.textContent = '绉婚櫎';
     removeButton.addEventListener('click', async () => {
       await deleteStoredAsset(entry.asset);
       state.galleryEntries = state.galleryEntries.filter((g) => g.id !== entry.id);
@@ -2632,11 +2580,11 @@ function renderGalleryItems(state, container, options = {}) {
     }
     const modeLabel = document.createElement('span');
     if (!allowUpload && allowPromptMode) {
-      modeLabel.textContent = '素材来源（模板限定：AI 生成）';
+      modeLabel.textContent = '绱犳潗鏉ユ簮锛堟ā鏉块檺瀹氾細AI 鐢熸垚锛?;
     } else if (allowUpload && !allowPromptMode) {
-      modeLabel.textContent = '素材来源（模板限定：需上传图像）';
+      modeLabel.textContent = '绱犳潗鏉ユ簮锛堟ā鏉块檺瀹氾細闇€涓婁紶鍥惧儚锛?;
     } else {
-      modeLabel.textContent = '素材来源';
+      modeLabel.textContent = '绱犳潗鏉ユ簮';
     }
     modeToggle.appendChild(modeLabel);
 
@@ -2649,7 +2597,7 @@ function renderGalleryItems(state, container, options = {}) {
       uploadRadio.name = radioName;
       uploadRadio.value = 'upload';
       uploadLabel.appendChild(uploadRadio);
-      uploadLabel.append(' 上传图像');
+      uploadLabel.append(' 涓婁紶鍥惧儚');
       modeToggle.appendChild(uploadLabel);
     }
 
@@ -2661,14 +2609,14 @@ function renderGalleryItems(state, container, options = {}) {
       promptRadio.name = radioName;
       promptRadio.value = 'prompt';
       promptLabel.appendChild(promptRadio);
-      promptLabel.append(' 文字生成');
+      promptLabel.append(' 鏂囧瓧鐢熸垚');
       modeToggle.appendChild(promptLabel);
     }
     item.appendChild(modeToggle);
 
     const fileField = document.createElement('label');
     fileField.classList.add('field', 'file-field', 'gallery-file-field');
-    fileField.innerHTML = `<span>上传${label}</span>`;
+    fileField.innerHTML = `<span>涓婁紶${label}</span>`;
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
     fileInput.accept = 'image/*';
@@ -2683,7 +2631,7 @@ function renderGalleryItems(state, container, options = {}) {
         onChange?.();
       } catch (error) {
         console.error(error);
-        setStatus(statusElement, '上传或读取底部产品小图时发生错误。', 'error');
+        setStatus(statusElement, '涓婁紶鎴栬鍙栧簳閮ㄤ骇鍝佸皬鍥炬椂鍙戠敓閿欒銆?, 'error');
       }
     });
     if (!allowUpload) {
@@ -2696,7 +2644,7 @@ function renderGalleryItems(state, container, options = {}) {
     previewWrapper.classList.add('gallery-item-preview');
     previewWrapper.dataset.galleryIndex = String(index);
     const previewImage = document.createElement('img');
-    previewImage.alt = `${label} ${index + 1} 预览`;
+    previewImage.alt = `${label} ${index + 1} 棰勮`;
     previewImage.src = pickImageSrc(entry.asset) || placeholder;
     previewImage.dataset.role = 'gallery-preview';
     previewImage.dataset.index = String(index);
@@ -2707,11 +2655,11 @@ function renderGalleryItems(state, container, options = {}) {
 
     const captionField = document.createElement('label');
     captionField.classList.add('field', 'gallery-caption');
-    captionField.innerHTML = `<span>${label}文案</span>`;
+    captionField.innerHTML = `<span>${label}鏂囨</span>`;
     const captionInput = document.createElement('input');
     captionInput.type = 'text';
     captionInput.value = entry.caption || '';
-    captionInput.placeholder = '请输入对应系列说明';
+    captionInput.placeholder = '璇疯緭鍏ュ搴旂郴鍒楄鏄?;
     captionInput.addEventListener('input', () => {
       entry.caption = captionInput.value;
       state.previewBuilt = false;
@@ -2722,7 +2670,7 @@ function renderGalleryItems(state, container, options = {}) {
 
     const promptField = document.createElement('label');
     promptField.classList.add('field', 'gallery-prompt', 'optional');
-    promptField.innerHTML = '<span>AI 生成描述</span>';
+    promptField.innerHTML = '<span>AI 鐢熸垚鎻忚堪</span>';
     const promptTextarea = document.createElement('textarea');
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
@@ -2740,7 +2688,7 @@ function renderGalleryItems(state, container, options = {}) {
 
     const generateButton = document.createElement('button');
     generateButton.type = 'button';
-    generateButton.textContent = `AI 生成底部产品小图 ${index + 1}`;
+    generateButton.textContent = `AI 鐢熸垚搴曢儴浜у搧灏忓浘 ${index + 1}`;
     generateButton.classList.add('secondary');
     generateButton.dataset.role = 'gallery-generate';
     generateButton.dataset.index = String(index);
@@ -2796,7 +2744,6 @@ function renderGalleryItems(state, container, options = {}) {
         state.previewBuilt = false;
         onChange?.();
       }
-    }
 
     if (uploadRadio) {
       uploadRadio.addEventListener('change', () => {
@@ -2866,7 +2813,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   payload.series_description = validGalleryEntries.length
     ? validGalleryEntries
-        .map((entry, index) => `${galleryLabel}${index + 1}：${entry.caption || '系列说明待补充'}`)
+        .map((entry, index) => ${galleryLabel}：)
         .join(' / ')
     : '';
 
@@ -2887,60 +2834,23 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
 
   if (strict) {
-    const missing = [];
-    for (const [key, value] of Object.entries(payload)) {
-      if (
-        [
-          'brand_logo',
-          'scenario_asset',
-          'product_asset',
-          'gallery_entries',
-          'scenario_mode',
-          'product_mode',
-          'product_prompt',
-          'scenario_prompt',
-        ].includes(key)
-      ) {
-        continue;
-      }
-      if (typeof value === 'string' && !value) {
-        missing.push(key);
-      }
-    }
-    if (payload.features.length < 3) {
-      throw new Error('请填写至少 3 条产品功能点。');
-    }
-    if (galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
-      throw new Error(
-        `请准备至少 ${galleryLimit} 个${galleryLabel}（上传或 AI 生成）并填写对应文案。`
-      );
-    }
-    const captionsIncomplete = validGalleryEntries.some((entry) => !entry.caption);
-    if (captionsIncomplete) {
-      throw new Error(`请为每个${galleryLabel}填写文案说明。`);
-    }
-    const promptMissing = galleryEntries.some(
-      (entry) => entry.mode === 'prompt' && !entry.prompt
-    );
-    if (promptMissing) {
-      throw new Error(`选择 AI 生成的${galleryLabel}需要提供文字描述。`);
-    }
-    if (missing.length) {
-      throw new Error('请完整填写素材输入表单中的必填字段。');
+    if (!payload.product_asset) {
+      throw new Error('请上传主产品图（产品 45° 渲染图）');
     }
   }
 
   return payload;
 }
 
+
 async function generateSlotImage(slotType, index, promptText, stage1Data) {
   const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
   if (!apiCandidates.length) {
-    throw new Error('未配置后端 API 基址');
+    throw new Error('鏈厤缃悗绔?API 鍩哄潃');
   }
   const prompt = (promptText || '').trim();
   if (!prompt) {
-    throw new Error('请先填写提示词再生成图片');
+    throw new Error('璇峰厛濉啓鎻愮ず璇嶅啀鐢熸垚鍥剧墖');
   }
 
   const payload = {
@@ -2958,7 +2868,7 @@ async function generateSlotImage(slotType, index, promptText, stage1Data) {
   );
 
   if (!data || !data.url) {
-    throw new Error('生成图片失败，返回结果缺少 url');
+    throw new Error('鐢熸垚鍥剧墖澶辫触锛岃繑鍥炵粨鏋滅己灏?url');
   }
 
   return data;
@@ -3048,8 +2958,8 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
         const detail = err?.responseJson?.detail || err?.responseJson;
         const quotaExceeded = err?.status === 429 && detail?.error === 'vertex_quota_exceeded';
         const message = quotaExceeded
-          ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
-          : err?.message || '生成图片失败';
+          ? '鍥惧儚鐢熸垚閰嶉宸茬敤灏斤紝璇风◢鍚庡啀璇曪紝鎴栧厛涓婁紶鐜版湁绱犳潗銆?
+          : err?.message || '鐢熸垚鍥剧墖澶辫触';
         if (statusElement) {
           setStatus(statusElement, message, 'error');
         } else {
@@ -3123,8 +3033,8 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
         const quotaExceeded = err?.status === 429 && detail?.error === 'vertex_quota_exceeded';
         const message =
           quotaExceeded
-            ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
-            : err?.message || `生成小图 ${index + 1} 失败`;
+            ? '鍥惧儚鐢熸垚閰嶉宸茬敤灏斤紝璇风◢鍚庡啀璇曪紝鎴栧厛涓婁紶鐜版湁绱犳潗銆?
+            : err?.message || `鐢熸垚灏忓浘 ${index + 1} 澶辫触`;
         if (statusElement) {
           setStatus(statusElement, message, 'error');
         } else {
@@ -3169,7 +3079,6 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       asset.dataUrl,
     ];
     return candidates.find(
-      (value) => typeof value === 'string' && (HTTP_URL_RX.test(value) || value.startsWith('data:'))
     ) || null;
   };
 
@@ -3179,10 +3088,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     brandLogo.src = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
   }
   if (brandName) {
-    brandName.textContent = payload.brand_name || '品牌名称';
+    brandName.textContent = payload.brand_name || '鍝佺墝鍚嶇О';
   }
   if (agentName) {
-    agentName.textContent = (payload.agent_name || '代理名 / 分销名').toUpperCase();
+    agentName.textContent = (payload.agent_name || '浠ｇ悊鍚?/ 鍒嗛攢鍚?).toUpperCase();
   }
   if (scenarioImage) {
     scenarioImage.src = assetSrc(payload.scenario_asset) || placeholderImages.scenario;
@@ -3191,10 +3100,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     productImage.src = assetSrc(payload.product_asset) || placeholderImages.product;
   }
   if (title) {
-    title.textContent = payload.title || '标题文案';
+    title.textContent = payload.title || '鏍囬鏂囨';
   }
   if (subtitle) {
-    subtitle.textContent = payload.subtitle || '副标题文案';
+    subtitle.textContent = payload.subtitle || '鍓爣棰樻枃妗?;
   }
 
   if (featureList) {
@@ -3218,13 +3127,12 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       const caption = document.createElement('figcaption');
       const gallerySrc = assetSrc(entry?.asset) || logoFallback;
       img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
-      img.alt = `${galleryLabel} ${index + 1} 预览`;
+      img.alt = `${galleryLabel} ${index + 1} 棰勮`;
       caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
       figure.appendChild(img);
       figure.appendChild(caption);
       gallery.appendChild(figure);
     }
-  }
 
   return layoutText;
 }
@@ -3233,25 +3141,25 @@ function buildLayoutPreview(payload) {
   const templateLine =
     payload.template_label || payload.template_id || DEFAULT_STAGE1.template_id;
   const logoLine = payload.brand_logo
-    ? `已上传品牌 Logo（${payload.brand_name}）`
-    : payload.brand_name || '品牌 Logo 待上传';
+    ? `宸蹭笂浼犲搧鐗?Logo锛?{payload.brand_name}锛塦
+    : payload.brand_name || '鍝佺墝 Logo 寰呬笂浼?;
   const hasScenarioAsset = Boolean(payload.scenario_asset || payload.scenario_key);
   const scenarioLine = payload.scenario_mode === 'prompt'
-    ? `AI 生成（描述：${payload.scenario_prompt || payload.scenario_image || '待补充'}）`
+    ? `AI 鐢熸垚锛堟弿杩帮細${payload.scenario_prompt || payload.scenario_image || '寰呰ˉ鍏?}锛塦
     : hasScenarioAsset
-    ? `已上传应用场景图（描述：${payload.scenario_image || '待补充'}）`
-    : payload.scenario_image || '应用场景描述待补充';
+    ? `宸蹭笂浼犲簲鐢ㄥ満鏅浘锛堟弿杩帮細${payload.scenario_image || '寰呰ˉ鍏?}锛塦
+    : payload.scenario_image || '搴旂敤鍦烘櫙鎻忚堪寰呰ˉ鍏?;
   const hasProductAsset = Boolean(payload.product_asset || payload.product_key);
   const productLine = payload.product_mode === 'prompt'
-    ? `AI 生成（${payload.product_prompt || payload.product_name || '描述待补充'}）`
+    ? `AI 鐢熸垚锛?{payload.product_prompt || payload.product_name || '鎻忚堪寰呰ˉ鍏?}锛塦
     : hasProductAsset
-    ? `已上传 45° 渲染图（${payload.product_name || '主产品'}）`
-    : payload.product_name || '主产品名称待补充';
+    ? `宸蹭笂浼?45掳 娓叉煋鍥撅紙${payload.product_name || '涓讳骇鍝?}锛塦
+    : payload.product_name || '涓讳骇鍝佸悕绉板緟琛ュ厖';
   const galleryLabel = payload.gallery_label || MATERIAL_DEFAULT_LABELS.gallery;
   const galleryLimit = payload.gallery_limit || 4;
 
   const featuresPreview = (payload.features.length ? payload.features : DEFAULT_STAGE1.features)
-    .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
+    .map((feature, index) => `    - 鍔熻兘鐐?{index + 1}: ${feature}`)
     .join('\n');
 
   const galleryEntries = Array.isArray(payload.gallery_entries)
@@ -3265,15 +3173,15 @@ function buildLayoutPreview(payload) {
     ? galleryEntries
         .map((entry, index) =>
           entry.mode === 'prompt'
-            ? `    · ${galleryLabel}${index + 1}：AI 生成（${entry.prompt || '描述待补充'}）`
-            : `    · ${galleryLabel}${index + 1}：${entry.caption || '系列说明待补充'}`
+            ? `    路 ${galleryLabel}${index + 1}锛欰I 鐢熸垚锛?{entry.prompt || '鎻忚堪寰呰ˉ鍏?}锛塦
+            : `    路 ${galleryLabel}${index + 1}锛?{entry.caption || '绯诲垪璇存槑寰呰ˉ鍏?}`
         )
         .join('\n')
-    : `    · ${galleryLabel}待准备（可上传或 AI 生成 ${galleryLimit} 项素材，并附文字说明）。`;
+    : `    路 ${galleryLabel}寰呭噯澶囷紙鍙笂浼犳垨 AI 鐢熸垚 ${galleryLimit} 椤圭礌鏉愶紝骞堕檮鏂囧瓧璇存槑锛夈€俙;
 
-  return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
-    payload.agent_name || '代理名待填写'
-  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
+  return `妯℃澘閿佺増\n  路 褰撳墠妯℃澘锛?{templateLine}\n\n椤堕儴妯潯\n  路 鍝佺墝 Logo锛堝乏涓婏級锛?{logoLine}\n  路 鍝佺墝浠ｇ悊鍚?/ 鍒嗛攢鍚嶏紙鍙充笂锛夛細${
+    payload.agent_name || '浠ｇ悊鍚嶅緟濉啓'
+  }\n\n宸︿晶鍖哄煙锛堢害 40% 瀹斤級\n  路 搴旂敤鍦烘櫙鍥撅細${scenarioLine}\n\n鍙充晶鍖哄煙锛堣瑙変腑蹇冿級\n  路 涓讳骇鍝?45掳 娓叉煋鍥撅細${productLine}\n  路 鍔熻兘鐐规爣娉細\n${featuresPreview}\n\n涓儴鏍囬锛堝ぇ鍙风矖浣撶孩瀛楋級\n  路 ${payload.title || '鏍囬鏂囨寰呰ˉ鍏?}\n\n搴曢儴鍖哄煙锛堜笁瑙嗗浘鎴栫郴鍒楁寮忥級\n${gallerySummary}\n\n瑙掕惤鍓爣棰?/ 鏍囪锛堝ぇ鍙风矖浣撶孩瀛楋級\n  路 ${payload.subtitle || '鍓爣棰樺緟琛ュ厖'}\n\n涓昏壊寤鸿锛氶粦锛堝姛鑳斤級銆佺孩锛堟爣棰?/ 鍓爣棰橈級銆佺伆 / 閾讹紙閲戝睘璐ㄦ劅锛塡n鑳屾櫙锛氭祬鐏版垨鐧借壊锛屼繚鎸佺暀鐧戒笌瀵归綈銆俙;
 }
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
@@ -3322,7 +3230,7 @@ function renderFeatureTags(target, features) {
   if (!container) return;
   const spans = container.querySelectorAll('.feature-tag span');
   const items = container.querySelectorAll('.feature-tag');
-  const fallbackText = '待生成';
+  const fallbackText = '寰呯敓鎴?;
 
   spans.forEach((span, index) => {
     const nextText = features?.[index] || '';
@@ -3340,17 +3248,16 @@ function saveStage1Data(data, options = {}) {
     sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
   } catch (error) {
     if (isQuotaError(error)) {
-      console.warn('sessionStorage 容量不足，正在尝试覆盖旧的环节 1 数据。', error);
+      console.warn('sessionStorage 瀹归噺涓嶈冻锛屾鍦ㄥ皾璇曡鐩栨棫鐨勭幆鑺?1 鏁版嵁銆?, error);
       try {
         sessionStorage.removeItem(STORAGE_KEYS.stage1);
         sessionStorage.setItem(STORAGE_KEYS.stage1, JSON.stringify(data));
       } catch (innerError) {
-        console.error('无法保存环节 1 数据，已放弃持久化。', innerError);
+        console.error('鏃犳硶淇濆瓨鐜妭 1 鏁版嵁锛屽凡鏀惧純鎸佷箙鍖栥€?, innerError);
       }
     } else {
-      console.error('保存环节 1 数据失败。', error);
+      console.error('淇濆瓨鐜妭 1 鏁版嵁澶辫触銆?, error);
     }
-  }
   if (!preserveStage2) {
     const stage2Raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
     if (stage2Raw) {
@@ -3361,12 +3268,10 @@ function saveStage1Data(data, options = {}) {
           void assetStore.delete(key);
         }
       } catch (error) {
-        console.warn('清理环节 2 缓存时解析失败。', error);
+        console.warn('娓呯悊鐜妭 2 缂撳瓨鏃惰В鏋愬け璐ャ€?, error);
       }
-    }
     sessionStorage.removeItem(STORAGE_KEYS.stage2);
   }
-}
 
 function loadStage1Data() {
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage1);
@@ -3377,13 +3282,12 @@ function loadStage1Data() {
     console.error('Unable to parse stage1 data', error);
     return null;
   }
-}
 function loadPromptPresets() {
   if (!promptPresetPromise) {
     promptPresetPromise = fetch(assetUrl(PROMPT_PRESETS_PATH))
       .then((response) => {
         if (!response.ok) {
-          throw new Error('无法加载提示词预设');
+          throw new Error('鏃犳硶鍔犺浇鎻愮ず璇嶉璁?);
         }
         return response.json();
       })
@@ -3399,9 +3303,9 @@ function loadPromptPresets() {
 }
 
 const PROMPT_SLOT_LABELS = {
-  scenario: '场景背景',
-  product: '核心产品',
-  gallery: '底部系列小图',
+  scenario: '鍦烘櫙鑳屾櫙',
+  product: '鏍稿績浜у搧',
+  gallery: '搴曢儴绯诲垪灏忓浘',
 };
 
 const PROMPT_SLOT_LABELS_EN = {
@@ -3472,15 +3376,15 @@ function buildPromptPreviewText(state) {
   PROMPT_SLOTS.forEach((slot) => {
     const entry = state.slots?.[slot];
     if (!entry) return;
-    lines.push(`【${PROMPT_SLOT_LABELS[slot] || slot}】`);
+    lines.push(`銆?{PROMPT_SLOT_LABELS[slot] || slot}銆慲);
     if (entry.positive) {
-      lines.push(`正向：${entry.positive}`);
+      lines.push(`姝ｅ悜锛?{entry.positive}`);
     }
     if (entry.negative) {
-      lines.push(`负向：${entry.negative}`);
+      lines.push(`璐熷悜锛?{entry.negative}`);
     }
     if (entry.aspect) {
-      lines.push(`画幅：${entry.aspect}`);
+      lines.push(`鐢诲箙锛?{entry.aspect}`);
     }
     lines.push('');
   });
@@ -3498,7 +3402,7 @@ function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
   const width = templateSpec.size?.width;
   const height = templateSpec.size?.height;
   if (width && height) {
-    lines.push(`Canvas: ${width} × ${height} px`);
+    lines.push(`Canvas: ${width} 脳 ${height} px`);
   }
 
   if (stage1Data?.brand_name) {
@@ -3545,16 +3449,16 @@ function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
     const section = [];
     section.push(`- ${label}: ${presetId || 'N/A'}`);
     if (preset?.positive) {
-      section.push(`  • Positive: ${preset.positive}`);
+      section.push(`  鈥?Positive: ${preset.positive}`);
     }
     if (preset?.negative) {
-      section.push(`  • Negative: ${preset.negative}`);
+      section.push(`  鈥?Negative: ${preset.negative}`);
     }
     if (preset?.aspect || guidance.aspect) {
-      section.push(`  • Aspect: ${preset?.aspect || guidance.aspect}`);
+      section.push(`  鈥?Aspect: ${preset?.aspect || guidance.aspect}`);
     }
     if (guidance.mode) {
-      section.push(`  • Mode: ${guidance.mode}`);
+      section.push(`  鈥?Mode: ${guidance.mode}`);
     }
     promptSections.push(section.join('\n'));
   });
@@ -3606,7 +3510,7 @@ function applyPromptStateToInspector(state, elements, presets) {
     if (aspectLabel) {
       const preset = entry?.preset ? presetMap[entry.preset] : null;
       const aspect = entry?.aspect || preset?.aspect || '';
-      aspectLabel.textContent = aspect ? `推荐画幅：${aspect}` : '未设置画幅约束';
+      aspectLabel.textContent = aspect ? `鎺ㄨ崘鐢诲箙锛?{aspect}` : '鏈缃敾骞呯害鏉?;
     }
   });
   if (elements.seedInput) {
@@ -3619,7 +3523,6 @@ function applyPromptStateToInspector(state, elements, presets) {
   if (elements.variantsInput) {
     elements.variantsInput.value = clampVariants(state.variants || DEFAULT_PROMPT_VARIANTS);
   }
-}
 
 function populatePresetSelect(select, presets, slot) {
   if (!select) return;
@@ -3630,14 +3533,14 @@ function populatePresetSelect(select, presets, slot) {
     select.disabled = true;
     const option = document.createElement('option');
     option.value = '';
-    option.textContent = '暂无预设';
+    option.textContent = '鏆傛棤棰勮';
     select.appendChild(option);
     return;
   }
   entries.forEach(([id, config]) => {
     const option = document.createElement('option');
     option.value = id;
-    option.textContent = config?.label || `${slot}：${id}`;
+    option.textContent = config?.label || `${slot}锛?{id}`;
     select.appendChild(option);
   });
 }
@@ -3661,9 +3564,9 @@ async function setupPromptInspector(
   try {
     presets = await loadPromptPresets();
   } catch (error) {
-    console.error('加载提示词预设失败', error);
+    console.error('鍔犺浇鎻愮ず璇嶉璁惧け璐?, error);
     if (statusElement) {
-      setStatus(statusElement, '提示词预设加载失败，将使用空白提示词。', 'warning');
+      setStatus(statusElement, '鎻愮ず璇嶉璁惧姞杞藉け璐ワ紝灏嗕娇鐢ㄧ┖鐧芥彁绀鸿瘝銆?, 'warning');
     }
     presets = { presets: {}, defaultAssignments: {} };
   }
@@ -3803,7 +3706,7 @@ async function setupPromptInspector(
   if (previewButton && promptTextarea) {
     previewButton.addEventListener('click', () => {
       promptTextarea.value = buildPromptPreviewText(state);
-      setStatus(statusElement, '已根据提示词 Inspector 更新预览。', 'info');
+      setStatus(statusElement, '宸叉牴鎹彁绀鸿瘝 Inspector 鏇存柊棰勮銆?, 'info');
     });
   }
 
@@ -3910,7 +3813,7 @@ function initStage2() {
 
     const stage1Data = loadStage1Data();
     if (!stage1Data || !stage1Data.preview_built) {
-      setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
+      setStatus(statusElement, '璇峰厛瀹屾垚鐜妭 1 鐨勭礌鏉愯緭鍏ヤ笌鐗堝紡棰勮銆?, 'warning');
       generateButton.disabled = true;
       if (regenerateButton) {
         regenerateButton.disabled = true;
@@ -3980,8 +3883,8 @@ function initStage2() {
           link.href = dataUrl;
           link.click();
         } catch (error) {
-          console.error('导出预览失败', error);
-          alert('导出预览失败，请稍后重试。');
+          console.error('瀵煎嚭棰勮澶辫触', error);
+          alert('瀵煎嚭棰勮澶辫触锛岃绋嶅悗閲嶈瘯銆?);
         } finally {
           exportPosterButton.disabled = false;
         }
@@ -3995,7 +3898,7 @@ function initStage2() {
     let activeTemplatePoster = null;
 
     const templatePlaceholderDefault =
-      posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
+      posterTemplatePlaceholder?.textContent?.trim() || '鍚庡彴灏氭湭涓婁紶妯℃澘娴锋姤銆?;
 
     const templateState = {
       loaded: false,
@@ -4085,7 +3988,7 @@ function initStage2() {
         assignPosterImage(
           posterTemplateImage,
           poster,
-          `${stage1Data.product_name || '模板'} 默认模板海报`
+          `${stage1Data.product_name || '妯℃澘'} 榛樿妯℃澘娴锋姤`
         )
       ) {
         posterTemplateImage.classList.remove('hidden');
@@ -4102,7 +4005,6 @@ function initStage2() {
           posterTemplatePlaceholder.textContent = displayMessage;
           posterTemplatePlaceholder.classList.remove('hidden');
         }
-      }
       if (posterTemplateLink) {
         const linkSrc = poster ? getPosterImageSource(poster) : null;
         if (linkSrc) {
@@ -4112,7 +4014,6 @@ function initStage2() {
           posterTemplateLink.classList.add('hidden');
           posterTemplateLink.removeAttribute('href');
         }
-      }
     };
 
     const loadTemplatePosters = async ({ silent = false, force = false } = {}) => {
@@ -4126,9 +4027,9 @@ function initStage2() {
         templateState.poster = null;
         templateState.variantA = null;
         templateState.variantB = null;
-        updateTemplatePosterDisplay('请先填写后端 API 地址以加载模板海报。');
+        updateTemplatePosterDisplay('璇峰厛濉啓鍚庣 API 鍦板潃浠ュ姞杞芥ā鏉挎捣鎶ャ€?);
         if (!silent) {
-          setStatus(statusElement, '请先填写后端 API 地址以加载模板海报。', 'info');
+          setStatus(statusElement, '璇峰厛濉啓鍚庣 API 鍦板潃浠ュ姞杞芥ā鏉挎捣鎶ャ€?, 'info');
         }
         return false;
       }
@@ -4136,7 +4037,7 @@ function initStage2() {
       try {
         await warmUp(candidates);
       } catch (error) {
-        console.warn('模板海报 warm up 失败', error);
+        console.warn('妯℃澘娴锋姤 warm up 澶辫触', error);
       }
 
       for (const base of candidates) {
@@ -4163,19 +4064,18 @@ function initStage2() {
           templateState.loaded = true;
           updateTemplatePosterDisplay();
           if (!silent) {
-            setStatus(statusElement, '模板海报已同步。', 'success');
+            setStatus(statusElement, '妯℃澘娴锋姤宸插悓姝ャ€?, 'success');
           }
           return Boolean(variantA);
         } catch (error) {
-          console.warn('加载模板海报失败', base, error);
+          console.warn('鍔犺浇妯℃澘娴锋姤澶辫触', base, error);
         }
-      }
 
       if (!templateState.poster) {
-        updateTemplatePosterDisplay('无法加载模板海报，请稍后重试。');
+        updateTemplatePosterDisplay('鏃犳硶鍔犺浇妯℃澘娴锋姤锛岃绋嶅悗閲嶈瘯銆?);
       }
       if (!silent) {
-        setStatus(statusElement, '模板海报加载失败，请稍后重试。', 'warning');
+        setStatus(statusElement, '妯℃澘娴锋姤鍔犺浇澶辫触锛岃绋嶅悗閲嶈瘯銆?, 'warning');
       }
       templateState.loaded = false;
       templateState.variantA = null;
@@ -4199,7 +4099,6 @@ function initStage2() {
           defaultPromptTextarea.value = '';
           promptDefaultGroup.classList.add('hidden');
         }
-      }
 
       if (promptBundlePre && promptBundleGroup) {
         let bundleData = options.bundle || null;
@@ -4210,7 +4109,6 @@ function initStage2() {
           } else if (latestPromptState?.slots) {
             bundleData = serialisePromptState(latestPromptState);
           }
-        }
 
         let bundleText = '';
         if (bundleData) {
@@ -4221,8 +4119,6 @@ function initStage2() {
             if (keys.length) {
               bundleText = JSON.stringify(bundleData, null, 2);
             }
-          }
-        }
 
         if (bundleText) {
           promptBundlePre.value = bundleText;
@@ -4231,7 +4127,6 @@ function initStage2() {
           promptBundlePre.value = '';
           promptBundleGroup.classList.add('hidden');
         }
-      }
     };
     const runGeneration = (extra = {}) => {
       const currentRequest = promptManager?.buildRequest?.();
@@ -4295,7 +4190,7 @@ function initStage2() {
     let templateRegistry = [];
 
     const defaultNotify = (msg) => {
-      // 默认降级到 console，实际项目请传入 Toast/Modal 组件
+      // 榛樿闄嶇骇鍒?console锛屽疄闄呴」鐩浼犲叆 Toast/Modal 缁勪欢
       console.info(msg);
     };
     
@@ -4306,14 +4201,14 @@ function initStage2() {
       notify = defaultNotify,
       messages = {
         disabled: 'Demo 1.0: A/B preview is disabled.',
-        ready: '已准备好最新生成结果，可在右侧预览卡片查看。'
+        ready: '宸插噯澶囧ソ鏈€鏂扮敓鎴愮粨鏋滐紝鍙湪鍙充晶棰勮鍗＄墖鏌ョ湅銆?
       }
     } = {}) {
-      // 先通知（非阻塞）
+      // 鍏堥€氱煡锛堥潪闃诲锛?
       notify(messages.disabled);
     
       try {
-        // 支持 openABModal 为 undefined、同步返回值或返回 Promise
+        // 鏀寔 openABModal 涓?undefined銆佸悓姝ヨ繑鍥炲€兼垨杩斿洖 Promise
         const result = openABModal?.(baseline, generated);
         const opened = result instanceof Promise ? await result : result;
     
@@ -4323,12 +4218,11 @@ function initStage2() {
     
         return Boolean(opened);
       } catch (err) {
-        // 出错时记录并降级提示
+        // 鍑洪敊鏃惰褰曞苟闄嶇骇鎻愮ず
         console.error('handleABTest error:', err);
         notify(messages.ready);
         return false;
       }
-    }
 
 
    
@@ -4387,11 +4281,10 @@ function initStage2() {
           ctx.fillRect(0, 0, templateCanvas.width, templateCanvas.height);
           ctx.fillStyle = '#6b7280';
           ctx.font = '16px "Noto Sans SC", "Microsoft YaHei", sans-serif';
-          ctx.fillText('模板预览加载失败', 40, 40);
+          ctx.fillText('妯℃澘棰勮鍔犺浇澶辫触', 40, 40);
         }
-        updateTemplatePosterDisplay('模板预览加载失败');
+        updateTemplatePosterDisplay('妯℃澘棰勮鍔犺浇澶辫触');
       }
-    }
 
     if (templateSelect && templateCanvas) {
       try {
@@ -4424,17 +4317,15 @@ function initStage2() {
             }
             saveStage1Data(stage1Data, { preserveStage2: true });
           }
-        }
         templateSelect.value = currentTemplateId;
         templateSelect.disabled = true;
-        templateSelect.title = '模板已在环节 1 中选定，可返回修改';
+        templateSelect.title = '妯℃澘宸插湪鐜妭 1 涓€夊畾锛屽彲杩斿洖淇敼';
         await refreshTemplatePreview(currentTemplateId);
         updateSummary();
       } catch (error) {
         console.error(error);
-        setStatus(statusElement, '模板清单加载失败，请检查 templates/ 目录。', 'warning');
+        setStatus(statusElement, '妯℃澘娓呭崟鍔犺浇澶辫触锛岃妫€鏌?templates/ 鐩綍銆?, 'warning');
       }
-    }
 
     if (templateSelect) {
       templateSelect.addEventListener('change', async (event) => {
@@ -4450,7 +4341,7 @@ function initStage2() {
         saveStage1Data(stage1Data, { preserveStage2: true });
         updateSummary();
         await refreshTemplatePreview(value);
-        setStatus(statusElement, '模板已切换，请重新生成海报以应用新布局。', 'info');
+        setStatus(statusElement, '妯℃澘宸插垏鎹紝璇烽噸鏂扮敓鎴愭捣鎶ヤ互搴旂敤鏂板竷灞€銆?, 'info');
       });
     }
 
@@ -4458,7 +4349,7 @@ function initStage2() {
       apiBaseInput.addEventListener('change', () => {
         templateState.loaded = false;
         templateState.poster = null;
-        updateTemplatePosterDisplay('正在重新加载模板海报…');
+        updateTemplatePosterDisplay('姝ｅ湪閲嶆柊鍔犺浇妯℃澘娴锋姤鈥?);
         void loadTemplatePosters({ silent: true, force: true });
       });
     }
@@ -4475,7 +4366,7 @@ function initStage2() {
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
       if (!stored || !stored.poster_image) {
-        setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
+        setStatus(statusElement, '璇峰厛瀹屾垚娴锋姤鐢熸垚锛屽啀鍓嶅線鐜妭 3銆?, 'warning');
         return;
       }
       window.location.href = 'stage3.html';
@@ -4488,21 +4379,21 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
 
   const entries = [
     [
-      '模板',
+      '妯℃澘',
       templateName || stage1Data.template_id || DEFAULT_STAGE1.template_id,
     ],
-    ['品牌 / 代理', `${stage1Data.brand_name} ｜ ${stage1Data.agent_name}`],
-    ['主产品名称', stage1Data.product_name],
+    ['鍝佺墝 / 浠ｇ悊', `${stage1Data.brand_name} 锝?${stage1Data.agent_name}`],
+    ['涓讳骇鍝佸悕绉?, stage1Data.product_name],
     [
-      '功能点',
+      '鍔熻兘鐐?,
       (stage1Data.features || [])
         .map((feature, index) => `${index + 1}. ${feature}`)
         .join('\n'),
     ],
-    ['标题', stage1Data.title],
-    ['副标题', stage1Data.subtitle],
+    ['鏍囬', stage1Data.title],
+    ['鍓爣棰?, stage1Data.subtitle],
     [
-      stage1Data.gallery_label || '底部产品',
+      stage1Data.gallery_label || '搴曢儴浜у搧',
       (() => {
         const galleryLimit = stage1Data.gallery_limit || 0;
         const galleryCount =
@@ -4510,9 +4401,9 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
             entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
           ).length || 0;
         if (galleryLimit > 0) {
-          return `${galleryCount} / ${galleryLimit} 项素材`;
+          return `${galleryCount} / ${galleryLimit} 椤圭礌鏉恅;
         }
-        return `${galleryCount} 项素材`;
+        return `${galleryCount} 椤圭礌鏉恅;
       })(),
     ],
   ];
@@ -4527,11 +4418,10 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
   });
 }
 
-// ……前文保持不变
+// 鈥︹€﹀墠鏂囦繚鎸佷笉鍙?
 
 function toPromptString(value) {
   if (value == null) return '';
-  if (typeof value === 'string') return value.trim();
   if (typeof value.text === 'string') return value.text.trim();
   if (typeof value.prompt === 'string') return value.prompt.trim();
   if (typeof value.positive === 'string') return value.positive.trim();
@@ -4547,7 +4437,6 @@ function toPromptString(value) {
     console.warn('[toPromptString] fallback stringify failed', error);
     return String(value);
   }
-}
 
 function buildPromptBundleStrings(prompts = {}) {
   return {
@@ -4592,7 +4481,6 @@ function extractVertexPosterUrl(result) {
     if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
       return candidate.url;
     }
-  }
 
   if (Array.isArray(result.gallery_images) && result.gallery_images.length > 0) {
     const candidate =
@@ -4600,7 +4488,6 @@ function extractVertexPosterUrl(result) {
     if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
       return candidate.url;
     }
-  }
 
   if (
     result.gallery_images &&
@@ -4613,7 +4500,6 @@ function extractVertexPosterUrl(result) {
     if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
       return candidate.url;
     }
-  }
 
   return null;
 }
@@ -4633,12 +4519,11 @@ function renderPosterResult() {
     } else if (!logoImg.getAttribute('src')) {
       logoImg.style.display = 'none';
     }
-  }
 
   const brandNameEl = document.getElementById('poster-result-brand-name');
   const agentNameEl = document.getElementById('poster-result-agent-name');
-  setTextIfNonEmpty(brandNameEl, poster.brand_name, '待生成');
-  setTextIfNonEmpty(agentNameEl, poster.agent_name, '待生成');
+  setTextIfNonEmpty(brandNameEl, poster.brand_name, '寰呯敓鎴?);
+  setTextIfNonEmpty(agentNameEl, poster.agent_name, '寰呯敓鎴?);
 
   const scenarioImg = document.getElementById('poster-result-scenario-image');
   if (scenarioImg) {
@@ -4667,7 +4552,7 @@ function renderPosterResult() {
     if (img) setImageSrcIfNonEmpty(img, src);
     if (captionEl && !captionTitleEl) {
       const series = poster.series?.[index];
-      setTextIfNonEmpty(captionEl, series && series.name ? series.name : '', '待生成');
+      setTextIfNonEmpty(captionEl, series && series.name ? series.name : '', '寰呯敓鎴?);
     }
   });
 
@@ -4717,7 +4602,7 @@ function renderGalleryCaptions() {
 
     const titleEl = slot.querySelector('[data-gallery-caption-title]');
     const subtitleEl = slot.querySelector('[data-gallery-caption-subtitle]');
-    const fallbackText = '待生成';
+    const fallbackText = '寰呯敓鎴?;
 
     if (titleEl) {
       setTextIfNonEmpty(titleEl, title, fallbackText);
@@ -4824,10 +4709,10 @@ function formatPosterGenerationError(error) {
     return rawDetail;
   }
 
-  return error?.message || '生成失败';
+  return error?.message || '鐢熸垚澶辫触';
 }
 
-// ------- 直接替换：triggerGeneration 主流程（含双形态自适应） -------
+// ------- 鐩存帴鏇挎崲锛歵riggerGeneration 涓绘祦绋嬶紙鍚弻褰㈡€佽嚜閫傚簲锛?-------
 async function triggerGeneration(opts) {
   const {
     stage1Data, statusElement,
@@ -4850,7 +4735,7 @@ async function triggerGeneration(opts) {
     ? { updateScenario: true, updateGallery: true, updateProduct: false }
     : { updateScenario: false, updateGallery: false, updateProduct: false };
   if (stage2InFlight) {
-    setStatus(statusElement, '生成中，请稍候…', 'info');
+    setStatus(statusElement, '鐢熸垚涓紝璇风◢鍊欌€?, 'info');
     return null;
   }
   const mySeq = ++stage2GenerationSeq;
@@ -4858,19 +4743,19 @@ async function triggerGeneration(opts) {
   setStage2ButtonsDisabled(true);
   
 
-  // 1) 选可用 API 基址
+  // 1) 閫夊彲鐢?API 鍩哄潃
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
   if (!apiCandidates.length) {
     stage2InFlight = false;
     setStage2ButtonsDisabled(false);
-    setStatus(statusElement, '未找到可用后端，请先填写 API 基址。', 'warning');
+    setStatus(statusElement, '鏈壘鍒板彲鐢ㄥ悗绔紝璇峰厛濉啓 API 鍩哄潃銆?, 'warning');
     return null;
   }
 
-  // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
+  // 2) 璧勪骇鈥滃啀姘村寲鈥濈‘淇?dataUrl 灏辩华锛堜粎鐢ㄤ簬鐢诲竷棰勮锛涘彂閫佺粰鍚庣浣跨敤 r2Key锛?
   await hydrateStage1DataAssets(stage1Data);
 
-  // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
+  // 3) 涓讳綋 poster锛堢礌鏉愬繀椤诲凡涓婁簯锛屼粎浼?URL/Key锛?
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
   const pd = stage1Data.product_asset || null;
@@ -4916,13 +4801,13 @@ async function triggerGeneration(opts) {
     const productUrl = productRef.url || null;
 
     if (scenarioUrl) {
-      assertAssetUrl('场景图', scenarioUrl);
+      assertAssetUrl('鍦烘櫙鍥?, scenarioUrl);
     }
     if (productUrl) {
-      assertAssetUrl('主产品图', productUrl);
+      assertAssetUrl('涓讳骇鍝佸浘', productUrl);
     }
     if (brandLogoUrl) {
-      assertAssetUrl('品牌 Logo', brandLogoUrl);
+      assertAssetUrl('鍝佺墝 Logo', brandLogoUrl);
     }
 
     posterPayload = {
@@ -4963,7 +4848,7 @@ async function triggerGeneration(opts) {
     console.error('[triggerGeneration] asset normalisation failed', error);
     setStatus(
       statusElement,
-      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+      error instanceof Error ? error.message : '绱犳潗鏈畬鎴愪笂浼狅紝璇峰厛涓婁紶鑷?R2/GCS銆?,
       'error',
     );
     stage2InFlight = false;
@@ -4972,7 +4857,7 @@ async function triggerGeneration(opts) {
   }
   
 
- // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+ // 4) Prompt 缁勮 鈥斺€?濮嬬粓鍙戦€佸瓧绗︿覆 prompt_bundle
   const reqFromInspector = promptManager?.buildRequest?.() || {};
   if (forceVariants != null) reqFromInspector.variants = forceVariants;
   
@@ -5036,10 +4921,10 @@ async function triggerGeneration(opts) {
   });
   console.info('[triggerGeneration] asset audit', assetAudit);
   
-  // 面板同步
+  // 闈㈡澘鍚屾
   updatePromptPanels?.({ bundle: payload.prompt_bundle });
   
-  // 5) 体积守护
+  // 5) 浣撶Н瀹堟姢
   const rawPayload = JSON.stringify(payload);
   try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
@@ -5048,14 +4933,14 @@ async function triggerGeneration(opts) {
     return null;
   }
   
-  // 6) UI 状态
+  // 6) UI 鐘舵€?
   generateButton.disabled = true;
   if (regenerateButton) regenerateButton.disabled = true;
-  setStatus(statusElement, abTest ? '正在进行 A/B 提示词生成…' : '正在生成海报与文案…', 'info');
+  setStatus(statusElement, abTest ? '姝ｅ湪杩涜 A/B 鎻愮ず璇嶇敓鎴愨€? : '姝ｅ湪鐢熸垚娴锋姤涓庢枃妗堚€?, 'info');
   posterOutput?.classList.remove('hidden');
   if (aiPreview) aiPreview.classList.remove('complete');
   if (aiSpinner) aiSpinner.classList.remove('hidden');
-  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
+  if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 姝ｅ湪缁樺埗娴锋姤鈥?;
   posterGeneratedImage = null;
   posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
   if (promptGroup) promptGroup.classList.add('hidden');
@@ -5104,7 +4989,6 @@ async function triggerGeneration(opts) {
       } catch (error) {
         console.error('save template fallback failed', error);
       }
-    }
 
     const statusLevel = hasCopy ? 'warning' : 'error';
     const statusMessage = message || (hasCopy
@@ -5146,7 +5030,6 @@ async function triggerGeneration(opts) {
         promptBundlePre.value = '';
         promptBundleGroup.classList.add('hidden');
       }
-    }
 
     console.info('[triggerGeneration] success', {
       hasPoster: Boolean(data?.poster_image),
@@ -5263,7 +5146,6 @@ async function triggerGeneration(opts) {
     setStage2ButtonsDisabled(false);
     updateRegenerateButtonState();
   }
-}
 
 async function prepareTemplatePreviewAssets(stage1Data) {
   const result = {
@@ -5275,7 +5157,6 @@ async function prepareTemplatePreviewAssets(stage1Data) {
 
   const pickSrc = (value, depth = 0) => {
     if (!value || depth > 3) return null;
-    if (typeof value === 'string') return value;
 
     const directFields = [
       value.dataUrl,
@@ -5303,7 +5184,6 @@ async function prepareTemplatePreviewAssets(stage1Data) {
         const picked = pickSrc(item, depth + 1);
         if (picked) return picked;
       }
-    }
 
     return null;
   };
@@ -5343,8 +5223,6 @@ async function prepareTemplatePreviewAssets(stage1Data) {
       if (!result.gallery[i]) {
         result.gallery[i] = result.brand_logo;
       }
-    }
-  }
 
   return result;
 }
@@ -5383,13 +5261,12 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
     if (previewAssets.brand_logo) {
       drawPreviewImage(ctx, previewAssets.brand_logo, brandSlot, 'contain');
     } else {
-      drawPreviewPlaceholder(ctx, brandSlot, stage1Data.brand_name || '品牌 Logo');
+      drawPreviewPlaceholder(ctx, brandSlot, stage1Data.brand_name || '鍝佺墝 Logo');
     }
-  }
 
   const brandNameSlot = getSlotRect(slots.brand_name);
   if (brandNameSlot) {
-    drawPreviewText(ctx, stage1Data.brand_name || '品牌名称', brandNameSlot, {
+    drawPreviewText(ctx, stage1Data.brand_name || '鍝佺墝鍚嶇О', brandNameSlot, {
       font: fonts.brand,
       color: '#1f2933',
     });
@@ -5397,7 +5274,7 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
 
   const agentSlot = getSlotRect(slots.agent_name);
   if (agentSlot) {
-    drawPreviewText(ctx, (stage1Data.agent_name || '代理名').toUpperCase(), agentSlot, {
+    drawPreviewText(ctx, (stage1Data.agent_name || '浠ｇ悊鍚?).toUpperCase(), agentSlot, {
       font: fonts.agent,
       color: '#1f2933',
       align: 'right',
@@ -5409,22 +5286,20 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
     if (previewAssets.scenario) {
       drawPreviewImage(ctx, previewAssets.scenario, scenarioSlot, 'cover');
     } else {
-      drawPreviewPlaceholder(ctx, scenarioSlot, stage1Data.scenario_image || '应用场景');
+      drawPreviewPlaceholder(ctx, scenarioSlot, stage1Data.scenario_image || '搴旂敤鍦烘櫙');
     }
-  }
 
   const productSlot = getSlotRect(slots.product);
   if (productSlot) {
     if (previewAssets.product) {
       drawPreviewImage(ctx, previewAssets.product, productSlot, 'contain');
     } else {
-      drawPreviewPlaceholder(ctx, productSlot, stage1Data.product_name || '产品渲染图');
+      drawPreviewPlaceholder(ctx, productSlot, stage1Data.product_name || '浜у搧娓叉煋鍥?);
     }
-  }
 
   const titleSlot = getSlotRect(slots.title);
   if (titleSlot) {
-    drawPreviewText(ctx, stage1Data.title || '标题文案待补充', titleSlot, {
+    drawPreviewText(ctx, stage1Data.title || '鏍囬鏂囨寰呰ˉ鍏?, titleSlot, {
       font: fonts.title,
       color: '#ef4c54',
       align: 'center',
@@ -5434,7 +5309,7 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
 
   const subtitleSlot = getSlotRect(slots.subtitle);
   if (subtitleSlot) {
-    drawPreviewText(ctx, stage1Data.subtitle || '副标题待补充', subtitleSlot, {
+    drawPreviewText(ctx, stage1Data.subtitle || '鍓爣棰樺緟琛ュ厖', subtitleSlot, {
       font: fonts.subtitle,
       color: '#ef4c54',
       align: 'right',
@@ -5471,7 +5346,7 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
       drawPreviewImage(ctx, image, rect, 'cover');
       ctx.restore();
     } else {
-      drawPreviewPlaceholder(ctx, rect, `底部小图 ${index + 1}`);
+      drawPreviewPlaceholder(ctx, rect, `搴曢儴灏忓浘 ${index + 1}`);
     }
 
     const caption = stage1Data.gallery_entries?.[index]?.caption;
@@ -5491,7 +5366,7 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
 
   const stripSlot = getSlotRect(gallery.strip);
   if (stripSlot) {
-    drawPreviewText(ctx, stage1Data.series_description || '系列说明待补充', {
+    drawPreviewText(ctx, stage1Data.series_description || '绯诲垪璇存槑寰呰ˉ鍏?, {
       x: stripSlot.x + 12,
       y: stripSlot.y + Math.max(stripSlot.height - 44, 0),
       width: stripSlot.width - 24,
@@ -5502,7 +5377,6 @@ function drawTemplatePreview(canvas, assets, stage1Data, previewAssets) {
       lineHeight: 24,
     });
   }
-}
 
 function loadImageAsset(src) {
   return new Promise((resolve, reject) => {
@@ -5513,20 +5387,20 @@ function loadImageAsset(src) {
       img.onload = () => resolve(img);
       img.onerror = async () => {
         if (!allowFallback) {
-          reject(new Error(`无法加载图片：${url}`));
+          reject(new Error(`鏃犳硶鍔犺浇鍥剧墖锛?{url}`));
           return;
         }
 
         const fallback = deriveBase64Fallback(url);
         if (!fallback) {
-          reject(new Error(`无法加载图片：${url}`));
+          reject(new Error(`鏃犳硶鍔犺浇鍥剧墖锛?{url}`));
           return;
         }
 
         try {
           const response = await fetch(fallback, { cache: 'no-store' });
           if (!response.ok) {
-            throw new Error(`无法加载 Base64 资源：${fallback}`);
+            throw new Error(`鏃犳硶鍔犺浇 Base64 璧勬簮锛?{fallback}`);
           }
           const base64 = (await response.text()).trim();
           attempt(`data:image/png;base64,${base64}`, false);
@@ -5666,7 +5540,6 @@ function tokeniseText(text) {
       }
       tokens.push(char);
     }
-  }
   if (buffer) tokens.push(buffer);
   return tokens;
 }
@@ -5724,18 +5597,12 @@ function surfaceSlotWarnings(slotSummary) {
   const aiMessage = document.getElementById('ai-preview-message');
   if (!aiMessage) return;
 
-  const missing = [];
-  if (!slotSummary.scenario) missing.push('场景图');
-  if (!slotSummary.product) missing.push('产品图');
-  const missingGallery = slotSummary.galleryCount === 0;
 
-  if (!missing.length && !missingGallery) return;
 
   const parts = [];
-  if (missing.length) parts.push(`缺少${missing.join('、')}`);
-  if (missingGallery) parts.push('未返回系列小图');
+  if (missingGallery) parts.push('鏈繑鍥炵郴鍒楀皬鍥?);
 
-  aiMessage.textContent = `生成完成，但${parts.join('，')}，请检查素材或稍后重试。`;
+  aiMessage.textContent = `鐢熸垚瀹屾垚锛屼絾${parts.join('锛?)}锛岃妫€鏌ョ礌鏉愭垨绋嶅悗閲嶈瘯銆俙;
 }
 
 function renderDualPosterPreview(root, layout, data) {
@@ -5865,7 +5732,7 @@ async function loadHtml2Canvas() {
     script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
     script.async = true;
     script.onload = () => resolve(window.html2canvas);
-    script.onerror = () => reject(new Error('html2canvas 加载失败'));
+    script.onerror = () => reject(new Error('html2canvas 鍔犺浇澶辫触'));
     document.head.appendChild(script);
   });
 
@@ -5890,9 +5757,8 @@ async function saveStage2Result(data) {
         });
       }
     } catch (error) {
-      console.warn('无法解析现有的环节 2 数据，跳过旧键清理。', error);
+      console.warn('鏃犳硶瑙ｆ瀽鐜版湁鐨勭幆鑺?2 鏁版嵁锛岃烦杩囨棫閿竻鐞嗐€?, error);
     }
-  }
 
   const payload = { ...data };
   if (data.poster_image) {
@@ -5911,7 +5777,6 @@ async function saveStage2Result(data) {
     if (previousKey && previousKey !== key) {
       await assetStore.delete(previousKey).catch(() => undefined);
     }
-  }
 
   if (Array.isArray(data.variants)) {
     payload.variants = [];
@@ -5943,18 +5808,16 @@ async function saveStage2Result(data) {
     sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
   } catch (error) {
     if (isQuotaError(error)) {
-      console.warn('sessionStorage 容量不足，正在覆盖旧的环节 2 结果。', error);
+      console.warn('sessionStorage 瀹归噺涓嶈冻锛屾鍦ㄨ鐩栨棫鐨勭幆鑺?2 缁撴灉銆?, error);
       try {
         sessionStorage.removeItem(STORAGE_KEYS.stage2);
         sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
       } catch (innerError) {
-        console.error('无法保存环节 2 结果，已放弃持久化。', innerError);
+        console.error('鏃犳硶淇濆瓨鐜妭 2 缁撴灉锛屽凡鏀惧純鎸佷箙鍖栥€?, innerError);
       }
     } else {
-      console.error('保存环节 2 结果失败。', error);
+      console.error('淇濆瓨鐜妭 2 缁撴灉澶辫触銆?, error);
     }
-  }
-}
 
 async function loadStage2Result() {
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
@@ -5966,7 +5829,6 @@ async function loadStage2Result() {
       if (storedValue) {
         applyStoredAssetValue(parsed.poster_image, storedValue);
       }
-    }
     if (Array.isArray(parsed?.variants)) {
       await Promise.all(
         parsed.variants.map(async (variant) => {
@@ -5975,7 +5837,6 @@ async function loadStage2Result() {
             if (storedValue) {
               applyStoredAssetValue(variant, storedValue);
             }
-          }
         })
       );
     }
@@ -5984,7 +5845,6 @@ async function loadStage2Result() {
     console.error('Unable to parse stage2 result', error);
     return null;
   }
-}
 
 function initStage3() {
   void (async () => {
@@ -6005,7 +5865,7 @@ function initStage3() {
     const stage2Result = await loadStage2Result();
 
     if (!stage1Data || !stage2Result?.poster_image) {
-      setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
+      setStatus(statusElement, '璇峰厛瀹屾垚鐜妭 1 涓庣幆鑺?2锛岀敓鎴愭捣鎶ュ悗鍐嶅彂閫侀偖浠躲€?, 'warning');
       sendButton.disabled = true;
       return;
     }
@@ -6029,12 +5889,11 @@ function initStage3() {
         ) {
           chosenPosterImage = candidate;
         }
-      }
     } catch (e) {}
 
-    assignPosterImage(posterImage, chosenPosterImage, `${stage1Data.product_name} 海报预览`);
+    assignPosterImage(posterImage, chosenPosterImage, `${stage1Data.product_name} 娴锋姤棰勮`);
     if (posterCaption) {
-      posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
+      posterCaption.textContent = `${stage1Data.brand_name} 路 ${stage1Data.agent_name}`;
     }
     if (promptTextarea) {
       promptTextarea.value = stage2Result.prompt || '';
@@ -6047,7 +5906,7 @@ function initStage3() {
     sendButton.addEventListener('click', async () => {
       const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
       if (!apiCandidates.length) {
-        setStatus(statusElement, '未找到可用的后端基址，无法发送邮件。', 'warning');
+        setStatus(statusElement, '鏈壘鍒板彲鐢ㄧ殑鍚庣鍩哄潃锛屾棤娉曞彂閫侀偖浠躲€?, 'warning');
         return;
       }
 
@@ -6056,12 +5915,12 @@ function initStage3() {
       const body = emailBody.value.trim();
 
       if (!recipient || !subject || !body) {
-        setStatus(statusElement, '请完整填写收件邮箱、主题与正文。', 'error');
+        setStatus(statusElement, '璇峰畬鏁村～鍐欐敹浠堕偖绠便€佷富棰樹笌姝ｆ枃銆?, 'error');
         return;
       }
 
       sendButton.disabled = true;
-      setStatus(statusElement, '正在发送营销邮件…', 'info');
+      setStatus(statusElement, '姝ｅ湪鍙戦€佽惀閿€閭欢鈥?, 'info');
 
       try {
         await warmUp(apiCandidates);
@@ -6085,7 +5944,6 @@ function initStage3() {
             ) {
               attachmentToSend = candidate;
             }
-          }
         } catch (e) {}
 
         const response = await postJsonWithRetry(
@@ -6100,27 +5958,27 @@ function initStage3() {
           1
         );
 
-        console.log('邮件发送 response:', response);
+        console.log('閭欢鍙戦€?response:', response);
         if (response?.status === 'sent') {
-          setStatus(statusElement, '营销邮件发送成功！', 'success');
+          setStatus(statusElement, '钀ラ攢閭欢鍙戦€佹垚鍔燂紒', 'success');
         } else if (response?.status === 'skipped') {
           setStatus(
             statusElement,
-            response?.detail || '邮件服务未配置，本次只做预览，未真正发送。',
+            response?.detail || '閭欢鏈嶅姟鏈厤缃紝鏈鍙仛棰勮锛屾湭鐪熸鍙戦€併€?,
             'warning'
           );
         } else if (response?.status === 'error') {
           setStatus(
             statusElement,
-            response?.detail ? `邮件发送失败：${response.detail}` : '邮件发送失败',
+            response?.detail ? `閭欢鍙戦€佸け璐ワ細${response.detail}` : '閭欢鍙戦€佸け璐?,
             'error'
           );
         } else {
-          setStatus(statusElement, '邮件发送结果未知，请检查日志。', 'warning');
+          setStatus(statusElement, '閭欢鍙戦€佺粨鏋滄湭鐭ワ紝璇锋鏌ユ棩蹇椼€?, 'warning');
         }
       } catch (error) {
-        console.error('[邮件发送失败]', error);
-        setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
+        console.error('[閭欢鍙戦€佸け璐', error);
+        setStatus(statusElement, error.message || '鍙戦€侀偖浠跺け璐ワ紝璇风◢鍚庨噸璇曘€?, 'error');
       } finally {
         sendButton.disabled = false;
       }
@@ -6128,12 +5986,12 @@ function initStage3() {
   })();
 }
 
-// ✉️ 构造邮件标题
+// 鉁夛笍 鏋勯€犻偖浠舵爣棰?
 function buildEmailSubject(stage1Data) {
-  const brand = stage1Data.brand_name || '品牌';
-  const agent = stage1Data.agent_name ? `（${stage1Data.agent_name}）` : '';
-  const product = stage1Data.product_name || '产品';
-  return `${brand}${agent} ${product} 市场推广海报`;
+  const brand = stage1Data.brand_name || '鍝佺墝';
+  const agent = stage1Data.agent_name ? `锛?{stage1Data.agent_name}锛塦 : '';
+  const product = stage1Data.product_name || '浜у搧';
+  return `${brand}${agent} ${product} 甯傚満鎺ㄥ箍娴锋姤`;
 }
 function setStatus(element, message, level = 'info') {
   if (!element) return;
@@ -6145,7 +6003,7 @@ function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result?.toString() || '');
-    reader.onerror = () => reject(reader.error || new Error('文件读取失败'));
+    reader.onerror = () => reject(reader.error || new Error('鏂囦欢璇诲彇澶辫触'));
     reader.readAsDataURL(file);
   });
 }
@@ -6228,29 +6086,28 @@ async function prepareAssetFromFile(
     if (!uploadResult.uploaded) {
       if (requireUpload) {
         throw new Error(
-          requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+          requireUploadMessage || '绱犳潗涓婁紶澶辫触锛岃纭瀵硅薄瀛樺偍閰嶇疆銆?
         );
       }
       if (statusElement) {
         const message =
           uploadResult.error instanceof Error
             ? uploadResult.error.message
-            : '上传到 R2 失败，已回退至本地预览。';
+            : '涓婁紶鍒?R2 澶辫触锛屽凡鍥為€€鑷虫湰鍦伴瑙堛€?;
         setStatus(statusElement, message, 'warning');
       }
-    }
   } else if (requireUpload) {
     throw new Error(
-      requireUploadMessage || '请先配置后端基址以启用对象存储上传。'
+      requireUploadMessage || '璇峰厛閰嶇疆鍚庣鍩哄潃浠ュ惎鐢ㄥ璞″瓨鍌ㄤ笂浼犮€?
     );
   } else if (statusElement) {
-    setStatus(statusElement, '未配置后端基址，素材将仅保存在本地预览。', 'warning');
+    setStatus(statusElement, '鏈厤缃悗绔熀鍧€锛岀礌鏉愬皢浠呬繚瀛樺湪鏈湴棰勮銆?, 'warning');
   }
 
   const remoteUrl = uploadResult?.url || null;
   if (requireUpload && !remoteUrl) {
     throw new Error(
-      requireUploadMessage || '素材上传失败，请确认对象存储配置。'
+      requireUploadMessage || '绱犳潗涓婁紶澶辫触锛岃纭瀵硅薄瀛樺偍閰嶇疆銆?
     );
   }
   let dataUrl = uploadResult?.dataUrl || null;
@@ -6328,7 +6185,6 @@ async function deleteStoredAsset(asset) {
   if (asset?.key) {
     await assetStore.delete(asset.key).catch(() => undefined);
   }
-}
 
 function isQuotaError(error) {
   if (typeof DOMException === 'undefined') return false;
@@ -6358,9 +6214,9 @@ function createAssetStore() {
           }
         };
         request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error('无法打开 IndexedDB'));
+        request.onerror = () => reject(request.error || new Error('鏃犳硶鎵撳紑 IndexedDB'));
       }).catch((error) => {
-        console.warn('IndexedDB 不可用，回退到内存存储。', error);
+        console.warn('IndexedDB 涓嶅彲鐢紝鍥為€€鍒板唴瀛樺瓨鍌ㄣ€?, error);
         return null;
       });
     }
@@ -6377,7 +6233,7 @@ function createAssetStore() {
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.onabort = () => {
-        console.warn('IndexedDB 写入失败，使用内存存储。', tx.error);
+        console.warn('IndexedDB 鍐欏叆澶辫触锛屼娇鐢ㄥ唴瀛樺瓨鍌ㄣ€?, tx.error);
         memoryStore.set(key, value);
         resolve(key);
       };
@@ -6399,7 +6255,7 @@ function createAssetStore() {
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       tx.onabort = () => {
-        console.warn('IndexedDB 读取失败，使用内存存储。', tx.error);
+        console.warn('IndexedDB 璇诲彇澶辫触锛屼娇鐢ㄥ唴瀛樺瓨鍌ㄣ€?, tx.error);
         resolve(memoryStore.get(key) || null);
       };
       const store = tx.objectStore(STORE_NAME);
@@ -6429,7 +6285,7 @@ function createAssetStore() {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.oncomplete = () => resolve();
       tx.onabort = () => {
-        console.warn('IndexedDB 删除失败，尝试清理内存存储。', tx.error);
+        console.warn('IndexedDB 鍒犻櫎澶辫触锛屽皾璇曟竻鐞嗗唴瀛樺瓨鍌ㄣ€?, tx.error);
         memoryStore.delete(key);
         resolve();
       };
@@ -6462,6 +6318,7 @@ function createAssetStore() {
 if (typeof window.openABModal !== 'function') {
   window.openABModal = function openABModal(layout) {
     console.log('[openABModal] stub called, layout =', layout);
-    alert('A/B 测试弹窗暂未实现，目前已完成 AI 海报生成，可以先前往第 3 步使用该海报。');
+    alert('A/B 娴嬭瘯寮圭獥鏆傛湭瀹炵幇锛岀洰鍓嶅凡瀹屾垚 AI 娴锋姤鐢熸垚锛屽彲浠ュ厛鍓嶅線绗?3 姝ヤ娇鐢ㄨ娴锋姤銆?);
   };
 }
+
