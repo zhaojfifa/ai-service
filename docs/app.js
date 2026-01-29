@@ -5335,11 +5335,14 @@ function initStage2() {
     const draft = loadDraft();
     stage2State.draft = draft;
     renderDraftSnapshot(draft);
-    updateDebugPanels({ draft });
-    bindCopyButton('debug-copy-draft', () => JSON.stringify(stage2State.debugDraft || {}, null, 2));
-    bindCopyButton('debug-copy-payload', () => JSON.stringify(stage2State.debugPayload || {}, null, 2));
-    bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
-    bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
+    const hasDebugPanels = document.getElementById('debug-draft') || document.getElementById('debug-payload');
+    if (hasDebugPanels) {
+      updateDebugPanels({ draft });
+      bindCopyButton('debug-copy-draft', () => JSON.stringify(stage2State.debugDraft || {}, null, 2));
+      bindCopyButton('debug-copy-payload', () => JSON.stringify(stage2State.debugPayload || {}, null, 2));
+      bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
+      bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
+    }
 
       if (posterPreviewSection) {
         posterPreviewSection.classList.remove('hidden');

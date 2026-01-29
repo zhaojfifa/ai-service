@@ -909,20 +909,33 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
     return None
 
 
-def _load_font(size: int, *, weight: str = "regular") -> ImageFont.ImageFont:
-    """Attempt to load a sans-serif font while gracefully falling back to default."""
-    font_candidates = [
-        "SourceSansPro-Semibold.ttf" if weight != "regular" else "SourceSansPro-Regular.ttf",
-        "NotoSansCJKsc-Bold.otf" if weight != "regular" else "NotoSansCJKsc-Regular.otf",
-        "Arial.ttf" if weight == "regular" else "Arial Bold.ttf",
-        "PingFang.ttc",
-        "Microsoft YaHei.ttf",
-    ]
-    for candidate in font_candidates:
+@lru_cache(maxsize=64)
+def _load_font(size: int = 32, *, weight: str = "regular") -> ImageFont.ImageFont:
+    """
+    Load a font that can render Latin + CJK reliably on Render/Linux.
+    Priority: NotoSansCJK (ttc) -> DejaVu -> PIL default.
+    """
+    bold = weight != "regular"
+    env_paths = [p.strip() for p in os.getenv("POSTER_FONT_PATHS", "").split(":") if p.strip()]
+
+    noto_regular = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    noto_bold = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+    dejavu_regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    dejavu_bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+    candidates: list[str] = []
+    candidates.extend(env_paths)
+    candidates.append(noto_bold if bold else noto_regular)
+    candidates.append(dejavu_bold if bold else dejavu_regular)
+
+    for path in candidates:
         try:
-            return ImageFont.truetype(candidate, size=size)
+            if path.lower().endswith(".ttc"):
+                return ImageFont.truetype(path, size=size, index=0)
+            return ImageFont.truetype(path, size=size)
         except Exception:
             continue
+
     return ImageFont.load_default()
 
 
