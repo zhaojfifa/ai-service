@@ -77,6 +77,11 @@
       "y": 90,
       "width": 220,
       "height": 68,
+      "text": {
+        "align": "right",
+        "line_spacing": 4,
+        "weight": 600
+      },
       "guidance": {
         "mode": "place",
         "align": "right"
@@ -113,6 +118,22 @@
       "height": 104,
       "guidance": {
         "mode": "keep"
+      }
+    },
+    "banner": {
+      "x": 112,
+      "y": 760,
+      "width": 832,
+      "height": 40,
+      "text": {
+        "align": "center",
+        "line_spacing": 6,
+        "weight": 600
+      },
+      "guidance": {
+        "mode": "place_text",
+        "align": "center",
+        "valign": "center"
       }
     },
     "title": {
