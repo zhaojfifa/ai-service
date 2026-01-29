@@ -904,6 +904,7 @@ App.utils.ensureTemplateAssets = (() => {
 const HEALTH_CACHE_TTL = 60_000;
 const HEALTH_CACHE = new Map();
 
+const ASSET_BASE = new URL('.', location.href).toString();
 let documentAssetBase = null;
 
 //
@@ -962,9 +963,8 @@ function resolveDocumentAssetBase() {
 }
 
 function assetUrl(path) {
-  const base = resolveDocumentAssetBase();
-  if (!path) return new URL('', base).toString();
-  return new URL(path, base).toString();
+  if (!path) return new URL('', ASSET_BASE).toString();
+  return new URL(path, ASSET_BASE).toString();
 }
 
 App.utils.assetUrl = assetUrl;
