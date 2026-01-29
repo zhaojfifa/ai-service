@@ -962,8 +962,9 @@ function resolveDocumentAssetBase() {
 }
 
 function assetUrl(path) {
-  if (!path) return new URL('', document.baseURI).toString();
-  return new URL(path, document.baseURI).toString();
+  const base = resolveDocumentAssetBase();
+  if (!path) return new URL('', base).toString();
+  return new URL(path, base).toString();
 }
 
 App.utils.assetUrl = assetUrl;
@@ -1989,7 +1990,7 @@ async function loadBuildInfo() {
   const el = document.getElementById('build-info');
   if (!el) return;
   try {
-    const url = new URL('build-info.json', document.baseURI).toString();
+    const url = assetUrl('build-info.json');
     const response = await fetch(url, { cache: 'no-store' });
     if (!response.ok) throw new Error('build info unavailable');
     const data = await response.json();
