@@ -3331,7 +3331,98 @@ function saveStage1Data(data, options = {}) {
   }
 }
 
+function resolveStage1StorageSource() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('state')) return 'query';
+  // Stage1 storage key: marketing-poster-stage1-data
+  if (localStorage.getItem(STORAGE_KEYS.stage1)) return 'localStorage';
+  if (sessionStorage.getItem(STORAGE_KEYS.stage1)) return 'sessionStorage';
+  if (params.get('key') || params.get('url') || params.get('base64')) return 'legacy';
+  return 'none';
+}
+
+function safeParseJson(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function decodeBase64ToString(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let value = raw.trim();
+  try {
+    value = decodeURIComponent(value);
+  } catch {
+    value = value.trim();
+  }
+  value = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = value.length % 4;
+  if (padding) {
+    value = value.padEnd(value.length + (4 - padding), '=');
+  }
+  try {
+    const binary = atob(value);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    return decodeURIComponent(escape(binary));
+  } catch {
+    return null;
+  }
+}
+
+function loadStage1DataFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const state = params.get('state');
+  if (!state) return null;
+  const decoded = decodeBase64ToString(state);
+  if (!decoded) return null;
+  return safeParseJson(decoded);
+}
+
+function extractPosterFieldsFromState(state) {
+  if (!state || typeof state !== 'object') {
+    return { poster_key: '', poster_url: '', poster_base64: '' };
+  }
+  const final = state.final || {};
+  const result = state.result || {};
+  return {
+    poster_key:
+      state.poster_key ||
+      final.poster_key ||
+      result.poster_key ||
+      '',
+    poster_url:
+      state.poster_url ||
+      final.url ||
+      result.url ||
+      '',
+    poster_base64:
+      state.poster_base64 ||
+      final.base64 ||
+      result.base64 ||
+      '',
+  };
+}
+
 function loadStage1Data() {
+  const fromQuery = loadStage1DataFromQuery();
+  if (fromQuery) {
+    try {
+      saveStage1Data(fromQuery, { preserveStage2: true });
+    } catch (error) {
+      console.warn('Unable to persist stage1 data from query', error);
+    }
+    return fromQuery;
+  }
+
+  const fromLocal = safeParseJson(localStorage.getItem(STORAGE_KEYS.stage1));
+  if (fromLocal) return fromLocal;
+
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage1);
   if (!raw) return null;
   try {
@@ -3858,6 +3949,7 @@ function initStage2() {
     const apiBaseInput = document.getElementById('api-base');
     const posterLayout = document.getElementById('posterB-layout');
     const exportPosterButton = document.getElementById('export-poster-b');
+    const adapterDebug = document.getElementById('stage2-adapter-debug');
 
     if (!generateButton || !nextButton) {
       return;
@@ -3872,8 +3964,50 @@ function initStage2() {
     }
 
     const stage1Data = loadStage1Data();
-    if (!stage1Data || !stage1Data.preview_built) {
-      setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
+    const adapterSource = resolveStage1StorageSource();
+    const posterFields = extractPosterFieldsFromState(stage1Data);
+    const posterKeyInput = document.getElementById('poster_key');
+    const posterUrlInput = document.getElementById('poster_url');
+    const posterBase64Input = document.getElementById('poster_base64');
+    if (posterKeyInput && posterFields.poster_key) {
+      posterKeyInput.value = posterFields.poster_key;
+    }
+    if (posterUrlInput && posterFields.poster_url) {
+      posterUrlInput.value = posterFields.poster_url;
+    }
+    if (posterBase64Input && posterFields.poster_base64) {
+      posterBase64Input.value = posterFields.poster_base64;
+    }
+    if (adapterDebug) {
+      const hasKey = Boolean(posterFields.poster_key);
+      const hasUrl = Boolean(posterFields.poster_url);
+      const hasBase64 = Boolean(posterFields.poster_base64);
+      const backendBase = (apiBaseInput?.value || '').trim() || 'default';
+      adapterDebug.textContent =
+        `adapter source=${adapterSource} | ` +
+        `poster_key=${hasKey} poster_url=${hasUrl} poster_base64=${hasBase64} | ` +
+        `backend=${backendBase}`;
+    }
+    if (!stage1Data) {
+      const missing = ['poster_key', 'poster_url', 'poster_base64']
+        .filter((field) => !posterFields[field]);
+      setStatus(
+        statusElement,
+        `Stage1 data missing. source=${adapterSource}. Missing: ${missing.join(', ') || 'none'}.`,
+        'warning'
+      );
+      generateButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+      }
+      return;
+    }
+    if (!stage1Data.preview_built) {
+      setStatus(
+        statusElement,
+        'Stage1 preview not found. Please complete Stage1 preview before generating.',
+        'warning'
+      );
       generateButton.disabled = true;
       if (regenerateButton) {
         regenerateButton.disabled = true;
