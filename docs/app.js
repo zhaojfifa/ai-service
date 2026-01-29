@@ -2,12 +2,6 @@
 const App = (window.App ??= {});
 App.utils = App.utils ?? {};
 
-// Always resolve assets relative to the current document base.
-App.utils.assetUrl = (relPath) => new URL(relPath, document.baseURI).toString();
-
-const MODE_S = true;
-const MODE_S_RENDER_MODE = 'kitposter1_a';
-
 const VERTEX_IMAGE_TAG_CLASSNAMES = {
   scenario: 'slot-scenario',
   product: 'slot-product',
@@ -46,9 +40,8 @@ function buildGeneratedAssetFromUrl(url, key) {
 
 function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
   const logoImg = document.getElementById('preview-brand-logo');
-  const fallbackWarning = document.getElementById('asset-fallback-warning');
-  const candidates = [];
-  if (typeof url === 'string' && url.trim()) candidates.push(url.trim());
+  const finalUrl = url || logoFallback || logoImg?.src || '';
+  if (!finalUrl) return;
 
   const selectors = [];
   if (slot === 'gallery') {
@@ -66,27 +59,13 @@ function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
     selectors.push('#poster-result-product-image');
   }
 
-  if (slot === 'scenario') {
-    candidates.push(DEFAULT_SCENARIO_ASSET, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.scenario);
-  } else if (slot === 'product') {
-    candidates.push(LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product);
-  } else {
-    if (typeof logoFallback === 'string' && logoFallback.trim()) {
-      candidates.push(logoFallback.trim());
-    }
-    if (logoImg?.src) {
-      candidates.push(logoImg.src);
-    }
-  }
-
-  if (!candidates.length) return;
-
   selectors
     .map((selector) => document.querySelectorAll(selector))
     .forEach((nodeList) => {
       nodeList.forEach((img) => {
         if (img && img.tagName === 'IMG') {
-          applyImageWithFallback(img, candidates, fallbackWarning);
+          img.src = finalUrl;
+          img.style.visibility = 'visible';
         }
       });
     });
@@ -98,6 +77,8 @@ let posterLayoutRoot = null;
 
 // --- Stage2: 缓存最近一次生成结果，给 A/B 对比、重放使用 ---
 const posterGenerationState = {
+  /** 海报成品图 URL（R2 的公开地址） */
+  posterUrl: null,
   /** 本次生成用到的 prompt 结构，用于展示 / 调试 */
   promptBundle: null,
   /** Vertex / Glibatree 返回的原始响应，必要时可做更多调试 */
@@ -108,6 +89,7 @@ let posterGeneratedImage = null;
 let posterGeneratedLayout = null;
 
 // stage2：缓存最近一次生成结果与提示词，便于预览与回放
+let posterGeneratedImageUrl = null;
 let lastPromptBundle = null;
 
 const stage2State = {
@@ -130,24 +112,12 @@ const stage2State = {
   vertex: {
     lastResponse: null,
   },
-  generated: {
-    attempted: false,
-    lastSuccessPosterUrl: null,
-  },
   generationAction: 'generate',
   regenPolicy: {
     updateScenario: false,
     updateGallery: false,
     updateProduct: false,
   },
-    adjustments: {
-      showBullets: true,
-      titleScale: 1,
-      qualityMode: 'stable',
-      titleSize: 'M',
-      fallbackStableClicked: false,
-    },
-  renderMode: 'kitposter1_a',
 };
 let stage2HasAttemptedGenerate = false;
 let stage2LastGeneratedAssetFingerprint = null;
@@ -158,96 +128,9 @@ let stage2LastClickAt = 0;
 const STAGE2_CLICK_DEBOUNCE_MS = 700;
 let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
-const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function initStage2RenderModeControl(promptInspector, statusElement) {
-  if (!promptInspector) return null;
-  const header = promptInspector.querySelector('header');
-  if (!header) return null;
-
-  const seedControls = header.querySelector('.seed-controls');
-  const wrapper = document.createElement('div');
-  wrapper.className = 'seed-controls';
-  wrapper.style.marginTop = '8px';
-
-  const label = document.createElement('label');
-  const labelText = document.createElement('span');
-  labelText.textContent = 'Render Mode';
-  const select = document.createElement('select');
-  select.id = 'stage2-render-mode';
-  select.innerHTML = `
-    <option value="kitposter1_a">KitPoster A (default)</option>
-    <option value="kitposter1_b">KitPoster B</option>
-    <option value="locked">Legacy locked</option>
-  `;
-
-  label.appendChild(labelText);
-  label.appendChild(select);
-  wrapper.appendChild(label);
-
-  const hint = document.createElement('p');
-  hint.className = 'hint';
-  hint.textContent = 'KitPoster 1.0 uses locked inpaint; Legacy locked falls back to old pipeline.';
-  wrapper.appendChild(hint);
-
-  if (seedControls && seedControls.parentNode) {
-    seedControls.parentNode.insertBefore(wrapper, seedControls.nextSibling);
-  } else {
-    header.appendChild(wrapper);
-  }
-
-  const stored = sessionStorage.getItem(STAGE2_RENDER_MODE_KEY);
-  const defaultMode = stored || stage2State.renderMode || 'kitposter1_a';
-  stage2State.renderMode = defaultMode;
-  select.value = defaultMode;
-
-  select.addEventListener('change', () => {
-    stage2State.renderMode = select.value;
-    sessionStorage.setItem(STAGE2_RENDER_MODE_KEY, select.value);
-    if (statusElement) {
-      setStatus(statusElement, `Render mode set to ${select.value}.`, 'info');
-    }
-  });
-
-  return select;
-}
-
-function ensureStage2FinalPosterPreview(container) {
-  if (!container) return null;
-  if (document.getElementById('final-poster-img')) return null;
-  let wrapper = document.getElementById('stage2-final-poster');
-  if (wrapper) return wrapper;
-
-  wrapper = document.createElement('div');
-  wrapper.id = 'stage2-final-poster';
-  wrapper.className = 'output-group hidden';
-
-  const title = document.createElement('h3');
-  title.textContent = 'Final Poster (KitPoster)';
-
-  const link = document.createElement('a');
-  link.id = 'stage2-final-poster-link';
-  link.className = 'poster-preview-link hidden';
-  link.target = '_blank';
-  link.rel = 'noreferrer';
-  link.textContent = 'Open full image';
-
-  const img = document.createElement('img');
-  img.id = 'stage2-final-poster-image';
-  img.alt = 'Final poster preview';
-  img.style.maxWidth = '100%';
-  img.style.display = 'block';
-
-  wrapper.appendChild(title);
-  wrapper.appendChild(link);
-  wrapper.appendChild(img);
-
-  container.appendChild(wrapper);
-  return wrapper;
 }
 
 function fingerprintAssets(assets) {
@@ -260,8 +143,7 @@ function fingerprintAssets(assets) {
 function updateRegenerateButtonState() {
   const button = document.getElementById('regenerate-poster');
   if (!button) return;
-  const attempted = stage2State.generated?.attempted || stage2HasAttemptedGenerate;
-  if (!attempted) {
+  if (!stage2HasAttemptedGenerate) {
     button.classList.add('hidden');
     button.disabled = true;
     return;
@@ -288,88 +170,6 @@ function setTextIfNonEmpty(el, next, fallback = '') {
   if (fallback != null) el.textContent = String(fallback);
 }
 
-function setText(elId, text) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const value = typeof text === 'string' ? text : String(text ?? '');
-  if ('value' in el) {
-    el.value = value;
-    return;
-  }
-  el.textContent = value;
-}
-
-function renderJson(elId, obj) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  const payload = obj == null ? '' : JSON.stringify(obj, null, 2);
-  if ('value' in el) {
-    el.value = payload;
-  } else {
-    el.textContent = payload;
-  }
-}
-
-function buildPromptPreview(payload) {
-  if (!payload || typeof payload !== 'object') return '';
-  const bundle = payload.prompt_bundle || payload.prompts || null;
-  const lines = [];
-  if (bundle && typeof bundle === 'object') {
-    Object.keys(bundle).forEach((slot) => {
-      const entry = bundle[slot];
-      if (entry == null) return;
-      if (typeof entry === 'string') {
-        lines.push(`${slot}: ${entry}`);
-      } else {
-        const preview = entry.prompt || entry.positive || entry.text || '';
-        const neg = entry.negative || entry.negative_prompt || '';
-        if (preview) lines.push(`${slot}: ${preview}`);
-        if (neg) lines.push(`${slot} (negative): ${neg}`);
-      }
-    });
-  }
-  if (typeof payload.final_prompt === 'string' && payload.final_prompt.trim()) {
-    lines.push(`final_prompt: ${payload.final_prompt.trim()}`);
-  }
-  return lines.join('\n').trim();
-}
-
-function updateDebugPanels({ draft, payload, response } = {}) {
-  if (draft !== undefined) {
-    stage2State.debugDraft = draft;
-    renderJson('debug-draft', draft);
-  }
-  if (payload !== undefined) {
-    stage2State.debugPayload = payload;
-    renderJson('debug-payload', payload);
-    setText('debug-prompt-preview', buildPromptPreview(payload));
-  }
-  if (response !== undefined) {
-    stage2State.debugResponse = response;
-    renderJson('debug-response', response);
-  }
-}
-
-function bindCopyButton(buttonId, getText) {
-  const button = document.getElementById(buttonId);
-  if (!button || button.dataset.bound === 'true') return;
-  button.dataset.bound = 'true';
-  button.addEventListener('click', async () => {
-    const text = typeof getText === 'function' ? getText() : '';
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      const original = button.textContent;
-      button.textContent = 'Copied';
-      setTimeout(() => {
-        button.textContent = original || 'Copy';
-      }, 1200);
-    } catch (error) {
-      console.warn('Copy failed', error);
-    }
-  });
-}
-
 function setImageSrcIfNonEmpty(imgEl, nextUrl) {
   if (!imgEl) return;
   const url = typeof nextUrl === 'string' ? nextUrl.trim() : '';
@@ -381,43 +181,6 @@ function setImageSrcIfNonEmpty(imgEl, nextUrl) {
       imgEl.style.display = '';
     }
   }
-}
-
-function showAssetFallbackWarning(warningEl) {
-  if (!warningEl) return;
-  warningEl.textContent = 'Fallback asset used.';
-  warningEl.classList.remove('hidden');
-}
-
-function applyImageWithFallback(imgEl, sources, warningEl) {
-  if (!imgEl) return false;
-  const candidates = (Array.isArray(sources) ? sources : [sources])
-    .map((value) => (typeof value === 'string' ? value.trim() : ''))
-    .filter(Boolean);
-  if (!candidates.length) return false;
-
-  let index = 0;
-  const loadAt = (idx) => {
-    const src = candidates[idx];
-    if (!src) return;
-    imgEl.src = src;
-    if (imgEl.style) {
-      imgEl.style.visibility = 'visible';
-      if (imgEl.style.display === 'none') {
-        imgEl.style.display = '';
-      }
-    }
-  };
-
-  imgEl.onerror = () => {
-    index += 1;
-    if (index < candidates.length) {
-      showAssetFallbackWarning(warningEl);
-      loadAt(index);
-    }
-  };
-  loadAt(index);
-  return true;
 }
 
 function setStage2ButtonsDisabled(disabled) {
@@ -439,8 +202,6 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   if (stage2GenerateInFlight) return;
   if (now - stage2LastClickAt < STAGE2_CLICK_DEBOUNCE_MS) return;
   stage2LastClickAt = now;
-  const t0 = Date.now();
-  const stage1Snapshot = loadStage1Data() || {};
   stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
   stage2State.regenPolicy = isRegenerate
     ? { updateScenario: true, updateGallery: true, updateProduct: false }
@@ -463,26 +224,6 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
   } finally {
     stage2GenerateInFlight = false;
     setStage2GenerateUiBusy(false);
-    const t1 = Date.now();
-    const bullets = Array.isArray(stage1Snapshot?.bullets) ? stage1Snapshot.bullets.filter(Boolean) : [];
-    const bottomEntries = Array.isArray(stage1Snapshot?.gallery_entries)
-      ? stage1Snapshot.gallery_entries.filter((entry) => entry && entry.asset)
-      : [];
-    console.log({
-      bottom_count: bottomEntries.length,
-      has_scenario: Boolean(stage1Snapshot?.scenario_asset || stage1Snapshot?.scenario_image),
-      has_product2: Boolean(stage1Snapshot?.product_image_2),
-      title_len: (stage1Snapshot?.title || '').length,
-      bullets_count: bullets.length,
-      adjustments: {
-        showBullets: stage2State.adjustments?.showBullets !== false,
-        titleSize: stage2State.adjustments?.titleSize || 'M',
-        fallbackStableClicked: Boolean(stage2State.adjustments?.fallbackStableClicked),
-      },
-      t0,
-      t1,
-      duration_ms: t1 - t0,
-    });
   }
 }
 
@@ -509,16 +250,10 @@ function rehydrateStage2PosterFromStage1() {
     poster.tagline = snapshot.subtitle || snapshot.tagline || snapshot.slogan || '';
   }
   if (!Array.isArray(poster.features) || poster.features.length === 0) {
-    const fromFeatures = Array.isArray(snapshot.features) ? snapshot.features : [];
-    const fromBullets = Array.isArray(snapshot.bullets) ? snapshot.bullets : [];
-    const merged = (fromFeatures.length ? fromFeatures : fromBullets)
-      .map((value) => (typeof value === 'string' ? value.trim() : value))
-      .filter(Boolean);
-    poster.features = merged;
+    poster.features = Array.isArray(snapshot.features)
+      ? snapshot.features.filter(Boolean)
+      : [];
   }
-  if (!poster.price && snapshot.price) poster.price = snapshot.price;
-  if (!poster.promo && snapshot.promo) poster.promo = snapshot.promo;
-  if (!poster.brand_color && snapshot.brand_color) poster.brand_color = snapshot.brand_color;
   if (!Array.isArray(poster.series) || poster.series.length === 0) {
     poster.series = Array.isArray(snapshot.gallery_entries)
       ? snapshot.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
@@ -553,269 +288,6 @@ const TEMPLATE_DUAL_LAYOUT = {
     tagline: { x: 0.10, y: 0.96, w: 0.80, h: 0.03, type: 'text', align: 'center' },
   },
 };
-
-const TEXT_SAFE_AREAS = {
-  template_dual: {
-    title: { x: 0.08, y: 0.68, w: 0.84, h: 0.10, maxLines: 2, baselineFontPx: 40, minFontPx: 18 },
-    bullets: { x: 0.08, y: 0.78, w: 0.84, h: 0.14, maxLines: 4, baselineFontPx: 18, minFontPx: 12, lineGap: 4 },
-    tagline: { x: 0.10, y: 0.92, w: 0.80, h: 0.05, maxLines: 1, baselineFontPx: 16, minFontPx: 10 },
-  },
-  template_single: {
-    title: { x: 0.08, y: 0.64, w: 0.84, h: 0.12, maxLines: 2, baselineFontPx: 42, minFontPx: 20 },
-    bullets: { x: 0.08, y: 0.76, w: 0.84, h: 0.16, maxLines: 4, baselineFontPx: 18, minFontPx: 12, lineGap: 4 },
-    tagline: { x: 0.10, y: 0.92, w: 0.80, h: 0.05, maxLines: 1, baselineFontPx: 16, minFontPx: 10 },
-  },
-};
-
-const TITLE_SCALE_PRESETS = { S: 0.85, M: 1, L: 1.2 };
-
-function applyWireframeLayout(container, templateId) {
-  if (!container) return;
-  const spec = TEXT_SAFE_AREAS[templateId] || TEXT_SAFE_AREAS.template_dual;
-  Object.entries(spec).forEach(([slot, box]) => {
-    const el = container.querySelector(`[data-slot="${slot}"]`);
-    if (!el) return;
-    el.style.left = `${box.x * 100}%`;
-    el.style.top = `${box.y * 100}%`;
-    el.style.width = `${box.w * 100}%`;
-    el.style.height = `${box.h * 100}%`;
-  });
-}
-
-function fitTextToBox(el, text, config, { scale = 1 } = {}) {
-  if (!el || !config) return { didEllipsis: false, fontPx: 0 };
-  const baseline = Math.round(config.baselineFontPx * scale);
-  const minFontPx = Math.round(config.minFontPx * scale);
-  const lineGap = typeof config.lineGap === 'number' ? config.lineGap : 4;
-  const content = typeof text === 'string' ? text.trim() : '';
-  el.textContent = content;
-  el.dataset.ellipsis = '0';
-
-  let fontPx = baseline;
-  const applyFont = () => {
-    el.style.fontSize = `${fontPx}px`;
-    el.style.lineHeight = `${fontPx + lineGap}px`;
-  };
-
-  applyFont();
-  while (fontPx > minFontPx) {
-    if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) break;
-    fontPx -= 1;
-    applyFont();
-  }
-
-  let didEllipsis = false;
-  if (el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth) {
-    let trimmed = content;
-    while (trimmed.length > 0) {
-      trimmed = trimmed.slice(0, -1).trim();
-      el.textContent = `${trimmed}\u2026`;
-      applyFont();
-      if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth) {
-        didEllipsis = true;
-        break;
-      }
-    }
-  }
-
-  if (didEllipsis) {
-    el.dataset.ellipsis = '1';
-  } else {
-    el.dataset.ellipsis = '0';
-  }
-  return { didEllipsis, fontPx };
-}
-
-function updateWireframePreview(
-  container,
-  data,
-  templateId,
-  warningEl,
-  { titleScale = 1, showBullets = true } = {}
-) {
-  if (!container) return;
-  applyWireframeLayout(container, templateId);
-  const spec = TEXT_SAFE_AREAS[templateId] || TEXT_SAFE_AREAS.template_dual;
-  const titleEl = container.querySelector('[data-slot="title"]');
-  const bulletsEl = container.querySelector('[data-slot="bullets"]');
-  const taglineEl = container.querySelector('[data-slot="tagline"]');
-
-  const titleText = data?.title || '';
-  const bullets = Array.isArray(data?.bullets) ? data.bullets.filter(Boolean) : [];
-  const bulletsText = showBullets ? bullets.map((b) => `• ${b}`).join('\n') : '';
-  const taglineText = data?.tagline || '';
-
-  const titleFit = fitTextToBox(titleEl, titleText, spec.title, { scale: titleScale });
-  const bulletFit = fitTextToBox(bulletsEl, bulletsText, spec.bullets, { scale: 1 });
-  const taglineFit = fitTextToBox(taglineEl, taglineText, spec.tagline, { scale: 1 });
-
-  const didEllipsis = titleFit.didEllipsis || bulletFit.didEllipsis || taglineFit.didEllipsis;
-  if (warningEl) {
-    warningEl.textContent = didEllipsis ? 'Some text was truncated to fit the safe areas.' : '';
-  }
-}
-
-function ensureGalleryEntries(state, limit = 4) {
-  if (!state) return;
-  if (!Array.isArray(state.galleryEntries)) {
-    state.galleryEntries = [];
-  }
-  if (typeof limit === 'number' && limit >= 0) {
-    state.galleryEntries = state.galleryEntries.slice(0, limit);
-  }
-}
-
-function updateMaterialPreviewAssets(container, assets = {}, labels = {}) {
-  if (!container) return;
-  const setSlot = (slotKey, asset, options = {}) => {
-    const slot = container.querySelector(`[data-asset-slot="${slotKey}"]`);
-    if (!slot) return;
-    const img = slot.querySelector('img');
-    const placeholder = slot.querySelector('.slot-placeholder');
-    const src = pickImageSrc(asset) || '';
-    if (img) {
-      if (src) {
-        img.src = src;
-        img.style.display = 'block';
-      } else {
-        img.removeAttribute('src');
-        img.style.display = 'none';
-      }
-    }
-    if (placeholder) {
-      placeholder.textContent = src ? (options.filledLabel || 'Ready') : (options.emptyLabel || 'Empty');
-    }
-    slot.classList.toggle('empty', !src);
-  };
-
-  setSlot('scenario', assets.scenario, {
-    emptyLabel: labels.scenario || 'Using default scenario',
-  });
-  setSlot('product1', assets.product1, {
-    emptyLabel: 'Missing',
-  });
-  setSlot('product2', assets.product2, {
-    emptyLabel: 'Empty',
-  });
-
-  const bottom = Array.isArray(assets.bottom) ? assets.bottom : [];
-  for (let i = 0; i < 4; i += 1) {
-    const entry = bottom[i];
-    const asset = entry?.asset || entry || null;
-    setSlot(`bottom-${i}`, asset, { emptyLabel: 'Empty' });
-  }
-}
-
-function updateBottomThumbnailsUi(container, state) {
-  if (!container || !state) return;
-  const entries = Array.isArray(state.galleryEntries) ? state.galleryEntries : [];
-  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
-    const index = Number(slot.dataset.slotIndex || 0);
-    const entry = entries[index];
-    const img = slot.querySelector(`[data-bottom-preview="${index}"]`);
-    const placeholder = slot.querySelector('.slot-placeholder');
-    const src = pickImageSrc(entry?.asset || null) || '';
-    if (img) {
-      if (src) {
-        img.src = src;
-        img.style.display = 'block';
-      } else {
-        img.removeAttribute('src');
-        img.style.display = 'none';
-      }
-    }
-    if (placeholder) {
-      placeholder.textContent = src ? 'Ready' : 'Empty';
-    }
-    slot.classList.toggle('empty', !src);
-  });
-}
-
-function bindModeSBottomThumbnails(container, state, statusElement, refreshPreview) {
-  if (!container || !state) return;
-  ensureGalleryEntries(state, 4);
-  container.querySelectorAll('[data-slot-index]').forEach((slot) => {
-    const index = Number(slot.dataset.slotIndex || 0);
-    const fileInput = slot.querySelector('input[type="file"]');
-    const clearButton = slot.querySelector(`[data-bottom-clear="${index}"]`);
-
-    if (fileInput) {
-      fileInput.addEventListener('change', async () => {
-        const file = fileInput.files?.[0];
-        if (!file) return;
-        try {
-          const existing = state.galleryEntries[index] || { id: createId(), caption: '' };
-          const asset = await prepareAssetFromFile('gallery', file, existing.asset, statusElement);
-          state.galleryEntries[index] = { ...existing, asset };
-          state.previewBuilt = false;
-          updateBottomThumbnailsUi(container, state);
-          refreshPreview?.();
-        } catch (error) {
-          console.error(error);
-          setStatus(statusElement, 'Failed to process bottom thumbnail.', 'error');
-        } finally {
-          fileInput.value = '';
-        }
-      });
-    }
-
-    if (clearButton) {
-      clearButton.addEventListener('click', async () => {
-        const entry = state.galleryEntries[index];
-        if (entry?.asset) {
-          await deleteStoredAsset(entry.asset);
-        }
-        state.galleryEntries[index] = null;
-        state.previewBuilt = false;
-        updateBottomThumbnailsUi(container, state);
-        refreshPreview?.();
-      });
-    }
-  });
-}
-
-function bindModeSOptionalAsset(
-  input,
-  key,
-  inlinePreview,
-  state,
-  refreshPreview,
-  statusElement,
-  folder = 'uploads'
-) {
-  if (!input || !state) return;
-  const placeholderForKey = (valueKey) => {
-    if (valueKey === 'brandLogo') return placeholderImages.brandLogo;
-    if (valueKey === 'scenario') return placeholderImages.scenario;
-    if (valueKey === 'productImage2') return placeholderImages.productAlt;
-    return placeholderImages.product;
-  };
-
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    if (!file) {
-      await deleteStoredAsset(state[key]);
-      state[key] = null;
-      state.previewBuilt = false;
-      if (inlinePreview) {
-        inlinePreview.src = placeholderForKey(key);
-      }
-      refreshPreview?.();
-      return;
-    }
-    try {
-      state[key] = await prepareAssetFromFile(folder, file, state[key], statusElement);
-      if (inlinePreview) {
-        inlinePreview.src = state[key]?.dataUrl || placeholderForKey(key);
-      }
-      state.previewBuilt = false;
-      refreshPreview?.();
-    } catch (error) {
-      console.error(error);
-      setStatus(statusElement, 'Failed to process image asset.', 'error');
-    }
-  });
-}
 // 快速自测：在 stage2 页面点击“生成海报与文案”应完成请求且无 posterGenerationState 未定义报错，
 // 生成成功后 A/B 对比按钮才可使用。
 
@@ -842,7 +314,7 @@ App.utils.loadTemplateRegistry = (() => {
   let _registryP;
   return async function loadTemplateRegistry() {
     if (!_registryP) {
-      _registryP = fetch(App.utils.assetUrl('templates/registry.json'))
+      _registryP = fetch(App.utils.assetUrl?.('templates/registry.json') || 'templates/registry.json')
         .then(r => {
           if (!r.ok) throw new Error('无法加载模板清单');
           return r.json();
@@ -858,28 +330,6 @@ App.utils.loadTemplateRegistry = (() => {
 })();
 
 /** 按模板 id 返回 { entry, spec, image }（带缓存） */
-// Load .b64 preview files and convert them to data URLs for Image().
-async function loadB64AsDataUrl(url, mime = 'image/png') {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('无法加载模板预览图资源');
-  const b64 = (await r.text()).trim();
-  if (b64.startsWith('data:')) return b64;
-  return `data:${mime};base64,${b64}`;
-}
-App.utils.loadImageAny = async (url, mime = 'image/png') => {
-  const img = new Image();
-  img.decoding = 'async';
-  img.crossOrigin = 'anonymous';
-  const resolvedUrl = (url && (url.endsWith('.b64') || url.endsWith('.pre')))
-    ? await loadB64AsDataUrl(url, mime)
-    : url;
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = () => reject(new Error('模板预览图加载失败'));
-    img.src = resolvedUrl;
-  });
-  return img;
-};
 App.utils.ensureTemplateAssets = (() => {
   const _cache = new Map();
   return async function ensureTemplateAssets(templateId) {
@@ -889,11 +339,18 @@ App.utils.ensureTemplateAssets = (() => {
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
 
-    const specUrl = App.utils.assetUrl(`templates/${entry.spec}`);
-    const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
+    const specUrl = App.utils.assetUrl?.(`templates/${entry.spec}`) || `templates/${entry.spec}`;
+    const imgUrl  = App.utils.assetUrl?.(`templates/${entry.preview}`) || `templates/${entry.preview}`;
 
     const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
-    const imgP  = App.utils.loadImageAny(imgUrl, 'image/png');
+    const imgP  = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.decoding = 'async';
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('模板预览图加载失败'));
+      img.src = imgUrl;
+    });
 
     const payload = { entry, spec: await specP, image: await imgP };
     _cache.set(entry.id, payload);
@@ -904,7 +361,6 @@ App.utils.ensureTemplateAssets = (() => {
 const HEALTH_CACHE_TTL = 60_000;
 const HEALTH_CACHE = new Map();
 
-const ASSET_BASE = new URL('.', location.href).toString();
 let documentAssetBase = null;
 
 //
@@ -920,7 +376,7 @@ function buildPromptSlot(prefix) {
 function buildGeneratePayload() {
   return {
     poster: collectStage1Data(form, state, { strict: false }),
-    render_mode: state.renderMode || stage2State.renderMode || 'kitposter1_a',
+    render_mode: state.renderMode || 'locked',
     variants: Number(state.variants || 2),
     seed: state.seed ?? null,
     lock_seed: !!state.lockSeed,
@@ -963,8 +419,13 @@ function resolveDocumentAssetBase() {
 }
 
 function assetUrl(path) {
-  if (!path) return new URL('', ASSET_BASE).toString();
-  return new URL(path, ASSET_BASE).toString();
+  if (!path) return resolveDocumentAssetBase();
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(path)) {
+    return path;
+  }
+  const base = resolveDocumentAssetBase();
+  const normalised = path.startsWith('/') ? path.slice(1) : path;
+  return new URL(normalised, base).toString();
 }
 
 App.utils.assetUrl = assetUrl;
@@ -1031,25 +492,6 @@ function normalizePosterAssets(stage1Data) {
   });
 
   return { scenario_asset, scenario_key, product_asset, product_key, gallery_items };
-}
-
-function hasInlineDataUrl(asset) {
-  if (!asset) return false;
-  const dataUrl = asset.dataUrl || asset.data_url || null;
-  return typeof dataUrl == 'string' && dataUrl.startsWith('data:');
-}
-
-function hasInlineStage1Assets(stage1Data) {
-  if (!stage1Data) return false;
-  if (hasInlineDataUrl(stage1Data.brand_logo)) return true;
-  if (hasInlineDataUrl(stage1Data.scenario_asset)) return true;
-  if (hasInlineDataUrl(stage1Data.product_asset)) return true;
-  if (hasInlineDataUrl(stage1Data.product_asset_extra_1)) return true;
-  if (hasInlineDataUrl(stage1Data.product_asset_extra_2)) return true;
-  if (hasInlineDataUrl(stage1Data.product_image_1)) return true;
-  if (hasInlineDataUrl(stage1Data.product_image_2)) return true;
-  const entries = Array.isArray(stage1Data.gallery_entries) ? stage1Data.gallery_entries : [];
-  return entries.some((entry) => hasInlineDataUrl(entry?.asset));
 }
 
 function joinBasePath(base, path) {
@@ -1606,15 +1048,12 @@ const STORAGE_KEYS = {
   stage1: 'marketing-poster-stage1-data',
   stage2: 'marketing-poster-stage2-result',
 };
-const DRAFT_STORAGE_KEY = 'kitposter:draft';
 
-const LEGACY_DEFAULT_STAGE1 = {
+const DEFAULT_STAGE1 = {
   brand_name: '厨匠ChefCraft',
   agent_name: '星辉渠道服务中心',
   scenario_image: '现代开放式厨房中智能蒸烤一体机的沉浸式体验',
   product_name: 'ChefCraft 智能蒸烤大师',
-  channel: 'email',
-  intent: 'default',
   template_id: 'template_dual',
   scenario_mode: 'upload',
   product_mode: 'upload',
@@ -1627,29 +1066,6 @@ const LEGACY_DEFAULT_STAGE1 = {
   title: '焕新厨房效率，打造大厨级美味',
   subtitle: '智能蒸烤 · 家宴轻松掌控',
 };
-
-const MODE_S_DEFAULT_STAGE1 = {
-  brand_name: 'ChefCraft',
-  agent_name: '',
-  scenario_image: 'default',
-  brand_color: '#ef4c54',
-  price: '',
-  promo: '',
-  channel: 'email',
-  intent: 'default',
-  title: 'Upgrade your kitchen with ChefCraft',
-  bullets: [
-    'Fast preheat and even cooking',
-    'Stainless steel finish with easy cleaning',
-    'Smart controls for daily convenience',
-  ],
-  tagline: '',
-  product_name: '',
-  allow_auto_fill: true,
-  template_id: 'template_dual',
-};
-
-const DEFAULT_STAGE1 = MODE_S ? MODE_S_DEFAULT_STAGE1 : LEGACY_DEFAULT_STAGE1;
 
 const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
 const templateCache = new Map();
@@ -1666,10 +1082,7 @@ const placeholderImages = {
   brandLogo: createPlaceholder('品牌\\nLogo'),
   scenario: createPlaceholder('应用场景'),
   product: createPlaceholder('产品渲染'),
-  productAlt: createPlaceholder('产品\\n备用'),
 };
-const DEFAULT_SCENARIO_ASSET = App.utils.assetUrl('assets/scenes/default.png');
-const LOCAL_PLACEHOLDER_IMAGE = App.utils.assetUrl('assets/placeholders/empty.png');
 
 const galleryPlaceholderCache = new Map();
 
@@ -1961,7 +1374,6 @@ function updateMaterialUrlDisplay(field, asset) {
 
 function init() {
   apiBaseInput = document.getElementById('api-base');
-  loadBuildInfo();
   loadApiBase();
   if (apiBaseInput) {
     apiBaseInput.addEventListener('change', saveApiBase);
@@ -1986,22 +1398,6 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 
-async function loadBuildInfo() {
-  const el = document.getElementById('build-info');
-  if (!el) return;
-  try {
-    const url = assetUrl('build-info.json');
-    const response = await fetch(url, { cache: 'no-store' });
-    if (!response.ok) throw new Error('build info unavailable');
-    const data = await response.json();
-    const commit = (data?.commit || 'local').toString();
-    const builtAt = data?.builtAt ? String(data.builtAt) : '';
-    el.textContent = builtAt ? `build ${commit} · ${builtAt}` : `build ${commit}`;
-  } catch {
-    el.textContent = '';
-  }
-}
-
 function loadApiBase() {
   if (!apiBaseInput) return;
   const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
@@ -2021,10 +1417,6 @@ function saveApiBase() {
 }
 
 function initStage1() {
-  if (MODE_S) {
-    initStage1ModeS();
-    return;
-  }
   const form = document.getElementById('poster-form');
   const buildPreviewButton = document.getElementById('build-preview');
   const nextButton = document.getElementById('go-to-stage2');
@@ -2060,16 +1452,12 @@ function initStage1() {
     brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
     scenario_asset: document.querySelector('[data-inline-preview="scenario_asset"]'),
     product_asset: document.querySelector('[data-inline-preview="product_asset"]'),
-    product_asset_extra_1: document.querySelector('[data-inline-preview="product_asset_extra_1"]'),
-    product_asset_extra_2: document.querySelector('[data-inline-preview="product_asset_extra_2"]'),
   };
 
   const state = {
     brandLogo: null,
     scenario: null,
     product: null,
-    productExtra1: null,
-    productExtra2: null,
     galleryEntries: [],
     previewBuilt: false,
     templateId: DEFAULT_STAGE1.template_id,
@@ -2089,15 +1477,6 @@ function initStage1() {
     galleryLabel: MATERIAL_DEFAULT_LABELS.gallery,
     galleryType: 'image',
   };
-
-  if (MODE_S) {
-    state.scenarioMode = 'upload';
-    state.productMode = 'upload';
-    state.scenarioAllowsPrompt = false;
-    state.productAllowsPrompt = false;
-    state.galleryAllowsPrompt = false;
-  }
-
 
   updateMaterialUrlDisplay('brand_logo', state.brandLogo);
 
@@ -2640,23 +2019,6 @@ void mountTemplateChooserStage1();
     statusElement
   );
 
-  attachSingleImageHandler(
-    form.querySelector('input[name="product_asset_extra_1"]'),
-    'productExtra1',
-    inlinePreviews.product_asset_extra_1,
-    state,
-    refreshPreview,
-    statusElement
-  );
-  attachSingleImageHandler(
-    form.querySelector('input[name="product_asset_extra_2"]'),
-    'productExtra2',
-    inlinePreviews.product_asset_extra_2,
-    state,
-    refreshPreview,
-    statusElement
-  );
-
   bindSlotGenerationButtons(form, state, inlinePreviews, {
     refreshPreview,
     statusElement,
@@ -2866,376 +2228,7 @@ void mountTemplateChooserStage1();
   });
 }
 
-function initStage1ModeS() {
-  const form = document.getElementById('poster-form');
-  const buildPreviewButton = document.getElementById('build-preview');
-  const nextButton = document.getElementById('go-to-stage2');
-  const statusElement = document.getElementById('stage1-status');
-  const previewContainer = document.getElementById('preview-container');
-  const layoutStructure = document.getElementById('layout-structure-text');
-  const wireframe = document.getElementById('stage1-wireframe');
-  const wireframeWarning = document.getElementById('wireframe-warning');
-  const bottomThumbnails = document.getElementById('bottom-thumbnails');
-  const materialPreviewAssets = document.getElementById('material-preview-assets');
-  const brandLogoStatus = document.getElementById('brand-logo-status');
-  const templateSelectStage1 = document.getElementById('template-select-stage1');
-  const templateVariantStage1 = document.getElementById('template-variant-stage1');
-  const templateDescriptionStage1 = document.getElementById('template-description-stage1');
-  const templateCanvasStage1 = document.getElementById('template-preview-stage1');
-  const stage1FallbackWarning = document.getElementById('stage1-fallback-warning');
-
-  if (!form || !buildPreviewButton || !nextButton) {
-    return;
-  }
-
-  const previewElements = {
-    brandLogo: document.getElementById('preview-brand-logo'),
-    brandName: document.getElementById('preview-brand-name'),
-    agentName: document.getElementById('preview-agent-name'),
-    scenarioImage: document.getElementById('preview-scenario-image'),
-    productImage: document.getElementById('preview-product-image'),
-    featureList: document.getElementById('preview-feature-list'),
-    title: document.getElementById('preview-title'),
-    subtitle: document.getElementById('preview-subtitle'),
-    gallery: document.getElementById('preview-gallery'),
-  };
-
-  const inlinePreviews = {
-    brand_logo: document.querySelector('[data-inline-preview="brand_logo"]'),
-    scenario_asset: document.querySelector('[data-inline-preview="scenario_asset"]'),
-    product_image_1: document.querySelector('[data-inline-preview="product_image_1"]'),
-    product_image_2: document.querySelector('[data-inline-preview="product_image_2"]'),
-  };
-
-  const state = {
-    brandLogo: null,
-    scenario: null,
-    productImage1: null,
-    productImage2: null,
-    galleryEntries: [],
-    galleryLimit: 4,
-    previewBuilt: false,
-    templateId: DEFAULT_STAGE1.template_id,
-    templateLabel: '',
-    templateVariant: 'a',
-  };
-
-  let currentLayoutPreview = '';
-  let templateRegistry = [];
-
-  const updateBrandLogoStatus = () => {
-    if (!brandLogoStatus) return;
-    const url = state.brandLogo?.remoteUrl || state.brandLogo?.url || '';
-    const key = state.brandLogo?.r2Key || '';
-    if (url) {
-      brandLogoStatus.textContent = `Logo URL: ${url}`;
-    } else if (key) {
-      brandLogoStatus.textContent = `Logo URL: ${key}`;
-    } else {
-      brandLogoStatus.textContent = 'Logo URL: not uploaded';
-    }
-  };
-
-  const refreshPreview = () => {
-    if (!form) return null;
-    if (stage1FallbackWarning) {
-      stage1FallbackWarning.textContent = '';
-      stage1FallbackWarning.classList.add('hidden');
-    }
-
-    const payload = collectStage1Data(form, state, { strict: false });
-    const layoutPreview = buildLayoutPreview(payload);
-    if (layoutStructure) {
-      layoutStructure.textContent = layoutPreview;
-    }
-
-    updateWireframePreview(
-      wireframe,
-      {
-        title: payload.title || '',
-        bullets: payload.bullets || [],
-        tagline: payload.tagline || payload.promo || '',
-      },
-      state.templateId || DEFAULT_STAGE1.template_id,
-      wireframeWarning
-    );
-
-    const scenarioLabel = payload.scenario_image && payload.scenario_image !== 'default'
-      ? `Scenario: ${payload.scenario_image}`
-      : 'Using default scenario';
-    updateMaterialPreviewAssets(
-      materialPreviewAssets,
-      {
-        scenario: state.scenario,
-        product1: state.productImage1,
-        product2: state.productImage2,
-        bottom: state.galleryEntries,
-      },
-      { scenario: scenarioLabel }
-    );
-    updateBottomThumbnailsUi(bottomThumbnails, state);
-    updateBrandLogoStatus();
-
-    const previewPayload = {
-      ...payload,
-      features: payload.bullets || [],
-      subtitle: payload.tagline || payload.promo || '',
-      brand_logo: payload.brand_logo,
-      scenario_asset: payload.scenario_asset,
-      product_asset: payload.product_asset || payload.product_image_1,
-      gallery_entries: payload.gallery_entries || [],
-    };
-    currentLayoutPreview = updatePosterPreview(
-      previewPayload,
-      state,
-      previewElements,
-      layoutStructure,
-      previewContainer
-    );
-
-    if (previewElements.brandLogo) {
-      applyImageWithFallback(
-        previewElements.brandLogo,
-        [pickImageSrc(state.brandLogo), LOCAL_PLACEHOLDER_IMAGE, placeholderImages.brandLogo],
-        stage1FallbackWarning
-      );
-    }
-    if (previewElements.scenarioImage) {
-      applyImageWithFallback(
-        previewElements.scenarioImage,
-        [
-          pickImageSrc(state.scenario),
-          DEFAULT_SCENARIO_ASSET,
-          LOCAL_PLACEHOLDER_IMAGE,
-          placeholderImages.scenario,
-        ],
-        stage1FallbackWarning
-      );
-    }
-    if (previewElements.productImage) {
-      applyImageWithFallback(
-        previewElements.productImage,
-        [pickImageSrc(state.productImage1), LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
-        stage1FallbackWarning
-      );
-    }
-
-    return payload;
-  };
-
-  const stored = loadStage1Data();
-  if (stored) {
-    void (async () => {
-      await applyStage1DataToForm(stored, form, state, inlinePreviews);
-      state.previewBuilt = Boolean(stored.preview_built);
-      if (layoutStructure && stored.layout_preview) {
-        layoutStructure.textContent = stored.layout_preview;
-      }
-      if (templateVariantStage1) {
-        templateVariantStage1.value = state.templateVariant || 'a';
-      }
-      refreshPreview();
-    })();
-  } else {
-    applyStage1Defaults(form);
-    updateInlinePlaceholders(inlinePreviews);
-    refreshPreview();
-  }
-
-  const refreshTemplatePreviewStage1 = async (templateId) => {
-    if (!templateCanvasStage1) return;
-    try {
-      const assets = await App.utils.ensureTemplateAssets(templateId);
-      const ctx = templateCanvasStage1.getContext('2d');
-      if (!ctx) return;
-      const { width, height } = templateCanvasStage1;
-      ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillRect(0, 0, width, height);
-      const img = assets.image;
-      const scale = Math.min(width / img.width, height / img.height);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
-      const ox = (width - dw) / 2;
-      const oy = (height - dh) / 2;
-      ctx.drawImage(img, ox, oy, dw, dh);
-      if (templateDescriptionStage1) {
-        templateDescriptionStage1.textContent = assets.entry?.description || '';
-      }
-    } catch (error) {
-      console.error('[template preview] failed', error);
-      if (templateDescriptionStage1) {
-        templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
-      }
-    }
-  };
-
-  const mountTemplateChooserStage1 = async () => {
-    if (!templateSelectStage1) return;
-    try {
-      templateRegistry = await App.utils.loadTemplateRegistry();
-    } catch (error) {
-      console.error('[registry] load failed', error);
-      setStatus(statusElement, '无法加载模板列表，请检查 templates/registry.json。', 'warning');
-      return;
-    }
-    if (!Array.isArray(templateRegistry) || templateRegistry.length === 0) {
-      setStatus(statusElement, '模板列表为空，请确认 templates/registry.json。', 'warning');
-      return;
-    }
-
-    templateSelectStage1.innerHTML = '';
-    templateRegistry.forEach((entry) => {
-      const option = document.createElement('option');
-      option.value = entry.id;
-      option.textContent = entry.name || entry.id;
-      templateSelectStage1.appendChild(option);
-    });
-
-    const storedData = loadStage1Data();
-    if (storedData?.template_id) {
-      state.templateId = storedData.template_id;
-      state.templateLabel = storedData.template_label || '';
-    } else if (templateRegistry[0]) {
-      state.templateId = templateRegistry[0].id;
-      state.templateLabel = templateRegistry[0].name || '';
-    }
-    templateSelectStage1.value = state.templateId;
-
-    if (templateVariantStage1) {
-      templateVariantStage1.value = state.templateVariant || 'a';
-    }
-
-    await refreshTemplatePreviewStage1(state.templateId);
-
-    templateSelectStage1.addEventListener('change', async (event) => {
-      const value = event.target.value || DEFAULT_STAGE1.template_id;
-      state.templateId = value;
-      const entry = templateRegistry.find((item) => item.id === value);
-      state.templateLabel = entry?.name || '';
-      state.previewBuilt = false;
-      refreshPreview();
-      await refreshTemplatePreviewStage1(value);
-    });
-  };
-
-  void mountTemplateChooserStage1();
-
-  if (templateVariantStage1) {
-    templateVariantStage1.addEventListener('change', () => {
-      state.templateVariant = templateVariantStage1.value || 'a';
-      state.previewBuilt = false;
-      refreshPreview();
-    });
-  }
-
-  ensureGalleryEntries(state, 4);
-  bindModeSBottomThumbnails(bottomThumbnails, state, statusElement, refreshPreview);
-
-  attachSingleImageHandler(
-    form.querySelector('input[name="product_image_1"]'),
-    'productImage1',
-    inlinePreviews.product_image_1,
-    state,
-    refreshPreview,
-    statusElement
-  );
-
-  attachSingleImageHandler(
-    form.querySelector('input[name="product_image_2"]'),
-    'productImage2',
-    inlinePreviews.product_image_2,
-    state,
-    refreshPreview,
-    statusElement
-  );
-
-  bindModeSOptionalAsset(
-    form.querySelector('input[name="brand_logo"]'),
-    'brandLogo',
-    inlinePreviews.brand_logo,
-    state,
-    refreshPreview,
-    statusElement,
-    'brand-logo'
-  );
-
-  bindModeSOptionalAsset(
-    form.querySelector('input[name="scenario_asset"]'),
-    'scenario',
-    inlinePreviews.scenario_asset,
-    state,
-    refreshPreview,
-    statusElement,
-    'scenario'
-  );
-
-  form.addEventListener('input', () => {
-    state.previewBuilt = false;
-    refreshPreview();
-  });
-
-  const persist = (payload, previewBuilt) => {
-    const layoutPreview = currentLayoutPreview || buildLayoutPreview(payload);
-    const serialised = serialiseStage1Data(payload, state, layoutPreview, previewBuilt);
-    saveStage1Data(serialised);
-    if (layoutStructure) {
-      layoutStructure.textContent = layoutPreview;
-    }
-  };
-
-  buildPreviewButton.addEventListener('click', () => {
-    const relaxedPayload = collectStage1Data(form, state, { strict: false });
-    try {
-      const strictPayload = collectStage1Data(form, state, { strict: true });
-      state.previewBuilt = true;
-      persist(strictPayload, true);
-      setStatus(statusElement, '版式预览已构建，可继续下一环节。', 'success');
-    } catch (error) {
-      state.previewBuilt = false;
-      persist(relaxedPayload, false);
-      const reason = error?.message || '请补全必填素材。';
-      setStatus(statusElement, reason, 'warning');
-    }
-  });
-
-  nextButton.addEventListener('click', () => {
-    try {
-      const payload = collectStage1Data(form, state, { strict: true });
-      state.previewBuilt = true;
-      persist(payload, true);
-      setStatus(statusElement, '素材已保存，正在跳转至环节 2。', 'info');
-      window.location.href = 'stage2.html';
-    } catch (error) {
-      setStatus(statusElement, error.message || '请先完成版式预览后再继续。', 'error');
-    }
-  });
-}
-
 function applyStage1Defaults(form) {
-  if (MODE_S) {
-    for (const [key, value] of Object.entries(DEFAULT_STAGE1)) {
-      const element = form.elements.namedItem(key);
-      if (element && typeof value === 'string') {
-        element.value = value;
-      }
-    }
-
-    const bulletInputs = form.querySelectorAll('input[name="bullets"]');
-    bulletInputs.forEach((input, index) => {
-      input.value = DEFAULT_STAGE1.bullets?.[index] ?? '';
-    });
-    const allowAutoFill = form.elements.namedItem('allow_auto_fill');
-    if (allowAutoFill && 'checked' in allowAutoFill) {
-      allowAutoFill.checked = DEFAULT_STAGE1.allow_auto_fill !== false;
-    }
-    const templateVariant = form.elements.namedItem('template_variant');
-    if (templateVariant && 'value' in templateVariant) {
-      templateVariant.value = 'a';
-    }
-    return;
-  }
-
   for (const [key, value] of Object.entries(DEFAULT_STAGE1)) {
     const element = form.elements.namedItem(key);
     if (element && typeof value === 'string') {
@@ -3258,17 +2251,6 @@ function applyStage1Defaults(form) {
     input.checked = input.value === DEFAULT_STAGE1.product_mode;
   });
 
-  if (MODE_S) {
-    scenarioModeInputs.forEach((input) => {
-      input.checked = input.value === 'upload';
-      input.disabled = input.value === 'prompt';
-    });
-    productModeInputs.forEach((input) => {
-      input.checked = input.value === 'upload';
-      input.disabled = input.value === 'prompt';
-    });
-  }
-
   const productPrompt = form.elements.namedItem('product_prompt');
   if (productPrompt && 'value' in productPrompt) {
     productPrompt.value = '';
@@ -3279,87 +2261,10 @@ function updateInlinePlaceholders(inlinePreviews) {
   if (inlinePreviews.brand_logo) inlinePreviews.brand_logo.src = placeholderImages.brandLogo;
   if (inlinePreviews.scenario_asset) inlinePreviews.scenario_asset.src = placeholderImages.scenario;
   if (inlinePreviews.product_asset) inlinePreviews.product_asset.src = placeholderImages.product;
-  if (inlinePreviews.product_asset_extra_1) inlinePreviews.product_asset_extra_1.src = placeholderImages.product;
-  if (inlinePreviews.product_asset_extra_2) inlinePreviews.product_asset_extra_2.src = placeholderImages.product;
-  if (inlinePreviews.product_image_1) inlinePreviews.product_image_1.src = placeholderImages.product;
-  if (inlinePreviews.product_image_2) inlinePreviews.product_image_2.src = placeholderImages.productAlt;
 }
 
 async function applyStage1DataToForm(data, form, state, inlinePreviews) {
-  if (MODE_S) {
-    for (const key of [
-      'brand_name',
-      'agent_name',
-      'brand_color',
-      'price',
-      'promo',
-      'channel',
-      'intent',
-      'title',
-      'tagline',
-      'scenario_image',
-      'product_name',
-    ]) {
-      const element = form.elements.namedItem(key);
-      if (element && typeof data[key] === 'string') {
-        element.value = data[key];
-      }
-    }
-
-    const allowAutoFill = form.elements.namedItem('allow_auto_fill');
-    if (allowAutoFill && 'checked' in allowAutoFill) {
-      allowAutoFill.checked = data.allow_auto_fill !== false;
-    }
-
-    const bullets = Array.isArray(data.bullets) && data.bullets.length
-      ? data.bullets
-      : DEFAULT_STAGE1.bullets || [];
-    const bulletInputs = form.querySelectorAll('input[name="bullets"]');
-    bulletInputs.forEach((input, index) => {
-      input.value = bullets[index] ?? '';
-    });
-
-    state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
-    state.scenario = await rehydrateStoredAsset(data.scenario_asset);
-    state.productImage1 = await rehydrateStoredAsset(data.product_image_1);
-    state.productImage2 = await rehydrateStoredAsset(data.product_image_2);
-      const storedGallery = Array.isArray(data.gallery_entries)
-        ? data.gallery_entries.filter(Boolean)
-        : [];
-      state.galleryEntries = await Promise.all(
-        storedGallery.map(async (entry) => ({
-          id: entry.id || createId(),
-          caption: entry.caption || '',
-          asset: await rehydrateStoredAsset(entry.asset),
-          mode: 'upload',
-          prompt: null,
-        }))
-      );
-      ensureGalleryEntries(state, 4);
-    state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
-    state.templateLabel = data.template_label || '';
-    state.templateVariant = data.template_variant || 'a';
-
-    if (inlinePreviews.brand_logo) {
-      inlinePreviews.brand_logo.src =
-        state.brandLogo?.dataUrl || placeholderImages.brandLogo;
-    }
-    if (inlinePreviews.scenario_asset) {
-      inlinePreviews.scenario_asset.src =
-        state.scenario?.dataUrl || placeholderImages.scenario;
-    }
-    if (inlinePreviews.product_image_1) {
-      inlinePreviews.product_image_1.src =
-        state.productImage1?.dataUrl || placeholderImages.product;
-    }
-    if (inlinePreviews.product_image_2) {
-      inlinePreviews.product_image_2.src =
-        state.productImage2?.dataUrl || placeholderImages.productAlt;
-    }
-    return;
-  }
-
-  for (const key of ['brand_name', 'agent_name', 'scenario_image', 'product_name', 'channel', 'intent', 'title', 'subtitle']) {
+  for (const key of ['brand_name', 'agent_name', 'scenario_image', 'product_name', 'title', 'subtitle']) {
     const element = form.elements.namedItem(key);
     if (element && typeof data[key] === 'string') {
       element.value = data[key];
@@ -3378,10 +2283,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   const productModeValue = data.product_mode || DEFAULT_STAGE1.product_mode;
   state.scenarioMode = scenarioModeValue;
   state.productMode = productModeValue;
-  if (MODE_S) {
-    state.scenarioMode = 'upload';
-    state.productMode = 'upload';
-  }
 
   const scenarioModeInputs = form.querySelectorAll('input[name="scenario_mode"]');
   scenarioModeInputs.forEach((input) => {
@@ -3393,17 +2294,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     input.checked = input.value === productModeValue;
   });
 
-  if (MODE_S) {
-    scenarioModeInputs.forEach((input) => {
-      input.checked = input.value === 'upload';
-      input.disabled = input.value === 'prompt';
-    });
-    productModeInputs.forEach((input) => {
-      input.checked = input.value === 'upload';
-      input.disabled = input.value === 'prompt';
-    });
-  }
-
   const productPrompt = form.elements.namedItem('product_prompt');
   if (productPrompt && 'value' in productPrompt) {
     productPrompt.value =
@@ -3414,8 +2304,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   updateMaterialUrlDisplay('brand_logo', state.brandLogo);
   state.scenario = await rehydrateStoredAsset(data.scenario_asset);
   state.product = await rehydrateStoredAsset(data.product_asset);
-  state.productExtra1 = await rehydrateStoredAsset(data.product_asset_extra_1);
-  state.productExtra2 = await rehydrateStoredAsset(data.product_asset_extra_2);
   state.galleryEntries = Array.isArray(data.gallery_entries)
       ? await Promise.all(
         data.gallery_entries.map(async (entry) => ({
@@ -3452,12 +2340,6 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
   if (inlinePreviews.product_asset) {
     inlinePreviews.product_asset.src = state.product?.dataUrl || placeholderImages.product;
   }
-  if (inlinePreviews.product_asset_extra_1) {
-    inlinePreviews.product_asset_extra_1.src = state.productExtra1?.dataUrl || placeholderImages.product;
-  }
-  if (inlinePreviews.product_asset_extra_2) {
-    inlinePreviews.product_asset_extra_2.src = state.productExtra2?.dataUrl || placeholderImages.product;
-  }
 }
 
 function attachSingleImageHandler(
@@ -3469,12 +2351,6 @@ function attachSingleImageHandler(
   statusElement
 ) {
   if (!input) return;
-  const placeholderForKey = (valueKey) => {
-    if (valueKey === 'brandLogo') return placeholderImages.brandLogo;
-    if (valueKey === 'scenario') return placeholderImages.scenario;
-    if (valueKey === 'productImage2') return placeholderImages.productAlt;
-    return placeholderImages.product;
-  };
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
     if (!file) {
@@ -3482,7 +2358,13 @@ function attachSingleImageHandler(
       state[key] = null;
       state.previewBuilt = false;
       if (inlinePreview) {
-        inlinePreview.src = placeholderForKey(key);
+        const placeholder =
+          key === 'brandLogo'
+            ? placeholderImages.brandLogo
+            : key === 'scenario'
+            ? placeholderImages.scenario
+            : placeholderImages.product;
+        inlinePreview.src = placeholder;
       }
       if (key === 'brandLogo') {
         updateMaterialUrlDisplay('brand_logo', state[key]);
@@ -3495,10 +2377,6 @@ function attachSingleImageHandler(
         brandLogo: 'brand-logo',
         scenario: 'scenario',
         product: 'product',
-        productExtra1: 'product',
-        productExtra2: 'product',
-        productImage1: 'product',
-        productImage2: 'product',
       };
       const folder = folderMap[key] || 'uploads';
       const requireUploadOptions =
@@ -3517,7 +2395,12 @@ function attachSingleImageHandler(
         requireUploadOptions
       );
       if (inlinePreview) {
-        inlinePreview.src = state[key]?.dataUrl || placeholderForKey(key);
+        inlinePreview.src = state[key]?.dataUrl ||
+          (key === 'brandLogo'
+            ? placeholderImages.brandLogo
+            : key === 'scenario'
+            ? placeholderImages.scenario
+            : placeholderImages.product);
       }
       if (key === 'brandLogo') {
         updateMaterialUrlDisplay('brand_logo', state[key]);
@@ -3788,7 +2671,7 @@ function renderGalleryItems(state, container, options = {}) {
     const promptField = document.createElement('label');
     promptField.classList.add('field', 'gallery-prompt', 'optional');
     promptField.innerHTML = '<span>AI 生成描述</span>';
-    const promptTextarea = document.createElement('textArea');
+    const promptTextarea = document.createElement('textarea');
     promptTextarea.rows = 2;
     promptTextarea.placeholder = promptPlaceholder;
     promptTextarea.value = entry.prompt || '';
@@ -3896,81 +2779,13 @@ function renderGalleryItems(state, container, options = {}) {
     statusElement,
   });
 }
-function buildModeSGalleryEntries(state) {
-  return [];
-}
-
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
-  if (MODE_S) {
-    const bullets = formData
-      .getAll('bullets')
-      .map((bullet) => bullet.toString().trim())
-      .filter((bullet) => bullet.length > 0);
-
-    const channel =
-      formData.get('channel')?.toString().trim() || MODE_S_DEFAULT_STAGE1.channel || '';
-    const intent =
-      formData.get('intent')?.toString().trim() || MODE_S_DEFAULT_STAGE1.intent || '';
-      const modeSGalleryEntries = Array.isArray(state.galleryEntries)
-        ? state.galleryEntries.filter((entry) => entry && entry.asset)
-        : [];
-      const payload = {
-        brand_name: formData.get('brand_name')?.toString().trim() || '',
-        agent_name: formData.get('agent_name')?.toString().trim() || '',
-        brand_color: formData.get('brand_color')?.toString().trim() || '',
-        price: formData.get('price')?.toString().trim() || '',
-      promo: formData.get('promo')?.toString().trim() || '',
-      channel,
-      intent,
-      scenario_image:
-        formData.get('scenario_image')?.toString().trim() ||
-        MODE_S_DEFAULT_STAGE1.scenario_image ||
-        'default',
-      product_name: formData.get('product_name')?.toString().trim() || '',
-      title: formData.get('title')?.toString().trim() || '',
-      tagline: formData.get('tagline')?.toString().trim() || '',
-      allow_auto_fill: formData.get('allow_auto_fill') === 'on',
-      bullets,
-      features: bullets,
-      brand_logo: state.brandLogo || null,
-      scenario_asset: state.scenario || null,
-        product_asset: state.productImage1 || null,
-        product_image_1: state.productImage1,
-        product_image_2: state.productImage2,
-        gallery_entries: modeSGalleryEntries.map((entry) => ({
-          id: entry.id,
-          caption: entry.caption || '',
-          asset: entry.asset || null,
-          mode: 'upload',
-          prompt: null,
-        })),
-        template_id: state.templateId || DEFAULT_STAGE1.template_id,
-        template_variant: formData.get('template_variant')?.toString().trim() || 'a',
-      };
-
-    if (strict) {
-      if (!payload.product_image_1) {
-        throw new Error('Product image 1 is required.');
-      }
-      if (!payload.title) {
-        throw new Error('Title is required.');
-      }
-      if (bullets.length > 4) {
-        throw new Error('Please keep bullets to 4 or fewer.');
-      }
-    }
-
-    return payload;
-  }
-
   const payload = {
     brand_name: formData.get('brand_name')?.toString().trim() || '',
     agent_name: formData.get('agent_name')?.toString().trim() || '',
     scenario_image: formData.get('scenario_image')?.toString().trim() || '',
     product_name: formData.get('product_name')?.toString().trim() || '',
-    channel: formData.get('channel')?.toString().trim() || '',
-    intent: formData.get('intent')?.toString().trim() || '',
     title: formData.get('title')?.toString().trim() || '',
     subtitle: formData.get('subtitle')?.toString().trim() || '',
   };
@@ -3982,18 +2797,16 @@ function collectStage1Data(form, state, { strict = false } = {}) {
 
   payload.features = features;
 
-  const galleryLimit = MODE_S ? 0 : (state.galleryLimit || 4);
+  const galleryLimit = state.galleryLimit || 4;
   const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
 
-  const galleryEntries = MODE_S
-    ? buildModeSGalleryEntries(state)
-    : state.galleryEntries.slice(0, galleryLimit).map((entry) => ({
-        id: entry.id,
-        caption: entry.caption.trim(),
-        asset: entry.asset,
-        mode: entry.mode || 'upload',
-        prompt: entry.prompt?.trim() || null,
-      }));
+  const galleryEntries = state.galleryEntries.slice(0, galleryLimit).map((entry) => ({
+    id: entry.id,
+    caption: entry.caption.trim(),
+    asset: entry.asset,
+    mode: entry.mode || 'upload',
+    prompt: entry.prompt?.trim() || null,
+  }));
 
   const validGalleryEntries = galleryEntries.filter((entry) =>
     entry.mode === 'prompt' ? Boolean(entry.prompt) : Boolean(entry.asset)
@@ -4011,20 +2824,15 @@ function collectStage1Data(form, state, { strict = false } = {}) {
   payload.gallery_entries = galleryEntries;
   payload.template_id = state.templateId || DEFAULT_STAGE1.template_id;
   payload.template_label = state.templateLabel || '';
-  payload.scenario_mode = MODE_S ? 'upload' : state.scenarioMode || 'upload';
-  payload.product_mode = MODE_S ? 'upload' : state.productMode || 'upload';
-  if (MODE_S) {
-    payload.product_prompt = null;
-    payload.scenario_prompt = null;
-  } else {
-    const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
-    payload.product_prompt = productPromptValue || null;
-    payload.scenario_prompt =
-      payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
-  }
+  payload.scenario_mode = state.scenarioMode || 'upload';
+  payload.product_mode = state.productMode || 'upload';
+  const productPromptValue = formData.get('product_prompt')?.toString().trim() || '';
+  payload.product_prompt = productPromptValue || null;
+  payload.scenario_prompt =
+    payload.scenario_mode === 'prompt' ? payload.scenario_image : null;
   payload.gallery_label = galleryLabel;
   payload.gallery_limit = galleryLimit;
-  payload.gallery_allows_prompt = MODE_S ? false : state.galleryAllowsPrompt !== false;
+  payload.gallery_allows_prompt = state.galleryAllowsPrompt !== false;
 
   if (strict) {
     const missing = [];
@@ -4043,23 +2851,13 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       ) {
         continue;
       }
-      if (MODE_S && key == 'scenario_image') {
-        continue;
-      }
       if (typeof value === 'string' && !value) {
         missing.push(key);
       }
     }
-    if (MODE_S && !payload.product_asset) {
-      throw new Error('????????');
-    }
-    if (MODE_S && !payload.brand_logo) {
-      throw new Error('????? Logo?');
-    }
     if (payload.features.length < 3) {
       throw new Error('请填写至少 3 条产品功能点。');
     }
-    if (!MODE_S) {
     if (galleryLimit > 0 && validGalleryEntries.length < galleryLimit) {
       throw new Error(
         `请准备至少 ${galleryLimit} 个${galleryLabel}（上传或 AI 生成）并填写对应文案。`
@@ -4074,7 +2872,6 @@ function collectStage1Data(form, state, { strict = false } = {}) {
     );
     if (promptMissing) {
       throw new Error(`选择 AI 生成的${galleryLabel}需要提供文字描述。`);
-    }
     }
     if (missing.length) {
       throw new Error('请完整填写素材输入表单中的必填字段。');
@@ -4215,14 +3012,14 @@ function bindSlotGenerationButtons(form, state, inlinePreviews, options = {}) {
   bindButton(
     'btn-generate-scenario',
     'scenario',
-    ['[data-role="scenario-positive-prompt"]', '[name="scenario_image"]'],
+    ['[data-role="scenario-positive-prompt"]', 'textarea[name="scenario_image"]'],
     scenarioPreview
   );
 
   bindButton(
     'btn-generate-product',
     'product',
-    ['[data-role="product-positive-prompt"]', '[name="product_prompt"]'],
+    ['[data-role="product-positive-prompt"]', 'textarea[name="product_prompt"]'],
     productPreview
   );
 
@@ -4381,24 +3178,6 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 }
 
 function buildLayoutPreview(payload) {
-  if (MODE_S) {
-    const bullets = Array.isArray(payload.bullets) ? payload.bullets : [];
-    const lines = [
-      'Mode S summary',
-      `Channel: ${payload.channel || 'missing'}`,
-      `Intent: ${payload.intent || 'missing'}`,
-      `Title: ${payload.title || 'missing'}`,
-      `Bullets: ${bullets.length}`,
-      `Brand: ${payload.brand_name || 'n/a'}`,
-      `Brand color: ${payload.brand_color || 'n/a'}`,
-      `Price: ${payload.price || 'n/a'}`,
-      `Promo: ${payload.promo || 'n/a'}`,
-      `Product image 1: ${payload.product_image_1 ? 'ready' : 'missing'}`,
-      `Product image 2: ${payload.product_image_2 ? 'ready' : 'missing'}`,
-    ];
-    return lines.join('\n');
-  }
-
   const templateLine =
     payload.template_label || payload.template_id || DEFAULT_STAGE1.template_id;
   const logoLine = payload.brand_logo
@@ -4446,50 +3225,11 @@ function buildLayoutPreview(payload) {
 }
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
-  if (MODE_S) {
-    return {
-      brand_name: payload.brand_name,
-      agent_name: payload.agent_name || '',
-      brand_color: payload.brand_color || null,
-      price: payload.price || '',
-      promo: payload.promo || '',
-      channel: payload.channel || null,
-      intent: payload.intent || null,
-      scenario_image: payload.scenario_image || MODE_S_DEFAULT_STAGE1.scenario_image,
-      product_name: payload.product_name || '',
-      title: payload.title,
-      tagline: payload.tagline || '',
-      allow_auto_fill: payload.allow_auto_fill !== false,
-      bullets: payload.bullets || [],
-      brand_logo: serialiseAssetForStorage(state.brandLogo),
-      scenario_asset: serialiseAssetForStorage(state.scenario),
-      product_asset: serialiseAssetForStorage(state.productImage1),
-      product_image_1: serialiseAssetForStorage(state.productImage1),
-      product_image_2: serialiseAssetForStorage(state.productImage2),
-        gallery_entries: (state.galleryEntries || [])
-          .filter((entry) => entry && entry.asset)
-          .map((entry) => ({
-            id: entry.id,
-            caption: entry.caption || '',
-            asset: serialiseAssetForStorage(entry.asset),
-            mode: 'upload',
-            prompt: null,
-          })),
-        template_id: state.templateId || DEFAULT_STAGE1.template_id,
-        template_variant: state.templateVariant || payload.template_variant || 'a',
-      template_label: state.templateLabel || '',
-      layout_preview: layoutPreview,
-      preview_built: previewBuilt,
-    };
-  }
-
   return {
     brand_name: payload.brand_name,
     agent_name: payload.agent_name,
     scenario_image: payload.scenario_image,
     product_name: payload.product_name,
-    channel: payload.channel || null,
-    intent: payload.intent || null,
     features: payload.features,
     title: payload.title,
     subtitle: payload.subtitle,
@@ -4501,9 +3241,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     brand_logo: serialiseAssetForStorage(state.brandLogo),
     scenario_asset: serialiseAssetForStorage(state.scenario),
     product_asset: serialiseAssetForStorage(state.product),
-    product_asset_extra_1: serialiseAssetForStorage(state.productExtra1),
-    product_asset_extra_2: serialiseAssetForStorage(state.productExtra2),
-    gallery_entries: (payload.gallery_entries || state.galleryEntries).map((entry) => ({
+    gallery_entries: state.galleryEntries.map((entry) => ({
       id: entry.id,
       caption: entry.caption,
       asset: serialiseAssetForStorage(entry.asset),
@@ -4566,7 +3304,7 @@ function saveStage1Data(data, options = {}) {
     if (stage2Raw) {
       try {
         const stage2Meta = JSON.parse(stage2Raw);
-        const key = stage2Meta?.final_poster?.storage_key;
+        const key = stage2Meta?.poster_image?.storage_key;
         if (key) {
           void assetStore.delete(key);
         }
@@ -4576,72 +3314,9 @@ function saveStage1Data(data, options = {}) {
     }
     sessionStorage.removeItem(STORAGE_KEYS.stage2);
   }
-
-  try {
-    const draft = buildDraftFromStage1Data(data);
-    saveDraft(draft);
-  } catch (error) {
-    console.warn('Unable to save draft snapshot', error);
-  }
-}
-
-function safeParseJson(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function decodeBase64ToString(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  let value = raw.trim();
-  try {
-    value = decodeURIComponent(value);
-  } catch {
-    value = value.trim();
-  }
-  value = value.replace(/-/g, '+').replace(/_/g, '/');
-  const padding = value.length % 4;
-  if (padding) {
-    value = value.padEnd(value.length + (4 - padding), '=');
-  }
-  try {
-    const binary = atob(value);
-    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    if (typeof TextDecoder !== 'undefined') {
-      return new TextDecoder('utf-8').decode(bytes);
-    }
-    return decodeURIComponent(escape(binary));
-  } catch {
-    return null;
-  }
-}
-
-function loadStage1DataFromQuery() {
-  const params = new URLSearchParams(window.location.search);
-  const state = params.get('state');
-  if (!state) return null;
-  const decoded = decodeBase64ToString(state);
-  if (!decoded) return null;
-  return safeParseJson(decoded);
 }
 
 function loadStage1Data() {
-  const fromQuery = loadStage1DataFromQuery();
-  if (fromQuery) {
-    try {
-      saveStage1Data(fromQuery, { preserveStage2: true });
-    } catch (error) {
-      console.warn('Unable to persist stage1 data from query', error);
-    }
-    return fromQuery;
-  }
-
-  const fromLocal = safeParseJson(localStorage.getItem(STORAGE_KEYS.stage1));
-  if (fromLocal) return fromLocal;
-
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage1);
   if (!raw) return null;
   try {
@@ -4650,163 +3325,6 @@ function loadStage1Data() {
     console.error('Unable to parse stage1 data', error);
     return null;
   }
-}
-
-function buildDraftFromStage1Data(stage1Data) {
-  if (!stage1Data || typeof stage1Data !== 'object') return {};
-  const bullets = Array.isArray(stage1Data.bullets) ? stage1Data.bullets : [];
-  return {
-    core: {
-      brand_name: stage1Data.brand_name || '',
-      brand_color: stage1Data.brand_color || '',
-      price: stage1Data.price || '',
-      promo: stage1Data.promo || '',
-      title: stage1Data.title || '',
-      tagline: stage1Data.tagline || '',
-      bullets,
-      product_image_1: stage1Data.product_image_1 || null,
-      product_image_2: stage1Data.product_image_2 || null,
-    },
-    messaging: {
-      channel: stage1Data.channel || '',
-      intent: stage1Data.intent || '',
-    },
-    poster: stage1Data,
-    prompt_bundle: stage1Data.prompt_bundle || null,
-  };
-}
-
-function saveDraft(draft) {
-  const payload = typeof draft === 'object' && draft ? draft : {};
-  const encoded = JSON.stringify(payload);
-  localStorage.setItem(DRAFT_STORAGE_KEY, encoded);
-  sessionStorage.setItem(DRAFT_STORAGE_KEY, encoded);
-}
-
-function loadDraft() {
-  const fromLocal = safeParseJson(localStorage.getItem(DRAFT_STORAGE_KEY));
-  if (fromLocal && typeof fromLocal === 'object') return fromLocal;
-  const fromSession = safeParseJson(sessionStorage.getItem(DRAFT_STORAGE_KEY));
-  if (fromSession && typeof fromSession === 'object') return fromSession;
-  const stage1Data = loadStage1Data();
-  return buildDraftFromStage1Data(stage1Data);
-}
-
-function pickDraftImageRef(asset) {
-  if (!asset) return null;
-  if (typeof asset === 'string') return asset;
-  return (
-    asset.r2Key ||
-    asset.remoteUrl ||
-    asset.url ||
-    asset.publicUrl ||
-    asset.dataUrl ||
-    asset.data_url ||
-    null
-  );
-}
-
-function getKitPosterVariant(renderMode) {
-  if (renderMode === 'kitposter1_b') return 'b';
-  return 'a';
-}
-
-function buildKitPosterDraftFromSource(source, adjustments, renderMode) {
-  const payload = source && typeof source === 'object' ? source : {};
-  const bullets = Array.isArray(payload.bullets) ? payload.bullets.filter(Boolean) : [];
-  const productImages = [];
-  const image1 = pickDraftImageRef(payload.product_image_1 || payload.productImage1);
-  const image2 = pickDraftImageRef(payload.product_image_2 || payload.productImage2);
-  if (image1) productImages.push(image1);
-  if (image2) productImages.push(image2);
-
-  const showBullets = adjustments?.showBullets !== false;
-  return {
-    template_id: payload.template_id || DEFAULT_STAGE1.template_id,
-    variant: getKitPosterVariant(renderMode),
-    product_images: productImages,
-    copy: {
-      title: payload.title || '',
-      bullets: showBullets ? bullets : [],
-      tagline: payload.tagline || payload.promo || null,
-    },
-    options: {
-      quality_mode: adjustments?.qualityMode || 'stable',
-    },
-  };
-}
-
-function buildGeneratePosterPayload(draft) {
-  const core = draft?.core || {};
-  const messaging = draft?.messaging || {};
-  const posterSource = draft?.poster || {};
-  const bullets = Array.isArray(core.bullets) ? core.bullets : [];
-  const title = core.title || posterSource.title || '';
-  const showBullets = stage2State.adjustments?.showBullets !== false;
-  const renderMode = stage2State.renderMode || 'kitposter1_a';
-  const stage1Snapshot = loadStage1Data();
-  const draftSource = stage1Snapshot || core || posterSource;
-  const draftPayload = buildKitPosterDraftFromSource(
-    draftSource,
-    stage2State.adjustments,
-    renderMode
-  );
-  const featureBullets = showBullets ? bullets : [];
-  return {
-    poster: {
-      brand_name: core.brand_name || posterSource.brand_name || '',
-      agent_name: posterSource.agent_name || messaging.channel || '',
-      scenario_image: posterSource.scenario_image || messaging.intent || '',
-      product_name: posterSource.product_name || title || '',
-      channel: messaging.channel || posterSource.channel || null,
-      intent: messaging.intent || posterSource.intent || null,
-      template_id: posterSource.template_id || DEFAULT_STAGE1.template_id,
-      features: featureBullets,
-      title,
-      subtitle: posterSource.subtitle || posterSource.tagline || core.tagline || '',
-      series_description: posterSource.series_description || '',
-      brand_color: core.brand_color || posterSource.brand_color || null,
-      price: core.price || posterSource.price || null,
-      promo: core.promo || posterSource.promo || null,
-      product_image_1: pickDraftImageRef(core.product_image_1),
-      product_image_2: pickDraftImageRef(core.product_image_2),
-    },
-    draft: draftPayload,
-    render_mode: renderMode,
-    variants: 1,
-    seed: 0,
-    lock_seed: true,
-    prompt_bundle: draft?.prompt_bundle || null,
-  };
-}
-
-function renderDraftSnapshot(draft) {
-  const core = draft?.core || {};
-  const messaging = draft?.messaging || {};
-  const bullets = Array.isArray(core.bullets) ? core.bullets : [];
-  setText('draft-brand-name', core.brand_name || 'N/A');
-  setText('draft-brand-color', core.brand_color || 'N/A');
-  setText('draft-price', core.price || 'N/A');
-  setText('draft-promo', core.promo || 'N/A');
-  setText('draft-channel', messaging.channel || 'N/A');
-  setText('draft-intent', messaging.intent || 'N/A');
-  setText('draft-title', core.title || 'N/A');
-  setText('draft-image-1', pickDraftImageRef(core.product_image_1) || 'N/A');
-  setText('draft-image-2', pickDraftImageRef(core.product_image_2) || 'N/A');
-
-  const bulletsList = document.getElementById('draft-bullets');
-  if (bulletsList) {
-    bulletsList.innerHTML = '';
-    bullets.forEach((item) => {
-      const li = document.createElement('li');
-      li.textContent = item;
-      bulletsList.appendChild(li);
-    });
-  }
-
-  const draftKeys = draft && typeof draft === 'object' ? Object.keys(draft) : [];
-  setText('stage2-draft-status', `Draft loaded: ${draftKeys.length ? 'yes' : 'no'}`);
-  setText('stage2-draft-keys', draftKeys.length ? `Draft keys: ${draftKeys.join(', ')}` : 'Draft keys: none');
 }
 function loadPromptPresets() {
   if (!promptPresetPromise) {
@@ -4827,28 +3345,6 @@ function loadPromptPresets() {
     defaultAssignments: data?.defaultAssignments || {},
   }));
 }
-
-async function buildModeSPromptBundle(stage1Data) {
-  try {
-    const presets = await loadPromptPresets();
-    const assignments = presets?.defaultAssignments || {};
-    const pick = (slot) => {
-      const presetId = assignments[slot];
-      const preset = (presetId && presets?.presets?.[presetId]) || null;
-      return preset?.positive || null;
-    };
-
-    return {
-      scenario: pick('scenario'),
-      product: pick('product'),
-      gallery: pick('gallery'),
-    };
-  } catch (error) {
-    console.warn('[ModeS] prompt presets unavailable', error);
-    return { scenario: null, product: null, gallery: null };
-  }
-}
-
 
 const PROMPT_SLOT_LABELS = {
   scenario: '场景背景',
@@ -5073,25 +3569,6 @@ function applyPromptStateToInspector(state, elements, presets) {
   }
 }
 
-function updatePromptSummaryLines(state, presets) {
-  if (!state?.slots) return;
-  const presetMap = presets?.presets || {};
-  PROMPT_SLOTS.forEach((slot) => {
-    const summaryEl = document.querySelector(`[data-preset-summary="${slot}"]`);
-    if (!summaryEl) return;
-    const entry = state.slots?.[slot] || {};
-    const presetLabel = entry.preset ? (presetMap[entry.preset]?.label || entry.preset) : '';
-    const hasCustom = Boolean((entry.positive || '').trim() || (entry.negative || '').trim());
-    let summary = 'No preset';
-    if (presetLabel) {
-      summary = hasCustom ? `${presetLabel} (custom)` : presetLabel;
-    } else if (hasCustom) {
-      summary = 'Custom';
-    }
-    summaryEl.textContent = summary;
-  });
-}
-
 function populatePresetSelect(select, presets, slot) {
   if (!select) return;
   select.innerHTML = '';
@@ -5125,7 +3602,7 @@ async function setupPromptInspector(
   stage1Data,
   { promptTextarea, statusElement, onStateChange, onABTest } = {}
 ) {
-  const container = document.querySelector('#prompt-inspector');
+  const container = document.getElementById('prompt-inspector');
   if (!container) return null;
 
   let presets;
@@ -5172,10 +3649,8 @@ async function setupPromptInspector(
 
   const state = createPromptState(stage1Data, presets);
   applyPromptStateToInspector(state, elements, presets);
-  updatePromptSummaryLines(state, presets);
 
   const emitStateChange = () => {
-    updatePromptSummaryLines(state, presets);
     if (typeof onStateChange === 'function') {
       onStateChange(clonePromptState(state), presets);
     }
@@ -5345,21 +3820,24 @@ function initStage2() {
     const aiPreview = document.getElementById('ai-preview');
     const aiSpinner = document.getElementById('ai-spinner');
     const aiPreviewMessage = document.getElementById('ai-preview-message');
+    const posterVisual = document.getElementById('poster-visual');
     const posterTemplateImage = document.getElementById('poster-template-image');
     const posterTemplatePlaceholder = document.getElementById('poster-template-placeholder');
     const posterTemplateLink = document.getElementById('poster-template-link');
+    const posterGeneratedImage = document.querySelector('[data-role="vertex-poster-img"]');
+    const posterGeneratedPlaceholder = document.querySelector('[data-role="vertex-poster-placeholder"]');
     const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
-    const promptGroup = document.querySelector('#prompt-group');
-    const promptDefaultGroup = document.querySelector('#prompt-default-group');
-    const promptBundleGroup = document.querySelector('#prompt-bundle-group');
+    const promptGroup = document.getElementById('prompt-group');
+    const promptDefaultGroup = document.getElementById('prompt-default-group');
+    const promptBundleGroup = document.getElementById('prompt-bundle-group');
     const emailGroup = document.getElementById('email-group');
-    const promptTextarea = document.querySelector('#openai-request-prompt');
-    const defaultPromptTextarea = document.querySelector('#template-default-prompt');
-    const promptBundlePre = document.querySelector('#prompt-bundle-json');
+    const promptTextarea = document.getElementById('openai-request-prompt');
+    const defaultPromptTextarea = document.getElementById('template-default-prompt');
+    const promptBundlePre = document.getElementById('prompt-bundle-json');
     const emailTextarea = document.getElementById('generated-email');
     const generateButton = document.getElementById('generate-poster');
     const regenerateButton = document.getElementById('regenerate-poster');
-    const promptInspector = document.querySelector('#prompt-inspector');
+    const promptInspector = document.getElementById('prompt-inspector');
     const nextButton = document.getElementById('to-stage3');
     const overviewList = document.getElementById('stage1-overview');
     const templateSelect = document.getElementById('template-select');
@@ -5368,121 +3846,29 @@ function initStage2() {
     const apiBaseInput = document.getElementById('api-base');
     const posterLayout = document.getElementById('posterB-layout');
     const exportPosterButton = document.getElementById('export-poster-b');
-    const stage2Wireframe = document.getElementById('stage2-wireframe');
-    const stage2WireframeWarning = document.getElementById('stage2-wireframe-warning');
-    const toggleBulletsInput = document.getElementById('toggle-bullets');
-    const titleSizePreset = document.getElementById('title-size-preset');
-    const fallbackStableButton = document.getElementById('fallback-stable');
-    const assetFallbackWarning = document.getElementById('asset-fallback-warning');
-    let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
       return;
     }
 
-    const draft = loadDraft();
-    stage2State.draft = draft;
-    renderDraftSnapshot(draft);
-    const hasDebugPanels = document.getElementById('debug-draft') || document.getElementById('debug-payload');
-    if (hasDebugPanels) {
-      updateDebugPanels({ draft });
-      bindCopyButton('debug-copy-draft', () => JSON.stringify(stage2State.debugDraft || {}, null, 2));
-      bindCopyButton('debug-copy-payload', () => JSON.stringify(stage2State.debugPayload || {}, null, 2));
-      bindCopyButton('debug-copy-response', () => JSON.stringify(stage2State.debugResponse || {}, null, 2));
-      bindCopyButton('debug-copy-prompt', () => (document.getElementById('debug-prompt-preview')?.value || ''));
+    if (posterPreviewSection) {
+      posterPreviewSection.classList.add('hidden');
     }
-
-      if (posterPreviewSection) {
-        posterPreviewSection.classList.remove('hidden');
-      }
+    if (posterGeneratedImage?.classList) {
+      posterGeneratedImage.classList.add('hidden');
+      posterGeneratedImage.removeAttribute('src');
+      posterGeneratedImage.style.display = 'none';
+    }
+    if (posterGeneratedPlaceholder?.classList) {
+      posterGeneratedPlaceholder.classList.add('hidden');
+    }
     if (regenerateButton) {
       regenerateButton.classList.add('hidden');
       regenerateButton.disabled = true;
     }
 
     const stage1Data = loadStage1Data();
-    const refreshStage2Wireframe = () => {
-      if (!stage1Data || !stage2Wireframe) return;
-      updateWireframePreview(
-        stage2Wireframe,
-        {
-          title: stage1Data.title || '',
-          bullets: stage1Data.bullets || [],
-          tagline: stage1Data.tagline || stage1Data.promo || '',
-        },
-        stage1Data.template_id || DEFAULT_STAGE1.template_id,
-        stage2WireframeWarning,
-        {
-          titleScale: stage2State.adjustments.titleScale,
-          showBullets: stage2State.adjustments.showBullets,
-        }
-      );
-    };
-
-    if (toggleBulletsInput) {
-      toggleBulletsInput.checked = stage2State.adjustments.showBullets !== false;
-      toggleBulletsInput.addEventListener('change', () => {
-        stage2State.adjustments.showBullets = toggleBulletsInput.checked;
-        refreshStage2Wireframe();
-        renderPosterResult();
-        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
-      });
-    }
-
-      if (titleSizePreset) {
-        titleSizePreset.value = 'M';
-        stage2State.adjustments.titleScale = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
-        stage2State.adjustments.titleSize = titleSizePreset.value;
-        titleSizePreset.addEventListener('change', () => {
-          const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
-          stage2State.adjustments.titleScale = next;
-          stage2State.adjustments.titleSize = titleSizePreset.value;
-          refreshStage2Wireframe();
-          updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
-        });
-      }
-
-      if (fallbackStableButton) {
-        fallbackStableButton.addEventListener('click', () => {
-          stage2State.adjustments = {
-            showBullets: true,
-            titleScale: 1,
-            qualityMode: 'stable',
-            titleSize: 'M',
-            fallbackStableClicked: true,
-          };
-          if (toggleBulletsInput) toggleBulletsInput.checked = true;
-          if (titleSizePreset) titleSizePreset.value = 'M';
-        refreshStage2Wireframe();
-        updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
-        setStatus(statusElement, 'Fallback to stable mode requested.', 'info');
-        void runStage2Generation({ isRegenerate: true });
-      });
-    }
-    const previewPayload = buildGeneratePosterPayload(draft);
-    updateDebugPanels({ payload: previewPayload });
-    if (MODE_S && (!previewPayload.prompt_bundle || !Object.keys(previewPayload.prompt_bundle || {}).length)) {
-      try {
-        const bundle = await buildModeSPromptBundle(stage1Data);
-        previewPayload.prompt_bundle = bundle;
-        updateDebugPanels({ payload: previewPayload });
-      } catch (error) {
-        console.warn('[debug] unable to build prompt bundle preview', error);
-      }
-    }
-    if (!stage1Data) {
-      setStatus(
-        statusElement,
-        '??? Stage1 ?????? ?state=base64 ? localStorage/sessionStorage ???',
-        'warning'
-      );
-      generateButton.disabled = true;
-      if (regenerateButton) {
-        regenerateButton.disabled = true;
-      }
-      return;
-    }
-    if (!stage1Data.preview_built) {
+    if (!stage1Data || !stage1Data.preview_built) {
       setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
       generateButton.disabled = true;
       if (regenerateButton) {
@@ -5491,31 +3877,7 @@ function initStage2() {
       return;
     }
 
-    refreshStage2Wireframe();
-
-    const variantMode =
-      stage1Data?.template_variant === 'b' ? 'kitposter1_b' : 'kitposter1_a';
-    stage2State.renderMode = MODE_S ? variantMode : stage2State.renderMode;
-    if (!MODE_S && !warningElement && statusElement?.parentNode) {
-      warningElement = document.createElement('p');
-      warningElement.id = 'stage2-warning';
-      warningElement.className = 'hint hidden';
-      statusElement.parentNode.insertBefore(warningElement, statusElement.nextSibling);
-    }
-
-    if (!MODE_S) {
-      initStage2RenderModeControl(promptInspector, statusElement);
-    }
-    ensureStage2FinalPosterPreview(posterOutput);
-
     await hydrateStage1DataAssets(stage1Data);
-  if (MODE_S && hasInlineStage1Assets(stage1Data)) {
-    setStatus(statusElement, '??????????? key/url???? base64??', 'error');
-    stage2InFlight = false;
-    setStage2ButtonsDisabled(false);
-    return null;
-  }
-
 
     try {
       lastStage1Data = stage1Data ? structuredClone(stage1Data) : null;
@@ -5528,20 +3890,12 @@ function initStage2() {
       console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
     }
 
-    const stage1Features = Array.isArray(stage1Data.features)
-      ? stage1Data.features.filter(Boolean)
-      : [];
-    const stage1Bullets = Array.isArray(stage1Data.bullets)
-      ? stage1Data.bullets.filter(Boolean)
-      : [];
-    const stage2Features = stage1Features.length ? stage1Features : stage1Bullets;
-
     stage2State.poster = {
       brand_name: stage1Data.brand_name || '',
       agent_name: stage1Data.agent_name || '',
       headline: stage1Data.title || '',
-      tagline: stage1Data.subtitle || stage1Data.tagline || '',
-      features: stage2Features,
+      tagline: stage1Data.subtitle || '',
+      features: Array.isArray(stage1Data.features) ? stage1Data.features.filter(Boolean) : [],
       series: Array.isArray(stage1Data.gallery_entries)
         ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
         : [],
@@ -5575,15 +3929,6 @@ function initStage2() {
           exportPosterButton.disabled = true;
           const html2canvas = await loadHtml2Canvas();
           if (!posterLayoutRoot || !html2canvas) return;
-          const imagesReady = await waitForImagesReady(posterLayoutRoot, 5000);
-          const fontsReady = await waitForFontsReady(4000);
-          if (!imagesReady || !fontsReady) {
-            setStatus(
-              statusElement,
-              '截图准备超时，可能存在未加载资源。',
-              'warning'
-            );
-          }
           const canvas = await html2canvas(posterLayoutRoot, {
             backgroundColor: '#ffffff',
             scale: 2,
@@ -5610,6 +3955,8 @@ function initStage2() {
 
     const templatePlaceholderDefault =
       posterTemplatePlaceholder?.textContent?.trim() || '后台尚未上传模板海报。';
+    const generatedPlaceholderDefault =
+      posterGeneratedPlaceholder?.textContent?.trim() || '生成结果将在此展示。';
 
     const templateState = {
       loaded: false,
@@ -5659,7 +4006,8 @@ function initStage2() {
         templateImage?.currentSrc ||
         templateImage?.src ||
         (entryPreview
-          ? App.utils.assetUrl(`templates/${entryPreview}`)
+          ? App.utils.assetUrl?.(`templates/${entryPreview}`) ||
+            `templates/${entryPreview}`
           : null);
 
       if (!fallbackSrc) {
@@ -5869,7 +4217,11 @@ function initStage2() {
           aiPreview,
           aiSpinner,
           aiPreviewMessage,
+          posterVisual,
+          generatedImage: posterGeneratedImage,
           templatePoster: fallbackPoster,
+          generatedPlaceholder: posterGeneratedPlaceholder,
+          generatedPlaceholderDefault,
           promptGroup,
           promptBundleGroup,
           promptBundlePre,
@@ -5879,8 +4231,6 @@ function initStage2() {
           generateButton,
           regenerateButton,
           nextButton,
-          generatedImage: null,
-          disablePosterImage: true,
           promptManager,
           updatePromptPanels,
           forceVariants: extra.forceVariants ?? 1,
@@ -5908,46 +4258,43 @@ function initStage2() {
 
     let templateRegistry = [];
 
-    const defaultNotify = (msg) => {
-      // 默认降级到 console，实际项目请传入 Toast/Modal 组件
-      console.info(msg);
+    const handleABTest = () => {
+      if (!posterGenerationState.posterUrl) {
+        alert('请先点击“生成海报与文案”，成功生成一版海报后，再进行 A/B 对比。');
+        return;
+      }
+
+      const templateImgEl = document.querySelector("[data-role='template-preview-image']") || null;
+      const baseline = templateImgEl
+        ? {
+            url: templateImgEl.src,
+            width:
+              typeof templateImgEl.naturalWidth === 'number' && templateImgEl.naturalWidth > 0
+                ? templateImgEl.naturalWidth
+                : templateImgEl.width || 0,
+            height:
+              typeof templateImgEl.naturalHeight === 'number' && templateImgEl.naturalHeight > 0
+                ? templateImgEl.naturalHeight
+                : templateImgEl.height || 0,
+          }
+        : activeTemplatePoster
+        ? {
+            url: getPosterImageSource(activeTemplatePoster),
+            width: activeTemplatePoster.width || 0,
+            height: activeTemplatePoster.height || 0,
+          }
+        : null;
+
+      const generated = {
+        url: posterGenerationState.posterUrl,
+        width: posterGenerationState.rawResult?.poster_image?.width || 0,
+        height: posterGenerationState.rawResult?.poster_image?.height || 0,
+      };
+
+      openABModal?.(baseline, generated) ||
+        alert('已准备好最新生成结果，可在右侧预览卡片查看。');
     };
-    
-    async function handleABTest({
-      openABModal,
-      baseline,
-      generated,
-      notify = defaultNotify,
-      messages = {
-        disabled: 'Demo 1.0: A/B preview is disabled.',
-        ready: '已准备好最新生成结果，可在右侧预览卡片查看。'
-      }
-    } = {}) {
-      // 先通知（非阻塞）
-      notify(messages.disabled);
-    
-      try {
-        // 支持 openABModal 为 undefined、同步返回值或返回 Promise
-        const result = openABModal?.(baseline, generated);
-        const opened = result instanceof Promise ? await result : result;
-    
-        if (!opened) {
-          notify(messages.ready);
-        }
-    
-        return Boolean(opened);
-      } catch (err) {
-        // 出错时记录并降级提示
-        console.error('handleABTest error:', err);
-        notify(messages.ready);
-        return false;
-      }
-    }
 
-
-   
-
-    if (!MODE_S) {
     promptManager = await setupPromptInspector(stage1Data, {
       promptTextarea,
       statusElement,
@@ -5965,7 +4312,6 @@ function initStage2() {
       promptPresets = promptManager.presets || promptPresets;
       latestPromptState = promptManager.getState?.() || latestPromptState;
       updatePromptPanels();
-    }
     }
 
     const updateSummary = () => {
@@ -6079,28 +4425,7 @@ function initStage2() {
       });
     }
 
-    stage2RunGeneration = (extra = {}) =>
-      triggerGeneration({
-        stage1Data,
-        statusElement,
-        posterOutput,
-        aiPreview,
-        aiSpinner,
-        aiPreviewMessage,
-        templatePoster: MODE_S ? null : templateState.poster,
-        promptBundleGroup: MODE_S ? null : promptBundleGroup,
-        promptBundlePre: MODE_S ? null : promptBundlePre,
-        promptGroup: MODE_S ? null : promptGroup,
-        emailGroup,
-        promptTextarea: MODE_S ? null : promptTextarea,
-        emailTextarea,
-        generateButton,
-        regenerateButton,
-        nextButton,
-        promptManager: MODE_S ? null : promptManager,
-        updatePromptPanels: MODE_S ? null : updatePromptPanels,
-        ...extra,
-      });
+    stage2RunGeneration = (extra = {}) => runGeneration(extra);
     bindStage2GenerateButtonsOnce();
     updateRegenerateButtonState();
 
@@ -6111,7 +4436,7 @@ function initStage2() {
 
     nextButton.addEventListener('click', async () => {
       const stored = await loadStage2Result();
-      if (!stored || !stored.final_poster) {
+      if (!stored || !stored.poster_image) {
         setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
         return;
       }
@@ -6195,24 +4520,71 @@ function buildPromptBundleStrings(prompts = {}) {
 }
 
 function extractVertexPosterUrl(result) {
-  const url = result?.final_poster?.url;
-  if (typeof url === 'string' && url.trim()) {
-    return url.trim();
+  if (!result) return null;
+
+  if (result.poster_image && typeof result.poster_image.url === 'string') {
+    const url = result.poster_image.url.trim();
+    if (url) return url;
   }
+  if (typeof result.poster_image === 'string') {
+    const url = result.poster_image.trim();
+    if (url) return url;
+  }
+  if (result.poster && typeof result.poster.url === 'string') {
+    const url = result.poster.url.trim();
+    if (url) return url;
+  }
+  if (typeof result.poster === 'string') {
+    const url = result.poster.trim();
+    if (url) return url;
+  }
+  if (result.image && typeof result.image.url === 'string') {
+    const url = result.image.url.trim();
+    if (url) return url;
+  }
+  if (typeof result.url === 'string' && result.url.trim()) {
+    return result.url.trim();
+  }
+  if (typeof result.poster_url === 'string' && result.poster_url.length > 0) {
+    return result.poster_url;
+  }
+
+  if (Array.isArray(result.results) && result.results.length > 0) {
+    const candidate = result.results.find((entry) => entry && entry.url) || result.results[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  if (Array.isArray(result.gallery_images) && result.gallery_images.length > 0) {
+    const candidate =
+      result.gallery_images.find((entry) => entry && entry.url) || result.gallery_images[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
+  if (
+    result.gallery_images &&
+    Array.isArray(result.gallery_images.results) &&
+    result.gallery_images.results.length > 0
+  ) {
+    const candidate =
+      result.gallery_images.results.find((entry) => entry && entry.url) ||
+      result.gallery_images.results[0];
+    if (candidate && typeof candidate.url === 'string' && candidate.url.length > 0) {
+      return candidate.url;
+    }
+  }
+
   return null;
 }
-
 
 function renderPosterResult() {
   const root = document.getElementById('poster-result');
   if (!root) return;
 
   const { poster, assets } = stage2State;
-  const fallbackWarning = document.getElementById('asset-fallback-warning');
-  if (fallbackWarning) {
-    fallbackWarning.textContent = '';
-    fallbackWarning.classList.add('hidden');
-  }
 
   const logoImg = document.getElementById('poster-result-brand-logo');
   if (logoImg) {
@@ -6233,63 +4605,28 @@ function renderPosterResult() {
   const scenarioImg = document.getElementById('poster-result-scenario-image');
   if (scenarioImg) {
     const src = assets.scenario_url || '';
-    applyImageWithFallback(
-      scenarioImg,
-      [src, DEFAULT_SCENARIO_ASSET, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.scenario],
-      fallbackWarning
-    );
+    setImageSrcIfNonEmpty(scenarioImg, src);
   }
 
   const productImg = document.getElementById('poster-result-product-image');
   if (productImg) {
     const src = assets.product_url || '';
-    applyImageWithFallback(
-      productImg,
-      [src, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
-      fallbackWarning
-    );
-  }
-
-  const titleEl = document.getElementById('poster-result-title');
-  if (titleEl) {
-    const headline =
-      poster?.headline ||
-      poster?.title ||
-      poster?.copy?.headline ||
-      '';
-    setTextIfNonEmpty(titleEl, headline, ' ');
+    setImageSrcIfNonEmpty(productImg, src);
   }
 
   const featureList = document.getElementById('poster-result-feature-list');
   if (featureList) {
-    const features = stage2State.adjustments?.showBullets !== false
-      ? (poster.features || [])
-      : [];
-    renderFeatureTags(featureList, features.slice(0, 3));
+    renderFeatureTags(featureList, (poster.features || []).slice(0, 3));
   }
 
   const gallerySlots = root.querySelectorAll('.poster-gallery-slot');
-  const logoFallback = MODE_S ? '' : (assets.brand_logo_url || poster.brand_logo_url || '');
+  const logoFallback = assets.brand_logo_url || poster.brand_logo_url || '';
   gallerySlots.forEach((slot, index) => {
     const img = slot.querySelector('img');
     const captionEl = slot.querySelector('.slot-caption');
     const captionTitleEl = slot.querySelector('[data-gallery-caption-title]');
     const src = assets.gallery_urls?.[index] || logoFallback || '';
-    if (img) {
-      if (src) {
-        slot.classList.remove('empty');
-        img.style.display = 'block';
-        applyImageWithFallback(
-          img,
-          [src, logoFallback, LOCAL_PLACEHOLDER_IMAGE, placeholderImages.product],
-          fallbackWarning
-        );
-      } else {
-        slot.classList.add('empty');
-        img.removeAttribute('src');
-        img.style.display = 'none';
-      }
-    }
+    if (img) setImageSrcIfNonEmpty(img, src);
     if (captionEl && !captionTitleEl) {
       const series = poster.series?.[index];
       setTextIfNonEmpty(captionEl, series && series.name ? series.name : '', '待生成');
@@ -6353,129 +4690,55 @@ function renderGalleryCaptions() {
   });
 }
 
-function updateGenerationMetaPanel(data) {
-  const recipeEl = document.getElementById('gen-meta-recipe');
-  const seedEl = document.getElementById('gen-meta-seed');
-  const fallbackEl = document.getElementById('gen-meta-fallback');
-  const fallbackReasonEl = document.getElementById('gen-meta-fallback-reason');
-  const gateEl = document.getElementById('gen-meta-gate');
-
-  const recipe = data?.recipe_id || data?.meta?.recipe_id || 'N/A';
-  const seed = data?.seed || data?.meta?.seed || 'N/A';
-  const fallbackUsed =
-    typeof data?.fallback_used === 'boolean'
-      ? String(data.fallback_used)
-      : data?.meta?.fallback_used ?? 'N/A';
-  const fallbackReason =
-    data?.fallback_reason || data?.meta?.fallback_reason || 'N/A';
-  const gateSummary = data?.gate_summary || data?.meta?.gate_summary || 'N/A';
-
-  if (recipeEl) recipeEl.textContent = recipe;
-  if (seedEl) seedEl.textContent = seed;
-  if (fallbackEl) fallbackEl.textContent = fallbackUsed;
-  if (fallbackReasonEl) fallbackReasonEl.textContent = fallbackReason;
-  if (gateEl) gateEl.textContent = gateSummary;
-}
-
-function updateStage2Warnings(data) {
-  const warningElement = document.getElementById('stage2-warning');
-  if (!warningElement) return;
-
-  const warnings = [];
-  const rawWarnings = data?.prompt_details?.warnings || data?.warnings || '';
-  if (typeof rawWarnings === 'string' && rawWarnings.trim()) {
-    rawWarnings.split(',').forEach((item) => {
-      const token = item.trim();
-      if (!token) return;
-      if (token === 'vertex_quota_exhausted_fallback') {
-        warnings.push('配额受限，已使用本地兜底渲染。');
-      } else if (token === 'vertex_edit_failed_fallback') {
-        warnings.push('AI 编辑失败，已使用本地兜底渲染。');
-      } else if (token === 'kitposter1_locked_frame_fallback') {
-        warnings.push('已使用锁版模板兜底渲染。');
-      } else if (token === 'vertex_unavailable_fallback') {
-        warnings.push('Vertex 未启用，已使用本地兜底渲染。');
-      } else {
-        warnings.push(token);
-      }
-    });
-  }
-  if (data?.fallback_used) {
-    warnings.push('已触发 fallback。');
-  }
-  if (data?.degraded) {
-    const reason = data?.degraded_reason ? `?${data.degraded_reason}?` : '';
-    warnings.push(`????????${reason}`);
-  }
-
-  if (!warnings.length) {
-    warningElement.classList.add('hidden');
-    warningElement.textContent = '';
-    return;
-  }
-
-  warningElement.textContent = `提示：${warnings.join(' ')}`;
-  warningElement.classList.remove('hidden');
-}
-
 
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
 
-  if (typeof updateStage2Warnings === 'function') {
-    updateStage2Warnings(data);
-  }
+  const slotSummary = summariseGenerationSlots(data);
+  console.info('[triggerGeneration] slot assets', slotSummary);
 
-  const finalPoster = data?.final_poster ?? null;
-  const finalPosterUrl = extractVertexPosterUrl(data);
-  const finalImg = document.getElementById('final-poster-img');
-  const finalPlaceholder = document.getElementById('final-poster-placeholder');
-  const finalLink = document.getElementById('final-poster-link');
-  const finalKey = document.getElementById('final-poster-key');
-  const copyButton = document.getElementById('final-poster-copy');
+  surfaceSlotWarnings(slotSummary);
 
-  if (finalPosterUrl && finalImg) {
-    finalImg.src = finalPosterUrl;
-    finalImg.classList.remove('hidden');
-    if (finalPlaceholder) finalPlaceholder.classList.add('hidden');
-    if (finalLink) {
-      finalLink.href = finalPosterUrl;
-      finalLink.classList.remove('hidden');
+  stage2State.vertex.lastResponse = data || null;
+  const assets = stage2State.assets;
+
+  const posterUrl = extractVertexPosterUrl(data);
+  if (posterUrl) {
+    posterGeneratedImageUrl = posterUrl;
+    posterGenerationState.posterUrl = posterUrl;
+    posterGeneratedImage = posterGenerationState.posterUrl;
+    assets.composite_poster_url = posterUrl;
+    try {
+      sessionStorage.setItem('latestPosterUrl', posterUrl);
+    } catch (error) {
+      console.warn('无法缓存最新海报 URL', error);
     }
-  } else {
-    if (finalImg) {
-      finalImg.removeAttribute('src');
-      finalImg.classList.add('hidden');
+  }
+
+  renderPosterResult();
+
+  // --- Show poster area ---
+  try {
+    const posterOutput = document.getElementById('poster-output');
+    const aiPreview = document.getElementById('ai-preview');
+    const posterVisual = document.getElementById('poster-visual');
+
+    if (!posterOutput || !aiPreview || !posterVisual) {
+      console.warn('[applyVertexPosterResult] poster containers missing', {
+        posterOutput,
+        aiPreview,
+        posterVisual,
+      });
+    } else {
+      posterOutput.classList.remove('hidden');
+      posterVisual.classList.remove('hidden');
+      aiPreview.classList.add('hidden');
     }
-    if (finalPlaceholder) finalPlaceholder.classList.remove('hidden');
-    if (finalLink) finalLink.classList.add('hidden');
-  }
 
-  if (finalKey) {
-    finalKey.textContent =
-      finalPoster?.key || finalPoster?.storage_key || 'N/A';
-  }
-
-  if (copyButton) {
-    copyButton.onclick = async () => {
-      if (!finalPosterUrl) return;
-      try {
-        await navigator.clipboard.writeText(finalPosterUrl);
-        copyButton.textContent = 'Copied';
-        setTimeout(() => {
-          copyButton.textContent = 'Copy URL';
-        }, 1200);
-      } catch (error) {
-        console.warn('????', error);
-      }
-    };
-  }
-
-  if (typeof updateGenerationMetaPanel === 'function') {
-    updateGenerationMetaPanel(data);
+  } catch (e) {
+    console.warn('[applyVertexPosterResult] show poster failed', e);
   }
 }
-
 
 async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, maxSlots = 4) {
   const result = [];
@@ -6541,10 +4804,6 @@ async function buildGalleryItemsWithFallback(stage1, logoRef, apiCandidates, max
   return result;
 }
 
-async function buildModeSGalleryItems(stage1, apiCandidates) {
-  return [];
-}
-
 function formatPosterGenerationError(error) {
   const rawDetail = error?.responseJson?.detail ?? error?.responseJson ?? null;
 
@@ -6571,6 +4830,10 @@ async function triggerGeneration(opts) {
   const {
     stage1Data, statusElement,
     posterOutput, aiPreview, aiSpinner, aiPreviewMessage,
+    posterVisual,
+    generatedImage = null,
+    generatedPlaceholder,
+    generatedPlaceholderDefault = '生成结果将在此展示。',
     templatePoster = null,
     promptBundleGroup,
     promptBundlePre,
@@ -6579,9 +4842,9 @@ async function triggerGeneration(opts) {
     promptManager, updatePromptPanels,
     forceVariants = null, abTest = false,
   } = opts;
-  const { disablePosterImage = false } = opts;
   rehydrateStage2PosterFromStage1();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
+  const priorPosterUrl = posterGenerationState.posterUrl || posterGeneratedImageUrl || null;
   let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
   stage2State.generationAction = isRegenerate ? 'regenerate' : 'generate';
@@ -6622,82 +4885,7 @@ async function triggerGeneration(opts) {
   let scenarioRef;
   let productRef;
   let galleryItems;
-  let productImage1Ref;
-  let productImage2Ref;
   try {
-    if (MODE_S) {
-      const safeText = (value, fallback) => {
-        const text = typeof value === 'string' ? value.trim() : '';
-        return text || fallback;
-      };
-
-      productImage1Ref = await normaliseAssetReference(stage1Data.product_image_1, {
-        field: 'poster.product_image_1',
-        required: true,
-        apiCandidates,
-        folder: 'product',
-      });
-      productImage2Ref = await normaliseAssetReference(stage1Data.product_image_2, {
-        field: 'poster.product_image_2',
-        required: false,
-        apiCandidates,
-        folder: 'product',
-      }, productImage1Ref);
-
-      const showBullets = stage2State.adjustments?.showBullets !== false;
-      const bullets = Array.isArray(stage1Data.bullets)
-        ? stage1Data.bullets.filter(Boolean)
-        : [];
-      const title = safeText(stage1Data.title, 'Poster');
-      const channel = safeText(stage1Data.channel, 'direct');
-      const intent = safeText(stage1Data.intent, 'default');
-      const brandName = safeText(stage1Data.brand_name, 'Brand');
-      const productName = safeText(stage1Data.product_name, title);
-      const promo = safeText(stage1Data.promo, '');
-      const price = safeText(stage1Data.price, '');
-      const tagline = safeText(stage1Data.tagline || stage1Data.promo || stage1Data.price, '');
-      const subtitle = safeText(tagline, title);
-      const seriesDescription = safeText(
-        stage1Data.promo || stage1Data.price || stage1Data.intent,
-        title
-      );
-
-      if (productImage1Ref?.url) {
-        assertAssetUrl('product_image_1', productImage1Ref.url);
-      }
-
-      posterPayload = {
-        brand_name: brandName,
-        agent_name: channel,
-        scenario_image: intent || title,
-        product_name: productName,
-        channel,
-        intent,
-        brand_color: stage1Data.brand_color || null,
-        price: price || null,
-        promo: promo || null,
-        template_id: templateId || DEFAULT_STAGE1.template_id,
-        features: showBullets ? bullets : [],
-        title,
-        subtitle,
-        series_description: seriesDescription,
-        product_image_1: productImage1Ref?.url || null,
-        product_image_1_key: productImage1Ref?.key || null,
-        product_image_2: productImage2Ref?.url || null,
-        product_image_2_key: productImage2Ref?.key || null,
-        product_key: productImage1Ref?.key || null,
-        product_asset: productImage1Ref?.url || null,
-        scenario_key: productImage2Ref?.key || null,
-        scenario_asset: productImage2Ref?.url || null,
-        scenario_mode: 'upload',
-        product_mode: 'upload',
-        gallery_items: [],
-        gallery_label: null,
-        gallery_limit: 0,
-        gallery_allows_prompt: false,
-        gallery_allows_upload: false,
-      };
-    } else {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
       required: true,
@@ -6707,7 +4895,7 @@ async function triggerGeneration(opts) {
 
     scenarioRef = await normaliseAssetReference(sc, {
       field: 'poster.scenario_image',
-      required: !MODE_S,
+      required: true,
       apiCandidates,
       folder: 'scenario',
     }, brandLogoRef);
@@ -6726,7 +4914,7 @@ async function triggerGeneration(opts) {
       : [];
 
     const brandLogoUrl = brandLogoRef.url || null;
-    const scenarioUrl = scenarioRef?.url || null;
+    const scenarioUrl = scenarioRef.url || null;
     const productUrl = productRef.url || null;
 
     if (scenarioUrl) {
@@ -6744,8 +4932,6 @@ async function triggerGeneration(opts) {
       agent_name: stage1Data.agent_name,
       scenario_image: scenarioUrl,
       product_name: stage1Data.product_name,
-      channel: stage1Data.channel || null,
-      intent: stage1Data.intent || null,
       template_id: templateId,
       features,
       title: stage1Data.title,
@@ -6755,7 +4941,7 @@ async function triggerGeneration(opts) {
       brand_logo: brandLogoUrl,
       brand_logo_key: brandLogoRef.key,
 
-      scenario_key: scenarioRef?.key || null,
+      scenario_key: scenarioRef.key,
       scenario_asset: scenarioUrl,
 
       product_key: productRef.key,
@@ -6775,7 +4961,6 @@ async function triggerGeneration(opts) {
       gallery_allows_prompt: stage1Data.gallery_allows_prompt !== false,
       gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
     };
-    }
   } catch (error) {
     console.error('[triggerGeneration] asset normalisation failed', error);
     setStatus(
@@ -6787,36 +4972,32 @@ async function triggerGeneration(opts) {
     setStage2ButtonsDisabled(false);
     return null;
   }
-  // 4) Prompt bundle (Mode S presets only)
-  const reqFromInspector = MODE_S ? {} : (promptManager?.buildRequest?.() || {});
-  if (!MODE_S && forceVariants != null) reqFromInspector.variants = forceVariants;
+  
 
-  const promptBundleStrings = MODE_S
-    ? await buildModeSPromptBundle(stage1Data)
-    : buildPromptBundleStrings(reqFromInspector.prompts || {});
-
-  const renderMode = MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a');
+ // 4) Prompt 组装 —— 始终发送字符串 prompt_bundle
+  const reqFromInspector = promptManager?.buildRequest?.() || {};
+  if (forceVariants != null) reqFromInspector.variants = forceVariants;
+  
+  const promptBundleStrings = buildPromptBundleStrings(reqFromInspector.prompts || {});
+  
   const requestBase = {
     poster: posterPayload,
-    render_mode: renderMode,
-    variants: MODE_S ? 1 : clampVariants(reqFromInspector.variants ?? 1),
-    seed: MODE_S ? 0 : (reqFromInspector.seed ?? null),
-    lock_seed: MODE_S ? true : !!reqFromInspector.lockSeed,
+    render_mode: 'locked',
+    variants: clampVariants(reqFromInspector.variants ?? 1),
+    seed: reqFromInspector.seed ?? null,
+    lock_seed: !!reqFromInspector.lockSeed,
   };
 
-  const payload = { ...requestBase };
-  if (promptBundleStrings) {
-    payload.prompt_bundle = promptBundleStrings;
-  }
-  if (MODE_S) {
-    payload.draft = buildKitPosterDraftFromSource(
-      stage1Data,
-      stage2State.adjustments,
-      renderMode
-    );
+  const payload = { ...requestBase, prompt_bundle: promptBundleStrings };
+
+  const negativeSummary = summariseNegativePrompts(reqFromInspector.prompts);
+  if (negativeSummary) {
+    payload.negatives = negativeSummary;
   }
 
-  updateDebugPanels({ draft: stage2State.draft, payload });
+  if (abTest) {
+    payload.variants = Math.max(2, payload.variants || 2);
+  }
 
   const posterSummary = {
     template_id: posterPayload.template_id,
@@ -6855,13 +5036,12 @@ async function triggerGeneration(opts) {
     variants: payload.variants,
     seed: payload.seed,
     lock_seed: payload.lock_seed,
+    negatives: negativeSummary || null,
   });
   console.info('[triggerGeneration] asset audit', assetAudit);
   
   // 面板同步
-  if (!MODE_S) {
-    updatePromptPanels?.({ bundle: payload.prompt_bundle });
-  }
+  updatePromptPanels?.({ bundle: payload.prompt_bundle });
   
   // 5) 体积守护
   const rawPayload = JSON.stringify(payload);
@@ -6880,16 +5060,32 @@ async function triggerGeneration(opts) {
   if (aiPreview) aiPreview.classList.remove('complete');
   if (aiSpinner) aiSpinner.classList.remove('hidden');
   if (aiPreviewMessage) aiPreviewMessage.textContent = 'Glibatree Art Designer 正在绘制海报…';
-  updateStage2Warnings(null);
+  if (posterVisual) posterVisual.classList.remove('hidden');
+  posterGenerationState.posterUrl = null;
   posterGeneratedImage = null;
   posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+  const resetGeneratedPlaceholder = (message) => {
+    if (!generatedPlaceholder) return;
+    generatedPlaceholder.textContent = message || generatedPlaceholderDefault;
+    generatedPlaceholder.classList.remove('hidden');
+  };
+  const hideGeneratedPlaceholder = () => {
+    if (!generatedPlaceholder) return;
+    generatedPlaceholder.textContent = generatedPlaceholderDefault;
+    generatedPlaceholder.classList.add('hidden');
+  };
+  if (generatedImage?.classList) {
+    generatedImage.classList.add('hidden');
+    generatedImage.removeAttribute('src');
+    generatedImage.style.display = 'none';
+  }
+  resetGeneratedPlaceholder('Glibatree Art Designer 正在绘制海报…');
   if (promptGroup) promptGroup.classList.add('hidden');
   if (emailGroup) emailGroup.classList.add('hidden');
   if (nextButton) nextButton.disabled = true;
 
   let fallbackTriggered = false;
   let fallbackTimerId = null;
-  const allowTemplateFallback = !MODE_S;
 
   const clearFallbackTimer = () => {
     if (fallbackTimerId) {
@@ -6897,32 +5093,29 @@ async function triggerGeneration(opts) {
       fallbackTimerId = null;
     }
   };
+
   const enableTemplateFallback = async (message, options = {}) => {
-    if (!allowTemplateFallback) return;
     if (fallbackTriggered) return;
     fallbackTriggered = true;
     clearFallbackTimer();
-
-    if (aiPreview) aiPreview.classList.add('complete');
     if (aiSpinner) aiSpinner.classList.add('hidden');
-
-    const nextPrompt = typeof options.prompt === 'string' ? options.prompt : '';
-    const nextEmail = typeof options.email === 'string' ? options.email : '';
-    const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
-    const canProceed = MODE_S ? Boolean(data?.final_poster) : hasCopy;
-    if (nextButton) nextButton.disabled = !canProceed;
-
-    if (templatePoster && hasCopy) {
+    if (aiPreview) aiPreview.classList.add('complete');
+    if (generatedImage?.classList) {
+      generatedImage.classList.add('hidden');
+      generatedImage.removeAttribute('src');
+    }
+    resetGeneratedPlaceholder('AI 生成超时，已回退到模板海报。');
+    if (nextButton) nextButton.disabled = false;
+    generateButton.disabled = false;
+    if (regenerateButton) regenerateButton.disabled = false;
+    if (templatePoster) {
       try {
         await saveStage2Result({
-          prompt: nextPrompt,
-          email_body: nextEmail,
-          prompt_bundle: options.prompt_bundle || null,
-          final_poster: { ...templatePoster },
-          poster_url: null,
+          poster_image: { ...templatePoster },
+          prompt: typeof options.prompt === 'string' ? options.prompt : '',
+          email_body: typeof options.email === 'string' ? options.email : '',
           assets: { ...stage2State.assets },
           poster: { ...stage2State.poster },
-          template_poster: { ...templatePoster },
           variants: [],
           seed: null,
           lock_seed: false,
@@ -6930,35 +5123,49 @@ async function triggerGeneration(opts) {
           template_id: stage1Data.template_id || null,
         });
       } catch (error) {
-        console.error('save template fallback failed', error);
+        console.error('保存模板海报失败', error);
       }
     }
-
-    const statusLevel = hasCopy ? 'warning' : 'error';
-    const statusMessage = message || (hasCopy
-      ? 'Using template poster; you can proceed to Stage 3.'
-      : 'Generation failed. Please try again.');
+    const statusLevel = templatePoster ? 'warning' : 'error';
+    const statusMessage =
+      message ||
+      (templatePoster
+        ? 'AI 生成超时，已回退到模板海报，可前往环节 3。'
+        : 'AI 生成超时，且没有可用的模板海报。');
     setStatus(statusElement, statusMessage, statusLevel);
   };
 
-  if (templatePoster && allowTemplateFallback) {
+  if (templatePoster) {
     fallbackTimerId = setTimeout(() => {
       void enableTemplateFallback();
     }, 60_000);
   }
 
+  // 7) 发送（健康探测 + 重试）
   try {
     didAttempt = true;
     await warmUp(apiCandidates);
+    // 发送请求：兼容返回 Response 或 JSON
     const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
     if (mySeq !== stage2GenerationSeq) return null;
 
+    const posterUrl =
+      data?.poster?.asset_url ||
+      data?.poster?.url ||
+      data?.poster_url ||
+      data?.poster_image?.url ||
+      (Array.isArray(data?.results) && data.results[0]?.url) ||
+      null;
+
     lastPosterResult = data || null;
-    updateDebugPanels({ response: data });
     lastPromptBundle = data?.prompt_bundle || null;
+    posterGeneratedImageUrl = posterUrl || null;
+
+    posterGenerationState.posterUrl = posterUrl;
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
+    posterGeneratedImage = posterGenerationState.posterUrl;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
 
     if (promptBundlePre && promptBundleGroup) {
@@ -6978,7 +5185,7 @@ async function triggerGeneration(opts) {
     }
 
     console.info('[triggerGeneration] success', {
-      hasPoster: Boolean(data?.final_poster),
+      hasPoster: Boolean(data?.poster_image),
       variants: Array.isArray(data?.variants) ? data.variants.length : 0,
       seed: data?.seed ?? null,
       lock_seed: data?.lock_seed ?? null,
@@ -6988,63 +5195,56 @@ async function triggerGeneration(opts) {
 
     clearFallbackTimer();
 
+    let assigned = false;
+    if (posterGenerationState.posterUrl && generatedImage?.classList) {
+      generatedImage.src = posterGenerationState.posterUrl;
+      generatedImage.style.display = 'block';
+      generatedImage.classList.remove('hidden');
+      hideGeneratedPlaceholder();
+      assigned = true;
+    } else {
+      if (generatedImage?.classList) {
+        generatedImage.classList.add('hidden');
+        generatedImage.removeAttribute('src');
+        generatedImage.style.display = 'none';
+      }
+      resetGeneratedPlaceholder('生成结果缺少可预览图片。');
+    }
+
+    posterVisual && posterVisual.classList.remove('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
     if (aiSpinner) aiSpinner.classList.add('hidden');
 
-    const nextPrompt = data?.prompt || '';
-    const nextEmail = data?.email_body || '';
-    if (emailTextarea) emailTextarea.value = nextEmail;
-    if (promptTextarea) promptTextarea.value = nextPrompt;
+    if (emailTextarea) emailTextarea.value = data.email_body || '';
+    if (promptTextarea) promptTextarea.value = data.prompt || '';
 
-    const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
-    const canProceed = MODE_S ? Boolean(data?.final_poster) : hasCopy;
-    setStatus(
-      statusElement,
-      hasCopy ? 'Copy generated.' : 'Request finished (no copy).',
-      hasCopy ? 'success' : 'warning',
-    );
-
-    if (nextButton) nextButton.disabled = !canProceed;
-    generateButton.disabled = false;
-    if (regenerateButton) regenerateButton.disabled = false;
-    regenerateButton?.classList.remove('hidden');
-
-    if (stage2State.generated) {
-      stage2State.generated.lastCopy = {
-        prompt: nextPrompt,
-        email_body: nextEmail,
-        prompt_bundle: data?.prompt_bundle || null,
-      };
-    }
-
-    try {
-      const finalPoster = data?.final_poster ?? null;
-      if (!finalPoster || !(finalPoster.url || finalPoster.key || finalPoster.storage_key)) {
-        setStatus(statusElement, 'Missing final_poster (Mode S requires final_poster).', 'error');
-        return null;
+    if (assigned) {
+      setStatus(statusElement, '生成完成', 'success');
+      if (nextButton) nextButton.disabled = false;
+      generateButton.disabled = false;
+      if (regenerateButton) regenerateButton.disabled = false;
+      regenerateButton?.classList.remove('hidden');
+      try {
+        const dataToStore = {
+          ...data,
+          assets: { ...stage2State.assets },
+          poster: { ...stage2State.poster },
+          template_poster: templatePoster ? { ...templatePoster } : null,
+        };
+        await saveStage2Result(dataToStore);
+      } catch (error) {
+        console.error('保存环节 2 结果失败。', error);
       }
-      await saveStage2Result({
-        prompt: nextPrompt,
-        email_body: nextEmail,
-        prompt_bundle: data?.prompt_bundle || null,
-        final_poster: { ...finalPoster },
-        poster_url: null,
-        assets: { ...stage2State.assets },
-        poster: { ...stage2State.poster },
-        template_poster: null,
-        template_fallback: Boolean(data?.fallback_used),
-        template_id: stage1Data.template_id || null,
-        seed: data?.seed ?? null,
-        lock_seed: data?.lock_seed ?? null,
+    } else if (templatePoster) {
+      await enableTemplateFallback('生成结果缺少可预览图片，已回退到模板海报，可直接前往环节 3。', {
+        prompt: data?.prompt || '',
+        email: data?.email_body || '',
       });
-    } catch (error) {
-      console.error('save stage2 result failed', error);
+    } else {
+      setStatus(statusElement, '生成完成但缺少可预览图片，请稍后重试。', 'warning');
     }
 
     stage2HasAttemptedGenerate = true;
-    if (stage2State.generated) {
-      stage2State.generated.attempted = true;
-    }
     if (posterPreviewSection) {
       posterPreviewSection.classList.remove('hidden');
     }
@@ -7053,7 +5253,7 @@ async function triggerGeneration(opts) {
 
     return data;
   } catch (error) {
-    console.error('[generatePoster] request failed', {
+    console.error('[generatePoster] 请求失败', {
       error,
       status: error?.status,
       responseJson: error?.responseJson,
@@ -7064,7 +5264,7 @@ async function triggerGeneration(opts) {
       error?.status === 429 &&
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
     const friendlyMessage = quotaExceeded
-      ? 'Image generation quota exceeded. Please try again later or upload existing assets.'
+      ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
       : formatPosterGenerationError(error);
     const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
     const decoratedMessage = `${friendlyMessage}${statusHint}`;
@@ -7073,25 +5273,30 @@ async function triggerGeneration(opts) {
     if (regenerateButton) regenerateButton.disabled = false;
     if (aiSpinner) aiSpinner.classList.add('hidden');
     if (aiPreview) aiPreview.classList.add('complete');
+    if (generatedImage?.classList) {
+      if (priorPosterUrl) {
+        generatedImage.src = priorPosterUrl;
+        generatedImage.style.display = 'block';
+        generatedImage.classList.remove('hidden');
+      } else {
+        generatedImage.classList.add('hidden');
+        generatedImage.removeAttribute('src');
+      }
+    }
+    if (priorPosterUrl) {
+      hideGeneratedPlaceholder();
+    } else {
+      resetGeneratedPlaceholder(decoratedMessage || generatedPlaceholderDefault);
+    }
     refreshPosterLayoutPreview();
-
-    const storedPrompt = stage2State.generated?.lastCopy?.prompt || '';
-    const storedEmail = stage2State.generated?.lastCopy?.email_body || '';
-    const currentPrompt = (promptTextarea?.value || '').trim();
-    const currentEmail = (emailTextarea?.value || '').trim();
-    const hasStoredCopy = Boolean(currentPrompt) || Boolean(currentEmail) || Boolean(storedPrompt) || Boolean(storedEmail);
-    const canProceed = MODE_S ? Boolean(lastPosterResult?.final_poster) : hasStoredCopy;
-    if (nextButton) nextButton.disabled = !canProceed;
-
-    stage2HasAttemptedGenerate = true;
-    if (stage2State.generated) {
-      stage2State.generated.attempted = true;
+    if (didAttempt) {
+      stage2HasAttemptedGenerate = true;
+      if (posterPreviewSection) {
+        posterPreviewSection.classList.remove('hidden');
+      }
+      renderPosterResult();
+      updateRegenerateButtonState();
     }
-    if (posterPreviewSection) {
-      posterPreviewSection.classList.remove('hidden');
-    }
-    renderPosterResult();
-    updateRegenerateButtonState();
     return null;
   } finally {
     stage2InFlight = false;
@@ -7127,7 +5332,7 @@ async function prepareTemplatePreviewAssets(stage1Data) {
       if (typeof field === 'string' && field) return field;
     }
 
-    const nested = [value.asset, value.image, value.poster_image, value.final_poster];
+    const nested = [value.asset, value.image, value.poster_image];
     for (const candidate of nested) {
       const picked = pickSrc(candidate, depth + 1);
       if (picked) return picked;
@@ -7707,137 +5912,112 @@ async function loadHtml2Canvas() {
   return html2CanvasLoader;
 }
 
-async function waitForImagesReady(container, timeoutMs = 4000) {
-  if (!container) return true;
-  const images = Array.from(container.querySelectorAll('img'));
-  if (!images.length) return true;
-  const pending = images.filter((img) => !(img.complete && img.naturalWidth > 0));
-  if (!pending.length) return true;
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      resolve(false);
-    }, timeoutMs);
-    let remaining = pending.length;
-    const done = () => {
-      if (settled) return;
-      remaining -= 1;
-      if (remaining <= 0) {
-        settled = true;
-        clearTimeout(timer);
-        resolve(true);
-      }
-    };
-    pending.forEach((img) => {
-      img.addEventListener('load', done, { once: true });
-      img.addEventListener('error', done, { once: true });
-    });
-  });
-}
-
-async function waitForFontsReady(timeoutMs = 3000) {
-  if (!document.fonts || !document.fonts.ready) return true;
-  return Promise.race([
-    document.fonts.ready.then(() => true).catch(() => false),
-    delay(timeoutMs).then(() => false),
-  ]);
-}
-
 async function saveStage2Result(data) {
   if (!data) return;
 
   let previousKey = null;
+  const previousVariantKeys = new Set();
   const existingRaw = sessionStorage.getItem(STORAGE_KEYS.stage2);
   if (existingRaw) {
     try {
       const existing = JSON.parse(existingRaw);
-      previousKey = existing?.final_poster?.storage_key || null;
+      previousKey = existing?.poster_image?.storage_key || null;
+      if (Array.isArray(existing?.variants)) {
+        existing.variants.forEach((variant) => {
+          if (variant?.storage_key) {
+            previousVariantKeys.add(variant.storage_key);
+          }
+        });
+      }
     } catch (error) {
-      console.warn('????????? 2 ???????????', error);
+      console.warn('无法解析现有的环节 2 数据，跳过旧键清理。', error);
     }
   }
 
   const payload = { ...data };
-  if (data.final_poster) {
-    const key = data.final_poster.storage_key || createId();
-    const source = getPosterImageSource(data.final_poster);
+  if (data.poster_image) {
+    const key = data.poster_image.storage_key || createId();
+    const source = getPosterImageSource(data.poster_image);
     if (source) {
       await assetStore.put(key, source);
     }
-    payload.final_poster = {
-      filename: data.final_poster.filename,
-      media_type: data.final_poster.media_type,
-      width: data.final_poster.width,
-      height: data.final_poster.height,
+    payload.poster_image = {
+      filename: data.poster_image.filename,
+      media_type: data.poster_image.media_type,
+      width: data.poster_image.width,
+      height: data.poster_image.height,
       storage_key: key,
-      url: data.final_poster.url || null,
-      key: data.final_poster.key || null,
     };
-    if (previousKey && previousKey != key) {
+    if (previousKey && previousKey !== key) {
       await assetStore.delete(previousKey).catch(() => undefined);
     }
+  }
+
+  if (Array.isArray(data.variants)) {
+    payload.variants = [];
+    const usedVariantKeys = new Set();
+    for (const variant of data.variants) {
+      if (!variant) continue;
+      const key = variant.storage_key || createId();
+      const source = getPosterImageSource(variant);
+      if (source) {
+        await assetStore.put(key, source);
+      }
+      payload.variants.push({
+        filename: variant.filename,
+        media_type: variant.media_type,
+        width: variant.width,
+        height: variant.height,
+        storage_key: key,
+      });
+      usedVariantKeys.add(key);
+    }
+    previousVariantKeys.forEach((key) => {
+      if (!usedVariantKeys.has(key)) {
+        void assetStore.delete(key).catch(() => undefined);
+      }
+    });
   }
 
   try {
     sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
   } catch (error) {
     if (isQuotaError(error)) {
-      console.warn('sessionStorage ????????????? 2 ???', error);
+      console.warn('sessionStorage 容量不足，正在覆盖旧的环节 2 结果。', error);
       try {
         sessionStorage.removeItem(STORAGE_KEYS.stage2);
         sessionStorage.setItem(STORAGE_KEYS.stage2, JSON.stringify(payload));
       } catch (innerError) {
-        console.error('?????? 2 ??????????', innerError);
+        console.error('无法保存环节 2 结果，已放弃持久化。', innerError);
       }
     } else {
-      console.error('???? 2 ?????', error);
+      console.error('保存环节 2 结果失败。', error);
     }
   }
-}
-
-function loadStage2ResultFromQuery() {
-  const params = new URLSearchParams(window.location.search);
-  const key = params.get('key');
-  const url = params.get('url');
-  const base64 = params.get('base64');
-  if (!key && !url && !base64) return null;
-
-  const finalPoster = {};
-  if (key) finalPoster.storage_key = key;
-  if (url) finalPoster.url = url;
-  if (base64) {
-    const trimmed = base64.trim();
-    finalPoster.data_url = trimmed.startsWith('data:')
-      ? trimmed
-      : `data:image/png;base64,${trimmed}`;
-  }
-  return { final_poster: finalPoster };
 }
 
 async function loadStage2Result() {
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
-  if (!raw) {
-    const fromQuery = loadStage2ResultFromQuery();
-    if (fromQuery) {
-      try {
-        await saveStage2Result(fromQuery);
-      } catch (error) {
-        console.warn('Unable to persist stage2 result from query', error);
-      }
-      return fromQuery;
-    }
-    return null;
-  }
+  if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed?.final_poster?.storage_key) {
-      const storedValue = await assetStore.get(parsed.final_poster.storage_key);
+    if (parsed?.poster_image?.storage_key) {
+      const storedValue = await assetStore.get(parsed.poster_image.storage_key);
       if (storedValue) {
-        applyStoredAssetValue(parsed.final_poster, storedValue);
+        applyStoredAssetValue(parsed.poster_image, storedValue);
       }
+    }
+    if (Array.isArray(parsed?.variants)) {
+      await Promise.all(
+        parsed.variants.map(async (variant) => {
+          if (variant?.storage_key) {
+            const storedValue = await assetStore.get(variant.storage_key);
+            if (storedValue) {
+              applyStoredAssetValue(variant, storedValue);
+            }
+          }
+        })
+      );
     }
     return parsed;
   } catch (error) {
@@ -7851,8 +6031,7 @@ function initStage3() {
     const statusElement = document.getElementById('stage3-status');
     const posterImage = document.getElementById('stage3-poster-image');
     const posterCaption = document.getElementById('stage3-poster-caption');
-    const posterUrlInput = document.getElementById('stage3-poster-url');
-    const posterKeyInput = document.getElementById('stage3-poster-key');
+    const promptTextarea = document.getElementById('stage3-prompt');
     const emailRecipient = document.getElementById('email-recipient');
     const emailSubject = document.getElementById('email-subject');
     const emailBody = document.getElementById('email-body');
@@ -7864,39 +6043,51 @@ function initStage3() {
 
     const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
-    const finalPoster = stage2Result?.final_poster ?? null;
 
-    if (!stage1Data || !finalPoster) {
-      setStatus(
-        statusElement,
-        '?????? 2 ????? final_poster ???????',
-        'warning'
-      );
+    if (!stage1Data || !stage2Result?.poster_image) {
+      setStatus(statusElement, '请先完成环节 1 与环节 2，生成海报后再发送邮件。', 'warning');
       sendButton.disabled = true;
       return;
     }
 
-    assignPosterImage(posterImage, finalPoster, stage1Data.title || 'Final poster');
+    // Prefer active variant (B) when present for preview and sending
+    let chosenPosterImage = stage2Result.poster_image;
+    try {
+      const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+      const st = JSON.parse(raw || '{}');
+      if (
+        st.active === 'B' &&
+        Array.isArray(stage2Result.variants) &&
+        stage2Result.variants[1]
+      ) {
+        const candidate = stage2Result.variants[1];
+        if (
+          candidate.storage_key ||
+          candidate.url ||
+          candidate.data_url ||
+          candidate.remoteUrl
+        ) {
+          chosenPosterImage = candidate;
+        }
+      }
+    } catch (e) {}
+
+    assignPosterImage(posterImage, chosenPosterImage, `${stage1Data.product_name} 海报预览`);
     if (posterCaption) {
-      const captionParts = [stage1Data.brand_name, stage1Data.title].filter(Boolean);
-      posterCaption.textContent = captionParts.join(' / ');
+      posterCaption.textContent = `${stage1Data.brand_name} · ${stage1Data.agent_name}`;
     }
-    if (posterUrlInput) {
-      posterUrlInput.value = finalPoster.url || '';
-    }
-    if (posterKeyInput) {
-      posterKeyInput.value = finalPoster.key || finalPoster.storage_key || '';
+    if (promptTextarea) {
+      promptTextarea.value = stage2Result.prompt || '';
     }
 
     emailSubject.value = buildEmailSubject(stage1Data);
     emailRecipient.value = stage1Data.default_recipient || DEFAULT_EMAIL_RECIPIENT;
     emailBody.value = stage2Result.email_body || '';
 
-    sendButton.disabled = false;
     sendButton.addEventListener('click', async () => {
       const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
       if (!apiCandidates.length) {
-        setStatus(statusElement, '???????????????', 'warning');
+        setStatus(statusElement, '未找到可用的后端基址，无法发送邮件。', 'warning');
         return;
       }
 
@@ -7905,20 +6096,37 @@ function initStage3() {
       const body = emailBody.value.trim();
 
       if (!recipient || !subject || !body) {
-        setStatus(statusElement, '????????????????', 'error');
-        return;
-      }
-
-      if (!finalPoster.url && !finalPoster.key && !finalPoster.storage_key) {
-        setStatus(statusElement, 'final_poster ?? URL/Key????????', 'error');
+        setStatus(statusElement, '请完整填写收件邮箱、主题与正文。', 'error');
         return;
       }
 
       sendButton.disabled = true;
-      setStatus(statusElement, '?????????', 'info');
+      setStatus(statusElement, '正在发送营销邮件…', 'info');
 
       try {
         await warmUp(apiCandidates);
+
+        // Prefer the active variant (B) when sending the attachment
+        let attachmentToSend = stage2Result.poster_image;
+        try {
+          const raw = sessionStorage.getItem('marketing-poster-stage2-variants') || '{}';
+          const st = JSON.parse(raw || '{}');
+          if (
+            st.active === 'B' &&
+            Array.isArray(stage2Result.variants) &&
+            stage2Result.variants[1]
+          ) {
+            const candidate = stage2Result.variants[1];
+            if (
+              candidate.storage_key ||
+              candidate.url ||
+              candidate.data_url ||
+              candidate.remoteUrl
+            ) {
+              attachmentToSend = candidate;
+            }
+          }
+        } catch (e) {}
 
         const response = await postJsonWithRetry(
           apiCandidates,
@@ -7927,31 +6135,32 @@ function initStage3() {
             recipient,
             subject,
             body,
-            attachment: finalPoster,
+            attachment: attachmentToSend,
           },
           1
         );
 
+        console.log('邮件发送 response:', response);
         if (response?.status === 'sent') {
-          setStatus(statusElement, '?????????', 'success');
+          setStatus(statusElement, '营销邮件发送成功！', 'success');
         } else if (response?.status === 'skipped') {
           setStatus(
             statusElement,
-            response?.detail || '????????????????????',
+            response?.detail || '邮件服务未配置，本次只做预览，未真正发送。',
             'warning'
           );
         } else if (response?.status === 'error') {
           setStatus(
             statusElement,
-            response?.detail ? `???????${response.detail}` : '??????',
+            response?.detail ? `邮件发送失败：${response.detail}` : '邮件发送失败',
             'error'
           );
         } else {
-          setStatus(statusElement, '???????????????', 'warning');
+          setStatus(statusElement, '邮件发送结果未知，请检查日志。', 'warning');
         }
       } catch (error) {
-        console.error('[??????]', error);
-        setStatus(statusElement, error.message || '?????????????', 'error');
+        console.error('[邮件发送失败]', error);
+        setStatus(statusElement, error.message || '发送邮件失败，请稍后重试。', 'error');
       } finally {
         sendButton.disabled = false;
       }
@@ -7961,10 +6170,10 @@ function initStage3() {
 
 // ✉️ 构造邮件标题
 function buildEmailSubject(stage1Data) {
-  const brand = stage1Data.brand_name || 'Brand';
-  const intent = stage1Data.intent ? ` (${stage1Data.intent})` : '';
-  const title = stage1Data.title || 'Poster';
-  return `${brand}${intent} ${title}`.trim();
+  const brand = stage1Data.brand_name || '品牌';
+  const agent = stage1Data.agent_name ? `（${stage1Data.agent_name}）` : '';
+  const product = stage1Data.product_name || '产品';
+  return `${brand}${agent} ${product} 市场推广海报`;
 }
 function setStatus(element, message, level = 'info') {
   if (!element) return;
@@ -8140,10 +6349,6 @@ async function hydrateStage1DataAssets(stage1Data) {
   stage1Data.brand_logo = await rehydrateStoredAsset(stage1Data.brand_logo);
   stage1Data.scenario_asset = await rehydrateStoredAsset(stage1Data.scenario_asset);
   stage1Data.product_asset = await rehydrateStoredAsset(stage1Data.product_asset);
-  stage1Data.product_asset_extra_1 = await rehydrateStoredAsset(stage1Data.product_asset_extra_1);
-  stage1Data.product_asset_extra_2 = await rehydrateStoredAsset(stage1Data.product_asset_extra_2);
-  stage1Data.product_image_1 = await rehydrateStoredAsset(stage1Data.product_image_1);
-  stage1Data.product_image_2 = await rehydrateStoredAsset(stage1Data.product_image_2);
   if (Array.isArray(stage1Data.gallery_entries)) {
     stage1Data.gallery_entries = await Promise.all(
       stage1Data.gallery_entries.map(async (entry) => ({
