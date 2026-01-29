@@ -1,25 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FONT_DIR="app/assets/fonts"
+DEST_DIR="${1:-assets/fonts}"
+mkdir -p "$DEST_DIR"
 
-mkdir -p "${FONT_DIR}"
+# Download from Google Fonts / Noto (ttf). You can change URLs if you prefer a pinned release.
+# Note: Keep filenames aligned with backend loader expectations.
+BASE_RAW="https://raw.githubusercontent.com/googlefonts/noto-cjk/main/Sans/TTF/SimplifiedChinese"
 
-download_if_missing() {
-  local url="$1"
-  local name="$2"
-  local dest="${FONT_DIR}/${name}"
+curl -L --fail -o "$DEST_DIR/NotoSansSC-Regular.ttf"   "$BASE_RAW/NotoSansSC-Regular.ttf"
+curl -L --fail -o "$DEST_DIR/NotoSansSC-SemiBold.ttf" "$BASE_RAW/NotoSansSC-SemiBold.ttf"
 
-  if [[ -f "${dest}" ]]; then
-    echo "ok: ${name}"
-    return 0
-  fi
-
-  echo "fetch: ${name}"
-  curl -L --retry 3 --retry-delay 2 --retry-connrefused -o "${dest}" "${url}"
-}
-
-download_if_missing "https://github.com/google/fonts/raw/main/ofl/notosans/static/NotoSans-Regular.ttf" "NotoSans-Regular.ttf"
-download_if_missing "https://github.com/google/fonts/raw/main/ofl/notosans/static/NotoSans-SemiBold.ttf" "NotoSans-SemiBold.ttf"
-download_if_missing "https://github.com/google/fonts/raw/main/ofl/notosanssc/static/NotoSansSC-Regular.ttf" "NotoSansSC-Regular.ttf"
-download_if_missing "https://github.com/google/fonts/raw/main/ofl/notosanssc/static/NotoSansSC-SemiBold.ttf" "NotoSansSC-SemiBold.ttf"
+ls -lh "$DEST_DIR"
