@@ -39,6 +39,14 @@
       "promptPlaceholder": "描述系列产品的视角与造型"
     }
   },
+  "keep_slots": [
+    "logo",
+    "brand_name",
+    "agent_name",
+    "title",
+    "subtitle",
+    "gallery_strip"
+  ],
   "slots": {
     "logo": {
       "x": 96,
@@ -93,15 +101,34 @@
         "alpha_required": true
       }
     },
+    "gallery_strip": {
+      "x": 112,
+      "y": 892,
+      "width": 832,
+      "height": 104,
+      "guidance": {
+        "mode": "keep"
+      }
+    },
     "title": {
       "x": 112,
       "y": 812,
       "width": 832,
       "height": 80,
       "guidance": {
-        "mode": "place",
+        "mode": "place_text",
         "fill": "brand_red",
-        "align": "center"
+        "align": "center",
+        "valign": "center",
+        "auto_fit": true,
+        "max_lines": 2,
+        "ellipsis": true,
+        "font": {
+          "family": "brand",
+          "weight": "bold",
+          "max_size": 54,
+          "min_size": 26
+        }
       }
     },
     "subtitle": {
@@ -110,9 +137,19 @@
       "width": 832,
       "height": 24,
       "guidance": {
-        "mode": "place",
+        "mode": "place_text",
         "fill": "brand_red",
-        "align": "center"
+        "align": "center",
+        "valign": "center",
+        "auto_fit": true,
+        "max_lines": 1,
+        "ellipsis": true,
+        "font": {
+          "family": "brand",
+          "weight": "regular",
+          "max_size": 22,
+          "min_size": 14
+        }
       }
     }
   },

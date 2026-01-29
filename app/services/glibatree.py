@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import requests
-from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from google.api_core.exceptions import ResourceExhausted
 
 from fastapi import HTTPException, status
@@ -445,6 +445,8 @@ class TemplateResources:
     template: Image.Image
     mask_background: Image.Image
     mask_scene: Image.Image | None
+    slots: dict[str, Any] = field(default_factory=dict)
+    keep_slots: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -495,6 +497,71 @@ def _mask_b64_from_template(template: TemplateResources) -> str | None:
     buffer = BytesIO()
     alpha.convert("L").save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _slot_rect(slot: dict[str, Any]) -> tuple[int, int, int, int]:
+    x = int(slot.get("x", 0))
+    y = int(slot.get("y", 0))
+    w = int(slot.get("width", 0))
+    h = int(slot.get("height", 0))
+    return (x, y, x + w, y + h)
+
+
+def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
+    """
+    Build an L-mode mask (0..255) where keep regions are 255.
+    These regions must be preserved from locked_frame onto the final output.
+    """
+    if not template.keep_slots:
+        return None
+
+    size_spec = template.spec.get("size", {})
+    width = int(size_spec.get("width") or (template.template.width if template.template else 0))
+    height = int(size_spec.get("height") or (template.template.height if template.template else 0))
+    if width <= 0 or height <= 0:
+        return None
+
+    m = Image.new("L", (width, height), 0)
+    draw = ImageDraw.Draw(m)
+    for slot_id in template.keep_slots:
+        slot = (template.slots or {}).get(slot_id)
+        if not slot:
+            continue
+        x1, y1, x2, y2 = _slot_rect(slot)
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([x1, y1, x2, y2], fill=255)
+    return m
+
+
+def _apply_locked_frame(
+    out_img: Image.Image,
+    locked_frame: Image.Image | None,
+    template: TemplateResources,
+) -> Image.Image:
+    if locked_frame is None:
+        return out_img
+
+    if locked_frame.mode != "RGBA":
+        locked_frame = locked_frame.convert("RGBA")
+    if out_img.mode != "RGBA":
+        out_img = out_img.convert("RGBA")
+
+    locked_alpha = None
+    if template.mask_background:
+        locked_alpha = template.mask_background.split()[3].convert("L")
+
+    keep_alpha = _build_keep_mask_alpha(template)
+    if locked_alpha is not None and keep_alpha is not None:
+        locked_alpha = ImageChops.lighter(locked_alpha, keep_alpha)
+    elif locked_alpha is None and keep_alpha is not None:
+        locked_alpha = keep_alpha
+
+    if locked_alpha is None:
+        return Image.alpha_composite(out_img, locked_frame)
+
+    locked_overlay = locked_frame.copy()
+    locked_overlay.putalpha(locked_alpha)
+    return Image.alpha_composite(out_img, locked_overlay)
 
 
 def _invert_mask_b64(mask_b64: str) -> str:
@@ -801,11 +868,7 @@ def _generate_poster_with_vertex(
         telemetry.update({"status": "invalid_image", "error": str(exc)})
         raise RuntimeError(f"Vertex Imagen3 returned invalid image: {exc}") from exc
 
-    if template.mask_background:
-        mask_alpha = template.mask_background.split()[3]
-        generated.paste(locked_frame, mask=mask_alpha)
-    else:
-        generated.alpha_composite(locked_frame)
+    generated = _apply_locked_frame(generated, locked_frame, template)
 
     safe_name = f"{template.id}_vertex.png"
     telemetry["bytes"] = len(image_bytes)
@@ -844,12 +907,17 @@ def _load_template_resources(template_id: str) -> TemplateResources:
     mask_background = _load_template_asset(mask_bg_asset)
     mask_scene = _load_template_asset(mask_scene_asset, required=False)
 
+    slots = spec.get("slots", {}) or {}
+    keep_slots = spec.get("keep_slots", []) or []
+
     return TemplateResources(
         id=template_id,
         spec=spec,
         template=template_image,
         mask_background=mask_background,
         mask_scene=mask_scene,
+        slots=slots,
+        keep_slots=list(keep_slots),
     )
 
 
@@ -917,26 +985,71 @@ def _load_font(size: int = 32, *, weight: str = "regular") -> ImageFont.ImageFon
     """
     bold = weight != "regular"
     env_paths = [p.strip() for p in os.getenv("POSTER_FONT_PATHS", "").split(":") if p.strip()]
+    env_dir = os.getenv("GLIBATREE_FONT_DIR", "").strip()
 
-    noto_regular = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
-    noto_bold = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
-    dejavu_regular = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-    dejavu_bold = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    root = Path(__file__).resolve().parent
+    repo_font_dirs = [
+        Path(env_dir).expanduser() if env_dir else None,
+        (root / "../../frontend/assets/fonts").resolve(),
+        (root / "../frontend/assets/fonts").resolve(),
+        (root / "assets/fonts").resolve(),
+    ]
+    sys_font_dirs = [
+        Path("/usr/share/fonts"),
+        Path("/usr/local/share/fonts"),
+    ]
 
-    candidates: list[str] = []
-    candidates.extend(env_paths)
-    candidates.append(noto_bold if bold else noto_regular)
-    candidates.append(dejavu_bold if bold else dejavu_regular)
+    if bold:
+        names = [
+            "NotoSansSC-Bold.otf",
+            "NotoSansSC-Bold.ttf",
+            "NotoSans-Bold.ttf",
+            "SourceHanSansSC-Bold.otf",
+            "NotoSansCJK-Bold.ttc",
+            "DejaVuSans-Bold.ttf",
+        ]
+    else:
+        names = [
+            "NotoSansSC-Regular.otf",
+            "NotoSansSC-Regular.ttf",
+            "NotoSans-Regular.ttf",
+            "SourceHanSansSC-Regular.otf",
+            "NotoSansCJK-Regular.ttc",
+            "DejaVuSans.ttf",
+        ]
 
-    for path in candidates:
-        try:
-            if path.lower().endswith(".ttc"):
-                return ImageFont.truetype(path, size=size, index=0)
-            return ImageFont.truetype(path, size=size)
-        except Exception:
-            continue
+    def try_dirs(dirs: list[Path]) -> ImageFont.ImageFont | None:
+        for d in dirs:
+            if not d or str(d) == ".":
+                continue
+            for name in names:
+                p = d / name
+                if p.exists():
+                    try:
+                        if p.suffix.lower() == ".ttc":
+                            return ImageFont.truetype(str(p), size=size, index=0)
+                        return ImageFont.truetype(str(p), size=size)
+                    except Exception:
+                        continue
+        return None
 
-    return ImageFont.load_default()
+    def try_paths(paths: list[str]) -> ImageFont.ImageFont | None:
+        for path in paths:
+            if not path:
+                continue
+            candidate = Path(path)
+            if not candidate.exists():
+                continue
+            try:
+                if candidate.suffix.lower() == ".ttc":
+                    return ImageFont.truetype(str(candidate), size=size, index=0)
+                return ImageFont.truetype(str(candidate), size=size)
+            except Exception:
+                continue
+        return None
+
+    font = try_paths(env_paths) or try_dirs(repo_font_dirs) or try_dirs(sys_font_dirs)
+    return font or ImageFont.load_default()
 
 
 def _draw_wrapped_text(
@@ -1868,8 +1981,7 @@ def _request_glibatree_http(
     image = _load_image_from_data_url(data_url)
     if image:
         composed = image.convert("RGBA")
-        mask_alpha = template.mask_background.split()[3]
-        composed.paste(locked_frame, mask=mask_alpha)
+        composed = _apply_locked_frame(composed, locked_frame, template)
         return _poster_image_from_pillow(composed, filename)
 
     return PosterImage(
@@ -1896,8 +2008,7 @@ def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Imag
                            data_url=data_url, width=w, height=h)
 
     # 叠加锁定 UI
-    mask_alpha = template.mask_background.split()[3]
-    generated.paste(locked_frame, mask=mask_alpha)
+    generated = _apply_locked_frame(generated, locked_frame, template)
     return _poster_image_from_pillow(generated, "poster.png")
 
 
