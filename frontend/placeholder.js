@@ -1,8 +1,6 @@
 /* placeholder.js —— 直接替换 */
 (() => {
   'use strict';
-  const ASSET_BASE = new URL('.', location.href).toString();
-  window.__ASSET_BASE__ = window.__ASSET_BASE__ || ASSET_BASE;
 
   // ---------- 仅对 Render /health 做 no-cors 猴补 ----------
   (function patchFetchForRenderHealth() {
