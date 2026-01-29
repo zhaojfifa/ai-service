@@ -4584,22 +4584,69 @@ function saveStage1Data(data, options = {}) {
   }
 }
 
+function safeParseJson(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function decodeBase64ToString(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let value = raw.trim();
+  try {
+    value = decodeURIComponent(value);
+  } catch {
+    value = value.trim();
+  }
+  value = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = value.length % 4;
+  if (padding) {
+    value = value.padEnd(value.length + (4 - padding), '=');
+  }
+  try {
+    const binary = atob(value);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    if (typeof TextDecoder !== 'undefined') {
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+    return decodeURIComponent(escape(binary));
+  } catch {
+    return null;
+  }
+}
+
+function loadStage1DataFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const state = params.get('state');
+  if (!state) return null;
+  const decoded = decodeBase64ToString(state);
+  if (!decoded) return null;
+  return safeParseJson(decoded);
+}
+
 function loadStage1Data() {
+  const fromQuery = loadStage1DataFromQuery();
+  if (fromQuery) {
+    try {
+      saveStage1Data(fromQuery, { preserveStage2: true });
+    } catch (error) {
+      console.warn('Unable to persist stage1 data from query', error);
+    }
+    return fromQuery;
+  }
+
+  const fromLocal = safeParseJson(localStorage.getItem(STORAGE_KEYS.stage1));
+  if (fromLocal) return fromLocal;
+
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage1);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
   } catch (error) {
     console.error('Unable to parse stage1 data', error);
-    return null;
-  }
-}
-
-function safeParseJson(raw) {
-  if (!raw || typeof raw !== 'string') return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
     return null;
   }
 }
@@ -5422,7 +5469,19 @@ function initStage2() {
         console.warn('[debug] unable to build prompt bundle preview', error);
       }
     }
-    if (!stage1Data || !stage1Data.preview_built) {
+    if (!stage1Data) {
+      setStatus(
+        statusElement,
+        '??? Stage1 ?????? ?state=base64 ? localStorage/sessionStorage ???',
+        'warning'
+      );
+      generateButton.disabled = true;
+      if (regenerateButton) {
+        regenerateButton.disabled = true;
+      }
+      return;
+    }
+    if (!stage1Data.preview_built) {
       setStatus(statusElement, '请先完成环节 1 的素材输入与版式预览。', 'warning');
       generateButton.disabled = true;
       if (regenerateButton) {
@@ -7738,9 +7797,39 @@ async function saveStage2Result(data) {
   }
 }
 
+function loadStage2ResultFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const key = params.get('key');
+  const url = params.get('url');
+  const base64 = params.get('base64');
+  if (!key && !url && !base64) return null;
+
+  const finalPoster = {};
+  if (key) finalPoster.storage_key = key;
+  if (url) finalPoster.url = url;
+  if (base64) {
+    const trimmed = base64.trim();
+    finalPoster.data_url = trimmed.startsWith('data:')
+      ? trimmed
+      : `data:image/png;base64,${trimmed}`;
+  }
+  return { final_poster: finalPoster };
+}
+
 async function loadStage2Result() {
   const raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
-  if (!raw) return null;
+  if (!raw) {
+    const fromQuery = loadStage2ResultFromQuery();
+    if (fromQuery) {
+      try {
+        await saveStage2Result(fromQuery);
+      } catch (error) {
+        console.warn('Unable to persist stage2 result from query', error);
+      }
+      return fromQuery;
+    }
+    return null;
+  }
   try {
     const parsed = JSON.parse(raw);
     if (parsed?.final_poster?.storage_key) {
