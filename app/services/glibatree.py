@@ -35,6 +35,7 @@ from app.services.s3_client import get_bytes, make_key, public_url_for, put_byte
 from app.services.template_variants import generation_overrides
 
 logger = logging.getLogger(__name__)
+_FONT_LOGGED = False
 
 vertex_imagen_client: VertexImagen3 | None = None
 
@@ -978,47 +979,40 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
 
 
 @lru_cache(maxsize=64)
-def _load_font(size: int = 32, *, weight: str = "regular") -> ImageFont.ImageFont:
+def _load_font(size: int = 32, *, weight: int = 400) -> ImageFont.ImageFont:
     """
     Load a font that can render Latin + CJK reliably on Render/Linux.
-    Priority: NotoSansCJK (ttc) -> DejaVu -> PIL default.
+    Priority: POSTER_FONT_DIRS -> repo fonts -> system fonts -> PIL default.
     """
-    bold = weight != "regular"
-    env_paths = [p.strip() for p in os.getenv("POSTER_FONT_PATHS", "").split(":") if p.strip()]
-    env_dir = os.getenv("GLIBATREE_FONT_DIR", "").strip()
+    prefer_semibold = int(weight or 0) >= 700
+    env_dirs = [
+        p.strip() for p in os.getenv("POSTER_FONT_DIRS", "").split(",") if p.strip()
+    ]
 
-    root = Path(__file__).resolve().parent
+    root = Path(__file__).resolve().parents[2]
     repo_font_dirs = [
-        Path(env_dir).expanduser() if env_dir else None,
-        (root / "../../frontend/assets/fonts").resolve(),
-        (root / "../frontend/assets/fonts").resolve(),
-        (root / "assets/fonts").resolve(),
+        root / "app" / "assets" / "fonts",
+        root / "assets" / "fonts",
+        root / ".fonts",
     ]
     sys_font_dirs = [
         Path("/usr/share/fonts"),
         Path("/usr/local/share/fonts"),
+        Path("/opt/render/project/src/app/assets/fonts"),
     ]
 
-    if bold:
+    if prefer_semibold:
         names = [
-            "NotoSansSC-Bold.otf",
-            "NotoSansSC-Bold.ttf",
-            "NotoSans-Bold.ttf",
-            "SourceHanSansSC-Bold.otf",
-            "NotoSansCJK-Bold.ttc",
-            "DejaVuSans-Bold.ttf",
+            "NotoSansSC-SemiBold.ttf",
+            "NotoSans-SemiBold.ttf",
         ]
     else:
         names = [
-            "NotoSansSC-Regular.otf",
             "NotoSansSC-Regular.ttf",
             "NotoSans-Regular.ttf",
-            "SourceHanSansSC-Regular.otf",
-            "NotoSansCJK-Regular.ttc",
-            "DejaVuSans.ttf",
         ]
 
-    def try_dirs(dirs: list[Path]) -> ImageFont.ImageFont | None:
+    def try_dirs(dirs: list[Path]) -> tuple[ImageFont.ImageFont | None, str | None]:
         for d in dirs:
             if not d or str(d) == ".":
                 continue
@@ -1026,30 +1020,38 @@ def _load_font(size: int = 32, *, weight: str = "regular") -> ImageFont.ImageFon
                 p = d / name
                 if p.exists():
                     try:
-                        if p.suffix.lower() == ".ttc":
-                            return ImageFont.truetype(str(p), size=size, index=0)
-                        return ImageFont.truetype(str(p), size=size)
+                        return ImageFont.truetype(str(p), size=size), str(p)
                     except Exception:
                         continue
-        return None
+        return None, None
 
-    def try_paths(paths: list[str]) -> ImageFont.ImageFont | None:
-        for path in paths:
-            if not path:
-                continue
-            candidate = Path(path)
-            if not candidate.exists():
-                continue
-            try:
-                if candidate.suffix.lower() == ".ttc":
-                    return ImageFont.truetype(str(candidate), size=size, index=0)
-                return ImageFont.truetype(str(candidate), size=size)
-            except Exception:
-                continue
-        return None
+    def try_env_dirs(dir_list: list[str]) -> tuple[ImageFont.ImageFont | None, str | None]:
+        for entry in dir_list:
+            candidate = Path(entry)
+            for name in names:
+                p = candidate / name
+                if p.exists():
+                    try:
+                        return ImageFont.truetype(str(p), size=size), str(p)
+                    except Exception:
+                        continue
+        return None, None
 
-    font = try_paths(env_paths) or try_dirs(repo_font_dirs) or try_dirs(sys_font_dirs)
-    return font or ImageFont.load_default()
+    font, path = try_env_dirs(env_dirs)
+    if font is None:
+        font, path = try_dirs(repo_font_dirs)
+    if font is None:
+        font, path = try_dirs(sys_font_dirs)
+    if font is None:
+        font = ImageFont.load_default()
+        path = "PIL default"
+
+    global _FONT_LOGGED
+    if not _FONT_LOGGED:
+        logger.debug("poster.font.selected=%s", path)
+        _FONT_LOGGED = True
+
+    return font
 
 
 def _draw_wrapped_text(
@@ -1139,19 +1141,36 @@ def _render_template_frame(
 
     scale = max(0.6, min(1.4, width / 1080))
 
-    def _scaled_font(base: int, *, weight: str = "regular") -> ImageFont.ImageFont:
+    def _scaled_font(base: int, *, weight: int = 400) -> ImageFont.ImageFont:
         size = max(12, int(round(base * scale)))
         return _load_font(size, weight=weight)
 
-    font_title = _scaled_font(64, weight="bold")
-    font_subtitle = _scaled_font(40, weight="bold")
-    font_brand = _scaled_font(36, weight="semibold")
-    font_agent = _scaled_font(30, weight="semibold")
-    font_body = _scaled_font(28)
-    font_feature = _scaled_font(26)
-    font_caption = _scaled_font(22)
-
     slots = spec.get("slots", {})
+
+    def _get_text_settings(
+        slot: dict[str, Any] | None,
+        *,
+        default_align: str,
+        default_line_spacing: int,
+        default_weight: int,
+    ) -> tuple[str, int, int]:
+        text = (slot or {}).get("text", {}) or {}
+        align = str(text.get("align") or default_align)
+        line_spacing_raw = text.get("line_spacing", default_line_spacing)
+        weight_raw = text.get("weight", default_weight)
+        try:
+            line_spacing = int(line_spacing_raw)
+        except (TypeError, ValueError):
+            line_spacing = default_line_spacing
+        try:
+            weight = int(weight_raw)
+        except (TypeError, ValueError):
+            weight = default_weight
+        return align, line_spacing, weight
+
+    font_body = _scaled_font(28, weight=400)
+    font_feature = _scaled_font(26, weight=400)
+    font_caption = _scaled_font(22, weight=400)
 
     # Brand logo
     logo_slot = slots.get("logo")
@@ -1177,17 +1196,24 @@ def _render_template_frame(
     brand_slot = slots.get("brand_name")
     if brand_slot:
         left, top, width_box, height_box = _slot_to_box(brand_slot)
+        brand_align, brand_line_spacing, brand_weight = _get_text_settings(
+            brand_slot, default_align="left", default_line_spacing=6, default_weight=600
+        )
+        font_brand = _scaled_font(36, weight=brand_weight)
         _draw_wrapped_text(
             draw,
             poster.brand_name,
             (left, top, width_box, height_box),
             font_brand,
             INK_BLACK,
+            line_spacing=brand_line_spacing,
+            align=brand_align,
         )
 
     agent_slot = slots.get("agent_name")
     if agent_slot:
         left, top, width_box, height_box = _slot_to_box(agent_slot)
+        font_agent = _scaled_font(30, weight=600)
         _draw_wrapped_text(
             draw,
             poster.agent_name.upper(),
@@ -1242,25 +1268,35 @@ def _render_template_frame(
     title_slot = slots.get("title")
     if title_slot:
         left, top, width_box, height_box = _slot_to_box(title_slot)
+        title_align, title_line_spacing, title_weight = _get_text_settings(
+            title_slot, default_align="center", default_line_spacing=6, default_weight=700
+        )
+        font_title = _scaled_font(64, weight=title_weight)
         _draw_wrapped_text(
             draw,
             poster.title,
             (left, top, width_box, height_box),
             font_title,
             BRAND_RED,
-            align="center",
+            align=title_align,
+            line_spacing=title_line_spacing,
         )
 
     subtitle_slot = slots.get("subtitle")
     if subtitle_slot:
         left, top, width_box, height_box = _slot_to_box(subtitle_slot)
+        subtitle_align, subtitle_line_spacing, subtitle_weight = _get_text_settings(
+            subtitle_slot, default_align="right", default_line_spacing=6, default_weight=700
+        )
+        font_subtitle = _scaled_font(40, weight=subtitle_weight)
         _draw_wrapped_text(
             draw,
             poster.subtitle,
             (left, top, width_box, height_box),
             font_subtitle,
             BRAND_RED,
-            align="right",
+            align=subtitle_align,
+            line_spacing=subtitle_line_spacing,
         )
 
     # Feature callouts
