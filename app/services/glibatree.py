@@ -986,10 +986,10 @@ def _load_font(size: int = 32, *, weight: int = 400) -> ImageFont.ImageFont:
     """
     prefer_semibold = int(weight or 0) >= 700
     env_dirs = [p.strip() for p in os.getenv("POSTER_FONT_DIRS", "").split(",") if p.strip()]
-    if not env_dirs:
-        kp_dir = (os.getenv("KP_FONT_DIR") or "").strip()
-        if kp_dir:
-            env_dirs = [kp_dir]
+    env_dirs.extend([p.strip() for p in os.getenv("KP_FONT_DIRS", "").split(",") if p.strip()])
+    kp_dir = (os.getenv("KP_FONT_DIR") or "").strip()
+    if kp_dir:
+        env_dirs.append(kp_dir)
 
     root = Path(__file__).resolve().parents[2]
     repo_font_dirs = [
