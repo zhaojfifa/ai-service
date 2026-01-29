@@ -4628,6 +4628,41 @@ function loadStage1DataFromQuery() {
   return safeParseJson(decoded);
 }
 
+function resolveStage1StorageSource() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('state')) return 'query';
+  // Stage1 storage key: marketing-poster-stage1-data
+  if (localStorage.getItem(STORAGE_KEYS.stage1)) return 'localStorage';
+  if (sessionStorage.getItem(STORAGE_KEYS.stage1)) return 'sessionStorage';
+  if (params.get('key') || params.get('url') || params.get('base64')) return 'legacy';
+  return 'none';
+}
+
+function extractPosterFieldsFromState(state) {
+  if (!state || typeof state !== 'object') {
+    return { poster_key: '', poster_url: '', poster_base64: '' };
+  }
+  const final = state.final || {};
+  const result = state.result || {};
+  return {
+    poster_key:
+      state.poster_key ||
+      final.poster_key ||
+      result.poster_key ||
+      '',
+    poster_url:
+      state.poster_url ||
+      final.url ||
+      result.url ||
+      '',
+    poster_base64:
+      state.poster_base64 ||
+      final.base64 ||
+      result.base64 ||
+      '',
+  };
+}
+
 function loadStage1Data() {
   const fromQuery = loadStage1DataFromQuery();
   if (fromQuery) {
@@ -5374,6 +5409,7 @@ function initStage2() {
     const titleSizePreset = document.getElementById('title-size-preset');
     const fallbackStableButton = document.getElementById('fallback-stable');
     const assetFallbackWarning = document.getElementById('asset-fallback-warning');
+    const adapterDebug = document.getElementById('stage2-adapter-debug');
     let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
@@ -5401,6 +5437,30 @@ function initStage2() {
     }
 
     const stage1Data = loadStage1Data();
+    const adapterSource = resolveStage1StorageSource();
+    const posterFields = extractPosterFieldsFromState(stage1Data);
+    const posterKeyInput = document.getElementById('poster_key');
+    const posterUrlInput = document.getElementById('poster_url');
+    const posterBase64Input = document.getElementById('poster_base64');
+    if (posterKeyInput && posterFields.poster_key) {
+      posterKeyInput.value = posterFields.poster_key;
+    }
+    if (posterUrlInput && posterFields.poster_url) {
+      posterUrlInput.value = posterFields.poster_url;
+    }
+    if (posterBase64Input && posterFields.poster_base64) {
+      posterBase64Input.value = posterFields.poster_base64;
+    }
+    if (adapterDebug) {
+      const hasKey = Boolean(posterFields.poster_key);
+      const hasUrl = Boolean(posterFields.poster_url);
+      const hasBase64 = Boolean(posterFields.poster_base64);
+      const backendBase = (apiBaseInput?.value || '').trim() || 'default';
+      adapterDebug.textContent =
+        `adapter source=${adapterSource} | ` +
+        `poster_key=${hasKey} poster_url=${hasUrl} poster_base64=${hasBase64} | ` +
+        `backend=${backendBase}`;
+    }
     const refreshStage2Wireframe = () => {
       if (!stage1Data || !stage2Wireframe) return;
       updateWireframePreview(
@@ -5471,9 +5531,11 @@ function initStage2() {
       }
     }
     if (!stage1Data) {
+      const missing = ['poster_key', 'poster_url', 'poster_base64']
+        .filter((field) => !posterFields[field]);
       setStatus(
         statusElement,
-        '??? Stage1 ?????? ?state=base64 ? localStorage/sessionStorage ???',
+        `Stage1 data missing. source=${adapterSource}. Missing: ${missing.join(', ') || 'none'}.`,
         'warning'
       );
       generateButton.disabled = true;
@@ -5483,7 +5545,11 @@ function initStage2() {
       return;
     }
     if (!stage1Data.preview_built) {
-      setStatus(statusElement, '????????? 1 ?????????????????, 'warning');
+      setStatus(
+        statusElement,
+        'Stage1 preview not found. Please complete Stage1 preview before generating.',
+        'warning'
+      );
       generateButton.disabled = true;
       if (regenerateButton) {
         regenerateButton.disabled = true;
