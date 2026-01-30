@@ -4840,6 +4840,16 @@ function createPromptState(stage1Data, presets) {
   return state;
 }
 
+function isPromptSettingsEmpty(stage1Data) {
+  const savedSlots = stage1Data?.prompt_settings;
+  if (!savedSlots || typeof savedSlots !== 'object') return true;
+  return !PROMPT_SLOTS.some((slot) => {
+    const entry = savedSlots?.[slot];
+    if (!entry || typeof entry !== 'object') return false;
+    return Boolean(entry.preset || entry.positive || entry.negative || entry.aspect);
+  });
+}
+
 function clonePromptState(state) {
   return JSON.parse(JSON.stringify(state || {}));
 }
@@ -4870,6 +4880,19 @@ function serialisePromptState(state) {
     };
   });
   return payload;
+}
+
+function isPromptBundleEmpty(bundle) {
+  if (!bundle || typeof bundle !== 'object') return true;
+  return !PROMPT_SLOTS.some((slot) => {
+    const entry = bundle[slot];
+    if (!entry) return false;
+    if (typeof entry === 'string') return entry.trim().length > 0;
+    if (typeof entry === 'object') {
+      return Boolean(entry.preset || entry.positive || entry.negative || entry.aspect);
+    }
+    return false;
+  });
 }
 
 function buildPromptPreviewText(state) {
@@ -5123,8 +5146,12 @@ async function setupPromptInspector(
     variantsInput,
   };
 
+  const shouldHydrateDefaults = isPromptSettingsEmpty(stage1Data);
   const state = createPromptState(stage1Data, presets);
   applyPromptStateToInspector(state, elements, presets);
+  if (shouldHydrateDefaults) {
+    persistPromptState(stage1Data, state);
+  }
   updatePromptSummaryLines(state, presets);
 
   const emitStateChange = () => {
@@ -5824,6 +5851,8 @@ function initStage2() {
           disablePosterImage: true,
           promptManager,
           updatePromptPanels,
+          promptPresets,
+          latestPromptState,
           forceVariants: extra.forceVariants ?? 1,
           ...extra,
         });
@@ -6517,7 +6546,7 @@ async function triggerGeneration(opts) {
     promptBundlePre,
     promptGroup, emailGroup, promptTextarea, emailTextarea,
     generateButton, regenerateButton, nextButton,
-    promptManager, updatePromptPanels,
+    promptManager, updatePromptPanels, promptPresets, latestPromptState,
     forceVariants = null, abTest = false,
   } = opts;
   const { disablePosterImage = false } = opts;
@@ -6732,9 +6761,15 @@ async function triggerGeneration(opts) {
   const reqFromInspector = MODE_S ? {} : (promptManager?.buildRequest?.() || {});
   if (!MODE_S && forceVariants != null) reqFromInspector.variants = forceVariants;
 
-  const promptBundleStrings = MODE_S
+  let promptBundleStrings = MODE_S
     ? await buildModeSPromptBundle(stage1Data)
     : buildPromptBundleStrings(reqFromInspector.prompts || {});
+  if (!MODE_S && isPromptBundleEmpty(promptBundleStrings)) {
+    const fallbackState = latestPromptState?.slots
+      ? latestPromptState
+      : createPromptState(stage1Data, promptPresets || { presets: {}, defaultAssignments: {} });
+    promptBundleStrings = serialisePromptState(fallbackState);
+  }
 
   const renderMode = MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a');
   const requestBase = {
