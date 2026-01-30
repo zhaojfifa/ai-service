@@ -4775,10 +4775,16 @@ function loadPromptPresets() {
         throw error;
       });
   }
-  return promptPresetPromise.then((data) => ({
-    presets: data?.presets || {},
-    defaultAssignments: data?.defaultAssignments || {},
-  }));
+  return promptPresetPromise.then((data) => {
+    // Support both schemas:
+    // A) { presets: {...}, defaultAssignments: {...} }
+    // B) { presets: { ..., defaultAssignments: {...} } }
+    const root = data?.presets ?? data ?? {};
+    return {
+      presets: root,
+      defaultAssignments: root?.defaultAssignments ?? data?.defaultAssignments ?? {},
+    };
+  });
 }
 
 async function buildModeSPromptBundle(stage1Data) {
