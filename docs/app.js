@@ -4760,6 +4760,33 @@ function renderDraftSnapshot(draft) {
   setText('stage2-draft-status', `Draft loaded: ${draftKeys.length ? 'yes' : 'no'}`);
   setText('stage2-draft-keys', draftKeys.length ? `Draft keys: ${draftKeys.join(', ')}` : 'Draft keys: none');
 }
+
+let promptPresetsDebugLogged = false;
+
+function normalisePresetBuckets(root) {
+  if (!root || typeof root !== 'object') {
+    return { scenario: {}, product: {}, gallery: {} };
+  }
+  const hasBuckets = PROMPT_SLOTS.every((slot) => root?.[slot] && typeof root[slot] === 'object');
+  if (hasBuckets) {
+    return {
+      scenario: root.scenario || {},
+      product: root.product || {},
+      gallery: root.gallery || {},
+    };
+  }
+  const buckets = { scenario: {}, product: {}, gallery: {} };
+  Object.entries(root).forEach(([key, value]) => {
+    if (key === 'defaultAssignments') return;
+    const id = key.toLowerCase();
+    let target = 'scenario';
+    if (id.includes('product') || id.includes('hero')) target = 'product';
+    if (id.includes('gallery') || id.includes('pack')) target = 'gallery';
+    if (id.includes('scenario') || id.includes('scene')) target = 'scenario';
+    buckets[target][key] = value;
+  });
+  return buckets;
+}
 function loadPromptPresets() {
   if (!promptPresetPromise) {
     promptPresetPromise = fetch(assetUrl(PROMPT_PRESETS_PATH))
@@ -4777,11 +4804,21 @@ function loadPromptPresets() {
   return promptPresetPromise.then((data) => {
     // Support both schemas:
     // A) { presets: {...}, defaultAssignments: {...} }
-    // B) { presets: { ..., defaultAssignments: {...} } }
+    // B) { presets: { scenario/product/gallery, defaultAssignments } }
     const root = data?.presets ?? data ?? {};
+    const bucketed = normalisePresetBuckets(root);
+    const assignments = root?.defaultAssignments ?? data?.defaultAssignments ?? {};
+    if (!promptPresetsDebugLogged) {
+      promptPresetsDebugLogged = true;
+      console.debug('[prompt-presets] loaded counts', {
+        scenario: Object.keys(bucketed.scenario || {}).length,
+        product: Object.keys(bucketed.product || {}).length,
+        gallery: Object.keys(bucketed.gallery || {}).length,
+      });
+    }
     return {
-      presets: root,
-      defaultAssignments: root?.defaultAssignments ?? data?.defaultAssignments ?? {},
+      presets: bucketed,
+      defaultAssignments: assignments,
     };
   });
 }
@@ -4792,7 +4829,7 @@ async function buildModeSPromptBundle(stage1Data) {
     const assignments = presets?.defaultAssignments || {};
     const pick = (slot) => {
       const presetId = assignments[slot];
-      const preset = (presetId && presets?.presets?.[presetId]) || null;
+      const preset = (presetId && presets?.presets?.[slot]?.[presetId]) || null;
       return preset?.positive || null;
     };
 
@@ -4828,9 +4865,9 @@ function createPromptState(stage1Data, presets) {
     variants: clampVariants(Number(stage1Data?.prompt_variants) || DEFAULT_PROMPT_VARIANTS),
   };
   const savedSlots = stage1Data?.prompt_settings || {};
-  const presetMap = presets.presets || {};
   const defaults = presets.defaultAssignments || {};
   PROMPT_SLOTS.forEach((slot) => {
+    const presetMap = presets.presets?.[slot] || {};
     const saved = savedSlots?.[slot] || {};
     const fallbackId = defaults?.[slot] || Object.keys(presetMap)[0] || null;
     const presetId = saved.preset || fallbackId;
@@ -4964,7 +5001,6 @@ function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
   }
 
   const slotMap = templateSpec.slots || {};
-  const presetMap = presets?.presets || {};
   const defaults = presets?.defaultAssignments || {};
 
   const promptSections = [];
@@ -4974,7 +5010,8 @@ function buildTemplateDefaultPrompt(stage1Data, templateSpec, presets) {
     const label = PROMPT_SLOT_LABELS_EN[slot] || slot;
     const guidance = slotSpec.guidance || {};
     const presetId = guidance.preset || defaults[slot] || null;
-    const preset = presetId ? presetMap[presetId] || null : null;
+    const slotPresets = presets?.presets?.[slot] || {};
+    const preset = presetId ? slotPresets[presetId] || null : null;
     const section = [];
     section.push(`- ${label}: ${presetId || 'N/A'}`);
     if (preset?.positive) {
@@ -5020,7 +5057,6 @@ function buildPromptRequest(state) {
 
 function applyPromptStateToInspector(state, elements, presets) {
   if (!elements) return;
-  const presetMap = presets?.presets || {};
   PROMPT_SLOTS.forEach((slot) => {
     const select = elements.selects?.[slot];
     const positive = elements.positives?.[slot];
@@ -5037,7 +5073,7 @@ function applyPromptStateToInspector(state, elements, presets) {
       negative.value = entry?.negative || '';
     }
     if (aspectLabel) {
-      const preset = entry?.preset ? presetMap[entry.preset] : null;
+      const preset = entry?.preset ? presets?.presets?.[slot]?.[entry.preset] : null;
       const aspect = entry?.aspect || preset?.aspect || '';
       aspectLabel.textContent = aspect ? `推荐画幅：${aspect}` : '未设置画幅约束';
     }
@@ -5056,11 +5092,11 @@ function applyPromptStateToInspector(state, elements, presets) {
 
 function updatePromptSummaryLines(state, presets) {
   if (!state?.slots) return;
-  const presetMap = presets?.presets || {};
   PROMPT_SLOTS.forEach((slot) => {
     const summaryEl = document.querySelector(`[data-preset-summary="${slot}"]`);
     if (!summaryEl) return;
     const entry = state.slots?.[slot] || {};
+    const presetMap = presets?.presets?.[slot] || {};
     const presetLabel = entry.preset ? (presetMap[entry.preset]?.label || entry.preset) : '';
     const hasCustom = Boolean((entry.positive || '').trim() || (entry.negative || '').trim());
     let summary = 'No preset';
@@ -5076,7 +5112,7 @@ function updatePromptSummaryLines(state, presets) {
 function populatePresetSelect(select, presets, slot) {
   if (!select) return;
   select.innerHTML = '';
-  const presetMap = presets?.presets || {};
+  const presetMap = presets?.presets?.[slot] || {};
   const entries = Object.entries(presetMap);
   if (!entries.length) {
     select.disabled = true;
@@ -5174,7 +5210,7 @@ async function setupPromptInspector(
   emitStateChange();
 
   const applyPreset = (slot, presetId) => {
-    const preset = presets.presets?.[presetId] || {};
+    const preset = presets.presets?.[slot]?.[presetId] || {};
     const entry = state.slots[slot];
     entry.preset = presetId || null;
     if (preset.positive) {

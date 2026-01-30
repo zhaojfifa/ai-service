@@ -90,7 +90,26 @@
       <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
 
-    <script src="./app.js?v=0cbaf65" type="module"></script>
+    <script>
+      (function () {
+        const fallback = 'kit1.3-20260130-01';
+        const load = (ver) => {
+          const s = document.createElement('script');
+          s.type = 'module';
+          s.src = `./app.js?v=${encodeURIComponent(ver)}`;
+          document.body.appendChild(s);
+        };
+        fetch('./build-info.json', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            const ver = data?.commit || data?.builtAt || fallback;
+            load(ver);
+          })
+          .catch(() => {
+            load(fallback);
+          });
+      })();
+    </script>
   </body>
 </html>
 
