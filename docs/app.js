@@ -4900,13 +4900,16 @@ const PROMPT_SLOT_LABELS_EN = {
   gallery: 'Gallery Thumbnails',
 };
 
-function nonEmptyStr(v) {
-  return typeof v === 'string' && v.trim().length > 0 ? v : undefined;
+function normalizeMaybeText(v) {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === 'string') {
+    const t = v.trim();
+    return t.length ? v : undefined;
+  }
+  return v;
 }
 
 function createPromptState(stage1Data, presets) {
-  const isBlank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
-  let didMigrate = false;
   const state = {
     slots: {},
     seed: parseSeed(stage1Data?.prompt_seed),
@@ -4919,19 +4922,11 @@ function createPromptState(stage1Data, presets) {
     const presetMap = getSlotPresets(presets, slot);
     const saved = savedSlots?.[slot] || {};
     const fallbackId = defaults?.[slot] || Object.keys(presetMap)[0] || null;
-    const presetId = saved.preset || fallbackId;
+    const presetId = normalizeMaybeText(saved.preset) || fallbackId;
     const preset = (presetMap && presetId ? presetMap[presetId] : null) || {};
-    const isLegacyEmptyOverride =
-      saved &&
-      typeof saved === 'object' &&
-      !!saved.preset &&
-      isBlank(saved.positive) &&
-      isBlank(saved.negative) &&
-      isBlank(saved.aspect);
-    if (isLegacyEmptyOverride) didMigrate = true;
-    const positive = nonEmptyStr(saved?.positive) ?? preset?.positive ?? '';
-    const negative = nonEmptyStr(saved?.negative) ?? preset?.negative ?? '';
-    const aspect = nonEmptyStr(saved?.aspect) ?? preset?.aspect ?? '';
+    const positive = normalizeMaybeText(saved.positive) ?? preset?.positive ?? '';
+    const negative = normalizeMaybeText(saved.negative) ?? preset?.negative ?? '';
+    const aspect = normalizeMaybeText(saved.aspect) ?? preset?.aspect ?? '';
     state.slots[slot] = {
       preset: presetId,
       positive,
@@ -4939,7 +4934,6 @@ function createPromptState(stage1Data, presets) {
       aspect,
     };
   });
-  state.didMigrate = didMigrate;
   return state;
 }
 
@@ -5254,14 +5248,14 @@ async function setupPromptInspector(
 
   const shouldHydrateDefaults = isPromptSettingsEmpty(stage1Data);
   const state = createPromptState(stage1Data, presets);
-  const persistStage2Settings = (next) => persistPromptState(stage1Data, next);
   applyPromptStateToInspector(state, elements, presets);
+  console.log('[stage2] hydrated prompt slot sample', {
+    scenario: state?.slots?.scenario,
+    product: state?.slots?.product,
+    gallery: state?.slots?.gallery,
+  });
   if (shouldHydrateDefaults) {
-    persistStage2Settings(state);
-  }
-  if (state?.didMigrate) {
-    console.log('[stage2] migrated legacy empty prompt_settings => persisted');
-    persistStage2Settings(state);
+    persistPromptState(stage1Data, state);
   }
   updatePromptSummaryLines(state, presets);
 
