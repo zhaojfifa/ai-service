@@ -4769,8 +4769,12 @@ function isStage2Page() {
   return Boolean(document?.querySelector?.('[data-preset-select]'));
 }
 
+function getPromptInspectorRoot() {
+  return document.getElementById('prompt-inspector');
+}
+
 function normalizePromptPresetsPayload(raw) {
-  const root = raw?.presets ?? raw ?? {};
+  const root = raw?.presets || {};
   const hasBuckets = root?.scenario && root?.product && root?.gallery;
   const presetsBySlot = hasBuckets
     ? root
@@ -4784,8 +4788,53 @@ function normalizePromptPresetsPayload(raw) {
 }
 
 function getSlotPresets(presets, slot) {
-  if (presets?.presetsBySlot) return presets.presetsBySlot?.[slot] || {};
-  return presets?.presets || {};
+  const normalised = normalizePromptPresetsPayload(presets || {});
+  return normalised.presetsBySlot?.[slot] || {};
+}
+
+function readModeSPresetAssignmentsFromDOM() {
+  const root = getPromptInspectorRoot();
+  if (!root) return null;
+
+  const out = {};
+  root.querySelectorAll('[data-preset-select]').forEach((el) => {
+    const k = el.getAttribute('data-preset-select');
+    out[k] = (el.value || '').trim();
+  });
+
+  return Object.values(out).some(Boolean) ? out : null;
+}
+
+function populatePromptPresetDropdowns(presets) {
+  const root = getPromptInspectorRoot();
+  if (!root) return;
+  root.querySelectorAll('[data-preset-select]').forEach((el) => {
+    const k = el.getAttribute('data-preset-select');
+    populatePresetSelect(el, presets, k);
+  });
+}
+
+async function hydrateModeSPresetDropdowns() {
+  const root = getPromptInspectorRoot();
+  if (!root) return;
+
+  const presets = await loadPromptPresets();
+  const normalised = normalizePromptPresetsPayload(presets || {});
+  if (!promptPresetsDebugLogged) {
+    promptPresetsDebugLogged = true;
+    console.log('[stage2] presets slots', Object.keys(normalised.presetsBySlot || {}), {
+      scenario: Object.keys(normalised.presetsBySlot?.scenario || {}).length,
+      product: Object.keys(normalised.presetsBySlot?.product || {}).length,
+      gallery: Object.keys(normalised.presetsBySlot?.gallery || {}).length,
+    }, normalised.defaultAssignments || {});
+  }
+  populatePromptPresetDropdowns(presets);
+
+  const assigns = presets?.defaultAssignments || {};
+  root.querySelectorAll('[data-preset-select]').forEach((el) => {
+    const k = el.getAttribute('data-preset-select');
+    if (!el.value && assigns[k]) el.value = assigns[k];
+  });
 }
 function loadPromptPresets() {
   if (!promptPresetPromise) {
@@ -4801,40 +4850,36 @@ function loadPromptPresets() {
         throw error;
       });
   }
-  return promptPresetPromise.then((data) => {
-    if (!isStage2Page()) {
-      return {
-        presets: data?.presets || {},
-        defaultAssignments: data?.defaultAssignments || {},
-      };
-    }
-    const normalised = normalizePromptPresetsPayload(data || {});
-    if (!promptPresetsDebugLogged) {
-      promptPresetsDebugLogged = true;
-      console.log('[stage2] presets slots', Object.keys(normalised.presetsBySlot || {}), {
-        scenario: Object.keys(normalised.presetsBySlot?.scenario || {}).length,
-        product: Object.keys(normalised.presetsBySlot?.product || {}).length,
-        gallery: Object.keys(normalised.presetsBySlot?.gallery || {}).length,
-      }, normalised.defaultAssignments || {});
-    }
-    return normalised;
-  });
+  return promptPresetPromise.then((data) => ({
+    presets: data?.presets || {},
+    defaultAssignments: data?.defaultAssignments || {},
+  }));
 }
 
 async function buildModeSPromptBundle(stage1Data) {
   try {
     const presets = await loadPromptPresets();
-    const assignments = presets?.defaultAssignments || {};
-    const pick = (slot) => {
-      const presetId = assignments[slot];
-      const preset = (presetId && getSlotPresets(presets, slot)?.[presetId]) || null;
-      return preset?.positive || null;
-    };
+    const uiAssigns = readModeSPresetAssignmentsFromDOM();
+    const assignments = uiAssigns || presets.defaultAssignments || {};
+
+    const scenarioPresetId = assignments.scenario || presets.defaultAssignments?.scenario;
+    const productPresetId = assignments.product || presets.defaultAssignments?.product;
+    const galleryPresetId = assignments.gallery || presets.defaultAssignments?.gallery;
+
+    const scenarioPreset = presets.presets?.scenario?.[scenarioPresetId] || null;
+    const productPreset = presets.presets?.product?.[productPresetId] || null;
+    const galleryPreset = presets.presets?.gallery?.[galleryPresetId] || null;
 
     return {
-      scenario: pick('scenario'),
-      product: pick('product'),
-      gallery: pick('gallery'),
+      scenario: scenarioPreset
+        ? { preset: scenarioPresetId, positive: scenarioPreset.positive, negative: scenarioPreset.negative, aspect: scenarioPreset.aspect }
+        : null,
+      product: productPreset
+        ? { preset: productPresetId, positive: productPreset.positive, negative: productPreset.negative, aspect: productPreset.aspect }
+        : null,
+      gallery: galleryPreset
+        ? { preset: galleryPresetId, positive: galleryPreset.positive, negative: galleryPreset.negative, aspect: galleryPreset.aspect }
+        : null,
     };
   } catch (error) {
     console.warn('[ModeS] prompt presets unavailable', error);
@@ -5976,6 +6021,14 @@ function initStage2() {
       latestPromptState = promptManager.getState?.() || latestPromptState;
       updatePromptPanels();
     }
+    }
+
+    if (MODE_S && document.getElementById('prompt-inspector')) {
+      try {
+        await hydrateModeSPresetDropdowns();
+      } catch (e) {
+        console.warn('[stage2] MODE_S preset hydrate failed', e);
+      }
     }
 
     const updateSummary = () => {
