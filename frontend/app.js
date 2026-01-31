@@ -6056,11 +6056,16 @@ function initStage2() {
     }
 
     if (MODE_S && document.getElementById('prompt-inspector')) {
-      try {
-        await hydrateModeSPresetDropdowns();
-      } catch (e) {
-        console.warn('[stage2] MODE_S preset hydrate failed', e);
-      }
+      void (async () => {
+        try {
+          await hydrateModeSPresetDropdowns();
+          // MODE_S 也必须初始化 prompt inspector，否则 Advanced 文本框不会被写入
+          const stage1Data = loadStage1Data();
+          await setupPromptInspector(stage1Data);
+        } catch (e) {
+          console.warn('[stage2] MODE_S preset hydrate failed', e);
+        }
+      })();
     }
 
     const updateSummary = () => {
