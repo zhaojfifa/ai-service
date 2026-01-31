@@ -4902,6 +4902,8 @@ const PROMPT_SLOT_LABELS_EN = {
 };
 
 function createPromptState(stage1Data, presets) {
+  const isBlank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
+  let didMigrate = false;
   const state = {
     slots: {},
     seed: parseSeed(stage1Data?.prompt_seed),
@@ -4916,16 +4918,25 @@ function createPromptState(stage1Data, presets) {
     const fallbackId = defaults?.[slot] || Object.keys(presetMap)[0] || null;
     const presetId = saved.preset || fallbackId;
     const preset = (presetMap && presetId ? presetMap[presetId] : null) || {};
-    const savedPositive = typeof saved.positive === 'string' ? saved.positive.trim() : null;
-    const savedNegative = typeof saved.negative === 'string' ? saved.negative.trim() : null;
-    const savedAspect = typeof saved.aspect === 'string' ? saved.aspect.trim() : null;
+    const isLegacyEmptyOverride =
+      saved &&
+      typeof saved === 'object' &&
+      !!saved.preset &&
+      isBlank(saved.positive) &&
+      isBlank(saved.negative) &&
+      isBlank(saved.aspect);
+    if (isLegacyEmptyOverride) didMigrate = true;
+    const positive = isLegacyEmptyOverride ? (preset?.positive ?? '') : (saved?.positive ?? preset?.positive ?? '');
+    const negative = isLegacyEmptyOverride ? (preset?.negative ?? '') : (saved?.negative ?? preset?.negative ?? '');
+    const aspect = isLegacyEmptyOverride ? (preset?.aspect ?? '') : (saved?.aspect ?? preset?.aspect ?? '');
     state.slots[slot] = {
       preset: presetId,
-      positive: savedPositive ? savedPositive : (preset.positive ?? ''),
-      negative: savedNegative ? savedNegative : (preset.negative ?? ''),
-      aspect: savedAspect ? savedAspect : (preset.aspect ?? ''),
+      positive,
+      negative,
+      aspect,
     };
   });
+  state.didMigrate = didMigrate;
   return state;
 }
 
@@ -5237,9 +5248,14 @@ async function setupPromptInspector(
 
   const shouldHydrateDefaults = isPromptSettingsEmpty(stage1Data);
   const state = createPromptState(stage1Data, presets);
+  const persistStage2Settings = (next) => persistPromptState(stage1Data, next);
   applyPromptStateToInspector(state, elements, presets);
   if (shouldHydrateDefaults) {
-    persistPromptState(stage1Data, state);
+    persistStage2Settings(state);
+  }
+  if (state?.didMigrate) {
+    console.log('[stage2] migrated legacy empty prompt_settings => persisted');
+    persistStage2Settings(state);
   }
   updatePromptSummaryLines(state, presets);
 
