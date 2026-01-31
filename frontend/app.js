@@ -5216,9 +5216,9 @@ async function setupPromptInspector(
     presets = { presets: {}, defaultAssignments: {} };
   }
 
-  const q = (selector) => (container && container.querySelector(selector)) || document.querySelector(selector);
-  const qa = (selector) =>
-    (container && container.querySelectorAll(selector).length ? container.querySelectorAll(selector) : document.querySelectorAll(selector));
+  // Stage2: Advanced (Prompt Editing) fields may live outside #prompt-inspector.
+  // Bind by container first, then fall back to document-level selector.
+  const q = (sel) => container.querySelector(sel) || document.querySelector(sel);
 
   const selects = {};
   const positives = {};
@@ -5227,7 +5227,7 @@ async function setupPromptInspector(
   const resets = {};
 
   PROMPT_SLOTS.forEach((slot) => {
-    selects[slot] = q(`[data-preset-select="${slot}"]`);
+    selects[slot] = container.querySelector(`[data-preset-select="${slot}"]`);
     positives[slot] = q(`[data-positive="${slot}"]`);
     negatives[slot] = q(`[data-negative="${slot}"]`);
     aspects[slot] = q(`[data-aspect="${slot}"]`);
