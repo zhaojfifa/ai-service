@@ -4901,6 +4901,10 @@ const PROMPT_SLOT_LABELS_EN = {
   gallery: 'Gallery Thumbnails',
 };
 
+function nonEmptyStr(v) {
+  return typeof v === 'string' && v.trim().length > 0 ? v : undefined;
+}
+
 function createPromptState(stage1Data, presets) {
   const isBlank = (v) => v == null || (typeof v === 'string' && v.trim() === '');
   let didMigrate = false;
@@ -4926,9 +4930,9 @@ function createPromptState(stage1Data, presets) {
       isBlank(saved.negative) &&
       isBlank(saved.aspect);
     if (isLegacyEmptyOverride) didMigrate = true;
-    const positive = isLegacyEmptyOverride ? (preset?.positive ?? '') : (saved?.positive ?? preset?.positive ?? '');
-    const negative = isLegacyEmptyOverride ? (preset?.negative ?? '') : (saved?.negative ?? preset?.negative ?? '');
-    const aspect = isLegacyEmptyOverride ? (preset?.aspect ?? '') : (saved?.aspect ?? preset?.aspect ?? '');
+    const positive = nonEmptyStr(saved?.positive) ?? preset?.positive ?? '';
+    const negative = nonEmptyStr(saved?.negative) ?? preset?.negative ?? '';
+    const aspect = nonEmptyStr(saved?.aspect) ?? preset?.aspect ?? '';
     state.slots[slot] = {
       preset: presetId,
       positive,
@@ -4972,11 +4976,14 @@ function serialisePromptState(state) {
   PROMPT_SLOTS.forEach((slot) => {
     const entry = state.slots?.[slot];
     if (!entry) return;
+    const pos = nonEmptyStr(entry.positive);
+    const neg = nonEmptyStr(entry.negative);
+    const asp = nonEmptyStr(entry.aspect);
     payload[slot] = {
       preset: entry.preset || null,
-      positive: entry.positive || '',
-      negative: entry.negative || '',
-      aspect: entry.aspect || '',
+      ...(pos !== undefined ? { positive: pos } : {}),
+      ...(neg !== undefined ? { negative: neg } : {}),
+      ...(asp !== undefined ? { aspect: asp } : {}),
     };
   });
   return payload;
