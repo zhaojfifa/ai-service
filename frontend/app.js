@@ -5216,6 +5216,10 @@ async function setupPromptInspector(
     presets = { presets: {}, defaultAssignments: {} };
   }
 
+  const q = (selector) => (container && container.querySelector(selector)) || document.querySelector(selector);
+  const qa = (selector) =>
+    (container && container.querySelectorAll(selector).length ? container.querySelectorAll(selector) : document.querySelectorAll(selector));
+
   const selects = {};
   const positives = {};
   const negatives = {};
@@ -5223,19 +5227,26 @@ async function setupPromptInspector(
   const resets = {};
 
   PROMPT_SLOTS.forEach((slot) => {
-    selects[slot] = container.querySelector(`[data-preset-select="${slot}"]`);
-    positives[slot] = container.querySelector(`[data-positive="${slot}"]`);
-    negatives[slot] = container.querySelector(`[data-negative="${slot}"]`);
-    aspects[slot] = container.querySelector(`[data-aspect="${slot}"]`);
-    resets[slot] = container.querySelector(`[data-reset="${slot}"]`);
+    selects[slot] = q(`[data-preset-select="${slot}"]`);
+    positives[slot] = q(`[data-positive="${slot}"]`);
+    negatives[slot] = q(`[data-negative="${slot}"]`);
+    aspects[slot] = q(`[data-aspect="${slot}"]`);
+    resets[slot] = q(`[data-reset="${slot}"]`);
     populatePresetSelect(selects[slot], presets, slot);
   });
 
-  const seedInput = container.querySelector('#prompt-seed');
-  const lockSeedCheckbox = container.querySelector('#prompt-lock-seed');
-  const variantsInput = container.querySelector('#prompt-variants');
-  const previewButton = container.querySelector('#preview-prompts');
-  const abButton = container.querySelector('#generate-ab');
+  console.log('[stage2] inspector elements found', {
+    selects: Object.fromEntries(PROMPT_SLOTS.map(s => [s, !!selects[s]])),
+    positives: Object.fromEntries(PROMPT_SLOTS.map(s => [s, !!positives[s]])),
+    negatives: Object.fromEntries(PROMPT_SLOTS.map(s => [s, !!negatives[s]])),
+    aspects: Object.fromEntries(PROMPT_SLOTS.map(s => [s, !!aspects[s]])),
+  });
+
+  const seedInput = q('#prompt-seed');
+  const lockSeedCheckbox = q('#prompt-lock-seed');
+  const variantsInput = q('#prompt-variants');
+  const previewButton = q('#preview-prompts');
+  const abButton = q('#generate-ab');
 
   const elements = {
     selects,
