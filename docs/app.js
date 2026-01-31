@@ -4915,11 +4915,14 @@ function createPromptState(stage1Data, presets) {
     const fallbackId = defaults?.[slot] || Object.keys(presetMap)[0] || null;
     const presetId = saved.preset || fallbackId;
     const preset = (presetMap && presetId ? presetMap[presetId] : null) || {};
+    const savedPositive = typeof saved.positive === 'string' ? saved.positive.trim() : null;
+    const savedNegative = typeof saved.negative === 'string' ? saved.negative.trim() : null;
+    const savedAspect = typeof saved.aspect === 'string' ? saved.aspect.trim() : null;
     state.slots[slot] = {
       preset: presetId,
-      positive: saved.positive ?? preset.positive ?? '',
-      negative: saved.negative ?? preset.negative ?? '',
-      aspect: saved.aspect ?? preset.aspect ?? '',
+      positive: savedPositive ? savedPositive : (preset.positive ?? ''),
+      negative: savedNegative ? savedNegative : (preset.negative ?? ''),
+      aspect: savedAspect ? savedAspect : (preset.aspect ?? ''),
     };
   });
   return state;
