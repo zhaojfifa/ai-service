@@ -479,14 +479,12 @@ def _template_dimensions(
 
 
 def _default_mask_b64(template: TemplateResources) -> str | None:
-    mask = template.mask_background
-    if not mask:
-        return None
+    return _edit_mask_b64(template, keep_alpha=_build_keep_mask_alpha(template))
 
-    alpha = mask.split()[3]
-    inverted = ImageOps.invert(alpha)
+
+def _mask_b64_from_alpha(alpha: Image.Image) -> str:
     buffer = BytesIO()
-    inverted.convert("L").save(buffer, format="PNG")
+    alpha.convert("L").save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
@@ -495,9 +493,43 @@ def _mask_b64_from_template(template: TemplateResources) -> str | None:
     if not mask:
         return None
     alpha = mask.split()[3]
-    buffer = BytesIO()
-    alpha.convert("L").save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("ascii")
+    return _mask_b64_from_alpha(alpha)
+
+
+def _alpha_from_mask_bg(template: TemplateResources) -> Image.Image | None:
+    """Return mask background alpha where 255=editable region, 0=locked."""
+    mask = template.mask_background
+    if not mask:
+        return None
+    return mask.split()[3].convert("L")
+
+
+def _edit_mask_b64(
+    template: TemplateResources,
+    *,
+    keep_alpha: Image.Image | None = None,
+) -> str | None:
+    edit_alpha = _alpha_from_mask_bg(template)
+    if edit_alpha is None:
+        return None
+    if keep_alpha is not None:
+        # keep_alpha=255 should be protected; subtract from editable region.
+        edit_alpha = ImageChops.subtract(edit_alpha, keep_alpha)
+    return _mask_b64_from_alpha(edit_alpha)
+
+
+def _locked_alpha(
+    template: TemplateResources,
+    *,
+    keep_alpha: Image.Image | None = None,
+) -> Image.Image | None:
+    edit_alpha = _alpha_from_mask_bg(template)
+    if edit_alpha is None:
+        return None
+    locked = ImageChops.invert(edit_alpha)
+    if keep_alpha is not None:
+        locked = ImageChops.lighter(locked, keep_alpha)
+    return locked
 
 
 def _slot_rect(slot: dict[str, Any]) -> tuple[int, int, int, int]:
@@ -547,15 +579,8 @@ def _apply_locked_frame(
     if out_img.mode != "RGBA":
         out_img = out_img.convert("RGBA")
 
-    locked_alpha = None
-    if template.mask_background:
-        locked_alpha = template.mask_background.split()[3].convert("L")
-
     keep_alpha = _build_keep_mask_alpha(template)
-    if locked_alpha is not None and keep_alpha is not None:
-        locked_alpha = ImageChops.lighter(locked_alpha, keep_alpha)
-    elif locked_alpha is None and keep_alpha is not None:
-        locked_alpha = keep_alpha
+    locked_alpha = _locked_alpha(template, keep_alpha=keep_alpha)
 
     if locked_alpha is None:
         return Image.alpha_composite(out_img, locked_frame)
@@ -1669,9 +1694,8 @@ def generate_poster_asset(
                 )
 
     if is_kitposter1:
-        raw_mask_b64 = _mask_b64_from_template(template)
-        if raw_mask_b64:
-            kit_mask_b64 = _invert_mask_b64(raw_mask_b64)
+        keep_alpha = _build_keep_mask_alpha(template)
+        kit_mask_b64 = _edit_mask_b64(template, keep_alpha=keep_alpha)
         if kit_variant == "b":
             prompt = (
                 f"{prompt}\n\n"
