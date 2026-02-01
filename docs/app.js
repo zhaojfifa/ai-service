@@ -6818,6 +6818,13 @@ async function triggerGeneration(opts) {
         scenario_asset: posterPayload.scenario_asset,
         scenario_key: posterPayload.scenario_key,
       });
+      console.log('[stage2] payload audit', {
+        scenario_key: posterPayload?.scenario_key,
+        scenario_asset: posterPayload?.scenario_asset,
+        scenario_image: posterPayload?.scenario_image,
+        product_image_1_key: posterPayload?.product_image_1_key,
+        product_image_2_key: posterPayload?.product_image_2_key,
+      });
     } else {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
