@@ -6807,6 +6807,10 @@ async function triggerGeneration(opts) {
         gallery_allows_prompt: false,
         gallery_allows_upload: false,
       };
+      console.log('[stage2] MODE_S poster payload (scenario)', {
+        scenario_asset: posterPayload.scenario_asset,
+        scenario_key: posterPayload.scenario_key,
+      });
     } else {
     brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
       field: 'poster.brand_logo',
