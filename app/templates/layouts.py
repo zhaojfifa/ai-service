@@ -28,6 +28,7 @@ def _spec_to_layout(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
     )
 
     slots_payload = []
+    TEXT_KEYS = {"brand_name", "agent_name", "title", "subtitle"}
     for key, slot in (spec.get("slots") or {}).items():
         if not isinstance(slot, dict):
             continue
@@ -37,7 +38,11 @@ def _spec_to_layout(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
         h = float(slot.get("height", 0)) / float(canvas_h)
         guidance = slot.get("guidance") or {}
         text = slot.get("text") or {}
-        kind = "text" if (guidance.get("mode") == "place_text" or text) else "image"
+        kind = (
+            "text"
+            if (key in TEXT_KEYS or guidance.get("mode") == "place_text" or text)
+            else "image"
+        )
         align = guidance.get("align") or text.get("align") or "left"
         valign = guidance.get("valign") or text.get("valign") or "middle"
         if valign == "center":
