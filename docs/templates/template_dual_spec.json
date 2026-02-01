@@ -43,6 +43,7 @@
     "logo",
     "brand_name",
     "agent_name",
+    "product",
     "title",
     "subtitle",
     "gallery_strip"

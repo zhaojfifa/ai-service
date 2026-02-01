@@ -4909,6 +4909,10 @@ function normalizeMaybeText(v) {
   return v;
 }
 
+function nonEmptyStr(v) {
+  return normalizeMaybeText(v);
+}
+
 function createPromptState(stage1Data, presets) {
   const state = {
     slots: {},
