@@ -6754,6 +6754,14 @@ async function triggerGeneration(opts) {
         folder: 'scenario',
       }, productImage1Ref);
 
+      const scenarioCandidate = stage1Data.scenario_asset || stage1Data.scenario_image;
+      scenarioRef = await normaliseAssetReference(scenarioCandidate, {
+        field: 'poster.scenario_asset',
+        required: false,
+        apiCandidates,
+        folder: 'scenario',
+      }, productImage1Ref);
+
       const showBullets = stage2State.adjustments?.showBullets !== false;
       const bullets = Array.isArray(stage1Data.bullets)
         ? stage1Data.bullets.filter(Boolean)
@@ -6779,7 +6787,7 @@ async function triggerGeneration(opts) {
       posterPayload = {
         brand_name: brandName,
         agent_name: channel,
-        scenario_image: intent || title,
+        scenario_image: scenarioRef?.key || scenarioRef?.url || null,
         product_name: productName,
         channel,
         intent,
