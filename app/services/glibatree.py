@@ -488,6 +488,15 @@ def _mask_b64_from_alpha(alpha: Image.Image) -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def _alpha_nonzero_ratio(alpha: Image.Image) -> float:
+    data = alpha.getdata()
+    total = alpha.size[0] * alpha.size[1]
+    if total <= 0:
+        return 0.0
+    nonzero = sum(1 for p in data if p > 0)
+    return nonzero / total
+
+
 def _mask_b64_from_template(template: TemplateResources) -> str | None:
     mask = template.mask_background
     if not mask:
@@ -1533,6 +1542,26 @@ def generate_poster_asset(
             },
         )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
+    keep_alpha = _build_keep_mask_alpha(template)
+    edit_alpha = _alpha_from_mask_bg(template)
+    if edit_alpha is not None and keep_alpha is not None:
+        edit_alpha = ImageChops.subtract(edit_alpha, keep_alpha)
+    locked_alpha = _locked_alpha(template, keep_alpha=keep_alpha)
+    if edit_alpha is not None or locked_alpha is not None:
+        logger.info(
+            "[poster] mask audit",
+            extra={
+                "trace": trace_id,
+                "scenario_key": getattr(poster, "scenario_key", None),
+                "scenario_asset": getattr(poster, "scenario_asset", None),
+                "edit_mask_nonzero_ratio": _alpha_nonzero_ratio(edit_alpha)
+                if edit_alpha is not None
+                else None,
+                "locked_alpha_nonzero_ratio": _alpha_nonzero_ratio(locked_alpha)
+                if locked_alpha is not None
+                else None,
+            },
+        )
 
     if is_kitposter1:
         logger.info(
