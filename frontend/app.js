@@ -6747,6 +6747,12 @@ async function triggerGeneration(opts) {
         apiCandidates,
         folder: 'product',
       }, productImage1Ref);
+      scenarioRef = await normaliseAssetReference(stage1Data.scenario_asset, {
+        field: 'poster.scenario_asset',
+        required: false,
+        apiCandidates,
+        folder: 'scenario',
+      }, productImage1Ref);
 
       const showBullets = stage2State.adjustments?.showBullets !== false;
       const bullets = Array.isArray(stage1Data.bullets)
@@ -6791,8 +6797,8 @@ async function triggerGeneration(opts) {
         product_image_2_key: productImage2Ref?.key || null,
         product_key: productImage1Ref?.key || null,
         product_asset: productImage1Ref?.url || null,
-        scenario_key: productImage2Ref?.key || null,
-        scenario_asset: productImage2Ref?.url || null,
+        scenario_key: scenarioRef?.key || null,
+        scenario_asset: scenarioRef?.url || null,
         scenario_mode: 'upload',
         product_mode: 'upload',
         gallery_items: [],
