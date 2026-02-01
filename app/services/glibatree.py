@@ -1213,9 +1213,9 @@ def _render_template_frame(
     if logo_slot:
         left, top, width_box, height_box = _slot_to_box(logo_slot)
         logo_box = (left, top, left + width_box, top + height_box)
-        logo_image = _load_image_asset(
-            poster.brand_logo, getattr(poster, "brand_logo_key", None)
-        )
+        logo_asset = getattr(poster, "logo", None) or poster.brand_logo
+        logo_key = getattr(poster, "logo_key", None) or getattr(poster, "brand_logo_key", None)
+        logo_image = _load_image_asset(logo_asset, logo_key)
         if logo_image:
             _paste_image(canvas, logo_image, logo_box, mode="contain")
         else:
