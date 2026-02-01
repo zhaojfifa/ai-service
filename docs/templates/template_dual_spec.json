@@ -69,7 +69,7 @@
         "weight": 700
       },
       "guidance": {
-        "mode": "place",
+        "mode": "place_text",
         "align": "left"
       }
     },
@@ -78,8 +78,16 @@
       "y": 90,
       "width": 220,
       "height": 68,
+      "text": {
+        "align": "right",
+        "valign": "center",
+        "font_size": 20,
+        "max_lines": 1,
+        "line_spacing": 4,
+        "color": "ink_black"
+      },
       "guidance": {
-        "mode": "place",
+        "mode": "place_text",
         "align": "right"
       }
     },
