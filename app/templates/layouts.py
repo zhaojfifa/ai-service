@@ -60,6 +60,56 @@ def _spec_to_layout(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    # --- Derive gallery_1..4 from spec.gallery.items (legacy/UI expects gallery_1..4) ---
+    gallery = spec.get("gallery") or {}
+    items = gallery.get("items") or []
+    if isinstance(items, list):
+        for i, it in enumerate(items[:4], start=1):
+            if not isinstance(it, dict):
+                continue
+            gx = float(it.get("x", 0)) / float(canvas_w)
+            gy = float(it.get("y", 0)) / float(canvas_h)
+            gw = float(it.get("width", 0)) / float(canvas_w)
+            gh = float(it.get("height", 0)) / float(canvas_h)
+            slots_payload.append(
+                {
+                    "key": f"gallery_{i}",
+                    "kind": "image",
+                    "x": gx,
+                    "y": gy,
+                    "w": gw,
+                    "h": gh,
+                    "align": "center",
+                    "valign": "middle",
+                }
+            )
+
+    # --- Derive feature_1..4 from spec.feature_callouts[*].label_box ---
+    callouts = spec.get("feature_callouts") or []
+    if isinstance(callouts, list):
+        for i, c in enumerate(callouts[:4], start=1):
+            if not isinstance(c, dict):
+                continue
+            box = c.get("label_box") or {}
+            if not isinstance(box, dict):
+                continue
+            fx = float(box.get("x", 0)) / float(canvas_w)
+            fy = float(box.get("y", 0)) / float(canvas_h)
+            fw = float(box.get("width", 0)) / float(canvas_w)
+            fh = float(box.get("height", 0)) / float(canvas_h)
+            slots_payload.append(
+                {
+                    "key": f"feature_{i}",
+                    "kind": "text",
+                    "x": fx,
+                    "y": fy,
+                    "w": fw,
+                    "h": fh,
+                    "align": "left",
+                    "valign": "middle",
+                }
+            )
+
     return {
         "layout_key": template_id,
         "canvas_width": int(canvas_w),
