@@ -8,7 +8,7 @@ import os
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from functools import lru_cache
 from io import BytesIO
@@ -483,8 +483,6 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
     if edit_mask is None:
         return None
     return _mask_b64_from_alpha(edit_mask)
-
-
 def _mask_b64_from_alpha(alpha: Image.Image) -> str:
     buffer = BytesIO()
     alpha.convert("L").save(buffer, format="PNG")
@@ -1610,6 +1608,7 @@ def generate_poster_asset(
     )
 
     template = _load_template_resources(poster.template_id)
+    template = replace(template, keep_slots=list(template.keep_slots or []))
     layout_spec = None
     try:
         layout_spec = load_layout(poster.template_id or DEFAULT_TEMPLATE_ID)
