@@ -105,7 +105,11 @@ def _store_slot_bytes(image_bytes: bytes, *, trace_id: str, slot: str) -> Stored
 OPENAI_IMAGE_SIZE = "1024x1024"
 ASSET_IMAGE_SIZE = os.getenv("OPENAI_ASSET_SIZE", OPENAI_IMAGE_SIZE)
 GALLERY_IMAGE_SIZE = os.getenv("OPENAI_GALLERY_SIZE", "512x512")
-TEMPLATE_ROOT = Path(__file__).resolve().parents[2] / "frontend" / "templates"
+SPEC_ROOT = Path(__file__).resolve().parents[1] / "templates"
+ASSET_ROOTS = [
+    SPEC_ROOT,
+    Path(__file__).resolve().parents[2] / "frontend" / "templates",
+]
 DEFAULT_TEMPLATE_ID = "template_dual"
 
 BRAND_RED = (239, 76, 84)
@@ -479,15 +483,10 @@ def _template_dimensions(
 
 
 def _default_mask_b64(template: TemplateResources) -> str | None:
-    mask = template.mask_background
-    if not mask:
+    edit_mask = _build_editable_mask_for_template(template)
+    if edit_mask is None:
         return None
-
-    alpha = mask.split()[3]
-    inverted = ImageOps.invert(alpha)
-    buffer = BytesIO()
-    inverted.convert("L").save(buffer, format="PNG")
-    return base64.b64encode(buffer.getvalue()).decode("ascii")
+    return _mask_b64_from_image(edit_mask)
 
 
 def _mask_b64_from_template(template: TemplateResources) -> str | None:
@@ -500,12 +499,113 @@ def _mask_b64_from_template(template: TemplateResources) -> str | None:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
-def _slot_rect(slot: dict[str, Any]) -> tuple[int, int, int, int]:
-    x = int(slot.get("x", 0))
-    y = int(slot.get("y", 0))
-    w = int(slot.get("width", 0))
-    h = int(slot.get("height", 0))
-    return (x, y, x + w, y + h)
+def _mask_b64_from_image(mask: Image.Image) -> str:
+    buffer = BytesIO()
+    mask.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _slot_rect(
+    slot: dict[str, Any],
+    *,
+    size: tuple[int, int] | None = None,
+) -> tuple[int, int, int, int]:
+    rect = slot.get("rect")
+    x = y = w = h = 0
+
+    if isinstance(rect, (list, tuple)) and len(rect) >= 4:
+        x, y, w, h = rect[0], rect[1], rect[2], rect[3]
+    elif isinstance(rect, dict):
+        x = rect.get("x", rect.get("left", 0))
+        y = rect.get("y", rect.get("top", 0))
+        w = rect.get("width", rect.get("w", 0))
+        h = rect.get("height", rect.get("h", 0))
+    else:
+        x = slot.get("x", 0)
+        y = slot.get("y", 0)
+        w = slot.get("width", slot.get("w", 0))
+        h = slot.get("height", slot.get("h", 0))
+
+    try:
+        x = int(x)
+        y = int(y)
+        w = int(w)
+        h = int(h)
+    except (TypeError, ValueError):
+        return (0, 0, 0, 0)
+
+    x2 = x + max(w, 0)
+    y2 = y + max(h, 0)
+    x1 = x
+    y1 = y
+
+    if size is not None:
+        max_w, max_h = size
+        x1 = max(0, min(x1, max_w))
+        y1 = max(0, min(y1, max_h))
+        x2 = max(0, min(x2, max_w))
+        y2 = max(0, min(y2, max_h))
+
+    return (x1, y1, x2, y2)
+
+
+def _canonical_slot_key(slot_key: str) -> str:
+    aliases = {
+        "scenario": "scenario_image",
+        "scenario_image": "scenario_image",
+        "product": "product_image",
+        "product_image": "product_image",
+    }
+    return aliases.get(slot_key, slot_key)
+
+
+def _build_editable_mask_from_slots(
+    *,
+    size: tuple[int, int],
+    template_slots: dict[str, Any],
+    editable_slot_names: set[str],
+    feature_callouts: list[dict[str, Any]] | None = None,
+) -> Image.Image:
+    width, height = size
+    mask = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    draw = ImageDraw.Draw(mask)
+
+    for slot_key, slot in (template_slots or {}).items():
+        canonical_key = _canonical_slot_key(str(slot_key))
+        if canonical_key not in editable_slot_names:
+            continue
+        if not isinstance(slot, dict):
+            continue
+        x1, y1, x2, y2 = _slot_rect(slot, size=size)
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([x1, y1, x2, y2], fill=(0, 0, 0, 0))
+
+    for callout in (feature_callouts or []):
+        if not isinstance(callout, dict):
+            continue
+        label_box = callout.get("label_box") or {}
+        if not isinstance(label_box, dict):
+            continue
+        x1, y1, x2, y2 = _slot_rect(label_box, size=size)
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([x1, y1, x2, y2], fill=(0, 0, 0, 255))
+
+    return mask
+
+
+def _build_editable_mask_for_template(template: TemplateResources) -> Image.Image | None:
+    size_spec = template.spec.get("size", {})
+    width = int(size_spec.get("width") or (template.template.width if template.template else 0))
+    height = int(size_spec.get("height") or (template.template.height if template.template else 0))
+    if width <= 0 or height <= 0:
+        return None
+
+    return _build_editable_mask_from_slots(
+        size=(width, height),
+        template_slots=template.slots or {},
+        editable_slot_names={"scenario_image", "product_image"},
+        feature_callouts=template.spec.get("feature_callouts") or [],
+    )
 
 
 def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
@@ -513,25 +613,48 @@ def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
     Build an L-mode mask (0..255) where keep regions are 255.
     These regions must be preserved from locked_frame onto the final output.
     """
-    if not template.keep_slots:
+    edit_mask = _build_editable_mask_for_template(template)
+    if edit_mask is None:
         return None
+    return edit_mask.split()[-1].convert("L")
 
-    size_spec = template.spec.get("size", {})
-    width = int(size_spec.get("width") or (template.template.width if template.template else 0))
-    height = int(size_spec.get("height") or (template.template.height if template.template else 0))
-    if width <= 0 or height <= 0:
-        return None
 
-    m = Image.new("L", (width, height), 0)
-    draw = ImageDraw.Draw(m)
-    for slot_id in template.keep_slots:
-        slot = (template.slots or {}).get(slot_id)
-        if not slot:
+def _alpha_nonzero_ratio(alpha: Image.Image) -> float:
+    data = alpha.getdata()
+    total = alpha.size[0] * alpha.size[1]
+    if total <= 0:
+        return 0.0
+    nonzero = sum(1 for p in data if p > 0)
+    return nonzero / total
+
+
+def _mask_rect_coverage(alpha: Image.Image, rect: dict[str, Any]) -> float:
+    x1, y1, x2, y2 = _slot_rect(rect, size=alpha.size)
+    if x2 <= x1 or y2 <= y1:
+        return 0.0
+    total = (x2 - x1) * (y2 - y1)
+    if total <= 0:
+        return 0.0
+    crop = alpha.crop((x1, y1, x2, y2))
+    nonzero = sum(1 for p in crop.getdata() if p > 0)
+    return nonzero / total
+
+
+def _critical_keep_rects(template: TemplateResources) -> list[tuple[str, dict[str, Any]]]:
+    slots = template.slots or {}
+    rects: list[tuple[str, dict[str, Any]]] = []
+    for key in ("logo", "brand_name", "agent_name", "title", "subtitle", "gallery_strip"):
+        slot = slots.get(key)
+        if isinstance(slot, dict):
+            rects.append((key, slot))
+
+    for idx, callout in enumerate(template.spec.get("feature_callouts") or [], start=1):
+        if not isinstance(callout, dict):
             continue
-        x1, y1, x2, y2 = _slot_rect(slot)
-        if x2 > x1 and y2 > y1:
-            draw.rectangle([x1, y1, x2, y2], fill=255)
-    return m
+        label_box = callout.get("label_box")
+        if isinstance(label_box, dict):
+            rects.append((f"feature_callout_{idx}", label_box))
+    return rects
 
 
 def _apply_locked_frame(
@@ -547,15 +670,8 @@ def _apply_locked_frame(
     if out_img.mode != "RGBA":
         out_img = out_img.convert("RGBA")
 
-    locked_alpha = None
-    if template.mask_background:
-        locked_alpha = template.mask_background.split()[3].convert("L")
-
-    keep_alpha = _build_keep_mask_alpha(template)
-    if locked_alpha is not None and keep_alpha is not None:
-        locked_alpha = ImageChops.lighter(locked_alpha, keep_alpha)
-    elif locked_alpha is None and keep_alpha is not None:
-        locked_alpha = keep_alpha
+    edit_mask = _build_editable_mask_for_template(template)
+    locked_alpha = edit_mask.split()[-1].convert("L") if edit_mask else None
 
     if locked_alpha is None:
         return Image.alpha_composite(out_img, locked_frame)
@@ -809,7 +925,7 @@ def _generate_poster_with_vertex(
                     if base_image_b64
                     else _image_to_png_bytes(locked_frame)
                 )
-                mask_arg = mask_b64 or _default_mask_b64(template)
+                mask_arg = force_mask_b64 or _default_mask_b64(template)
             payload = client.edit_bytes(
                 base_image_bytes=base_bytes,
                 prompt=prompt,
@@ -890,11 +1006,19 @@ def _generate_poster_with_vertex(
 @lru_cache(maxsize=8)
 def _load_template_resources(template_id: str) -> TemplateResources:
     """Load template spec, locked frame and masks for the given template id."""
-    candidate = TEMPLATE_ROOT / f"{template_id}_spec.json"
+    candidate = SPEC_ROOT / f"{template_id}_spec.json"
     if not candidate.exists():
-        logger.warning("Template %s not found, falling back to %s", template_id, DEFAULT_TEMPLATE_ID)
-        candidate = TEMPLATE_ROOT / f"{DEFAULT_TEMPLATE_ID}_spec.json"
-        template_id = DEFAULT_TEMPLATE_ID
+        fallback = ASSET_ROOTS[-1] / f"{template_id}_spec.json"
+        if fallback.exists():
+            candidate = fallback
+        else:
+            logger.warning(
+                "Template %s not found, falling back to %s", template_id, DEFAULT_TEMPLATE_ID
+            )
+            candidate = SPEC_ROOT / f"{DEFAULT_TEMPLATE_ID}_spec.json"
+            if not candidate.exists():
+                candidate = ASSET_ROOTS[-1] / f"{DEFAULT_TEMPLATE_ID}_spec.json"
+            template_id = DEFAULT_TEMPLATE_ID
 
     with candidate.open("r", encoding="utf-8") as handle:
         spec: dict[str, Any] = json.load(handle)
@@ -930,12 +1054,37 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
         return None
 
     asset_name = asset_name.strip()
-    asset_path = TEMPLATE_ROOT / asset_name
-    suffix = asset_path.suffix.lower()
+    candidates = [root / asset_name for root in ASSET_ROOTS if root]
+    suffix = Path(asset_name).suffix.lower()
 
     # If caller passed a .b64 file, decode it (do NOT Image.open on it)
     if suffix == ".b64":
-        b64_path = asset_path
+        for b64_path in candidates:
+            if b64_path.exists():
+                try:
+                    s = b64_path.read_text(encoding="utf-8").strip()
+                    if s.startswith("data:image/"):
+                        comma = s.find(",")
+                        if comma != -1:
+                            s = s[comma + 1 :].strip()
+                    s = s.strip().strip('"').strip("'")
+                    decoded = base64.b64decode(s)
+                    return Image.open(BytesIO(decoded)).convert("RGBA")
+                except (UnidentifiedImageError, ValueError) as exc:
+                    raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
+
+        if required:
+            raise FileNotFoundError(f"Template asset missing: {asset_name}")
+        return None
+
+    # Normal image path
+    for asset_path in candidates:
+        if asset_path.exists():
+            return Image.open(asset_path).convert("RGBA")
+
+    # Base64 fallback: same basename with .b64 suffix
+    for asset_path in candidates:
+        b64_path = asset_path.with_suffix(".b64")
         if b64_path.exists():
             try:
                 s = b64_path.read_text(encoding="utf-8").strip()
@@ -949,31 +1098,8 @@ def _load_template_asset(asset_name: str, *, required: bool = True) -> Image.Ima
             except (UnidentifiedImageError, ValueError) as exc:
                 raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
 
-        if required:
-            raise FileNotFoundError(f"Template asset missing: {b64_path}")
-        return None
-
-    # Normal image path
-    if asset_path.exists():
-        return Image.open(asset_path).convert("RGBA")
-
-    # Base64 fallback: same basename with .b64 suffix
-    b64_path = asset_path.with_suffix(".b64")
-    if b64_path.exists():
-        try:
-            s = b64_path.read_text(encoding="utf-8").strip()
-            if s.startswith("data:image/"):
-                comma = s.find(",")
-                if comma != -1:
-                    s = s[comma + 1 :].strip()
-            s = s.strip().strip('"').strip("'")
-            decoded = base64.b64decode(s)
-            return Image.open(BytesIO(decoded)).convert("RGBA")
-        except (UnidentifiedImageError, ValueError) as exc:
-            raise RuntimeError(f"Unable to decode template asset {b64_path.name}") from exc
-
     if required:
-        raise FileNotFoundError(f"Template asset missing: {asset_path}")
+        raise FileNotFoundError(f"Template asset missing: {asset_name}")
 
     return None
 
@@ -1508,6 +1634,40 @@ def generate_poster_asset(
             },
         )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
+    edit_mask = _build_editable_mask_for_template(template)
+    keep_alpha = edit_mask.split()[-1].convert("L") if edit_mask else None
+    skip_vertex_edit = False
+    if keep_alpha is None:
+        skip_vertex_edit = True
+        warnings.append("keep_mask_missing")
+        degraded = True
+        degraded_reason = degraded_reason or "keep_mask_missing"
+        logger.warning("[poster] keep mask missing; skipping vertex edit", extra={"trace": trace_id})
+    else:
+        keep_ratio = _alpha_nonzero_ratio(keep_alpha)
+        logger.info(
+            "[poster] keep mask audit",
+            extra={
+                "trace": trace_id,
+                "keep_ratio": keep_ratio,
+            },
+        )
+        for name, rect in _critical_keep_rects(template):
+            coverage = _mask_rect_coverage(keep_alpha, rect)
+            if coverage < 0.98:
+                logger.warning(
+                    "[poster] keep mask coverage low",
+                    extra={
+                        "trace": trace_id,
+                        "rect": name,
+                        "coverage": round(coverage, 6),
+                    },
+                )
+            if coverage < 0.90:
+                skip_vertex_edit = True
+                degraded = True
+                degraded_reason = degraded_reason or "keep_mask_low_coverage"
+                warnings.append("keep_mask_low_coverage")
 
     if is_kitposter1:
         logger.info(
@@ -1669,9 +1829,7 @@ def generate_poster_asset(
                 )
 
     if is_kitposter1:
-        raw_mask_b64 = _mask_b64_from_template(template)
-        if raw_mask_b64:
-            kit_mask_b64 = _invert_mask_b64(raw_mask_b64)
+        kit_mask_b64 = _default_mask_b64(template)
         if kit_variant == "b":
             prompt = (
                 f"{prompt}\n\n"
@@ -1704,7 +1862,11 @@ def generate_poster_asset(
         },
     )
 
-    if vertex_imagen_client is not None and not (is_kitposter1 and primary is not None):
+    if (
+        vertex_imagen_client is not None
+        and not (is_kitposter1 and primary is not None)
+        and not skip_vertex_edit
+    ):
         try:
             primary, telemetry = _generate_poster_with_vertex(
                 vertex_imagen_client,
