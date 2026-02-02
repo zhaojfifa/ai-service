@@ -554,10 +554,12 @@ def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
     Build an L-mode mask (0..255) where keep regions are 255.
     These regions must be preserved from locked_frame onto the final output.
     """
-    if not template.keep_slots:
+    spec = template.spec or {}
+    callouts = spec.get("feature_callouts") or []
+    if not template.keep_slots and not callouts:
         return None
 
-    size_spec = template.spec.get("size", {})
+    size_spec = spec.get("size", {})
     width = int(size_spec.get("width") or (template.template.width if template.template else 0))
     height = int(size_spec.get("height") or (template.template.height if template.template else 0))
     if width <= 0 or height <= 0:
@@ -565,6 +567,10 @@ def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
 
     m = Image.new("L", (width, height), 0)
     draw = ImageDraw.Draw(m)
+    keep_slot_rects = 0
+    callout_rects = 0
+
+    # 1) keep_slots -> slots rects
     for slot_id in template.keep_slots:
         slot = (template.slots or {}).get(slot_id)
         if not slot:
@@ -572,6 +578,28 @@ def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
         x1, y1, x2, y2 = _slot_rect(slot)
         if x2 > x1 and y2 > y1:
             draw.rectangle([x1, y1, x2, y2], fill=255)
+            keep_slot_rects += 1
+
+    # 2) feature_callouts label_box rects (protect deterministic callout text boxes)
+    for callout in callouts:
+        label = (callout or {}).get("label_box") or {}
+        x = int(label.get("x", 0))
+        y = int(label.get("y", 0))
+        w = int(label.get("width", 0))
+        h = int(label.get("height", 0))
+        if w > 0 and h > 0:
+            draw.rectangle([x, y, x + w, y + h], fill=255)
+            callout_rects += 1
+
+    ratio = _alpha_nonzero_ratio(m)
+    logger.info(
+        "[poster] keep mask built keep_slots=%s callouts=%s ratio=%.6f",
+        keep_slot_rects,
+        callout_rects,
+        ratio,
+    )
+    if ratio <= 0:
+        return None
     return m
 
 
