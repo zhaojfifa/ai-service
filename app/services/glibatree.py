@@ -1350,7 +1350,7 @@ def _render_template_frame(
     if subtitle_slot:
         left, top, width_box, height_box = _slot_to_box(subtitle_slot)
         subtitle_align, subtitle_line_spacing, subtitle_weight = _get_text_settings(
-            subtitle_slot, default_align="right", default_line_spacing=6, default_weight=700
+            subtitle_slot, default_align="center", default_line_spacing=6, default_weight=700
         )
         font_subtitle = _scaled_font(40, weight=subtitle_weight)
         _draw_wrapped_text(
