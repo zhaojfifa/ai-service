@@ -11,6 +11,8 @@
     "mask_background": "template_dual_mask_bg.b64",
     "mask_scene": "template_dual_mask_scene.b64"
   },
+  "mask_semantics": "white_edit_black_keep",
+  "mask_source": "derived_from_slots",
   "materials": {
     "brand_logo": {
       "type": "image",
@@ -45,8 +47,7 @@
     "agent_name",
     "product",
     "title",
-    "subtitle",
-    "gallery_strip"
+    "subtitle"
   ],
   "slots": {
     "logo": {

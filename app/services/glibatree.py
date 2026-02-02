@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import requests
-from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from google.api_core.exceptions import ResourceExhausted
 
 from fastapi import HTTPException, status
@@ -479,7 +479,10 @@ def _template_dimensions(
 
 
 def _default_mask_b64(template: TemplateResources) -> str | None:
-    return _edit_mask_b64(template, keep_alpha=_build_keep_mask_alpha(template))
+    edit_mask = _build_edit_mask_for_template(template)
+    if edit_mask is None:
+        return None
+    return _mask_b64_from_alpha(edit_mask)
 
 
 def _mask_b64_from_alpha(alpha: Image.Image) -> str:
@@ -505,48 +508,134 @@ def _mask_b64_from_template(template: TemplateResources) -> str | None:
     return _mask_b64_from_alpha(alpha)
 
 
-def _alpha_from_mask_bg(template: TemplateResources) -> Image.Image | None:
-    """Return mask background alpha where 255=editable region, 0=locked."""
-    mask = template.mask_background
-    if not mask:
-        return None
-    return mask.split()[3].convert("L")
+def _slot_rect(slot: dict[str, Any], *, size: tuple[int, int] | None = None) -> tuple[int, int, int, int]:
+    rect = slot.get("rect")
+    x = y = w = h = 0
+
+    if isinstance(rect, (list, tuple)) and len(rect) >= 4:
+        x, y, w, h = rect[0], rect[1], rect[2], rect[3]
+    elif isinstance(rect, dict):
+        x = rect.get("x", rect.get("left", 0))
+        y = rect.get("y", rect.get("top", 0))
+        w = rect.get("width", rect.get("w", 0))
+        h = rect.get("height", rect.get("h", 0))
+    else:
+        x = slot.get("x", 0)
+        y = slot.get("y", 0)
+        w = slot.get("width", slot.get("w", 0))
+        h = slot.get("height", slot.get("h", 0))
+
+    try:
+        x = int(x)
+        y = int(y)
+        w = int(w)
+        h = int(h)
+    except (TypeError, ValueError):
+        return (0, 0, 0, 0)
+
+    x2 = x + max(w, 0)
+    y2 = y + max(h, 0)
+    x1 = x
+    y1 = y
+
+    if size is not None:
+        max_w, max_h = size
+        x1 = max(0, min(x1, max_w))
+        y1 = max(0, min(y1, max_h))
+        x2 = max(0, min(x2, max_w))
+        y2 = max(0, min(y2, max_h))
+
+    return (x1, y1, x2, y2)
 
 
-def _edit_mask_b64(
-    template: TemplateResources,
+def _build_edit_mask_from_slots(
     *,
-    keep_alpha: Image.Image | None = None,
-) -> str | None:
-    edit_alpha = _alpha_from_mask_bg(template)
-    if edit_alpha is None:
+    size: tuple[int, int],
+    template_slots: dict[str, Any],
+    editable_slot_names: set[str],
+    semantics: str,
+    feature_callouts: list[dict[str, Any]] | None = None,
+) -> Image.Image:
+    width, height = size
+    edit_value = 255 if semantics == "white_edit_black_keep" else 0
+    keep_value = 0 if edit_value == 255 else 255
+
+    mask = Image.new("L", (width, height), color=keep_value)
+    draw = ImageDraw.Draw(mask)
+
+    for slot_key, slot in (template_slots or {}).items():
+        if str(slot_key) not in editable_slot_names:
+            continue
+        if not isinstance(slot, dict):
+            continue
+        x1, y1, x2, y2 = _slot_rect(slot, size=size)
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([x1, y1, x2, y2], fill=edit_value)
+
+    # Carve out callout label boxes from editable regions to keep them protected.
+    for callout in (feature_callouts or []):
+        if not isinstance(callout, dict):
+            continue
+        label_box = callout.get("label_box") or {}
+        if not isinstance(label_box, dict):
+            continue
+        x1, y1, x2, y2 = _slot_rect(label_box, size=size)
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([x1, y1, x2, y2], fill=keep_value)
+
+    return mask
+
+
+def _build_edit_mask_for_template(template: TemplateResources) -> Image.Image | None:
+    size_spec = template.spec.get("size", {})
+    width = int(size_spec.get("width") or (template.template.width if template.template else 0))
+    height = int(size_spec.get("height") or (template.template.height if template.template else 0))
+    if width <= 0 or height <= 0:
         return None
-    if keep_alpha is not None:
-        # keep_alpha=255 should be protected; subtract from editable region.
-        edit_alpha = ImageChops.subtract(edit_alpha, keep_alpha)
-    return _mask_b64_from_alpha(edit_alpha)
+
+    semantics = (template.spec.get("mask_semantics") or "white_edit_black_keep").strip()
+    editable_slots = {"scenario", "gallery_strip"}
+
+    return _build_edit_mask_from_slots(
+        size=(width, height),
+        template_slots=template.slots or {},
+        editable_slot_names=editable_slots,
+        semantics=semantics,
+        feature_callouts=template.spec.get("feature_callouts") or [],
+    )
 
 
-def _locked_alpha(
-    template: TemplateResources,
+def _maybe_dump_mask_artifacts(
     *,
-    keep_alpha: Image.Image | None = None,
-) -> Image.Image | None:
-    edit_alpha = _alpha_from_mask_bg(template)
-    if edit_alpha is None:
-        return None
-    locked = ImageChops.invert(edit_alpha)
-    if keep_alpha is not None:
-        locked = ImageChops.lighter(locked, keep_alpha)
-    return locked
+    template: TemplateResources,
+    locked_frame: Image.Image | None,
+    edit_mask: Image.Image | None,
+    final_image: Image.Image | None,
+    trace_id: str | None,
+    label: str = "final_after_overlay",
+) -> None:
+    if not os.getenv("DEBUG_KITPOSTER_MASK"):
+        return
 
+    trace = trace_id or uuid.uuid4().hex[:8]
+    base_dir = Path("/tmp/kitposter_debug") / trace
+    try:
+        base_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        logger.exception("[poster] failed to create debug dir", extra={"trace": trace})
+        return
 
-def _slot_rect(slot: dict[str, Any]) -> tuple[int, int, int, int]:
-    x = int(slot.get("x", 0))
-    y = int(slot.get("y", 0))
-    w = int(slot.get("width", 0))
-    h = int(slot.get("height", 0))
-    return (x, y, x + w, y + h)
+    try:
+        template.template.save(base_dir / "base_template.png")
+        if locked_frame is not None:
+            locked_frame.save(base_dir / "locked_frame.png")
+        if edit_mask is not None:
+            edit_mask.save(base_dir / "edit_mask.png")
+        if final_image is not None:
+            final_image.save(base_dir / f"{label}.png")
+        logger.info("[poster] debug mask artifacts saved", extra={"trace": trace, "dir": str(base_dir)})
+    except Exception:
+        logger.exception("[poster] failed to save debug mask artifacts", extra={"trace": trace})
 
 
 def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
@@ -554,53 +643,10 @@ def _build_keep_mask_alpha(template: TemplateResources) -> Image.Image | None:
     Build an L-mode mask (0..255) where keep regions are 255.
     These regions must be preserved from locked_frame onto the final output.
     """
-    spec = template.spec or {}
-    callouts = spec.get("feature_callouts") or []
-    if not template.keep_slots and not callouts:
+    edit_mask = _build_edit_mask_for_template(template)
+    if edit_mask is None:
         return None
-
-    size_spec = spec.get("size", {})
-    width = int(size_spec.get("width") or (template.template.width if template.template else 0))
-    height = int(size_spec.get("height") or (template.template.height if template.template else 0))
-    if width <= 0 or height <= 0:
-        return None
-
-    m = Image.new("L", (width, height), 0)
-    draw = ImageDraw.Draw(m)
-    keep_slot_rects = 0
-    callout_rects = 0
-
-    # 1) keep_slots -> slots rects
-    for slot_id in template.keep_slots:
-        slot = (template.slots or {}).get(slot_id)
-        if not slot:
-            continue
-        x1, y1, x2, y2 = _slot_rect(slot)
-        if x2 > x1 and y2 > y1:
-            draw.rectangle([x1, y1, x2, y2], fill=255)
-            keep_slot_rects += 1
-
-    # 2) feature_callouts label_box rects (protect deterministic callout text boxes)
-    for callout in callouts:
-        label = (callout or {}).get("label_box") or {}
-        x = int(label.get("x", 0))
-        y = int(label.get("y", 0))
-        w = int(label.get("width", 0))
-        h = int(label.get("height", 0))
-        if w > 0 and h > 0:
-            draw.rectangle([x, y, x + w, y + h], fill=255)
-            callout_rects += 1
-
-    ratio = _alpha_nonzero_ratio(m)
-    logger.info(
-        "[poster] keep mask built keep_slots=%s callouts=%s ratio=%.6f",
-        keep_slot_rects,
-        callout_rects,
-        ratio,
-    )
-    if ratio <= 0:
-        return None
-    return m
+    return ImageOps.invert(edit_mask.convert("L"))
 
 
 def _apply_locked_frame(
@@ -617,7 +663,7 @@ def _apply_locked_frame(
         out_img = out_img.convert("RGBA")
 
     keep_alpha = _build_keep_mask_alpha(template)
-    locked_alpha = _locked_alpha(template, keep_alpha=keep_alpha)
+    locked_alpha = keep_alpha
 
     if locked_alpha is None:
         return Image.alpha_composite(out_img, locked_frame)
@@ -871,7 +917,7 @@ def _generate_poster_with_vertex(
                     if base_image_b64
                     else _image_to_png_bytes(locked_frame)
                 )
-                mask_arg = mask_b64 or _default_mask_b64(template)
+                mask_arg = force_mask_b64 or _default_mask_b64(template)
             payload = client.edit_bytes(
                 base_image_bytes=base_bytes,
                 prompt=prompt,
@@ -932,6 +978,14 @@ def _generate_poster_with_vertex(
         raise RuntimeError(f"Vertex Imagen3 returned invalid image: {exc}") from exc
 
     generated = _apply_locked_frame(generated, locked_frame, template)
+    _maybe_dump_mask_artifacts(
+        template=template,
+        locked_frame=locked_frame,
+        edit_mask=_build_edit_mask_for_template(template),
+        final_image=generated,
+        trace_id=trace_id or request_trace,
+        label="final_after_overlay",
+    )
 
     safe_name = f"{template.id}_vertex.png"
     telemetry["bytes"] = len(image_bytes)
@@ -1570,23 +1624,20 @@ def generate_poster_asset(
             },
         )
     locked_frame = _render_template_frame(poster, template, fill_background=False)
+    edit_mask = _build_edit_mask_for_template(template)
     keep_alpha = _build_keep_mask_alpha(template)
-    edit_alpha = _alpha_from_mask_bg(template)
-    if edit_alpha is not None and keep_alpha is not None:
-        edit_alpha = ImageChops.subtract(edit_alpha, keep_alpha)
-    locked_alpha = _locked_alpha(template, keep_alpha=keep_alpha)
-    if edit_alpha is not None or locked_alpha is not None:
+    if edit_mask is not None or keep_alpha is not None:
         logger.info(
             "[poster] mask audit",
             extra={
                 "trace": trace_id,
                 "scenario_key": getattr(poster, "scenario_key", None),
                 "scenario_asset": getattr(poster, "scenario_asset", None),
-                "edit_mask_nonzero_ratio": _alpha_nonzero_ratio(edit_alpha)
-                if edit_alpha is not None
+                "edit_mask_nonzero_ratio": _alpha_nonzero_ratio(edit_mask)
+                if edit_mask is not None
                 else None,
-                "locked_alpha_nonzero_ratio": _alpha_nonzero_ratio(locked_alpha)
-                if locked_alpha is not None
+                "keep_alpha_nonzero_ratio": _alpha_nonzero_ratio(keep_alpha)
+                if keep_alpha is not None
                 else None,
             },
         )
@@ -1751,8 +1802,7 @@ def generate_poster_asset(
                 )
 
     if is_kitposter1:
-        keep_alpha = _build_keep_mask_alpha(template)
-        kit_mask_b64 = _edit_mask_b64(template, keep_alpha=keep_alpha)
+        kit_mask_b64 = _default_mask_b64(template)
         if kit_variant == "b":
             prompt = (
                 f"{prompt}\n\n"
@@ -1838,6 +1888,14 @@ def generate_poster_asset(
             degraded = True
             degraded_reason = degraded_reason or "locked_frame_fallback"
         mock_frame = _render_template_frame(poster, template, fill_background=True)
+        _maybe_dump_mask_artifacts(
+            template=template,
+            locked_frame=locked_frame,
+            edit_mask=_build_edit_mask_for_template(template),
+            final_image=mock_frame,
+            trace_id=trace_id,
+            label="final_after_overlay",
+        )
         primary = _poster_image_from_pillow(mock_frame, f"{template.id}_kitposter1.png")
         provider_label = "KitPoster1Fallback"
 
@@ -1908,6 +1966,14 @@ def generate_poster_asset(
                 extra={"trace": trace_id},
             )
             mock_frame = _render_template_frame(poster, template, fill_background=True)
+            _maybe_dump_mask_artifacts(
+                template=template,
+                locked_frame=locked_frame,
+                edit_mask=_build_edit_mask_for_template(template),
+                final_image=mock_frame,
+                trace_id=trace_id,
+                label="final_after_overlay",
+            )
             primary = _poster_image_from_pillow(mock_frame, f"{template.id}_mock.png")
             provider_label = "LocalTemplateRenderer"
 
