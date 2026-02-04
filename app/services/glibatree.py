@@ -483,6 +483,7 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
     if edit_mask is None:
         return None
     return _mask_b64_from_alpha(edit_mask)
+
 def _mask_b64_from_alpha(alpha: Image.Image) -> str:
     buffer = BytesIO()
     alpha.convert("L").save(buffer, format="PNG")
@@ -1622,25 +1623,6 @@ def generate_poster_asset(
                 "slots": len(layout_spec.slots) if hasattr(layout_spec, "slots") else None,
             },
         )
-    locked_frame = _render_template_frame(poster, template, fill_background=False)
-    edit_mask = _build_edit_mask_for_template(template)
-    keep_alpha = _build_keep_mask_alpha(template)
-    if edit_mask is not None or keep_alpha is not None:
-        logger.info(
-            "[poster] mask audit",
-            extra={
-                "trace": trace_id,
-                "scenario_key": getattr(poster, "scenario_key", None),
-                "scenario_asset": getattr(poster, "scenario_asset", None),
-                "edit_mask_nonzero_ratio": _alpha_nonzero_ratio(edit_mask)
-                if edit_mask is not None
-                else None,
-                "keep_alpha_nonzero_ratio": _alpha_nonzero_ratio(keep_alpha)
-                if keep_alpha is not None
-                else None,
-            },
-        )
-
     if is_kitposter1:
         logger.info(
             "[kitposter1] start mode=%s variant=%s",
@@ -1799,6 +1781,56 @@ def generate_poster_asset(
                     "[vertex] gallery slot generation failed; continuing",
                     extra={"trace": trace_id, "gallery_index": idx},
                 )
+
+    if scenario_slot_asset:
+        poster.scenario_asset = scenario_slot_asset.url
+        poster.scenario_key = scenario_slot_asset.key
+    if product_slot_asset:
+        poster.product_asset = product_slot_asset.url
+        poster.product_key = product_slot_asset.key
+    if gallery_slot_assets:
+        existing_gallery = list(getattr(poster, "gallery_items", []) or [])
+        updated_gallery: list[PosterGalleryItem] = []
+        for idx, slot_asset in enumerate(gallery_slot_assets):
+            if not slot_asset:
+                continue
+            caption = None
+            if idx < len(existing_gallery):
+                caption = getattr(existing_gallery[idx], "caption", None)
+            updated_gallery.append(
+                PosterGalleryItem(
+                    caption=caption,
+                    asset=slot_asset.url,
+                    key=slot_asset.key,
+                    mode="prompt",
+                    prompt=None,
+                )
+            )
+        if updated_gallery:
+            poster.gallery_items = updated_gallery
+
+    if scenario_slot_asset or getattr(poster, "scenario_asset", None):
+        if "scenario" not in template.keep_slots:
+            template.keep_slots.append("scenario")
+
+    locked_frame = _render_template_frame(poster, template, fill_background=False)
+    edit_mask = _build_edit_mask_for_template(template)
+    keep_alpha = _build_keep_mask_alpha(template)
+    if edit_mask is not None or keep_alpha is not None:
+        logger.info(
+            "[poster] mask audit",
+            extra={
+                "trace": trace_id,
+                "scenario_key": getattr(poster, "scenario_key", None),
+                "scenario_asset": getattr(poster, "scenario_asset", None),
+                "edit_mask_nonzero_ratio": _alpha_nonzero_ratio(edit_mask)
+                if edit_mask is not None
+                else None,
+                "keep_alpha_nonzero_ratio": _alpha_nonzero_ratio(keep_alpha)
+                if keep_alpha is not None
+                else None,
+            },
+        )
 
     if is_kitposter1:
         kit_mask_b64 = _default_mask_b64(template)
