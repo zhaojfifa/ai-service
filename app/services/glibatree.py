@@ -8,7 +8,7 @@ import os
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from functools import lru_cache
 from io import BytesIO
@@ -485,6 +485,10 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
 
     alpha = mask.split()[3]
     inverted = ImageOps.invert(alpha)
+    keep_alpha = _build_keep_mask_alpha(template)
+    if keep_alpha is not None:
+        keep_inverted = ImageOps.invert(keep_alpha)
+        inverted = ImageChops.multiply(inverted, keep_inverted)
     buffer = BytesIO()
     inverted.convert("L").save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
@@ -1494,6 +1498,7 @@ def generate_poster_asset(
     )
 
     template = _load_template_resources(poster.template_id)
+    template = replace(template, keep_slots=list(template.keep_slots or []))
     layout_spec = None
     try:
         layout_spec = load_layout(poster.template_id or DEFAULT_TEMPLATE_ID)
@@ -1507,8 +1512,6 @@ def generate_poster_asset(
                 "slots": len(layout_spec.slots) if hasattr(layout_spec, "slots") else None,
             },
         )
-    locked_frame = _render_template_frame(poster, template, fill_background=False)
-
     if is_kitposter1:
         logger.info(
             "[kitposter1] start mode=%s variant=%s",
@@ -1667,6 +1670,39 @@ def generate_poster_asset(
                     "[vertex] gallery slot generation failed; continuing",
                     extra={"trace": trace_id, "gallery_index": idx},
                 )
+
+    if scenario_slot_asset:
+        poster.scenario_asset = scenario_slot_asset.url
+        poster.scenario_key = scenario_slot_asset.key
+    if product_slot_asset:
+        poster.product_asset = product_slot_asset.url
+        poster.product_key = product_slot_asset.key
+    if gallery_slot_assets:
+        existing_gallery = list(getattr(poster, "gallery_items", []) or [])
+        updated_gallery: list[PosterGalleryItem] = []
+        for idx, slot_asset in enumerate(gallery_slot_assets):
+            if not slot_asset:
+                continue
+            caption = None
+            if idx < len(existing_gallery):
+                caption = getattr(existing_gallery[idx], "caption", None)
+            updated_gallery.append(
+                PosterGalleryItem(
+                    caption=caption,
+                    asset=slot_asset.url,
+                    key=slot_asset.key,
+                    mode="prompt",
+                    prompt=None,
+                )
+            )
+        if updated_gallery:
+            poster.gallery_items = updated_gallery
+
+    if scenario_slot_asset or getattr(poster, "scenario_asset", None):
+        if "scenario" not in template.keep_slots:
+            template.keep_slots.append("scenario")
+
+    locked_frame = _render_template_frame(poster, template, fill_background=False)
 
     if is_kitposter1:
         raw_mask_b64 = _mask_b64_from_template(template)
