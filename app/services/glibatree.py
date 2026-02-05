@@ -1299,15 +1299,6 @@ def _render_template_frame(
         logo_image = _load_image_asset(logo_asset, logo_key)
         if logo_image:
             _paste_image(canvas, logo_image, logo_box, mode="contain")
-        else:
-            draw.rectangle(logo_box, outline=GUIDE_GREY, width=2)
-            _draw_wrapped_text(
-                draw,
-                poster.brand_name,
-                (left + 8, top + 4, width_box - 16, height_box - 8),
-                font_body,
-                INK_BLACK,
-            )
 
     # Brand and agent text
     brand_slot = slots.get("brand_name")
@@ -1808,6 +1799,34 @@ def generate_poster_asset(
             )
         if updated_gallery:
             poster.gallery_items = updated_gallery
+
+    # Ensure gallery strip always has 4 items (fallback to product, then scenario).
+    fallback_asset = getattr(poster, "product_asset", None) or getattr(poster, "scenario_asset", None)
+    fallback_key = getattr(poster, "product_key", None) or getattr(poster, "scenario_key", None)
+    gallery_items = list(getattr(poster, "gallery_items", []) or [])
+    while len(gallery_items) < 4:
+        if fallback_asset:
+            gallery_items.append(
+                PosterGalleryItem(
+                    caption=None,
+                    asset=fallback_asset,
+                    key=fallback_key,
+                    mode="logo_fallback",
+                    prompt=None,
+                )
+            )
+        else:
+            gallery_items.append(
+                PosterGalleryItem(
+                    caption=None,
+                    asset=None,
+                    key=None,
+                    mode="upload",
+                    prompt=None,
+                )
+            )
+    if gallery_items:
+        poster.gallery_items = gallery_items[:4]
 
     if scenario_slot_asset or getattr(poster, "scenario_asset", None):
         if "scenario" not in template.keep_slots:
