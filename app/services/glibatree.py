@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Optional, Tuple
 
 import requests
-from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from google.api_core.exceptions import ResourceExhausted
 
 from fastapi import HTTPException, status
@@ -430,6 +430,49 @@ def _apply_gallery_logo_fallback(
     return _copy_model(poster, gallery_items=filled)
 
 
+def _prepare_writein_assets(poster: PosterInput) -> PosterInput:
+    """Ensure deterministic assets/text are present before rendering locked_frame."""
+    updates: dict[str, Any] = {}
+
+    for field in ("brand_name", "agent_name", "title", "subtitle"):
+        value = getattr(poster, field, None)
+        if value is None:
+            updates[field] = ""
+
+    if not getattr(poster, "brand_logo", None):
+        logo_asset = getattr(poster, "logo", None)
+        if logo_asset:
+            updates["brand_logo"] = logo_asset
+    if not getattr(poster, "brand_logo_key", None):
+        logo_key = getattr(poster, "logo_key", None)
+        if logo_key:
+            updates["brand_logo_key"] = logo_key
+
+    scenario_candidate = getattr(poster, "scenario_asset", None) or getattr(poster, "scenario_image", None)
+    if scenario_candidate and not getattr(poster, "scenario_key", None) and not getattr(poster, "scenario_asset", None):
+        try:
+            url_value, key_value = coerce_asset_ref_to_url(scenario_candidate)
+        except ValueError:
+            url_value, key_value = None, None
+        if url_value:
+            updates["scenario_asset"] = url_value
+        if key_value:
+            updates["scenario_key"] = key_value
+
+    product_candidate = getattr(poster, "product_asset", None) or getattr(poster, "product_image", None)
+    if product_candidate and not getattr(poster, "product_key", None) and not getattr(poster, "product_asset", None):
+        try:
+            url_value, key_value = coerce_asset_ref_to_url(product_candidate)
+        except ValueError:
+            url_value, key_value = None, None
+        if url_value:
+            updates["product_asset"] = url_value
+        if key_value:
+            updates["product_key"] = key_value
+
+    return _copy_model(poster, **updates) if updates else poster
+
+
 def _copy_model(instance, **update):
     """Compatibility helper for cloning Pydantic v1/v2 models with updates."""
     if hasattr(instance, "model_copy"):
@@ -482,6 +525,9 @@ def _default_mask_b64(template: TemplateResources) -> str | None:
     edit_mask = _build_edit_mask_for_template(template)
     if edit_mask is None:
         return None
+    keep_alpha = _build_keep_mask_alpha(template)
+    if keep_alpha is not None:
+        edit_mask = ImageChops.subtract(edit_mask.convert("L"), keep_alpha.convert("L"))
     return _mask_b64_from_alpha(edit_mask)
 
 def _mask_b64_from_alpha(alpha: Image.Image) -> str:
@@ -1601,6 +1647,7 @@ def generate_poster_asset(
 
     template = _load_template_resources(poster.template_id)
     template = replace(template, keep_slots=list(template.keep_slots or []))
+    poster = _prepare_writein_assets(poster)
     layout_spec = None
     try:
         layout_spec = load_layout(poster.template_id or DEFAULT_TEMPLATE_ID)
