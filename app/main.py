@@ -1244,4 +1244,105 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+# ---------------------------------------------------------------------------
+# Poster 2.0 — /api/v2/generate-poster
+# ---------------------------------------------------------------------------
+
+from app.schemas.poster2 import GeneratePosterV2Request, GeneratePosterV2Response
+from app.services.poster2.contracts import (
+    AssetRef as P2AssetRef,
+    PosterSpec as P2PosterSpec,
+    StyleSpec as P2StyleSpec,
+)
+from app.services.poster2.pipeline import PosterPipeline as P2Pipeline
+
+_poster2_pipeline: P2Pipeline | None = None
+
+
+def _get_poster2_pipeline() -> P2Pipeline:
+    global _poster2_pipeline
+    if _poster2_pipeline is None:
+        _poster2_pipeline = P2Pipeline()
+    return _poster2_pipeline
+
+
+def _to_asset_ref(ref) -> P2AssetRef:
+    if ref is None:
+        return None
+    return P2AssetRef(url=ref.url, key=ref.key)
+
+
+@app.post(
+    "/api/v2/generate-poster",
+    response_model=GeneratePosterV2Response,
+    summary="Poster 2.0 — structure-stable generation",
+    tags=["poster-v2"],
+)
+async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePosterV2Response:
+    """
+    Poster 2.0 pipeline:
+      1. Adobe Firefly generates background only (no text / no structure).
+      2. LayoutRenderer deterministically renders all foreground elements via Pillow.
+      3. Composer alpha-composites the two layers.
+
+    Text, logo, product, and gallery are NEVER passed through a generative model.
+    """
+    try:
+        spec = P2PosterSpec(
+            brand_name=payload.brand_name,
+            agent_name=payload.agent_name,
+            title=payload.title,
+            subtitle=payload.subtitle or "",
+            features=tuple(payload.features),
+            product_image=P2AssetRef(
+                url=payload.product_image.url,
+                key=payload.product_image.key,
+            ),
+            logo=_to_asset_ref(payload.logo),
+            scenario_image=_to_asset_ref(payload.scenario_image),
+            gallery_images=tuple(
+                P2AssetRef(url=g.url, key=g.key) for g in payload.gallery_images
+            ),
+            style=P2StyleSpec(
+                prompt=payload.style.prompt,
+                negative_prompt=payload.style.negative_prompt,
+                seed=payload.style.seed,
+                palette=tuple(payload.style.palette) if payload.style.palette else None,
+            ),
+            template_id=payload.template_id,
+            export_format=payload.export_format,
+        )
+
+        pipeline = _get_poster2_pipeline()
+        manifest = await pipeline.run(spec)
+
+        return GeneratePosterV2Response(
+            trace_id=manifest.trace_id,
+            final_url=manifest.final_url,
+            final_hash=manifest.final_hash,
+            foreground_url=manifest.foreground_url,
+            background_url=manifest.background_url,
+            background_seed=manifest.background_seed,
+            background_model=manifest.background_model,
+            template_id=manifest.template_id,
+            template_version=manifest.template_version,
+            engine_version=manifest.engine_version,
+            poster_spec_hash=manifest.poster_spec_hash,
+            timings_ms=manifest.timings_ms,
+            degraded=manifest.degraded,
+            degraded_reason=manifest.degraded_reason,
+        )
+
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("poster2: generation failed")
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "poster2_generation_failed", "message": str(exc)},
+        ) from exc
+
+
 __all__ = ["app"]
