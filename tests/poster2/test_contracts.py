@@ -12,6 +12,7 @@ import pytest
 
 from app.services.poster2.contracts import (
     AssetRef,
+    FeatureCalloutSpec,
     GalleryStripSpec,
     ImageSlotSpec,
     PosterSpec,
@@ -84,7 +85,9 @@ class TestTemplateSpecLoading:
         assert isinstance(spec.logo_slot, ImageSlotSpec)
         assert isinstance(spec.brand_name_slot, TextSlotSpec)
         assert isinstance(spec.gallery_slot, GalleryStripSpec)
-        assert len(spec.features_slot) == 1
+        # Legacy features_slot key → parsed as feature_callouts with anchor_radius=0
+        assert len(spec.feature_callouts) == 1
+        assert spec.feature_callouts[0].anchor_radius == 0
         assert spec.scenario_slot is None  # optional, not in minimal dict
 
     def test_from_json_file(self, template_json_file: Path):
@@ -101,9 +104,12 @@ class TestTemplateSpecLoading:
         spec = TemplateSpec.from_json(real_path)
         assert spec.canvas_w == 1024
         assert spec.canvas_h == 1024
-        assert len(spec.features_slot) == 4
+        assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
         assert spec.gallery_slot.thumb_w == 176
+        # Agent name slot has CTA pill style
+        assert spec.agent_name_slot.bg_color == "#E8002A"
+        assert spec.agent_name_slot.bg_radius == 34
 
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
@@ -123,6 +129,47 @@ class TestTemplateSpecLoading:
     def test_missing_json_raises(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError):
             TemplateSpec.from_json(tmp_path / "nonexistent.json")
+
+    def test_feature_callouts_with_anchors(self):
+        """feature_callouts key with anchor data is parsed into FeatureCalloutSpec."""
+        d = {**MINIMAL_TEMPLATE_DICT}
+        del d["features_slot"]
+        d["feature_callouts"] = [
+            {
+                "anchor_x": 520, "anchor_y": 324,
+                "anchor_radius": 7,
+                "anchor_color": "#E8002A",
+                "leader_color": "#E8002A",
+                "leader_width": 2,
+                "label_box": {
+                    "x": 536, "y": 288, "w": 344, "h": 72,
+                    "font_key": "feature", "font_size": 16, "color": "#1A1A1A",
+                    "align": "left", "max_lines": 2, "line_height": 1.3, "auto_shrink": True,
+                },
+            }
+        ]
+        spec = TemplateSpec._from_dict(d)
+        assert len(spec.feature_callouts) == 1
+        fc = spec.feature_callouts[0]
+        assert isinstance(fc, FeatureCalloutSpec)
+        assert fc.anchor_x == 520
+        assert fc.anchor_y == 324
+        assert fc.anchor_radius == 7
+        assert fc.anchor_color == "#E8002A"
+        assert fc.label_box.x == 536
+        assert fc.label_box.font_key == "feature"
+
+    def test_agent_name_slot_cta_fields(self):
+        """agent_name_slot with bg_color/bg_radius is parsed into TextSlotSpec."""
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["agent_name_slot"] = {
+            **d["agent_name_slot"],
+            "bg_color": "#E8002A",
+            "bg_radius": 34,
+        }
+        spec = TemplateSpec._from_dict(d)
+        assert spec.agent_name_slot.bg_color == "#E8002A"
+        assert spec.agent_name_slot.bg_radius == 34
 
 
 # ── PosterSpec immutability ───────────────────────────────────────────────────

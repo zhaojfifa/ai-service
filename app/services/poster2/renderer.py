@@ -20,6 +20,7 @@ from typing import Optional
 from PIL import Image as PILImage, ImageDraw, ImageFilter, ImageFont
 
 from .contracts import (
+    FeatureCalloutSpec,
     GalleryStripSpec,
     ImageSlotSpec,
     PosterSpec,
@@ -61,28 +62,42 @@ class LayoutRenderer:
         """
         Deterministic render. Transparent canvas → draw all foreground elements
         in layer order → return RGBA PNG.
+
+        Draw order:
+          1. scenario image (optional background fill)
+          2. product image (hero)
+          3. feature callouts (anchor dot + leader + text) — drawn over product
+          4. gallery strip
+          5. logo
+          6. brand text / agent CTA pill
+          7. title / subtitle
         """
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
 
-        # Draw order: scenario → product → gallery → logo → text
+        # ── 1. Scenario image ────────────────────────────────────────────────
         if spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, spec.scenario_slot, assets.scenario)
 
+        # ── 2. Product image ─────────────────────────────────────────────────
         self._draw_product(canvas, spec.product_slot, assets.product)
+
+        # ── 3. Feature callouts (anchors + leaders + labels) ─────────────────
+        self._draw_feature_callouts(canvas, spec.feature_callouts, poster.features)
+
+        # ── 4. Gallery strip ─────────────────────────────────────────────────
         self._draw_gallery(canvas, spec.gallery_slot, assets.gallery)
 
+        # ── 5. Logo ──────────────────────────────────────────────────────────
         if spec.logo_slot and assets.logo:
             self._draw_image(canvas, spec.logo_slot, assets.logo)
 
+        # ── 6. Brand text / agent CTA pill ───────────────────────────────────
         self._draw_text(canvas, spec.brand_name_slot, poster.brand_name)
         self._draw_text(canvas, spec.agent_name_slot, poster.agent_name)
+
+        # ── 7. Title / subtitle ───────────────────────────────────────────────
         self._draw_text(canvas, spec.title_slot, poster.title)
         self._draw_text(canvas, spec.subtitle_slot, poster.subtitle)
-
-        for i, slot in enumerate(spec.features_slot):
-            text = poster.features[i] if i < len(poster.features) else ""
-            if text:
-                self._draw_text(canvas, slot, text)
 
         png_bytes = _to_png(canvas)
         return ForegroundResult(
@@ -90,6 +105,57 @@ class LayoutRenderer:
             png_bytes=png_bytes,
             sha256=hashlib.sha256(png_bytes).hexdigest(),
         )
+
+    # ── Feature callouts ──────────────────────────────────────────────────────
+
+    def _draw_feature_callouts(
+        self,
+        canvas: PILImage.Image,
+        callouts: list[FeatureCalloutSpec],
+        features: tuple[str, ...],
+    ) -> None:
+        """
+        For each feature callout:
+          1. Draw anchor dot on product edge (if anchor_radius > 0)
+          2. Draw leader line from anchor to label_box left edge
+          3. Draw label text inside label_box
+        """
+        draw = ImageDraw.Draw(canvas)
+        for i, callout in enumerate(callouts):
+            text = features[i] if i < len(features) else ""
+            if not text:
+                continue
+            self._draw_feature_callout(draw, canvas, callout, text)
+
+    def _draw_feature_callout(
+        self,
+        draw: ImageDraw.ImageDraw,
+        canvas: PILImage.Image,
+        callout: FeatureCalloutSpec,
+        text: str,
+    ) -> None:
+        lb = callout.label_box
+
+        # ── Anchor dot ────────────────────────────────────────────────────────
+        if callout.anchor_radius > 0:
+            r = callout.anchor_radius
+            ax, ay = callout.anchor_x, callout.anchor_y
+            draw.ellipse(
+                [ax - r, ay - r, ax + r, ay + r],
+                fill=callout.anchor_color,
+            )
+
+            # ── Leader line: anchor → left-center of label_box ────────────────
+            leader_end_x = lb.x
+            leader_end_y = lb.y + lb.h // 2
+            draw.line(
+                [(ax, ay), (leader_end_x, leader_end_y)],
+                fill=callout.leader_color,
+                width=callout.leader_width,
+            )
+
+        # ── Label text (delegates to _draw_text for consistency) ──────────────
+        self._draw_text(canvas, lb, text)
 
     # ── Image slots ───────────────────────────────────────────────────────────
 
@@ -151,6 +217,11 @@ class LayoutRenderer:
             return
 
         draw = ImageDraw.Draw(canvas)
+
+        # ── Optional CTA pill background ──────────────────────────────────────
+        if slot.bg_color:
+            _draw_pill_bg(draw, slot)
+
         font = self._fonts.get(slot.font_key, slot.font_size)
 
         if slot.auto_shrink:
@@ -180,6 +251,16 @@ class LayoutRenderer:
 
 # ── Module-level helpers (no self, pure functions) ────────────────────────────
 
+def _draw_pill_bg(draw: ImageDraw.ImageDraw, slot: TextSlotSpec) -> None:
+    """Draw a filled rounded-rectangle background for CTA pill buttons."""
+    r = min(slot.bg_radius, slot.h // 2)
+    draw.rounded_rectangle(
+        [slot.x, slot.y, slot.x + slot.w, slot.y + slot.h],
+        radius=r,
+        fill=slot.bg_color,
+    )
+
+
 def _fit_image(
     img: PILImage.Image, w: int, h: int, fit: str
 ) -> PILImage.Image:
@@ -207,8 +288,6 @@ def _add_drop_shadow(
     shadow_alpha: int = 100,
 ) -> PILImage.Image:
     result = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
-    shadow = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
-    # Use the alpha channel of the source image as shadow shape
     if img.mode == "RGBA":
         r, g, b, a = img.split()
         shadow_mask = PILImage.new("RGBA", img.size, (0, 0, 0, 0))

@@ -21,6 +21,7 @@ from PIL import Image as PILImage
 
 from app.services.poster2.contracts import (
     AssetRef,
+    FeatureCalloutSpec,
     GalleryStripSpec,
     ImageSlotSpec,
     PosterSpec,
@@ -34,6 +35,7 @@ from app.services.poster2.renderer import (
     _apply_radius,
     _fit_image,
     _wrap_text,
+    _draw_pill_bg,
 )
 
 
@@ -268,3 +270,115 @@ class TestGalleryPositions:
             assert computed == ex_x, (
                 f"Gallery item {i}: expected x={ex_x}, got x={computed}"
             )
+
+
+# ── Feature callout rendering ─────────────────────────────────────────────────
+
+class TestFeatureCallouts:
+    """Verify feature callout dots and leader lines are rendered by Pillow."""
+
+    def _make_callout(
+        self, anchor_x=200, anchor_y=300, anchor_radius=7, text_x=220, text_y=280
+    ) -> FeatureCalloutSpec:
+        label_box = TextSlotSpec(
+            x=text_x, y=text_y, w=200, h=60,
+            font_key="feature", font_size=16, color="#1A1A1A",
+        )
+        return FeatureCalloutSpec(
+            label_box=label_box,
+            anchor_x=anchor_x,
+            anchor_y=anchor_y,
+            anchor_radius=anchor_radius,
+            anchor_color="#E8002A",
+            leader_color="#E8002A",
+            leader_width=2,
+        )
+
+    def test_anchor_dot_pixels_written(self):
+        """Pixels at the anchor dot center should be non-transparent after render."""
+        canvas = PILImage.new("RGBA", (500, 500), (0, 0, 0, 0))
+        renderer = LayoutRenderer()
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(canvas)
+        callout = self._make_callout(anchor_x=200, anchor_y=200, anchor_radius=7)
+        renderer._draw_feature_callout(draw, canvas, callout, "Test feature")
+        # Center of anchor dot must be opaque red
+        pixel = canvas.getpixel((200, 200))
+        assert pixel[3] > 0, "Anchor dot center should be visible"
+        assert pixel[0] > 150, "Anchor dot should be reddish (#E8002A)"
+
+    def test_anchor_radius_zero_skips_dot(self):
+        """anchor_radius=0 → no dot or leader line drawn; text still renders."""
+        canvas = PILImage.new("RGBA", (500, 500), (0, 0, 0, 0))
+        renderer = LayoutRenderer()
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(canvas)
+        label_box = TextSlotSpec(
+            x=50, y=50, w=300, h=60,
+            font_key="feature", font_size=16, color="#1A1A1A",
+        )
+        callout = FeatureCalloutSpec(
+            label_box=label_box,
+            anchor_x=10,
+            anchor_y=10,
+            anchor_radius=0,  # disabled
+        )
+        renderer._draw_feature_callout(draw, canvas, callout, "No dot")
+        # Pixel at expected anchor location should still be transparent
+        pixel = canvas.getpixel((10, 10))
+        assert pixel[3] == 0, "No anchor dot should be drawn when anchor_radius=0"
+
+    def test_callouts_skip_empty_text(self):
+        """Empty feature string → callout is skipped entirely (no crash)."""
+        template = _load_real_template()
+        spec = _minimal_spec(features=())  # no features at all
+        result = LayoutRenderer().render(template, spec, _minimal_assets())
+        assert result.image is not None
+
+    def test_real_template_callout_anchors(self):
+        """Real template: feature callouts have anchor_radius > 0 and correct coords."""
+        template = _load_real_template()
+        assert len(template.feature_callouts) == 4
+        for fc in template.feature_callouts:
+            assert fc.anchor_radius == 7
+            assert fc.anchor_x == 520
+            assert fc.anchor_color == "#E8002A"
+
+
+# ── CTA pill button rendering ─────────────────────────────────────────────────
+
+class TestCtaPillRendering:
+    """Verify the agent CTA pill (rounded-rect background) is drawn correctly."""
+
+    def test_pill_bg_pixels_filled(self):
+        """After drawing pill bg, pixels inside the slot should have correct color."""
+        from PIL import ImageDraw
+        canvas = PILImage.new("RGBA", (400, 200), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(canvas)
+        slot = TextSlotSpec(
+            x=50, y=50, w=200, h=60,
+            font_key="brand_regular", font_size=20, color="#FFFFFF",
+            bg_color="#E8002A", bg_radius=30,
+        )
+        _draw_pill_bg(draw, slot)
+        # Center of pill should be red and opaque
+        cx, cy = 50 + 100, 50 + 30
+        pixel = canvas.getpixel((cx, cy))
+        assert pixel[3] == 255, "Pill center must be fully opaque"
+        assert pixel[0] > 200, "Pill center should be red"
+
+    def test_real_template_agent_slot_has_pill(self):
+        """Real template: agent_name_slot has bg_color and bg_radius set."""
+        template = _load_real_template()
+        slot = template.agent_name_slot
+        assert slot.bg_color == "#E8002A"
+        assert slot.bg_radius == 34
+        assert slot.color == "#FFFFFF"
+
+    def test_render_with_agent_cta(self):
+        """Full render with agent name should not raise and produce valid output."""
+        template = _load_real_template()
+        spec = _minimal_spec(agent_name="智能顾问")
+        result = LayoutRenderer().render(template, spec, _minimal_assets())
+        assert result.image.mode == "RGBA"
+        assert result.image.size == (1024, 1024)

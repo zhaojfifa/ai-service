@@ -77,6 +77,9 @@ class TextSlotSpec:
     max_lines: int = 1
     line_height: float = 1.2
     auto_shrink: bool = True
+    # Optional CTA pill button: draw filled rounded rect behind text
+    bg_color: Optional[str] = None         # e.g. "#E8002A" for red pill button
+    bg_radius: int = 0                     # corner radius; 0 = no background
 
 
 @dataclass
@@ -105,6 +108,27 @@ class GalleryStripSpec:
 
 
 @dataclass
+class FeatureCalloutSpec:
+    """
+    One feature callout entry = anchor dot + leader line + text label.
+
+    anchor_radius == 0  →  skip anchor and leader (plain text-only mode).
+    """
+    # Text content
+    label_box: TextSlotSpec
+
+    # Anchor dot on the product edge
+    anchor_x: int = 0
+    anchor_y: int = 0
+    anchor_radius: int = 7              # px; 0 = no dot/line drawn
+    anchor_color: str = "#E8002A"
+
+    # Leader line from anchor to label_box
+    leader_color: str = "#E8002A"
+    leader_width: int = 2
+
+
+@dataclass
 class TemplateSpec:
     template_id: str
     version: str                           # semver; recorded in RenderManifest
@@ -112,15 +136,19 @@ class TemplateSpec:
     canvas_h: int
     safe_margin: int
 
-    # Slots
+    # Fixed structural slots
     logo_slot: ImageSlotSpec
     brand_name_slot: TextSlotSpec
-    agent_name_slot: TextSlotSpec
+    agent_name_slot: TextSlotSpec          # supports bg_color/bg_radius for CTA pill
     title_slot: TextSlotSpec
     subtitle_slot: TextSlotSpec
-    features_slot: list[TextSlotSpec]
     product_slot: ImageSlotSpec
     gallery_slot: GalleryStripSpec
+
+    # Feature callouts: anchor dot + leader line + label text
+    feature_callouts: list[FeatureCalloutSpec]
+
+    # Optional slots
     scenario_slot: Optional[ImageSlotSpec] = None
 
     # Firefly background hint (never contains text/logo/UI words)
@@ -137,13 +165,39 @@ class TemplateSpec:
     @classmethod
     def _from_dict(cls, d: dict) -> "TemplateSpec":
         def text(raw: dict) -> TextSlotSpec:
-            return TextSlotSpec(**raw)
+            # Filter to only known fields to allow forward-compat extra keys
+            known = {f.name for f in TextSlotSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return TextSlotSpec(**{k: v for k, v in raw.items() if k in known})
 
         def img(raw: dict) -> ImageSlotSpec:
-            return ImageSlotSpec(**raw)
+            known = {f.name for f in ImageSlotSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return ImageSlotSpec(**{k: v for k, v in raw.items() if k in known})
 
         def gallery(raw: dict) -> GalleryStripSpec:
-            return GalleryStripSpec(**raw)
+            known = {f.name for f in GalleryStripSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return GalleryStripSpec(**{k: v for k, v in raw.items() if k in known})
+
+        def callout(raw: dict) -> FeatureCalloutSpec:
+            return FeatureCalloutSpec(
+                label_box=text(raw["label_box"]),
+                anchor_x=raw.get("anchor_x", 0),
+                anchor_y=raw.get("anchor_y", 0),
+                anchor_radius=raw.get("anchor_radius", 7),
+                anchor_color=raw.get("anchor_color", "#E8002A"),
+                leader_color=raw.get("leader_color", "#E8002A"),
+                leader_width=raw.get("leader_width", 2),
+            )
+
+        # ── feature_callouts (preferred) vs legacy features_slot ──────────
+        feature_callouts_raw = d.get("feature_callouts")
+        if feature_callouts_raw:
+            feature_callouts = [callout(c) for c in feature_callouts_raw]
+        else:
+            # Legacy: plain text slots → callouts with no anchor/leader
+            feature_callouts = [
+                FeatureCalloutSpec(label_box=text(f), anchor_radius=0)
+                for f in d.get("features_slot", [])
+            ]
 
         scenario_raw = d.get("scenario_slot")
         return cls(
@@ -157,7 +211,7 @@ class TemplateSpec:
             agent_name_slot=text(d["agent_name_slot"]),
             title_slot=text(d["title_slot"]),
             subtitle_slot=text(d["subtitle_slot"]),
-            features_slot=[text(f) for f in d["features_slot"]],
+            feature_callouts=feature_callouts,
             product_slot=img(d["product_slot"]),
             gallery_slot=gallery(d["gallery_slot"]),
             scenario_slot=img(scenario_raw) if scenario_raw else None,
