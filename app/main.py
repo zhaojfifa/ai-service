@@ -702,6 +702,27 @@ def _stored_to_asset(image: StoredImage | None) -> PosterImageAsset | None:
     )
 
 
+def _debug_artifact_payload(records: Any) -> list[dict[str, Any]]:
+    payload: list[dict[str, Any]] = []
+    for record in records or []:
+        if hasattr(record, "__dict__"):
+            item = dict(record.__dict__)
+        elif isinstance(record, dict):
+            item = dict(record)
+        else:
+            continue
+        payload.append(
+            {
+                "name": item.get("name"),
+                "key": item.get("key"),
+                "url": item.get("url"),
+                "local_path": item.get("local_path"),
+                "content_type": item.get("content_type"),
+            }
+        )
+    return payload
+
+
 def _preview_json(value: Any, limit: int = 512) -> str:
     try:
         encoded = jsonable_encoder(value)
@@ -1217,6 +1238,11 @@ async def generate_poster(request: Request) -> JSONResponse:
                 "vertex_traces": result.trace_ids,
                 "fallback_used": result.fallback_used,
                 "provider": getattr(result, "provider", None),
+                "render_path_used": getattr(result, "render_path_used", None),
+                "edit_attempted": getattr(result, "edit_attempted", None),
+                "edit_succeeded": getattr(result, "edit_succeeded", None),
+                "fallback_reason": getattr(result, "fallback_reason", None),
+                "debug_artifact_count": len(getattr(result, "debug_artifacts", []) or []),
             },
         )
         warnings = sorted(set((result.warnings or []) + extra_warnings))
@@ -1243,6 +1269,11 @@ async def generate_poster(request: Request) -> JSONResponse:
             vertex_trace_ids=result.trace_ids or None,
             fallback_used=result.fallback_used if result.fallback_used else None,
             degraded_reason=result.degraded_reason,
+            render_path_used=result.render_path_used,
+            edit_attempted=result.edit_attempted,
+            edit_succeeded=result.edit_succeeded,
+            fallback_reason=result.fallback_reason,
+            debug_artifacts=_debug_artifact_payload(result.debug_artifacts),
             scenario_image=_stored_to_asset(result.scenario_image),
             product_image=_stored_to_asset(result.product_image),
             gallery_images=[_stored_to_asset(item) for item in result.gallery_images or [] if _stored_to_asset(item)],

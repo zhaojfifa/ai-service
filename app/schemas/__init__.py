@@ -652,6 +652,14 @@ class PosterImageAsset(_CompatModel):
     content_type: Optional[str] = None
 
 
+class DebugArtifact(_CompatModel):
+    name: constr(strip_whitespace=True, min_length=1)
+    key: Optional[str] = None
+    url: Optional[str] = None
+    local_path: Optional[str] = None
+    content_type: Optional[str] = None
+
+
 class GeneratePosterResponse(_CompatModel):
     """Aggregated response after preparing all marketing assets."""
 
@@ -760,6 +768,26 @@ class GeneratePosterResponse(_CompatModel):
     degraded_reason: Optional[str] = Field(
         None,
         description="Reason for degraded output, e.g. quota_exhausted/edit_model_not_enabled.",
+    )
+    render_path_used: Optional[Literal["experimental_edit", "safe_locked_fallback"]] = Field(
+        None,
+        description="Effective render track used for the current template family.",
+    )
+    edit_attempted: Optional[bool] = Field(
+        None,
+        description="Whether the backend attempted the experimental Vertex edit path.",
+    )
+    edit_succeeded: Optional[bool] = Field(
+        None,
+        description="Whether the experimental Vertex edit path completed successfully.",
+    )
+    fallback_reason: Optional[str] = Field(
+        None,
+        description="Exact fallback code when the safe locked path was used.",
+    )
+    debug_artifacts: list[DebugArtifact] = Field(
+        default_factory=list,
+        description="Per-run debug artifact references written locally and/or to object storage.",
     )
 
     @field_validator("prompt_bundle", mode="before")

@@ -516,6 +516,15 @@ class TemplateResources:
 
 
 @dataclass
+class DebugArtifactRecord:
+    name: str
+    local_path: str | None = None
+    key: str | None = None
+    url: str | None = None
+    content_type: str | None = None
+
+
+@dataclass
 class PosterGenerationResult:
     poster: PosterImage
     prompt_details: dict[str, str]
@@ -532,6 +541,11 @@ class PosterGenerationResult:
     scenario_image: StoredImage | None = None
     product_image: StoredImage | None = None
     gallery_images: list[StoredImage] = field(default_factory=list)
+    render_path_used: str | None = None
+    edit_attempted: bool = False
+    edit_succeeded: bool = False
+    fallback_reason: str | None = None
+    debug_artifacts: list[DebugArtifactRecord] = field(default_factory=list)
 
 
 def _template_dimensions(
@@ -556,6 +570,128 @@ def _mask_b64_from_alpha(alpha: Image.Image) -> str:
     buffer = BytesIO()
     alpha.convert("L").save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def _debug_local_root() -> Path:
+    root = (os.getenv("POSTER_DEBUG_LOCAL_ROOT") or "/tmp/ai-service-debug").strip()
+    return Path(root)
+
+
+def _write_debug_artifact(
+    *,
+    trace_id: str,
+    name: str,
+    data: bytes,
+    content_type: str,
+) -> DebugArtifactRecord:
+    local_root = _debug_local_root() / (trace_id or "unknown-trace")
+    local_root.mkdir(parents=True, exist_ok=True)
+    local_path = local_root / name
+    local_path.write_bytes(data)
+
+    key_value: str | None = None
+    url_value: str | None = None
+    try:
+        storage_ref, url_value = upload_bytes_to_r2_return_ref(
+            data,
+            key=make_key(f"debug/{trace_id or 'runs'}", name),
+            ext=Path(name).suffix or ".bin",
+            content_type=content_type,
+        )
+        if storage_ref and "://" in storage_ref:
+            _, path = storage_ref.split("://", 1)
+            key_value = path.split("/", 1)[1] if "/" in path else None
+    except Exception as exc:  # pragma: no cover - optional debug upload
+        logger.info(
+            "[poster.debug] debug artifact kept local only",
+            extra={"trace": trace_id, "name": name, "error": str(exc)},
+        )
+
+    return DebugArtifactRecord(
+        name=name,
+        local_path=str(local_path),
+        key=key_value,
+        url=url_value,
+        content_type=content_type,
+    )
+
+
+def _write_debug_bundle(
+    *,
+    trace_id: str | None,
+    locked_frame: Image.Image | None,
+    edit_mask: Image.Image | None,
+    raw_vertex_edit: Image.Image | None,
+    final_composited: Image.Image | None,
+    prompt_bundle: dict[str, Any] | None,
+) -> list[DebugArtifactRecord]:
+    trace = trace_id or uuid.uuid4().hex[:8]
+    artifacts: list[DebugArtifactRecord] = []
+    payloads: list[tuple[str, bytes, str]] = []
+
+    if locked_frame is not None:
+        payloads.append(("locked_frame.png", _image_to_png_bytes(locked_frame), "image/png"))
+    if edit_mask is not None:
+        payloads.append(("edit_mask.png", _image_to_png_bytes(edit_mask.convert("L")), "image/png"))
+    if raw_vertex_edit is not None:
+        payloads.append(("vertex_raw_edit.png", _image_to_png_bytes(raw_vertex_edit), "image/png"))
+    if final_composited is not None:
+        payloads.append(("final_composited.png", _image_to_png_bytes(final_composited), "image/png"))
+
+    prompt_json = json.dumps(prompt_bundle or {}, ensure_ascii=False, indent=2).encode("utf-8")
+    payloads.append(("prompt_bundle.json", prompt_json, "application/json"))
+
+    for name, data, content_type in payloads:
+        try:
+            artifacts.append(
+                _write_debug_artifact(
+                    trace_id=trace,
+                    name=name,
+                    data=data,
+                    content_type=content_type,
+                )
+            )
+        except Exception:  # pragma: no cover - debug write should not break generation
+            logger.exception("[poster.debug] failed to persist artifact", extra={"trace": trace, "name": name})
+    return artifacts
+
+
+def _scene_gate_signals(*candidates: str | None) -> list[str]:
+    text = " ".join((value or "").strip().lower() for value in candidates if value).strip()
+    if not text:
+        return []
+
+    checks: list[tuple[str, tuple[str, ...]]] = [
+        ("people", ("people", "person", "man", "woman", "child", "human", "portrait", "人物", "人像", "人群", "模特")),
+        ("text", ("text", "letter", "typography", "signage", "label", "caption", "文字", "字幕", "标语", "标签")),
+        ("screen", ("screen", "ui", "display", "monitor", "tv", "laptop", "phone", "tablet", "界面", "屏幕", "显示器")),
+        ("noisy_indoor", ("busy", "clutter", "messy", "crowded", "appliance panel", "packaging", "海报墙", "杂乱", "拥挤", "陈列", "展厅")),
+    ]
+    signals: list[str] = []
+    for code, keywords in checks:
+        if any(keyword in text for keyword in keywords):
+            signals.append(code)
+    return signals
+
+
+def _scene_gate_for_template(
+    poster: PosterInput,
+    *,
+    template_id: str,
+    render_mode: str,
+) -> tuple[bool, str | None, list[str]]:
+    if template_id not in {"template_dual", "template_focus"}:
+        return False, None, []
+    if not _is_kitposter1(render_mode):
+        return False, None, []
+
+    signals = _scene_gate_signals(
+        getattr(poster, "scenario_prompt", None),
+        getattr(poster, "scenario_image", None),
+    )
+    if not signals:
+        return False, None, []
+    return True, f"scene_input_gate_blocked:{'+'.join(signals)}", signals
 
 
 def _alpha_nonzero_ratio(alpha: Image.Image) -> float:
@@ -1086,7 +1222,10 @@ def _generate_poster_with_vertex(
         telemetry.update({"status": "invalid_image", "error": str(exc)})
         raise RuntimeError(f"Vertex Imagen3 returned invalid image: {exc}") from exc
 
+    raw_generated = generated.copy()
     generated = _apply_locked_frame(generated, locked_frame, template)
+    telemetry["raw_vertex_edit_image"] = raw_generated
+    telemetry["final_composited_image"] = generated.copy()
     _maybe_dump_mask_artifacts(
         template=template,
         locked_frame=locked_frame,
@@ -1767,6 +1906,12 @@ def generate_poster_asset(
     product_slot_asset: StoredImage | None = None
     gallery_slot_assets: list[StoredImage] = []
     kit_mask_b64: str | None = None
+    edit_attempted = False
+    edit_succeeded = False
+    render_path_used = "safe_locked_fallback"
+    fallback_reason: str | None = "vertex_unavailable" if vertex_imagen_client is None else None
+    raw_vertex_edit_image: Image.Image | None = None
+    final_composited_image: Image.Image | None = None
 
     if vertex_imagen_client is not None and not is_kitposter1:
         scenario_prompt, scenario_negative, scenario_aspect = _slot_prompt(
@@ -2013,6 +2158,27 @@ def generate_poster_asset(
                 "Do not add text or logos. Do not cover existing pixels."
             )
 
+    scene_gate_blocked, scene_gate_reason, scene_gate_signals = _scene_gate_for_template(
+        poster,
+        template_id=template.id,
+        render_mode=render_mode,
+    )
+    if scene_gate_blocked:
+        fallback_used = True
+        degraded = True
+        fallback_reason = scene_gate_reason
+        degraded_reason = degraded_reason or scene_gate_reason
+        warnings.append("scene_input_gate_fallback")
+        logger.info(
+            "[poster] scene gate blocked experimental edit",
+            extra={
+                "trace": trace_id,
+                "template": template.id,
+                "signals": scene_gate_signals,
+                "reason": scene_gate_reason,
+            },
+        )
+
     logger.info(
         "[vertex] generate_poster start",
         extra={
@@ -2032,8 +2198,13 @@ def generate_poster_asset(
         },
     )
 
-    if vertex_imagen_client is not None and not (is_kitposter1 and primary is not None):
+    if (
+        vertex_imagen_client is not None
+        and not (is_kitposter1 and primary is not None)
+        and not scene_gate_blocked
+    ):
         try:
+            edit_attempted = bool(is_kitposter1)
             primary, telemetry = _generate_poster_with_vertex(
                 vertex_imagen_client,
                 poster,
@@ -2049,12 +2220,19 @@ def generate_poster_asset(
             if trace_value:
                 vertex_traces.append(str(trace_value))
             provider_label = getattr(vertex_imagen_client, "__class__", VertexImagen3).__name__
+            raw_vertex_edit_image = telemetry.get("raw_vertex_edit_image") if is_kitposter1 else None
+            final_composited_image = telemetry.get("final_composited_image")
+            edit_succeeded = bool(is_kitposter1)
+            if edit_succeeded:
+                render_path_used = "experimental_edit"
+                fallback_reason = None
         except ResourceExhausted:
             fallback_used = True
             warnings.append("vertex_quota_exhausted_fallback")
             if is_kitposter1:
                 degraded = True
                 degraded_reason = degraded_reason or "quota_exhausted"
+                fallback_reason = fallback_reason or "quota_exhausted"
             logger.exception(
                 "Vertex Imagen3 quota exhausted; falling back",
                 extra={"trace": trace_id},
@@ -2067,8 +2245,10 @@ def generate_poster_asset(
                 message = str(exc).lower()
                 if "edit support is disabled" in message or "enable_edit" in message:
                     degraded_reason = degraded_reason or "edit_model_not_enabled"
+                    fallback_reason = fallback_reason or "edit_model_not_enabled"
                 else:
                     degraded_reason = degraded_reason or "vertex_edit_failed"
+                    fallback_reason = fallback_reason or "vertex_edit_failed"
             logger.exception(
                 "Vertex Imagen3 generation failed; falling back",
                 extra={"trace": trace_id},
@@ -2080,11 +2260,14 @@ def generate_poster_asset(
             warnings.append("vertex_unavailable_fallback")
             degraded = True
             degraded_reason = degraded_reason or "vertex_unavailable"
+            fallback_reason = fallback_reason or "vertex_unavailable"
         warnings.append("kitposter1_locked_frame_fallback")
         if not degraded:
             degraded = True
             degraded_reason = degraded_reason or "locked_frame_fallback"
+        fallback_reason = fallback_reason or degraded_reason or "locked_frame_fallback"
         mock_frame = _render_template_frame(poster, template, fill_background=True)
+        final_composited_image = mock_frame.copy()
         _maybe_dump_mask_artifacts(
             template=template,
             locked_frame=locked_frame,
@@ -2163,6 +2346,7 @@ def generate_poster_asset(
                 extra={"trace": trace_id},
             )
             mock_frame = _render_template_frame(poster, template, fill_background=True)
+            final_composited_image = mock_frame.copy()
             _maybe_dump_mask_artifacts(
                 template=template,
                 locked_frame=locked_frame,
@@ -2219,6 +2403,15 @@ def generate_poster_asset(
             if asset:
                 gallery_assets.append(asset)
 
+    debug_artifacts = _write_debug_bundle(
+        trace_id=trace_id,
+        locked_frame=locked_frame,
+        edit_mask=edit_mask,
+        raw_vertex_edit=raw_vertex_edit_image,
+        final_composited=final_composited_image,
+        prompt_bundle=prompt_bundle,
+    )
+
     result = PosterGenerationResult(
         poster=primary,
         prompt_details=prompt_details or {},
@@ -2235,6 +2428,11 @@ def generate_poster_asset(
         scenario_image=scenario_asset,
         product_image=product_asset,
         gallery_images=gallery_assets,
+        render_path_used=render_path_used,
+        edit_attempted=edit_attempted,
+        edit_succeeded=edit_succeeded,
+        fallback_reason=fallback_reason,
+        debug_artifacts=debug_artifacts,
     )
 
     if result.prompt_details is not None and render_mode:
@@ -2249,6 +2447,10 @@ def generate_poster_asset(
             "template": template.id,
             "provider": provider_label,
             "fallback_used": fallback_used,
+            "render_path_used": render_path_used,
+            "edit_attempted": edit_attempted,
+            "edit_succeeded": edit_succeeded,
+            "fallback_reason": fallback_reason,
             "poster_filename": getattr(primary, "filename", None),
             "variants": len(variant_images),
             "vertex_traces": vertex_traces,
