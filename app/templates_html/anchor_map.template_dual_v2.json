@@ -1,0 +1,30 @@
+{
+  "template_id": "template_dual_v2",
+  "template_contract_version": "poster2.template_dual_v2.v1",
+  "feature_callouts": [
+    {
+      "feature_index": 0,
+      "anchor_x": 520,
+      "anchor_y": 324,
+      "label_box": { "x": 536, "y": 288, "w": 344, "h": 72 }
+    },
+    {
+      "feature_index": 1,
+      "anchor_x": 520,
+      "anchor_y": 424,
+      "label_box": { "x": 536, "y": 388, "w": 344, "h": 72 }
+    },
+    {
+      "feature_index": 2,
+      "anchor_x": 520,
+      "anchor_y": 524,
+      "label_box": { "x": 536, "y": 488, "w": 344, "h": 72 }
+    },
+    {
+      "feature_index": 3,
+      "anchor_x": 520,
+      "anchor_y": 624,
+      "label_box": { "x": 536, "y": 588, "w": 344, "h": 72 }
+    }
+  ]
+}

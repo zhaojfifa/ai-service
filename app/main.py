@@ -1410,6 +1410,7 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
             ),
             template_id=payload.template_id,
             export_format=payload.export_format,
+            renderer_mode=payload.renderer_mode,
         )
 
         pipeline = _get_poster2_pipeline()
@@ -1425,7 +1426,12 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
             background_model=manifest.background_model,
             template_id=manifest.template_id,
             template_version=manifest.template_version,
+            template_contract_version=manifest.template_contract_version,
             engine_version=manifest.engine_version,
+            renderer_mode=manifest.renderer_mode,
+            render_engine_used=manifest.render_engine_used,
+            foreground_renderer=manifest.foreground_renderer,
+            background_renderer=manifest.background_renderer,
             poster_spec_hash=manifest.poster_spec_hash,
             timings_ms=manifest.timings_ms,
             degraded=manifest.degraded,

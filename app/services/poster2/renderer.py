@@ -1,21 +1,26 @@
 """
-LayoutRenderer — deterministic foreground rendering via Pillow.
+Renderer abstraction for poster2 foreground composition.
 
-INVARIANT: This module MUST NOT import or call any AI/network service.
-           All inputs are PIL Images resolved by AssetLoader.
-           Same inputs → bit-identical PNG output.
+Two deterministic engines are available:
+  - pillow: existing pure-Pillow renderer, always available
+  - puppeteer: structured HTML/CSS/SVG renderer backed by Chromium/Playwright
 
-Output: RGBA foreground.png with transparent background.
-        Only text, logo, product, scenario (if provided), and gallery are drawn.
-        The Composer later alpha-composites this over the Firefly background.
+The Chromium path is additive and optional. If it is unavailable or fails at
+runtime, callers can degrade back to Pillow without changing the poster2 route.
 """
 from __future__ import annotations
 
+import base64
 import hashlib
+import html
+import json
 import logging
-from dataclasses import dataclass
+import os
+import time
+from dataclasses import dataclass, field
 from io import BytesIO
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 from PIL import Image as PILImage, ImageDraw, ImageFilter, ImageFont
 
@@ -24,6 +29,7 @@ from .contracts import (
     GalleryStripSpec,
     ImageSlotSpec,
     PosterSpec,
+    RendererMode,
     ResolvedAssets,
     TemplateSpec,
     TextSlotSpec,
@@ -32,26 +38,39 @@ from .font_registry import FontRegistry
 
 logger = logging.getLogger("ai-service.poster2")
 
+_HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
+
+
+class RendererUnavailableError(RuntimeError):
+    """Raised when a requested renderer is not available in the runtime."""
+
 
 @dataclass
 class ForegroundResult:
-    image: PILImage.Image       # RGBA
+    image: PILImage.Image
     png_bytes: bytes
     sha256: str
+    render_engine_used: str
+    foreground_renderer: str
+    template_contract_version: str
+    layer_timings_ms: dict[str, int] = field(default_factory=dict)
+    degraded: bool = False
+    degraded_reason: Optional[str] = None
 
 
 class LayoutRenderer:
     """
-    Renders the foreground layer from TemplateSpec + PosterSpec + ResolvedAssets.
-    Must be instantiated once and reused (FontRegistry caches fonts).
+    Deterministic foreground rendering via Pillow.
+
+    This is the existing poster2 renderer and remains the default fallback.
     """
 
-    ENGINE_VERSION = "2.0.0"
+    ENGINE_VERSION = "2.1.0"
+    RENDER_ENGINE = "pillow"
+    RENDERER_NAME = "poster2.pillow_layout"
 
     def __init__(self, font_registry: FontRegistry | None = None):
         self._fonts = font_registry or FontRegistry()
-
-    # ── Public entry point ────────────────────────────────────────────────────
 
     def render(
         self,
@@ -59,73 +78,75 @@ class LayoutRenderer:
         poster: PosterSpec,
         assets: ResolvedAssets,
     ) -> ForegroundResult:
-        """
-        Deterministic render. Transparent canvas → draw all foreground elements
-        in layer order → return RGBA PNG.
-
-        Draw order:
-          1. scenario image (optional background fill)
-          2. product image (hero)
-          3. feature callouts (anchor dot + leader + text) — drawn over product
-          4. gallery strip
-          5. logo
-          6. brand text / agent CTA pill
-          7. title / subtitle
-        """
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        layer_timings: dict[str, int] = {}
 
-        # ── 1. Scenario image ────────────────────────────────────────────────
+        t0 = _now()
         if spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, spec.scenario_slot, assets.scenario)
-
-        # ── 2. Product image ─────────────────────────────────────────────────
         self._draw_product(canvas, spec.product_slot, assets.product)
-
-        # ── 3. Feature callouts (anchors + leaders + labels) ─────────────────
-        self._draw_feature_callouts(canvas, spec.feature_callouts, poster.features)
-
-        # ── 4. Gallery strip ─────────────────────────────────────────────────
         self._draw_gallery(canvas, spec.gallery_slot, assets.gallery)
-
-        # ── 5. Logo ──────────────────────────────────────────────────────────
         if spec.logo_slot and assets.logo:
             self._draw_image(canvas, spec.logo_slot, assets.logo)
+        layer_timings["product_material_layer_ms"] = _elapsed(t0)
 
-        # ── 6. Brand text / agent CTA pill ───────────────────────────────────
-        self._draw_text(canvas, spec.brand_name_slot, poster.brand_name)
-        self._draw_text(canvas, spec.agent_name_slot, poster.agent_name)
+        t1 = _now()
+        self._draw_feature_callout_structure(canvas, spec.feature_callouts, poster.features)
+        if spec.agent_name_slot.bg_color:
+            self._draw_slot_background(canvas, spec.agent_name_slot)
+        layer_timings["foreground_structure_layer_ms"] = _elapsed(t1)
 
-        # ── 7. Title / subtitle ───────────────────────────────────────────────
-        self._draw_text(canvas, spec.title_slot, poster.title)
-        self._draw_text(canvas, spec.subtitle_slot, poster.subtitle)
+        t2 = _now()
+        self._draw_feature_callout_labels(canvas, spec.feature_callouts, poster.features)
+        self._draw_text(canvas, spec.brand_name_slot, poster.brand_name, draw_background=False)
+        self._draw_text(canvas, spec.agent_name_slot, poster.agent_name, draw_background=False)
+        self._draw_text(canvas, spec.title_slot, poster.title, draw_background=False)
+        self._draw_text(canvas, spec.subtitle_slot, poster.subtitle, draw_background=False)
+        layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
         return ForegroundResult(
             image=canvas,
             png_bytes=png_bytes,
             sha256=hashlib.sha256(png_bytes).hexdigest(),
+            render_engine_used=self.RENDER_ENGINE,
+            foreground_renderer=self.RENDERER_NAME,
+            template_contract_version=spec.contract_version,
+            layer_timings_ms=layer_timings,
         )
 
-    # ── Feature callouts ──────────────────────────────────────────────────────
-
-    def _draw_feature_callouts(
+    def _draw_feature_callout_structure(
         self,
         canvas: PILImage.Image,
         callouts: list[FeatureCalloutSpec],
         features: tuple[str, ...],
     ) -> None:
-        """
-        For each feature callout:
-          1. Draw anchor dot on product edge (if anchor_radius > 0)
-          2. Draw leader line from anchor to label_box left edge
-          3. Draw label text inside label_box
-        """
         draw = ImageDraw.Draw(canvas)
+        for i, callout in enumerate(callouts):
+            text = features[i] if i < len(features) else ""
+            if not text or callout.anchor_radius <= 0:
+                continue
+            r = callout.anchor_radius
+            ax, ay = callout.anchor_x, callout.anchor_y
+            draw.ellipse([ax - r, ay - r, ax + r, ay + r], fill=callout.anchor_color)
+            lb = callout.label_box
+            draw.line(
+                [(ax, ay), (lb.x, lb.y + lb.h // 2)],
+                fill=callout.leader_color,
+                width=callout.leader_width,
+            )
+
+    def _draw_feature_callout_labels(
+        self,
+        canvas: PILImage.Image,
+        callouts: list[FeatureCalloutSpec],
+        features: tuple[str, ...],
+    ) -> None:
         for i, callout in enumerate(callouts):
             text = features[i] if i < len(features) else ""
             if not text:
                 continue
-            self._draw_feature_callout(draw, canvas, callout, text)
+            self._draw_text(canvas, callout.label_box, text, draw_background=False)
 
     def _draw_feature_callout(
         self,
@@ -134,56 +155,35 @@ class LayoutRenderer:
         callout: FeatureCalloutSpec,
         text: str,
     ) -> None:
-        lb = callout.label_box
-
-        # ── Anchor dot ────────────────────────────────────────────────────────
-        if callout.anchor_radius > 0:
+        if text and callout.anchor_radius > 0:
             r = callout.anchor_radius
             ax, ay = callout.anchor_x, callout.anchor_y
-            draw.ellipse(
-                [ax - r, ay - r, ax + r, ay + r],
-                fill=callout.anchor_color,
-            )
-
-            # ── Leader line: anchor → left-center of label_box ────────────────
-            leader_end_x = lb.x
-            leader_end_y = lb.y + lb.h // 2
+            draw.ellipse([ax - r, ay - r, ax + r, ay + r], fill=callout.anchor_color)
+            lb = callout.label_box
             draw.line(
-                [(ax, ay), (leader_end_x, leader_end_y)],
+                [(ax, ay), (lb.x, lb.y + lb.h // 2)],
                 fill=callout.leader_color,
                 width=callout.leader_width,
             )
+        if text:
+            self._draw_text(canvas, callout.label_box, text, draw_background=False)
 
-        # ── Label text (delegates to _draw_text for consistency) ──────────────
-        self._draw_text(canvas, lb, text)
+    def _draw_slot_background(self, canvas: PILImage.Image, slot: TextSlotSpec) -> None:
+        draw = ImageDraw.Draw(canvas)
+        _draw_pill_bg(draw, slot)
 
-    # ── Image slots ───────────────────────────────────────────────────────────
-
-    def _draw_image(
-        self,
-        canvas: PILImage.Image,
-        slot: ImageSlotSpec,
-        img: PILImage.Image,
-    ) -> None:
+    def _draw_image(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
         fitted = _fit_image(img, slot.w, slot.h, slot.fit)
         if slot.shadow:
             fitted = _add_drop_shadow(fitted)
         if slot.radius > 0:
             fitted = _apply_radius(fitted, slot.radius)
-        # Center within slot
         ox = slot.x + (slot.w - fitted.width) // 2
         oy = slot.y + (slot.h - fitted.height) // 2
         canvas.alpha_composite(fitted.convert("RGBA"), (ox, oy))
 
-    def _draw_product(
-        self,
-        canvas: PILImage.Image,
-        slot: ImageSlotSpec,
-        img: PILImage.Image,
-    ) -> None:
-        """Product image: ensure RGBA, then composite at slot position."""
-        product = img.convert("RGBA")
-        self._draw_image(canvas, slot, product)
+    def _draw_product(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
+        self._draw_image(canvas, slot, img.convert("RGBA"))
 
     def _draw_gallery(
         self,
@@ -205,29 +205,23 @@ class LayoutRenderer:
             )
             self._draw_image(canvas, thumb_slot, img)
 
-    # ── Text slots ────────────────────────────────────────────────────────────
-
     def _draw_text(
         self,
         canvas: PILImage.Image,
         slot: TextSlotSpec,
         text: str,
+        *,
+        draw_background: bool = True,
     ) -> None:
         if not text:
             return
-
         draw = ImageDraw.Draw(canvas)
-
-        # ── Optional CTA pill background ──────────────────────────────────────
-        if slot.bg_color:
+        if draw_background and slot.bg_color:
             _draw_pill_bg(draw, slot)
 
         font = self._fonts.get(slot.font_key, slot.font_size)
-
         if slot.auto_shrink:
-            font, text = self._fit_text(draw, text, slot, font)
-
-        # Handle multi-line wrapping within slot width
+            font, text = self._fit_text(draw, text, slot)
         lines = _wrap_text(draw, text, font, slot.w, slot.max_lines)
         _draw_lines(draw, lines, slot, font)
 
@@ -236,23 +230,311 @@ class LayoutRenderer:
         draw: ImageDraw.ImageDraw,
         text: str,
         slot: TextSlotSpec,
-        font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
     ) -> tuple[ImageFont.FreeTypeFont | ImageFont.ImageFont, str]:
-        """Reduce font size until text fits in slot, down to min size 8."""
         size = slot.font_size
         while size > 8:
-            f = self._fonts.get(slot.font_key, size)
-            bbox = draw.textbbox((0, 0), text, font=f)
+            font = self._fonts.get(slot.font_key, size)
+            bbox = draw.textbbox((0, 0), text, font=font)
             if (bbox[2] - bbox[0]) <= slot.w and (bbox[3] - bbox[1]) <= slot.h:
-                return f, text
+                return font, text
             size -= 2
         return self._fonts.get(slot.font_key, 8), text
 
 
-# ── Module-level helpers (no self, pure functions) ────────────────────────────
+class PuppeteerStructuredRenderer:
+    """
+    Structured HTML foreground renderer backed by Chromium/Playwright.
+
+    The mode name is `puppeteer` to match the product architecture decision.
+    The Python runtime uses Playwright to drive Chromium.
+    """
+
+    ENGINE_VERSION = "2.1.0"
+    RENDER_ENGINE = "puppeteer"
+    RENDERER_NAME = "poster2.puppeteer_structured"
+
+    def __init__(self, templates_dir: Path | None = None, font_registry: FontRegistry | None = None):
+        self._templates_dir = templates_dir or _HTML_TEMPLATES_DIR
+        self._fonts = font_registry or FontRegistry()
+
+    async def render(
+        self,
+        spec: TemplateSpec,
+        poster: PosterSpec,
+        assets: ResolvedAssets,
+    ) -> ForegroundResult:
+        t0 = _now()
+        html_template = self._read_template_file(f"{spec.template_id}.html")
+        css_template = self._read_template_file(f"{spec.template_id}.css")
+        svg_overlay = self._read_template_file(f"{spec.template_id}.svg", optional=True)
+        slot_spec = self._read_json_file(f"slot_spec.{spec.template_id}.json")
+        anchor_map = self._read_json_file(f"anchor_map.{spec.template_id}.json")
+        layer_timings: dict[str, int] = {}
+        layer_timings["foreground_structure_layer_ms"] = _elapsed(t0)
+
+        t1 = _now()
+        asset_urls = {
+            "logo": _image_to_data_url(assets.logo) if assets.logo else "",
+            "scenario": _image_to_data_url(assets.scenario) if assets.scenario else "",
+            "product": _image_to_data_url(assets.product),
+            "gallery": [_image_to_data_url(img) for img in assets.gallery[:4]],
+        }
+        layer_timings["product_material_layer_ms"] = _elapsed(t1)
+
+        t2 = _now()
+        html_payload = self._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay=svg_overlay,
+            poster=poster,
+            asset_urls=asset_urls,
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=spec,
+        )
+        layer_timings["text_layer_ms"] = _elapsed(t2)
+
+        png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
+        image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
+        return ForegroundResult(
+            image=image,
+            png_bytes=png_bytes,
+            sha256=hashlib.sha256(png_bytes).hexdigest(),
+            render_engine_used=self.RENDER_ENGINE,
+            foreground_renderer=self.RENDERER_NAME,
+            template_contract_version=str(slot_spec.get("template_contract_version", spec.contract_version)),
+            layer_timings_ms=layer_timings,
+        )
+
+    def _read_template_file(self, name: str, optional: bool = False) -> str:
+        path = self._templates_dir / name
+        if not path.exists():
+            if optional:
+                return ""
+            raise RendererUnavailableError(f"Structured renderer asset missing: {path}")
+        return path.read_text(encoding="utf-8")
+
+    def _read_json_file(self, name: str) -> dict[str, Any]:
+        return json.loads(self._read_template_file(name))
+
+    def _build_html(
+        self,
+        *,
+        html_template: str,
+        css_template: str,
+        svg_overlay: str,
+        poster: PosterSpec,
+        asset_urls: dict[str, Any],
+        slot_spec: dict[str, Any],
+        anchor_map: dict[str, Any],
+        spec: TemplateSpec,
+    ) -> str:
+        template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
+        font_css = self._font_faces_css()
+        gallery_markup = self._gallery_markup(slot_spec, asset_urls["gallery"])
+        feature_markup = self._feature_markup(anchor_map, poster.features)
+        replacements = {
+            "__INLINE_CSS__": css_template,
+            "__FONT_FACE_CSS__": font_css,
+            "__SAFE_MARGIN__": str(slot_spec.get("safe_margin", spec.safe_margin)),
+            "__TEMPLATE_ID__": html.escape(spec.template_id),
+            "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
+            "__SVG_OVERLAY__": svg_overlay,
+            "__LOGO_STYLE__": _slot_style(slot_spec["slots"]["logo"]),
+            "__LOGO_URL__": asset_urls["logo"],
+            "__BRAND_STYLE__": _slot_style(slot_spec["slots"]["brand_name"]),
+            "__BRAND_TEXT__": html.escape(poster.brand_name),
+            "__AGENT_STYLE__": _slot_style(slot_spec["slots"]["agent_name"]),
+            "__AGENT_TEXT__": html.escape(poster.agent_name),
+            "__TITLE_STYLE__": _slot_style(slot_spec["slots"]["title"]),
+            "__TITLE_TEXT__": html.escape(poster.title),
+            "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
+            "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
+            "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
+            "__SCENARIO_URL__": asset_urls["scenario"],
+            "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
+            "__PRODUCT_URL__": asset_urls["product"],
+            "__GALLERY_ITEMS__": gallery_markup,
+            "__FEATURE_ITEMS__": feature_markup,
+        }
+        rendered = html_template
+        for key, value in replacements.items():
+            rendered = rendered.replace(key, value)
+        return rendered
+
+    def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> str:
+        gallery_slots = slot_spec["slots"]["gallery"]
+        items: list[str] = []
+        for idx, gallery_slot in enumerate(gallery_slots):
+            url = gallery_urls[idx] if idx < len(gallery_urls) else ""
+            hidden_attr = ' data-empty="true"' if not url else ""
+            items.append(
+                (
+                    f'<div class="gallery-item" style="{_slot_style(gallery_slot)}"{hidden_attr}>'
+                    f'<img src="{url}" alt="" loading="eager" />'
+                    "</div>"
+                )
+            )
+        return "".join(items)
+
+    def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> str:
+        items: list[str] = []
+        for idx, feature in enumerate(features[: len(anchor_map.get("feature_callouts", []))]):
+            callout = anchor_map["feature_callouts"][idx]
+            items.append(
+                (
+                    f'<div class="feature-callout" style="{_slot_style(callout["label_box"])}">'
+                    f"{html.escape(feature)}"
+                    "</div>"
+                )
+            )
+        return "".join(items)
+
+    async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
+        try:
+            from playwright.async_api import async_playwright
+        except ImportError as exc:  # pragma: no cover - import path depends on runtime
+            raise RendererUnavailableError("playwright is not installed") from exc
+
+        chromium_executable = (os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE") or "").strip()
+        launch_kwargs: dict[str, Any] = {
+            "headless": True,
+            "args": ["--disable-dev-shm-usage", "--font-render-hinting=none"],
+        }
+        if chromium_executable:
+            launch_kwargs["executable_path"] = chromium_executable
+
+        async with async_playwright() as playwright:
+            browser = await playwright.chromium.launch(**launch_kwargs)
+            try:
+                page = await browser.new_page(
+                    viewport={"width": width, "height": height},
+                    device_scale_factor=1,
+                )
+                await page.set_content(html_payload, wait_until="load")
+                return await page.locator("#poster-root").screenshot(type="png", omit_background=True)
+            finally:
+                await browser.close()
+
+    def _font_faces_css(self) -> str:
+        font_defs: list[str] = []
+        seen: set[str] = set()
+        for font_key, family in {
+            "brand_bold": "Poster2BrandBold",
+            "brand_regular": "Poster2BrandRegular",
+            "feature": "Poster2Feature",
+            "label": "Poster2Label",
+        }.items():
+            if family in seen:
+                continue
+            font_bytes = _font_file_bytes(self._fonts, font_key)
+            if not font_bytes:
+                continue
+            seen.add(family)
+            font_defs.append(
+                "@font-face {"
+                f"font-family: '{family}';"
+                f"src: url(data:font/ttf;base64,{base64.b64encode(font_bytes).decode('ascii')}) format('truetype');"
+                "font-display: block;"
+                "}"
+            )
+        return "".join(font_defs)
+
+
+class RendererSelector:
+    """Chooses a renderer mode and degrades to Pillow if needed."""
+
+    def __init__(
+        self,
+        pillow_renderer: LayoutRenderer | None = None,
+        puppeteer_renderer: PuppeteerStructuredRenderer | None = None,
+        default_mode: RendererMode | None = None,
+    ):
+        self._pillow = pillow_renderer or LayoutRenderer()
+        self._puppeteer = puppeteer_renderer or PuppeteerStructuredRenderer()
+        self._default_mode = default_mode or _default_renderer_mode()
+
+    async def render(
+        self,
+        spec: TemplateSpec,
+        poster: PosterSpec,
+        assets: ResolvedAssets,
+    ) -> ForegroundResult:
+        requested_mode = poster.renderer_mode
+        target_mode = self.resolve_mode(requested_mode)
+        if target_mode == "puppeteer":
+            try:
+                return await self._puppeteer.render(spec, poster, assets)
+            except Exception as exc:
+                logger.warning("poster2: puppeteer renderer unavailable, falling back to pillow: %s", exc)
+                fallback = self._pillow.render(spec, poster, assets)
+                fallback.degraded = True
+                fallback.degraded_reason = f"puppeteer_fallback:{type(exc).__name__}"
+                return fallback
+        return self._pillow.render(spec, poster, assets)
+
+    def resolve_mode(self, renderer_mode: RendererMode) -> str:
+        if renderer_mode == "auto":
+            return self._default_mode
+        return renderer_mode
+
+
+def _default_renderer_mode() -> RendererMode:
+    raw = (os.getenv("POSTER2_DEFAULT_RENDERER_MODE") or "pillow").strip().lower()
+    if raw in {"auto", "pillow", "puppeteer"}:
+        return raw  # type: ignore[return-value]
+    return "pillow"
+
+
+def _font_file_bytes(font_registry: FontRegistry, font_key: str) -> bytes:
+    filename = {
+        "brand_bold": "NotoSansSC-SemiBold.ttf",
+        "brand_regular": "NotoSansSC-Regular.ttf",
+        "feature": "NotoSansSC-Regular.ttf",
+        "label": "NotoSansSC-Regular.ttf",
+    }.get(font_key, "NotoSansSC-Regular.ttf")
+    path = font_registry._dir / filename  # type: ignore[attr-defined]
+    if not path.exists():
+        return b""
+    return path.read_bytes()
+
+
+def _slot_style(slot: dict[str, Any]) -> str:
+    radius = slot.get("radius", 0)
+    fit = slot.get("fit")
+    extra = []
+    if fit == "contain":
+        extra.append("object-fit:contain;")
+    elif fit == "cover":
+        extra.append("object-fit:cover;")
+    elif fit == "fill":
+        extra.append("object-fit:fill;")
+    if radius:
+        extra.append(f"border-radius:{radius}px;")
+        extra.append("overflow:hidden;")
+    return (
+        f"left:{slot['x']}px;top:{slot['y']}px;width:{slot['w']}px;height:{slot['h']}px;"
+        + "".join(extra)
+    )
+
+
+def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
+    if img is None:
+        img = PILImage.new("RGBA", (1, 1), (0, 0, 0, 0))
+    buf = BytesIO()
+    img.convert("RGBA").save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _now() -> int:
+    return time.monotonic_ns()
+
+
+def _elapsed(t0: int) -> int:
+    return (time.monotonic_ns() - t0) // 1_000_000
+
 
 def _draw_pill_bg(draw: ImageDraw.ImageDraw, slot: TextSlotSpec) -> None:
-    """Draw a filled rounded-rectangle background for CTA pill buttons."""
     r = min(slot.bg_radius, slot.h // 2)
     draw.rounded_rectangle(
         [slot.x, slot.y, slot.x + slot.w, slot.y + slot.h],
@@ -261,9 +543,7 @@ def _draw_pill_bg(draw: ImageDraw.ImageDraw, slot: TextSlotSpec) -> None:
     )
 
 
-def _fit_image(
-    img: PILImage.Image, w: int, h: int, fit: str
-) -> PILImage.Image:
+def _fit_image(img: PILImage.Image, w: int, h: int, fit: str) -> PILImage.Image:
     img = img.convert("RGBA")
     if fit == "contain":
         img = img.copy()
@@ -277,7 +557,6 @@ def _fit_image(
         left = (new_w - w) // 2
         top = (new_h - h) // 2
         return img.crop((left, top, left + w, top + h))
-    # fill
     return img.resize((w, h), PILImage.LANCZOS)
 
 
@@ -289,16 +568,11 @@ def _add_drop_shadow(
 ) -> PILImage.Image:
     result = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
     if img.mode == "RGBA":
-        r, g, b, a = img.split()
+        _, _, _, a = img.split()
         shadow_mask = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
-        shadow_mask.paste(
-            PILImage.new("RGBA", img.size, (0, 0, 0, shadow_alpha)),
-            mask=a,
-        )
+        shadow_mask.paste(PILImage.new("RGBA", img.size, (0, 0, 0, shadow_alpha)), mask=a)
     else:
-        shadow_mask = PILImage.new(
-            "RGBA", img.size, (0, 0, 0, shadow_alpha)
-        )
+        shadow_mask = PILImage.new("RGBA", img.size, (0, 0, 0, shadow_alpha))
     shadow_mask = shadow_mask.filter(ImageFilter.GaussianBlur(blur))
     result.alpha_composite(shadow_mask, dest=offset)
     result.alpha_composite(img)
@@ -322,11 +596,9 @@ def _wrap_text(
     max_width: int,
     max_lines: int,
 ) -> list[str]:
-    """Wrap text into lines that fit within max_width."""
     words = text.split()
     if not words:
         return []
-
     lines: list[str] = []
     current = words[0]
     for word in words[1:]:
@@ -339,10 +611,8 @@ def _wrap_text(
             if len(lines) >= max_lines:
                 break
             current = word
-
     if len(lines) < max_lines:
         lines.append(current)
-
     return lines
 
 
@@ -354,27 +624,20 @@ def _draw_lines(
 ) -> None:
     if not lines:
         return
-
-    # Measure total text block height
     sample_bbox = draw.textbbox((0, 0), "A", font=font)
     line_h = sample_bbox[3] - sample_bbox[1]
     spacing = int(line_h * (slot.line_height - 1.0))
     block_h = line_h * len(lines) + spacing * (len(lines) - 1)
-
-    # Vertical center in slot
     y = slot.y + max(0, (slot.h - block_h) // 2)
-
     for line in lines:
         bbox = draw.textbbox((0, 0), line, font=font)
         line_w = bbox[2] - bbox[0]
-
         if slot.align == "center":
             x = slot.x + max(0, (slot.w - line_w) // 2)
         elif slot.align == "right":
             x = slot.x + max(0, slot.w - line_w)
         else:
             x = slot.x
-
         draw.text((x, y), line, font=font, fill=slot.color)
         y += line_h + spacing
 

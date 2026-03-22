@@ -80,6 +80,7 @@ class TestTemplateSpecLoading:
         spec = TemplateSpec._from_dict(MINIMAL_TEMPLATE_DICT)
         assert spec.template_id == "test_tmpl"
         assert spec.version == "1.0.0"
+        assert spec.contract_version == "poster2.template.v1"
         assert spec.canvas_w == 1024
         assert spec.canvas_h == 1024
         assert isinstance(spec.logo_slot, ImageSlotSpec)
@@ -104,6 +105,7 @@ class TestTemplateSpecLoading:
         spec = TemplateSpec.from_json(real_path)
         assert spec.canvas_w == 1024
         assert spec.canvas_h == 1024
+        assert spec.contract_version == "poster2.template_dual_v2.v1"
         assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
         assert spec.gallery_slot.thumb_w == 176
@@ -171,6 +173,27 @@ class TestTemplateSpecLoading:
         assert spec.agent_name_slot.bg_color == "#E8002A"
         assert spec.agent_name_slot.bg_radius == 34
 
+    def test_structured_template_assets_exist(self):
+        base = Path(__file__).resolve().parents[2] / "app" / "templates_html"
+        html_path = base / "template_dual_v2.html"
+        css_path = base / "template_dual_v2.css"
+        svg_path = base / "template_dual_v2.svg"
+        slot_spec_path = base / "slot_spec.template_dual_v2.json"
+        anchor_map_path = base / "anchor_map.template_dual_v2.json"
+
+        assert html_path.exists()
+        assert css_path.exists()
+        assert svg_path.exists()
+        assert slot_spec_path.exists()
+        assert anchor_map_path.exists()
+
+        slot_spec = json.loads(slot_spec_path.read_text(encoding="utf-8"))
+        anchor_map = json.loads(anchor_map_path.read_text(encoding="utf-8"))
+        assert slot_spec["template_contract_version"] == "poster2.template_dual_v2.v1"
+        assert "protected_zones" in slot_spec
+        assert len(slot_spec["slots"]["gallery"]) == 4
+        assert len(anchor_map["feature_callouts"]) == 4
+
 
 # ── PosterSpec immutability ───────────────────────────────────────────────────
 
@@ -224,7 +247,12 @@ class TestRenderManifest:
             trace_id="abc",
             template_id="t",
             template_version="1.0",
+            template_contract_version="poster2.template.v1",
             engine_version="2.0.0",
+            renderer_mode="auto",
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            background_renderer="firefly-v3",
             poster_spec_hash="deadbeef",
             resolved_inputs={"brand_name": "厨厨房"},
             background_url="https://r2.example.com/bg.png",
@@ -240,4 +268,5 @@ class TestRenderManifest:
         d = m.to_dict()
         assert d["trace_id"] == "abc"
         assert d["background_seed"] == 42
+        assert d["render_engine_used"] == "pillow"
         assert d["degraded"] is False

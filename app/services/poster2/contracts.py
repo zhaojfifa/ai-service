@@ -58,6 +58,7 @@ class PosterSpec:
     size: tuple[int, int] = (1024, 1024)
     locale: str = "zh-CN"
     export_format: Literal["png", "jpeg", "webp"] = "png"
+    renderer_mode: RendererMode = "auto"
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +148,7 @@ class TemplateSpec:
 
     # Feature callouts: anchor dot + leader line + label text
     feature_callouts: list[FeatureCalloutSpec]
+    contract_version: str = "poster2.template.v1"
 
     # Optional slots
     scenario_slot: Optional[ImageSlotSpec] = None
@@ -203,6 +205,7 @@ class TemplateSpec:
         return cls(
             template_id=d["template_id"],
             version=d["version"],
+            contract_version=d.get("contract_version", "poster2.template.v1"),
             canvas_w=d["canvas_w"],
             canvas_h=d["canvas_h"],
             safe_margin=d.get("safe_margin", 48),
@@ -240,7 +243,12 @@ class RenderManifest:
     trace_id: str
     template_id: str
     template_version: str
+    template_contract_version: str
     engine_version: str
+    renderer_mode: RendererMode
+    render_engine_used: str
+    foreground_renderer: str
+    background_renderer: str
 
     # Input snapshot (for replay)
     poster_spec_hash: str
@@ -265,3 +273,4 @@ class RenderManifest:
 
     def to_dict(self) -> dict:
         return asdict(self)
+RendererMode = Literal["auto", "pillow", "puppeteer"]
