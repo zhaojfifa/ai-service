@@ -76,6 +76,11 @@ class _FakeDegradedPoster2Pipeline:
         )
 
 
+class _BoomPoster2Pipeline:
+    async def run(self, spec, template=None) -> RenderManifest:
+        raise RuntimeError("simulated poster2 failure")
+
+
 def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
     client = TestClient(app)
@@ -195,3 +200,27 @@ def test_generate_poster_v2_preflight_allows_content_type_and_x_request_id():
     allow_headers = response.headers.get("access-control-allow-headers", "").lower()
     assert "content-type" in allow_headers
     assert "x-request-id" in allow_headers
+
+
+def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _BoomPoster2Pipeline())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"Origin": "https://zhaojfifa.github.io"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "pillow",
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.json()["detail"]["error"] == "poster2_generation_failed"

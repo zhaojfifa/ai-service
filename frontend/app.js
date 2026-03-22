@@ -1535,6 +1535,7 @@ function ensureUploadedAndLog(path, payload, rawPayload) {
   }
 
   return {
+    requestId,
     bodyString,
     size,
   };
@@ -4815,6 +4816,23 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     const text = typeof value === 'string' ? value.trim() : '';
     return text || fallback;
   };
+  const pickPoster2StylePrompt = () => {
+    const candidates = [
+      stage1Data.scenario_prompt,
+      stage1Data.intent,
+      stage1Data.tagline,
+      stage1Data.subtitle,
+      stage1Data.title,
+    ];
+    for (const candidate of candidates) {
+      const text = safeText(candidate, '');
+      if (!text) continue;
+      if (/^(https?:|data:|r2:)/i.test(text)) continue;
+      if (text.toLowerCase() === 'default') continue;
+      return text;
+    }
+    return 'clean studio background, soft diffused light';
+  };
 
   const brandName = safeText(stage1Data.brand_name, 'Brand');
   const title = safeText(stage1Data.title, 'Poster');
@@ -4896,10 +4914,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     export_format: 'png',
     renderer_mode: stage2State.poster2.rendererMode || 'auto',
     style: {
-      prompt: safeText(
-        stage1Data.scenario_image || stage1Data.intent,
-        'clean studio background, soft diffused light'
-      ),
+      prompt: pickPoster2StylePrompt(),
     },
   };
 
@@ -7324,6 +7339,17 @@ async function triggerGeneration(opts) {
     seed: payload.seed,
     lock_seed: payload.lock_seed,
   });
+  if (endpointPath === '/api/v2/generate-poster') {
+    console.info('[stage2][poster2] request summary', {
+      template_id: payload?.template_id,
+      renderer_mode: payload?.renderer_mode,
+      has_logo: Boolean(payload?.logo),
+      has_scenario_image: Boolean(payload?.scenario_image),
+      gallery_count: Array.isArray(payload?.gallery_images) ? payload.gallery_images.length : 0,
+      style_prompt: payload?.style?.prompt || '',
+      content_type: 'application/json; charset=UTF-8',
+    });
+  }
   console.info('[triggerGeneration] asset audit', assetAudit);
   
   // 面板同步

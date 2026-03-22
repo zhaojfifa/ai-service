@@ -325,20 +325,19 @@ if allow_all and explicit_origins:
 cors_allow_origins = explicit_origins or ["*"]
 cors_allow_credentials = not allow_all
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_allow_origins,
-    allow_credentials=cors_allow_credentials,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=[
+CORS_MIDDLEWARE_KWARGS = {
+    "allow_origins": cors_allow_origins,
+    "allow_credentials": cors_allow_credentials,
+    "allow_methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    "allow_headers": [
         "Accept",
         "Authorization",
         "Content-Type",
         "Origin",
         "X-Request-ID",
     ],
-    max_age=86400,
-)
+    "max_age": 86400,
+}
 
 
 @app.options("/{path:path}")
@@ -1399,13 +1398,31 @@ def _validate_poster2_renderer_request(template_id: str, renderer_mode: str) -> 
         )
 
 
+def _poster2_request_log_fields(request: Request, payload: GeneratePosterV2Request) -> dict[str, Any]:
+    request_id = request.headers.get("X-Request-ID") or request.headers.get("X-Request-Id")
+    return {
+        "request_id": request_id or None,
+        "origin": request.headers.get("Origin"),
+        "content_type": request.headers.get("Content-Type"),
+        "content_length": request.headers.get("Content-Length"),
+        "template_id": payload.template_id,
+        "renderer_mode": payload.renderer_mode,
+        "feature_count": len(payload.features),
+        "gallery_count": len(payload.gallery_images),
+        "has_logo": payload.logo is not None,
+        "has_scenario_image": payload.scenario_image is not None,
+        "has_product_key": bool(payload.product_image.key),
+        "product_url_host": urlparse(payload.product_image.url).netloc or None,
+    }
+
+
 @app.post(
     "/api/v2/generate-poster",
     response_model=GeneratePosterV2Response,
     summary="Poster 2.0 — structure-stable generation",
     tags=["poster-v2"],
 )
-async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePosterV2Response:
+async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request) -> GeneratePosterV2Response:
     """
     Poster 2.0 pipeline:
       1. Adobe Firefly generates background only (no text / no structure).
@@ -1414,6 +1431,8 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
 
     Text, logo, product, and gallery are NEVER passed through a generative model.
     """
+    request_log = _poster2_request_log_fields(request, payload)
+    logger.info("poster2: request start %s", request_log)
     try:
         _validate_poster2_renderer_request(payload.template_id, payload.renderer_mode)
         spec = P2PosterSpec(
@@ -1444,6 +1463,16 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
 
         pipeline = _get_poster2_pipeline()
         manifest = await pipeline.run(spec)
+        logger.info(
+            "poster2: request success request_id=%s trace_id=%s template=%s requested=%s effective=%s degraded=%s total_ms=%s",
+            request_log["request_id"],
+            manifest.trace_id,
+            manifest.template_id,
+            manifest.renderer_mode,
+            manifest.render_engine_used,
+            manifest.degraded,
+            manifest.timings_ms.get("total_ms"),
+        )
 
         return GeneratePosterV2Response(
             trace_id=manifest.trace_id,
@@ -1477,11 +1506,13 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
         )
 
     except FileNotFoundError as exc:
+        logger.warning("poster2: request file error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
+        logger.warning("poster2: request validation error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("poster2: generation failed")
+        logger.exception("poster2: generation failed request=%s", request_log)
         raise HTTPException(
             status_code=500,
             detail={"error": "poster2_generation_failed", "message": str(exc)},
@@ -1491,6 +1522,10 @@ if FRONTEND_DIR.exists():
     # Mount the static frontend after API routes so a single Render Web Service
     # can restore both the browser UI and the backend API.
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+
+
+# Wrap the fully constructed FastAPI app so CORS headers also survive error responses.
+app = CORSMiddleware(app, **CORS_MIDDLEWARE_KWARGS)
 
 
 __all__ = ["app"]
