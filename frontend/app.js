@@ -4856,12 +4856,6 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     .filter(Boolean)
     .slice(0, 4);
 
-  const logoRef = await normaliseAssetReference(stage1Data.brand_logo, {
-    field: 'poster2.logo',
-    required: false,
-    apiCandidates,
-    folder: 'brand-logo',
-  });
   const productRef = await normaliseAssetReference(
     stage1Data.product_image_1 || stage1Data.product_asset,
     {
@@ -4870,37 +4864,12 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       apiCandidates,
       folder: 'product',
     },
-    logoRef
+    null
   );
-  const scenarioRef = await normaliseAssetReference(
-    stage1Data.scenario_asset || stage1Data.scenario_image,
-    {
-      field: 'poster2.scenario_image',
-      required: false,
-      apiCandidates,
-      folder: 'scenario',
-    },
-    productRef
-  );
-
-  const galleryRefs = [];
-  const galleryEntries = Array.isArray(stage1Data.gallery_entries)
-    ? stage1Data.gallery_entries.filter(Boolean).slice(0, 4)
-    : [];
-  for (let i = 0; i < galleryEntries.length; i += 1) {
-    const entry = galleryEntries[i];
-    const ref = await normaliseAssetReference(entry.asset, {
-      field: `poster2.gallery_images[${i}]`,
-      required: false,
-      apiCandidates,
-      folder: 'gallery',
-    }, logoRef || productRef);
-    if (ref && (ref.url || ref.key)) {
-      galleryRefs.push(ref);
-    }
-  }
 
   const payload = {
+    template_id: POSTER2_PILOT_TEMPLATE_ID,
+    renderer_mode: stage2State.poster2.rendererMode || 'auto',
     brand_name: brandName,
     agent_name: agentName,
     title,
@@ -4910,40 +4879,18 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: productRef?.url || '',
       key: productRef?.key || null,
     },
-    template_id: POSTER2_PILOT_TEMPLATE_ID,
-    export_format: 'png',
-    renderer_mode: stage2State.poster2.rendererMode || 'auto',
     style: {
       prompt: pickPoster2StylePrompt(),
     },
   };
 
-  if (logoRef && (logoRef.url || logoRef.key)) {
-    payload.logo = {
-      url: logoRef.url || '',
-      key: logoRef.key || null,
-    };
-  }
-  if (scenarioRef && (scenarioRef.url || scenarioRef.key)) {
-    payload.scenario_image = {
-      url: scenarioRef.url || '',
-      key: scenarioRef.key || null,
-    };
-  }
-  if (galleryRefs.length) {
-    payload.gallery_images = galleryRefs.map((ref) => ({
-      url: ref.url || '',
-      key: ref.key || null,
-    }));
-  }
-
   return {
     payload,
     refs: {
-      logoRef,
       productRef,
-      scenarioRef,
-      galleryRefs,
+      logoRef: null,
+      scenarioRef: null,
+      galleryRefs: [],
     },
   };
 }

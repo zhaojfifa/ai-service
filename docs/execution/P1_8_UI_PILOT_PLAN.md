@@ -30,6 +30,30 @@ Constraints:
 3. Renderer mode stays safe by default with `auto`.
 4. Internal users can rerun with `pillow` and `puppeteer` and compare final outputs plus diagnostics.
 
+## Canonical Browser Payload
+
+Keep the stage2 poster2 browser request as close as possible to the successful manual curl shape:
+
+```json
+{
+  "template_id": "template_dual_v2",
+  "renderer_mode": "pillow",
+  "brand_name": "厨厨房",
+  "agent_name": "智能顾问",
+  "title": "烹饪更智慧，生活更美味",
+  "subtitle": "系列智能厨房解决方案",
+  "features": ["智能温控", "语音操控"],
+  "product_image": {
+    "url": "https://example.com/product.png"
+  },
+  "style": {
+    "prompt": "warm kitchen atmosphere"
+  }
+}
+```
+
+Do not send `logo`, `scenario_image`, `gallery_images`, or other editor-side preview objects on the poster2 pilot request unless they are explicitly required and normalized.
+
 ## Non-Pilot Templates
 
 Templates other than `template_dual` stay on the existing safe/default path. The UI labels Puppeteer as pilot-only and disables the selector effect for non-pilot templates.
