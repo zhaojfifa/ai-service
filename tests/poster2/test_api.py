@@ -176,3 +176,22 @@ def test_generate_poster_v2_rejects_puppeteer_for_non_pilot_template():
 
     assert response.status_code == 422
     assert "template_dual_v2" in response.json()["detail"]
+
+
+def test_generate_poster_v2_preflight_allows_content_type_and_x_request_id():
+    client = TestClient(app)
+
+    response = client.options(
+        "/api/v2/generate-poster",
+        headers={
+            "Origin": "https://zhaojfifa.github.io",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-request-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-methods"]
+    allow_headers = response.headers.get("access-control-allow-headers", "").lower()
+    assert "content-type" in allow_headers
+    assert "x-request-id" in allow_headers

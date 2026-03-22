@@ -1535,7 +1535,6 @@ function ensureUploadedAndLog(path, payload, rawPayload) {
   }
 
   return {
-    headers: { 'X-Request-ID': requestId },
     bodyString,
     size,
   };
