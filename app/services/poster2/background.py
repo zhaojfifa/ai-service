@@ -13,6 +13,7 @@ Adobe Firefly API reference (v3):
 from __future__ import annotations
 
 import hashlib
+import inspect
 import logging
 import time
 from dataclasses import dataclass
@@ -183,15 +184,50 @@ class VertexBackgroundProvider:
         if vertex_poster_client is None:
             raise RuntimeError("Vertex Imagen3 client is not initialised")
 
-        result = await vertex_poster_client.generate_async(
+        return await self._generate_with_client(
+            vertex_poster_client=vertex_poster_client,
             prompt=prompt,
             width=width,
             height=height,
             seed=seed,
             negative_prompt=negative_prompt,
-            num_images=1,
         )
-        return result[0]
+
+    async def _generate_with_client(
+        self,
+        *,
+        vertex_poster_client,
+        prompt: str,
+        width: int,
+        height: int,
+        seed: Optional[int],
+        negative_prompt: str,
+    ) -> bytes:
+        generate_async = getattr(vertex_poster_client, "generate_async", None)
+        if callable(generate_async):
+            result = await generate_async(
+                prompt=prompt,
+                width=width,
+                height=height,
+                seed=seed,
+                negative_prompt=negative_prompt,
+                num_images=1,
+            )
+            return _unwrap_vertex_result(result)
+
+        generate_bytes = getattr(vertex_poster_client, "generate_bytes", None)
+        if callable(generate_bytes):
+            result = generate_bytes(
+                prompt=prompt,
+                width=width,
+                height=height,
+                negative_prompt=negative_prompt,
+            )
+            if inspect.isawaitable(result):
+                result = await result
+            return _unwrap_vertex_result(result)
+
+        raise RuntimeError("Vertex Imagen3 client does not expose generate_async or generate_bytes")
 
 
 # ── FireflyBackgroundService ─────────────────────────────────────────────────
@@ -289,3 +325,11 @@ def make_background_service() -> FireflyBackgroundService:
         provider = VertexBackgroundProvider()
 
     return FireflyBackgroundService(provider=provider)
+
+
+def _unwrap_vertex_result(result) -> bytes:
+    if isinstance(result, (list, tuple)):
+        if not result:
+            raise RuntimeError("Vertex Imagen3 returned no images")
+        return bytes(result[0])
+    return bytes(result)
