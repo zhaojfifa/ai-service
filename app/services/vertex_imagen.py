@@ -15,6 +15,17 @@ DEFAULT_MODEL = os.getenv("VERTEX_IMAGEN_MODEL", "imagen-3.0-generate-001")
 _ALLOWED_ASPECTS = {"1:1", "16:9", "9:16", "4:3", "3:4"}
 
 
+def _env_first(*names: str, default: str | None = None) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = value.strip()
+        if text:
+            return text
+    return default
+
+
 def _ensure_credentials_from_b64() -> None:
     """Write credentials from ``GCP_KEY_B64`` to disk if present."""
 
@@ -39,10 +50,10 @@ def init_vertex() -> None:
 
     _ensure_credentials_from_b64()
 
-    project = os.getenv("GCP_PROJECT_ID")
-    location = os.getenv("GCP_LOCATION", "us-central1")
+    project = _env_first("GCP_PROJECT_ID", "VERTEX_PROJECT_ID")
+    location = _env_first("GCP_LOCATION", "VERTEX_LOCATION", default="us-central1")
     if not project:
-        raise RuntimeError("Missing env GCP_PROJECT_ID")
+        raise RuntimeError("Missing env GCP_PROJECT_ID (or alias VERTEX_PROJECT_ID)")
 
     vertexai.init(project=project, location=location)
     log.info("[vertex.init] project=%s location=%s", project, location)

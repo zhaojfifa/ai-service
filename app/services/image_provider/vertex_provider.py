@@ -11,6 +11,17 @@ from vertexai.vision_models import ImageGenerationModel
 log = logging.getLogger("ai-service")
 
 
+def _env_first(*names: str, default: str | None = None) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = value.strip()
+        if text:
+            return text
+    return default
+
+
 class VertexImagen3:
     """Vertex Imagen 3 provider configured via environment variables."""
 
@@ -23,9 +34,17 @@ class VertexImagen3:
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
             log.info("[vertex.auth] service account key material written to %s", credentials_path)
 
-        self.project = os.getenv("VERTEX_PROJECT_ID")
-        self.location = os.getenv("VERTEX_LOCATION")
-        name = os.getenv("VERTEX_IMAGEN_MODEL", "imagen-3.0-generate-001")
+        self.project = _env_first("GCP_PROJECT_ID", "VERTEX_PROJECT_ID")
+        self.location = _env_first("GCP_LOCATION", "VERTEX_LOCATION")
+        name = (
+            _env_first(
+                "VERTEX_IMAGEN_MODEL_GENERATE",
+                "VERTEX_IMAGEN_GENERATE_MODEL",
+                "VERTEX_IMAGEN_MODEL",
+                default="imagen-3.0-generate-001",
+            )
+            or "imagen-3.0-generate-001"
+        )
         self.output_gcs_uri = os.getenv("VERTEX_OUTPUT_GCS_URI")
 
         # The Imagen SDK resolves project/location from ADC; name identifies the

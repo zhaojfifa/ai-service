@@ -36,6 +36,23 @@ from app.services.vertex_imagen import (
 logger = logging.getLogger("ai-service")
 
 
+def _env_first(*names: str, default: str | None = None) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = value.strip()
+        if text:
+            return text
+    return default
+
+
+def _as_bool(value: str | None) -> bool:
+    if value is None:
+        return False
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _ensure_gcp_auth_via_json_env() -> None:
     """若提供 GOOGLE_APPLICATION_CREDENTIALS_JSON，则写临时文件并设置 GAC 路径。"""
 
@@ -103,22 +120,41 @@ class VertexImagen3:
         _ensure_credentials_from_b64()
         _ensure_gcp_auth_via_json_env()
 
-        self.project = os.getenv("GCP_PROJECT_ID") or ""
-        self.location = os.getenv("GCP_LOCATION", "us-central1")
-        self.model_generate = os.getenv("VERTEX_IMAGEN_MODEL_GENERATE", "imagen-3.0-generate-001")
-        self.model_edit_name = (
-            os.getenv("VERTEX_IMAGEN_EDIT_MODEL")
-            or os.getenv("VERTEX_IMAGEN_MODEL_EDIT", "imagen-3.0-capability-001")
+        self.project = _env_first("GCP_PROJECT_ID", "VERTEX_PROJECT_ID", default="") or ""
+        self.location = (
+            _env_first("GCP_LOCATION", "VERTEX_LOCATION", default="us-central1")
+            or "us-central1"
         )
-        self.enable_edit = os.getenv("VERTEX_IMAGEN_ENABLE_EDIT", "").lower() in {"1", "true", "yes"}
-        self.model_edit = self.model_edit_name if self.enable_edit else None
+        self.model_generate = (
+            _env_first(
+                "VERTEX_IMAGEN_MODEL_GENERATE",
+                "VERTEX_IMAGEN_GENERATE_MODEL",
+                "VERTEX_IMAGEN_MODEL",
+                default="imagen-3.0-generate-001",
+            )
+            or "imagen-3.0-generate-001"
+        )
+        self.model_edit_name = (
+            _env_first("VERTEX_IMAGEN_EDIT_MODEL", "VERTEX_IMAGEN_MODEL_EDIT")
+            or "imagen-3.0-capability-001"
+        )
+        self._enable_edit_requested = _as_bool(os.getenv("VERTEX_IMAGEN_ENABLE_EDIT"))
+        self.enable_edit = self._enable_edit_requested
+        self.edit_disabled_reason: str | None = None
+        if not self._enable_edit_requested:
+            self.edit_disabled_reason = "flag_not_enabled"
+        self.model_edit = (
+            self.model_edit_name
+            if self.enable_edit
+            else None
+        )
         self.timeout = int(os.getenv("VERTEX_TIMEOUT_SECONDS", "60") or "60")
         self.safety = os.getenv("VERTEX_SAFETY_FILTER_LEVEL", "block_some")  # block_few|block_some|block_most
         seed_env = os.getenv("VERTEX_SEED", "0")
         self.seed = int(seed_env) if str(seed_env).isdigit() and int(seed_env) != 0 else None
 
         if not self.project:
-            raise RuntimeError("GCP_PROJECT_ID is required for Vertex Imagen3")
+            raise RuntimeError("GCP_PROJECT_ID (or alias VERTEX_PROJECT_ID) is required for Vertex Imagen3")
 
         aiplatform.init(project=self.project, location=self.location)
         vertex_init(project=self.project, location=self.location)
@@ -128,19 +164,34 @@ class VertexImagen3:
             inspect.signature(self._generate_model.generate_images).parameters.keys()
         )
         if self.enable_edit:
-            self._edit_model = ImageGenerationModel.from_pretrained(self.model_edit_name)
-            self._edit_params = set(
-                inspect.signature(self._edit_model.edit_image).parameters.keys()
-            )
+            try:
+                self._edit_model = ImageGenerationModel.from_pretrained(self.model_edit_name)
+                self._edit_params = set(
+                    inspect.signature(self._edit_model.edit_image).parameters.keys()
+                )
+            except Exception as exc:  # pragma: no cover - remote dependency init
+                self._edit_model = None
+                self._edit_params = set()
+                self.enable_edit = False
+                self.model_edit = None
+                self.edit_disabled_reason = f"edit_model_load_failed:{exc.__class__.__name__}"
+                logger.warning(
+                    "[vertex3.model] edit disabled: failed to load edit model '%s': %s",
+                    self.model_edit_name,
+                    exc,
+                )
         else:
             self._edit_model = None
             self._edit_params = set()
 
         logger.info(
-            "[vertex3.model] generate_model=%s edit_model=%s enabled=%s params_generate=%s params_edit=%s",
+            "[vertex3.model] project=%s location=%s generate_model=%s edit_model=%s enabled=%s reason=%s params_generate=%s params_edit=%s",
+            self.project,
+            self.location,
             self.model_generate,
             self.model_edit_name if self.enable_edit else None,
             self.enable_edit,
+            self.edit_disabled_reason,
             sorted(self._generate_params),
             sorted(self._edit_params) if self._edit_params else [],
         )
@@ -244,7 +295,9 @@ class VertexImagen3:
     ) -> bytes | tuple[bytes, str]:
         if not self.enable_edit or self._edit_model is None:
             raise RuntimeError(
-                "Vertex Imagen3 edit support is disabled. Set VERTEX_IMAGEN_ENABLE_EDIT=1 to enable."
+                "Vertex Imagen3 edit support is disabled"
+                f" ({self.edit_disabled_reason or 'unknown_reason'}). "
+                "Set VERTEX_IMAGEN_ENABLE_EDIT=1 and verify edit model config."
             )
 
         if not base_image_bytes and base_image_b64:

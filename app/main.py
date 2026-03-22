@@ -131,9 +131,52 @@ settings = get_settings()
 
 # 健康检查，确保 Render 能检测端口开放
 @app.get("/health")
+@app.get("/healthz")
 def health() -> dict[str, bool]:
     return {"ok": True}
 
+
+def _storage_runtime_summary() -> dict[str, Any]:
+    endpoint = (os.getenv("R2_ENDPOINT") or os.getenv("S3_ENDPOINT") or "").strip()
+    bucket = (os.getenv("R2_BUCKET") or os.getenv("S3_BUCKET") or "").strip()
+    public_base = (os.getenv("R2_PUBLIC_BASE") or os.getenv("S3_PUBLIC_BASE") or "").strip()
+    configured = bool(endpoint and bucket)
+    backend = "r2/s3" if configured else "none"
+    return {
+        "backend": backend,
+        "configured": configured,
+        "bucket": bucket or None,
+        "has_public_base": bool(public_base),
+    }
+
+
+def _vertex_runtime_summary() -> dict[str, Any]:
+    project = (os.getenv("GCP_PROJECT_ID") or os.getenv("VERTEX_PROJECT_ID") or "").strip()
+    location = (os.getenv("GCP_LOCATION") or os.getenv("VERTEX_LOCATION") or "us-central1").strip()
+    generate_model = (
+        os.getenv("VERTEX_IMAGEN_MODEL_GENERATE")
+        or os.getenv("VERTEX_IMAGEN_GENERATE_MODEL")
+        or os.getenv("VERTEX_IMAGEN_MODEL")
+        or "imagen-3.0-generate-001"
+    ).strip()
+    edit_model = (
+        os.getenv("VERTEX_IMAGEN_EDIT_MODEL")
+        or os.getenv("VERTEX_IMAGEN_MODEL_EDIT")
+        or "imagen-3.0-capability-001"
+    ).strip()
+    edit_enabled = (os.getenv("VERTEX_IMAGEN_ENABLE_EDIT") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    return {
+        "project": project or None,
+        "location": location,
+        "generate_model": generate_model,
+        "edit_model": edit_model,
+        "edit_enabled": edit_enabled,
+    }
 
 
 vertex_poster_client: VertexImagen3 | None = None
@@ -164,8 +207,17 @@ else:
                 "location": vertex_poster_client.location,
                 "generate_model": vertex_poster_client.model_generate,
                 "edit_model": vertex_poster_client.model_edit,
+                "edit_enabled": vertex_poster_client.enable_edit,
             },
         )
+
+logger.info(
+    "Runtime configuration resolved",
+    extra={
+        "vertex": _vertex_runtime_summary(),
+        "storage": _storage_runtime_summary(),
+    },
+)
 
 
 IMAGE_PROVIDER_NAME = "vertex"
