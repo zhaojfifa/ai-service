@@ -11,6 +11,7 @@ import uuid
 import io
 import hashlib
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
 
@@ -18,7 +19,9 @@ from google.api_core.exceptions import ResourceExhausted
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, ValidationError, root_validator
 from PIL import Image, ImageDraw, ImageFont
 
@@ -90,6 +93,8 @@ logging.getLogger("ai-service").setLevel(LOG_LEVEL)
 log = logging.getLogger("ai-service")
 logger = log
 app = FastAPI(title="Marketing Poster API", version="1.0.0")
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
+FRONTEND_INDEX = FRONTEND_DIR / "index.html"
 
 # ------------- 关键修复：安全导入 + 条件注册（防止 NameError） -------------
 RejectHugeOrBase64 = None  # 先占位，避免后续引用未定义
@@ -110,6 +115,8 @@ if RejectHugeOrBase64 is not None:
 # 首页：GET/HEAD 200（修复 405）
 @app.get("/", include_in_schema=False)
 def root() -> dict[str, Any]:
+    if FRONTEND_INDEX.exists():
+        return FileResponse(FRONTEND_INDEX)
     return {"service": "ai-service", "ok": True}
 
 
@@ -1343,6 +1350,11 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
             status_code=500,
             detail={"error": "poster2_generation_failed", "message": str(exc)},
         ) from exc
+
+if FRONTEND_DIR.exists():
+    # Mount the static frontend after API routes so a single Render Web Service
+    # can restore both the browser UI and the backend API.
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 
 __all__ = ["app"]
