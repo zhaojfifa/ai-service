@@ -20,6 +20,8 @@ from typing import Optional
 
 import httpx
 
+from .vertex_runtime import get_vertex_poster_client
+
 logger = logging.getLogger("ai-service.poster2")
 
 # ── Constants ───────────────────────────────────────────────────────────────
@@ -164,7 +166,7 @@ class FireflyProvider:
 class VertexBackgroundProvider:
     """
     Fallback: use Vertex Imagen3 (generate-only, no inpainting) for background.
-    Reuses the global vertex client already initialised in glibatree.py.
+    Reuses the shared poster2 vertex runtime client registered at app startup.
     """
 
     MODEL_ID = "vertex-imagen3"
@@ -177,8 +179,7 @@ class VertexBackgroundProvider:
         seed: Optional[int],
         negative_prompt: str,
     ) -> bytes:
-        from app.services.glibatree import vertex_poster_client  # avoid circular at module level
-
+        vertex_poster_client = get_vertex_poster_client()
         if vertex_poster_client is None:
             raise RuntimeError("Vertex Imagen3 client is not initialised")
 

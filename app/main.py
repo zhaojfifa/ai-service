@@ -195,6 +195,10 @@ else:
         logger.warning("VertexImagen3 initialization failed: %s", exc)
     else:
         configure_vertex_imagen(vertex_poster_client)
+        from app.services.poster2.vertex_runtime import (
+            set_vertex_poster_client as set_poster2_vertex_poster_client,
+        )
+        set_poster2_vertex_poster_client(vertex_poster_client)
         print(
             "[VertexImagen3]",
             f"project={vertex_poster_client.project}",
@@ -212,6 +216,11 @@ else:
                 "edit_enabled": vertex_poster_client.enable_edit,
             },
         )
+
+from app.services.poster2.vertex_runtime import (
+    set_vertex_poster_client as set_poster2_vertex_poster_client,
+)
+set_poster2_vertex_poster_client(vertex_poster_client)
 
 logger.info(
     "Runtime configuration resolved",

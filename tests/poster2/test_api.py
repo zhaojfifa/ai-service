@@ -70,6 +70,29 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["debug_artifacts"]["renderer_metadata_url"] == "https://example.com/renderer-metadata.json"
 
 
+def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "puppeteer",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["renderer_mode"] == "puppeteer"
+
+
 def test_generate_poster_v2_rejects_puppeteer_for_non_pilot_template():
     client = TestClient(app)
 
