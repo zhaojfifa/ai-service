@@ -36,6 +36,11 @@ from app.services.template_variants import generation_overrides
 
 logger = logging.getLogger(__name__)
 _FONT_LOGGED = False
+KITPOSTER_NEGATIVE_HARDENING = (
+    "no text, no letters, no typography, no signage, no labels, "
+    "no numbers, no UI, no screen content, no captions, "
+    "no packaging text, no watermark"
+)
 
 vertex_imagen_client: VertexImagen3 | None = None
 
@@ -600,6 +605,8 @@ def _build_edit_mask_from_slots(
     editable_slot_names: set[str],
     semantics: str,
     feature_callouts: list[dict[str, Any]] | None = None,
+    protected_slot_names: set[str] | None = None,
+    protected_margin_px: int = 0,
 ) -> Image.Image:
     width, height = size
     edit_value = 255 if semantics == "white_edit_black_keep" else 0
@@ -616,6 +623,21 @@ def _build_edit_mask_from_slots(
         x1, y1, x2, y2 = _slot_rect(slot, size=size)
         if x2 > x1 and y2 > y1:
             draw.rectangle([x1, y1, x2, y2], fill=edit_value)
+
+    # Carve out protected text/UI slots from editable regions.
+    for slot_key, slot in (template_slots or {}).items():
+        if str(slot_key) not in (protected_slot_names or set()):
+            continue
+        if not isinstance(slot, dict):
+            continue
+        x1, y1, x2, y2 = _slot_rect(slot, size=size)
+        if protected_margin_px > 0:
+            x1 = max(0, x1 - protected_margin_px)
+            y1 = max(0, y1 - protected_margin_px)
+            x2 = min(width, x2 + protected_margin_px)
+            y2 = min(height, y2 + protected_margin_px)
+        if x2 > x1 and y2 > y1:
+            draw.rectangle([x1, y1, x2, y2], fill=keep_value)
 
     # Carve out callout label boxes from editable regions to keep them protected.
     for callout in (feature_callouts or []):
@@ -639,7 +661,9 @@ def _build_edit_mask_for_template(template: TemplateResources) -> Image.Image | 
         return None
 
     semantics = (template.spec.get("mask_semantics") or "white_edit_black_keep").strip()
-    editable_slots = {"scenario", "gallery_strip"}
+    # Keep edit area tightly scoped to background scenario only.
+    editable_slots = {"scenario"}
+    protected_slots = {"logo", "brand_name", "agent_name", "product", "title", "subtitle"}
 
     return _build_edit_mask_from_slots(
         size=(width, height),
@@ -647,7 +671,25 @@ def _build_edit_mask_for_template(template: TemplateResources) -> Image.Image | 
         editable_slot_names=editable_slots,
         semantics=semantics,
         feature_callouts=template.spec.get("feature_callouts") or [],
+        protected_slot_names=protected_slots,
+        protected_margin_px=12,
     )
+
+
+def _merge_negative_prompt(base: str | None, extra: str) -> str:
+    chunks = [item.strip() for item in [base or "", extra] if item and item.strip()]
+    if not chunks:
+        return ""
+    seen: set[str] = set()
+    merged: list[str] = []
+    for chunk in ",".join(chunks).split(","):
+        token = chunk.strip()
+        key = token.lower()
+        if not token or key in seen:
+            continue
+        seen.add(key)
+        merged.append(token)
+    return ", ".join(merged)
 
 
 def _maybe_dump_mask_artifacts(
@@ -922,6 +964,11 @@ def _generate_poster_with_vertex(
     negative_prompt = getattr(poster, "negative_prompt", None)
     if not negative_prompt and prompt_details:
         negative_prompt = prompt_details.get("negative_prompt")
+    if force_edit:
+        negative_prompt = _merge_negative_prompt(
+            negative_prompt,
+            KITPOSTER_NEGATIVE_HARDENING,
+        )
 
     guidance = getattr(poster, "guidance", None)
     aspect_ratio = getattr(poster, "aspect_ratio", None)
