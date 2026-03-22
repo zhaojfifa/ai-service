@@ -130,6 +130,10 @@ const stage2State = {
   vertex: {
     lastResponse: null,
   },
+  poster2: {
+    rendererMode: 'auto',
+    history: [],
+  },
   generated: {
     attempted: false,
     lastSuccessPosterUrl: null,
@@ -159,6 +163,9 @@ const STAGE2_CLICK_DEBOUNCE_MS = 700;
 let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
 const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
+const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
+const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
+const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -248,6 +255,48 @@ function ensureStage2FinalPosterPreview(container) {
 
   container.appendChild(wrapper);
   return wrapper;
+}
+
+function shouldUsePoster2Pilot(stage1Data) {
+  return (stage1Data?.template_id || '') === POSTER2_PILOT_SOURCE_TEMPLATE_ID;
+}
+
+function initStage2Poster2PilotControls(stage1Data, statusElement) {
+  const panel = document.getElementById('poster2-pilot-panel');
+  const select = document.getElementById('poster2-renderer-mode');
+  const hint = document.getElementById('poster2-pilot-hint');
+  const badge = document.getElementById('poster2-pilot-badge');
+  const copy = document.getElementById('poster2-pilot-copy');
+  if (!panel || !select || !hint || !badge || !copy) return;
+
+  const eligible = shouldUsePoster2Pilot(stage1Data);
+  const stored = sessionStorage.getItem(STAGE2_POSTER2_RENDERER_MODE_KEY);
+  stage2State.poster2.rendererMode = stored || stage2State.poster2.rendererMode || 'auto';
+  select.value = stage2State.poster2.rendererMode;
+
+  if (eligible) {
+    panel.classList.remove('hidden');
+    select.disabled = false;
+    badge.textContent = 'Internal-only pilot';
+    hint.textContent = 'template_dual uses /api/v2/generate-poster with template_dual_v2. Pillow remains the safe default; Puppeteer is opt-in only.';
+    copy.textContent = 'template_dual_v2 is in internal-only Puppeteer pilot. Use this selector to validate pillow vs puppeteer from the product UI.';
+  } else {
+    panel.classList.remove('hidden');
+    select.value = 'auto';
+    select.disabled = true;
+    stage2State.poster2.rendererMode = 'auto';
+    badge.textContent = 'Safe default only';
+    hint.textContent = 'This template stays on the existing safe/default renderer path. Puppeteer pilot is limited to template_dual_v2.';
+    copy.textContent = 'template_dual_v2 is the only internal-only Puppeteer pilot template. Other templates stay on safe/default renderer.';
+  }
+
+  select.addEventListener('change', () => {
+    stage2State.poster2.rendererMode = select.value;
+    sessionStorage.setItem(STAGE2_POSTER2_RENDERER_MODE_KEY, select.value);
+    if (statusElement && eligible) {
+      setStatus(statusElement, `Poster2 renderer set to ${select.value}.`, 'info');
+    }
+  });
 }
 
 function fingerprintAssets(assets) {
@@ -4762,6 +4811,129 @@ function buildGeneratePosterPayload(draft) {
   };
 }
 
+async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
+  const safeText = (value, fallback = '') => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text || fallback;
+  };
+
+  const brandName = safeText(stage1Data.brand_name, 'Brand');
+  const title = safeText(stage1Data.title, 'Poster');
+  const agentName = sanitizeAgentName(
+    stage1Data.agent_name || stage1Data.channel || '',
+    brandName
+  );
+  const subtitle = safeText(
+    stage1Data.subtitle || stage1Data.tagline || stage1Data.promo || stage1Data.price,
+    title
+  );
+  const featureSource = Array.isArray(stage1Data.features) && stage1Data.features.length
+    ? stage1Data.features
+    : Array.isArray(stage1Data.bullets)
+    ? stage1Data.bullets
+    : [];
+  const features = (stage2State.adjustments?.showBullets !== false
+    ? featureSource
+    : []
+  )
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const logoRef = await normaliseAssetReference(stage1Data.brand_logo, {
+    field: 'poster2.logo',
+    required: false,
+    apiCandidates,
+    folder: 'brand-logo',
+  });
+  const productRef = await normaliseAssetReference(
+    stage1Data.product_image_1 || stage1Data.product_asset,
+    {
+      field: 'poster2.product_image',
+      required: true,
+      apiCandidates,
+      folder: 'product',
+    },
+    logoRef
+  );
+  const scenarioRef = await normaliseAssetReference(
+    stage1Data.scenario_asset || stage1Data.scenario_image,
+    {
+      field: 'poster2.scenario_image',
+      required: false,
+      apiCandidates,
+      folder: 'scenario',
+    },
+    productRef
+  );
+
+  const galleryRefs = [];
+  const galleryEntries = Array.isArray(stage1Data.gallery_entries)
+    ? stage1Data.gallery_entries.filter(Boolean).slice(0, 4)
+    : [];
+  for (let i = 0; i < galleryEntries.length; i += 1) {
+    const entry = galleryEntries[i];
+    const ref = await normaliseAssetReference(entry.asset, {
+      field: `poster2.gallery_images[${i}]`,
+      required: false,
+      apiCandidates,
+      folder: 'gallery',
+    }, logoRef || productRef);
+    if (ref && (ref.url || ref.key)) {
+      galleryRefs.push(ref);
+    }
+  }
+
+  const payload = {
+    brand_name: brandName,
+    agent_name: agentName,
+    title,
+    subtitle,
+    features,
+    product_image: {
+      url: productRef?.url || '',
+      key: productRef?.key || null,
+    },
+    template_id: POSTER2_PILOT_TEMPLATE_ID,
+    export_format: 'png',
+    renderer_mode: stage2State.poster2.rendererMode || 'auto',
+    style: {
+      prompt: safeText(
+        stage1Data.scenario_image || stage1Data.intent,
+        'clean studio background, soft diffused light'
+      ),
+    },
+  };
+
+  if (logoRef && (logoRef.url || logoRef.key)) {
+    payload.logo = {
+      url: logoRef.url || '',
+      key: logoRef.key || null,
+    };
+  }
+  if (scenarioRef && (scenarioRef.url || scenarioRef.key)) {
+    payload.scenario_image = {
+      url: scenarioRef.url || '',
+      key: scenarioRef.key || null,
+    };
+  }
+  if (galleryRefs.length) {
+    payload.gallery_images = galleryRefs.map((ref) => ({
+      url: ref.url || '',
+      key: ref.key || null,
+    }));
+  }
+
+  return {
+    payload,
+    refs: {
+      logoRef,
+      productRef,
+      scenarioRef,
+      galleryRefs,
+    },
+  };
+}
+
 function renderDraftSnapshot(draft) {
   const core = draft?.core || {};
   const messaging = draft?.messaging || {};
@@ -5609,6 +5781,8 @@ function initStage2() {
       return;
     }
 
+    initStage2Poster2PilotControls(stage1Data, statusElement);
+
     refreshStage2Wireframe();
 
     const variantMode =
@@ -6328,11 +6502,106 @@ function buildPromptBundleStrings(prompts = {}) {
 }
 
 function extractVertexPosterUrl(result) {
+  const directUrl = result?.final_url;
+  if (typeof directUrl === 'string' && directUrl.trim()) {
+    return directUrl.trim();
+  }
   const url = result?.final_poster?.url;
   if (typeof url === 'string' && url.trim()) {
     return url.trim();
   }
   return null;
+}
+
+function normaliseFinalPosterPayload(result) {
+  if (result?.final_poster && (result.final_poster.url || result.final_poster.key || result.final_poster.storage_key)) {
+    return result.final_poster;
+  }
+  if (typeof result?.final_url === 'string' && result.final_url.trim()) {
+    return {
+      filename: `${result.trace_id || 'poster2'}-final.png`,
+      media_type: inferImageMediaType(result.final_url) || 'image/png',
+      width: null,
+      height: null,
+      storage_key: result.trace_id || createId(),
+      url: result.final_url.trim(),
+      key: null,
+    };
+  }
+  return null;
+}
+
+function setPoster2Link(id, url) {
+  const link = document.getElementById(id);
+  if (!link) return;
+  if (typeof url === 'string' && url.trim()) {
+    link.href = url.trim();
+    link.classList.remove('hidden');
+  } else {
+    link.removeAttribute('href');
+    link.classList.add('hidden');
+  }
+}
+
+function updatePoster2DiagnosticsPanel(data) {
+  const setCode = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value == null || value === '' ? 'N/A' : String(value);
+  };
+
+  setCode('poster2-template-id', data?.template_id || 'N/A');
+  setCode('poster2-renderer-mode-requested', data?.renderer_mode || 'N/A');
+  setCode('poster2-render-engine-used', data?.render_engine_used || 'N/A');
+  setCode('poster2-degraded', typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A');
+  setCode('poster2-fallback-reason-code', data?.fallback_reason_code || 'N/A');
+  setCode('poster2-foreground-renderer', data?.foreground_renderer || 'N/A');
+  setCode('poster2-total-ms', data?.timings_ms?.total_ms ?? 'N/A');
+  setCode('poster2-template-contract-version', data?.template_contract_version || 'N/A');
+
+  setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
+  setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');
+  setPoster2Link('poster2-link-foreground', data?.debug_artifacts?.foreground_layer_url || data?.foreground_url || '');
+  setPoster2Link('poster2-link-final', data?.debug_artifacts?.final_composited_url || data?.final_url || '');
+  setPoster2Link('poster2-link-metadata', data?.debug_artifacts?.renderer_metadata_url || '');
+}
+
+function renderPoster2RunHistory() {
+  const root = document.getElementById('poster2-run-history-list');
+  if (!root) return;
+  root.innerHTML = '';
+  const history = Array.isArray(stage2State.poster2.history) ? stage2State.poster2.history : [];
+  history.forEach((entry, index) => {
+    const card = document.createElement('div');
+    card.className = 'poster2-run-entry';
+    card.innerHTML = `
+      <strong>Run ${history.length - index}</strong>
+      <div>requested <code>${entry.requestedRenderer || 'N/A'}</code> -> effective <code>${entry.effectiveRenderer || 'N/A'}</code></div>
+      <div>degraded <code>${entry.degraded}</code> fallback <code>${entry.fallbackReason || 'null'}</code></div>
+    `;
+    if (entry.finalUrl) {
+      const link = document.createElement('a');
+      link.href = entry.finalUrl;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.className = 'poster-preview-link';
+      link.textContent = 'Open final output';
+      card.appendChild(link);
+    }
+    root.appendChild(card);
+  });
+}
+
+function recordPoster2PilotRun(data) {
+  const history = Array.isArray(stage2State.poster2.history) ? stage2State.poster2.history : [];
+  history.unshift({
+    requestedRenderer: data?.renderer_mode || null,
+    effectiveRenderer: data?.render_engine_used || null,
+    degraded: typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A',
+    fallbackReason: data?.fallback_reason_code || null,
+    finalUrl: extractVertexPosterUrl(data),
+  });
+  stage2State.poster2.history = history.slice(0, 6);
+  renderPoster2RunHistory();
 }
 
 
@@ -6559,7 +6828,7 @@ function applyVertexPosterResult(data) {
     updateStage2Warnings(data);
   }
 
-  const finalPoster = data?.final_poster ?? null;
+  const finalPoster = normaliseFinalPosterPayload(data);
   const finalPosterUrl = extractVertexPosterUrl(data);
   const finalImg = document.getElementById('final-poster-img');
   const finalPlaceholder = document.getElementById('final-poster-placeholder');
@@ -6586,7 +6855,7 @@ function applyVertexPosterResult(data) {
 
   if (finalKey) {
     finalKey.textContent =
-      finalPoster?.key || finalPoster?.storage_key || 'N/A';
+      finalPoster?.key || finalPoster?.storage_key || data?.trace_id || 'N/A';
   }
 
   if (copyButton) {
@@ -6606,6 +6875,10 @@ function applyVertexPosterResult(data) {
 
   if (typeof updateGenerationMetaPanel === 'function') {
     updateGenerationMetaPanel(data);
+  }
+  updatePoster2DiagnosticsPanel(data);
+  if (data?.template_id === POSTER2_PILOT_TEMPLATE_ID) {
+    recordPoster2PilotRun(data);
   }
 }
 
@@ -6742,6 +7015,9 @@ async function triggerGeneration(opts) {
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
   await hydrateStage1DataAssets(stage1Data);
 
+  const usePoster2Pilot = shouldUsePoster2Pilot(stage1Data);
+  let endpointPath = '/api/generate-poster';
+
   // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
   const templateId = stage1Data.template_id;
   const sc = stage1Data.scenario_asset || null;
@@ -6757,8 +7033,33 @@ async function triggerGeneration(opts) {
   let galleryItems;
   let productImage1Ref;
   let productImage2Ref;
+  let payload;
   try {
-    if (MODE_S) {
+    if (usePoster2Pilot) {
+      const poster2Request = await buildPoster2GeneratePayload(stage1Data, apiCandidates);
+      payload = poster2Request.payload;
+      brandLogoRef = poster2Request.refs.logoRef;
+      productImage1Ref = poster2Request.refs.productRef;
+      scenarioRef = poster2Request.refs.scenarioRef;
+      galleryItems = (poster2Request.refs.galleryRefs || []).map((ref) => ({
+        key: ref.key || null,
+        asset: ref.url || null,
+        mode: 'upload',
+      }));
+      endpointPath = '/api/v2/generate-poster';
+      posterPayload = {
+        template_id: payload.template_id,
+        scenario_mode: 'upload',
+        product_mode: 'upload',
+        features: payload.features || [],
+        gallery_items: galleryItems,
+        brand_logo: payload.logo?.url || null,
+        scenario_asset: payload.scenario_image?.url || null,
+        scenario_key: payload.scenario_image?.key || null,
+        product_asset: payload.product_image?.url || null,
+        product_key: payload.product_image?.key || null,
+      };
+    } else if (MODE_S) {
       const safeText = (value, fallback) => {
         const text = typeof value === 'string' ? value.trim() : '';
         return text || fallback;
@@ -6960,25 +7261,27 @@ async function triggerGeneration(opts) {
     promptBundleStrings = serialisePromptState(fallbackState);
   }
 
-  const renderMode = MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a');
-  const requestBase = {
-    poster: posterPayload,
-    render_mode: renderMode,
-    variants: MODE_S ? 1 : clampVariants(reqFromInspector.variants ?? 1),
-    seed: MODE_S ? 0 : (reqFromInspector.seed ?? null),
-    lock_seed: MODE_S ? true : !!reqFromInspector.lockSeed,
-  };
+  if (!payload) {
+    const renderMode = MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a');
+    const requestBase = {
+      poster: posterPayload,
+      render_mode: renderMode,
+      variants: MODE_S ? 1 : clampVariants(reqFromInspector.variants ?? 1),
+      seed: MODE_S ? 0 : (reqFromInspector.seed ?? null),
+      lock_seed: MODE_S ? true : !!reqFromInspector.lockSeed,
+    };
 
-  const payload = { ...requestBase };
-  if (promptBundleStrings) {
-    payload.prompt_bundle = promptBundleStrings;
-  }
-  if (MODE_S) {
-    payload.draft = buildKitPosterDraftFromSource(
-      stage1Data,
-      stage2State.adjustments,
-      renderMode
-    );
+    payload = { ...requestBase };
+    if (promptBundleStrings) {
+      payload.prompt_bundle = promptBundleStrings;
+    }
+    if (MODE_S) {
+      payload.draft = buildKitPosterDraftFromSource(
+        stage1Data,
+        stage2State.adjustments,
+        renderMode
+      );
+    }
   }
 
   updateDebugPanels({ draft: stage2State.draft, payload });
@@ -7015,6 +7318,7 @@ async function triggerGeneration(opts) {
 
   console.info('[triggerGeneration] prepared payload', {
     apiCandidates,
+    endpointPath,
     poster: posterSummary,
     prompt_bundle: payload.prompt_bundle,
     variants: payload.variants,
@@ -7115,7 +7419,7 @@ async function triggerGeneration(opts) {
   try {
     didAttempt = true;
     await warmUp(apiCandidates);
-    const resp = await postJsonWithRetry(apiCandidates, '/api/generate-poster', payload, 1, rawPayload);
+    const resp = await postJsonWithRetry(apiCandidates, endpointPath, payload, 1, rawPayload);
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
     if (mySeq !== stage2GenerationSeq) return null;
 
@@ -7143,10 +7447,11 @@ async function triggerGeneration(opts) {
     }
 
     console.info('[triggerGeneration] success', {
-      hasPoster: Boolean(data?.final_poster),
+      hasPoster: Boolean(data?.final_poster || data?.final_url),
       variants: Array.isArray(data?.variants) ? data.variants.length : 0,
       seed: data?.seed ?? null,
       lock_seed: data?.lock_seed ?? null,
+      render_engine_used: data?.render_engine_used ?? null,
     });
 
     applyVertexPosterResult(data);
@@ -7162,11 +7467,15 @@ async function triggerGeneration(opts) {
     if (promptTextarea) promptTextarea.value = nextPrompt;
 
     const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
-    const canProceed = MODE_S ? Boolean(data?.final_poster) : hasCopy;
+    const canProceed = MODE_S ? Boolean(data?.final_poster || data?.final_url) : hasCopy;
     setStatus(
       statusElement,
-      hasCopy ? 'Copy generated.' : 'Request finished (no copy).',
-      hasCopy ? 'success' : 'warning',
+      usePoster2Pilot
+        ? 'Poster2 pilot render finished.'
+        : hasCopy
+        ? 'Copy generated.'
+        : 'Request finished (no copy).',
+      usePoster2Pilot || hasCopy ? 'success' : 'warning',
     );
 
     if (nextButton) nextButton.disabled = !canProceed;
@@ -7183,7 +7492,7 @@ async function triggerGeneration(opts) {
     }
 
     try {
-      const finalPoster = data?.final_poster ?? null;
+      const finalPoster = normaliseFinalPosterPayload(data);
       if (!finalPoster || !(finalPoster.url || finalPoster.key || finalPoster.storage_key)) {
         setStatus(statusElement, 'Missing final_poster (Mode S requires final_poster).', 'error');
         return null;

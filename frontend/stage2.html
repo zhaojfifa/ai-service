@@ -55,6 +55,58 @@
           </div>
         </section>
 
+        <section id="poster2-pilot-panel" class="card stage-card poster2-pilot-panel">
+          <h3>Poster2 Internal Pilot</h3>
+          <p id="poster2-pilot-copy" class="hint">
+            template_dual_v2 is in internal-only Puppeteer pilot. Other templates stay on safe/default renderer.
+          </p>
+          <div class="control-grid">
+            <label class="field">
+              <span>Renderer mode</span>
+              <select id="poster2-renderer-mode">
+                <option value="auto">auto/default</option>
+                <option value="pillow">pillow</option>
+                <option value="puppeteer">puppeteer (pilot)</option>
+              </select>
+            </label>
+            <div class="pilot-note">
+              <strong id="poster2-pilot-badge">Safe default</strong>
+              <p id="poster2-pilot-hint" class="hint"></p>
+            </div>
+          </div>
+
+          <div id="poster2-diagnostics" class="poster2-diagnostics">
+            <h4>Result Diagnostics</h4>
+            <div class="poster2-diagnostics-grid">
+              <div><span>template_id</span><code id="poster2-template-id">N/A</code></div>
+              <div><span>renderer_mode</span><code id="poster2-renderer-mode-requested">N/A</code></div>
+              <div><span>render_engine_used</span><code id="poster2-render-engine-used">N/A</code></div>
+              <div><span>degraded</span><code id="poster2-degraded">N/A</code></div>
+              <div><span>fallback_reason_code</span><code id="poster2-fallback-reason-code">N/A</code></div>
+              <div><span>foreground_renderer</span><code id="poster2-foreground-renderer">N/A</code></div>
+              <div><span>total_ms</span><code id="poster2-total-ms">N/A</code></div>
+              <div><span>template_contract_version</span><code id="poster2-template-contract-version">N/A</code></div>
+            </div>
+          </div>
+
+          <div class="poster2-debug-links">
+            <h4>Debug Artifacts</h4>
+            <div class="poster2-debug-links-grid">
+              <a id="poster2-link-background" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Background layer</a>
+              <a id="poster2-link-product-material" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Product/material layer</a>
+              <a id="poster2-link-foreground" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Foreground layer</a>
+              <a id="poster2-link-final" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Final composited poster</a>
+              <a id="poster2-link-metadata" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Renderer metadata</a>
+            </div>
+          </div>
+
+          <div class="poster2-run-history">
+            <h4>Recent Pilot Runs</h4>
+            <p class="hint">Generate sequentially with pillow and puppeteer to compare outputs.</p>
+            <div id="poster2-run-history-list" class="poster2-run-history-list"></div>
+          </div>
+        </section>
+
         <div class="actions">
           <button id="generate-poster" class="primary" type="button">Generate</button>
         </div>
@@ -262,4 +314,3 @@
     <script defer src="./app.js?v=0cbaf65"></script>
   </body>
 </html>
-
