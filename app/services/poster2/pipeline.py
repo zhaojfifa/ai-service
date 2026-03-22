@@ -25,7 +25,7 @@ from .background import FireflyBackgroundService, make_background_service
 from .composer import Composer
 from .contracts import PosterSpec, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
-from .renderer import LayoutRenderer
+from .renderer import LayoutRenderer, RendererSelector
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -54,13 +54,22 @@ class PosterPipeline:
     def __init__(
         self,
         background_svc: Optional[FireflyBackgroundService] = None,
-        renderer: Optional[LayoutRenderer] = None,
+        renderer: Optional[object] = None,
         composer: Optional[Composer] = None,
         asset_loader: Optional[AssetLoader] = None,
         put_bytes_fn=None,  # injectable for testing; defaults to r2_client.put_bytes
     ):
         self._bg = background_svc or make_background_service()
-        self._renderer = renderer or LayoutRenderer(FontRegistry())
+        if isinstance(renderer, RendererSelector):
+            self._renderer = renderer
+        elif isinstance(renderer, LayoutRenderer):
+            self._renderer = RendererSelector(pillow_renderer=renderer)
+        elif renderer is None:
+            self._renderer = RendererSelector(
+                pillow_renderer=LayoutRenderer(FontRegistry())
+            )
+        else:
+            self._renderer = renderer
         self._composer = composer or Composer()
         self._loader = asset_loader or AssetLoader()
         self._put_bytes = put_bytes_fn  # None → lazy-loaded r2_client at call time
@@ -81,7 +90,7 @@ class PosterPipeline:
 
         spec_hash = _hash_spec(spec)
 
-        # ── Phase 1: parallel asset loading + background generation ──────────
+        # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
         assets, bg_result = await asyncio.gather(
             self._loader.load(spec),
@@ -96,18 +105,20 @@ class PosterPipeline:
             ),
         )
         timings["load_and_bg_ms"] = _elapsed(t0)
+        timings["background_layer_ms"] = timings["load_and_bg_ms"]
         logger.info(
             "poster2: trace=%s bg=%.1fs assets=loaded",
-            trace_id, timings["load_and_bg_ms"] / 1000,
+            trace_id, timings["background_layer_ms"] / 1000,
         )
 
-        # ── Phase 2: deterministic foreground render (pure Pillow, no I/O) ──
+        # ── Phase 2: deterministic foreground/text render ────────────────────
         t1 = _now()
-        fg_result = self._renderer.render(template, spec, assets)
+        fg_result = await self._renderer.render(template, spec, assets)
         timings["renderer_ms"] = _elapsed(t1)
+        timings.update(fg_result.layer_timings_ms)
         logger.info(
-            "poster2: trace=%s fg_hash=%s renderer=%.0fms",
-            trace_id, fg_result.sha256[:8], timings["renderer_ms"],
+            "poster2: trace=%s fg_hash=%s engine=%s renderer=%.0fms",
+            trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
         )
 
         # ── Phase 3: load background bytes and compose ───────────────────────
@@ -150,7 +161,12 @@ class PosterPipeline:
             trace_id=trace_id,
             template_id=template.template_id,
             template_version=template.version,
+            template_contract_version=fg_result.template_contract_version,
             engine_version=ENGINE_VERSION,
+            renderer_mode=spec.renderer_mode,
+            render_engine_used=fg_result.render_engine_used,
+            foreground_renderer=fg_result.foreground_renderer,
+            background_renderer=bg_result.model,
             poster_spec_hash=spec_hash,
             resolved_inputs=_summarise_inputs(spec),
             background_url=bg_result.url,
@@ -162,6 +178,8 @@ class PosterPipeline:
             final_url=final_url,
             final_hash=compose_result.sha256,
             timings_ms=timings,
+            degraded=fg_result.degraded,
+            degraded_reason=fg_result.degraded_reason,
         )
 
 
@@ -186,6 +204,7 @@ def _summarise_inputs(spec: PosterSpec) -> dict:
         "agent_name": spec.agent_name,
         "title": spec.title,
         "template_id": spec.template_id,
+        "renderer_mode": spec.renderer_mode,
         "product_url": spec.product_image.url,
         "gallery_count": len(spec.gallery_images),
         "seed": spec.style.seed,

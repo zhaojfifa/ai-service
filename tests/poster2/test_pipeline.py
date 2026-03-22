@@ -149,12 +149,21 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.0.0"
+        assert manifest.template_version == "2.1.0"
+        assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
+        assert manifest.render_engine_used == "pillow"
+        assert manifest.renderer_mode == "auto"
+        assert manifest.foreground_renderer == "poster2.pillow_layout"
+        assert manifest.background_renderer == "firefly-v3"
 
     def test_timings_recorded(self):
         manifest = self._run(_make_spec())
         assert "load_and_bg_ms" in manifest.timings_ms
+        assert "background_layer_ms" in manifest.timings_ms
+        assert "product_material_layer_ms" in manifest.timings_ms
+        assert "foreground_structure_layer_ms" in manifest.timings_ms
+        assert "text_layer_ms" in manifest.timings_ms
         assert "renderer_ms" in manifest.timings_ms
         assert "compose_ms" in manifest.timings_ms
         assert "total_ms" in manifest.timings_ms

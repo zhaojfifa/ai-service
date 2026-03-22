@@ -6,7 +6,7 @@ Internal pipeline uses dataclasses from app.services.poster2.contracts.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -50,6 +50,7 @@ class GeneratePosterV2Request(BaseModel):
     # Rendering
     template_id: str = Field(default="template_dual_v2", max_length=80)
     export_format: str = Field(default="png", pattern=r"^(png|jpeg|webp)$")
+    renderer_mode: Literal["auto", "pillow", "puppeteer"] = Field(default="auto")
 
     model_config = {"json_schema_extra": {
         "example": {
@@ -75,7 +76,12 @@ class GeneratePosterV2Response(BaseModel):
     background_model: str
     template_id: str
     template_version: str
+    template_contract_version: str
     engine_version: str
+    renderer_mode: Literal["auto", "pillow", "puppeteer"]
+    render_engine_used: str
+    foreground_renderer: str
+    background_renderer: str
     poster_spec_hash: str
     timings_ms: dict
     degraded: bool = False

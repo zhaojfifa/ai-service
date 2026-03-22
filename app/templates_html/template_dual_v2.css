@@ -1,0 +1,138 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 1024px;
+  height: 1024px;
+  background: transparent;
+}
+
+body {
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+}
+
+#poster-root {
+  position: relative;
+  width: 1024px;
+  height: 1024px;
+  overflow: hidden;
+  background: transparent;
+  color: #1a1a1a;
+}
+
+.safe-frame {
+  position: absolute;
+  inset: var(--safe-margin);
+  border-radius: 32px;
+  pointer-events: none;
+}
+
+.slot,
+.gallery-item,
+.feature-callout {
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.slot img,
+.gallery-item img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.slot-logo img[src=""],
+.slot-scenario img[src=""],
+.gallery-item[data-empty="true"] {
+  opacity: 0;
+}
+
+.slot-scenario img {
+  object-fit: cover;
+}
+
+.slot-product img {
+  object-fit: contain;
+  filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.18));
+}
+
+.text-brand {
+  display: flex;
+  align-items: center;
+  font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #1a1a1a;
+}
+
+.text-agent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 34px;
+  background: #e8002a;
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 20px;
+  line-height: 1.2;
+  color: #ffffff;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.text-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+  color: #e8002a;
+}
+
+.text-subtitle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 20px;
+  line-height: 1.2;
+  text-align: center;
+  color: #e8002a;
+}
+
+.gallery-strip,
+.feature-layer,
+.structured-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gallery-item {
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.gallery-item img {
+  object-fit: cover;
+}
+
+.feature-callout {
+  display: flex;
+  align-items: center;
+  font-family: "Poster2Feature", "Noto Sans SC", sans-serif;
+  font-size: 16px;
+  line-height: 1.3;
+  color: #1a1a1a;
+}
+
+.structured-overlay svg {
+  display: block;
+  width: 1024px;
+  height: 1024px;
+}

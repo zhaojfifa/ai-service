@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1024, initial-scale=1" />
+  <style>
+__FONT_FACE_CSS__
+__INLINE_CSS__
+  </style>
+</head>
+<body>
+  <div
+    id="poster-root"
+    data-template-id="__TEMPLATE_ID__"
+    data-template-contract-version="__TEMPLATE_CONTRACT_VERSION__"
+    style="--safe-margin: __SAFE_MARGIN__px;"
+  >
+    <div class="safe-frame"></div>
+    <div class="structured-overlay" aria-hidden="true">__SVG_OVERLAY__</div>
+
+    <div class="slot slot-logo" style="__LOGO_STYLE__">
+      <img src="__LOGO_URL__" alt="" loading="eager" />
+    </div>
+
+    <div class="slot slot-brand text-brand" style="__BRAND_STYLE__">__BRAND_TEXT__</div>
+    <div class="slot slot-agent text-agent" style="__AGENT_STYLE__">__AGENT_TEXT__</div>
+
+    <div class="slot slot-scenario image-slot" style="__SCENARIO_STYLE__">
+      <img src="__SCENARIO_URL__" alt="" loading="eager" />
+    </div>
+
+    <div class="slot slot-product image-slot" style="__PRODUCT_STYLE__">
+      <img src="__PRODUCT_URL__" alt="" loading="eager" />
+    </div>
+
+    <div class="gallery-strip" aria-hidden="true">__GALLERY_ITEMS__</div>
+    <div class="feature-layer">__FEATURE_ITEMS__</div>
+
+    <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
+    <div class="slot slot-subtitle text-subtitle" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
+  </div>
+</body>
+</html>

@@ -13,6 +13,7 @@ No network, no AI, no R2 calls.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -32,10 +33,12 @@ from app.services.poster2.contracts import (
 )
 from app.services.poster2.renderer import (
     LayoutRenderer,
+    RendererSelector,
     _apply_radius,
-    _fit_image,
     _wrap_text,
     _draw_pill_bg,
+    _fit_image,
+    ForegroundResult,
 )
 
 
@@ -254,6 +257,63 @@ class TestWrapText:
         long_text = " ".join(["word"] * 20)
         lines = _wrap_text(draw, long_text, font, max_width=40, max_lines=2)
         assert len(lines) <= 2
+
+
+class _FakePuppeteerRenderer:
+    def __init__(self, result: ForegroundResult | None = None, exc: Exception | None = None):
+        self._result = result
+        self._exc = exc
+
+    async def render(self, spec, poster, assets):
+        if self._exc:
+            raise self._exc
+        return self._result
+
+
+class TestRendererSelector:
+
+    def test_prefers_requested_puppeteer_renderer(self):
+        template = _load_real_template()
+        expected = ForegroundResult(
+            image=solid_image(1024, 1024),
+            png_bytes=b"png",
+            sha256="x" * 64,
+            render_engine_used="puppeteer",
+            foreground_renderer="poster2.puppeteer_structured",
+            template_contract_version="poster2.template_dual_v2.v1",
+        )
+        selector = RendererSelector(
+            pillow_renderer=LayoutRenderer(),
+            puppeteer_renderer=_FakePuppeteerRenderer(result=expected),
+        )
+
+        result = asyncio.run(
+            selector.render(
+                template,
+                _minimal_spec(renderer_mode="puppeteer"),
+                _minimal_assets(),
+            )
+        )
+        assert result.render_engine_used == "puppeteer"
+        assert result.foreground_renderer == "poster2.puppeteer_structured"
+
+    def test_falls_back_to_pillow_when_puppeteer_fails(self):
+        template = _load_real_template()
+        selector = RendererSelector(
+            pillow_renderer=LayoutRenderer(),
+            puppeteer_renderer=_FakePuppeteerRenderer(exc=RuntimeError("browser missing")),
+        )
+
+        result = asyncio.run(
+            selector.render(
+                template,
+                _minimal_spec(renderer_mode="puppeteer"),
+                _minimal_assets(),
+            )
+        )
+        assert result.render_engine_used == "pillow"
+        assert result.degraded is True
+        assert result.degraded_reason == "puppeteer_fallback:RuntimeError"
 
 
 # ── Gallery strip position test ───────────────────────────────────────────────
