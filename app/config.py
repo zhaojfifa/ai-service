@@ -23,6 +23,19 @@ def _as_list(csv: str | None, fallback: List[str]) -> List[str]:
     return items or fallback
 
 
+def _env_first(*names: str, default: str | None = None) -> str | None:
+    """Return the first non-empty env value from aliases."""
+
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = value.strip()
+        if text:
+            return text
+    return default
+
+
 def _normalise_origin(value: str) -> str | None:
     """
     将单个 origin 归一化：
@@ -144,40 +157,11 @@ class Settings:
     s3_public_base: str | None
 
 
-def _parse_allowed_origins(raw: str) -> List[str]:
-    """Normalise comma-separated origins into values accepted by CORSMiddleware."""
-
-    if not raw:
-        return ["*"]
-
-    cleaned: List[str] = []
-    for origin in raw.split(","):
-        value = origin.strip()
-        if not value:
-            continue
-        if value == "*":
-            return ["*"]
-
-        parsed = urlparse(value)
-        if parsed.scheme and parsed.netloc:
-            normalised = f"{parsed.scheme}://{parsed.netloc}"
-        else:
-            normalised = value
-
-        if normalised not in cleaned:
-            cleaned.append(normalised)
-
-    return cleaned or ["*"]
-
-
 @lru_cache()
 def get_settings() -> Settings:
     def _get(name: str, default: str | None = None) -> str | None:
         v = os.getenv(name)
         return v if v is not None else default
-
-    def _truthy(v: str | None) -> bool:
-        return str(v).strip().lower() in {"1", "true", "yes", "on"}
 
     environment = _get("ENVIRONMENT", "development")
     origins_raw = _get(
@@ -202,12 +186,18 @@ def get_settings() -> Settings:
     )
 
     gcp = GCPConfig(
-        project_id=_get("GCP_PROJECT_ID"),
-        location=_get("GCP_LOCATION", "us-central1") or "us-central1",
+        project_id=_env_first("GCP_PROJECT_ID", "VERTEX_PROJECT_ID"),
+        location=_env_first("GCP_LOCATION", "VERTEX_LOCATION", default="us-central1")
+        or "us-central1",
     )
 
     vertex = VertexConfig(
-        imagen_generate_model=_get("VERTEX_IMAGEN_GENERATE_MODEL", "imagen-3.0-generate-001")
+        imagen_generate_model=_env_first(
+            "VERTEX_IMAGEN_MODEL_GENERATE",
+            "VERTEX_IMAGEN_GENERATE_MODEL",
+            "VERTEX_IMAGEN_MODEL",
+            default="imagen-3.0-generate-001",
+        )
         or "imagen-3.0-generate-001",
     )
 
@@ -226,11 +216,10 @@ def get_settings() -> Settings:
         vertex=vertex,
         glibatree=glibatree,
         openai=openai_cfg,
-        s3_endpoint=_get("S3_ENDPOINT"),
-        s3_access_key=_get("S3_ACCESS_KEY"),
-        s3_secret_key=_get("S3_SECRET_KEY"),
-        s3_region=_get("S3_REGION", "auto"),
-        s3_bucket=_get("S3_BUCKET"),
-        s3_public_base=_get("S3_PUBLIC_BASE"),
+        s3_endpoint=_env_first("R2_ENDPOINT", "S3_ENDPOINT"),
+        s3_access_key=_env_first("R2_ACCESS_KEY_ID", "S3_ACCESS_KEY"),
+        s3_secret_key=_env_first("R2_SECRET_ACCESS_KEY", "S3_SECRET_KEY"),
+        s3_region=_env_first("R2_REGION", "S3_REGION", default="auto") or "auto",
+        s3_bucket=_env_first("R2_BUCKET", "S3_BUCKET"),
+        s3_public_base=_env_first("R2_PUBLIC_BASE", "S3_PUBLIC_BASE"),
     )
-

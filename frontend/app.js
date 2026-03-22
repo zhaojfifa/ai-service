@@ -1650,6 +1650,27 @@ const MODE_S_DEFAULT_STAGE1 = {
 };
 
 const DEFAULT_STAGE1 = MODE_S ? MODE_S_DEFAULT_STAGE1 : LEGACY_DEFAULT_STAGE1;
+const AGENT_NAME_PLACEHOLDERS = new Set([
+  'email',
+  'mail',
+  'direct',
+  'default',
+  'wechat',
+  'whatsapp',
+  'sms',
+  'channel',
+  'n/a',
+  'na',
+]);
+
+function sanitizeAgentName(candidate, brandName = '') {
+  const raw = typeof candidate === 'string' ? candidate.trim() : '';
+  const brand = typeof brandName === 'string' ? brandName.trim() : '';
+  if (raw && !AGENT_NAME_PLACEHOLDERS.has(raw.toLowerCase())) {
+    return raw;
+  }
+  return brand ? `${brand}渠道服务中心` : '渠道服务中心';
+}
 
 const TEMPLATE_REGISTRY_PATH = 'templates/registry.json';
 const templateCache = new Map();
@@ -3915,9 +3936,14 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       const modeSGalleryEntries = Array.isArray(state.galleryEntries)
         ? state.galleryEntries.filter((entry) => entry && entry.asset)
         : [];
+      const modeSBrandName = formData.get('brand_name')?.toString().trim() || '';
+      const modeSAgentName = sanitizeAgentName(
+        formData.get('agent_name')?.toString().trim() || '',
+        modeSBrandName
+      );
       const payload = {
-        brand_name: formData.get('brand_name')?.toString().trim() || '',
-        agent_name: formData.get('agent_name')?.toString().trim() || '',
+        brand_name: modeSBrandName,
+        agent_name: modeSAgentName,
         brand_color: formData.get('brand_color')?.toString().trim() || '',
         price: formData.get('price')?.toString().trim() || '',
       promo: formData.get('promo')?.toString().trim() || '',
@@ -4708,7 +4734,10 @@ function buildGeneratePosterPayload(draft) {
   return {
     poster: {
       brand_name: core.brand_name || posterSource.brand_name || '',
-      agent_name: posterSource.agent_name || messaging.channel || '',
+      agent_name: sanitizeAgentName(
+        posterSource.agent_name || messaging.channel || '',
+        core.brand_name || posterSource.brand_name || ''
+      ),
       scenario_image: posterSource.scenario_image || messaging.intent || '',
       product_name: posterSource.product_name || title || '',
       channel: messaging.channel || posterSource.channel || null,
@@ -6779,6 +6808,7 @@ async function triggerGeneration(opts) {
         stage1Data.promo || stage1Data.price || stage1Data.intent,
         title
       );
+      const agentName = sanitizeAgentName(stage1Data.agent_name || channel, brandName);
 
       if (productImage1Ref?.url) {
         assertAssetUrl('product_image_1', productImage1Ref.url);
@@ -6786,7 +6816,7 @@ async function triggerGeneration(opts) {
 
       posterPayload = {
         brand_name: brandName,
-        agent_name: channel,
+        agent_name: agentName,
         scenario_image: scenarioRef?.key || scenarioRef?.url || null,
         product_name: productName,
         channel,

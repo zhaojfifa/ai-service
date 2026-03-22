@@ -36,11 +36,24 @@ from app.services.template_variants import generation_overrides
 
 logger = logging.getLogger(__name__)
 _FONT_LOGGED = False
+_FONT_RUNTIME_LOGGED = False
 KITPOSTER_NEGATIVE_HARDENING = (
     "no text, no letters, no typography, no signage, no labels, "
     "no numbers, no UI, no screen content, no captions, "
     "no packaging text, no watermark"
 )
+_AGENT_NAME_PLACEHOLDERS = {
+    "email",
+    "mail",
+    "direct",
+    "default",
+    "wechat",
+    "whatsapp",
+    "sms",
+    "n/a",
+    "na",
+    "channel",
+}
 
 vertex_imagen_client: VertexImagen3 | None = None
 
@@ -443,6 +456,10 @@ def _prepare_writein_assets(poster: PosterInput) -> PosterInput:
         value = getattr(poster, field, None)
         if value is None:
             updates[field] = ""
+    agent_name = str(getattr(poster, "agent_name", "") or "").strip()
+    brand_name = str(getattr(poster, "brand_name", "") or "").strip()
+    if agent_name.lower() in _AGENT_NAME_PLACEHOLDERS or not agent_name:
+        updates["agent_name"] = f"{brand_name}渠道服务中心" if brand_name else "渠道服务中心"
 
     if not getattr(poster, "brand_logo", None):
         logo_asset = getattr(poster, "logo", None)
@@ -1210,58 +1227,82 @@ def _load_font(size: int = 32, *, weight: int = 400) -> ImageFont.ImageFont:
         Path("/usr/local/share/fonts"),
         Path("/opt/render/project/src/app/assets/fonts"),
     ]
+    names = (
+        ["NotoSansSC-SemiBold.ttf", "NotoSans-SemiBold.ttf"]
+        if prefer_semibold
+        else ["NotoSansSC-Regular.ttf", "NotoSans-Regular.ttf"]
+    )
 
-    if prefer_semibold:
-        names = [
-            "NotoSansSC-SemiBold.ttf",
-            "NotoSans-SemiBold.ttf",
-        ]
-    else:
-        names = [
-            "NotoSansSC-Regular.ttf",
-            "NotoSans-Regular.ttf",
-        ]
-
-    def try_dirs(dirs: list[Path]) -> tuple[ImageFont.ImageFont | None, str | None]:
-        for d in dirs:
-            if not d or str(d) == ".":
+    search_dirs = [Path(p) for p in env_dirs if p.strip()] + repo_font_dirs + sys_font_dirs
+    selected_path: str | None = None
+    for directory in search_dirs:
+        if not directory or str(directory) == ".":
+            continue
+        for name in names:
+            candidate = directory / name
+            if not candidate.exists():
                 continue
-            for name in names:
-                p = d / name
-                if p.exists():
-                    try:
-                        return ImageFont.truetype(str(p), size=size), str(p)
-                    except Exception:
-                        continue
-        return None, None
+            try:
+                font = ImageFont.truetype(str(candidate), size=size)
+                selected_path = str(candidate)
+                break
+            except Exception:
+                continue
+        if selected_path:
+            break
 
-    def try_env_dirs(dir_list: list[str]) -> tuple[ImageFont.ImageFont | None, str | None]:
-        for entry in dir_list:
-            candidate = Path(entry)
-            for name in names:
-                p = candidate / name
-                if p.exists():
-                    try:
-                        return ImageFont.truetype(str(p), size=size), str(p)
-                    except Exception:
-                        continue
-        return None, None
-
-    font, path = try_env_dirs(env_dirs)
-    if font is None:
-        font, path = try_dirs(repo_font_dirs)
-    if font is None:
-        font, path = try_dirs(sys_font_dirs)
-    if font is None:
+    if selected_path:
+        path = selected_path
+    else:
+        strict_font = (os.getenv("POSTER_FONT_STRICT") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if strict_font:
+            raise RuntimeError(
+                "No CJK font resolved for poster rendering (set POSTER_FONT_DIRS or bundle fonts)"
+            )
         font = ImageFont.load_default()
         path = "PIL default"
 
     global _FONT_LOGGED
     if not _FONT_LOGGED:
-        logger.debug("poster.font.selected=%s", path)
+        level = logging.WARNING if path == "PIL default" else logging.INFO
+        logger.log(level, "poster.font.selected=%s", path)
         _FONT_LOGGED = True
 
     return font
+
+
+def poster_font_runtime_summary() -> dict[str, Any]:
+    """Report resolved runtime font paths used by locked-template rendering."""
+
+    regular = _load_font(32, weight=400)
+    semibold = _load_font(32, weight=700)
+
+    regular_path = getattr(regular, "path", None) or "PIL default"
+    semibold_path = getattr(semibold, "path", None) or "PIL default"
+    strict_font = (os.getenv("POSTER_FONT_STRICT") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    payload = {
+        "regular": regular_path,
+        "semibold": semibold_path,
+        "strict": strict_font,
+        "using_pil_default": regular_path == "PIL default" or semibold_path == "PIL default",
+    }
+
+    global _FONT_RUNTIME_LOGGED
+    if not _FONT_RUNTIME_LOGGED:
+        level = logging.WARNING if payload["using_pil_default"] else logging.INFO
+        logger.log(level, "poster.font.runtime=%s", payload)
+        _FONT_RUNTIME_LOGGED = True
+    return payload
 
 
 def _draw_wrapped_text(
@@ -1898,6 +1939,7 @@ def generate_poster_asset(
     fallback_asset = getattr(poster, "product_asset", None) or getattr(poster, "scenario_asset", None)
     fallback_key = getattr(poster, "product_key", None) or getattr(poster, "scenario_key", None)
     gallery_items = list(getattr(poster, "gallery_items", []) or [])
+    initial_gallery_count = len(gallery_items)
     while len(gallery_items) < 4:
         if fallback_asset:
             gallery_items.append(
@@ -1921,6 +1963,17 @@ def generate_poster_asset(
             )
     if gallery_items:
         poster.gallery_items = gallery_items[:4]
+    padded_slots = max(0, min(4, len(gallery_items)) - min(4, initial_gallery_count))
+    if padded_slots:
+        warnings.append("gallery_fallback_filled")
+        logger.info(
+            "[poster] gallery fallback applied",
+            extra={
+                "trace": trace_id,
+                "filled_slots": padded_slots,
+                "fallback_source": "product_or_scenario" if fallback_asset else "empty_placeholder",
+            },
+        )
 
     if scenario_slot_asset or getattr(poster, "scenario_asset", None):
         if "scenario" not in template.keep_slots:

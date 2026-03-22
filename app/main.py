@@ -52,6 +52,7 @@ from app.services.email_sender import send_email
 from app.services.glibatree import (
     configure_vertex_imagen,
     generate_poster_asset,
+    poster_font_runtime_summary,
     run_kitposter_state_machine,
     generate_slot_image,
 )
@@ -164,7 +165,7 @@ def _vertex_runtime_summary() -> dict[str, Any]:
         or os.getenv("VERTEX_IMAGEN_MODEL_EDIT")
         or "imagen-3.0-capability-001"
     ).strip()
-    edit_enabled = (os.getenv("VERTEX_IMAGEN_ENABLE_EDIT") or "").strip().lower() in {
+    edit_requested = (os.getenv("VERTEX_IMAGEN_ENABLE_EDIT") or "").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -174,8 +175,9 @@ def _vertex_runtime_summary() -> dict[str, Any]:
         "project": project or None,
         "location": location,
         "generate_model": generate_model,
-        "edit_model": edit_model,
-        "edit_enabled": edit_enabled,
+        "edit_model": edit_model if edit_requested else None,
+        "edit_model_config": edit_model,
+        "edit_enabled": edit_requested,
     }
 
 
@@ -216,7 +218,14 @@ logger.info(
     extra={
         "vertex": _vertex_runtime_summary(),
         "storage": _storage_runtime_summary(),
+        "fonts": poster_font_runtime_summary(),
     },
+)
+logger.info(
+    "Runtime configuration resolved vertex=%s storage=%s fonts=%s",
+    _vertex_runtime_summary(),
+    _storage_runtime_summary(),
+    poster_font_runtime_summary(),
 )
 
 
