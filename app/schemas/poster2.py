@@ -61,9 +61,18 @@ class GeneratePosterV2Request(BaseModel):
             "features": ["智能温控", "语音操控", "节能环保", "极简设计"],
             "product_image": {"url": "https://example.com/product.png"},
             "style": {"prompt": "warm kitchen atmosphere, soft bokeh", "seed": 42},
-            "template_id": "template_dual_v2"
+            "template_id": "template_dual_v2",
+            "renderer_mode": "pillow"
         }
     }}
+
+
+class Poster2DebugArtifacts(BaseModel):
+    background_layer_url: str = ""
+    product_material_layer_url: str = ""
+    foreground_layer_url: str = ""
+    final_composited_url: str = ""
+    renderer_metadata_url: str = ""
 
 
 class GeneratePosterV2Response(BaseModel):
@@ -84,5 +93,6 @@ class GeneratePosterV2Response(BaseModel):
     background_renderer: str
     poster_spec_hash: str
     timings_ms: dict
+    debug_artifacts: Poster2DebugArtifacts
     degraded: bool = False
     degraded_reason: Optional[str] = None

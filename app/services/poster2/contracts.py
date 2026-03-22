@@ -15,6 +15,8 @@ from typing import Literal, Optional
 
 from PIL import Image as PILImage
 
+RendererMode = Literal["auto", "pillow", "puppeteer"]
+
 
 # ---------------------------------------------------------------------------
 # PosterSpec — caller input
@@ -234,6 +236,15 @@ class ResolvedAssets:
     gallery: list[PILImage.Image] = field(default_factory=list)
 
 
+@dataclass
+class RenderDebugArtifacts:
+    background_layer_url: str = ""
+    product_material_layer_url: str = ""
+    foreground_layer_url: str = ""
+    final_composited_url: str = ""
+    renderer_metadata_url: str = ""
+
+
 # ---------------------------------------------------------------------------
 # RenderManifest — auditable output record
 # ---------------------------------------------------------------------------
@@ -268,9 +279,9 @@ class RenderManifest:
 
     # Timing & quality
     timings_ms: dict
+    debug_artifacts: RenderDebugArtifacts = field(default_factory=RenderDebugArtifacts)
     degraded: bool = False
     degraded_reason: Optional[str] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
-RendererMode = Literal["auto", "pillow", "puppeteer"]

@@ -118,7 +118,9 @@ class TestPosterPipelineRun:
         # Inject a fake put_bytes to avoid boto3/R2 dependency in tests
         _r2_urls = iter([
             "https://r2.example.com/fg.png",
+            "https://r2.example.com/product-material.png",
             "https://r2.example.com/final.png",
+            "https://r2.example.com/renderer-metadata.json",
         ])
         fake_put_bytes = MagicMock(side_effect=lambda key, data, **kw: next(_r2_urls))
 
@@ -139,6 +141,8 @@ class TestPosterPipelineRun:
         assert manifest.final_url == "https://r2.example.com/final.png"
         assert manifest.foreground_url == "https://r2.example.com/fg.png"
         assert manifest.background_url == "https://r2.example.com/bg.png"
+        assert manifest.debug_artifacts.product_material_layer_url == "https://r2.example.com/product-material.png"
+        assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
 
     def test_manifest_hashes_set(self):
         manifest = self._run(_make_spec())
@@ -156,6 +160,9 @@ class TestPosterPipelineRun:
         assert manifest.renderer_mode == "auto"
         assert manifest.foreground_renderer == "poster2.pillow_layout"
         assert manifest.background_renderer == "firefly-v3"
+        assert manifest.debug_artifacts.background_layer_url == "https://r2.example.com/bg.png"
+        assert manifest.debug_artifacts.foreground_layer_url == "https://r2.example.com/fg.png"
+        assert manifest.debug_artifacts.final_composited_url == "https://r2.example.com/final.png"
 
     def test_timings_recorded(self):
         manifest = self._run(_make_spec())

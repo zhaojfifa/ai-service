@@ -23,9 +23,9 @@ from PIL import Image as PILImage
 from .asset_loader import AssetLoader
 from .background import FireflyBackgroundService, make_background_service
 from .composer import Composer
-from .contracts import PosterSpec, RenderManifest, TemplateSpec
+from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
-from .renderer import LayoutRenderer, RendererSelector
+from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -73,6 +73,7 @@ class PosterPipeline:
         self._composer = composer or Composer()
         self._loader = asset_loader or AssetLoader()
         self._put_bytes = put_bytes_fn  # None → lazy-loaded r2_client at call time
+        self._debug_font_registry = FontRegistry()
 
     async def run(
         self,
@@ -129,6 +130,11 @@ class PosterPipeline:
         )
         timings["compose_ms"] = _elapsed(t2)
 
+        # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
+        debug_product_material = render_product_material_debug_layer(
+            template, assets, font_registry=self._debug_font_registry
+        )
+
         # ── Phase 4: store foreground + final to R2 ──────────────────────────
         if self._put_bytes is None:
             from app.services import r2_client  # lazy: keeps boto3 out of test collection
@@ -143,11 +149,54 @@ class PosterPipeline:
             logger.warning("poster2: R2 upload failed for fg key=%s", fg_key)
             fg_url = ""
 
+        product_material_key = f"poster2/debug/product-material/{trace_id}.png"
+        product_material_url = _put(
+            product_material_key,
+            debug_product_material.png_bytes,
+            content_type="image/png",
+        )
+        if not product_material_url:
+            logger.warning("poster2: R2 upload failed for product/material key=%s", product_material_key)
+            product_material_url = ""
+
         ext = spec.export_format
         final_key = f"poster2/final/{trace_id}.{ext}"
         final_url = _put(final_key, compose_result.png_bytes, content_type=f"image/{ext}")
         if not final_url:
             raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
+
+        renderer_metadata_payload = {
+            "trace_id": trace_id,
+            "template_id": template.template_id,
+            "template_version": template.version,
+            "template_contract_version": fg_result.template_contract_version,
+            "requested_renderer_mode": spec.renderer_mode,
+            "render_engine_used": fg_result.render_engine_used,
+            "foreground_renderer": fg_result.foreground_renderer,
+            "background_renderer": bg_result.model,
+            "background_seed": bg_result.seed_used,
+            "foreground_hash": fg_result.sha256,
+            "product_material_hash": debug_product_material.sha256,
+            "final_hash": compose_result.sha256,
+            "degraded": fg_result.degraded,
+            "degraded_reason": fg_result.degraded_reason,
+            "timings_ms": timings,
+            "artifact_urls": {
+                "background_layer_url": bg_result.url,
+                "product_material_layer_url": product_material_url,
+                "foreground_layer_url": fg_url,
+                "final_composited_url": final_url,
+            },
+        }
+        renderer_metadata_key = f"poster2/debug/metadata/{trace_id}.json"
+        renderer_metadata_url = _put(
+            renderer_metadata_key,
+            json.dumps(renderer_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
+            content_type="application/json",
+        )
+        if not renderer_metadata_url:
+            logger.warning("poster2: R2 upload failed for renderer metadata key=%s", renderer_metadata_key)
+            renderer_metadata_url = ""
 
         timings["storage_ms"] = _elapsed(t3)
         timings["total_ms"] = _elapsed(t0)
@@ -178,6 +227,13 @@ class PosterPipeline:
             final_url=final_url,
             final_hash=compose_result.sha256,
             timings_ms=timings,
+            debug_artifacts=RenderDebugArtifacts(
+                background_layer_url=bg_result.url,
+                product_material_layer_url=product_material_url,
+                foreground_layer_url=fg_url,
+                final_composited_url=final_url,
+                renderer_metadata_url=renderer_metadata_url,
+            ),
             degraded=fg_result.degraded,
             degraded_reason=fg_result.degraded_reason,
         )

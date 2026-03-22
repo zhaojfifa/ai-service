@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services.poster2.contracts import RenderManifest
+from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
 
 
 class _FakePoster2Pipeline:
@@ -29,6 +29,13 @@ class _FakePoster2Pipeline:
             final_url="https://example.com/final.png",
             final_hash="b" * 64,
             timings_ms={"total_ms": 12},
+            debug_artifacts=RenderDebugArtifacts(
+                background_layer_url="https://example.com/bg.png",
+                product_material_layer_url="https://example.com/product-material.png",
+                foreground_layer_url="https://example.com/fg.png",
+                final_composited_url="https://example.com/final.png",
+                renderer_metadata_url="https://example.com/renderer-metadata.json",
+            ),
         )
 
 
@@ -59,3 +66,26 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["render_engine_used"] == "pillow"
     assert body["foreground_renderer"] == "poster2.pillow_layout"
     assert body["background_renderer"] == "firefly-v3"
+    assert body["debug_artifacts"]["product_material_layer_url"] == "https://example.com/product-material.png"
+    assert body["debug_artifacts"]["renderer_metadata_url"] == "https://example.com/renderer-metadata.json"
+
+
+def test_generate_poster_v2_rejects_puppeteer_for_non_pilot_template():
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_focus_v1",
+            "renderer_mode": "puppeteer",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "template_dual_v2" in response.json()["detail"]

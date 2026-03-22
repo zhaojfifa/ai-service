@@ -486,6 +486,36 @@ def _default_renderer_mode() -> RendererMode:
     return "pillow"
 
 
+def render_product_material_debug_layer(
+    spec: TemplateSpec,
+    assets: ResolvedAssets,
+    font_registry: FontRegistry | None = None,
+) -> ForegroundResult:
+    """
+    Deterministic debug layer for loaded product/material assets.
+
+    This is used for pilot observability regardless of the foreground engine
+    selected for the final structured render.
+    """
+    renderer = LayoutRenderer(font_registry=font_registry)
+    canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+    if spec.scenario_slot and assets.scenario:
+        renderer._draw_image(canvas, spec.scenario_slot, assets.scenario)
+    renderer._draw_product(canvas, spec.product_slot, assets.product)
+    renderer._draw_gallery(canvas, spec.gallery_slot, assets.gallery)
+    if spec.logo_slot and assets.logo:
+        renderer._draw_image(canvas, spec.logo_slot, assets.logo)
+    png_bytes = _to_png(canvas)
+    return ForegroundResult(
+        image=canvas,
+        png_bytes=png_bytes,
+        sha256=hashlib.sha256(png_bytes).hexdigest(),
+        render_engine_used="debug",
+        foreground_renderer="poster2.debug_product_material",
+        template_contract_version=spec.contract_version,
+    )
+
+
 def _font_file_bytes(font_registry: FontRegistry, font_key: str) -> bytes:
     filename = {
         "brand_bold": "NotoSansSC-SemiBold.ttf",

@@ -1347,7 +1347,11 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 # Poster 2.0 — /api/v2/generate-poster
 # ---------------------------------------------------------------------------
 
-from app.schemas.poster2 import GeneratePosterV2Request, GeneratePosterV2Response
+from app.schemas.poster2 import (
+    GeneratePosterV2Request,
+    GeneratePosterV2Response,
+    Poster2DebugArtifacts,
+)
 from app.services.poster2.contracts import (
     AssetRef as P2AssetRef,
     PosterSpec as P2PosterSpec,
@@ -1371,6 +1375,15 @@ def _to_asset_ref(ref) -> P2AssetRef:
     return P2AssetRef(url=ref.url, key=ref.key)
 
 
+def _validate_poster2_renderer_request(template_id: str, renderer_mode: str) -> None:
+    if renderer_mode != "puppeteer":
+        return
+    if template_id != "template_dual_v2":
+        raise ValueError(
+            "renderer_mode=puppeteer is only enabled for template_dual_v2 during the pilot"
+        )
+
+
 @app.post(
     "/api/v2/generate-poster",
     response_model=GeneratePosterV2Response,
@@ -1381,12 +1394,13 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
     """
     Poster 2.0 pipeline:
       1. Adobe Firefly generates background only (no text / no structure).
-      2. LayoutRenderer deterministically renders all foreground elements via Pillow.
+      2. A deterministic renderer renders all foreground elements via Pillow or Chromium.
       3. Composer alpha-composites the two layers.
 
     Text, logo, product, and gallery are NEVER passed through a generative model.
     """
     try:
+        _validate_poster2_renderer_request(payload.template_id, payload.renderer_mode)
         spec = P2PosterSpec(
             brand_name=payload.brand_name,
             agent_name=payload.agent_name,
@@ -1434,6 +1448,13 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
             background_renderer=manifest.background_renderer,
             poster_spec_hash=manifest.poster_spec_hash,
             timings_ms=manifest.timings_ms,
+            debug_artifacts=Poster2DebugArtifacts(
+                background_layer_url=manifest.debug_artifacts.background_layer_url,
+                product_material_layer_url=manifest.debug_artifacts.product_material_layer_url,
+                foreground_layer_url=manifest.debug_artifacts.foreground_layer_url,
+                final_composited_url=manifest.debug_artifacts.final_composited_url,
+                renderer_metadata_url=manifest.debug_artifacts.renderer_metadata_url,
+            ),
             degraded=manifest.degraded,
             degraded_reason=manifest.degraded_reason,
         )
