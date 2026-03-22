@@ -3,6 +3,7 @@
 ## Decision Levels
 
 - `not ready`
+- `ready for internal-only pilot`
 - `ready for limited rollout`
 - `ready for default`
 
@@ -28,6 +29,20 @@ All of the following must be true:
 6. Renderer metadata snapshot and all debug artifact URLs are present for every validation sample.
 
 Result if all pass: `ready for limited rollout`.
+
+## Gates For Internal-Only Pilot
+
+All of the following must be true:
+
+1. At least one real staging Puppeteer run succeeds with:
+   - `render_engine_used=puppeteer`
+   - `degraded=false`
+   - `fallback_reason_code=null`
+2. Pillow default remains unchanged.
+3. Puppeteer remains opt-in only.
+4. Debug artifacts and renderer metadata are readable for the successful run.
+
+Result if all pass but the broader repeated-run validation is not yet complete: `ready for internal-only pilot`.
 
 ## Gates For Default
 
