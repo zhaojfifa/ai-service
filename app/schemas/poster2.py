@@ -94,5 +94,7 @@ class GeneratePosterV2Response(BaseModel):
     poster_spec_hash: str
     timings_ms: dict
     debug_artifacts: Poster2DebugArtifacts
+    fallback_reason_code: Optional[str] = None
+    fallback_reason_detail: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None

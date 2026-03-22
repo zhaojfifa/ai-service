@@ -39,6 +39,43 @@ class _FakePoster2Pipeline:
         )
 
 
+class _FakeDegradedPoster2Pipeline:
+    async def run(self, spec, template=None) -> RenderManifest:
+        return RenderManifest(
+            trace_id="trace-degraded",
+            template_id=spec.template_id,
+            template_version="2.1.0",
+            template_contract_version="poster2.template_dual_v2.v1",
+            engine_version="2.0.0",
+            renderer_mode=spec.renderer_mode,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            background_renderer="firefly-v3",
+            poster_spec_hash="deadbeefdeadbeef",
+            resolved_inputs={"title": spec.title},
+            background_url="https://example.com/bg.png",
+            background_prompt="clean studio",
+            background_seed=42,
+            background_model="firefly-v3",
+            foreground_url="https://example.com/fg.png",
+            foreground_hash="a" * 64,
+            final_url="https://example.com/final.png",
+            final_hash="b" * 64,
+            timings_ms={"total_ms": 12},
+            debug_artifacts=RenderDebugArtifacts(
+                background_layer_url="https://example.com/bg.png",
+                product_material_layer_url="https://example.com/product-material.png",
+                foreground_layer_url="https://example.com/fg.png",
+                final_composited_url="https://example.com/final.png",
+                renderer_metadata_url="https://example.com/renderer-metadata.json",
+            ),
+            fallback_reason_code="puppeteer_browser_launch_failed",
+            fallback_reason_detail="BrowserType.launch: target closed",
+            degraded=True,
+            degraded_reason="puppeteer_browser_launch_failed",
+        )
+
+
 def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
     client = TestClient(app)
@@ -91,6 +128,33 @@ def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkey
     assert response.status_code == 200
     body = response.json()
     assert body["renderer_mode"] == "puppeteer"
+
+
+def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakeDegradedPoster2Pipeline())
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "puppeteer",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["render_engine_used"] == "pillow"
+    assert body["degraded"] is True
+    assert body["degraded_reason"] == "puppeteer_browser_launch_failed"
+    assert body["fallback_reason_code"] == "puppeteer_browser_launch_failed"
+    assert body["fallback_reason_detail"] == "BrowserType.launch: target closed"
 
 
 def test_generate_poster_v2_rejects_puppeteer_for_non_pilot_template():

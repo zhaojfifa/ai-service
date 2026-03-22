@@ -11,6 +11,7 @@ runtime, callers can degrade back to Pillow without changing the poster2 route.
 from __future__ import annotations
 
 import base64
+import asyncio
 import hashlib
 import html
 import json
@@ -46,6 +47,20 @@ class RendererUnavailableError(RuntimeError):
 
 
 @dataclass
+class PuppeteerFailureInfo:
+    reason_code: str
+    detail: str
+    exception_class: str
+    stage: str
+
+
+class PuppeteerRenderError(RuntimeError):
+    def __init__(self, failure: PuppeteerFailureInfo):
+        super().__init__(failure.detail)
+        self.failure = failure
+
+
+@dataclass
 class ForegroundResult:
     image: PILImage.Image
     png_bytes: bytes
@@ -54,6 +69,10 @@ class ForegroundResult:
     foreground_renderer: str
     template_contract_version: str
     layer_timings_ms: dict[str, int] = field(default_factory=dict)
+    fallback_reason_code: Optional[str] = None
+    fallback_reason_detail: Optional[str] = None
+    fallback_exception_class: Optional[str] = None
+    fallback_stage: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None
 
@@ -264,34 +283,45 @@ class PuppeteerStructuredRenderer:
         assets: ResolvedAssets,
     ) -> ForegroundResult:
         t0 = _now()
-        html_template = self._read_template_file(f"{spec.template_id}.html")
-        css_template = self._read_template_file(f"{spec.template_id}.css")
-        svg_overlay = self._read_template_file(f"{spec.template_id}.svg", optional=True)
-        slot_spec = self._read_json_file(f"slot_spec.{spec.template_id}.json")
-        anchor_map = self._read_json_file(f"anchor_map.{spec.template_id}.json")
+        logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
+        try:
+            html_template = self._read_template_file(f"{spec.template_id}.html")
+            css_template = self._read_template_file(f"{spec.template_id}.css")
+            svg_overlay = self._read_template_file(f"{spec.template_id}.svg", optional=True)
+            slot_spec = self._read_json_file(f"slot_spec.{spec.template_id}.json")
+            anchor_map = self._read_json_file(f"anchor_map.{spec.template_id}.json")
+        except Exception as exc:
+            raise _classify_puppeteer_exception(exc, stage="template_render") from exc
         layer_timings: dict[str, int] = {}
         layer_timings["foreground_structure_layer_ms"] = _elapsed(t0)
+        logger.info("poster2.puppeteer: template_render_done template=%s ms=%d", spec.template_id, layer_timings["foreground_structure_layer_ms"])
 
         t1 = _now()
-        asset_urls = {
-            "logo": _image_to_data_url(assets.logo) if assets.logo else "",
-            "scenario": _image_to_data_url(assets.scenario) if assets.scenario else "",
-            "product": _image_to_data_url(assets.product),
-            "gallery": [_image_to_data_url(img) for img in assets.gallery[:4]],
-        }
+        try:
+            asset_urls = {
+                "logo": _image_to_data_url(assets.logo) if assets.logo else "",
+                "scenario": _image_to_data_url(assets.scenario) if assets.scenario else "",
+                "product": _image_to_data_url(assets.product),
+                "gallery": [_image_to_data_url(img) for img in assets.gallery[:4]],
+            }
+        except Exception as exc:
+            raise _classify_puppeteer_exception(exc, stage="asset_load") from exc
         layer_timings["product_material_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
-        html_payload = self._build_html(
-            html_template=html_template,
-            css_template=css_template,
-            svg_overlay=svg_overlay,
-            poster=poster,
-            asset_urls=asset_urls,
-            slot_spec=slot_spec,
-            anchor_map=anchor_map,
-            spec=spec,
-        )
+        try:
+            html_payload = self._build_html(
+                html_template=html_template,
+                css_template=css_template,
+                svg_overlay=svg_overlay,
+                poster=poster,
+                asset_urls=asset_urls,
+                slot_spec=slot_spec,
+                anchor_map=anchor_map,
+                spec=spec,
+            )
+        except Exception as exc:
+            raise _classify_puppeteer_exception(exc, stage="template_render") from exc
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
@@ -394,7 +424,7 @@ class PuppeteerStructuredRenderer:
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc:  # pragma: no cover - import path depends on runtime
-            raise RendererUnavailableError("playwright is not installed") from exc
+            raise _classify_puppeteer_exception(exc, stage="browser_launch") from exc
 
         chromium_executable = (os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE") or "").strip()
         launch_kwargs: dict[str, Any] = {
@@ -405,14 +435,30 @@ class PuppeteerStructuredRenderer:
             launch_kwargs["executable_path"] = chromium_executable
 
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(**launch_kwargs)
+            logger.info("poster2.puppeteer: browser_launch_start width=%d height=%d", width, height)
+            try:
+                browser = await playwright.chromium.launch(**launch_kwargs)
+            except Exception as exc:
+                raise _classify_puppeteer_exception(exc, stage="browser_launch") from exc
+            logger.info("poster2.puppeteer: browser_launch_done")
             try:
                 page = await browser.new_page(
                     viewport={"width": width, "height": height},
                     device_scale_factor=1,
                 )
-                await page.set_content(html_payload, wait_until="load")
-                return await page.locator("#poster-root").screenshot(type="png", omit_background=True)
+                logger.info("poster2.puppeteer: navigation_start")
+                try:
+                    await page.set_content(html_payload, wait_until="load")
+                except Exception as exc:
+                    raise _classify_puppeteer_exception(exc, stage="navigation") from exc
+                logger.info("poster2.puppeteer: navigation_done")
+                logger.info("poster2.puppeteer: screenshot_start")
+                try:
+                    png_bytes = await page.locator("#poster-root").screenshot(type="png", omit_background=True)
+                except Exception as exc:
+                    raise _classify_puppeteer_exception(exc, stage="screenshot") from exc
+                logger.info("poster2.puppeteer: screenshot_done")
+                return png_bytes
             finally:
                 await browser.close()
 
@@ -466,10 +512,21 @@ class RendererSelector:
             try:
                 return await self._puppeteer.render(spec, poster, assets)
             except Exception as exc:
-                logger.warning("poster2: puppeteer renderer unavailable, falling back to pillow: %s", exc)
+                failure = _extract_puppeteer_failure_info(exc)
+                logger.warning(
+                    "poster2: puppeteer fallback stage=%s code=%s exc=%s detail=%s",
+                    failure.stage,
+                    failure.reason_code,
+                    failure.exception_class,
+                    failure.detail,
+                )
                 fallback = self._pillow.render(spec, poster, assets)
                 fallback.degraded = True
-                fallback.degraded_reason = f"puppeteer_fallback:{type(exc).__name__}"
+                fallback.degraded_reason = failure.reason_code
+                fallback.fallback_reason_code = failure.reason_code
+                fallback.fallback_reason_detail = failure.detail
+                fallback.fallback_exception_class = failure.exception_class
+                fallback.fallback_stage = failure.stage
                 return fallback
         return self._pillow.render(spec, poster, assets)
 
@@ -484,6 +541,55 @@ def _default_renderer_mode() -> RendererMode:
     if raw in {"auto", "pillow", "puppeteer"}:
         return raw  # type: ignore[return-value]
     return "pillow"
+
+
+def _extract_puppeteer_failure_info(exc: Exception) -> PuppeteerFailureInfo:
+    if isinstance(exc, PuppeteerRenderError):
+        return exc.failure
+    return _build_puppeteer_failure_info(exc, stage="unknown")
+
+
+def _classify_puppeteer_exception(exc: Exception, *, stage: str) -> PuppeteerRenderError:
+    return PuppeteerRenderError(_build_puppeteer_failure_info(exc, stage=stage))
+
+
+def _build_puppeteer_failure_info(exc: Exception, *, stage: str) -> PuppeteerFailureInfo:
+    detail = _truncate_detail(str(exc) or exc.__class__.__name__)
+    lowered = detail.lower()
+    exception_class = exc.__class__.__name__
+
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)) or "timeout" in lowered:
+        reason_code = "puppeteer_timeout"
+    elif "executable doesn't exist" in lowered or "playwright install" in lowered or "headless_shell" in lowered:
+        reason_code = "puppeteer_missing_chromium"
+    elif "error while loading shared libraries" in lowered or "libnss3" in lowered or "libatk" in lowered or "libgbm" in lowered:
+        reason_code = "puppeteer_missing_system_libs"
+    elif stage == "asset_load":
+        reason_code = "puppeteer_asset_load_failed"
+    elif stage == "template_render":
+        reason_code = "puppeteer_template_render_failed"
+    elif stage == "navigation":
+        reason_code = "puppeteer_navigation_failed"
+    elif stage == "screenshot":
+        reason_code = "puppeteer_screenshot_failed"
+    elif stage == "browser_launch":
+        reason_code = "puppeteer_browser_launch_failed"
+    else:
+        reason_code = "puppeteer_unknown_error"
+
+    return PuppeteerFailureInfo(
+        reason_code=reason_code,
+        detail=detail,
+        exception_class=exception_class,
+        stage=stage,
+    )
+
+
+def _truncate_detail(detail: str, limit: int = 240) -> str:
+    compact = " ".join(detail.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3] + "..."
 
 
 def render_product_material_debug_layer(

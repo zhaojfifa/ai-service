@@ -1464,6 +1464,8 @@ async def generate_poster_v2(payload: GeneratePosterV2Request) -> GeneratePoster
                 final_composited_url=manifest.debug_artifacts.final_composited_url,
                 renderer_metadata_url=manifest.debug_artifacts.renderer_metadata_url,
             ),
+            fallback_reason_code=manifest.fallback_reason_code,
+            fallback_reason_detail=manifest.fallback_reason_detail,
             degraded=manifest.degraded,
             degraded_reason=manifest.degraded_reason,
         )

@@ -34,11 +34,13 @@ from app.services.poster2.contracts import (
 from app.services.poster2.renderer import (
     LayoutRenderer,
     RendererSelector,
+    PuppeteerFailureInfo,
     _apply_radius,
     _wrap_text,
     _draw_pill_bg,
     _fit_image,
     ForegroundResult,
+    _build_puppeteer_failure_info,
 )
 
 
@@ -313,7 +315,45 @@ class TestRendererSelector:
         )
         assert result.render_engine_used == "pillow"
         assert result.degraded is True
-        assert result.degraded_reason == "puppeteer_fallback:RuntimeError"
+        assert result.degraded_reason == "puppeteer_unknown_error"
+        assert result.fallback_reason_code == "puppeteer_unknown_error"
+        assert result.fallback_exception_class == "RuntimeError"
+        assert result.fallback_stage == "unknown"
+
+    def test_launch_failure_maps_to_browser_launch_failed(self):
+        failure = _build_puppeteer_failure_info(
+            RuntimeError("BrowserType.launch: target closed"),
+            stage="browser_launch",
+        )
+        assert failure.reason_code == "puppeteer_browser_launch_failed"
+
+    def test_timeout_maps_to_timeout_reason(self):
+        failure = _build_puppeteer_failure_info(
+            TimeoutError("operation timeout while rendering"),
+            stage="navigation",
+        )
+        assert failure.reason_code == "puppeteer_timeout"
+
+    def test_template_render_failure_maps_correctly(self):
+        failure = _build_puppeteer_failure_info(
+            FileNotFoundError("template missing"),
+            stage="template_render",
+        )
+        assert failure.reason_code == "puppeteer_template_render_failed"
+
+    def test_missing_chromium_maps_correctly(self):
+        failure = _build_puppeteer_failure_info(
+            RuntimeError("Executable doesn't exist at /cache/chromium and playwright install is required"),
+            stage="browser_launch",
+        )
+        assert failure.reason_code == "puppeteer_missing_chromium"
+
+    def test_generic_error_is_classified_as_unknown(self):
+        failure = _build_puppeteer_failure_info(
+            Exception("generic failure"),
+            stage="unknown",
+        )
+        assert failure.reason_code == "puppeteer_unknown_error"
 
 
 # ── Gallery strip position test ───────────────────────────────────────────────

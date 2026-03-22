@@ -213,6 +213,8 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.degraded is False
         assert manifest.degraded_reason is None
+        assert manifest.fallback_reason_code is None
+        assert manifest.fallback_reason_detail is None
 
     def test_resolved_inputs_in_manifest(self):
         manifest = self._run(_make_spec())
