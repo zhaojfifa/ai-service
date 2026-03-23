@@ -29,6 +29,7 @@ class _FakePoster2Pipeline:
             final_url="https://example.com/final.png",
             final_hash="b" * 64,
             timings_ms={"total_ms": 12},
+            font_preflight={"ready": True, "using_pil_default": False},
             debug_artifacts=RenderDebugArtifacts(
                 background_layer_url="https://example.com/bg.png",
                 product_material_layer_url="https://example.com/product-material.png",
@@ -67,6 +68,7 @@ class _FakeDegradedPoster2Pipeline:
             final_url="https://example.com/final.png",
             final_hash="b" * 64,
             timings_ms={"total_ms": 12},
+            font_preflight={"ready": False, "using_pil_default": True},
             debug_artifacts=RenderDebugArtifacts(
                 background_layer_url="https://example.com/bg.png",
                 product_material_layer_url="https://example.com/product-material.png",
@@ -118,6 +120,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["render_engine_used"] == "pillow"
     assert body["foreground_renderer"] == "poster2.pillow_layout"
     assert body["background_renderer"] == "firefly-v3"
+    assert body["font_preflight"]["ready"] is True
     assert body["debug_artifacts"]["product_material_layer_url"] == "https://example.com/product-material.png"
     assert body["debug_artifacts"]["renderer_metadata_url"] == "https://example.com/renderer-metadata.json"
     assert body["debug_artifacts"]["slot_structure_layer_url"] == "https://example.com/slot-structure.png"

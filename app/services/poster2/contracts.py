@@ -284,6 +284,7 @@ class RenderManifest:
 
     # Timing & quality
     timings_ms: dict
+    font_preflight: dict = field(default_factory=dict)
     debug_artifacts: RenderDebugArtifacts = field(default_factory=RenderDebugArtifacts)
     fallback_reason_code: Optional[str] = None
     fallback_reason_detail: Optional[str] = None

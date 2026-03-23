@@ -6578,6 +6578,12 @@ function updatePoster2DiagnosticsPanel(data) {
   setCode('poster2-foreground-renderer', data?.foreground_renderer || 'N/A');
   setCode('poster2-total-ms', data?.timings_ms?.total_ms ?? 'N/A');
   setCode('poster2-template-contract-version', data?.template_contract_version || 'N/A');
+  setCode(
+    'poster2-font-preflight',
+    typeof data?.font_preflight?.ready === 'boolean'
+      ? (data.font_preflight.ready ? 'ready' : 'missing')
+      : 'N/A'
+  );
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
   setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');

@@ -98,6 +98,7 @@ class GeneratePosterV2Response(BaseModel):
     background_renderer: str
     poster_spec_hash: str
     timings_ms: dict
+    font_preflight: dict = Field(default_factory=dict)
     debug_artifacts: Poster2DebugArtifacts
     fallback_reason_code: Optional[str] = None
     fallback_reason_detail: Optional[str] = None

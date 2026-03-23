@@ -78,6 +78,7 @@ from app.services.template_variants import (
 from app.services.vertex_imagen import init_vertex
 from app.services.storage_bridge import store_image_and_url
 from app.services.vertex_imagen3 import VertexImagen3
+from app.services.poster2.font_registry import poster2_font_preflight
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
@@ -236,6 +237,7 @@ logger.info(
     _storage_runtime_summary(),
     poster_font_runtime_summary(),
 )
+logger.info("poster2 font preflight=%s", poster2_font_preflight())
 
 
 IMAGE_PROVIDER_NAME = "vertex"
@@ -1492,6 +1494,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             background_renderer=manifest.background_renderer,
             poster_spec_hash=manifest.poster_spec_hash,
             timings_ms=manifest.timings_ms,
+            font_preflight=manifest.font_preflight,
             debug_artifacts=Poster2DebugArtifacts(
                 background_layer_url=manifest.debug_artifacts.background_layer_url,
                 product_material_layer_url=manifest.debug_artifacts.product_material_layer_url,

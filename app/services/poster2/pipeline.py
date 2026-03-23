@@ -28,7 +28,7 @@ from .background import (
 )
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
-from .font_registry import FontRegistry
+from .font_registry import FontRegistry, poster2_font_preflight
 from .renderer import (
     LayoutRenderer,
     RendererSelector,
@@ -103,6 +103,7 @@ class PosterPipeline:
             template = load_template(spec.template_id)
 
         spec_hash = _hash_spec(spec)
+        font_preflight = poster2_font_preflight()
 
         # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
@@ -290,6 +291,7 @@ class PosterPipeline:
             "degraded": fg_result.degraded,
             "degraded_reason": fg_result.degraded_reason,
             "timings_ms": timings,
+            "font_preflight": font_preflight,
             "layer_render_status": _build_layer_render_status(
                 template=template,
                 spec=spec,
@@ -348,6 +350,7 @@ class PosterPipeline:
             final_url=final_url,
             final_hash=compose_result.sha256,
             timings_ms=timings,
+            font_preflight=font_preflight,
             debug_artifacts=RenderDebugArtifacts(
                 background_layer_url=bg_result.url,
                 product_material_layer_url=product_material_url,

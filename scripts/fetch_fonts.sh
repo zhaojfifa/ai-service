@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEST_DIR="${1:-assets/fonts}"
+DEST_DIR="${1:-app/assets/fonts}"
 mkdir -p "$DEST_DIR"
 
 # Download from Google Fonts / Noto (variable ttf).

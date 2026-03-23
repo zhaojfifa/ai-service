@@ -372,6 +372,7 @@ class TestRenderManifest:
             final_url="https://r2.example.com/final.png",
             final_hash="ddeeff",
             timings_ms={"total_ms": 3200},
+            font_preflight={"ready": True, "using_pil_default": False},
             debug_artifacts=RenderDebugArtifacts(
                 background_layer_url="https://r2.example.com/bg.png",
                 product_material_layer_url="https://r2.example.com/product-material.png",
@@ -389,6 +390,7 @@ class TestRenderManifest:
         assert d["trace_id"] == "abc"
         assert d["background_seed"] == 42
         assert d["render_engine_used"] == "pillow"
+        assert d["font_preflight"]["ready"] is True
         assert d["debug_artifacts"]["renderer_metadata_url"] == "https://r2.example.com/renderer-metadata.json"
         assert d["debug_artifacts"]["slot_metadata_url"] == "https://r2.example.com/slot-metadata.json"
         assert d["degraded"] is False

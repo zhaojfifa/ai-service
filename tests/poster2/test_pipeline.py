@@ -177,6 +177,7 @@ class TestPosterPipelineRun:
         assert manifest.renderer_mode == "auto"
         assert manifest.foreground_renderer == "poster2.pillow_layout"
         assert manifest.background_renderer == "firefly-v3"
+        assert "ready" in manifest.font_preflight
         assert manifest.debug_artifacts.background_layer_url == "https://r2.example.com/bg.png"
         assert manifest.debug_artifacts.foreground_layer_url == "https://r2.example.com/fg.png"
         assert manifest.debug_artifacts.final_composited_url == "https://r2.example.com/final.png"
@@ -336,6 +337,8 @@ class TestPosterPipelineRun:
         assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
         metadata_key = next(key for key in stored_payloads if "debug/metadata" in key)
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert "font_preflight" in metadata
+        assert "ready" in metadata["font_preflight"]
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
         assert layer_status["brand_logo_layer"]["reason_code"] == "logo_missing"
