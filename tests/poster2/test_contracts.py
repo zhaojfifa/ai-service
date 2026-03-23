@@ -202,28 +202,65 @@ class TestTemplateSpecLoading:
         assert "layer_states" in slot_spec
         assert "layer_contracts" in slot_spec
         assert "header_banner" in slot_spec["layers"]
+        assert "background_base_layer" in slot_spec["layers"]
         assert "header_shell_layer" in slot_spec["layers"]
         assert "brand_logo_layer" in slot_spec["layers"]
+        assert "brand_text_layer" in slot_spec["layers"]
+        assert "agent_pill_layer" in slot_spec["layers"]
+        assert "scenario_card_shell_layer" in slot_spec["layers"]
         assert "scenario_image_layer" in slot_spec["layers"]
+        assert "product_card_shell_layer" in slot_spec["layers"]
+        assert "product_image_layer" in slot_spec["layers"]
+        assert "feature_callout_layer" in slot_spec["layers"]
+        assert "title_layer" in slot_spec["layers"]
+        assert "subtitle_layer" in slot_spec["layers"]
         assert "bottom_gallery" in slot_spec["layers"]
+        assert "bottom_gallery_shell_layer" in slot_spec["layers"]
         assert "bottom_gallery_items_layer" in slot_spec["layers"]
+        assert "bottom_tagline_layer" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
         assert "brand_logo_slot" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
+        assert "state-safe-fill" in slot_spec["layer_states"]["scenario"]
+        for layer_name in [
+            "background_base_layer",
+            "header_shell_layer",
+            "brand_logo_layer",
+            "brand_text_layer",
+            "agent_pill_layer",
+            "scenario_card_shell_layer",
+            "scenario_image_layer",
+            "product_card_shell_layer",
+            "product_image_layer",
+            "feature_callout_layer",
+            "title_layer",
+            "subtitle_layer",
+            "bottom_gallery_shell_layer",
+            "bottom_gallery_items_layer",
+            "bottom_tagline_layer",
+        ]:
+            assert layer_name in slot_spec["layer_contracts"]
+            contract = slot_spec["layer_contracts"][layer_name]
+            assert "visible_when" in contract
+            assert "bounds" in contract
+            assert "fallback_rule" in contract
+            assert "collapse_rule" in contract
         brand_logo_contract = slot_spec["layer_contracts"]["brand_logo_layer"]
         scenario_image_contract = slot_spec["layer_contracts"]["scenario_image_layer"]
         bottom_gallery_items_contract = slot_spec["layer_contracts"]["bottom_gallery_items_layer"]
         assert brand_logo_contract["visible_when"] == "logo.url exists"
         assert brand_logo_contract["max_items"] == 1
         assert brand_logo_contract["max_lines"] == 0
-        assert scenario_image_contract["visible_when"] == "scenario_image.url exists"
+        assert scenario_image_contract["visible_when"] == "scenario_image.url exists or safe preset fill is resolved"
         assert scenario_image_contract["max_items"] == 1
         assert scenario_image_contract["max_lines"] == 0
+        assert "background_base_layer must not substitute" in scenario_image_contract["fallback_rule"]
         assert bottom_gallery_items_contract["visible_when"] == "gallery_images.length > 0"
         assert bottom_gallery_items_contract["max_items"] == 4
         assert bottom_gallery_items_contract["max_lines"] == 0
         assert "ghost placeholders" in bottom_gallery_items_contract["fallback_rule"]
         assert "fallback-fill" in slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"]
+        assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4
         assert len(anchor_map["feature_callouts"]) == 4

@@ -211,6 +211,12 @@ class PosterPipeline:
             "degraded": fg_result.degraded,
             "degraded_reason": fg_result.degraded_reason,
             "timings_ms": timings,
+            "layer_render_status": _build_layer_render_status(
+                template=template,
+                spec=spec,
+                assets=assets,
+                bg_result=bg_result,
+            ),
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
                 "product_material_layer_url": product_material_url,
@@ -297,3 +303,108 @@ def _summarise_inputs(spec: PosterSpec) -> dict:
         "gallery_count": len(spec.gallery_images),
         "seed": spec.style.seed,
     }
+
+
+def _build_layer_render_status(
+    *,
+    template: TemplateSpec,
+    spec: PosterSpec,
+    assets,
+    bg_result: BackgroundResult,
+) -> dict[str, dict[str, object]]:
+    gallery_count = min(len(assets.gallery), 4)
+    gallery_rendered = gallery_count > 0
+    feature_count = min(len(spec.features), len(template.feature_callouts))
+    layer_status = {
+        "background_base_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": bg_result.url,
+            "count": 1,
+        },
+        "header_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_dual_v2.header_shell",
+            "count": 1,
+        },
+        "brand_logo_layer": {
+            "rendered": assets.logo is not None,
+            "reason_code": None if assets.logo is not None else "logo_missing",
+            "source_binding": spec.logo.url if spec.logo else None,
+            "count": 1 if assets.logo is not None else 0,
+        },
+        "brand_text_layer": {
+            "rendered": bool(spec.brand_name),
+            "reason_code": None if spec.brand_name else "brand_name_empty",
+            "source_binding": "brand_name",
+            "count": 1 if spec.brand_name else 0,
+        },
+        "agent_pill_layer": {
+            "rendered": bool(spec.agent_name),
+            "reason_code": None if spec.agent_name else "agent_name_empty",
+            "source_binding": "agent_name",
+            "count": 1 if spec.agent_name else 0,
+        },
+        "scenario_card_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_dual_v2.scenario_card_shell",
+            "count": 1,
+        },
+        "scenario_image_layer": {
+            "rendered": True,
+            "reason_code": None if assets.scenario is not None else "safe_preset_fill",
+            "source_binding": spec.scenario_image.url if spec.scenario_image else "safe_preset_image",
+            "count": 1,
+        },
+        "product_card_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_dual_v2.product_card_shell",
+            "count": 1,
+        },
+        "product_image_layer": {
+            "rendered": assets.product is not None,
+            "reason_code": None if assets.product is not None else "product_image_missing",
+            "source_binding": spec.product_image.url,
+            "count": 1 if assets.product is not None else 0,
+        },
+        "feature_callout_layer": {
+            "rendered": feature_count > 0,
+            "reason_code": None if feature_count > 0 else "features_empty",
+            "source_binding": "features",
+            "count": feature_count,
+        },
+        "title_layer": {
+            "rendered": bool(spec.title),
+            "reason_code": None if spec.title else "title_empty",
+            "source_binding": "title",
+            "count": 1 if spec.title else 0,
+        },
+        "subtitle_layer": {
+            "rendered": bool(spec.subtitle),
+            "reason_code": None if spec.subtitle else "subtitle_empty",
+            "source_binding": "subtitle",
+            "count": 1 if spec.subtitle else 0,
+        },
+        "bottom_gallery_shell_layer": {
+            "rendered": gallery_rendered,
+            "reason_code": None if gallery_rendered else "gallery_hidden",
+            "source_binding": "gallery_images",
+            "count": gallery_count,
+        },
+        "bottom_gallery_items_layer": {
+            "rendered": gallery_rendered,
+            "reason_code": None if gallery_rendered else "gallery_empty",
+            "source_binding": "gallery_images",
+            "count": gallery_count,
+        },
+        "bottom_tagline_layer": {
+            "rendered": False,
+            "reason_code": "operator_tagline_unbound",
+            "source_binding": None,
+            "count": 0,
+        },
+    }
+    return layer_status

@@ -298,9 +298,16 @@ class PuppeteerStructuredRenderer:
 
         t1 = _now()
         try:
+            has_real_scenario = assets.scenario is not None
+            scenario_url = (
+                _image_to_data_url(assets.scenario)
+                if has_real_scenario
+                else _safe_preset_scenario_data_url()
+            )
             asset_urls = {
                 "logo": _image_to_data_url(assets.logo) if assets.logo else "",
-                "scenario": _image_to_data_url(assets.scenario) if assets.scenario else "",
+                "scenario": scenario_url,
+                "scenario_is_real": has_real_scenario,
                 "product": _image_to_data_url(assets.product),
                 "gallery": [_image_to_data_url(img) for img in assets.gallery[:4]],
             }
@@ -364,7 +371,9 @@ class PuppeteerStructuredRenderer:
         gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
         feature_markup = self._feature_markup(anchor_map, poster.features)
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
-        scenario_layer_class = "state-safe-empty" if not asset_urls["scenario"] else "state-show"
+        scenario_layer_class = "state-show" if asset_urls.get("scenario_is_real") else "state-safe-fill"
+        bottom_tagline_text = ""
+        bottom_tagline_class = "state-hidden"
         replacements = {
             "__INLINE_CSS__": css_template,
             "__FONT_FACE_CSS__": font_css,
@@ -391,6 +400,9 @@ class PuppeteerStructuredRenderer:
             "__GALLERY_LAYER_CLASS__": gallery_layer_class,
             "__GALLERY_ITEMS__": gallery_markup,
             "__FEATURE_ITEMS__": feature_markup,
+            "__BOTTOM_TAGLINE_CLASS__": bottom_tagline_class,
+            "__BOTTOM_TAGLINE_STYLE__": _slot_style(slot_spec["slots"]["bottom_tagline"]),
+            "__BOTTOM_TAGLINE_TEXT__": html.escape(bottom_tagline_text),
         }
         rendered = html_template
         for key, value in replacements.items():
@@ -666,6 +678,17 @@ def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
     buf = BytesIO()
     img.convert("RGBA").save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _safe_preset_scenario_data_url() -> str:
+    img = PILImage.new("RGBA", (288, 520), (245, 236, 232, 255))
+    draw = ImageDraw.Draw(img)
+    draw.rounded_rectangle([18, 18, 270, 502], radius=24, outline=(232, 0, 42, 46), width=2)
+    draw.rectangle([38, 58, 250, 442], fill=(255, 255, 255, 80))
+    draw.rectangle([58, 96, 230, 128], fill=(232, 0, 42, 24))
+    draw.rectangle([58, 146, 210, 176], fill=(232, 0, 42, 18))
+    draw.rectangle([58, 196, 224, 226], fill=(232, 0, 42, 14))
+    return _image_to_data_url(img)
 
 
 def _now() -> int:

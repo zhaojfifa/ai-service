@@ -42,6 +42,7 @@ from app.services.poster2.renderer import (
     _fit_image,
     ForegroundResult,
     _build_puppeteer_failure_info,
+    _safe_preset_scenario_data_url,
 )
 
 
@@ -531,3 +532,55 @@ class TestStructuredGalleryMarkup:
         result = LayoutRenderer().render(template, spec, _minimal_assets())
         assert result.image.mode == "RGBA"
         assert result.image.size == (1024, 1024)
+
+
+class TestStructuredScenarioLayer:
+
+    def test_safe_preset_scenario_url_is_non_empty(self):
+        data_url = _safe_preset_scenario_data_url()
+        assert data_url.startswith("data:image/png;base64,")
+
+    def test_template_html_marks_safe_fill_when_scenario_missing(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(),
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert "state-safe-fill" in html_payload

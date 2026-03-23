@@ -48,9 +48,13 @@ __INLINE_CSS__
     </div>
 
     <div class="layer layer-product">
-      <div class="product-card"></div>
-      <div class="slot slot-product image-slot" style="__PRODUCT_STYLE__">
-        <img src="__PRODUCT_URL__" alt="" loading="eager" />
+      <div class="layer layer-product-card-shell">
+        <div class="product-card"></div>
+      </div>
+      <div class="layer layer-product-image">
+        <div class="slot slot-product image-slot" style="__PRODUCT_STYLE__">
+          <img src="__PRODUCT_URL__" alt="" loading="eager" />
+        </div>
       </div>
     </div>
 
@@ -60,8 +64,12 @@ __INLINE_CSS__
 
     <div class="layer layer-title-subtitle">
       <div class="text-zone-surface"></div>
-      <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
-      <div class="slot slot-subtitle text-subtitle" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
+      <div class="layer layer-title">
+        <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
+      </div>
+      <div class="layer layer-subtitle">
+        <div class="slot slot-subtitle text-subtitle" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
+      </div>
     </div>
 
     <div class="layer layer-bottom-gallery __GALLERY_LAYER_CLASS__">
@@ -71,6 +79,10 @@ __INLINE_CSS__
       <div class="layer layer-bottom-gallery-items">
         <div class="gallery-strip" aria-hidden="true">__GALLERY_ITEMS__</div>
       </div>
+    </div>
+
+    <div class="layer layer-bottom-tagline __BOTTOM_TAGLINE_CLASS__">
+      <div class="slot slot-bottom-tagline text-bottom-tagline" style="__BOTTOM_TAGLINE_STYLE__">__BOTTOM_TAGLINE_TEXT__</div>
     </div>
   </div>
 </body>

@@ -80,8 +80,13 @@ body {
 .layer-agent-pill,
 .layer-scenario-card,
 .layer-scenario-image,
+.layer-product-card-shell,
+.layer-product-image,
+.layer-title,
+.layer-subtitle,
 .layer-bottom-gallery-shell,
-.layer-bottom-gallery-items {
+.layer-bottom-gallery-items,
+.layer-bottom-tagline {
   position: absolute;
   inset: 0;
 }
@@ -144,11 +149,7 @@ body {
   z-index: 2;
 }
 
-.layer-scenario.state-safe-empty .layer-scenario-image {
-  display: none;
-}
-
-.layer-scenario.state-safe-empty .scenario-card {
+.layer-scenario.state-safe-fill .scenario-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(245, 236, 232, 0.2));
   border-style: dashed;
 }
@@ -210,6 +211,10 @@ body {
   z-index: 4;
 }
 
+.layer-title-subtitle {
+  z-index: 4;
+}
+
 .text-title {
   display: -webkit-box;
   padding: 0 20px;
@@ -232,6 +237,27 @@ body {
   line-height: 1.2;
   text-align: center;
   color: #e8002a;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.layer-bottom-tagline {
+  z-index: 4;
+}
+
+.layer-bottom-tagline.state-hidden {
+  display: none;
+}
+
+.text-bottom-tagline {
+  display: block;
+  padding: 0 12px;
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 14px;
+  line-height: 1.2;
+  text-align: center;
+  color: rgba(111, 87, 87, 0.82);
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;

@@ -5,6 +5,7 @@
   "safe_margin": 48,
   "layers": {
     "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+    "background_base_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "header_shell_layer": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "brand_logo_layer": { "x": 104, "y": 74, "w": 120, "h": 64 },
@@ -12,13 +13,20 @@
     "agent_pill_layer": { "x": 756, "y": 78, "w": 156, "h": 48 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_card_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "scenario_card_shell_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_image_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "product": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "product_card_shell_layer": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "product_image_layer": { "x": 456, "y": 188, "w": 300, "h": 520 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
+    "feature_callout_layer": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "text_zone": { "x": 112, "y": 728, "w": 800, "h": 144 },
+    "title_layer": { "x": 112, "y": 744, "w": 800, "h": 84 },
+    "subtitle_layer": { "x": 152, "y": 840, "w": 720, "h": 28 },
     "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 },
     "bottom_gallery_shell_layer": { "x": 96, "y": 888, "w": 832, "h": 72 },
-    "bottom_gallery_items_layer": { "x": 96, "y": 904, "w": 832, "h": 56 }
+    "bottom_gallery_items_layer": { "x": 96, "y": 904, "w": 832, "h": 56 },
+    "bottom_tagline_layer": { "x": 196, "y": 966, "w": 632, "h": 20 }
   },
   "layer_slots": {
     "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
@@ -29,14 +37,22 @@
   },
   "layer_states": {
     "header_banner": ["state-logo-show", "state-logo-empty"],
-    "scenario": ["state-show", "state-safe-empty"],
+    "scenario": ["state-show", "state-safe-fill"],
     "bottom_gallery": ["state-show", "state-fallback-fill", "state-hidden"]
   },
   "layer_contracts": {
+    "background_base_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+      "fallback_rule": "use resolved background layer only; never substitute for scenario_image_layer",
+      "collapse_rule": "never collapse"
+    },
     "header_shell_layer": {
       "visible_when": "always",
       "bounds": { "x": 72, "y": 56, "w": 880, "h": 104 },
       "padding": { "top": 18, "right": 24, "bottom": 18, "left": 24 },
+      "max_items": 3,
+      "max_lines": 0,
       "fallback_rule": "render banner shell even when logo/text collapse",
       "collapse_rule": "never collapse"
     },
@@ -53,6 +69,8 @@
       "visible_when": "brand_name present",
       "bounds": { "x": 244, "y": 72, "w": 432, "h": 68 },
       "padding": { "top": 10, "right": 16, "bottom": 10, "left": 0 },
+      "max_items": 1,
+      "max_lines": 1,
       "fallback_rule": "expand width when brand_logo_layer collapses",
       "collapse_rule": "do not depend on logo visibility"
     },
@@ -60,29 +78,80 @@
       "visible_when": "agent_name present",
       "bounds": { "x": 756, "y": 78, "w": 156, "h": 48 },
       "padding": { "top": 0, "right": 12, "bottom": 0, "left": 12 },
+      "max_items": 1,
+      "max_lines": 1,
       "fallback_rule": "auto-shrink text inside pill",
       "collapse_rule": "collapse when agent_name is empty"
     },
-    "scenario_card_layer": {
+    "scenario_card_shell_layer": {
       "visible_when": "always",
-      "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
-      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "fallback_rule": "keep card shell visible for safe preset backdrop",
-      "collapse_rule": "never collapse"
-    },
-    "scenario_image_layer": {
-      "visible_when": "scenario_image.url exists",
       "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 1,
       "max_lines": 0,
-      "fallback_rule": "render scenario_image as the true content layer; fallback to safe preset image only if scenario_image is absent",
-      "collapse_rule": "collapse when scenario_image is absent"
+      "fallback_rule": "keep card shell visible for safe preset backdrop",
+      "collapse_rule": "never collapse"
+    },
+    "scenario_image_layer": {
+      "visible_when": "scenario_image.url exists or safe preset fill is resolved",
+      "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "render scenario_image as the true content layer; fallback to safe preset image only if scenario_image is absent; background_base_layer must not substitute for this layer",
+      "collapse_rule": "never collapse into background substitution; render safe preset when scenario_image is absent"
+    },
+    "product_card_shell_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 456, "y": 188, "w": 300, "h": 520 },
+      "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "keep product card shell visible while product_image_layer resolves inside it",
+      "collapse_rule": "never collapse"
+    },
+    "product_image_layer": {
+      "visible_when": "product_image.url exists",
+      "bounds": { "x": 456, "y": 188, "w": 300, "h": 520 },
+      "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "contain product image inside product card shell only",
+      "collapse_rule": "collapse when product_image.url is absent"
+    },
+    "feature_callout_layer": {
+      "visible_when": "features.length > 0",
+      "bounds": { "x": 764, "y": 204, "w": 164, "h": 392 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 4,
+      "max_lines": 2,
+      "fallback_rule": "render up to 4 fixed callout boxes without overlapping product card content area",
+      "collapse_rule": "collapse when features.length == 0"
+    },
+    "title_layer": {
+      "visible_when": "title present",
+      "bounds": { "x": 112, "y": 744, "w": 800, "h": 84 },
+      "padding": { "top": 0, "right": 20, "bottom": 0, "left": 20 },
+      "max_items": 1,
+      "max_lines": 2,
+      "fallback_rule": "auto-shrink inside dedicated safe text zone above bottom gallery",
+      "collapse_rule": "collapse when title is empty"
+    },
+    "subtitle_layer": {
+      "visible_when": "subtitle present",
+      "bounds": { "x": 152, "y": 840, "w": 720, "h": 28 },
+      "padding": { "top": 4, "right": 14, "bottom": 0, "left": 14 },
+      "max_items": 1,
+      "max_lines": 1,
+      "fallback_rule": "truncate inside dedicated subtitle lane below title_layer",
+      "collapse_rule": "collapse when subtitle is empty"
     },
     "bottom_gallery_shell_layer": {
       "visible_when": "gallery state is show or fallback-fill",
       "bounds": { "x": 96, "y": 888, "w": 832, "h": 72 },
       "padding": { "top": 8, "right": 0, "bottom": 8, "left": 0 },
+      "max_items": 4,
+      "max_lines": 0,
       "fallback_rule": "keep shell for filled gallery states",
       "collapse_rule": "collapse when gallery state is hidden"
     },
@@ -94,6 +163,15 @@
       "max_lines": 0,
       "fallback_rule": "cycle available gallery_images deterministically to fill up to 4 slots; if none, do not render ghost placeholders",
       "collapse_rule": "collapse this items layer when gallery_images.length == 0; allow shell to hide or collapse with it"
+    },
+    "bottom_tagline_layer": {
+      "visible_when": "operator tagline binding exists",
+      "bounds": { "x": 196, "y": 966, "w": 632, "h": 20 },
+      "padding": { "top": 0, "right": 12, "bottom": 0, "left": 12 },
+      "max_items": 1,
+      "max_lines": 1,
+      "fallback_rule": "hide entirely when no explicit operator tagline binding is supplied",
+      "collapse_rule": "collapse when operator tagline binding is absent"
     }
   },
   "protected_zones": [
@@ -117,6 +195,7 @@
       { "x": 732, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 }
     ],
     "title": { "x": 112, "y": 744, "w": 800, "h": 84 },
-    "subtitle": { "x": 152, "y": 840, "w": 720, "h": 28 }
+    "subtitle": { "x": 152, "y": 840, "w": 720, "h": 28 },
+    "bottom_tagline": { "x": 196, "y": 966, "w": 632, "h": 20 }
   }
 }

@@ -15,6 +15,7 @@ Tests verify:
 from __future__ import annotations
 
 import asyncio
+import json
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -266,3 +267,46 @@ class TestPosterPipelineRun:
         assert manifest.background_url == "https://r2.example.com/bg-scenario.png"
         assert bg_service.generate.await_count == 0
         assert scenario_bg.await_count == 1
+
+    def test_renderer_metadata_includes_layer_render_status(self):
+        template = _load_template()
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            if key.endswith(".json"):
+                return "https://r2.example.com/renderer-metadata.json"
+            if "product-material" in key:
+                return "https://r2.example.com/product-material.png"
+            if "/fg/" in key:
+                return "https://r2.example.com/fg.png"
+            return "https://r2.example.com/final.png"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            scenario=None,
+            gallery=[],
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=LayoutRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        layer_status = metadata["layer_render_status"]
+        assert layer_status["brand_logo_layer"]["rendered"] is False
+        assert layer_status["brand_logo_layer"]["reason_code"] == "logo_missing"
+        assert layer_status["scenario_image_layer"]["rendered"] is True
+        assert layer_status["scenario_image_layer"]["reason_code"] == "safe_preset_fill"
+        assert layer_status["scenario_image_layer"]["source_binding"] == "safe_preset_image"
+        assert layer_status["bottom_gallery_items_layer"]["rendered"] is False
+        assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
+        assert layer_status["bottom_gallery_items_layer"]["count"] == 0
+        assert layer_status["bottom_tagline_layer"]["reason_code"] == "operator_tagline_unbound"
