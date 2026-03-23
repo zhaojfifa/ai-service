@@ -494,7 +494,7 @@ class TestStructuredGalleryMarkup:
 
         markup, layer_class = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
 
-        assert layer_class == ""
+        assert layer_class == "state-fallback-fill"
         assert markup.count("gallery-item") == 4
         assert markup.count('src="a.png"') == 2
         assert markup.count('src="b.png"') == 2
@@ -506,7 +506,23 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._gallery_markup(slot_spec, [])
 
         assert markup == ""
-        assert layer_class == "is-empty"
+        assert layer_class == "state-hidden"
+
+    def test_full_gallery_marks_show_state(self):
+        renderer = PuppeteerStructuredRenderer()
+        slot_spec = {
+            "slots": {
+                "gallery": [
+                    {"x": 0, "y": 0, "w": 10, "h": 10},
+                    {"x": 12, "y": 0, "w": 10, "h": 10},
+                ]
+            }
+        }
+
+        markup, layer_class = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
+
+        assert layer_class == "state-show"
+        assert markup.count("gallery-item") == 2
 
     def test_render_with_agent_cta(self):
         """Full render with agent name should not raise and produce valid output."""

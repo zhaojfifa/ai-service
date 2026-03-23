@@ -65,6 +65,15 @@ body {
   z-index: 5;
 }
 
+.layer-header-banner.state-logo-empty .slot-brand {
+  left: 120px !important;
+  width: 556px !important;
+}
+
+.layer-header-banner.state-logo-empty .slot-logo {
+  display: none;
+}
+
 .banner-surface {
   position: absolute;
   left: 72px;
@@ -121,6 +130,15 @@ body {
 
 .layer-scenario {
   z-index: 2;
+}
+
+.layer-scenario.state-safe-empty .slot-scenario {
+  display: none;
+}
+
+.layer-scenario.state-safe-empty .scenario-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(245, 236, 232, 0.2));
+  border-style: dashed;
 }
 
 .scenario-card {
@@ -286,8 +304,13 @@ body {
   object-fit: cover;
 }
 
-.layer-bottom-gallery.is-empty {
+.layer-bottom-gallery.state-hidden {
   display: none;
+}
+
+.layer-bottom-gallery.state-fallback-fill .gallery-surface {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(232, 0, 42, 0.12);
 }
 
 .structured-overlay svg {

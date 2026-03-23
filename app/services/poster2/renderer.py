@@ -363,6 +363,8 @@ class PuppeteerStructuredRenderer:
         font_css = self._font_faces_css()
         gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
         feature_markup = self._feature_markup(anchor_map, poster.features)
+        header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
+        scenario_layer_class = "state-safe-empty" if not asset_urls["scenario"] else "state-show"
         replacements = {
             "__INLINE_CSS__": css_template,
             "__FONT_FACE_CSS__": font_css,
@@ -370,6 +372,7 @@ class PuppeteerStructuredRenderer:
             "__TEMPLATE_ID__": html.escape(spec.template_id),
             "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
             "__SVG_OVERLAY__": svg_overlay,
+            "__HEADER_LAYER_CLASS__": header_layer_class,
             "__LOGO_STYLE__": _slot_style(slot_spec["slots"]["logo"]),
             "__LOGO_URL__": asset_urls["logo"],
             "__BRAND_STYLE__": _slot_style(slot_spec["slots"]["brand_name"]),
@@ -380,6 +383,7 @@ class PuppeteerStructuredRenderer:
             "__TITLE_TEXT__": html.escape(poster.title),
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
             "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
+            "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
             "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
@@ -396,7 +400,8 @@ class PuppeteerStructuredRenderer:
     def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> tuple[str, str]:
         gallery_slots = slot_spec["slots"]["gallery"]
         if not gallery_urls:
-            return "", "is-empty"
+            return "", "state-hidden"
+        layer_class = "state-show" if len(gallery_urls) >= len(gallery_slots) else "state-fallback-fill"
         filled_urls = [gallery_urls[idx % len(gallery_urls)] for idx in range(len(gallery_slots))]
         items: list[str] = []
         for idx, gallery_slot in enumerate(gallery_slots):
@@ -406,7 +411,7 @@ class PuppeteerStructuredRenderer:
                 f'<img src="{url}" alt="" loading="eager" />'
                 "</div>"
             )
-        return "".join(items), ""
+        return "".join(items), layer_class
 
     def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> str:
         items: list[str] = []

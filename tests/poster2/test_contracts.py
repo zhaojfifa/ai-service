@@ -198,9 +198,13 @@ class TestTemplateSpecLoading:
         anchor_map = json.loads(anchor_map_path.read_text(encoding="utf-8"))
         assert slot_spec["template_contract_version"] == "poster2.template_dual_v2.v1"
         assert "layers" in slot_spec
+        assert "layer_slots" in slot_spec
+        assert "layer_states" in slot_spec
         assert "header_banner" in slot_spec["layers"]
         assert "bottom_gallery" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
+        assert "brand_logo_slot" in slot_spec["layer_slots"]
+        assert "scenario" in slot_spec["layer_states"]
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4
         assert len(anchor_map["feature_callouts"]) == 4

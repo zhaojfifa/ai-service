@@ -12,6 +12,18 @@
     "text_zone": { "x": 112, "y": 728, "w": 800, "h": 144 },
     "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 }
   },
+  "layer_slots": {
+    "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
+    "brand_name_slot": { "x": 244, "y": 72, "w": 432, "h": 68 },
+    "agent_pill_slot": { "x": 756, "y": 78, "w": 156, "h": 48 },
+    "scenario_card_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 }
+  },
+  "layer_states": {
+    "header_banner": ["state-logo-show", "state-logo-empty"],
+    "scenario": ["state-show", "state-safe-empty"],
+    "bottom_gallery": ["state-show", "state-fallback-fill", "state-hidden"]
+  },
   "protected_zones": [
     { "name": "header_banner", "x": 72, "y": 56, "w": 880, "h": 104 },
     { "name": "scenario_card", "x": 96, "y": 188, "w": 288, "h": 520 },
