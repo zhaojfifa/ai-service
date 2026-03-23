@@ -140,9 +140,18 @@ class PosterPipeline:
             )
         timings["load_and_bg_ms"] = _elapsed(t0)
         timings["background_layer_ms"] = timings["load_and_bg_ms"]
+        resolved_logo = assets.logo
+        resolved_scenario_image = assets.scenario
+        resolved_product_image = assets.product
+        resolved_gallery_items = list(assets.gallery)
         logger.info(
-            "poster2: trace=%s bg=%.1fs assets=loaded",
-            trace_id, timings["background_layer_ms"] / 1000,
+            "poster2: trace=%s bg=%.1fs assets=loaded logo=%s scenario=%s product=%s gallery=%d",
+            trace_id,
+            timings["background_layer_ms"] / 1000,
+            resolved_logo is not None,
+            resolved_scenario_image is not None,
+            resolved_product_image is not None,
+            len(resolved_gallery_items),
         )
 
         # ── Phase 2: deterministic foreground/text render ────────────────────
