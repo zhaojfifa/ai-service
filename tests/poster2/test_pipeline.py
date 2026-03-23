@@ -350,5 +350,72 @@ class TestPosterPipelineRun:
         assert metadata["artifact_urls"]["slot_metadata_url"] == "https://r2.example.com/slot-metadata.json"
         slot_metadata_key = next(key for key in stored_payloads if "slot-metadata" in key)
         slot_metadata = json.loads(stored_payloads[slot_metadata_key].decode("utf-8"))
-        assert slot_metadata["regions"]["scenario_region"]["scenario_image_slot"]["reason"] == "scenario_image_missing_safe_preset_fill"
-        assert slot_metadata["regions"]["bottom_region"]["gallery_item_slots"]["reason"] == "gallery_hidden_no_assets"
+        brand_logo_slot = slot_metadata["regions"]["header_region"]["brand_logo_slot"]
+        assert brand_logo_slot["expected"] is False
+        assert brand_logo_slot["bound"] is False
+        assert brand_logo_slot["rendered"] is False
+        assert brand_logo_slot["mode"] == "hidden"
+        assert brand_logo_slot["reason"] == "logo_not_bound"
+
+        scenario_slot = slot_metadata["regions"]["scenario_region"]["scenario_image_slot"]
+        assert scenario_slot["expected"] is True
+        assert scenario_slot["bound"] is False
+        assert scenario_slot["rendered"] is True
+        assert scenario_slot["mode"] == "safe-preset-fill"
+        assert scenario_slot["reason"] == "scenario_image_missing"
+
+        gallery_slots = slot_metadata["regions"]["bottom_region"]["gallery_item_slots"]
+        assert gallery_slots["expected"] is False
+        assert gallery_slots["bound"] is False
+        assert gallery_slots["rendered"] is False
+        assert gallery_slots["mode"] == "hide"
+        assert gallery_slots["reason"] == "gallery_hidden_no_assets"
+
+    def test_slot_metadata_marks_gallery_fallback_fill_when_partial_assets_exist(self):
+        template = _load_template()
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            if "product-material" in key:
+                return "https://r2.example.com/product-material.png"
+            if "slot-structure" in key:
+                return "https://r2.example.com/slot-structure.png"
+            if "content-layer" in key:
+                return "https://r2.example.com/content-layer.png"
+            if "text-layer" in key:
+                return "https://r2.example.com/text-layer.png"
+            if "structure-overlay" in key:
+                return "https://r2.example.com/structure-overlay.png"
+            if "/fg/" in key:
+                return "https://r2.example.com/fg.png"
+            if "slot-metadata" in key:
+                return "https://r2.example.com/slot-metadata.json"
+            if "debug/metadata" in key:
+                return "https://r2.example.com/renderer-metadata.json"
+            return "https://r2.example.com/final.png"
+
+        spec = _make_spec(gallery_images=(AssetRef(url="mock://gallery-1"),))
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (176, 104), (120, 160, 200, 255))],
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=LayoutRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(pipeline.run(spec, template))
+
+        slot_metadata_key = next(key for key in stored_payloads if "slot-metadata" in key)
+        slot_metadata = json.loads(stored_payloads[slot_metadata_key].decode("utf-8"))
+        gallery_slots = slot_metadata["regions"]["bottom_region"]["gallery_item_slots"]
+        assert gallery_slots["expected"] is True
+        assert gallery_slots["bound"] is True
+        assert gallery_slots["rendered"] is True
+        assert gallery_slots["mode"] == "fallback-fill"
+        assert gallery_slots["reason"] == "gallery_partial_fill"
+        assert gallery_slots["count"] == 1

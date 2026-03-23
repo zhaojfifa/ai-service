@@ -510,16 +510,27 @@ def _build_slot_metadata(
     gallery_state = "hide"
     if gallery_count > 0:
         gallery_state = "show" if gallery_count >= template.gallery_slot.count else "fallback-fill"
+    logo_expected = spec.logo is not None and bool(spec.logo.url)
+    logo_bound = assets.logo is not None
+    scenario_bound = assets.scenario is not None
+    gallery_expected = len(spec.gallery_images) > 0
+    gallery_bound = gallery_count > 0
     regions = {
         "background_region": {
             "background_base_layer": {
+                "expected": True,
+                "bound": True,
                 "rendered": True,
+                "mode": "background",
                 "reason": None,
                 "source_binding": bg_result.url,
                 "bounds": slot_spec["slot_contracts"]["background_base_layer"]["bounds"],
             },
             "background_tone_layer": {
+                "expected": False,
+                "bound": False,
                 "rendered": False,
+                "mode": "disabled",
                 "reason": "tone_overlay_disabled",
                 "source_binding": None,
                 "bounds": slot_spec["slot_contracts"]["background_tone_layer"]["bounds"],
@@ -527,57 +538,83 @@ def _build_slot_metadata(
         },
         "header_region": {
             "header_shell_layer": {
+                "expected": True,
+                "bound": True,
                 "rendered": True,
+                "mode": "shell",
                 "reason": None,
                 "source_binding": "template_dual_v2.header_shell",
                 "bounds": slot_spec["slot_contracts"]["header_shell_layer"]["bounds"],
             },
             "brand_logo_slot": {
-                "rendered": assets.logo is not None,
-                "reason": None if assets.logo is not None else "logo_not_bound",
+                "expected": logo_expected,
+                "bound": logo_bound,
+                "rendered": logo_bound,
+                "mode": "real-image" if logo_bound else "hidden",
+                "reason": None if logo_bound else "logo_not_bound",
                 "source_binding": spec.logo.url if spec.logo else None,
                 "bounds": slot_spec["slot_contracts"]["brand_logo_slot"]["bounds"],
                 "fit": "contain",
-                "count": 1 if assets.logo is not None else 0,
+                "count": 1 if logo_bound else 0,
             },
             "brand_text_slot": {
+                "expected": bool(spec.brand_name),
+                "bound": bool(spec.brand_name),
                 "rendered": bool(spec.brand_name),
+                "mode": "text" if spec.brand_name else "hidden",
                 "reason": None if spec.brand_name else "brand_name_empty",
                 "source_binding": "brand_name",
                 "bounds": slot_spec["slot_contracts"]["brand_text_slot"]["bounds"],
             },
             "agent_pill_slot": {
+                "expected": bool(spec.agent_name),
+                "bound": bool(spec.agent_name),
                 "rendered": bool(spec.agent_name),
+                "mode": "text-truncate" if spec.agent_name else "hidden",
                 "reason": None if spec.agent_name else "agent_name_empty",
                 "source_binding": "agent_name",
                 "bounds": slot_spec["slot_contracts"]["agent_pill_slot"]["bounds"],
+                "truncated": len(spec.agent_name) > 12,
             },
         },
         "scenario_region": {
             "scenario_card_shell_slot": {
+                "expected": True,
+                "bound": True,
                 "rendered": True,
+                "mode": "shell",
                 "reason": None,
                 "source_binding": "template_dual_v2.scenario_shell",
                 "bounds": slot_spec["slot_contracts"]["scenario_card_shell_slot"]["bounds"],
             },
             "scenario_image_slot": {
+                "expected": True,
+                "bound": scenario_bound,
                 "rendered": True,
-                "reason": None if assets.scenario is not None else "scenario_image_missing_safe_preset_fill",
+                "mode": "real-image" if scenario_bound else "safe-preset-fill",
+                "reason": None if scenario_bound else "scenario_image_missing",
                 "source_binding": spec.scenario_image.url if spec.scenario_image else "safe_preset_image",
                 "bounds": slot_spec["slot_contracts"]["scenario_image_slot"]["bounds"],
                 "fit": "cover",
                 "count": 1,
+                "background_substitution_allowed": False,
             },
         },
         "product_region": {
             "product_card_shell_slot": {
+                "expected": True,
+                "bound": True,
                 "rendered": True,
+                "mode": "shell",
                 "reason": None,
                 "source_binding": "template_dual_v2.product_shell",
                 "bounds": slot_spec["slot_contracts"]["product_card_shell_slot"]["bounds"],
             },
             "product_image_slot": {
+                "expected": True,
+                "bound": assets.product is not None,
                 "rendered": assets.product is not None,
+                "mode": "real-image" if assets.product is not None else "hidden",
                 "reason": None if assets.product is not None else "product_image_missing",
                 "source_binding": spec.product_image.url,
                 "bounds": slot_spec["slot_contracts"]["product_image_slot"]["bounds"],
@@ -587,7 +624,10 @@ def _build_slot_metadata(
         },
         "feature_region": {
             "feature_callout_slots": {
+                "expected": len(spec.features) > 0,
+                "bound": len(spec.features) > 0,
                 "rendered": len(spec.features) > 0,
+                "mode": "text" if len(spec.features) > 0 else "hidden",
                 "reason": None if len(spec.features) > 0 else "features_empty",
                 "source_binding": "features[]",
                 "bounds": slot_spec["slot_contracts"]["feature_callout_slots"]["bounds"],
@@ -597,21 +637,30 @@ def _build_slot_metadata(
         },
         "bottom_region": {
             "title_box": {
+                "expected": bool(spec.title),
+                "bound": bool(spec.title),
                 "rendered": bool(spec.title),
+                "mode": "text" if spec.title else "hidden",
                 "reason": None if spec.title else "title_empty",
                 "source_binding": "title",
                 "bounds": slot_spec["slot_contracts"]["title_box"]["bounds"],
                 "max_lines": 2,
             },
             "subtitle_box": {
+                "expected": bool(spec.subtitle),
+                "bound": bool(spec.subtitle),
                 "rendered": bool(spec.subtitle),
+                "mode": "text" if spec.subtitle else "hidden",
                 "reason": None if spec.subtitle else "subtitle_empty",
                 "source_binding": "subtitle",
                 "bounds": slot_spec["slot_contracts"]["subtitle_box"]["bounds"],
                 "max_lines": 1,
             },
             "gallery_shell_slot": {
+                "expected": gallery_expected,
+                "bound": gallery_bound,
                 "rendered": gallery_state != "hide",
+                "mode": gallery_state,
                 "reason": None if gallery_state != "hide" else "gallery_hidden_no_assets",
                 "source_binding": "gallery_images[]",
                 "bounds": slot_spec["slot_contracts"]["gallery_shell_slot"]["bounds"],
@@ -619,8 +668,17 @@ def _build_slot_metadata(
                 "state": gallery_state,
             },
             "gallery_item_slots": {
+                "expected": gallery_expected,
+                "bound": gallery_bound,
                 "rendered": gallery_count > 0,
-                "reason": None if gallery_count > 0 else "gallery_hidden_no_assets",
+                "mode": gallery_state,
+                "reason": (
+                    None
+                    if gallery_state == "show"
+                    else "gallery_partial_fill"
+                    if gallery_state == "fallback-fill"
+                    else "gallery_hidden_no_assets"
+                ),
                 "source_binding": "gallery_images[]",
                 "bounds": slot_spec["slot_contracts"]["gallery_item_slots"]["bounds"],
                 "fit": "cover",
@@ -628,7 +686,10 @@ def _build_slot_metadata(
                 "state": gallery_state,
             },
             "tagline_box": {
+                "expected": False,
+                "bound": False,
                 "rendered": False,
+                "mode": "hidden",
                 "reason": "operator_tagline_unbound",
                 "source_binding": None,
                 "bounds": slot_spec["slot_contracts"]["tagline_box"]["bounds"],
