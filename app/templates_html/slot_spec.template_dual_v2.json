@@ -6,11 +6,19 @@
   "layers": {
     "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
+    "header_shell_layer": { "x": 72, "y": 56, "w": 880, "h": 104 },
+    "brand_logo_layer": { "x": 104, "y": 74, "w": 120, "h": 64 },
+    "brand_text_layer": { "x": 244, "y": 72, "w": 432, "h": 68 },
+    "agent_pill_layer": { "x": 756, "y": 78, "w": 156, "h": 48 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "scenario_card_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "scenario_image_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "product": { "x": 456, "y": 188, "w": 300, "h": 520 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "text_zone": { "x": 112, "y": 728, "w": 800, "h": 144 },
-    "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 }
+    "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 },
+    "bottom_gallery_shell_layer": { "x": 96, "y": 888, "w": 832, "h": 72 },
+    "bottom_gallery_items_layer": { "x": 96, "y": 904, "w": 832, "h": 56 }
   },
   "layer_slots": {
     "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
@@ -23,6 +31,64 @@
     "header_banner": ["state-logo-show", "state-logo-empty"],
     "scenario": ["state-show", "state-safe-empty"],
     "bottom_gallery": ["state-show", "state-fallback-fill", "state-hidden"]
+  },
+  "layer_contracts": {
+    "header_shell_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 72, "y": 56, "w": 880, "h": 104 },
+      "padding": { "top": 18, "right": 24, "bottom": 18, "left": 24 },
+      "fallback_rule": "render banner shell even when logo/text collapse",
+      "collapse_rule": "never collapse"
+    },
+    "brand_logo_layer": {
+      "visible_when": "logo asset present",
+      "bounds": { "x": 104, "y": 74, "w": 120, "h": 64 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "fallback_rule": "hide logo only; do not shift dependency to brand text slot content",
+      "collapse_rule": "collapse only this layer when logo is absent"
+    },
+    "brand_text_layer": {
+      "visible_when": "brand_name present",
+      "bounds": { "x": 244, "y": 72, "w": 432, "h": 68 },
+      "padding": { "top": 10, "right": 16, "bottom": 10, "left": 0 },
+      "fallback_rule": "expand width when brand_logo_layer collapses",
+      "collapse_rule": "do not depend on logo visibility"
+    },
+    "agent_pill_layer": {
+      "visible_when": "agent_name present",
+      "bounds": { "x": 756, "y": 78, "w": 156, "h": 48 },
+      "padding": { "top": 0, "right": 12, "bottom": 0, "left": 12 },
+      "fallback_rule": "auto-shrink text inside pill",
+      "collapse_rule": "collapse when agent_name is empty"
+    },
+    "scenario_card_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "fallback_rule": "keep card shell visible for safe preset backdrop",
+      "collapse_rule": "never collapse"
+    },
+    "scenario_image_layer": {
+      "visible_when": "scenario_image present",
+      "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "fallback_rule": "strictly prefer scenario_image; safe preset only when absent",
+      "collapse_rule": "collapse when scenario_image is absent"
+    },
+    "bottom_gallery_shell_layer": {
+      "visible_when": "gallery state is show or fallback-fill",
+      "bounds": { "x": 96, "y": 888, "w": 832, "h": 72 },
+      "padding": { "top": 8, "right": 0, "bottom": 8, "left": 0 },
+      "fallback_rule": "keep shell for filled gallery states",
+      "collapse_rule": "collapse when gallery state is hidden"
+    },
+    "bottom_gallery_items_layer": {
+      "visible_when": "gallery items present after fallback-fill resolution",
+      "bounds": { "x": 96, "y": 904, "w": 832, "h": 56 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "fallback_rule": "cycle available gallery items to fill all slots deterministically",
+      "collapse_rule": "collapse when gallery state is hidden; never leave ghost placeholders"
+    }
   },
   "protected_zones": [
     { "name": "header_banner", "x": 72, "y": 56, "w": 880, "h": 104 },

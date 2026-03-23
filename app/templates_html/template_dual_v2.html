@@ -20,18 +20,30 @@ __INLINE_CSS__
     <div class="structured-overlay" aria-hidden="true">__SVG_OVERLAY__</div>
 
     <div class="layer layer-header-banner __HEADER_LAYER_CLASS__">
-      <div class="banner-surface"></div>
-      <div class="slot slot-logo" style="__LOGO_STYLE__">
-        <img src="__LOGO_URL__" alt="" loading="eager" />
+      <div class="layer layer-header-shell">
+        <div class="banner-surface"></div>
       </div>
-      <div class="slot slot-brand text-brand" style="__BRAND_STYLE__">__BRAND_TEXT__</div>
-      <div class="slot slot-agent text-agent" style="__AGENT_STYLE__">__AGENT_TEXT__</div>
+      <div class="layer layer-brand-logo">
+        <div class="slot slot-logo" style="__LOGO_STYLE__">
+          <img src="__LOGO_URL__" alt="" loading="eager" />
+        </div>
+      </div>
+      <div class="layer layer-brand-text">
+        <div class="slot slot-brand text-brand" style="__BRAND_STYLE__">__BRAND_TEXT__</div>
+      </div>
+      <div class="layer layer-agent-pill">
+        <div class="slot slot-agent text-agent" style="__AGENT_STYLE__">__AGENT_TEXT__</div>
+      </div>
     </div>
 
     <div class="layer layer-scenario __SCENARIO_LAYER_CLASS__">
-      <div class="scenario-card"></div>
-      <div class="slot slot-scenario image-slot" style="__SCENARIO_STYLE__">
-        <img src="__SCENARIO_URL__" alt="" loading="eager" />
+      <div class="layer layer-scenario-card">
+        <div class="scenario-card"></div>
+      </div>
+      <div class="layer layer-scenario-image">
+        <div class="slot slot-scenario image-slot" style="__SCENARIO_STYLE__">
+          <img src="__SCENARIO_URL__" alt="" loading="eager" />
+        </div>
       </div>
     </div>
 
@@ -53,8 +65,12 @@ __INLINE_CSS__
     </div>
 
     <div class="layer layer-bottom-gallery __GALLERY_LAYER_CLASS__">
-      <div class="gallery-surface"></div>
-      <div class="gallery-strip" aria-hidden="true">__GALLERY_ITEMS__</div>
+      <div class="layer layer-bottom-gallery-shell">
+        <div class="gallery-surface"></div>
+      </div>
+      <div class="layer layer-bottom-gallery-items">
+        <div class="gallery-strip" aria-hidden="true">__GALLERY_ITEMS__</div>
+      </div>
     </div>
   </div>
 </body>

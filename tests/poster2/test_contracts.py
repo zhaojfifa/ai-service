@@ -200,11 +200,19 @@ class TestTemplateSpecLoading:
         assert "layers" in slot_spec
         assert "layer_slots" in slot_spec
         assert "layer_states" in slot_spec
+        assert "layer_contracts" in slot_spec
         assert "header_banner" in slot_spec["layers"]
+        assert "header_shell_layer" in slot_spec["layers"]
+        assert "brand_logo_layer" in slot_spec["layers"]
+        assert "scenario_image_layer" in slot_spec["layers"]
         assert "bottom_gallery" in slot_spec["layers"]
+        assert "bottom_gallery_items_layer" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
         assert "brand_logo_slot" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
+        assert slot_spec["layer_contracts"]["brand_logo_layer"]["visible_when"] == "logo asset present"
+        assert "scenario_image present" in slot_spec["layer_contracts"]["scenario_image_layer"]["visible_when"]
+        assert "fallback-fill" in slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"]
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4
         assert len(anchor_map["feature_callouts"]) == 4

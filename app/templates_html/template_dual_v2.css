@@ -65,13 +65,25 @@ body {
   z-index: 5;
 }
 
-.layer-header-banner.state-logo-empty .slot-brand {
+.layer-header-banner.state-logo-empty .layer-brand-text .slot-brand {
   left: 120px !important;
   width: 556px !important;
 }
 
-.layer-header-banner.state-logo-empty .slot-logo {
+.layer-header-banner.state-logo-empty .layer-brand-logo {
   display: none;
+}
+
+.layer-header-shell,
+.layer-brand-logo,
+.layer-brand-text,
+.layer-agent-pill,
+.layer-scenario-card,
+.layer-scenario-image,
+.layer-bottom-gallery-shell,
+.layer-bottom-gallery-items {
+  position: absolute;
+  inset: 0;
 }
 
 .banner-surface {
@@ -132,7 +144,7 @@ body {
   z-index: 2;
 }
 
-.layer-scenario.state-safe-empty .slot-scenario {
+.layer-scenario.state-safe-empty .layer-scenario-image {
   display: none;
 }
 
