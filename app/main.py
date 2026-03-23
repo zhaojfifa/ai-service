@@ -79,6 +79,7 @@ from app.services.vertex_imagen import init_vertex
 from app.services.storage_bridge import store_image_and_url
 from app.services.vertex_imagen3 import VertexImagen3
 from app.services.poster2.font_registry import poster2_font_preflight
+from app.services.poster2.pipeline import Poster2PipelineError
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
@@ -1435,6 +1436,8 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
     """
     request_log = _poster2_request_log_fields(request, payload)
     logger.info("poster2: request start %s", request_log)
+    trace_id = getattr(request.state, "trace_id", None) or str(uuid.uuid4())
+    request.state.trace_id = trace_id
     try:
         _validate_poster2_renderer_request(payload.template_id, payload.renderer_mode)
         spec = P2PosterSpec(
@@ -1513,6 +1516,28 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             degraded_reason=manifest.degraded_reason,
         )
 
+    except Poster2PipelineError as exc:
+        logger.exception(
+            "poster2: generation failed request_id=%s trace_id=%s resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s font_preflight=%s",
+            request_log["request_id"],
+            exc.trace_id,
+            exc.resolved_logo,
+            exc.resolved_scenario_image,
+            exc.resolved_product_image,
+            exc.resolved_gallery_items,
+            exc.font_preflight,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": {
+                    "error": "poster2_generation_failed",
+                    "message": str(exc.__cause__ or exc),
+                    "request_id": request_log["request_id"],
+                    "trace_id": exc.trace_id,
+                }
+            },
+        )
     except FileNotFoundError as exc:
         logger.warning("poster2: request file error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -1520,11 +1545,23 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         logger.warning("poster2: request validation error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("poster2: generation failed request=%s", request_log)
-        raise HTTPException(
+        logger.exception(
+            "poster2: generation failed request_id=%s trace_id=%s request=%s",
+            request_log["request_id"],
+            trace_id,
+            request_log,
+        )
+        return JSONResponse(
             status_code=500,
-            detail={"error": "poster2_generation_failed", "message": str(exc)},
-        ) from exc
+            content={
+                "detail": {
+                    "error": "poster2_generation_failed",
+                    "message": str(exc),
+                    "request_id": request_log["request_id"],
+                    "trace_id": trace_id,
+                }
+            },
+        )
 
 if FRONTEND_DIR.exists():
     # Mount the static frontend after API routes so a single Render Web Service

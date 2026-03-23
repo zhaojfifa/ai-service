@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from PIL import Image as PILImage
 
@@ -45,6 +45,27 @@ logger = logging.getLogger("ai-service.poster2")
 ENGINE_VERSION = "2.0.0"
 
 _SPECS_DIR = Path(__file__).resolve().parents[3] / "app" / "templates" / "specs"
+
+
+class Poster2PipelineError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        trace_id: str,
+        resolved_logo: dict[str, Any] | None,
+        resolved_scenario_image: dict[str, Any] | None,
+        resolved_product_image: dict[str, Any] | None,
+        resolved_gallery_items: list[dict[str, Any]],
+        font_preflight: dict[str, Any],
+    ) -> None:
+        super().__init__(message)
+        self.trace_id = trace_id
+        self.resolved_logo = resolved_logo
+        self.resolved_scenario_image = resolved_scenario_image
+        self.resolved_product_image = resolved_product_image
+        self.resolved_gallery_items = resolved_gallery_items
+        self.font_preflight = font_preflight
 
 
 def load_template(template_id: str) -> TemplateSpec:
@@ -98,276 +119,301 @@ class PosterPipeline:
         """
         trace_id = str(uuid.uuid4())
         timings: dict[str, int] = {}
+        font_preflight: dict[str, Any] = {}
+        resolved_logo = None
+        resolved_scenario_image = None
+        resolved_product_image = None
+        resolved_gallery_items: list[Any] = []
 
-        if template is None:
-            template = load_template(spec.template_id)
+        try:
+            if template is None:
+                template = load_template(spec.template_id)
 
-        spec_hash = _hash_spec(spec)
-        font_preflight = poster2_font_preflight()
+            spec_hash = _hash_spec(spec)
+            font_preflight = poster2_font_preflight()
 
-        # ── Phase 1: background layer + product/material layer preparation ───
-        t0 = _now()
-        if spec.template_id == "template_dual_v2":
-            assets = await self._loader.load(spec)
-            if assets.scenario is not None:
-                bg_result = await build_template_dual_v2_background(
-                    assets.scenario,
-                    width=spec.size[0],
-                    height=spec.size[1],
-                    trace_id=trace_id,
-                )
+            # ── Phase 1: background layer + product/material layer preparation ───
+            t0 = _now()
+            if spec.template_id == "template_dual_v2":
+                assets = await self._loader.load(spec)
+                if assets.scenario is not None:
+                    bg_result = await build_template_dual_v2_background(
+                        assets.scenario,
+                        width=spec.size[0],
+                        height=spec.size[1],
+                        trace_id=trace_id,
+                    )
+                else:
+                    bg_result = await self._bg.generate(
+                        style_prompt="",
+                        negative_prompt=spec.style.negative_prompt,
+                        width=spec.size[0],
+                        height=spec.size[1],
+                        seed=spec.style.seed,
+                        template_hint=template.background_prompt_hint,
+                        trace_id=trace_id,
+                    )
             else:
-                bg_result = await self._bg.generate(
-                    style_prompt="",
-                    negative_prompt=spec.style.negative_prompt,
-                    width=spec.size[0],
-                    height=spec.size[1],
-                    seed=spec.style.seed,
-                    template_hint=template.background_prompt_hint,
-                    trace_id=trace_id,
+                assets, bg_result = await asyncio.gather(
+                    self._loader.load(spec),
+                    self._bg.generate(
+                        style_prompt=spec.style.prompt,
+                        negative_prompt=spec.style.negative_prompt,
+                        width=spec.size[0],
+                        height=spec.size[1],
+                        seed=spec.style.seed,
+                        template_hint=template.background_prompt_hint,
+                        trace_id=trace_id,
+                    ),
                 )
-        else:
-            assets, bg_result = await asyncio.gather(
-                self._loader.load(spec),
-                self._bg.generate(
-                    style_prompt=spec.style.prompt,
-                    negative_prompt=spec.style.negative_prompt,
-                    width=spec.size[0],
-                    height=spec.size[1],
-                    seed=spec.style.seed,
-                    template_hint=template.background_prompt_hint,
-                    trace_id=trace_id,
-                ),
+            timings["load_and_bg_ms"] = _elapsed(t0)
+            timings["background_layer_ms"] = timings["load_and_bg_ms"]
+            resolved_logo = assets.logo
+            resolved_scenario_image = assets.scenario
+            resolved_product_image = assets.product
+            resolved_gallery_items = list(assets.gallery)
+            logger.info(
+                "poster2: trace=%s bg=%.1fs assets=loaded logo=%s scenario=%s product=%s gallery=%d",
+                trace_id,
+                timings["background_layer_ms"] / 1000,
+                resolved_logo is not None,
+                resolved_scenario_image is not None,
+                resolved_product_image is not None,
+                len(resolved_gallery_items),
             )
-        timings["load_and_bg_ms"] = _elapsed(t0)
-        timings["background_layer_ms"] = timings["load_and_bg_ms"]
-        resolved_logo = assets.logo
-        resolved_scenario_image = assets.scenario
-        resolved_product_image = assets.product
-        resolved_gallery_items = list(assets.gallery)
-        logger.info(
-            "poster2: trace=%s bg=%.1fs assets=loaded logo=%s scenario=%s product=%s gallery=%d",
-            trace_id,
-            timings["background_layer_ms"] / 1000,
-            resolved_logo is not None,
-            resolved_scenario_image is not None,
-            resolved_product_image is not None,
-            len(resolved_gallery_items),
-        )
 
-        # ── Phase 2: deterministic foreground/text render ────────────────────
-        t1 = _now()
-        fg_result = await self._renderer.render(template, spec, assets)
-        timings["renderer_ms"] = _elapsed(t1)
-        timings.update(fg_result.layer_timings_ms)
-        logger.info(
-            "poster2: trace=%s fg_hash=%s engine=%s renderer=%.0fms",
-            trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
-        )
+            # ── Phase 2: deterministic foreground/text render ────────────────────
+            t1 = _now()
+            fg_result = await self._renderer.render(template, spec, assets)
+            timings["renderer_ms"] = _elapsed(t1)
+            timings.update(fg_result.layer_timings_ms)
+            logger.info(
+                "poster2: trace=%s fg_hash=%s engine=%s renderer=%.0fms",
+                trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
+            )
 
-        # ── Phase 3: load background bytes and compose ───────────────────────
-        t2 = _now()
-        bg_image = await self._loader.load_url(bg_result.url)
-        compose_result = self._composer.compose(
-            bg_image, fg_result.image, spec.export_format
-        )
-        timings["compose_ms"] = _elapsed(t2)
+            # ── Phase 3: load background bytes and compose ───────────────────────
+            t2 = _now()
+            bg_image = await self._loader.load_url(bg_result.url)
+            compose_result = self._composer.compose(
+                bg_image, fg_result.image, spec.export_format
+            )
+            timings["compose_ms"] = _elapsed(t2)
 
-        # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
-        slot_spec = load_structured_slot_spec(template.template_id)
-        slot_metadata_payload = _build_slot_metadata(
-            template=template,
-            slot_spec=slot_spec,
-            spec=spec,
-            assets=assets,
-            bg_result=bg_result,
-        )
-        debug_slot_structure = render_slot_structure_debug_layer(
-            template, slot_spec, font_registry=self._debug_font_registry
-        )
-        debug_content_layer = render_content_debug_layer(
-            template, assets, font_registry=self._debug_font_registry
-        )
-        debug_text_layer = render_text_debug_layer(
-            template, spec, font_registry=self._debug_font_registry
-        )
-        debug_structure_overlay = render_structure_overlay_debug_layer(
-            template,
-            slot_spec,
-            slot_metadata_payload,
-            font_registry=self._debug_font_registry,
-        )
-        debug_product_material = render_product_material_debug_layer(
-            template, assets, font_registry=self._debug_font_registry
-        )
-
-        # ── Phase 4: store foreground + final to R2 ──────────────────────────
-        if self._put_bytes is None:
-            from app.services import r2_client  # lazy: keeps boto3 out of test collection
-            _put = r2_client.put_bytes
-        else:
-            _put = self._put_bytes
-
-        t3 = _now()
-        fg_key = f"poster2/fg/{trace_id}.png"
-        fg_url = _put(fg_key, fg_result.png_bytes, content_type="image/png")
-        if not fg_url:
-            logger.warning("poster2: R2 upload failed for fg key=%s", fg_key)
-            fg_url = ""
-
-        product_material_key = f"poster2/debug/product-material/{trace_id}.png"
-        product_material_url = _put(
-            product_material_key,
-            debug_product_material.png_bytes,
-            content_type="image/png",
-        )
-        if not product_material_url:
-            logger.warning("poster2: R2 upload failed for product/material key=%s", product_material_key)
-            product_material_url = ""
-
-        slot_structure_key = f"poster2/debug/slot-structure/{trace_id}.png"
-        slot_structure_url = _put(
-            slot_structure_key,
-            debug_slot_structure.png_bytes,
-            content_type="image/png",
-        ) or ""
-
-        content_layer_key = f"poster2/debug/content-layer/{trace_id}.png"
-        content_layer_url = _put(
-            content_layer_key,
-            debug_content_layer.png_bytes,
-            content_type="image/png",
-        ) or ""
-
-        text_layer_key = f"poster2/debug/text-layer/{trace_id}.png"
-        text_layer_url = _put(
-            text_layer_key,
-            debug_text_layer.png_bytes,
-            content_type="image/png",
-        ) or ""
-
-        structure_overlay_key = f"poster2/debug/structure-overlay/{trace_id}.png"
-        structure_overlay_url = _put(
-            structure_overlay_key,
-            debug_structure_overlay.png_bytes,
-            content_type="image/png",
-        ) or ""
-
-        ext = spec.export_format
-        final_key = f"poster2/final/{trace_id}.{ext}"
-        final_url = _put(final_key, compose_result.png_bytes, content_type=f"image/{ext}")
-        if not final_url:
-            raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
-
-        slot_metadata_key = f"poster2/debug/slot-metadata/{trace_id}.json"
-        slot_metadata_url = _put(
-            slot_metadata_key,
-            json.dumps(slot_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
-            content_type="application/json",
-        )
-        if not slot_metadata_url:
-            logger.warning("poster2: R2 upload failed for slot metadata key=%s", slot_metadata_key)
-            slot_metadata_url = ""
-
-        renderer_metadata_payload = {
-            "trace_id": trace_id,
-            "template_id": template.template_id,
-            "template_version": template.version,
-            "template_contract_version": fg_result.template_contract_version,
-            "requested_renderer_mode": spec.renderer_mode,
-            "effective_renderer_mode": fg_result.render_engine_used,
-            "render_engine_used": fg_result.render_engine_used,
-            "foreground_renderer": fg_result.foreground_renderer,
-            "background_renderer": bg_result.model,
-            "background_seed": bg_result.seed_used,
-            "foreground_hash": fg_result.sha256,
-            "product_material_hash": debug_product_material.sha256,
-            "final_hash": compose_result.sha256,
-            "fallback_triggered": fg_result.degraded,
-            "fallback_reason_code": fg_result.fallback_reason_code,
-            "fallback_reason_detail": fg_result.fallback_reason_detail,
-            "fallback_exception_class": fg_result.fallback_exception_class,
-            "fallback_stage": fg_result.fallback_stage,
-            "degraded": fg_result.degraded,
-            "degraded_reason": fg_result.degraded_reason,
-            "timings_ms": timings,
-            "font_preflight": font_preflight,
-            "layer_render_status": _build_layer_render_status(
+            # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
+            slot_spec = load_structured_slot_spec(template.template_id)
+            slot_metadata_payload = _build_slot_metadata(
                 template=template,
+                slot_spec=slot_spec,
                 spec=spec,
                 assets=assets,
                 bg_result=bg_result,
-                slot_spec=slot_spec,
-            ),
-            "artifact_urls": {
-                "background_layer_url": bg_result.url,
-                "product_material_layer_url": product_material_url,
-                "foreground_layer_url": fg_url,
-                "final_composited_url": final_url,
-                "slot_structure_layer_url": slot_structure_url,
-                "content_layer_url": content_layer_url,
-                "text_layer_url": text_layer_url,
-                "structure_overlay_url": structure_overlay_url,
-                "slot_metadata_url": slot_metadata_url,
-            },
-        }
-        renderer_metadata_key = f"poster2/debug/metadata/{trace_id}.json"
-        renderer_metadata_url = _put(
-            renderer_metadata_key,
-            json.dumps(renderer_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
-            content_type="application/json",
-        )
-        if not renderer_metadata_url:
-            logger.warning("poster2: R2 upload failed for renderer metadata key=%s", renderer_metadata_key)
-            renderer_metadata_url = ""
+            )
+            debug_slot_structure = render_slot_structure_debug_layer(
+                template, slot_spec, font_registry=self._debug_font_registry
+            )
+            debug_content_layer = render_content_debug_layer(
+                template, assets, font_registry=self._debug_font_registry
+            )
+            debug_text_layer = render_text_debug_layer(
+                template, spec, font_registry=self._debug_font_registry
+            )
+            debug_structure_overlay = render_structure_overlay_debug_layer(
+                template,
+                slot_spec,
+                slot_metadata_payload,
+                font_registry=self._debug_font_registry,
+            )
+            debug_product_material = render_product_material_debug_layer(
+                template, assets, font_registry=self._debug_font_registry
+            )
 
-        timings["storage_ms"] = _elapsed(t3)
-        timings["total_ms"] = _elapsed(t0)
+            # ── Phase 4: store foreground + final to R2 ──────────────────────────
+            if self._put_bytes is None:
+                from app.services import r2_client  # lazy: keeps boto3 out of test collection
+                _put = r2_client.put_bytes
+            else:
+                _put = self._put_bytes
 
-        logger.info(
-            "poster2: trace=%s DONE final=%s total=%.1fs",
-            trace_id, final_url, timings["total_ms"] / 1000,
-        )
+            t3 = _now()
+            fg_key = f"poster2/fg/{trace_id}.png"
+            fg_url = _put(fg_key, fg_result.png_bytes, content_type="image/png")
+            if not fg_url:
+                logger.warning("poster2: R2 upload failed for fg key=%s", fg_key)
+                fg_url = ""
 
-        return RenderManifest(
-            trace_id=trace_id,
-            template_id=template.template_id,
-            template_version=template.version,
-            template_contract_version=fg_result.template_contract_version,
-            engine_version=ENGINE_VERSION,
-            renderer_mode=spec.renderer_mode,
-            render_engine_used=fg_result.render_engine_used,
-            foreground_renderer=fg_result.foreground_renderer,
-            background_renderer=bg_result.model,
-            poster_spec_hash=spec_hash,
-            resolved_inputs=_summarise_inputs(spec),
-            background_url=bg_result.url,
-            background_prompt=bg_result.prompt_used,
-            background_seed=bg_result.seed_used,
-            background_model=bg_result.model,
-            foreground_url=fg_url,
-            foreground_hash=fg_result.sha256,
-            final_url=final_url,
-            final_hash=compose_result.sha256,
-            timings_ms=timings,
-            font_preflight=font_preflight,
-            debug_artifacts=RenderDebugArtifacts(
-                background_layer_url=bg_result.url,
-                product_material_layer_url=product_material_url,
-                foreground_layer_url=fg_url,
-                final_composited_url=final_url,
-                renderer_metadata_url=renderer_metadata_url,
-                slot_structure_layer_url=slot_structure_url,
-                content_layer_url=content_layer_url,
-                text_layer_url=text_layer_url,
-                structure_overlay_url=structure_overlay_url,
-                slot_metadata_url=slot_metadata_url,
-            ),
-            fallback_reason_code=fg_result.fallback_reason_code,
-            fallback_reason_detail=fg_result.fallback_reason_detail,
-            degraded=fg_result.degraded,
-            degraded_reason=fg_result.degraded_reason,
-        )
+            product_material_key = f"poster2/debug/product-material/{trace_id}.png"
+            product_material_url = _put(
+                product_material_key,
+                debug_product_material.png_bytes,
+                content_type="image/png",
+            )
+            if not product_material_url:
+                logger.warning("poster2: R2 upload failed for product/material key=%s", product_material_key)
+                product_material_url = ""
+
+            slot_structure_key = f"poster2/debug/slot-structure/{trace_id}.png"
+            slot_structure_url = _put(
+                slot_structure_key,
+                debug_slot_structure.png_bytes,
+                content_type="image/png",
+            ) or ""
+
+            content_layer_key = f"poster2/debug/content-layer/{trace_id}.png"
+            content_layer_url = _put(
+                content_layer_key,
+                debug_content_layer.png_bytes,
+                content_type="image/png",
+            ) or ""
+
+            text_layer_key = f"poster2/debug/text-layer/{trace_id}.png"
+            text_layer_url = _put(
+                text_layer_key,
+                debug_text_layer.png_bytes,
+                content_type="image/png",
+            ) or ""
+
+            structure_overlay_key = f"poster2/debug/structure-overlay/{trace_id}.png"
+            structure_overlay_url = _put(
+                structure_overlay_key,
+                debug_structure_overlay.png_bytes,
+                content_type="image/png",
+            ) or ""
+
+            ext = spec.export_format
+            final_key = f"poster2/final/{trace_id}.{ext}"
+            final_url = _put(final_key, compose_result.png_bytes, content_type=f"image/{ext}")
+            if not final_url:
+                raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
+
+            slot_metadata_key = f"poster2/debug/slot-metadata/{trace_id}.json"
+            slot_metadata_url = _put(
+                slot_metadata_key,
+                json.dumps(slot_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
+                content_type="application/json",
+            )
+            if not slot_metadata_url:
+                logger.warning("poster2: R2 upload failed for slot metadata key=%s", slot_metadata_key)
+                slot_metadata_url = ""
+
+            renderer_metadata_payload = {
+                "trace_id": trace_id,
+                "template_id": template.template_id,
+                "template_version": template.version,
+                "template_contract_version": fg_result.template_contract_version,
+                "requested_renderer_mode": spec.renderer_mode,
+                "effective_renderer_mode": fg_result.render_engine_used,
+                "render_engine_used": fg_result.render_engine_used,
+                "foreground_renderer": fg_result.foreground_renderer,
+                "background_renderer": bg_result.model,
+                "background_seed": bg_result.seed_used,
+                "foreground_hash": fg_result.sha256,
+                "product_material_hash": debug_product_material.sha256,
+                "final_hash": compose_result.sha256,
+                "fallback_triggered": fg_result.degraded,
+                "fallback_reason_code": fg_result.fallback_reason_code,
+                "fallback_reason_detail": fg_result.fallback_reason_detail,
+                "fallback_exception_class": fg_result.fallback_exception_class,
+                "fallback_stage": fg_result.fallback_stage,
+                "degraded": fg_result.degraded,
+                "degraded_reason": fg_result.degraded_reason,
+                "timings_ms": timings,
+                "font_preflight": font_preflight,
+                "layer_render_status": _build_layer_render_status(
+                    template=template,
+                    spec=spec,
+                    assets=assets,
+                    bg_result=bg_result,
+                    slot_spec=slot_spec,
+                ),
+                "artifact_urls": {
+                    "background_layer_url": bg_result.url,
+                    "product_material_layer_url": product_material_url,
+                    "foreground_layer_url": fg_url,
+                    "final_composited_url": final_url,
+                    "slot_structure_layer_url": slot_structure_url,
+                    "content_layer_url": content_layer_url,
+                    "text_layer_url": text_layer_url,
+                    "structure_overlay_url": structure_overlay_url,
+                    "slot_metadata_url": slot_metadata_url,
+                },
+            }
+            renderer_metadata_key = f"poster2/debug/metadata/{trace_id}.json"
+            renderer_metadata_url = _put(
+                renderer_metadata_key,
+                json.dumps(renderer_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
+                content_type="application/json",
+            )
+            if not renderer_metadata_url:
+                logger.warning("poster2: R2 upload failed for renderer metadata key=%s", renderer_metadata_key)
+                renderer_metadata_url = ""
+
+            timings["storage_ms"] = _elapsed(t3)
+            timings["total_ms"] = _elapsed(t0)
+
+            logger.info(
+                "poster2: trace=%s DONE final=%s total=%.1fs",
+                trace_id, final_url, timings["total_ms"] / 1000,
+            )
+
+            return RenderManifest(
+                trace_id=trace_id,
+                template_id=template.template_id,
+                template_version=template.version,
+                template_contract_version=fg_result.template_contract_version,
+                engine_version=ENGINE_VERSION,
+                renderer_mode=spec.renderer_mode,
+                render_engine_used=fg_result.render_engine_used,
+                foreground_renderer=fg_result.foreground_renderer,
+                background_renderer=bg_result.model,
+                poster_spec_hash=spec_hash,
+                resolved_inputs=_summarise_inputs(spec),
+                background_url=bg_result.url,
+                background_prompt=bg_result.prompt_used,
+                background_seed=bg_result.seed_used,
+                background_model=bg_result.model,
+                foreground_url=fg_url,
+                foreground_hash=fg_result.sha256,
+                final_url=final_url,
+                final_hash=compose_result.sha256,
+                timings_ms=timings,
+                font_preflight=font_preflight,
+                debug_artifacts=RenderDebugArtifacts(
+                    background_layer_url=bg_result.url,
+                    product_material_layer_url=product_material_url,
+                    foreground_layer_url=fg_url,
+                    final_composited_url=final_url,
+                    renderer_metadata_url=renderer_metadata_url,
+                    slot_structure_layer_url=slot_structure_url,
+                    content_layer_url=content_layer_url,
+                    text_layer_url=text_layer_url,
+                    structure_overlay_url=structure_overlay_url,
+                    slot_metadata_url=slot_metadata_url,
+                ),
+                fallback_reason_code=fg_result.fallback_reason_code,
+                fallback_reason_detail=fg_result.fallback_reason_detail,
+                degraded=fg_result.degraded,
+                degraded_reason=fg_result.degraded_reason,
+            )
+        except Exception as exc:
+            logger.exception(
+                "poster2: trace=%s pipeline failure resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s font_preflight=%s",
+                trace_id,
+                _resolved_asset_snapshot(resolved_logo),
+                _resolved_asset_snapshot(resolved_scenario_image),
+                _resolved_asset_snapshot(resolved_product_image),
+                _resolved_gallery_snapshot(resolved_gallery_items),
+                font_preflight,
+            )
+            raise Poster2PipelineError(
+                "poster2_pipeline_failed",
+                trace_id=trace_id,
+                resolved_logo=_resolved_asset_snapshot(resolved_logo),
+                resolved_scenario_image=_resolved_asset_snapshot(resolved_scenario_image),
+                resolved_product_image=_resolved_asset_snapshot(resolved_product_image),
+                resolved_gallery_items=_resolved_gallery_snapshot(resolved_gallery_items),
+                font_preflight=font_preflight,
+            ) from exc
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -396,6 +442,26 @@ def _summarise_inputs(spec: PosterSpec) -> dict:
         "gallery_count": len(spec.gallery_images),
         "seed": spec.style.seed,
     }
+
+
+def _resolved_asset_snapshot(asset: Any) -> dict[str, Any] | None:
+    if asset is None:
+        return None
+    size = getattr(asset, "size", None)
+    return {
+        "present": True,
+        "size": list(size) if isinstance(size, tuple) else None,
+        "mode": getattr(asset, "mode", None),
+    }
+
+
+def _resolved_gallery_snapshot(items: list[Any]) -> list[dict[str, Any]]:
+    snapshots: list[dict[str, Any]] = []
+    for index, item in enumerate(items):
+        snap = _resolved_asset_snapshot(item) or {"present": False, "size": None, "mode": None}
+        snap["index"] = index
+        snapshots.append(snap)
+    return snapshots
 
 
 def _build_layer_render_status(

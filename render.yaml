@@ -3,7 +3,7 @@ services:
     name: marketing-poster-api
     env: python
     plan: free
-    buildCommand: pip install -r requirements.txt && bash scripts/fetch_fonts.sh app/assets/fonts && python -m playwright install chromium
+    buildCommand: pip install -r requirements.txt && bash scripts/fetch_fonts.sh "${POSTER2_FONT_DIR:-app/assets/fonts}" && python -m playwright install chromium
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
@@ -14,6 +14,8 @@ services:
         value: us-central1
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /etc/secrets/service-account.json
+      - key: POSTER2_FONT_DIR
+        value: app/assets/fonts
       - key: GCP_KEY_B64
         sync: false
       - key: VERTEX_IMAGEN_MODEL_GENERATE

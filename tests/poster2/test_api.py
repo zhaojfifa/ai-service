@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
+from app.services.poster2.pipeline import Poster2PipelineError
 
 
 class _FakePoster2Pipeline:
@@ -91,6 +92,19 @@ class _FakeDegradedPoster2Pipeline:
 class _BoomPoster2Pipeline:
     async def run(self, spec, template=None) -> RenderManifest:
         raise RuntimeError("simulated poster2 failure")
+
+
+class _TracePoster2Pipeline:
+    async def run(self, spec, template=None) -> RenderManifest:
+        raise Poster2PipelineError(
+            "poster2_pipeline_failed",
+            trace_id="trace-pipeline-123",
+            resolved_logo={"present": True, "size": [120, 64], "mode": "RGBA"},
+            resolved_scenario_image=None,
+            resolved_product_image={"present": True, "size": [400, 600], "mode": "RGBA"},
+            resolved_gallery_items=[],
+            font_preflight={"ready": True, "font_dir": "/tmp/fonts"},
+        )
 
 
 def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
@@ -242,3 +256,29 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
     assert response.status_code == 500
     assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
     assert response.json()["detail"]["error"] == "poster2_generation_failed"
+
+
+def test_generate_poster_v2_error_response_exposes_request_and_trace_ids(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _TracePoster2Pipeline())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"X-Request-Id": "req-123"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "pillow",
+        },
+    )
+
+    assert response.status_code == 500
+    body = response.json()
+    assert body["detail"]["error"] == "poster2_generation_failed"
+    assert body["detail"]["request_id"] == "req-123"
+    assert body["detail"]["trace_id"] == "trace-pipeline-123"

@@ -33,7 +33,7 @@ from app.services.poster2.contracts import (
     StyleSpec,
     TemplateSpec,
 )
-from app.services.poster2.pipeline import PosterPipeline
+from app.services.poster2.pipeline import Poster2PipelineError, PosterPipeline
 from app.services.poster2.renderer import LayoutRenderer
 
 
@@ -422,3 +422,24 @@ class TestPosterPipelineRun:
         assert gallery_slots["mode"] == "fallback-fill"
         assert gallery_slots["reason"] == "gallery_partial_fill"
         assert gallery_slots["count"] == 1
+
+    def test_pipeline_wraps_failures_with_context(self):
+        template = _load_template()
+        boom_loader = _mock_loader(_make_assets())
+        boom_loader.load_url = AsyncMock(side_effect=RuntimeError("background download failed"))
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=LayoutRenderer(),
+            composer=Composer(),
+            asset_loader=boom_loader,
+            put_bytes_fn=_mock_r2_put(),
+        )
+
+        with pytest.raises(Poster2PipelineError) as exc_info:
+            asyncio.run(pipeline.run(_make_spec(), template))
+
+        err = exc_info.value
+        assert err.trace_id
+        assert err.resolved_product_image["present"] is True
+        assert err.resolved_logo is None
+        assert isinstance(err.font_preflight, dict)

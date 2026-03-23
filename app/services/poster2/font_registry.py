@@ -22,7 +22,8 @@ from PIL import ImageFont
 
 logger = logging.getLogger("ai-service.poster2")
 
-_FONTS_DIR = Path(__file__).resolve().parents[3] / "app" / "assets" / "fonts"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_DEFAULT_FONTS_DIR = _REPO_ROOT / "app" / "assets" / "fonts"
 
 _FONT_FILES: dict[str, str] = {
     "brand_bold": "NotoSansSC-SemiBold.ttf",
@@ -30,6 +31,20 @@ _FONT_FILES: dict[str, str] = {
     "feature": "NotoSansSC-Regular.ttf",
     "label": "NotoSansSC-Regular.ttf",
 }
+
+
+def get_poster2_fonts_dir(fonts_dir: str | Path | None = None) -> Path:
+    raw = None
+    if fonts_dir is not None:
+        raw = str(fonts_dir)
+    else:
+        raw = (os.getenv("POSTER2_FONT_DIR") or "").strip() or None
+    if not raw:
+        return _DEFAULT_FONTS_DIR
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = (_REPO_ROOT / candidate).resolve()
+    return candidate
 
 
 @lru_cache(maxsize=256)
@@ -45,7 +60,7 @@ class FontRegistry:
     """Thread-safe, cached font loader."""
 
     def __init__(self, fonts_dir: Path | None = None):
-        self._dir = fonts_dir or _FONTS_DIR
+        self._dir = get_poster2_fonts_dir(fonts_dir)
 
     def get(self, font_key: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         """Return a cached ImageFont for (font_key, size)."""

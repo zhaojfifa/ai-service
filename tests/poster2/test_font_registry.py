@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from app.services.poster2.font_registry import FontRegistry
+from app.services.poster2.font_registry import FontRegistry, get_poster2_fonts_dir
 
 
 def test_font_preflight_reports_missing_fonts(tmp_path: Path):
@@ -28,3 +29,11 @@ def test_font_preflight_reports_real_files_as_readable(tmp_path: Path):
     assert payload["required_fonts"]["brand_regular"]["readable"] is True
     assert payload["required_fonts"]["brand_regular"]["loadable"] is False
     assert payload["ready"] is False
+
+
+def test_get_poster2_fonts_dir_resolves_relative_env_path(monkeypatch, tmp_path: Path):
+    monkeypatch.setenv("POSTER2_FONT_DIR", "app/assets/fonts")
+    resolved = get_poster2_fonts_dir()
+
+    assert resolved.is_absolute()
+    assert str(resolved).endswith(os.path.join("app", "assets", "fonts"))
