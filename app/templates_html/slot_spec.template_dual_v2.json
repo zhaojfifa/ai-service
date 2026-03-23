@@ -3,25 +3,36 @@
   "template_contract_version": "poster2.template_dual_v2.v1",
   "canvas": { "w": 1024, "h": 1024 },
   "safe_margin": 48,
+  "layers": {
+    "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+    "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
+    "scenario": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "product": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
+    "text_zone": { "x": 112, "y": 728, "w": 800, "h": 144 },
+    "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 }
+  },
   "protected_zones": [
-    { "name": "top_header", "x": 96, "y": 64, "w": 832, "h": 96 },
-    { "name": "title_band", "x": 112, "y": 688, "w": 800, "h": 172 },
-    { "name": "gallery_band", "x": 144, "y": 888, "w": 736, "h": 88 },
-    { "name": "product_card", "x": 472, "y": 168, "w": 440, "h": 632 }
+    { "name": "header_banner", "x": 72, "y": 56, "w": 880, "h": 104 },
+    { "name": "scenario_card", "x": 96, "y": 188, "w": 288, "h": 520 },
+    { "name": "product_card", "x": 456, "y": 188, "w": 300, "h": 520 },
+    { "name": "feature_column", "x": 764, "y": 204, "w": 164, "h": 392 },
+    { "name": "text_zone", "x": 112, "y": 728, "w": 800, "h": 144 },
+    { "name": "gallery_band", "x": 96, "y": 888, "w": 832, "h": 72 }
   ],
   "slots": {
-    "logo": { "x": 96, "y": 72, "w": 128, "h": 72, "fit": "contain" },
-    "brand_name": { "x": 240, "y": 72, "w": 420, "h": 72 },
-    "agent_name": { "x": 744, "y": 80, "w": 184, "h": 52 },
-    "scenario": { "x": 112, "y": 184, "w": 300, "h": 596, "fit": "cover", "radius": 20 },
-    "product": { "x": 472, "y": 168, "w": 440, "h": 632, "fit": "contain", "radius": 28 },
+    "logo": { "x": 104, "y": 74, "w": 120, "h": 64, "fit": "contain" },
+    "brand_name": { "x": 244, "y": 72, "w": 432, "h": 68 },
+    "agent_name": { "x": 756, "y": 78, "w": 156, "h": 48 },
+    "scenario": { "x": 96, "y": 188, "w": 288, "h": 520, "fit": "cover", "radius": 24 },
+    "product": { "x": 456, "y": 188, "w": 300, "h": 520, "fit": "contain", "radius": 24 },
     "gallery": [
-      { "x": 144, "y": 904, "w": 172, "h": 72, "fit": "cover", "radius": 12 },
-      { "x": 332, "y": 904, "w": 172, "h": 72, "fit": "cover", "radius": 12 },
-      { "x": 520, "y": 904, "w": 172, "h": 72, "fit": "cover", "radius": 12 },
-      { "x": 708, "y": 904, "w": 172, "h": 72, "fit": "cover", "radius": 12 }
+      { "x": 96, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 308, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 520, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 732, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 }
     ],
-    "title": { "x": 112, "y": 704, "w": 800, "h": 104 },
-    "subtitle": { "x": 144, "y": 826, "w": 736, "h": 34 }
+    "title": { "x": 112, "y": 744, "w": 800, "h": 84 },
+    "subtitle": { "x": 152, "y": 840, "w": 720, "h": 28 }
   }
 }

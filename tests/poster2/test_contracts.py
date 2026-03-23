@@ -109,13 +109,16 @@ class TestTemplateSpecLoading:
         assert spec.contract_version == "poster2.template_dual_v2.v1"
         assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
-        assert spec.version == "2.1.1"
-        assert spec.gallery_slot.thumb_w == 172
+        assert spec.version == "2.1.2"
+        assert spec.gallery_slot.thumb_w == 196
         # Agent name slot has CTA pill style
         assert spec.agent_name_slot.bg_color == "#E8002A"
-        assert spec.agent_name_slot.bg_radius == 26
+        assert spec.agent_name_slot.bg_radius == 24
         assert spec.subtitle_slot.y + spec.subtitle_slot.h <= spec.canvas_h - spec.safe_margin
         assert spec.gallery_slot.y + spec.gallery_slot.h <= spec.canvas_h - spec.safe_margin
+        assert spec.scenario_slot is not None
+        assert spec.scenario_slot.x == 96
+        assert spec.product_slot.w == 300
 
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
@@ -125,7 +128,7 @@ class TestTemplateSpecLoading:
         )
         spec = TemplateSpec.from_json(real_path)
         gs = spec.gallery_slot
-        expected_x = [144, 332, 520, 708]
+        expected_x = [96, 308, 520, 732]
         for i, ex in enumerate(expected_x):
             computed = gs.x + i * (gs.thumb_w + gs.gap)
             assert computed == ex, (
@@ -194,6 +197,10 @@ class TestTemplateSpecLoading:
         slot_spec = json.loads(slot_spec_path.read_text(encoding="utf-8"))
         anchor_map = json.loads(anchor_map_path.read_text(encoding="utf-8"))
         assert slot_spec["template_contract_version"] == "poster2.template_dual_v2.v1"
+        assert "layers" in slot_spec
+        assert "header_banner" in slot_spec["layers"]
+        assert "bottom_gallery" in slot_spec["layers"]
+        assert "scenario" in slot_spec["layers"]
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4
         assert len(anchor_map["feature_callouts"]) == 4

@@ -1,7 +1,7 @@
 {
   "_comment": "Poster 2.0 — template_dual mapped to deterministic TemplateSpec. Coordinates match template_dual_spec.json exactly. Version must be bumped on any geometry change.",
   "template_id": "template_dual_v2",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "contract_version": "poster2.template_dual_v2.v1",
   "canvas_w": 1024,
   "canvas_h": 1024,
@@ -10,7 +10,7 @@
   "background_prompt_hint": "soft premium studio backdrop, warm neutral gradient, subtle depth, restrained highlights, clean composition",
 
   "logo_slot": {
-    "x": 96, "y": 72, "w": 128, "h": 72,
+    "x": 104, "y": 74, "w": 120, "h": 64,
     "fit": "contain",
     "bg_color": "transparent",
     "shadow": false,
@@ -18,7 +18,7 @@
   },
 
   "brand_name_slot": {
-    "x": 240, "y": 72, "w": 420, "h": 72,
+    "x": 244, "y": 72, "w": 432, "h": 68,
     "font_key": "brand_bold",
     "font_size": 28,
     "color": "#1A1A1A",
@@ -29,7 +29,7 @@
   },
 
   "agent_name_slot": {
-    "x": 744, "y": 80, "w": 184, "h": 52,
+    "x": 756, "y": 78, "w": 156, "h": 48,
     "font_key": "brand_regular",
     "font_size": 18,
     "color": "#FFFFFF",
@@ -38,13 +38,13 @@
     "line_height": 1.2,
     "auto_shrink": true,
     "bg_color": "#E8002A",
-    "bg_radius": 26
+    "bg_radius": 24
   },
 
   "title_slot": {
-    "x": 112, "y": 704, "w": 800, "h": 104,
+    "x": 112, "y": 744, "w": 800, "h": 84,
     "font_key": "brand_bold",
-    "font_size": 44,
+    "font_size": 40,
     "color": "#E8002A",
     "align": "center",
     "max_lines": 2,
@@ -53,9 +53,9 @@
   },
 
   "subtitle_slot": {
-    "x": 144, "y": 826, "w": 736, "h": 34,
+    "x": 152, "y": 840, "w": 720, "h": 28,
     "font_key": "brand_regular",
-    "font_size": 22,
+    "font_size": 20,
     "color": "#E8002A",
     "align": "center",
     "max_lines": 1,
@@ -64,32 +64,32 @@
   },
 
   "product_slot": {
-    "x": 472, "y": 168, "w": 440, "h": 632,
+    "x": 456, "y": 188, "w": 300, "h": 520,
     "fit": "contain",
     "bg_color": "transparent",
     "shadow": true,
-    "radius": 28
+    "radius": 24
   },
 
   "scenario_slot": {
-    "x": 112, "y": 184, "w": 300, "h": 596,
+    "x": 96, "y": 188, "w": 288, "h": 520,
     "fit": "cover",
     "bg_color": "transparent",
     "shadow": false,
-    "radius": 20
+    "radius": 24
   },
 
   "feature_callouts": [
     {
-      "anchor_x": 486, "anchor_y": 286,
+      "anchor_x": 764, "anchor_y": 250,
       "anchor_radius": 7,
       "anchor_color": "#E8002A",
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 504, "y": 252, "w": 316, "h": 68,
+        "x": 784, "y": 216, "w": 144, "h": 60,
         "font_key": "feature",
-        "font_size": 16,
+        "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
         "max_lines": 2,
@@ -98,15 +98,15 @@
       }
     },
     {
-      "anchor_x": 486, "anchor_y": 382,
+      "anchor_x": 764, "anchor_y": 350,
       "anchor_radius": 7,
       "anchor_color": "#E8002A",
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 504, "y": 348, "w": 316, "h": 68,
+        "x": 784, "y": 316, "w": 144, "h": 60,
         "font_key": "feature",
-        "font_size": 16,
+        "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
         "max_lines": 2,
@@ -115,15 +115,15 @@
       }
     },
     {
-      "anchor_x": 486, "anchor_y": 478,
+      "anchor_x": 764, "anchor_y": 450,
       "anchor_radius": 7,
       "anchor_color": "#E8002A",
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 504, "y": 444, "w": 316, "h": 68,
+        "x": 784, "y": 416, "w": 144, "h": 60,
         "font_key": "feature",
-        "font_size": 16,
+        "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
         "max_lines": 2,
@@ -132,15 +132,15 @@
       }
     },
     {
-      "anchor_x": 486, "anchor_y": 574,
+      "anchor_x": 764, "anchor_y": 550,
       "anchor_radius": 7,
       "anchor_color": "#E8002A",
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 504, "y": 540, "w": 316, "h": 68,
+        "x": 784, "y": 516, "w": 144, "h": 60,
         "font_key": "feature",
-        "font_size": 16,
+        "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
         "max_lines": 2,
@@ -151,11 +151,11 @@
   ],
 
   "gallery_slot": {
-    "x": 144, "y": 904, "w": 736, "h": 72,
+    "x": 96, "y": 904, "w": 832, "h": 56,
     "count": 4,
     "gap": 16,
-    "thumb_w": 172,
-    "thumb_radius": 12,
+    "thumb_w": 196,
+    "thumb_radius": 14,
     "show_label": false
   }
 }

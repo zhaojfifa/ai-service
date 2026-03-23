@@ -361,7 +361,7 @@ class PuppeteerStructuredRenderer:
     ) -> str:
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
-        gallery_markup = self._gallery_markup(slot_spec, asset_urls["gallery"])
+        gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
         feature_markup = self._feature_markup(anchor_map, poster.features)
         replacements = {
             "__INLINE_CSS__": css_template,
@@ -384,6 +384,7 @@ class PuppeteerStructuredRenderer:
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
             "__PRODUCT_URL__": asset_urls["product"],
+            "__GALLERY_LAYER_CLASS__": gallery_layer_class,
             "__GALLERY_ITEMS__": gallery_markup,
             "__FEATURE_ITEMS__": feature_markup,
         }
@@ -392,19 +393,20 @@ class PuppeteerStructuredRenderer:
             rendered = rendered.replace(key, value)
         return rendered
 
-    def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> str:
+    def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> tuple[str, str]:
         gallery_slots = slot_spec["slots"]["gallery"]
+        if not gallery_urls:
+            return "", "is-empty"
+        filled_urls = [gallery_urls[idx % len(gallery_urls)] for idx in range(len(gallery_slots))]
         items: list[str] = []
         for idx, gallery_slot in enumerate(gallery_slots):
-            url = gallery_urls[idx] if idx < len(gallery_urls) else ""
-            if not url:
-                continue
+            url = filled_urls[idx]
             items.append(
                 f'<div class="gallery-item" style="{_slot_style(gallery_slot)}">'
                 f'<img src="{url}" alt="" loading="eager" />'
                 "</div>"
             )
-        return "".join(items)
+        return "".join(items), ""
 
     def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> str:
         items: list[str] = []

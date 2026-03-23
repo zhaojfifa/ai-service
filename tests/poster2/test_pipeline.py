@@ -153,7 +153,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.1"
+        assert manifest.template_version == "2.1.2"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"

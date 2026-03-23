@@ -33,6 +33,7 @@ from app.services.poster2.contracts import (
 )
 from app.services.poster2.renderer import (
     LayoutRenderer,
+    PuppeteerStructuredRenderer,
     RendererSelector,
     PuppeteerFailureInfo,
     _apply_radius,
@@ -364,7 +365,7 @@ class TestGalleryPositions:
     def test_four_item_positions(self):
         template = _load_real_template()
         gs = template.gallery_slot
-        expected = [144, 332, 520, 708]
+        expected = [96, 308, 520, 732]
         for i, ex_x in enumerate(expected):
             computed = gs.x + i * (gs.thumb_w + gs.gap)
             assert computed == ex_x, (
@@ -441,7 +442,7 @@ class TestFeatureCallouts:
         assert len(template.feature_callouts) == 4
         for fc in template.feature_callouts:
             assert fc.anchor_radius == 7
-            assert fc.anchor_x == 486
+            assert fc.anchor_x == 764
             assert fc.anchor_color == "#E8002A"
 
 
@@ -472,8 +473,40 @@ class TestCtaPillRendering:
         template = _load_real_template()
         slot = template.agent_name_slot
         assert slot.bg_color == "#E8002A"
-        assert slot.bg_radius == 26
+        assert slot.bg_radius == 24
         assert slot.color == "#FFFFFF"
+
+
+class TestStructuredGalleryMarkup:
+
+    def test_partial_gallery_is_deterministically_filled(self):
+        renderer = PuppeteerStructuredRenderer()
+        slot_spec = {
+            "slots": {
+                "gallery": [
+                    {"x": 0, "y": 0, "w": 10, "h": 10},
+                    {"x": 12, "y": 0, "w": 10, "h": 10},
+                    {"x": 24, "y": 0, "w": 10, "h": 10},
+                    {"x": 36, "y": 0, "w": 10, "h": 10},
+                ]
+            }
+        }
+
+        markup, layer_class = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
+
+        assert layer_class == ""
+        assert markup.count("gallery-item") == 4
+        assert markup.count('src="a.png"') == 2
+        assert markup.count('src="b.png"') == 2
+
+    def test_empty_gallery_hides_bottom_layer(self):
+        renderer = PuppeteerStructuredRenderer()
+        slot_spec = {"slots": {"gallery": [{"x": 0, "y": 0, "w": 10, "h": 10}]}}
+
+        markup, layer_class = renderer._gallery_markup(slot_spec, [])
+
+        assert markup == ""
+        assert layer_class == "is-empty"
 
     def test_render_with_agent_cta(self):
         """Full render with agent name should not raise and produce valid output."""
