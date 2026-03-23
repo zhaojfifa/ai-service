@@ -397,13 +397,12 @@ class PuppeteerStructuredRenderer:
         items: list[str] = []
         for idx, gallery_slot in enumerate(gallery_slots):
             url = gallery_urls[idx] if idx < len(gallery_urls) else ""
-            hidden_attr = ' data-empty="true"' if not url else ""
+            if not url:
+                continue
             items.append(
-                (
-                    f'<div class="gallery-item" style="{_slot_style(gallery_slot)}"{hidden_attr}>'
-                    f'<img src="{url}" alt="" loading="eager" />'
-                    "</div>"
-                )
+                f'<div class="gallery-item" style="{_slot_style(gallery_slot)}">'
+                f'<img src="{url}" alt="" loading="eager" />'
+                "</div>"
             )
         return "".join(items)
 

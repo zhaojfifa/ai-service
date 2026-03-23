@@ -153,7 +153,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.0"
+        assert manifest.template_version == "2.1.1"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"
@@ -221,3 +221,48 @@ class TestPosterPipelineRun:
         ri = manifest.resolved_inputs
         assert ri["brand_name"] == "厨厨房"
         assert ri["title"] == "测试标题"
+
+    def test_template_dual_v2_prefers_scenario_image_for_background(self):
+        template = _load_template()
+        bg_service = _mock_bg_service()
+        scenario = PILImage.new("RGBA", (320, 600), (120, 160, 200, 255))
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            scenario=scenario,
+        )
+        fake_put_bytes = MagicMock(
+            side_effect=[
+                "https://r2.example.com/fg.png",
+                "https://r2.example.com/product-material.png",
+                "https://r2.example.com/final.png",
+                "https://r2.example.com/renderer-metadata.json",
+            ]
+        )
+        pipeline = PosterPipeline(
+            background_svc=bg_service,
+            renderer=LayoutRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        with patch(
+            "app.services.poster2.pipeline.build_template_dual_v2_background",
+            new=AsyncMock(
+                return_value=BackgroundResult(
+                    url="https://r2.example.com/bg-scenario.png",
+                    key="poster2/bg/scenario.png",
+                    prompt_used="scenario_image_preferred",
+                    seed_used=0,
+                    model="scenario-image",
+                    width=1024,
+                    height=1024,
+                )
+            ),
+        ) as scenario_bg:
+            manifest = asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert manifest.background_model == "scenario-image"
+        assert manifest.background_url == "https://r2.example.com/bg-scenario.png"
+        assert bg_service.generate.await_count == 0
+        assert scenario_bg.await_count == 1

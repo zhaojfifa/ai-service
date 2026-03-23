@@ -17,9 +17,11 @@ import inspect
 import logging
 import time
 from dataclasses import dataclass
+from io import BytesIO
 from typing import Optional
 
 import httpx
+from PIL import Image as PILImage, ImageFilter
 
 from .vertex_runtime import get_vertex_poster_client
 
@@ -301,6 +303,44 @@ class FireflyBackgroundService:
         )
 
 
+async def build_template_dual_v2_background(
+    scenario_image: PILImage.Image,
+    *,
+    width: int,
+    height: int,
+    trace_id: str = "",
+) -> BackgroundResult:
+    """
+    Build a restrained background directly from the scenario image for template_dual_v2.
+
+    This keeps the background aligned with the supplied scenario asset instead of
+    generating a free-form scene from text.
+    """
+    base = _cover_background(scenario_image, width, height).filter(ImageFilter.GaussianBlur(16))
+    wash = PILImage.new("RGBA", (width, height), (250, 244, 240, 118))
+    base.alpha_composite(wash)
+
+    buf = BytesIO()
+    base.convert("RGB").save(buf, format="PNG")
+
+    from app.services import r2_client  # lazy import: keeps boto3 out of test collection
+
+    key = f"poster2/bg/{trace_id or 'anon'}_scenario.png"
+    url = r2_client.put_bytes(key, buf.getvalue(), content_type="image/png")
+    if not url:
+        raise RuntimeError(f"R2 upload failed for background key={key}")
+
+    return BackgroundResult(
+        url=url,
+        key=key,
+        prompt_used="scenario_image_preferred",
+        seed_used=0,
+        model="scenario-image",
+        width=width,
+        height=height,
+    )
+
+
 # ── Factory ──────────────────────────────────────────────────────────────────
 def make_background_service() -> FireflyBackgroundService:
     """
@@ -333,3 +373,14 @@ def _unwrap_vertex_result(result) -> bytes:
             raise RuntimeError("Vertex Imagen3 returned no images")
         return bytes(result[0])
     return bytes(result)
+
+
+def _cover_background(img: PILImage.Image, width: int, height: int) -> PILImage.Image:
+    img = img.convert("RGBA")
+    ratio = max(width / img.width, height / img.height)
+    new_w = int(img.width * ratio)
+    new_h = int(img.height * ratio)
+    fitted = img.resize((new_w, new_h), PILImage.LANCZOS)
+    left = max(0, (new_w - width) // 2)
+    top = max(0, (new_h - height) // 2)
+    return fitted.crop((left, top, left + width, top + height))

@@ -109,10 +109,13 @@ class TestTemplateSpecLoading:
         assert spec.contract_version == "poster2.template_dual_v2.v1"
         assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
-        assert spec.gallery_slot.thumb_w == 176
+        assert spec.version == "2.1.1"
+        assert spec.gallery_slot.thumb_w == 172
         # Agent name slot has CTA pill style
         assert spec.agent_name_slot.bg_color == "#E8002A"
-        assert spec.agent_name_slot.bg_radius == 34
+        assert spec.agent_name_slot.bg_radius == 26
+        assert spec.subtitle_slot.y + spec.subtitle_slot.h <= spec.canvas_h - spec.safe_margin
+        assert spec.gallery_slot.y + spec.gallery_slot.h <= spec.canvas_h - spec.safe_margin
 
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
@@ -122,7 +125,7 @@ class TestTemplateSpecLoading:
         )
         spec = TemplateSpec.from_json(real_path)
         gs = spec.gallery_slot
-        expected_x = [112, 304, 496, 688]  # from template_dual_spec.json
+        expected_x = [144, 332, 520, 708]
         for i, ex in enumerate(expected_x):
             computed = gs.x + i * (gs.thumb_w + gs.gap)
             assert computed == ex, (

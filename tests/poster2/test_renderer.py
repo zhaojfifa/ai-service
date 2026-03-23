@@ -364,7 +364,7 @@ class TestGalleryPositions:
     def test_four_item_positions(self):
         template = _load_real_template()
         gs = template.gallery_slot
-        expected = [112, 304, 496, 688]
+        expected = [144, 332, 520, 708]
         for i, ex_x in enumerate(expected):
             computed = gs.x + i * (gs.thumb_w + gs.gap)
             assert computed == ex_x, (
@@ -441,7 +441,7 @@ class TestFeatureCallouts:
         assert len(template.feature_callouts) == 4
         for fc in template.feature_callouts:
             assert fc.anchor_radius == 7
-            assert fc.anchor_x == 520
+            assert fc.anchor_x == 486
             assert fc.anchor_color == "#E8002A"
 
 
@@ -472,7 +472,7 @@ class TestCtaPillRendering:
         template = _load_real_template()
         slot = template.agent_name_slot
         assert slot.bg_color == "#E8002A"
-        assert slot.bg_radius == 34
+        assert slot.bg_radius == 26
         assert slot.color == "#FFFFFF"
 
     def test_render_with_agent_cta(self):

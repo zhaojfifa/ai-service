@@ -21,7 +21,11 @@ from typing import Optional
 from PIL import Image as PILImage
 
 from .asset_loader import AssetLoader
-from .background import FireflyBackgroundService, make_background_service
+from .background import (
+    FireflyBackgroundService,
+    build_template_dual_v2_background,
+    make_background_service,
+)
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
@@ -93,18 +97,38 @@ class PosterPipeline:
 
         # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
-        assets, bg_result = await asyncio.gather(
-            self._loader.load(spec),
-            self._bg.generate(
-                style_prompt=spec.style.prompt,
-                negative_prompt=spec.style.negative_prompt,
-                width=spec.size[0],
-                height=spec.size[1],
-                seed=spec.style.seed,
-                template_hint=template.background_prompt_hint,
-                trace_id=trace_id,
-            ),
-        )
+        if spec.template_id == "template_dual_v2":
+            assets = await self._loader.load(spec)
+            if assets.scenario is not None:
+                bg_result = await build_template_dual_v2_background(
+                    assets.scenario,
+                    width=spec.size[0],
+                    height=spec.size[1],
+                    trace_id=trace_id,
+                )
+            else:
+                bg_result = await self._bg.generate(
+                    style_prompt="",
+                    negative_prompt=spec.style.negative_prompt,
+                    width=spec.size[0],
+                    height=spec.size[1],
+                    seed=spec.style.seed,
+                    template_hint=template.background_prompt_hint,
+                    trace_id=trace_id,
+                )
+        else:
+            assets, bg_result = await asyncio.gather(
+                self._loader.load(spec),
+                self._bg.generate(
+                    style_prompt=spec.style.prompt,
+                    negative_prompt=spec.style.negative_prompt,
+                    width=spec.size[0],
+                    height=spec.size[1],
+                    seed=spec.style.seed,
+                    template_hint=template.background_prompt_hint,
+                    trace_id=trace_id,
+                ),
+            )
         timings["load_and_bg_ms"] = _elapsed(t0)
         timings["background_layer_ms"] = timings["load_and_bg_ms"]
         logger.info(
