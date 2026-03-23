@@ -1435,11 +1435,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
     Text, logo, product, and gallery are NEVER passed through a generative model.
     """
     request_log = _poster2_request_log_fields(request, payload)
-    logger.info("poster2: request start %s", request_log)
+    logger.info("poster2: stage=request_received %s", request_log)
     trace_id = getattr(request.state, "trace_id", None) or str(uuid.uuid4())
     request.state.trace_id = trace_id
+    route_stage = "request_received"
     try:
         _validate_poster2_renderer_request(payload.template_id, payload.renderer_mode)
+        route_stage = "build_template_context"
         spec = P2PosterSpec(
             brand_name=payload.brand_name,
             agent_name=payload.agent_name,
@@ -1467,6 +1469,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         )
 
         pipeline = _get_poster2_pipeline()
+        route_stage = "pipeline_run"
         manifest = await pipeline.run(spec)
         logger.info(
             "poster2: request success request_id=%s trace_id=%s template=%s requested=%s effective=%s degraded=%s total_ms=%s",
@@ -1518,9 +1521,12 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
 
     except Poster2PipelineError as exc:
         logger.exception(
-            "poster2: generation failed request_id=%s trace_id=%s resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s font_preflight=%s",
+            "poster2: generation failed request_id=%s trace_id=%s stage=%s template_id=%s renderer_mode=%s resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s font_preflight=%s",
             request_log["request_id"],
             exc.trace_id,
+            exc.stage,
+            exc.template_id,
+            exc.renderer_mode,
             exc.resolved_logo,
             exc.resolved_scenario_image,
             exc.resolved_product_image,
@@ -1535,6 +1541,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                     "message": str(exc.__cause__ or exc),
                     "request_id": request_log["request_id"],
                     "trace_id": exc.trace_id,
+                    "stage": exc.stage,
                 }
             },
         )
@@ -1546,9 +1553,10 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception(
-            "poster2: generation failed request_id=%s trace_id=%s request=%s",
+            "poster2: generation failed request_id=%s trace_id=%s stage=%s request=%s",
             request_log["request_id"],
             trace_id,
+            route_stage,
             request_log,
         )
         return JSONResponse(
@@ -1559,6 +1567,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                     "message": str(exc),
                     "request_id": request_log["request_id"],
                     "trace_id": trace_id,
+                    "stage": route_stage,
                 }
             },
         )

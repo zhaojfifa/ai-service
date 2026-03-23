@@ -99,6 +99,9 @@ class _TracePoster2Pipeline:
         raise Poster2PipelineError(
             "poster2_pipeline_failed",
             trace_id="trace-pipeline-123",
+            stage="render_foreground",
+            template_id="template_dual_v2",
+            renderer_mode="puppeteer",
             resolved_logo={"present": True, "size": [120, 64], "mode": "RGBA"},
             resolved_scenario_image=None,
             resolved_product_image={"present": True, "size": [400, 600], "mode": "RGBA"},
@@ -282,3 +285,4 @@ def test_generate_poster_v2_error_response_exposes_request_and_trace_ids(monkeyp
     assert body["detail"]["error"] == "poster2_generation_failed"
     assert body["detail"]["request_id"] == "req-123"
     assert body["detail"]["trace_id"] == "trace-pipeline-123"
+    assert body["detail"]["stage"] == "render_foreground"

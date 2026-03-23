@@ -53,6 +53,9 @@ class Poster2PipelineError(RuntimeError):
         message: str,
         *,
         trace_id: str,
+        stage: str,
+        template_id: str,
+        renderer_mode: str,
         resolved_logo: dict[str, Any] | None,
         resolved_scenario_image: dict[str, Any] | None,
         resolved_product_image: dict[str, Any] | None,
@@ -61,6 +64,9 @@ class Poster2PipelineError(RuntimeError):
     ) -> None:
         super().__init__(message)
         self.trace_id = trace_id
+        self.stage = stage
+        self.template_id = template_id
+        self.renderer_mode = renderer_mode
         self.resolved_logo = resolved_logo
         self.resolved_scenario_image = resolved_scenario_image
         self.resolved_product_image = resolved_product_image
@@ -124,18 +130,49 @@ class PosterPipeline:
         resolved_scenario_image = None
         resolved_product_image = None
         resolved_gallery_items: list[Any] = []
+        failure_stage = "request_received"
 
         try:
+            failure_stage = "build_template_context"
             if template is None:
                 template = load_template(spec.template_id)
 
             spec_hash = _hash_spec(spec)
+            logger.info(
+                "poster2: stage=build_template_context trace_id=%s template_id=%s renderer_mode=%s template_version=%s spec_hash=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                template.version,
+                spec_hash,
+            )
+
+            failure_stage = "font_preflight"
             font_preflight = poster2_font_preflight()
+            logger.info(
+                "poster2: stage=font_preflight trace_id=%s template_id=%s renderer_mode=%s font_preflight=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                font_preflight,
+            )
 
             # ── Phase 1: background layer + product/material layer preparation ───
             t0 = _now()
+            failure_stage = "resolve_assets"
             if spec.template_id == "template_dual_v2":
                 assets = await self._loader.load(spec)
+                logger.info(
+                    "poster2: stage=resolve_assets trace_id=%s template_id=%s renderer_mode=%s resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s",
+                    trace_id,
+                    spec.template_id,
+                    spec.renderer_mode,
+                    _resolved_asset_snapshot(assets.logo),
+                    _resolved_asset_snapshot(assets.scenario),
+                    _resolved_asset_snapshot(assets.product),
+                    _resolved_gallery_snapshot(list(assets.gallery)),
+                )
+                failure_stage = "render_background"
                 if assets.scenario is not None:
                     bg_result = await build_template_dual_v2_background(
                         assets.scenario,
@@ -154,17 +191,26 @@ class PosterPipeline:
                         trace_id=trace_id,
                     )
             else:
-                assets, bg_result = await asyncio.gather(
-                    self._loader.load(spec),
-                    self._bg.generate(
-                        style_prompt=spec.style.prompt,
-                        negative_prompt=spec.style.negative_prompt,
-                        width=spec.size[0],
-                        height=spec.size[1],
-                        seed=spec.style.seed,
-                        template_hint=template.background_prompt_hint,
-                        trace_id=trace_id,
-                    ),
+                assets = await self._loader.load(spec)
+                logger.info(
+                    "poster2: stage=resolve_assets trace_id=%s template_id=%s renderer_mode=%s resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s",
+                    trace_id,
+                    spec.template_id,
+                    spec.renderer_mode,
+                    _resolved_asset_snapshot(assets.logo),
+                    _resolved_asset_snapshot(assets.scenario),
+                    _resolved_asset_snapshot(assets.product),
+                    _resolved_gallery_snapshot(list(assets.gallery)),
+                )
+                failure_stage = "render_background"
+                bg_result = await self._bg.generate(
+                    style_prompt=spec.style.prompt,
+                    negative_prompt=spec.style.negative_prompt,
+                    width=spec.size[0],
+                    height=spec.size[1],
+                    seed=spec.style.seed,
+                    template_hint=template.background_prompt_hint,
+                    trace_id=trace_id,
                 )
             timings["load_and_bg_ms"] = _elapsed(t0)
             timings["background_layer_ms"] = timings["load_and_bg_ms"]
@@ -181,9 +227,18 @@ class PosterPipeline:
                 resolved_product_image is not None,
                 len(resolved_gallery_items),
             )
+            logger.info(
+                "poster2: stage=render_background trace_id=%s template_id=%s renderer_mode=%s background_model=%s background_url=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                bg_result.model,
+                bg_result.url,
+            )
 
             # ── Phase 2: deterministic foreground/text render ────────────────────
             t1 = _now()
+            failure_stage = "render_foreground"
             fg_result = await self._renderer.render(template, spec, assets)
             timings["renderer_ms"] = _elapsed(t1)
             timings.update(fg_result.layer_timings_ms)
@@ -191,14 +246,30 @@ class PosterPipeline:
                 "poster2: trace=%s fg_hash=%s engine=%s renderer=%.0fms",
                 trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
             )
+            logger.info(
+                "poster2: stage=render_foreground trace_id=%s template_id=%s renderer_mode=%s render_engine_used=%s degraded=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                fg_result.render_engine_used,
+                fg_result.degraded,
+            )
 
             # ── Phase 3: load background bytes and compose ───────────────────────
             t2 = _now()
+            failure_stage = "compose_final"
             bg_image = await self._loader.load_url(bg_result.url)
             compose_result = self._composer.compose(
                 bg_image, fg_result.image, spec.export_format
             )
             timings["compose_ms"] = _elapsed(t2)
+            logger.info(
+                "poster2: stage=compose_final trace_id=%s template_id=%s renderer_mode=%s final_hash=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                compose_result.sha256,
+            )
 
             # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
             slot_spec = load_structured_slot_spec(template.template_id)
@@ -229,6 +300,7 @@ class PosterPipeline:
             )
 
             # ── Phase 4: store foreground + final to R2 ──────────────────────────
+            failure_stage = "upload_outputs"
             if self._put_bytes is None:
                 from app.services import r2_client  # lazy: keeps boto3 out of test collection
                 _put = r2_client.put_bytes
@@ -352,8 +424,12 @@ class PosterPipeline:
             timings["total_ms"] = _elapsed(t0)
 
             logger.info(
-                "poster2: trace=%s DONE final=%s total=%.1fs",
-                trace_id, final_url, timings["total_ms"] / 1000,
+                "poster2: stage=upload_outputs trace_id=%s template_id=%s renderer_mode=%s final_url=%s total=%.1fs",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                final_url,
+                timings["total_ms"] / 1000,
             )
 
             return RenderManifest(
@@ -397,8 +473,11 @@ class PosterPipeline:
             )
         except Exception as exc:
             logger.exception(
-                "poster2: trace=%s pipeline failure resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s font_preflight=%s",
+                "poster2: trace=%s stage=%s template_id=%s renderer_mode=%s pipeline failure resolved_logo=%s resolved_scenario_image=%s resolved_product_image=%s resolved_gallery_items=%s font_preflight=%s",
                 trace_id,
+                failure_stage,
+                spec.template_id,
+                spec.renderer_mode,
                 _resolved_asset_snapshot(resolved_logo),
                 _resolved_asset_snapshot(resolved_scenario_image),
                 _resolved_asset_snapshot(resolved_product_image),
@@ -408,6 +487,9 @@ class PosterPipeline:
             raise Poster2PipelineError(
                 "poster2_pipeline_failed",
                 trace_id=trace_id,
+                stage=failure_stage,
+                template_id=spec.template_id,
+                renderer_mode=spec.renderer_mode,
                 resolved_logo=_resolved_asset_snapshot(resolved_logo),
                 resolved_scenario_image=_resolved_asset_snapshot(resolved_scenario_image),
                 resolved_product_image=_resolved_asset_snapshot(resolved_product_image),

@@ -440,6 +440,9 @@ class TestPosterPipelineRun:
 
         err = exc_info.value
         assert err.trace_id
+        assert err.stage == "compose_final"
+        assert err.template_id == "template_dual_v2"
+        assert err.renderer_mode == "auto"
         assert err.resolved_product_image["present"] is True
         assert err.resolved_logo is None
         assert isinstance(err.font_preflight, dict)
