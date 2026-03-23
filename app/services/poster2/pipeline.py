@@ -240,6 +240,10 @@ class PosterPipeline:
             t1 = _now()
             failure_stage = "render_foreground"
             fg_result = await self._renderer.render(template, spec, assets)
+            if fg_result.image is None:
+                raise RuntimeError("foreground result image is null")
+            if not fg_result.png_bytes:
+                raise RuntimeError("foreground result PNG is empty")
             timings["renderer_ms"] = _elapsed(t1)
             timings.update(fg_result.layer_timings_ms)
             logger.info(
@@ -254,17 +258,33 @@ class PosterPipeline:
                 fg_result.render_engine_used,
                 fg_result.degraded,
             )
+            logger.info(
+                "poster2: stage=render_foreground_done trace_id=%s template_id=%s renderer_mode=%s png_bytes=%d image_mode=%s image_size=%sx%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+                len(fg_result.png_bytes),
+                fg_result.image.mode,
+                fg_result.image.width,
+                fg_result.image.height,
+            )
 
             # ── Phase 3: load background bytes and compose ───────────────────────
             t2 = _now()
             failure_stage = "compose_final"
+            logger.info(
+                "poster2: stage=compose_final_start trace_id=%s template_id=%s renderer_mode=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+            )
             bg_image = await self._loader.load_url(bg_result.url)
             compose_result = self._composer.compose(
                 bg_image, fg_result.image, spec.export_format
             )
             timings["compose_ms"] = _elapsed(t2)
             logger.info(
-                "poster2: stage=compose_final trace_id=%s template_id=%s renderer_mode=%s final_hash=%s",
+                "poster2: stage=compose_final_done trace_id=%s template_id=%s renderer_mode=%s final_hash=%s",
                 trace_id,
                 spec.template_id,
                 spec.renderer_mode,
@@ -301,6 +321,12 @@ class PosterPipeline:
 
             # ── Phase 4: store foreground + final to R2 ──────────────────────────
             failure_stage = "upload_outputs"
+            logger.info(
+                "poster2: stage=upload_outputs_start trace_id=%s template_id=%s renderer_mode=%s",
+                trace_id,
+                spec.template_id,
+                spec.renderer_mode,
+            )
             if self._put_bytes is None:
                 from app.services import r2_client  # lazy: keeps boto3 out of test collection
                 _put = r2_client.put_bytes
@@ -424,7 +450,7 @@ class PosterPipeline:
             timings["total_ms"] = _elapsed(t0)
 
             logger.info(
-                "poster2: stage=upload_outputs trace_id=%s template_id=%s renderer_mode=%s final_url=%s total=%.1fs",
+                "poster2: stage=upload_outputs_done trace_id=%s template_id=%s renderer_mode=%s final_url=%s total=%.1fs",
                 trace_id,
                 spec.template_id,
                 spec.renderer_mode,

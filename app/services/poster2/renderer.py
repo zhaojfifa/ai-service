@@ -337,7 +337,24 @@ class PuppeteerStructuredRenderer:
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
+        if not png_bytes:
+            raise _classify_puppeteer_exception(
+                RuntimeError("empty foreground PNG from puppeteer renderer"),
+                stage="screenshot",
+            )
+        logger.info(
+            "poster2.puppeteer: foreground_bytes_ready template=%s bytes=%d",
+            spec.template_id,
+            len(png_bytes),
+        )
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
+        logger.info(
+            "poster2.puppeteer: render_foreground_done template=%s mode=%s size=%sx%s",
+            spec.template_id,
+            image.mode,
+            image.width,
+            image.height,
+        )
         return ForegroundResult(
             image=image,
             png_bytes=png_bytes,
@@ -480,7 +497,10 @@ class PuppeteerStructuredRenderer:
                     png_bytes = await page.locator("#poster-root").screenshot(type="png", omit_background=True)
                 except Exception as exc:
                     raise _classify_puppeteer_exception(exc, stage="screenshot") from exc
-                logger.info("poster2.puppeteer: screenshot_done")
+                logger.info(
+                    "poster2.puppeteer: screenshot_done bytes=%d",
+                    len(png_bytes) if png_bytes else 0,
+                )
                 return png_bytes
             finally:
                 await browser.close()
