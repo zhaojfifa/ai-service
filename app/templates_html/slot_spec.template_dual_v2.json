@@ -41,10 +41,12 @@
       "collapse_rule": "never collapse"
     },
     "brand_logo_layer": {
-      "visible_when": "logo asset present",
+      "visible_when": "logo.url exists",
       "bounds": { "x": 104, "y": 74, "w": 120, "h": 64 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "fallback_rule": "hide logo only; do not shift dependency to brand text slot content",
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "hide logo only; do not make logo visibility depend on brand_text_layer",
       "collapse_rule": "collapse only this layer when logo is absent"
     },
     "brand_text_layer": {
@@ -69,10 +71,12 @@
       "collapse_rule": "never collapse"
     },
     "scenario_image_layer": {
-      "visible_when": "scenario_image present",
+      "visible_when": "scenario_image.url exists",
       "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "fallback_rule": "strictly prefer scenario_image; safe preset only when absent",
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "render scenario_image as the true content layer; fallback to safe preset image only if scenario_image is absent",
       "collapse_rule": "collapse when scenario_image is absent"
     },
     "bottom_gallery_shell_layer": {
@@ -83,11 +87,13 @@
       "collapse_rule": "collapse when gallery state is hidden"
     },
     "bottom_gallery_items_layer": {
-      "visible_when": "gallery items present after fallback-fill resolution",
+      "visible_when": "gallery_images.length > 0",
       "bounds": { "x": 96, "y": 904, "w": 832, "h": 56 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "fallback_rule": "cycle available gallery items to fill all slots deterministically",
-      "collapse_rule": "collapse when gallery state is hidden; never leave ghost placeholders"
+      "max_items": 4,
+      "max_lines": 0,
+      "fallback_rule": "cycle available gallery_images deterministically to fill up to 4 slots; if none, do not render ghost placeholders",
+      "collapse_rule": "collapse this items layer when gallery_images.length == 0; allow shell to hide or collapse with it"
     }
   },
   "protected_zones": [
