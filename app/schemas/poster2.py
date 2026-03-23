@@ -73,6 +73,11 @@ class Poster2DebugArtifacts(BaseModel):
     foreground_layer_url: str = ""
     final_composited_url: str = ""
     renderer_metadata_url: str = ""
+    slot_structure_layer_url: str = ""
+    content_layer_url: str = ""
+    text_layer_url: str = ""
+    structure_overlay_url: str = ""
+    slot_metadata_url: str = ""
 
 
 class GeneratePosterV2Response(BaseModel):

@@ -43,6 +43,11 @@ from app.services.poster2.renderer import (
     ForegroundResult,
     _build_puppeteer_failure_info,
     _safe_preset_scenario_data_url,
+    load_structured_slot_spec,
+    render_content_debug_layer,
+    render_slot_structure_debug_layer,
+    render_structure_overlay_debug_layer,
+    render_text_debug_layer,
 )
 
 
@@ -584,3 +589,45 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
+
+
+class TestStructuredDebugLayers:
+
+    def test_slot_structure_debug_layer_renders(self):
+        template = _load_real_template()
+        slot_spec = load_structured_slot_spec(template.template_id)
+        result = render_slot_structure_debug_layer(template, slot_spec)
+        assert result.render_engine_used == "debug"
+        assert result.foreground_renderer == "poster2.debug_slot_structure"
+        assert len(result.png_bytes) > 1000
+
+    def test_content_debug_layer_renders_safe_preset_scenario(self):
+        template = _load_real_template()
+        assets = _minimal_assets(scenario=None)
+        result = render_content_debug_layer(template, assets)
+        assert result.foreground_renderer == "poster2.debug_content_layer"
+        assert len(result.png_bytes) > 1000
+
+    def test_text_debug_layer_renders_text_only_pass(self):
+        template = _load_real_template()
+        result = render_text_debug_layer(template, _minimal_spec())
+        assert result.foreground_renderer == "poster2.debug_text_layer"
+        assert len(result.png_bytes) > 1000
+
+    def test_structure_overlay_debug_layer_renders_metadata_annotations(self):
+        template = _load_real_template()
+        slot_spec = load_structured_slot_spec(template.template_id)
+        slot_metadata = {
+            "regions": {
+                "header_region": {
+                    "brand_logo_slot": {
+                        "rendered": False,
+                        "reason": "logo_not_bound",
+                        "bounds": [104, 74, 120, 64],
+                    }
+                }
+            }
+        }
+        result = render_structure_overlay_debug_layer(template, slot_spec, slot_metadata)
+        assert result.foreground_renderer == "poster2.debug_structure_overlay"
+        assert len(result.png_bytes) > 1000

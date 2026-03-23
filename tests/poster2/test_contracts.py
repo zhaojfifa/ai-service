@@ -199,10 +199,13 @@ class TestTemplateSpecLoading:
         assert slot_spec["template_contract_version"] == "poster2.template_dual_v2.v1"
         assert "layers" in slot_spec
         assert "layer_slots" in slot_spec
+        assert "regions" in slot_spec
+        assert "slot_contracts" in slot_spec
         assert "layer_states" in slot_spec
         assert "layer_contracts" in slot_spec
         assert "header_banner" in slot_spec["layers"]
         assert "background_base_layer" in slot_spec["layers"]
+        assert "background_tone_layer" in slot_spec["layers"]
         assert "header_shell_layer" in slot_spec["layers"]
         assert "brand_logo_layer" in slot_spec["layers"]
         assert "brand_text_layer" in slot_spec["layers"]
@@ -219,6 +222,38 @@ class TestTemplateSpecLoading:
         assert "bottom_gallery_items_layer" in slot_spec["layers"]
         assert "bottom_tagline_layer" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
+        assert "header_region" in slot_spec["regions"]
+        assert "scenario_region" in slot_spec["regions"]
+        assert "product_region" in slot_spec["regions"]
+        assert "feature_region" in slot_spec["regions"]
+        assert "bottom_region" in slot_spec["regions"]
+        for slot_name in [
+            "background_base_layer",
+            "background_tone_layer",
+            "header_shell_layer",
+            "brand_logo_slot",
+            "brand_text_slot",
+            "agent_pill_slot",
+            "scenario_card_shell_slot",
+            "scenario_image_slot",
+            "product_card_shell_slot",
+            "product_image_slot",
+            "feature_callout_slots",
+            "title_box",
+            "subtitle_box",
+            "gallery_shell_slot",
+            "gallery_item_slots",
+            "tagline_box",
+        ]:
+            assert slot_name in slot_spec["slot_contracts"]
+            slot_contract = slot_spec["slot_contracts"][slot_name]
+            assert "slot_id" in slot_contract
+            assert "region_id" in slot_contract
+            assert "bounds" in slot_contract
+            assert "visible_when" in slot_contract
+            assert "source_binding" in slot_contract
+            assert "fallback_rule" in slot_contract
+            assert "collapse_rule" in slot_contract
         assert "brand_logo_slot" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
         assert "state-safe-fill" in slot_spec["layer_states"]["scenario"]
@@ -261,6 +296,8 @@ class TestTemplateSpecLoading:
         assert "ghost placeholders" in bottom_gallery_items_contract["fallback_rule"]
         assert "fallback-fill" in slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"]
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
+        assert slot_spec["slot_contracts"]["scenario_image_slot"]["fallback_rule"] == "safe_preset_fill_if_absent"
+        assert slot_spec["slot_contracts"]["gallery_item_slots"]["collapse_rule"] == "hide_full_gallery_strip_when_empty"
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4
         assert len(anchor_map["feature_callouts"]) == 4
@@ -341,6 +378,11 @@ class TestRenderManifest:
                 foreground_layer_url="https://r2.example.com/fg.png",
                 final_composited_url="https://r2.example.com/final.png",
                 renderer_metadata_url="https://r2.example.com/renderer-metadata.json",
+                slot_structure_layer_url="https://r2.example.com/slot-structure.png",
+                content_layer_url="https://r2.example.com/content-layer.png",
+                text_layer_url="https://r2.example.com/text-layer.png",
+                structure_overlay_url="https://r2.example.com/structure-overlay.png",
+                slot_metadata_url="https://r2.example.com/slot-metadata.json",
             ),
         )
         d = m.to_dict()
@@ -348,4 +390,5 @@ class TestRenderManifest:
         assert d["background_seed"] == 42
         assert d["render_engine_used"] == "pillow"
         assert d["debug_artifacts"]["renderer_metadata_url"] == "https://r2.example.com/renderer-metadata.json"
+        assert d["debug_artifacts"]["slot_metadata_url"] == "https://r2.example.com/slot-metadata.json"
         assert d["degraded"] is False

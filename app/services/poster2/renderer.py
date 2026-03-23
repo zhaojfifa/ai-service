@@ -260,6 +260,11 @@ class LayoutRenderer:
         return self._fonts.get(slot.font_key, 8), text
 
 
+def load_structured_slot_spec(template_id: str) -> dict[str, Any]:
+    path = _HTML_TEMPLATES_DIR / f"slot_spec.{template_id}.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 class PuppeteerStructuredRenderer:
     """
     Structured HTML foreground renderer backed by Chromium/Playwright.
@@ -640,6 +645,93 @@ def render_product_material_debug_layer(
     )
 
 
+def render_slot_structure_debug_layer(
+    spec: TemplateSpec,
+    slot_spec: dict[str, Any],
+    font_registry: FontRegistry | None = None,
+) -> ForegroundResult:
+    canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    _draw_region_shell(draw, slot_spec["regions"]["header_region"], (232, 0, 42, 220), radius=28, fill=(255, 255, 255, 20))
+    _draw_region_shell(draw, slot_spec["regions"]["scenario_region"], (90, 110, 140, 220), radius=24, fill=(255, 255, 255, 16))
+    _draw_region_shell(draw, slot_spec["regions"]["product_region"], (232, 0, 42, 220), radius=24, fill=(255, 255, 255, 24))
+    _draw_region_shell(draw, slot_spec["regions"]["bottom_region"], (90, 110, 140, 180), radius=24, fill=(255, 255, 255, 10))
+    _draw_bounds(draw, slot_spec["slot_contracts"]["brand_logo_slot"]["bounds"], (232, 0, 42, 255), width=2)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["brand_text_slot"]["bounds"], (232, 0, 42, 180), width=2)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["agent_pill_slot"]["bounds"], (232, 0, 42, 255), width=2, radius=24)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["scenario_image_slot"]["bounds"], (84, 100, 122, 255), width=2, radius=24)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["product_image_slot"]["bounds"], (232, 0, 42, 255), width=2, radius=24)
+    for gallery_slot in slot_spec["slots"]["gallery"]:
+        _draw_bounds(draw, [gallery_slot["x"], gallery_slot["y"], gallery_slot["w"], gallery_slot["h"]], (84, 100, 122, 180), width=2, radius=14)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["title_box"]["bounds"], (232, 0, 42, 220), width=2)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["subtitle_box"]["bounds"], (232, 0, 42, 180), width=2)
+    _draw_bounds(draw, slot_spec["slot_contracts"]["tagline_box"]["bounds"], (111, 87, 87, 180), width=2)
+    for callout in spec.feature_callouts:
+        _draw_bounds(draw, [callout.label_box.x, callout.label_box.y, callout.label_box.w, callout.label_box.h], (232, 0, 42, 180), width=2, radius=16)
+    return _debug_result(canvas, spec.contract_version, "poster2.debug_slot_structure")
+
+
+def render_content_debug_layer(
+    spec: TemplateSpec,
+    assets: ResolvedAssets,
+    font_registry: FontRegistry | None = None,
+) -> ForegroundResult:
+    renderer = LayoutRenderer(font_registry=font_registry)
+    canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+    if spec.logo_slot and assets.logo:
+        renderer._draw_image(canvas, spec.logo_slot, assets.logo)
+    if spec.scenario_slot:
+        scenario_img = assets.scenario if assets.scenario is not None else PILImage.open(BytesIO(base64.b64decode(_safe_preset_scenario_data_url().split(",", 1)[1]))).convert("RGBA")
+        renderer._draw_image(canvas, spec.scenario_slot, scenario_img)
+    renderer._draw_product(canvas, spec.product_slot, assets.product)
+    if assets.gallery:
+        filled_gallery = [assets.gallery[idx % len(assets.gallery)] for idx in range(spec.gallery_slot.count)]
+        renderer._draw_gallery(canvas, spec.gallery_slot, filled_gallery)
+    return _debug_result(canvas, spec.contract_version, "poster2.debug_content_layer")
+
+
+def render_text_debug_layer(
+    spec: TemplateSpec,
+    poster: PosterSpec,
+    font_registry: FontRegistry | None = None,
+) -> ForegroundResult:
+    renderer = LayoutRenderer(font_registry=font_registry)
+    canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+    renderer._draw_text(canvas, spec.brand_name_slot, poster.brand_name, draw_background=False)
+    renderer._draw_text(canvas, spec.agent_name_slot, poster.agent_name, draw_background=False)
+    renderer._draw_feature_callout_labels(canvas, spec.feature_callouts, poster.features)
+    renderer._draw_text(canvas, spec.title_slot, poster.title, draw_background=False)
+    renderer._draw_text(canvas, spec.subtitle_slot, poster.subtitle, draw_background=False)
+    return _debug_result(canvas, spec.contract_version, "poster2.debug_text_layer")
+
+
+def render_structure_overlay_debug_layer(
+    spec: TemplateSpec,
+    slot_spec: dict[str, Any],
+    slot_metadata: dict[str, Any],
+    font_registry: FontRegistry | None = None,
+) -> ForegroundResult:
+    canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+    font_registry = font_registry or FontRegistry()
+    font = font_registry.get("label", 14)
+    for region_id, region in slot_metadata.get("regions", {}).items():
+        region_bounds = slot_spec["regions"].get(region_id)
+        if region_bounds:
+            _draw_region_shell(draw, region_bounds, (46, 73, 115, 120), radius=20)
+        y_offset = 0
+        for slot_id, item in region.items():
+            bounds = item.get("bounds")
+            if not bounds:
+                continue
+            color = (40, 156, 82, 220) if item.get("rendered") else (191, 64, 64, 220)
+            _draw_bounds(draw, bounds, color, width=2)
+            label = f"{slot_id} {'ok' if item.get('rendered') else item.get('reason') or 'off'}"
+            draw.text((bounds[0] + 4, max(0, bounds[1] - 18 + y_offset)), label, fill=color, font=font)
+            y_offset = 0
+    return _debug_result(canvas, spec.contract_version, "poster2.debug_structure_overlay")
+
+
 def _font_file_bytes(font_registry: FontRegistry, font_key: str) -> bytes:
     filename = {
         "brand_bold": "NotoSansSC-SemiBold.ttf",
@@ -689,6 +781,49 @@ def _safe_preset_scenario_data_url() -> str:
     draw.rectangle([58, 146, 210, 176], fill=(232, 0, 42, 18))
     draw.rectangle([58, 196, 224, 226], fill=(232, 0, 42, 14))
     return _image_to_data_url(img)
+
+
+def _debug_result(
+    canvas: PILImage.Image,
+    template_contract_version: str,
+    renderer_name: str,
+) -> ForegroundResult:
+    png_bytes = _to_png(canvas)
+    return ForegroundResult(
+        image=canvas,
+        png_bytes=png_bytes,
+        sha256=hashlib.sha256(png_bytes).hexdigest(),
+        render_engine_used="debug",
+        foreground_renderer=renderer_name,
+        template_contract_version=template_contract_version,
+    )
+
+
+def _draw_region_shell(
+    draw: ImageDraw.ImageDraw,
+    bounds: dict[str, int],
+    outline: tuple[int, int, int, int],
+    *,
+    radius: int = 24,
+    fill: tuple[int, int, int, int] | None = None,
+) -> None:
+    x, y, w, h = bounds["x"], bounds["y"], bounds["w"], bounds["h"]
+    draw.rounded_rectangle([x, y, x + w, y + h], radius=radius, outline=outline, fill=fill, width=2)
+
+
+def _draw_bounds(
+    draw: ImageDraw.ImageDraw,
+    bounds: list[int] | tuple[int, int, int, int],
+    outline: tuple[int, int, int, int],
+    *,
+    width: int = 2,
+    radius: int = 0,
+) -> None:
+    x, y, w, h = bounds
+    if radius > 0:
+        draw.rounded_rectangle([x, y, x + w, y + h], radius=radius, outline=outline, width=width)
+        return
+    draw.rectangle([x, y, x + w, y + h], outline=outline, width=width)
 
 
 def _now() -> int:

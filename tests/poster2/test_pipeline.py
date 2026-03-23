@@ -117,13 +117,24 @@ class TestPosterPipelineRun:
         template = template or _load_template()
 
         # Inject a fake put_bytes to avoid boto3/R2 dependency in tests
-        _r2_urls = iter([
-            "https://r2.example.com/fg.png",
-            "https://r2.example.com/product-material.png",
-            "https://r2.example.com/final.png",
-            "https://r2.example.com/renderer-metadata.json",
-        ])
-        fake_put_bytes = MagicMock(side_effect=lambda key, data, **kw: next(_r2_urls))
+        def fake_put_bytes(key, data, **kw):
+            if "/fg/" in key:
+                return "https://r2.example.com/fg.png"
+            if "product-material" in key:
+                return "https://r2.example.com/product-material.png"
+            if "slot-structure" in key:
+                return "https://r2.example.com/slot-structure.png"
+            if "content-layer" in key:
+                return "https://r2.example.com/content-layer.png"
+            if "text-layer" in key:
+                return "https://r2.example.com/text-layer.png"
+            if "structure-overlay" in key:
+                return "https://r2.example.com/structure-overlay.png"
+            if "slot-metadata" in key:
+                return "https://r2.example.com/slot-metadata.json"
+            if "debug/metadata" in key:
+                return "https://r2.example.com/renderer-metadata.json"
+            return "https://r2.example.com/final.png"
 
         assets = _make_assets() if product_override is None else ResolvedAssets(product=product_override)
 
@@ -132,7 +143,7 @@ class TestPosterPipelineRun:
             renderer=LayoutRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
-            put_bytes_fn=fake_put_bytes,
+            put_bytes_fn=MagicMock(side_effect=fake_put_bytes),
         )
         return asyncio.run(pipeline.run(spec, template))
 
@@ -144,6 +155,11 @@ class TestPosterPipelineRun:
         assert manifest.background_url == "https://r2.example.com/bg.png"
         assert manifest.debug_artifacts.product_material_layer_url == "https://r2.example.com/product-material.png"
         assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
+        assert manifest.debug_artifacts.slot_structure_layer_url == "https://r2.example.com/slot-structure.png"
+        assert manifest.debug_artifacts.content_layer_url == "https://r2.example.com/content-layer.png"
+        assert manifest.debug_artifacts.text_layer_url == "https://r2.example.com/text-layer.png"
+        assert manifest.debug_artifacts.structure_overlay_url == "https://r2.example.com/structure-overlay.png"
+        assert manifest.debug_artifacts.slot_metadata_url == "https://r2.example.com/slot-metadata.json"
 
     def test_manifest_hashes_set(self):
         manifest = self._run(_make_spec())
@@ -164,6 +180,11 @@ class TestPosterPipelineRun:
         assert manifest.debug_artifacts.background_layer_url == "https://r2.example.com/bg.png"
         assert manifest.debug_artifacts.foreground_layer_url == "https://r2.example.com/fg.png"
         assert manifest.debug_artifacts.final_composited_url == "https://r2.example.com/final.png"
+        assert manifest.debug_artifacts.slot_structure_layer_url == "https://r2.example.com/slot-structure.png"
+        assert manifest.debug_artifacts.content_layer_url == "https://r2.example.com/content-layer.png"
+        assert manifest.debug_artifacts.text_layer_url == "https://r2.example.com/text-layer.png"
+        assert manifest.debug_artifacts.structure_overlay_url == "https://r2.example.com/structure-overlay.png"
+        assert manifest.debug_artifacts.slot_metadata_url == "https://r2.example.com/slot-metadata.json"
 
     def test_timings_recorded(self):
         manifest = self._run(_make_spec())
@@ -232,12 +253,17 @@ class TestPosterPipelineRun:
             scenario=scenario,
         )
         fake_put_bytes = MagicMock(
-            side_effect=[
-                "https://r2.example.com/fg.png",
-                "https://r2.example.com/product-material.png",
-                "https://r2.example.com/final.png",
-                "https://r2.example.com/renderer-metadata.json",
-            ]
+            side_effect=lambda key, data, **kw: (
+                "https://r2.example.com/fg.png" if "/fg/" in key else
+                "https://r2.example.com/product-material.png" if "product-material" in key else
+                "https://r2.example.com/slot-structure.png" if "slot-structure" in key else
+                "https://r2.example.com/content-layer.png" if "content-layer" in key else
+                "https://r2.example.com/text-layer.png" if "text-layer" in key else
+                "https://r2.example.com/structure-overlay.png" if "structure-overlay" in key else
+                "https://r2.example.com/slot-metadata.json" if "slot-metadata" in key else
+                "https://r2.example.com/renderer-metadata.json" if "debug/metadata" in key else
+                "https://r2.example.com/final.png"
+            )
         )
         pipeline = PosterPipeline(
             background_svc=bg_service,
@@ -274,12 +300,22 @@ class TestPosterPipelineRun:
 
         def fake_put_bytes(key, data, **kwargs):
             stored_payloads[key] = data
-            if key.endswith(".json"):
-                return "https://r2.example.com/renderer-metadata.json"
             if "product-material" in key:
                 return "https://r2.example.com/product-material.png"
+            if "slot-structure" in key:
+                return "https://r2.example.com/slot-structure.png"
+            if "content-layer" in key:
+                return "https://r2.example.com/content-layer.png"
+            if "text-layer" in key:
+                return "https://r2.example.com/text-layer.png"
+            if "structure-overlay" in key:
+                return "https://r2.example.com/structure-overlay.png"
             if "/fg/" in key:
                 return "https://r2.example.com/fg.png"
+            if "slot-metadata" in key:
+                return "https://r2.example.com/slot-metadata.json"
+            if "debug/metadata" in key:
+                return "https://r2.example.com/renderer-metadata.json"
             return "https://r2.example.com/final.png"
 
         assets = ResolvedAssets(
@@ -298,7 +334,7 @@ class TestPosterPipelineRun:
         manifest = asyncio.run(pipeline.run(_make_spec(), template))
 
         assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
-        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata_key = next(key for key in stored_payloads if "debug/metadata" in key)
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
@@ -310,3 +346,9 @@ class TestPosterPipelineRun:
         assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
         assert layer_status["bottom_gallery_items_layer"]["count"] == 0
         assert layer_status["bottom_tagline_layer"]["reason_code"] == "operator_tagline_unbound"
+        assert metadata["artifact_urls"]["slot_structure_layer_url"] == "https://r2.example.com/slot-structure.png"
+        assert metadata["artifact_urls"]["slot_metadata_url"] == "https://r2.example.com/slot-metadata.json"
+        slot_metadata_key = next(key for key in stored_payloads if "slot-metadata" in key)
+        slot_metadata = json.loads(stored_payloads[slot_metadata_key].decode("utf-8"))
+        assert slot_metadata["regions"]["scenario_region"]["scenario_image_slot"]["reason"] == "scenario_image_missing_safe_preset_fill"
+        assert slot_metadata["regions"]["bottom_region"]["gallery_item_slots"]["reason"] == "gallery_hidden_no_assets"

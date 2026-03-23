@@ -35,6 +35,11 @@ class _FakePoster2Pipeline:
                 foreground_layer_url="https://example.com/fg.png",
                 final_composited_url="https://example.com/final.png",
                 renderer_metadata_url="https://example.com/renderer-metadata.json",
+                slot_structure_layer_url="https://example.com/slot-structure.png",
+                content_layer_url="https://example.com/content-layer.png",
+                text_layer_url="https://example.com/text-layer.png",
+                structure_overlay_url="https://example.com/structure-overlay.png",
+                slot_metadata_url="https://example.com/slot-metadata.json",
             ),
         )
 
@@ -68,6 +73,11 @@ class _FakeDegradedPoster2Pipeline:
                 foreground_layer_url="https://example.com/fg.png",
                 final_composited_url="https://example.com/final.png",
                 renderer_metadata_url="https://example.com/renderer-metadata.json",
+                slot_structure_layer_url="https://example.com/slot-structure.png",
+                content_layer_url="https://example.com/content-layer.png",
+                text_layer_url="https://example.com/text-layer.png",
+                structure_overlay_url="https://example.com/structure-overlay.png",
+                slot_metadata_url="https://example.com/slot-metadata.json",
             ),
             fallback_reason_code="puppeteer_browser_launch_failed",
             fallback_reason_detail="BrowserType.launch: target closed",
@@ -110,6 +120,11 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["background_renderer"] == "firefly-v3"
     assert body["debug_artifacts"]["product_material_layer_url"] == "https://example.com/product-material.png"
     assert body["debug_artifacts"]["renderer_metadata_url"] == "https://example.com/renderer-metadata.json"
+    assert body["debug_artifacts"]["slot_structure_layer_url"] == "https://example.com/slot-structure.png"
+    assert body["debug_artifacts"]["content_layer_url"] == "https://example.com/content-layer.png"
+    assert body["debug_artifacts"]["text_layer_url"] == "https://example.com/text-layer.png"
+    assert body["debug_artifacts"]["structure_overlay_url"] == "https://example.com/structure-overlay.png"
+    assert body["debug_artifacts"]["slot_metadata_url"] == "https://example.com/slot-metadata.json"
 
 
 def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkeypatch):

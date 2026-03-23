@@ -29,7 +29,16 @@ from .background import (
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
-from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
+from .renderer import (
+    LayoutRenderer,
+    RendererSelector,
+    load_structured_slot_spec,
+    render_content_debug_layer,
+    render_product_material_debug_layer,
+    render_slot_structure_debug_layer,
+    render_structure_overlay_debug_layer,
+    render_text_debug_layer,
+)
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -155,6 +164,29 @@ class PosterPipeline:
         timings["compose_ms"] = _elapsed(t2)
 
         # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
+        slot_spec = load_structured_slot_spec(template.template_id)
+        slot_metadata_payload = _build_slot_metadata(
+            template=template,
+            slot_spec=slot_spec,
+            spec=spec,
+            assets=assets,
+            bg_result=bg_result,
+        )
+        debug_slot_structure = render_slot_structure_debug_layer(
+            template, slot_spec, font_registry=self._debug_font_registry
+        )
+        debug_content_layer = render_content_debug_layer(
+            template, assets, font_registry=self._debug_font_registry
+        )
+        debug_text_layer = render_text_debug_layer(
+            template, spec, font_registry=self._debug_font_registry
+        )
+        debug_structure_overlay = render_structure_overlay_debug_layer(
+            template,
+            slot_spec,
+            slot_metadata_payload,
+            font_registry=self._debug_font_registry,
+        )
         debug_product_material = render_product_material_debug_layer(
             template, assets, font_registry=self._debug_font_registry
         )
@@ -183,11 +215,49 @@ class PosterPipeline:
             logger.warning("poster2: R2 upload failed for product/material key=%s", product_material_key)
             product_material_url = ""
 
+        slot_structure_key = f"poster2/debug/slot-structure/{trace_id}.png"
+        slot_structure_url = _put(
+            slot_structure_key,
+            debug_slot_structure.png_bytes,
+            content_type="image/png",
+        ) or ""
+
+        content_layer_key = f"poster2/debug/content-layer/{trace_id}.png"
+        content_layer_url = _put(
+            content_layer_key,
+            debug_content_layer.png_bytes,
+            content_type="image/png",
+        ) or ""
+
+        text_layer_key = f"poster2/debug/text-layer/{trace_id}.png"
+        text_layer_url = _put(
+            text_layer_key,
+            debug_text_layer.png_bytes,
+            content_type="image/png",
+        ) or ""
+
+        structure_overlay_key = f"poster2/debug/structure-overlay/{trace_id}.png"
+        structure_overlay_url = _put(
+            structure_overlay_key,
+            debug_structure_overlay.png_bytes,
+            content_type="image/png",
+        ) or ""
+
         ext = spec.export_format
         final_key = f"poster2/final/{trace_id}.{ext}"
         final_url = _put(final_key, compose_result.png_bytes, content_type=f"image/{ext}")
         if not final_url:
             raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
+
+        slot_metadata_key = f"poster2/debug/slot-metadata/{trace_id}.json"
+        slot_metadata_url = _put(
+            slot_metadata_key,
+            json.dumps(slot_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
+            content_type="application/json",
+        )
+        if not slot_metadata_url:
+            logger.warning("poster2: R2 upload failed for slot metadata key=%s", slot_metadata_key)
+            slot_metadata_url = ""
 
         renderer_metadata_payload = {
             "trace_id": trace_id,
@@ -216,12 +286,18 @@ class PosterPipeline:
                 spec=spec,
                 assets=assets,
                 bg_result=bg_result,
+                slot_spec=slot_spec,
             ),
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
                 "product_material_layer_url": product_material_url,
                 "foreground_layer_url": fg_url,
                 "final_composited_url": final_url,
+                "slot_structure_layer_url": slot_structure_url,
+                "content_layer_url": content_layer_url,
+                "text_layer_url": text_layer_url,
+                "structure_overlay_url": structure_overlay_url,
+                "slot_metadata_url": slot_metadata_url,
             },
         }
         renderer_metadata_key = f"poster2/debug/metadata/{trace_id}.json"
@@ -269,6 +345,11 @@ class PosterPipeline:
                 foreground_layer_url=fg_url,
                 final_composited_url=final_url,
                 renderer_metadata_url=renderer_metadata_url,
+                slot_structure_layer_url=slot_structure_url,
+                content_layer_url=content_layer_url,
+                text_layer_url=text_layer_url,
+                structure_overlay_url=structure_overlay_url,
+                slot_metadata_url=slot_metadata_url,
             ),
             fallback_reason_code=fg_result.fallback_reason_code,
             fallback_reason_detail=fg_result.fallback_reason_detail,
@@ -311,6 +392,7 @@ def _build_layer_render_status(
     spec: PosterSpec,
     assets,
     bg_result: BackgroundResult,
+    slot_spec: dict | None = None,
 ) -> dict[str, dict[str, object]]:
     gallery_count = min(len(assets.gallery), 4)
     gallery_rendered = gallery_count > 0
@@ -321,6 +403,12 @@ def _build_layer_render_status(
             "reason_code": None,
             "source_binding": bg_result.url,
             "count": 1,
+        },
+        "background_tone_layer": {
+            "rendered": False,
+            "reason_code": "tone_overlay_disabled",
+            "source_binding": None,
+            "count": 0,
         },
         "header_shell_layer": {
             "rendered": True,
@@ -408,3 +496,148 @@ def _build_layer_render_status(
         },
     }
     return layer_status
+
+
+def _build_slot_metadata(
+    *,
+    template: TemplateSpec,
+    slot_spec: dict,
+    spec: PosterSpec,
+    assets,
+    bg_result: BackgroundResult,
+) -> dict[str, object]:
+    gallery_count = min(len(assets.gallery), 4)
+    gallery_state = "hide"
+    if gallery_count > 0:
+        gallery_state = "show" if gallery_count >= template.gallery_slot.count else "fallback-fill"
+    regions = {
+        "background_region": {
+            "background_base_layer": {
+                "rendered": True,
+                "reason": None,
+                "source_binding": bg_result.url,
+                "bounds": slot_spec["slot_contracts"]["background_base_layer"]["bounds"],
+            },
+            "background_tone_layer": {
+                "rendered": False,
+                "reason": "tone_overlay_disabled",
+                "source_binding": None,
+                "bounds": slot_spec["slot_contracts"]["background_tone_layer"]["bounds"],
+            },
+        },
+        "header_region": {
+            "header_shell_layer": {
+                "rendered": True,
+                "reason": None,
+                "source_binding": "template_dual_v2.header_shell",
+                "bounds": slot_spec["slot_contracts"]["header_shell_layer"]["bounds"],
+            },
+            "brand_logo_slot": {
+                "rendered": assets.logo is not None,
+                "reason": None if assets.logo is not None else "logo_not_bound",
+                "source_binding": spec.logo.url if spec.logo else None,
+                "bounds": slot_spec["slot_contracts"]["brand_logo_slot"]["bounds"],
+                "fit": "contain",
+                "count": 1 if assets.logo is not None else 0,
+            },
+            "brand_text_slot": {
+                "rendered": bool(spec.brand_name),
+                "reason": None if spec.brand_name else "brand_name_empty",
+                "source_binding": "brand_name",
+                "bounds": slot_spec["slot_contracts"]["brand_text_slot"]["bounds"],
+            },
+            "agent_pill_slot": {
+                "rendered": bool(spec.agent_name),
+                "reason": None if spec.agent_name else "agent_name_empty",
+                "source_binding": "agent_name",
+                "bounds": slot_spec["slot_contracts"]["agent_pill_slot"]["bounds"],
+            },
+        },
+        "scenario_region": {
+            "scenario_card_shell_slot": {
+                "rendered": True,
+                "reason": None,
+                "source_binding": "template_dual_v2.scenario_shell",
+                "bounds": slot_spec["slot_contracts"]["scenario_card_shell_slot"]["bounds"],
+            },
+            "scenario_image_slot": {
+                "rendered": True,
+                "reason": None if assets.scenario is not None else "scenario_image_missing_safe_preset_fill",
+                "source_binding": spec.scenario_image.url if spec.scenario_image else "safe_preset_image",
+                "bounds": slot_spec["slot_contracts"]["scenario_image_slot"]["bounds"],
+                "fit": "cover",
+                "count": 1,
+            },
+        },
+        "product_region": {
+            "product_card_shell_slot": {
+                "rendered": True,
+                "reason": None,
+                "source_binding": "template_dual_v2.product_shell",
+                "bounds": slot_spec["slot_contracts"]["product_card_shell_slot"]["bounds"],
+            },
+            "product_image_slot": {
+                "rendered": assets.product is not None,
+                "reason": None if assets.product is not None else "product_image_missing",
+                "source_binding": spec.product_image.url,
+                "bounds": slot_spec["slot_contracts"]["product_image_slot"]["bounds"],
+                "fit": "contain",
+                "count": 1 if assets.product is not None else 0,
+            },
+        },
+        "feature_region": {
+            "feature_callout_slots": {
+                "rendered": len(spec.features) > 0,
+                "reason": None if len(spec.features) > 0 else "features_empty",
+                "source_binding": "features[]",
+                "bounds": slot_spec["slot_contracts"]["feature_callout_slots"]["bounds"],
+                "count": min(len(spec.features), len(template.feature_callouts)),
+                "max_lines": 2,
+            },
+        },
+        "bottom_region": {
+            "title_box": {
+                "rendered": bool(spec.title),
+                "reason": None if spec.title else "title_empty",
+                "source_binding": "title",
+                "bounds": slot_spec["slot_contracts"]["title_box"]["bounds"],
+                "max_lines": 2,
+            },
+            "subtitle_box": {
+                "rendered": bool(spec.subtitle),
+                "reason": None if spec.subtitle else "subtitle_empty",
+                "source_binding": "subtitle",
+                "bounds": slot_spec["slot_contracts"]["subtitle_box"]["bounds"],
+                "max_lines": 1,
+            },
+            "gallery_shell_slot": {
+                "rendered": gallery_state != "hide",
+                "reason": None if gallery_state != "hide" else "gallery_hidden_no_assets",
+                "source_binding": "gallery_images[]",
+                "bounds": slot_spec["slot_contracts"]["gallery_shell_slot"]["bounds"],
+                "count": gallery_count,
+                "state": gallery_state,
+            },
+            "gallery_item_slots": {
+                "rendered": gallery_count > 0,
+                "reason": None if gallery_count > 0 else "gallery_hidden_no_assets",
+                "source_binding": "gallery_images[]",
+                "bounds": slot_spec["slot_contracts"]["gallery_item_slots"]["bounds"],
+                "fit": "cover",
+                "count": gallery_count,
+                "state": gallery_state,
+            },
+            "tagline_box": {
+                "rendered": False,
+                "reason": "operator_tagline_unbound",
+                "source_binding": None,
+                "bounds": slot_spec["slot_contracts"]["tagline_box"]["bounds"],
+                "max_lines": 1,
+            },
+        },
+    }
+    return {
+        "template_id": template.template_id,
+        "template_contract_version": template.contract_version,
+        "regions": regions,
+    }

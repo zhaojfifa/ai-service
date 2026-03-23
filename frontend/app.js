@@ -6524,6 +6524,11 @@ function updatePoster2DiagnosticsPanel(data) {
   setPoster2Link('poster2-link-foreground', data?.debug_artifacts?.foreground_layer_url || data?.foreground_url || '');
   setPoster2Link('poster2-link-final', data?.debug_artifacts?.final_composited_url || data?.final_url || '');
   setPoster2Link('poster2-link-metadata', data?.debug_artifacts?.renderer_metadata_url || '');
+  setPoster2Link('poster2-link-slot-structure', data?.debug_artifacts?.slot_structure_layer_url || '');
+  setPoster2Link('poster2-link-content-layer', data?.debug_artifacts?.content_layer_url || '');
+  setPoster2Link('poster2-link-text-layer', data?.debug_artifacts?.text_layer_url || '');
+  setPoster2Link('poster2-link-structure-overlay', data?.debug_artifacts?.structure_overlay_url || '');
+  setPoster2Link('poster2-link-slot-metadata', data?.debug_artifacts?.slot_metadata_url || '');
 }
 
 function renderPoster2RunHistory() {

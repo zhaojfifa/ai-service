@@ -6,6 +6,7 @@
   "layers": {
     "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "background_base_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+    "background_tone_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "header_shell_layer": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "brand_logo_layer": { "x": 104, "y": 74, "w": 120, "h": 64 },
@@ -35,6 +36,14 @@
     "scenario_card_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 }
   },
+  "regions": {
+    "background_region": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+    "header_region": { "x": 72, "y": 56, "w": 880, "h": 104 },
+    "scenario_region": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "product_region": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "feature_region": { "x": 764, "y": 204, "w": 164, "h": 392 },
+    "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 258 }
+  },
   "layer_states": {
     "header_banner": ["state-logo-show", "state-logo-empty"],
     "scenario": ["state-show", "state-safe-fill"],
@@ -46,6 +55,12 @@
       "bounds": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
       "fallback_rule": "use resolved background layer only; never substitute for scenario_image_layer",
       "collapse_rule": "never collapse"
+    },
+    "background_tone_layer": {
+      "visible_when": "disabled unless explicit tone overlay is bound",
+      "bounds": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+      "fallback_rule": "skip tone overlay when no explicit tone binding exists",
+      "collapse_rule": "collapse fully when tone overlay is unbound"
     },
     "header_shell_layer": {
       "visible_when": "always",
@@ -172,6 +187,152 @@
       "max_lines": 1,
       "fallback_rule": "hide entirely when no explicit operator tagline binding is supplied",
       "collapse_rule": "collapse when operator tagline binding is absent"
+    }
+  },
+  "slot_contracts": {
+    "background_base_layer": {
+      "slot_id": "background_base_layer",
+      "region_id": "background_region",
+      "bounds": [0, 0, 1024, 1024],
+      "visible_when": "always",
+      "source_binding": "background_result.url",
+      "fallback_rule": "background_only_atmosphere",
+      "collapse_rule": "never_collapse"
+    },
+    "background_tone_layer": {
+      "slot_id": "background_tone_layer",
+      "region_id": "background_region",
+      "bounds": [0, 0, 1024, 1024],
+      "visible_when": "explicit_tone_overlay_bound",
+      "source_binding": "background_tone_overlay",
+      "fallback_rule": "disabled_by_default",
+      "collapse_rule": "collapse_if_unbound"
+    },
+    "header_shell_layer": {
+      "slot_id": "header_shell_layer",
+      "region_id": "header_region",
+      "bounds": [72, 56, 880, 104],
+      "visible_when": "always",
+      "source_binding": "template_dual_v2.header_shell",
+      "fallback_rule": "keep_shell_visible",
+      "collapse_rule": "never_collapse"
+    },
+    "brand_logo_slot": {
+      "slot_id": "brand_logo_slot",
+      "region_id": "header_region",
+      "bounds": [104, 74, 120, 64],
+      "visible_when": "logo.url exists",
+      "source_binding": "logo.url",
+      "fallback_rule": "hide_logo_shift_brand_text_left",
+      "collapse_rule": "collapse_when_logo_absent"
+    },
+    "brand_text_slot": {
+      "slot_id": "brand_text_slot",
+      "region_id": "header_region",
+      "bounds": [244, 72, 432, 68],
+      "visible_when": "brand_name exists",
+      "source_binding": "brand_name",
+      "fallback_rule": "expand_when_logo_collapses",
+      "collapse_rule": "collapse_when_brand_name_empty"
+    },
+    "agent_pill_slot": {
+      "slot_id": "agent_pill_slot",
+      "region_id": "header_region",
+      "bounds": [756, 78, 156, 48],
+      "visible_when": "agent_name exists",
+      "source_binding": "agent_name",
+      "fallback_rule": "truncate_to_fixed_width",
+      "collapse_rule": "collapse_when_agent_name_empty"
+    },
+    "scenario_card_shell_slot": {
+      "slot_id": "scenario_card_shell_slot",
+      "region_id": "scenario_region",
+      "bounds": [96, 188, 288, 520],
+      "visible_when": "always",
+      "source_binding": "template_dual_v2.scenario_shell",
+      "fallback_rule": "keep_shell_show_missing_in_metadata",
+      "collapse_rule": "never_collapse"
+    },
+    "scenario_image_slot": {
+      "slot_id": "scenario_image_slot",
+      "region_id": "scenario_region",
+      "bounds": [96, 188, 288, 520],
+      "visible_when": "scenario_image.url exists",
+      "source_binding": "scenario_image.url",
+      "fallback_rule": "safe_preset_fill_if_absent",
+      "collapse_rule": "keep_shell_show_missing_in_metadata"
+    },
+    "product_card_shell_slot": {
+      "slot_id": "product_card_shell_slot",
+      "region_id": "product_region",
+      "bounds": [456, 188, 300, 520],
+      "visible_when": "always",
+      "source_binding": "template_dual_v2.product_shell",
+      "fallback_rule": "keep_shell_visible",
+      "collapse_rule": "never_collapse"
+    },
+    "product_image_slot": {
+      "slot_id": "product_image_slot",
+      "region_id": "product_region",
+      "bounds": [456, 188, 300, 520],
+      "visible_when": "product_image.url exists",
+      "source_binding": "product_image.url",
+      "fallback_rule": "hide_product_image_keep_shell",
+      "collapse_rule": "keep_shell_show_missing_in_metadata"
+    },
+    "feature_callout_slots": {
+      "slot_id": "feature_callout_slots",
+      "region_id": "feature_region",
+      "bounds": [764, 204, 164, 392],
+      "visible_when": "features.length > 0",
+      "source_binding": "features[]",
+      "fallback_rule": "render_up_to_4_fixed_boxes",
+      "collapse_rule": "collapse_when_features_empty"
+    },
+    "title_box": {
+      "slot_id": "title_box",
+      "region_id": "bottom_region",
+      "bounds": [112, 744, 800, 84],
+      "visible_when": "title exists",
+      "source_binding": "title",
+      "fallback_rule": "auto_shrink_keep_safe_margins",
+      "collapse_rule": "collapse_when_title_empty"
+    },
+    "subtitle_box": {
+      "slot_id": "subtitle_box",
+      "region_id": "bottom_region",
+      "bounds": [152, 840, 720, 28],
+      "visible_when": "subtitle exists",
+      "source_binding": "subtitle",
+      "fallback_rule": "truncate_keep_safe_margins",
+      "collapse_rule": "collapse_when_subtitle_empty"
+    },
+    "gallery_shell_slot": {
+      "slot_id": "gallery_shell_slot",
+      "region_id": "bottom_region",
+      "bounds": [96, 888, 832, 72],
+      "visible_when": "gallery_images.length > 0 or fallback_fill_enabled",
+      "source_binding": "gallery_images[]",
+      "fallback_rule": "show_or_fallback_fill_or_hide",
+      "collapse_rule": "collapse_when_gallery_hidden"
+    },
+    "gallery_item_slots": {
+      "slot_id": "gallery_item_slots",
+      "region_id": "bottom_region",
+      "bounds": [96, 904, 832, 56],
+      "visible_when": "gallery_images.length > 0",
+      "source_binding": "gallery_images[]",
+      "fallback_rule": "deterministic_cycle_fill_up_to_4_items",
+      "collapse_rule": "hide_full_gallery_strip_when_empty"
+    },
+    "tagline_box": {
+      "slot_id": "tagline_box",
+      "region_id": "bottom_region",
+      "bounds": [196, 966, 632, 20],
+      "visible_when": "operator_tagline exists",
+      "source_binding": "operator_tagline",
+      "fallback_rule": "hide_if_unbound",
+      "collapse_rule": "collapse_when_unbound"
     }
   },
   "protected_zones": [
