@@ -1498,6 +1498,98 @@ function summariseNegativePrompts(prompts) {
   return Array.from(new Set(values)).join(' | ');
 }
 
+function deepCloneJson(value) {
+  if (value == null) return value;
+  return JSON.parse(JSON.stringify(value));
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  Object.keys(value).forEach((key) => {
+    deepFreeze(value[key]);
+  });
+  return value;
+}
+
+function isCanonicalRendererMode(value) {
+  return value === 'pillow' || value === 'puppeteer';
+}
+
+function resolvePoster2RendererMode(value) {
+  return value === 'puppeteer' ? 'puppeteer' : 'pillow';
+}
+
+function isStringUrl(value) {
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (/^data:/i.test(trimmed)) return false;
+  return /^[a-z][a-z0-9+.-]*:/i.test(trimmed);
+}
+
+function validatePoster2Payload(payload) {
+  const errors = [];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { ok: false, errors: ['payload must be an object'] };
+  }
+  if (payload.template_id !== POSTER2_PILOT_TEMPLATE_ID) {
+    errors.push(`template_id must equal "${POSTER2_PILOT_TEMPLATE_ID}"`);
+  }
+  if (!isCanonicalRendererMode(payload.renderer_mode)) {
+    errors.push('renderer_mode must be exactly "pillow" or "puppeteer"');
+  }
+  if (typeof payload?.style?.prompt !== 'string' || !payload.style.prompt.trim()) {
+    errors.push('style.prompt must be a non-empty text string');
+  }
+  if (!isStringUrl(payload?.product_image?.url)) {
+    errors.push('product_image.url must be a string URL');
+  }
+  if (payload.scenario_image != null && !isStringUrl(payload?.scenario_image?.url)) {
+    errors.push('scenario_image.url must be a string URL when present');
+  }
+  if (payload.logo != null && !isStringUrl(payload?.logo?.url)) {
+    errors.push('logo.url must be a string URL when present');
+  }
+  if (!Array.isArray(payload.gallery_images)) {
+    errors.push('gallery_images must be an array');
+  } else {
+    payload.gallery_images.forEach((entry, index) => {
+      if (entry == null) return;
+      if (!isStringUrl(entry?.url)) {
+        errors.push(`gallery_images[${index}].url must be a string URL`);
+      }
+    });
+  }
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
+function buildPoster2CanonicalRequest(payload) {
+  const cloned = deepCloneJson(payload);
+  if (!cloned || typeof cloned !== 'object' || Array.isArray(cloned)) {
+    throw new Error('poster2 payload must be a plain object');
+  }
+  cloned.template_id = POSTER2_PILOT_TEMPLATE_ID;
+  cloned.renderer_mode = resolvePoster2RendererMode(cloned.renderer_mode);
+  const validation = validatePoster2Payload(cloned);
+  if (!validation.ok) {
+    const error = new Error('poster2_payload_validation_failed');
+    error.validationErrors = validation.errors;
+    error.payload = cloned;
+    throw error;
+  }
+  const frozenPayload = deepFreeze(cloned);
+  const body = JSON.stringify(frozenPayload);
+  return {
+    payload: frozenPayload,
+    body,
+    validation,
+  };
+}
+
 function ensureUploadedAndLog(path, payload, rawPayload) {
   const MAX = 512 * 1024;
   const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -1603,6 +1695,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           candidateIndex: order.indexOf(b),
           bodyBytes: typeof bodyRaw === 'string' ? bodyRaw.length : 0,
           status: res.status,
+          bodyPreviewMatchesBody: inspection?.bodyString === bodyRaw,
         });
 
         const text = await res.text();
@@ -4913,7 +5006,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
 
   const payload = {
     template_id: POSTER2_PILOT_TEMPLATE_ID,
-    renderer_mode: stage2State.poster2.rendererMode || 'auto',
+    renderer_mode: resolvePoster2RendererMode(stage2State.poster2.rendererMode || 'auto'),
     brand_name: brandName,
     agent_name: agentName,
     title,
@@ -7066,10 +7159,13 @@ async function triggerGeneration(opts) {
   let productImage1Ref;
   let productImage2Ref;
   let payload;
+  let rawPayload;
   try {
     if (usePoster2Pilot) {
       const poster2Request = await buildPoster2GeneratePayload(stage1Data, apiCandidates);
-      payload = poster2Request.payload;
+      const canonicalRequest = buildPoster2CanonicalRequest(poster2Request.payload);
+      payload = canonicalRequest.payload;
+      rawPayload = canonicalRequest.body;
       brandLogoRef = poster2Request.refs.logoRef;
       productImage1Ref = poster2Request.refs.productRef;
       scenarioRef = poster2Request.refs.scenarioRef;
@@ -7091,6 +7187,15 @@ async function triggerGeneration(opts) {
         product_asset: payload.product_image?.url || null,
         product_key: payload.product_image?.key || null,
       };
+      console.info('[stage2][poster2] request summary', {
+        template_id: payload.template_id,
+        renderer_mode: payload.renderer_mode,
+        has_logo: Boolean(payload.logo),
+        has_scenario_image: Boolean(payload.scenario_image),
+        gallery_count: Array.isArray(payload.gallery_images) ? payload.gallery_images.length : 0,
+        style_prompt: payload.style?.prompt || '',
+        content_type: 'application/json; charset=UTF-8',
+      });
     } else if (MODE_S) {
       const safeText = (value, fallback) => {
         const text = typeof value === 'string' ? value.trim() : '';
@@ -7269,12 +7374,24 @@ async function triggerGeneration(opts) {
     };
     }
   } catch (error) {
-    console.error('[triggerGeneration] asset normalisation failed', error);
-    setStatus(
-      statusElement,
-      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
-      'error',
-    );
+    if (error?.message === 'poster2_payload_validation_failed') {
+      console.error('[stage2][poster2] validation failed', {
+        errors: error.validationErrors || [],
+        payload: error.payload || null,
+      });
+      setStatus(
+        statusElement,
+        'poster2 请求校验失败，请检查模板、渲染模式和素材绑定。',
+        'error',
+      );
+    } else {
+      console.error('[triggerGeneration] asset normalisation failed', error);
+      setStatus(
+        statusElement,
+        error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+        'error',
+      );
+    }
     stage2InFlight = false;
     setStage2ButtonsDisabled(false);
     return null;
@@ -7357,17 +7474,6 @@ async function triggerGeneration(opts) {
     seed: payload.seed,
     lock_seed: payload.lock_seed,
   });
-  if (endpointPath === '/api/v2/generate-poster') {
-    console.info('[stage2][poster2] request summary', {
-      template_id: payload?.template_id,
-      renderer_mode: payload?.renderer_mode,
-      has_logo: Boolean(payload?.logo),
-      has_scenario_image: Boolean(payload?.scenario_image),
-      gallery_count: Array.isArray(payload?.gallery_images) ? payload.gallery_images.length : 0,
-      style_prompt: payload?.style?.prompt || '',
-      content_type: 'application/json; charset=UTF-8',
-    });
-  }
   console.info('[triggerGeneration] asset audit', assetAudit);
   
   // 面板同步
@@ -7376,7 +7482,9 @@ async function triggerGeneration(opts) {
   }
   
   // 5) 体积守护
-  const rawPayload = JSON.stringify(payload);
+  if (typeof rawPayload !== 'string') {
+    rawPayload = JSON.stringify(payload);
+  }
   try { validatePayloadSize(rawPayload); } catch (e) {
     setStatus(statusElement, e.message, 'error');
     stage2InFlight = false;
