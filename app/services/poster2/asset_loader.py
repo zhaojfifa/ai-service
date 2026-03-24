@@ -80,16 +80,8 @@ class AssetLoader:
             if ref is None:
                 return None
             try:
-                logger.info("poster2.gallery_fetch_item_start url=%s", ref.url)
                 raw = await _resolve_bytes(ref, self._fetch)
-                img = _bytes_to_pil(raw)
-                logger.info(
-                    "poster2.gallery_fetch_item_done url=%s size=%sx%s",
-                    ref.url,
-                    img.width,
-                    img.height,
-                )
-                return img
+                return _bytes_to_pil(raw)
             except Exception as exc:
                 logger.warning("Failed to load asset %s: %s", ref.url, exc)
                 return None
@@ -97,7 +89,6 @@ class AssetLoader:
         product_task = asyncio.create_task(maybe(spec.product_image))
         logo_task = asyncio.create_task(maybe(spec.logo))
         scenario_task = asyncio.create_task(maybe(spec.scenario_image))
-        logger.info("poster2.gallery_resolve_start count=%d", len(spec.gallery_images))
         gallery_tasks = [
             asyncio.create_task(maybe(ref)) for ref in spec.gallery_images
         ]
@@ -110,11 +101,6 @@ class AssetLoader:
         scenario = await scenario_task
         gallery_results = await asyncio.gather(*gallery_tasks)
         gallery = [img for img in gallery_results if img is not None]
-        logger.info(
-            "poster2.gallery_resolve_done requested=%d resolved=%d",
-            len(spec.gallery_images),
-            len(gallery),
-        )
 
         return ResolvedAssets(
             product=product,
