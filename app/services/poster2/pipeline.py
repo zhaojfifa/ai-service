@@ -33,11 +33,13 @@ from .renderer import (
     LayoutRenderer,
     RendererSelector,
     load_structured_slot_spec,
+    reset_renderer_trace_id,
     render_content_debug_layer,
     render_product_material_debug_layer,
     render_slot_structure_debug_layer,
     render_structure_overlay_debug_layer,
     render_text_debug_layer,
+    set_renderer_trace_id,
 )
 
 logger = logging.getLogger("ai-service.poster2")
@@ -239,7 +241,11 @@ class PosterPipeline:
             # ── Phase 2: deterministic foreground/text render ────────────────────
             t1 = _now()
             failure_stage = "render_foreground"
-            fg_result = await self._renderer.render(template, spec, assets)
+            trace_token = set_renderer_trace_id(trace_id)
+            try:
+                fg_result = await self._renderer.render(template, spec, assets)
+            finally:
+                reset_renderer_trace_id(trace_token)
             if fg_result.image is None:
                 raise RuntimeError("foreground result image is null")
             if not fg_result.png_bytes:

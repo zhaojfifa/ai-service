@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import asyncio
+import contextvars
 import hashlib
 import html
 import json
@@ -38,12 +39,28 @@ from .contracts import (
 from .font_registry import FontRegistry
 
 logger = logging.getLogger("ai-service.poster2")
+_POSTER2_TRACE_ID: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "poster2_renderer_trace_id",
+    default=None,
+)
 
 _HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
 
 
 class RendererUnavailableError(RuntimeError):
     """Raised when a requested renderer is not available in the runtime."""
+
+
+def set_renderer_trace_id(trace_id: str | None) -> contextvars.Token:
+    return _POSTER2_TRACE_ID.set(trace_id)
+
+
+def reset_renderer_trace_id(token: contextvars.Token) -> None:
+    _POSTER2_TRACE_ID.reset(token)
+
+
+def _active_trace_id() -> str:
+    return _POSTER2_TRACE_ID.get() or "unknown"
 
 
 @dataclass
@@ -288,7 +305,12 @@ class PuppeteerStructuredRenderer:
         assets: ResolvedAssets,
     ) -> ForegroundResult:
         t0 = _now()
-        logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
+        trace_id = _active_trace_id()
+        logger.info(
+            "poster2.puppeteer: template_render_start trace_id=%s template=%s",
+            trace_id,
+            spec.template_id,
+        )
         try:
             html_template = self._read_template_file(f"{spec.template_id}.html")
             css_template = self._read_template_file(f"{spec.template_id}.css")
@@ -299,7 +321,12 @@ class PuppeteerStructuredRenderer:
             raise _classify_puppeteer_exception(exc, stage="template_render") from exc
         layer_timings: dict[str, int] = {}
         layer_timings["foreground_structure_layer_ms"] = _elapsed(t0)
-        logger.info("poster2.puppeteer: template_render_done template=%s ms=%d", spec.template_id, layer_timings["foreground_structure_layer_ms"])
+        logger.info(
+            "poster2.puppeteer: template_render_done trace_id=%s template=%s ms=%d",
+            trace_id,
+            spec.template_id,
+            layer_timings["foreground_structure_layer_ms"],
+        )
 
         t1 = _now()
         try:
@@ -343,19 +370,51 @@ class PuppeteerStructuredRenderer:
                 stage="screenshot",
             )
         logger.info(
-            "poster2.puppeteer: foreground_bytes_ready template=%s bytes=%d",
+            "poster2.puppeteer: foreground_bytes_ready trace_id=%s template=%s bytes=%d",
+            trace_id,
             spec.template_id,
             len(png_bytes),
         )
-        image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
+        temp_path = Path(f"/tmp/poster2_{trace_id}.png")
         logger.info(
-            "poster2.puppeteer: render_foreground_done template=%s mode=%s size=%sx%s",
+            "poster2.puppeteer: png_decode_start trace_id=%s tmp_path=%s",
+            trace_id,
+            str(temp_path),
+        )
+        try:
+            temp_path.write_bytes(png_bytes)
+            file_size = temp_path.stat().st_size
+            logger.info(
+                "poster2.puppeteer: png_file_written trace_id=%s tmp_path=%s bytes=%d",
+                trace_id,
+                str(temp_path),
+                file_size,
+            )
+            with PILImage.open(temp_path) as decoded:
+                image = decoded.convert("RGBA")
+        except Exception as exc:
+            raise _classify_puppeteer_exception(exc, stage="screenshot") from exc
+        logger.info(
+            "poster2.puppeteer: png_decode_done trace_id=%s mode=%s size=%sx%s",
+            trace_id,
+            image.mode,
+            image.width,
+            image.height,
+        )
+        logger.info(
+            "poster2.puppeteer: renderer_return_start trace_id=%s template=%s",
+            trace_id,
+            spec.template_id,
+        )
+        logger.info(
+            "poster2.puppeteer: render_foreground_done trace_id=%s template=%s mode=%s size=%sx%s",
+            trace_id,
             spec.template_id,
             image.mode,
             image.width,
             image.height,
         )
-        return ForegroundResult(
+        result = ForegroundResult(
             image=image,
             png_bytes=png_bytes,
             sha256=hashlib.sha256(png_bytes).hexdigest(),
@@ -364,6 +423,12 @@ class PuppeteerStructuredRenderer:
             template_contract_version=str(slot_spec.get("template_contract_version", spec.contract_version)),
             layer_timings_ms=layer_timings,
         )
+        logger.info(
+            "poster2.puppeteer: renderer_return_done trace_id=%s template=%s",
+            trace_id,
+            spec.template_id,
+        )
+        return result
 
     def _read_template_file(self, name: str, optional: bool = False) -> str:
         path = self._templates_dir / name
@@ -475,35 +540,44 @@ class PuppeteerStructuredRenderer:
             launch_kwargs["executable_path"] = chromium_executable
 
         async with async_playwright() as playwright:
-            logger.info("poster2.puppeteer: browser_launch_start width=%d height=%d", width, height)
+            trace_id = _active_trace_id()
+            logger.info(
+                "poster2.puppeteer: browser_launch_start trace_id=%s width=%d height=%d",
+                trace_id,
+                width,
+                height,
+            )
             try:
                 browser = await playwright.chromium.launch(**launch_kwargs)
             except Exception as exc:
                 raise _classify_puppeteer_exception(exc, stage="browser_launch") from exc
-            logger.info("poster2.puppeteer: browser_launch_done")
+            logger.info("poster2.puppeteer: browser_launch_done trace_id=%s", trace_id)
             try:
                 page = await browser.new_page(
                     viewport={"width": width, "height": height},
                     device_scale_factor=1,
                 )
-                logger.info("poster2.puppeteer: navigation_start")
+                logger.info("poster2.puppeteer: navigation_start trace_id=%s", trace_id)
                 try:
                     await page.set_content(html_payload, wait_until="load")
                 except Exception as exc:
                     raise _classify_puppeteer_exception(exc, stage="navigation") from exc
-                logger.info("poster2.puppeteer: navigation_done")
-                logger.info("poster2.puppeteer: screenshot_start")
+                logger.info("poster2.puppeteer: navigation_done trace_id=%s", trace_id)
+                logger.info("poster2.puppeteer: screenshot_start trace_id=%s", trace_id)
                 try:
                     png_bytes = await page.locator("#poster-root").screenshot(type="png", omit_background=True)
                 except Exception as exc:
                     raise _classify_puppeteer_exception(exc, stage="screenshot") from exc
                 logger.info(
-                    "poster2.puppeteer: screenshot_done bytes=%d",
+                    "poster2.puppeteer: screenshot_done trace_id=%s bytes=%d",
+                    trace_id,
                     len(png_bytes) if png_bytes else 0,
                 )
                 return png_bytes
             finally:
+                logger.info("poster2.puppeteer: browser_close_start trace_id=%s", trace_id)
                 await browser.close()
+                logger.info("poster2.puppeteer: browser_close_done trace_id=%s", trace_id)
 
     def _font_faces_css(self) -> str:
         font_defs: list[str] = []

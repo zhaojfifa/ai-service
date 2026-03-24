@@ -1354,11 +1354,13 @@ def _load_font(size: int = 32, *, weight: int = 400) -> ImageFont.ImageFont:
         kp_dir = (os.getenv("KP_FONT_DIR") or "").strip()
         if kp_dir:
             env_dirs = [kp_dir]
+    poster2_font_dir = (os.getenv("POSTER2_FONT_DIR") or "").strip()
+    if poster2_font_dir:
+        env_dirs.append(poster2_font_dir)
 
     root = Path(__file__).resolve().parents[2]
     repo_font_dirs = [
         root / "app" / "assets" / "fonts",
-        root / "assets" / "fonts",
         root / ".fonts",
     ]
     sys_font_dirs = [
