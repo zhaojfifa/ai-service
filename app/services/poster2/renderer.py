@@ -75,6 +75,7 @@ class ForegroundResult:
     fallback_stage: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None
+    gallery_items_status: list[dict] = field(default_factory=list)
 
 
 class LayoutRenderer:
@@ -304,15 +305,36 @@ class PuppeteerStructuredRenderer:
                 if has_real_scenario
                 else _safe_preset_scenario_data_url()
             )
+            logger.info(
+                "poster2.gallery_prepare_start requested=%d resolved=%d",
+                len(assets.gallery_status),
+                len(assets.gallery),
+            )
+            gallery_urls, gallery_items_status = _prepare_gallery_urls(
+                assets.gallery,
+                assets.gallery_status,
+                slot_spec,
+            )
+            logger.info(
+                "poster2.gallery_prepare_done requested=%d prepared=%d",
+                len(assets.gallery_status),
+                len(gallery_urls),
+            )
+            logger.info("poster2.gallery_render_start count=%d", len(gallery_urls))
             asset_urls = {
                 "logo": _image_to_data_url(assets.logo) if assets.logo else "",
                 "scenario": scenario_url,
                 "scenario_is_real": has_real_scenario,
                 "product": _image_to_data_url(assets.product),
-                "gallery": [_image_to_data_url(img) for img in assets.gallery[:4]],
+                "gallery": gallery_urls,
             }
+            logger.info(
+                "poster2.gallery_render_done count=%d bytes=%d",
+                len(gallery_urls),
+                sum(len(url) for url in gallery_urls),
+            )
         except Exception as exc:
-            raise _classify_puppeteer_exception(exc, stage="asset_load") from exc
+            raise _classify_puppeteer_exception(exc, stage="gallery_render") from exc
         layer_timings["product_material_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
@@ -341,6 +363,7 @@ class PuppeteerStructuredRenderer:
             foreground_renderer=self.RENDERER_NAME,
             template_contract_version=str(slot_spec.get("template_contract_version", spec.contract_version)),
             layer_timings_ms=layer_timings,
+            gallery_items_status=gallery_items_status,
         )
 
     def _read_template_file(self, name: str, optional: bool = False) -> str:
@@ -413,6 +436,11 @@ class PuppeteerStructuredRenderer:
         gallery_slots = slot_spec["slots"]["gallery"]
         if not gallery_urls:
             return "", "state-hidden"
+        logger.info(
+            "poster2.gallery_compose_start count=%d slots=%d",
+            len(gallery_urls),
+            len(gallery_slots),
+        )
         layer_class = "state-show" if len(gallery_urls) >= len(gallery_slots) else "state-fallback-fill"
         filled_urls = [gallery_urls[idx % len(gallery_urls)] for idx in range(len(gallery_slots))]
         items: list[str] = []
@@ -423,6 +451,11 @@ class PuppeteerStructuredRenderer:
                 f'<img src="{url}" alt="" loading="eager" />'
                 "</div>"
             )
+        logger.info(
+            "poster2.gallery_compose_done items=%d state=%s",
+            len(items),
+            layer_class,
+        )
         return "".join(items), layer_class
 
     def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> str:
@@ -582,7 +615,7 @@ def _build_puppeteer_failure_info(exc: Exception, *, stage: str) -> PuppeteerFai
         reason_code = "puppeteer_missing_chromium"
     elif "error while loading shared libraries" in lowered or "libnss3" in lowered or "libatk" in lowered or "libgbm" in lowered:
         reason_code = "puppeteer_missing_system_libs"
-    elif stage == "asset_load":
+    elif stage in {"asset_load", "gallery_render"}:
         reason_code = "puppeteer_asset_load_failed"
     elif stage == "template_render":
         reason_code = "puppeteer_template_render_failed"
@@ -678,6 +711,48 @@ def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
     buf = BytesIO()
     img.convert("RGBA").save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _prepare_gallery_urls(
+    gallery: list[PILImage.Image],
+    gallery_status: list[dict],
+    slot_spec: dict[str, Any],
+) -> tuple[list[str], list[dict]]:
+    requested = gallery_status[:4]
+    if not requested:
+        return [], []
+    slots = slot_spec.get("slots", {}).get("gallery", [])
+    slot = slots[0] if slots else {"w": 196, "h": 56, "fit": "cover"}
+    w = int(slot.get("w", 0)) or 196
+    h = int(slot.get("h", 0)) or 56
+    fit = slot.get("fit", "cover")
+    urls: list[str] = []
+    status_out: list[dict] = []
+    img_idx = 0
+    for item in requested:
+        status = {
+            "index": item.get("index"),
+            "url": item.get("url"),
+            "resolved": bool(item.get("resolved")),
+            "prepared": False,
+            "rendered": False,
+            "error_code": item.get("error_code"),
+        }
+        if status["resolved"]:
+            if img_idx < len(gallery):
+                try:
+                    img = _fit_image(gallery[img_idx], w, h, fit)
+                    img_idx += 1
+                    url = _image_to_data_url(img)
+                    urls.append(url)
+                    status["prepared"] = True
+                    status["rendered"] = True
+                except Exception:
+                    status["error_code"] = "gallery_item_prepare_failed"
+            else:
+                status["error_code"] = "gallery_item_missing"
+        status_out.append(status)
+    return urls, status_out
 
 
 def _safe_preset_scenario_data_url() -> str:

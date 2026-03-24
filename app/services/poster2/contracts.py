@@ -234,6 +234,7 @@ class ResolvedAssets:
     logo: Optional[PILImage.Image] = None
     scenario: Optional[PILImage.Image] = None
     gallery: list[PILImage.Image] = field(default_factory=list)
+    gallery_status: list[dict] = field(default_factory=list)
 
 
 @dataclass
