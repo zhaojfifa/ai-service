@@ -3,6 +3,26 @@
   "template_contract_version": "poster2.template_dual_v2.v1",
   "canvas": { "w": 1024, "h": 1024 },
   "safe_margin": 48,
+  "regions": {
+    "background_region": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+    "header_region": { "x": 72, "y": 56, "w": 880, "h": 104 },
+    "scenario_region": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "product_region": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "feature_region": { "x": 764, "y": 204, "w": 164, "h": 392 },
+    "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 258 }
+  },
+  "composition_order": [
+    "background_base_layer",
+    "header_shell_layer",
+    "scenario_card_shell_layer",
+    "product_card_shell_layer",
+    "feature_callout_layer",
+    "bottom_gallery_shell_layer",
+    "bottom_gallery_items_layer",
+    "title_layer",
+    "subtitle_layer",
+    "bottom_tagline_layer"
+  ],
   "layers": {
     "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "background_base_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
@@ -30,10 +50,22 @@
   },
   "layer_slots": {
     "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
+    "brand_text_slot": { "x": 244, "y": 72, "w": 432, "h": 68 },
     "brand_name_slot": { "x": 244, "y": 72, "w": 432, "h": 68 },
     "agent_pill_slot": { "x": 756, "y": 78, "w": 156, "h": 48 },
     "scenario_card_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
-    "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 }
+    "scenario_image_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "gallery_shell_slot": { "x": 96, "y": 888, "w": 832, "h": 72 },
+    "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 },
+    "gallery_item_slots": [
+      { "x": 96, "y": 904, "w": 196, "h": 56 },
+      { "x": 308, "y": 904, "w": 196, "h": 56 },
+      { "x": 520, "y": 904, "w": 196, "h": 56 },
+      { "x": 732, "y": 904, "w": 196, "h": 56 }
+    ],
+    "title_box": { "x": 112, "y": 744, "w": 800, "h": 84 },
+    "subtitle_box": { "x": 152, "y": 840, "w": 720, "h": 28 },
+    "tagline_box": { "x": 196, "y": 966, "w": 632, "h": 20 }
   },
   "layer_states": {
     "header_banner": ["state-logo-show", "state-logo-empty"],
@@ -42,12 +74,14 @@
   },
   "layer_contracts": {
     "background_base_layer": {
+      "region_id": "background_region",
       "visible_when": "always",
       "bounds": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
       "fallback_rule": "use resolved background layer only; never substitute for scenario_image_layer",
       "collapse_rule": "never collapse"
     },
     "header_shell_layer": {
+      "region_id": "header_region",
       "visible_when": "always",
       "bounds": { "x": 72, "y": 56, "w": 880, "h": 104 },
       "padding": { "top": 18, "right": 24, "bottom": 18, "left": 24 },
@@ -57,6 +91,7 @@
       "collapse_rule": "never collapse"
     },
     "brand_logo_layer": {
+      "region_id": "header_region",
       "visible_when": "logo.url exists",
       "bounds": { "x": 104, "y": 74, "w": 120, "h": 64 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
@@ -66,6 +101,7 @@
       "collapse_rule": "collapse only this layer when logo is absent"
     },
     "brand_text_layer": {
+      "region_id": "header_region",
       "visible_when": "brand_name present",
       "bounds": { "x": 244, "y": 72, "w": 432, "h": 68 },
       "padding": { "top": 10, "right": 16, "bottom": 10, "left": 0 },
@@ -75,6 +111,7 @@
       "collapse_rule": "do not depend on logo visibility"
     },
     "agent_pill_layer": {
+      "region_id": "header_region",
       "visible_when": "agent_name present",
       "bounds": { "x": 756, "y": 78, "w": 156, "h": 48 },
       "padding": { "top": 0, "right": 12, "bottom": 0, "left": 12 },
@@ -84,6 +121,7 @@
       "collapse_rule": "collapse when agent_name is empty"
     },
     "scenario_card_shell_layer": {
+      "region_id": "scenario_region",
       "visible_when": "always",
       "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
@@ -93,6 +131,7 @@
       "collapse_rule": "never collapse"
     },
     "scenario_image_layer": {
+      "region_id": "scenario_region",
       "visible_when": "scenario_image.url exists or safe preset fill is resolved",
       "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
@@ -102,6 +141,7 @@
       "collapse_rule": "never collapse into background substitution; render safe preset when scenario_image is absent"
     },
     "product_card_shell_layer": {
+      "region_id": "product_region",
       "visible_when": "always",
       "bounds": { "x": 456, "y": 188, "w": 300, "h": 520 },
       "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
@@ -111,6 +151,7 @@
       "collapse_rule": "never collapse"
     },
     "product_image_layer": {
+      "region_id": "product_region",
       "visible_when": "product_image.url exists",
       "bounds": { "x": 456, "y": 188, "w": 300, "h": 520 },
       "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
@@ -120,6 +161,7 @@
       "collapse_rule": "collapse when product_image.url is absent"
     },
     "feature_callout_layer": {
+      "region_id": "feature_region",
       "visible_when": "features.length > 0",
       "bounds": { "x": 764, "y": 204, "w": 164, "h": 392 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
@@ -129,6 +171,7 @@
       "collapse_rule": "collapse when features.length == 0"
     },
     "title_layer": {
+      "region_id": "bottom_region",
       "visible_when": "title present",
       "bounds": { "x": 112, "y": 744, "w": 800, "h": 84 },
       "padding": { "top": 0, "right": 20, "bottom": 0, "left": 20 },
@@ -138,6 +181,7 @@
       "collapse_rule": "collapse when title is empty"
     },
     "subtitle_layer": {
+      "region_id": "bottom_region",
       "visible_when": "subtitle present",
       "bounds": { "x": 152, "y": 840, "w": 720, "h": 28 },
       "padding": { "top": 4, "right": 14, "bottom": 0, "left": 14 },
@@ -147,6 +191,7 @@
       "collapse_rule": "collapse when subtitle is empty"
     },
     "bottom_gallery_shell_layer": {
+      "region_id": "bottom_region",
       "visible_when": "gallery state is show or fallback-fill",
       "bounds": { "x": 96, "y": 888, "w": 832, "h": 72 },
       "padding": { "top": 8, "right": 0, "bottom": 8, "left": 0 },
@@ -156,6 +201,7 @@
       "collapse_rule": "collapse when gallery state is hidden"
     },
     "bottom_gallery_items_layer": {
+      "region_id": "bottom_region",
       "visible_when": "gallery_images.length > 0",
       "bounds": { "x": 96, "y": 904, "w": 832, "h": 56 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
@@ -165,6 +211,7 @@
       "collapse_rule": "collapse this items layer when gallery_images.length == 0; allow shell to hide or collapse with it"
     },
     "bottom_tagline_layer": {
+      "region_id": "bottom_region",
       "visible_when": "operator tagline binding exists",
       "bounds": { "x": 196, "y": 966, "w": 632, "h": 20 },
       "padding": { "top": 0, "right": 12, "bottom": 0, "left": 12 },

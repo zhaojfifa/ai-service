@@ -310,3 +310,76 @@ class TestPosterPipelineRun:
         assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
         assert layer_status["bottom_gallery_items_layer"]["count"] == 0
         assert layer_status["bottom_tagline_layer"]["reason_code"] == "operator_tagline_unbound"
+
+    def test_renderer_metadata_marks_logo_scenario_gallery_rendered_when_assets_exist(self):
+        template = _load_template()
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            if key.endswith(".json"):
+                return "https://r2.example.com/renderer-metadata.json"
+            if "product-material" in key:
+                return "https://r2.example.com/product-material.png"
+            if "/fg/" in key:
+                return "https://r2.example.com/fg.png"
+            return "https://r2.example.com/final.png"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            logo=PILImage.new("RGBA", (136, 80), (255, 255, 255, 255)),
+            scenario=PILImage.new("RGBA", (320, 600), (120, 160, 200, 255)),
+            gallery=[
+                PILImage.new("RGBA", (176, 104), (220, 80, 80, 255)),
+                PILImage.new("RGBA", (176, 104), (80, 220, 80, 255)),
+                PILImage.new("RGBA", (176, 104), (80, 80, 220, 255)),
+            ],
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=LayoutRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+        spec_with_assets = _make_spec(
+            logo=AssetRef(url="mock://logo"),
+            scenario_image=AssetRef(url="mock://scenario"),
+            gallery_images=(
+                AssetRef(url="mock://g0"),
+                AssetRef(url="mock://g1"),
+                AssetRef(url="mock://g2"),
+            ),
+        )
+        with patch(
+            "app.services.poster2.pipeline.build_template_dual_v2_background",
+            new=AsyncMock(
+                return_value=BackgroundResult(
+                    url="https://r2.example.com/bg-scenario.png",
+                    key="poster2/bg/scenario.png",
+                    prompt_used="scenario_image_preferred",
+                    seed_used=0,
+                    model="scenario-image",
+                    width=1024,
+                    height=1024,
+                )
+            ),
+        ):
+            manifest = asyncio.run(pipeline.run(spec_with_assets, template))
+        assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        layer_status = metadata["layer_render_status"]
+
+        assert layer_status["brand_logo_layer"]["rendered"] is True
+        assert layer_status["brand_logo_layer"]["reason_code"] is None
+        assert layer_status["brand_logo_layer"]["count"] == 1
+
+        assert layer_status["scenario_image_layer"]["rendered"] is True
+        assert layer_status["scenario_image_layer"]["reason_code"] is None
+        assert "safe_preset" not in str(layer_status["scenario_image_layer"]["source_binding"])
+
+        assert layer_status["bottom_gallery_items_layer"]["rendered"] is True
+        assert layer_status["bottom_gallery_items_layer"]["reason_code"] is None
+        assert layer_status["bottom_gallery_items_layer"]["count"] == 3

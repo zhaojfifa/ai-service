@@ -19,70 +19,80 @@ __INLINE_CSS__
     <div class="safe-frame"></div>
     <div class="structured-overlay" aria-hidden="true">__SVG_OVERLAY__</div>
 
-    <div class="layer layer-header-banner __HEADER_LAYER_CLASS__">
-      <div class="layer layer-header-shell">
-        <div class="banner-surface"></div>
-      </div>
-      <div class="layer layer-brand-logo">
-        <div class="slot slot-logo" style="__LOGO_STYLE__">
-          <img src="__LOGO_URL__" alt="" loading="eager" />
+    <div class="region region-header" data-region-id="header_region">
+      <div class="layer layer-header-banner __HEADER_LAYER_CLASS__">
+        <div class="layer layer-header-shell">
+          <div class="banner-surface"></div>
         </div>
-      </div>
-      <div class="layer layer-brand-text">
-        <div class="slot slot-brand text-brand" style="__BRAND_STYLE__">__BRAND_TEXT__</div>
-      </div>
-      <div class="layer layer-agent-pill">
-        <div class="slot slot-agent text-agent" style="__AGENT_STYLE__">__AGENT_TEXT__</div>
-      </div>
-    </div>
-
-    <div class="layer layer-scenario __SCENARIO_LAYER_CLASS__">
-      <div class="layer layer-scenario-card">
-        <div class="scenario-card"></div>
-      </div>
-      <div class="layer layer-scenario-image">
-        <div class="slot slot-scenario image-slot" style="__SCENARIO_STYLE__">
-          <img src="__SCENARIO_URL__" alt="" loading="eager" />
+        <div class="layer layer-brand-logo">
+          <div class="slot slot-logo" data-slot-id="brand_logo_slot" style="__LOGO_STYLE__">
+            <img src="__LOGO_URL__" alt="" loading="eager" />
+          </div>
+        </div>
+        <div class="layer layer-brand-text">
+          <div class="slot slot-brand text-brand" data-slot-id="brand_text_slot" style="__BRAND_STYLE__">__BRAND_TEXT__</div>
+        </div>
+        <div class="layer layer-agent-pill">
+          <div class="slot slot-agent text-agent" data-slot-id="agent_pill_slot" style="__AGENT_STYLE__">__AGENT_TEXT__</div>
         </div>
       </div>
     </div>
 
-    <div class="layer layer-product">
-      <div class="layer layer-product-card-shell">
-        <div class="product-card"></div>
-      </div>
-      <div class="layer layer-product-image">
-        <div class="slot slot-product image-slot" style="__PRODUCT_STYLE__">
-          <img src="__PRODUCT_URL__" alt="" loading="eager" />
+    <div class="region region-scenario" data-region-id="scenario_region">
+      <div class="layer layer-scenario __SCENARIO_LAYER_CLASS__">
+        <div class="layer layer-scenario-card">
+          <div class="scenario-card"></div>
+        </div>
+        <div class="layer layer-scenario-image">
+          <div class="slot slot-scenario image-slot" data-slot-id="scenario_image_slot" style="__SCENARIO_STYLE__">
+            <img src="__SCENARIO_URL__" alt="" loading="eager" />
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="layer layer-feature-callouts">
-      <div class="feature-layer">__FEATURE_ITEMS__</div>
-    </div>
-
-    <div class="layer layer-title-subtitle">
-      <div class="text-zone-surface"></div>
-      <div class="layer layer-title">
-        <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
-      </div>
-      <div class="layer layer-subtitle">
-        <div class="slot slot-subtitle text-subtitle" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
-      </div>
-    </div>
-
-    <div class="layer layer-bottom-gallery __GALLERY_LAYER_CLASS__">
-      <div class="layer layer-bottom-gallery-shell">
-        <div class="gallery-surface"></div>
-      </div>
-      <div class="layer layer-bottom-gallery-items">
-        <div class="gallery-strip" aria-hidden="true">__GALLERY_ITEMS__</div>
+    <div class="region region-product" data-region-id="product_region">
+      <div class="layer layer-product">
+        <div class="layer layer-product-card-shell">
+          <div class="product-card"></div>
+        </div>
+        <div class="layer layer-product-image">
+          <div class="slot slot-product image-slot" data-slot-id="product_image_slot" style="__PRODUCT_STYLE__">
+            <img src="__PRODUCT_URL__" alt="" loading="eager" />
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="layer layer-bottom-tagline __BOTTOM_TAGLINE_CLASS__">
-      <div class="slot slot-bottom-tagline text-bottom-tagline" style="__BOTTOM_TAGLINE_STYLE__">__BOTTOM_TAGLINE_TEXT__</div>
+    <div class="region region-feature" data-region-id="feature_region">
+      <div class="layer layer-feature-callouts">
+        <div class="feature-layer">__FEATURE_ITEMS__</div>
+      </div>
+    </div>
+
+    <div class="region region-bottom" data-region-id="bottom_region">
+      <div class="layer layer-title-subtitle">
+        <div class="text-zone-surface"></div>
+        <div class="layer layer-title">
+          <div class="slot slot-title text-title" data-slot-id="title_box" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
+        </div>
+        <div class="layer layer-subtitle">
+          <div class="slot slot-subtitle text-subtitle" data-slot-id="subtitle_box" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
+        </div>
+      </div>
+
+      <div class="layer layer-bottom-gallery __GALLERY_LAYER_CLASS__">
+        <div class="layer layer-bottom-gallery-shell">
+          <div class="gallery-surface"></div>
+        </div>
+        <div class="layer layer-bottom-gallery-items">
+          <div class="gallery-strip" data-slot-id="gallery_item_slots" aria-hidden="true">__GALLERY_ITEMS__</div>
+        </div>
+      </div>
+
+      <div class="layer layer-bottom-tagline __BOTTOM_TAGLINE_CLASS__">
+        <div class="slot slot-bottom-tagline text-bottom-tagline" data-slot-id="tagline_box" style="__BOTTOM_TAGLINE_STYLE__">__BOTTOM_TAGLINE_TEXT__</div>
+      </div>
     </div>
   </div>
 </body>

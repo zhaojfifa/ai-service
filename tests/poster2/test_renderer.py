@@ -584,3 +584,59 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
+
+    def test_template_html_binds_logo_scenario_and_gallery_when_assets_exist(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(),
+            asset_urls={
+                "logo": "data:image/png;base64,logo",
+                "scenario": "data:image/png;base64,scenario",
+                "scenario_is_real": True,
+                "product": "data:image/png;base64,product",
+                "gallery": [
+                    "data:image/png;base64,g0",
+                    "data:image/png;base64,g1",
+                    "data:image/png;base64,g2",
+                    "data:image/png;base64,g3",
+                ],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert "state-logo-show" in html_payload
+        assert "state-show" in html_payload
+        assert 'data-slot-id="brand_logo_slot"' in html_payload
+        assert 'data-slot-id="scenario_image_slot"' in html_payload
+        assert html_payload.count('<div class="gallery-item"') == 4
+        assert "data:image/png;base64,logo" in html_payload
+        assert "data:image/png;base64,scenario" in html_payload

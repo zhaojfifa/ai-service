@@ -198,6 +198,8 @@ class TestTemplateSpecLoading:
         anchor_map = json.loads(anchor_map_path.read_text(encoding="utf-8"))
         assert slot_spec["template_contract_version"] == "poster2.template_dual_v2.v1"
         assert "layers" in slot_spec
+        assert "regions" in slot_spec
+        assert "composition_order" in slot_spec
         assert "layer_slots" in slot_spec
         assert "layer_states" in slot_spec
         assert "layer_contracts" in slot_spec
@@ -220,6 +222,10 @@ class TestTemplateSpecLoading:
         assert "bottom_tagline_layer" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
         assert "brand_logo_slot" in slot_spec["layer_slots"]
+        assert "brand_text_slot" in slot_spec["layer_slots"]
+        assert "scenario_image_slot" in slot_spec["layer_slots"]
+        assert "gallery_item_slots" in slot_spec["layer_slots"]
+        assert "title_box" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
         assert "state-safe-fill" in slot_spec["layer_states"]["scenario"]
         for layer_name in [
@@ -241,6 +247,7 @@ class TestTemplateSpecLoading:
         ]:
             assert layer_name in slot_spec["layer_contracts"]
             contract = slot_spec["layer_contracts"][layer_name]
+            assert "region_id" in contract
             assert "visible_when" in contract
             assert "bounds" in contract
             assert "fallback_rule" in contract

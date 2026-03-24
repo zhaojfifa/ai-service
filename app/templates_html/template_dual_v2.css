@@ -25,6 +25,11 @@ body {
   inset: 0;
 }
 
+.region {
+  position: absolute;
+  pointer-events: none;
+}
+
 .layer-background {
   z-index: 0;
 }
@@ -62,6 +67,14 @@ body {
 }
 
 .layer-header-banner {
+  z-index: 5;
+}
+
+.region-header {
+  left: 72px;
+  top: 56px;
+  width: 880px;
+  height: 104px;
   z-index: 5;
 }
 
@@ -149,6 +162,14 @@ body {
   z-index: 2;
 }
 
+.region-scenario {
+  left: 96px;
+  top: 188px;
+  width: 288px;
+  height: 520px;
+  z-index: 2;
+}
+
 .layer-scenario.state-safe-fill .scenario-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(245, 236, 232, 0.2));
   border-style: dashed;
@@ -177,6 +198,14 @@ body {
 }
 
 .layer-product {
+  z-index: 3;
+}
+
+.region-product {
+  left: 456px;
+  top: 188px;
+  width: 300px;
+  height: 520px;
   z-index: 3;
 }
 
@@ -211,7 +240,23 @@ body {
   z-index: 4;
 }
 
+.region-feature {
+  left: 764px;
+  top: 204px;
+  width: 164px;
+  height: 392px;
+  z-index: 4;
+}
+
 .layer-title-subtitle {
+  z-index: 4;
+}
+
+.region-bottom {
+  left: 96px;
+  top: 728px;
+  width: 832px;
+  height: 258px;
   z-index: 4;
 }
 
@@ -312,6 +357,10 @@ body {
   z-index: 4;
 }
 
+.layer-bottom-gallery.state-hidden {
+  display: none;
+}
+
 .gallery-surface {
   position: absolute;
   left: 96px;
@@ -336,6 +385,10 @@ body {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.76);
   box-shadow: 0 10px 22px rgba(31, 22, 22, 0.1);
+}
+
+.layer-bottom-gallery.state-fallback-fill .gallery-item {
+  opacity: 0.96;
 }
 
 .gallery-item img {
