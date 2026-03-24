@@ -4912,6 +4912,48 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     null
   );
 
+  const logoRef = await normaliseAssetReference(
+    stage1Data.brand_logo,
+    {
+      field: 'poster2.logo',
+      required: false,
+      apiCandidates,
+      folder: 'logo',
+    },
+    null
+  );
+
+  const scenarioRef = await normaliseAssetReference(
+    stage1Data.scenario_asset,
+    {
+      field: 'poster2.scenario_image',
+      required: false,
+      apiCandidates,
+      folder: 'scenario',
+    },
+    null
+  );
+
+  const galleryRefs = [];
+  const galleryEntries = Array.isArray(stage1Data.gallery_entries)
+    ? stage1Data.gallery_entries
+    : [];
+  for (const entry of galleryEntries.slice(0, 4)) {
+    if (!entry?.asset) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const ref = await normaliseAssetReference(
+      entry.asset,
+      {
+        field: 'poster2.gallery_images',
+        required: false,
+        apiCandidates,
+        folder: 'gallery',
+      },
+      null
+    );
+    if (ref?.url) galleryRefs.push(ref);
+  }
+
   const payload = {
     template_id: POSTER2_PILOT_TEMPLATE_ID,
     renderer_mode: stage2State.poster2.rendererMode || 'auto',
@@ -4924,6 +4966,22 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: productRef?.url || '',
       key: productRef?.key || null,
     },
+    logo: logoRef?.url
+      ? {
+          url: logoRef.url,
+          key: logoRef.key || null,
+        }
+      : null,
+    scenario_image: scenarioRef?.url
+      ? {
+          url: scenarioRef.url,
+          key: scenarioRef.key || null,
+        }
+      : null,
+    gallery_images: galleryRefs.map((ref) => ({
+      url: ref.url,
+      key: ref.key || null,
+    })),
     style: {
       prompt: pickPoster2StylePrompt(),
     },
@@ -4933,9 +4991,9 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     payload,
     refs: {
       productRef,
-      logoRef: null,
-      scenarioRef: null,
-      galleryRefs: [],
+      logoRef,
+      scenarioRef,
+      galleryRefs,
     },
   };
 }
