@@ -4912,6 +4912,17 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     null
   );
 
+  const logoRef = await normaliseAssetReference(
+    stage1Data.brand_logo,
+    {
+      field: 'poster2.logo',
+      required: false,
+      apiCandidates,
+      folder: 'logo',
+    },
+    null
+  );
+
   const payload = {
     template_id: POSTER2_PILOT_TEMPLATE_ID,
     renderer_mode: stage2State.poster2.rendererMode || 'auto',
@@ -4924,6 +4935,12 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: productRef?.url || '',
       key: productRef?.key || null,
     },
+    logo: logoRef?.url
+      ? {
+          url: logoRef.url,
+          key: logoRef.key || null,
+        }
+      : null,
     style: {
       prompt: pickPoster2StylePrompt(),
     },
@@ -4933,7 +4950,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     payload,
     refs: {
       productRef,
-      logoRef: null,
+      logoRef,
       scenarioRef: null,
       galleryRefs: [],
     },
