@@ -4934,26 +4934,6 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     null
   );
 
-  const galleryRefs = [];
-  const galleryEntries = Array.isArray(stage1Data.gallery_entries)
-    ? stage1Data.gallery_entries
-    : [];
-  for (const entry of galleryEntries.slice(0, 4)) {
-    if (!entry?.asset) continue;
-    // eslint-disable-next-line no-await-in-loop
-    const ref = await normaliseAssetReference(
-      entry.asset,
-      {
-        field: 'poster2.gallery_images',
-        required: false,
-        apiCandidates,
-        folder: 'gallery',
-      },
-      null
-    );
-    if (ref?.url) galleryRefs.push(ref);
-  }
-
   const payload = {
     template_id: POSTER2_PILOT_TEMPLATE_ID,
     renderer_mode: stage2State.poster2.rendererMode || 'auto',
@@ -4978,10 +4958,6 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
           key: scenarioRef.key || null,
         }
       : null,
-    gallery_images: galleryRefs.map((ref) => ({
-      url: ref.url,
-      key: ref.key || null,
-    })),
     style: {
       prompt: pickPoster2StylePrompt(),
     },
@@ -4993,7 +4969,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       productRef,
       logoRef,
       scenarioRef,
-      galleryRefs,
+      galleryRefs: [],
     },
   };
 }
