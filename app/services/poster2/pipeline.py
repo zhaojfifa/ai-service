@@ -135,6 +135,11 @@ class PosterPipeline:
             "poster2: trace=%s bg=%.1fs assets=loaded",
             trace_id, timings["background_layer_ms"] / 1000,
         )
+        logger.info(
+            "poster2.gallery_presence_done requested=%d resolved=%d",
+            min(len(spec.gallery_images), 4),
+            min(len(assets.gallery), 4),
+        )
 
         # ── Phase 2: deterministic foreground/text render ────────────────────
         t1 = _now()
@@ -217,6 +222,7 @@ class PosterPipeline:
                 assets=assets,
                 bg_result=bg_result,
             ),
+            "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
                 "product_material_layer_url": product_material_url,
@@ -312,8 +318,9 @@ def _build_layer_render_status(
     assets,
     bg_result: BackgroundResult,
 ) -> dict[str, dict[str, object]]:
-    gallery_count = min(len(assets.gallery), 4)
-    gallery_rendered = gallery_count > 0
+    gallery_requested = min(len(spec.gallery_images), 4)
+    gallery_valid = min(len(assets.gallery), 4)
+    gallery_rendered = gallery_valid > 0
     feature_count = min(len(spec.features), len(template.feature_callouts))
     layer_status = {
         "background_base_layer": {
@@ -392,13 +399,17 @@ def _build_layer_render_status(
             "rendered": gallery_rendered,
             "reason_code": None if gallery_rendered else "gallery_hidden",
             "source_binding": "gallery_images",
-            "count": gallery_count,
+            "count": gallery_valid,
+            "count_requested": gallery_requested,
+            "count_valid": gallery_valid,
         },
         "bottom_gallery_items_layer": {
             "rendered": gallery_rendered,
             "reason_code": None if gallery_rendered else "gallery_empty",
             "source_binding": "gallery_images",
-            "count": gallery_count,
+            "count": gallery_valid,
+            "count_requested": gallery_requested,
+            "count_valid": gallery_valid,
         },
         "bottom_tagline_layer": {
             "rendered": False,

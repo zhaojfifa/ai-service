@@ -86,12 +86,35 @@ class AssetLoader:
                 logger.warning("Failed to load asset %s: %s", ref.url, exc)
                 return None
 
+        async def fetch_gallery(ref: AssetRef, index: int) -> Optional[PILImage.Image]:
+            logger.info("poster2.gallery_fetch_item_start index=%d url=%s", index, ref.url)
+            img = await maybe(ref)
+            if img is None:
+                logger.info("poster2.gallery_fetch_item_done index=%d ok=false", index)
+                return None
+            logger.info(
+                "poster2.gallery_fetch_item_done index=%d ok=true size=%sx%s",
+                index,
+                img.width,
+                img.height,
+            )
+            return img
+
         product_task = asyncio.create_task(maybe(spec.product_image))
         logo_task = asyncio.create_task(maybe(spec.logo))
         scenario_task = asyncio.create_task(maybe(spec.scenario_image))
-        gallery_tasks = [
-            asyncio.create_task(maybe(ref)) for ref in spec.gallery_images
-        ]
+        gallery_refs = list(spec.gallery_images)[:4]
+        logger.info("poster2.gallery_resolve_start count=%d", len(gallery_refs))
+        gallery_tasks = []
+        gallery_status: list[dict] = []
+        for idx, ref in enumerate(gallery_refs):
+            gallery_status.append({
+                "index": idx,
+                "url": ref.url,
+                "resolved": False,
+                "error_code": None,
+            })
+            gallery_tasks.append(asyncio.create_task(fetch_gallery(ref, idx)))
 
         product = await product_task
         if product is None:
@@ -100,13 +123,25 @@ class AssetLoader:
         logo = await logo_task
         scenario = await scenario_task
         gallery_results = await asyncio.gather(*gallery_tasks)
-        gallery = [img for img in gallery_results if img is not None]
+        gallery: list[PILImage.Image] = []
+        for idx, img in enumerate(gallery_results):
+            if img is None:
+                gallery_status[idx]["error_code"] = "gallery_item_load_failed"
+                continue
+            gallery.append(img)
+            gallery_status[idx]["resolved"] = True
+        logger.info(
+            "poster2.gallery_resolve_done requested=%d resolved=%d",
+            len(gallery_refs),
+            len(gallery),
+        )
 
         return ResolvedAssets(
             product=product,
             logo=logo,
             scenario=scenario,
             gallery=gallery,
+            gallery_status=gallery_status,
         )
 
     async def load_url(self, url: str) -> PILImage.Image:

@@ -43,6 +43,7 @@ from app.services.poster2.renderer import (
     ForegroundResult,
     _build_puppeteer_failure_info,
     _safe_preset_scenario_data_url,
+    _prepare_gallery_urls,
 )
 
 
@@ -524,6 +525,22 @@ class TestStructuredGalleryMarkup:
 
         assert layer_class == "state-show"
         assert markup.count("gallery-item") == 2
+
+    def test_prepare_gallery_urls_caps_and_resizes(self):
+        slot_spec = {
+            "slots": {
+                "gallery": [{"w": 196, "h": 56, "fit": "cover"}],
+            },
+        }
+        images = [solid_image(800, 400) for _ in range(6)]
+        urls, status = _prepare_gallery_urls(
+            images,
+            [{"index": i, "url": f"mock://g{i}", "resolved": True, "error_code": None} for i in range(6)],
+            slot_spec,
+        )
+        assert len(urls) == 4
+        assert len(status) == 4
+        assert all(url.startswith("data:image/png;base64,") for url in urls)
 
     def test_render_with_agent_cta(self):
         """Full render with agent name should not raise and produce valid output."""
