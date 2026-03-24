@@ -304,15 +304,25 @@ class PuppeteerStructuredRenderer:
                 if has_real_scenario
                 else _safe_preset_scenario_data_url()
             )
+            logger.info(
+                "poster2.gallery_render_start count=%d",
+                len(assets.gallery),
+            )
+            gallery_urls = _prepare_gallery_urls(assets.gallery, slot_spec)
             asset_urls = {
                 "logo": _image_to_data_url(assets.logo) if assets.logo else "",
                 "scenario": scenario_url,
                 "scenario_is_real": has_real_scenario,
                 "product": _image_to_data_url(assets.product),
-                "gallery": [_image_to_data_url(img) for img in assets.gallery[:4]],
+                "gallery": gallery_urls,
             }
+            logger.info(
+                "poster2.gallery_render_done count=%d bytes=%d",
+                len(gallery_urls),
+                sum(len(url) for url in gallery_urls),
+            )
         except Exception as exc:
-            raise _classify_puppeteer_exception(exc, stage="asset_load") from exc
+            raise _classify_puppeteer_exception(exc, stage="gallery_render") from exc
         layer_timings["product_material_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
@@ -413,6 +423,11 @@ class PuppeteerStructuredRenderer:
         gallery_slots = slot_spec["slots"]["gallery"]
         if not gallery_urls:
             return "", "state-hidden"
+        logger.info(
+            "poster2.gallery_compose_start count=%d slots=%d",
+            len(gallery_urls),
+            len(gallery_slots),
+        )
         layer_class = "state-show" if len(gallery_urls) >= len(gallery_slots) else "state-fallback-fill"
         filled_urls = [gallery_urls[idx % len(gallery_urls)] for idx in range(len(gallery_slots))]
         items: list[str] = []
@@ -423,6 +438,11 @@ class PuppeteerStructuredRenderer:
                 f'<img src="{url}" alt="" loading="eager" />'
                 "</div>"
             )
+        logger.info(
+            "poster2.gallery_compose_done items=%d state=%s",
+            len(items),
+            layer_class,
+        )
         return "".join(items), layer_class
 
     def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> str:
@@ -582,7 +602,7 @@ def _build_puppeteer_failure_info(exc: Exception, *, stage: str) -> PuppeteerFai
         reason_code = "puppeteer_missing_chromium"
     elif "error while loading shared libraries" in lowered or "libnss3" in lowered or "libatk" in lowered or "libgbm" in lowered:
         reason_code = "puppeteer_missing_system_libs"
-    elif stage == "asset_load":
+    elif stage in {"asset_load", "gallery_render"}:
         reason_code = "puppeteer_asset_load_failed"
     elif stage == "template_render":
         reason_code = "puppeteer_template_render_failed"
@@ -678,6 +698,25 @@ def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
     buf = BytesIO()
     img.convert("RGBA").save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def _prepare_gallery_urls(
+    gallery: list[PILImage.Image],
+    slot_spec: dict[str, Any],
+) -> list[str]:
+    if not gallery:
+        return []
+    slots = slot_spec.get("slots", {}).get("gallery", [])
+    if not slots:
+        return [_image_to_data_url(img) for img in gallery[:4]]
+    slot = slots[0]
+    w = int(slot.get("w", 0)) or 196
+    h = int(slot.get("h", 0)) or 56
+    fit = slot.get("fit", "cover")
+    prepared: list[str] = []
+    for img in gallery[:4]:
+        prepared.append(_image_to_data_url(_fit_image(img, w, h, fit)))
+    return prepared
 
 
 def _safe_preset_scenario_data_url() -> str:
