@@ -166,6 +166,8 @@ const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
 const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
+const FRONTEND_BASELINE_STAMP = 'ee1cd4c';
+const BACKEND_BASELINE_EXPECTED = 'ee1cd4c';
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -2033,6 +2035,7 @@ function init() {
   apiBaseInput = document.getElementById('api-base');
   loadBuildInfo();
   loadApiBase();
+  void loadBaselineStamps();
   if (apiBaseInput) {
     apiBaseInput.addEventListener('change', saveApiBase);
     apiBaseInput.addEventListener('blur', saveApiBase);
@@ -2070,6 +2073,48 @@ async function loadBuildInfo() {
   } catch {
     el.textContent = '';
   }
+}
+
+function setBaselineStamp(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value || 'N/A';
+}
+
+async function fetchBackendBuildStamp() {
+  const candidates = getApiCandidates(apiBaseInput?.value || null);
+  for (const base of candidates) {
+    const url = joinBasePath(base, '/health');
+    if (!url) continue;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'omit',
+      });
+      if (!response.ok) continue;
+      const payload = await response.json().catch(() => ({}));
+      const stampFromBody = typeof payload?.build_stamp === 'string' ? payload.build_stamp.trim() : '';
+      const stampFromHeader = response.headers.get('x-backend-build') || '';
+      const stamp = stampFromBody || stampFromHeader;
+      if (stamp) return stamp;
+    } catch (error) {
+      console.warn('[baseline] failed to fetch backend build stamp', base, error);
+    }
+  }
+  return '';
+}
+
+async function loadBaselineStamps() {
+  setBaselineStamp('frontend-baseline-stamp', FRONTEND_BASELINE_STAMP);
+  const backendStamp = await fetchBackendBuildStamp();
+  if (backendStamp) {
+    const suffix = backendStamp === BACKEND_BASELINE_EXPECTED ? '' : ' (mismatch)';
+    setBaselineStamp('backend-baseline-stamp', `${backendStamp}${suffix}`);
+    return;
+  }
+  setBaselineStamp('backend-baseline-stamp', `${BACKEND_BASELINE_EXPECTED} (expected)`);
 }
 
 function loadApiBase() {
