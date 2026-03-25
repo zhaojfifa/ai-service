@@ -194,6 +194,13 @@ class PosterPipeline:
         if not final_url:
             raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
 
+        layer_render_status = fg_result.layer_render_status or _build_layer_render_status(
+            template=template,
+            spec=spec,
+            assets=assets,
+            bg_result=bg_result,
+        )
+        region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
         renderer_metadata_payload = {
             "trace_id": trace_id,
             "template_id": template.template_id,
@@ -216,12 +223,8 @@ class PosterPipeline:
             "degraded": fg_result.degraded,
             "degraded_reason": fg_result.degraded_reason,
             "timings_ms": timings,
-            "layer_render_status": _build_layer_render_status(
-                template=template,
-                spec=spec,
-                assets=assets,
-                bg_result=bg_result,
-            ),
+            "layer_render_status": layer_render_status,
+            "region_render_status": region_render_status,
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -340,18 +343,21 @@ def _build_layer_render_status(
             "reason_code": None if assets.logo is not None else "logo_missing",
             "source_binding": spec.logo.url if spec.logo else None,
             "count": 1 if assets.logo is not None else 0,
+            "collapsed": assets.logo is None,
         },
         "brand_text_layer": {
             "rendered": bool(spec.brand_name),
             "reason_code": None if spec.brand_name else "brand_name_empty",
             "source_binding": "brand_name",
             "count": 1 if spec.brand_name else 0,
+            "collapsed": not bool(spec.brand_name),
         },
         "agent_pill_layer": {
             "rendered": bool(spec.agent_name),
             "reason_code": None if spec.agent_name else "agent_name_empty",
             "source_binding": "agent_name",
             "count": 1 if spec.agent_name else 0,
+            "collapsed": not bool(spec.agent_name),
         },
         "scenario_card_shell_layer": {
             "rendered": True,
@@ -382,6 +388,7 @@ def _build_layer_render_status(
             "reason_code": None if feature_count > 0 else "features_empty",
             "source_binding": "features",
             "count": feature_count,
+            "collapsed": feature_count == 0,
         },
         "title_layer": {
             "rendered": bool(spec.title),
@@ -402,6 +409,7 @@ def _build_layer_render_status(
             "count": gallery_valid,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
+            "collapsed": not gallery_rendered,
         },
         "bottom_gallery_items_layer": {
             "rendered": gallery_rendered,
@@ -410,6 +418,7 @@ def _build_layer_render_status(
             "count": gallery_valid,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
+            "collapsed": not gallery_rendered,
         },
         "bottom_tagline_layer": {
             "rendered": False,
@@ -419,3 +428,31 @@ def _build_layer_render_status(
         },
     }
     return layer_status
+
+
+def _build_region_render_status(
+    layer_status: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    header_count = sum(
+        int(layer_status[layer_name]["count"])
+        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
+    )
+    feature_count = int(layer_status["feature_callout_layer"]["count"])
+    bottom_count = int(layer_status["bottom_gallery_items_layer"]["count"])
+    return {
+        "header_region": {
+            "rendered": header_count > 0,
+            "count": header_count,
+            "collapsed": header_count == 0,
+        },
+        "feature_region": {
+            "rendered": feature_count > 0,
+            "count": feature_count,
+            "collapsed": feature_count == 0,
+        },
+        "bottom_region": {
+            "rendered": bottom_count > 0,
+            "count": bottom_count,
+            "collapsed": bottom_count == 0,
+        },
+    }

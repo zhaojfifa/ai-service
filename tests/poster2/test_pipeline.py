@@ -309,4 +309,11 @@ class TestPosterPipelineRun:
         assert layer_status["bottom_gallery_items_layer"]["rendered"] is False
         assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
         assert layer_status["bottom_gallery_items_layer"]["count"] == 0
+        assert layer_status["bottom_gallery_items_layer"]["collapsed"] is True
         assert layer_status["bottom_tagline_layer"]["reason_code"] == "operator_tagline_unbound"
+        region_status = metadata["region_render_status"]
+        assert region_status["header_region"]["rendered"] is True
+        assert region_status["header_region"]["count"] == 2
+        assert region_status["feature_region"]["rendered"] is True
+        assert region_status["feature_region"]["count"] == 2
+        assert region_status["bottom_region"]["collapsed"] is True

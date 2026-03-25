@@ -19,7 +19,14 @@ __INLINE_CSS__
     <div class="safe-frame"></div>
     <div class="structured-overlay" aria-hidden="true">__SVG_OVERLAY__</div>
 
-    <div class="layer layer-header-banner __HEADER_LAYER_CLASS__">
+    <div
+      class="layer layer-header-banner __HEADER_LAYER_CLASS__"
+      data-region="header_region"
+      data-rendered="__HEADER_REGION_RENDERED__"
+      data-count="__HEADER_REGION_COUNT__"
+      data-collapsed="__HEADER_REGION_COLLAPSED__"
+    >
+      <div class="region region-header" aria-hidden="true"></div>
       <div class="layer layer-header-shell">
         <div class="banner-surface"></div>
       </div>
@@ -29,14 +36,19 @@ __INLINE_CSS__
         </div>
       </div>
       <div class="layer layer-brand-text">
-        <div class="slot slot-brand text-brand" style="__BRAND_STYLE__">__BRAND_TEXT__</div>
+        <div class="slot slot-brand" style="__BRAND_STYLE__">
+          <div class="text-brand">__BRAND_TEXT__</div>
+        </div>
       </div>
       <div class="layer layer-agent-pill">
-        <div class="slot slot-agent text-agent" style="__AGENT_STYLE__">__AGENT_TEXT__</div>
+        <div class="slot slot-agent" style="__AGENT_STYLE__">
+          <div class="text-agent">__AGENT_TEXT__</div>
+        </div>
       </div>
     </div>
 
     <div class="layer layer-scenario __SCENARIO_LAYER_CLASS__">
+      <div class="region region-scenario" aria-hidden="true"></div>
       <div class="layer layer-scenario-card">
         <div class="scenario-card"></div>
       </div>
@@ -48,6 +60,7 @@ __INLINE_CSS__
     </div>
 
     <div class="layer layer-product">
+      <div class="region region-product" aria-hidden="true"></div>
       <div class="layer layer-product-card-shell">
         <div class="product-card"></div>
       </div>
@@ -58,7 +71,14 @@ __INLINE_CSS__
       </div>
     </div>
 
-    <div class="layer layer-feature-callouts">
+    <div
+      class="layer layer-feature-callouts __FEATURE_LAYER_CLASS__"
+      data-region="feature_region"
+      data-rendered="__FEATURE_REGION_RENDERED__"
+      data-count="__FEATURE_REGION_COUNT__"
+      data-collapsed="__FEATURE_REGION_COLLAPSED__"
+    >
+      <div class="region region-feature" aria-hidden="true"></div>
       <div class="feature-layer">__FEATURE_ITEMS__</div>
     </div>
 
@@ -72,7 +92,14 @@ __INLINE_CSS__
       </div>
     </div>
 
-    <div class="layer layer-bottom-gallery __GALLERY_LAYER_CLASS__">
+    <div
+      class="layer layer-bottom-gallery __GALLERY_LAYER_CLASS__"
+      data-region="bottom_region"
+      data-rendered="__BOTTOM_REGION_RENDERED__"
+      data-count="__BOTTOM_REGION_COUNT__"
+      data-collapsed="__BOTTOM_REGION_COLLAPSED__"
+    >
+      <div class="region region-bottom" aria-hidden="true"></div>
       <div class="layer layer-bottom-gallery-shell">
         <div class="gallery-surface"></div>
       </div>

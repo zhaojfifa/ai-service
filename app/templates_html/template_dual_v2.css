@@ -25,6 +25,12 @@ body {
   inset: 0;
 }
 
+.region {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
 .layer-background {
   z-index: 0;
 }
@@ -63,6 +69,13 @@ body {
 
 .layer-header-banner {
   z-index: 5;
+}
+
+.region-header {
+  left: 72px;
+  top: 56px;
+  width: 880px;
+  height: 104px;
 }
 
 .layer-header-banner.state-logo-empty .layer-brand-text .slot-brand {
@@ -107,6 +120,10 @@ body {
 .slot-brand,
 .slot-agent {
   z-index: 6;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .slot-logo {
@@ -115,9 +132,16 @@ body {
   justify-content: center;
 }
 
+.slot-brand {
+  display: flex;
+  align-items: center;
+}
+
 .text-brand {
   display: block;
-  padding: 10px 16px 0 0;
+  width: 100%;
+  padding: 10px 16px 10px 0;
+  box-sizing: border-box;
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-size: 28px;
   font-weight: 600;
@@ -128,11 +152,21 @@ body {
   text-overflow: ellipsis;
 }
 
+.slot-agent {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .text-agent {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0 14px;
+  box-sizing: border-box;
   border-radius: 24px;
   background: #e8002a;
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
@@ -149,6 +183,15 @@ body {
   z-index: 2;
 }
 
+.region-scenario {
+  left: 96px;
+  top: 188px;
+  width: 288px;
+  height: 520px;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
 .layer-scenario.state-safe-fill .scenario-card {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(245, 236, 232, 0.2));
   border-style: dashed;
@@ -156,10 +199,7 @@ body {
 
 .scenario-card {
   position: absolute;
-  left: 96px;
-  top: 188px;
-  width: 288px;
-  height: 520px;
+  inset: 0;
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.14));
   border: 1px solid rgba(255, 255, 255, 0.32);
@@ -180,12 +220,16 @@ body {
   z-index: 3;
 }
 
-.product-card {
-  position: absolute;
+.region-product {
   left: 456px;
   top: 188px;
   width: 300px;
   height: 520px;
+}
+
+.product-card {
+  position: absolute;
+  inset: 0;
   border-radius: 24px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(249, 241, 239, 0.9));
   border: 1px solid rgba(232, 0, 42, 0.08);
@@ -209,6 +253,19 @@ body {
 
 .layer-feature-callouts {
   z-index: 4;
+  clip-path: inset(204px 96px 428px 764px round 16px);
+}
+
+.region-feature {
+  left: 764px;
+  top: 204px;
+  width: 164px;
+  height: 392px;
+  overflow: hidden;
+}
+
+.layer-feature-callouts.state-hidden {
+  display: none;
 }
 
 .layer-title-subtitle {
@@ -287,6 +344,22 @@ body {
   -webkit-line-clamp: 2;
 }
 
+.feature-callout-connector {
+  position: absolute;
+  height: 2px;
+  transform: translateY(-50%);
+  background: #e8002a;
+}
+
+.feature-callout-marker {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #e8002a;
+}
+
 .layer-title-subtitle {
   z-index: 5;
 }
@@ -310,14 +383,19 @@ body {
 
 .layer-bottom-gallery {
   z-index: 4;
+  clip-path: inset(888px 96px 64px 96px round 20px);
 }
 
-.gallery-surface {
-  position: absolute;
+.region-bottom {
   left: 96px;
   top: 888px;
   width: 832px;
   height: 72px;
+}
+
+.gallery-surface {
+  position: absolute;
+  inset: 0;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.66);
   border: 1px solid rgba(255, 255, 255, 0.42);

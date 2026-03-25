@@ -3,6 +3,43 @@
   "template_contract_version": "poster2.template_dual_v2.v1",
   "canvas": { "w": 1024, "h": 1024 },
   "safe_margin": 48,
+  "regions": {
+    "header_region": {
+      "x": 72,
+      "y": 56,
+      "w": 880,
+      "h": 104,
+      "layers": ["header_shell_layer", "brand_logo_layer", "brand_text_layer", "agent_pill_layer"]
+    },
+    "scenario_region": {
+      "x": 96,
+      "y": 188,
+      "w": 288,
+      "h": 520,
+      "layers": ["scenario_card_shell_layer", "scenario_image_layer"]
+    },
+    "product_region": {
+      "x": 456,
+      "y": 188,
+      "w": 300,
+      "h": 520,
+      "layers": ["product_card_shell_layer", "product_image_layer"]
+    },
+    "feature_region": {
+      "x": 764,
+      "y": 204,
+      "w": 164,
+      "h": 392,
+      "layers": ["feature_callout_layer"]
+    },
+    "bottom_region": {
+      "x": 96,
+      "y": 888,
+      "w": 832,
+      "h": 72,
+      "layers": ["bottom_gallery_shell_layer", "bottom_gallery_items_layer"]
+    }
+  },
   "layers": {
     "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "background_base_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
@@ -25,7 +62,7 @@
     "subtitle_layer": { "x": 152, "y": 840, "w": 720, "h": 28 },
     "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 },
     "bottom_gallery_shell_layer": { "x": 96, "y": 888, "w": 832, "h": 72 },
-    "bottom_gallery_items_layer": { "x": 96, "y": 904, "w": 832, "h": 56 },
+    "bottom_gallery_items_layer": { "x": 96, "y": 896, "w": 832, "h": 56 },
     "bottom_tagline_layer": { "x": 196, "y": 966, "w": 632, "h": 20 }
   },
   "layer_slots": {
@@ -38,6 +75,7 @@
   "layer_states": {
     "header_banner": ["state-logo-show", "state-logo-empty"],
     "scenario": ["state-show", "state-safe-fill"],
+    "feature_callouts": ["state-show", "state-hidden"],
     "bottom_gallery": ["state-show", "state-fallback-fill", "state-hidden"]
   },
   "layer_contracts": {
@@ -125,7 +163,7 @@
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 4,
       "max_lines": 2,
-      "fallback_rule": "render up to 4 fixed callout boxes without overlapping product card content area",
+      "fallback_rule": "render only the resolved feature count in fixed callout boxes; collapse unused connectors, markers, and shells",
       "collapse_rule": "collapse when features.length == 0"
     },
     "title_layer": {
@@ -147,22 +185,22 @@
       "collapse_rule": "collapse when subtitle is empty"
     },
     "bottom_gallery_shell_layer": {
-      "visible_when": "gallery state is show or fallback-fill",
+      "visible_when": "gallery_images.length > 0",
       "bounds": { "x": 96, "y": 888, "w": 832, "h": 72 },
       "padding": { "top": 8, "right": 0, "bottom": 8, "left": 0 },
       "max_items": 4,
       "max_lines": 0,
-      "fallback_rule": "keep shell for filled gallery states",
-      "collapse_rule": "collapse when gallery state is hidden"
+      "fallback_rule": "render a dedicated shell region only when at least one gallery tile resolves",
+      "collapse_rule": "collapse when gallery_images.length == 0"
     },
     "bottom_gallery_items_layer": {
       "visible_when": "gallery_images.length > 0",
-      "bounds": { "x": 96, "y": 904, "w": 832, "h": 56 },
+      "bounds": { "x": 96, "y": 896, "w": 832, "h": 56 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 4,
       "max_lines": 0,
-      "fallback_rule": "cycle available gallery_images deterministically to fill up to 4 slots; if none, do not render ghost placeholders",
-      "collapse_rule": "collapse this items layer when gallery_images.length == 0; allow shell to hide or collapse with it"
+      "fallback_rule": "render only actual gallery_images in fixed tile boxes with deterministic order; if none, do not render ghost placeholders",
+      "collapse_rule": "collapse this items layer when gallery_images.length == 0"
     },
     "bottom_tagline_layer": {
       "visible_when": "operator tagline binding exists",
@@ -189,10 +227,10 @@
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520, "fit": "cover", "radius": 24 },
     "product": { "x": 456, "y": 188, "w": 300, "h": 520, "fit": "contain", "radius": 24 },
     "gallery": [
-      { "x": 96, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
-      { "x": 308, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
-      { "x": 520, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
-      { "x": 732, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 }
+      { "x": 96, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 308, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 520, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 732, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 }
     ],
     "title": { "x": 112, "y": 744, "w": 800, "h": 84 },
     "subtitle": { "x": 152, "y": 840, "w": 720, "h": 28 },

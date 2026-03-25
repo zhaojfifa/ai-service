@@ -481,7 +481,7 @@ class TestCtaPillRendering:
 
 class TestStructuredGalleryMarkup:
 
-    def test_partial_gallery_is_deterministically_filled(self):
+    def test_partial_gallery_renders_actual_item_count(self):
         renderer = PuppeteerStructuredRenderer()
         slot_spec = {
             "slots": {
@@ -494,21 +494,23 @@ class TestStructuredGalleryMarkup:
             }
         }
 
-        markup, layer_class = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
+        markup, layer_class, count = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
 
-        assert layer_class == "state-fallback-fill"
-        assert markup.count("gallery-item") == 4
-        assert markup.count('src="a.png"') == 2
-        assert markup.count('src="b.png"') == 2
+        assert layer_class == "state-show"
+        assert count == 2
+        assert markup.count("gallery-item") == 2
+        assert markup.count('src="a.png"') == 1
+        assert markup.count('src="b.png"') == 1
 
     def test_empty_gallery_hides_bottom_layer(self):
         renderer = PuppeteerStructuredRenderer()
         slot_spec = {"slots": {"gallery": [{"x": 0, "y": 0, "w": 10, "h": 10}]}}
 
-        markup, layer_class = renderer._gallery_markup(slot_spec, [])
+        markup, layer_class, count = renderer._gallery_markup(slot_spec, [])
 
         assert markup == ""
         assert layer_class == "state-hidden"
+        assert count == 0
 
     def test_full_gallery_marks_show_state(self):
         renderer = PuppeteerStructuredRenderer()
@@ -521,10 +523,28 @@ class TestStructuredGalleryMarkup:
             }
         }
 
-        markup, layer_class = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
+        markup, layer_class, count = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
 
         assert layer_class == "state-show"
+        assert count == 2
         assert markup.count("gallery-item") == 2
+
+    def test_feature_markup_renders_only_actual_features(self):
+        renderer = PuppeteerStructuredRenderer()
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 10, "anchor_y": 20, "label_box": {"x": 30, "y": 0, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 70, "label_box": {"x": 30, "y": 50, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 120, "label_box": {"x": 30, "y": 100, "w": 60, "h": 40}},
+            ]
+        }
+
+        markup, count = renderer._feature_markup(anchor_map, ("One",))
+
+        assert count == 1
+        assert markup.count('class="feature-callout"') == 1
+        assert markup.count("feature-callout-connector") == 1
+        assert markup.count("feature-callout-marker") == 1
 
     def test_prepare_gallery_urls_caps_and_resizes(self):
         slot_spec = {
@@ -583,7 +603,7 @@ class TestStructuredScenarioLayer:
             ).read_text(encoding="utf-8")
         )
 
-        html_payload = renderer._build_html(
+        html_payload, _, region_status = renderer._build_html(
             html_template=html_template,
             css_template=css_template,
             svg_overlay="",
@@ -601,3 +621,5 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
+        assert 'data-region="feature_region"' in html_payload
+        assert region_status["bottom_region"]["collapsed"] is True
