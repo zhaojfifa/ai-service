@@ -129,6 +129,19 @@ class LayoutRenderer:
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
+        layer_render_status = _build_renderer_layer_render_status(
+            poster=poster,
+            has_logo=assets.logo is not None,
+            has_scenario=assets.scenario is not None,
+            has_product=assets.product is not None,
+            feature_count=min(len(poster.features), len(spec.feature_callouts)),
+            gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
+            gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
+            scenario_source=poster.scenario_image.url if poster.scenario_image else None,
+            product_source=poster.product_image.url,
+            logo_source=poster.logo.url if poster.logo else None,
+            scenario_safe_fill=False,
+        )
         return ForegroundResult(
             image=canvas,
             png_bytes=png_bytes,
@@ -137,6 +150,8 @@ class LayoutRenderer:
             foreground_renderer=self.RENDERER_NAME,
             template_contract_version=spec.contract_version,
             layer_timings_ms=layer_timings,
+            layer_render_status=layer_render_status,
+            region_render_status=_build_renderer_region_render_status(layer_render_status),
         )
 
     def _draw_feature_callout_structure(
@@ -372,6 +387,19 @@ class PuppeteerStructuredRenderer:
 
         png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
+        layer_render_status = _build_renderer_layer_render_status(
+            poster=poster,
+            has_logo=bool(asset_urls["logo"]),
+            has_scenario=bool(asset_urls.get("scenario_is_real")),
+            has_product=True,
+            feature_count=min(len([item for item in poster.features if item]), len(spec.feature_callouts)),
+            gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
+            gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
+            scenario_source=poster.scenario_image.url if poster.scenario_image else "safe_preset_image",
+            product_source=poster.product_image.url,
+            logo_source=poster.logo.url if poster.logo else None,
+            scenario_safe_fill=not bool(asset_urls.get("scenario_is_real")),
+        )
         return ForegroundResult(
             image=image,
             png_bytes=png_bytes,
@@ -381,6 +409,8 @@ class PuppeteerStructuredRenderer:
             template_contract_version=str(slot_spec.get("template_contract_version", spec.contract_version)),
             layer_timings_ms=layer_timings,
             gallery_items_status=gallery_items_status,
+            layer_render_status=layer_render_status,
+            region_render_status=_build_renderer_region_render_status(layer_render_status),
         )
 
     def _read_template_file(self, name: str, optional: bool = False) -> str:
@@ -732,6 +762,133 @@ def _truncate_detail(detail: str, limit: int = 240) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 3] + "..."
+
+
+def _build_renderer_layer_render_status(
+    *,
+    poster: PosterSpec,
+    has_logo: bool,
+    has_scenario: bool,
+    has_product: bool,
+    feature_count: int,
+    gallery_valid: int,
+    gallery_requested: int,
+    scenario_source: Optional[str],
+    product_source: str,
+    logo_source: Optional[str],
+    scenario_safe_fill: bool,
+) -> dict[str, dict[str, Any]]:
+    gallery_rendered = gallery_valid > 0
+    scenario_rendered = has_scenario or scenario_safe_fill
+    return {
+        "brand_logo_layer": {
+            "rendered": has_logo,
+            "reason_code": None if has_logo else "logo_missing",
+            "source_binding": logo_source,
+            "count": 1 if has_logo else 0,
+            "collapsed": not has_logo,
+        },
+        "brand_text_layer": {
+            "rendered": bool(poster.brand_name),
+            "reason_code": None if poster.brand_name else "brand_name_empty",
+            "source_binding": "brand_name",
+            "count": 1 if poster.brand_name else 0,
+            "collapsed": not bool(poster.brand_name),
+        },
+        "agent_pill_layer": {
+            "rendered": bool(poster.agent_name),
+            "reason_code": None if poster.agent_name else "agent_name_empty",
+            "source_binding": "agent_name",
+            "count": 1 if poster.agent_name else 0,
+            "collapsed": not bool(poster.agent_name),
+        },
+        "scenario_image_layer": {
+            "rendered": scenario_rendered,
+            "reason_code": None if has_scenario else ("safe_preset_fill" if scenario_safe_fill else "scenario_missing"),
+            "source_binding": scenario_source,
+            "count": 1 if scenario_rendered else 0,
+            "collapsed": not scenario_rendered,
+        },
+        "product_image_layer": {
+            "rendered": has_product,
+            "reason_code": None if has_product else "product_image_missing",
+            "source_binding": product_source,
+            "count": 1 if has_product else 0,
+            "collapsed": not has_product,
+        },
+        "feature_callout_layer": {
+            "rendered": feature_count > 0,
+            "reason_code": None if feature_count > 0 else "features_empty",
+            "source_binding": "features",
+            "count": feature_count,
+            "collapsed": feature_count == 0,
+        },
+        "title_layer": {
+            "rendered": bool(poster.title),
+            "reason_code": None if poster.title else "title_empty",
+            "source_binding": "title",
+            "count": 1 if poster.title else 0,
+            "collapsed": not bool(poster.title),
+        },
+        "subtitle_layer": {
+            "rendered": bool(poster.subtitle),
+            "reason_code": None if poster.subtitle else "subtitle_empty",
+            "source_binding": "subtitle",
+            "count": 1 if poster.subtitle else 0,
+            "collapsed": not bool(poster.subtitle),
+        },
+        "bottom_gallery_items_layer": {
+            "rendered": gallery_rendered,
+            "reason_code": None if gallery_rendered else "gallery_empty",
+            "source_binding": "gallery_images",
+            "count": gallery_valid,
+            "count_requested": gallery_requested,
+            "count_valid": gallery_valid,
+            "collapsed": not gallery_rendered,
+        },
+    }
+
+
+def _build_renderer_region_render_status(
+    layer_status: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    header_count = sum(
+        int(layer_status[layer_name]["count"])
+        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
+    )
+    scenario_count = int(layer_status["scenario_image_layer"]["count"])
+    product_count = int(layer_status["product_image_layer"]["count"])
+    feature_count = int(layer_status["feature_callout_layer"]["count"])
+    title_count = int(layer_status["title_layer"]["count"])
+    gallery_count = int(layer_status["bottom_gallery_items_layer"]["count"])
+    bottom_count = title_count + gallery_count
+    return {
+        "header_region": {
+            "rendered": header_count > 0,
+            "count": header_count,
+            "collapsed": header_count == 0,
+        },
+        "scenario_region": {
+            "rendered": scenario_count > 0,
+            "count": scenario_count,
+            "collapsed": scenario_count == 0,
+        },
+        "product_region": {
+            "rendered": product_count > 0,
+            "count": product_count,
+            "collapsed": product_count == 0,
+        },
+        "feature_region": {
+            "rendered": feature_count > 0,
+            "count": feature_count,
+            "collapsed": feature_count == 0,
+        },
+        "bottom_region": {
+            "rendered": bottom_count > 0,
+            "count": bottom_count,
+            "collapsed": bottom_count == 0,
+        },
+    }
 
 
 def render_product_material_debug_layer(

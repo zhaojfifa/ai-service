@@ -34,6 +34,8 @@ class QualityGuardReport:
     structure_complete: bool
     incomplete_structure: bool
     deliverable: bool
+    structure_evidence_source: str
+    structure_evidence_complete: bool
     missing_mandatory_regions: list[str]
     missing_required_slots: list[str]
     region_render_status: dict[str, dict[str, object]]
@@ -45,6 +47,8 @@ class QualityGuardReport:
             "structure_complete": self.structure_complete,
             "incomplete_structure": self.incomplete_structure,
             "deliverable": self.deliverable,
+            "structure_evidence_source": self.structure_evidence_source,
+            "structure_evidence_complete": self.structure_evidence_complete,
             "missing_mandatory_regions": list(self.missing_mandatory_regions),
             "missing_required_slots": list(self.missing_required_slots),
             "region_render_status": self.region_render_status,
@@ -87,6 +91,8 @@ def evaluate_deliverability(
     assets: ResolvedAssets,
     layer_render_status: dict[str, dict[str, object]],
     region_render_status: dict[str, dict[str, object]],
+    structure_evidence_source: str,
+    structure_evidence_complete: bool,
     binding_inputs: Optional[dict[str, Any]] = None,
 ) -> QualityGuardReport:
     metadata = resolve_template_metadata(template.template_id)
@@ -107,9 +113,13 @@ def evaluate_deliverability(
 
     missing_required_slots = sorted(slot_binding_status.get("missing_required_slots") or [])
     missing_mandatory_regions = sorted(region_completeness_status.get("missing_mandatory_regions") or [])
-    structure_complete = not missing_required_slots and not missing_mandatory_regions
+    structure_complete = (
+        structure_evidence_complete
+        and not missing_required_slots
+        and not missing_mandatory_regions
+    )
     incomplete_structure = not structure_complete
-    deliverable = structure_complete and bool(
+    deliverable = structure_complete and structure_evidence_complete and bool(
         region_completeness_status.get("family_minimum_region_complete", False)
     )
 
@@ -117,6 +127,8 @@ def evaluate_deliverability(
         structure_complete=structure_complete,
         incomplete_structure=incomplete_structure,
         deliverable=deliverable,
+        structure_evidence_source=structure_evidence_source,
+        structure_evidence_complete=structure_evidence_complete,
         missing_mandatory_regions=missing_mandatory_regions,
         missing_required_slots=missing_required_slots,
         region_render_status=region_render_status,

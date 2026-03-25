@@ -39,6 +39,8 @@ class _FakePoster2Pipeline:
             structure_complete=True,
             incomplete_structure=False,
             deliverable=True,
+            structure_evidence_source="renderer_emitted",
+            structure_evidence_complete=True,
             missing_mandatory_regions=[],
             missing_required_slots=[],
             region_render_status={"header_region": {"rendered": True}},
@@ -83,6 +85,8 @@ class _FakeDegradedPoster2Pipeline:
             structure_complete=True,
             incomplete_structure=False,
             deliverable=True,
+            structure_evidence_source="renderer_emitted",
+            structure_evidence_complete=True,
             missing_mandatory_regions=[],
             missing_required_slots=[],
             region_render_status={"header_region": {"rendered": True}},
@@ -127,6 +131,8 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["structure_complete"] is True
     assert body["incomplete_structure"] is False
     assert body["deliverable"] is True
+    assert body["structure_evidence_source"] == "renderer_emitted"
+    assert body["structure_evidence_complete"] is True
     assert body["missing_required_slots"] == []
 
 
@@ -179,6 +185,7 @@ def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch)
     assert body["fallback_reason_code"] == "puppeteer_browser_launch_failed"
     assert body["fallback_reason_detail"] == "BrowserType.launch: target closed"
     assert body["deliverable"] is True
+    assert body["structure_evidence_complete"] is True
 
 
 def test_generate_poster_v2_rejects_puppeteer_for_non_pilot_template():

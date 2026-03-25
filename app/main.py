@@ -1506,6 +1506,8 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             structure_complete=manifest.structure_complete,
             incomplete_structure=manifest.incomplete_structure,
             deliverable=manifest.deliverable,
+            structure_evidence_source=manifest.structure_evidence_source,
+            structure_evidence_complete=manifest.structure_evidence_complete,
             missing_mandatory_regions=manifest.missing_mandatory_regions,
             missing_required_slots=manifest.missing_required_slots,
             region_render_status=manifest.region_render_status,

@@ -288,6 +288,8 @@ class RenderManifest:
     structure_complete: Optional[bool] = None
     incomplete_structure: Optional[bool] = None
     deliverable: Optional[bool] = None
+    structure_evidence_source: Optional[str] = None
+    structure_evidence_complete: Optional[bool] = None
     missing_mandatory_regions: list[str] = field(default_factory=list)
     missing_required_slots: list[str] = field(default_factory=list)
     region_render_status: dict = field(default_factory=dict)
