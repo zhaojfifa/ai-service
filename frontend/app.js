@@ -6612,15 +6612,43 @@ function updatePoster2DiagnosticsPanel(data) {
     const el = document.getElementById(id);
     if (el) el.textContent = value == null || value === '' ? 'N/A' : String(value);
   };
+  const setJson = (id, value, fallback) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (value == null) {
+      el.textContent = fallback;
+      return;
+    }
+    if (Array.isArray(value) && value.length === 0) {
+      el.textContent = '[]';
+      return;
+    }
+    if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) {
+      el.textContent = '{}';
+      return;
+    }
+    try {
+      el.textContent = JSON.stringify(value, null, 2);
+    } catch (_err) {
+      el.textContent = fallback;
+    }
+  };
 
   setCode('poster2-template-id', data?.template_id || 'N/A');
   setCode('poster2-renderer-mode-requested', data?.renderer_mode || 'N/A');
   setCode('poster2-render-engine-used', data?.render_engine_used || 'N/A');
   setCode('poster2-degraded', typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A');
+  setCode('poster2-structure-complete', typeof data?.structure_complete === 'boolean' ? String(data.structure_complete) : 'N/A');
+  setCode('poster2-incomplete-structure', typeof data?.incomplete_structure === 'boolean' ? String(data.incomplete_structure) : 'N/A');
+  setCode('poster2-deliverable', typeof data?.deliverable === 'boolean' ? String(data.deliverable) : 'N/A');
   setCode('poster2-fallback-reason-code', data?.fallback_reason_code || 'N/A');
   setCode('poster2-foreground-renderer', data?.foreground_renderer || 'N/A');
   setCode('poster2-total-ms', data?.timings_ms?.total_ms ?? 'N/A');
   setCode('poster2-template-contract-version', data?.template_contract_version || 'N/A');
+  setJson('poster2-missing-mandatory-regions', data?.missing_mandatory_regions, '[]');
+  setJson('poster2-missing-required-slots', data?.missing_required_slots, '[]');
+  setJson('poster2-region-render-status', data?.region_render_status, '{}');
+  setJson('poster2-slot-binding-status', data?.slot_binding_status, '{}');
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
   setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');
@@ -6641,6 +6669,7 @@ function renderPoster2RunHistory() {
       <strong>Run ${history.length - index}</strong>
       <div>requested <code>${entry.requestedRenderer || 'N/A'}</code> -> effective <code>${entry.effectiveRenderer || 'N/A'}</code></div>
       <div>degraded <code>${entry.degraded}</code> fallback <code>${entry.fallbackReason || 'null'}</code></div>
+      <div>incomplete_structure <code>${entry.incompleteStructure}</code> deliverable <code>${entry.deliverable}</code></div>
     `;
     if (entry.finalUrl) {
       const link = document.createElement('a');
@@ -6661,6 +6690,8 @@ function recordPoster2PilotRun(data) {
     requestedRenderer: data?.renderer_mode || null,
     effectiveRenderer: data?.render_engine_used || null,
     degraded: typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A',
+    incompleteStructure: typeof data?.incomplete_structure === 'boolean' ? String(data.incomplete_structure) : 'N/A',
+    deliverable: typeof data?.deliverable === 'boolean' ? String(data.deliverable) : 'N/A',
     fallbackReason: data?.fallback_reason_code || null,
     finalUrl: extractVertexPosterUrl(data),
   });

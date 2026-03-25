@@ -885,6 +885,35 @@ main {
   word-break: break-word;
 }
 
+.poster2-diagnostics-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.poster2-diagnostics-detail div {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid #e4e7eb;
+  border-radius: 10px;
+  background: #fcfdff;
+}
+
+.poster2-diagnostics-detail span {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  color: #7b8794;
+}
+
+.poster2-diagnostics-detail pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
 .poster2-run-history-list {
   display: grid;
   gap: 0.75rem;
