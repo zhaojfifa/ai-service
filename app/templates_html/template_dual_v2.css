@@ -35,13 +35,8 @@ body {
 .layer-title-band-region-shell,
 .layer-gallery-strip-region-shell,
 .layer-bottom-content,
-.layer-brand-logo,
-.layer-brand-text,
-.layer-agent-pill,
 .layer-scenario-image,
 .layer-product-image,
-.layer-title,
-.layer-subtitle,
 .layer-bottom-gallery-items,
 .layer-bottom-tagline {
   position: absolute;
@@ -86,15 +81,6 @@ body {
 
 .layer-header-banner {
   z-index: 5;
-}
-
-.layer-header-banner.state-logo-empty .layer-brand-text .slot-brand {
-  left: 120px !important;
-  width: 608px !important;
-}
-
-.layer-header-banner.state-logo-empty .layer-brand-logo {
-  display: none;
 }
 
 .region-shell {
@@ -164,6 +150,53 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.layer-header-layout {
+  --header-logo-width: 120px;
+  --header-agent-width: 156px;
+  --header-agent-min-width: 112px;
+  --header-lane-gap: 20px;
+  position: absolute;
+  left: 104px;
+  top: 74px;
+  width: 808px;
+  height: 68px;
+  display: grid;
+  grid-template-columns: var(--header-logo-width) minmax(0, 1fr) minmax(var(--header-agent-min-width), var(--header-agent-width));
+  align-items: center;
+  column-gap: var(--header-lane-gap);
+}
+
+.header-lane {
+  position: relative;
+  inset: auto;
+  min-width: 0;
+}
+
+.header-lane-logo {
+  width: 120px;
+  height: 64px;
+}
+
+.header-lane-brand {
+  width: 100%;
+  max-width: 100%;
+}
+
+.header-lane-agent {
+  width: 156px;
+  max-width: 156px;
+  height: 44px;
+  justify-self: end;
+}
+
+.layer-header-banner.state-logo-empty .layer-header-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(var(--header-agent-min-width), var(--header-agent-width));
+}
+
+.layer-header-banner.state-logo-empty .header-lane-logo {
+  display: none;
 }
 
 .layer-scenario {
@@ -245,6 +278,17 @@ body {
 
 .layer-title-subtitle {
   z-index: 4;
+}
+
+.layer-title-band-layout {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .text-title {
@@ -346,6 +390,16 @@ body {
 
 .layer-title-subtitle {
   z-index: 5;
+  position: absolute;
+  left: 112px;
+  top: 728px;
+  width: 800px;
+  height: 144px;
+  padding: 22px 40px 18px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .region-shell-bottom {
@@ -380,6 +434,44 @@ body {
 .slot-title,
 .slot-subtitle {
   z-index: 6;
+}
+
+.layer-brand-logo,
+.layer-brand-text,
+.layer-agent-pill,
+.layer-title,
+.layer-subtitle {
+  position: relative;
+  inset: auto;
+  min-width: 0;
+}
+
+.slot-logo,
+.slot-brand,
+.slot-agent,
+.slot-title,
+.slot-subtitle {
+  position: relative;
+  left: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  max-width: 100%;
+}
+
+.slot-logo,
+.slot-brand,
+.slot-agent {
+  height: 100% !important;
+}
+
+.slot-title,
+.slot-subtitle {
+  height: auto !important;
+}
+
+.slot-title:empty,
+.slot-subtitle:empty {
+  display: none;
 }
 
 .region-shell-gallery-strip {
