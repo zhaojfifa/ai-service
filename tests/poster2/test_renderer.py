@@ -750,9 +750,70 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
+        assert "layer-hero-peer-region state-safe-fill" in html_payload
+        assert "scenario-fit-cover" in html_payload
+        assert "product-fit-contain" in html_payload
         assert 'data-region="title_band_region"' in html_payload
         assert 'data-region="feature_region"' in html_payload
         assert "__SVG_OVERLAY__" not in html_payload
+
+    def test_template_html_marks_real_scenario_when_asset_exists(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(),
+            asset_urls={
+                "logo": "",
+                "scenario": "data:image/png;base64,real",
+                "scenario_is_real": True,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert "layer-hero-peer-region state-real" in html_payload
+        assert "region-shell-scenario state-real" in html_payload
+        assert "layer layer-product layer-hero-peer-region state-fit-contain" in html_payload
+
+    def test_template_css_exposes_peer_region_fit_policies(self):
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+        assert ".layer-hero-peer-region" in css_template
+        assert ".scenario-fit-cover img" in css_template
+        assert "object-fit: cover;" in css_template
+        assert ".product-fit-contain img" in css_template
+        assert "object-fit: contain;" in css_template
 
 
 class TestHeaderAndTitleBandLayoutControl:

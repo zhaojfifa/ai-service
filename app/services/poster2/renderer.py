@@ -444,8 +444,10 @@ class PuppeteerStructuredRenderer:
         gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
         feature_markup, feature_layer_class = self._feature_markup(anchor_map, poster.features)
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
-        scenario_layer_class = "state-show" if asset_urls.get("scenario_is_real") else "state-safe-fill"
-        scenario_shell_class = "" if asset_urls.get("scenario_is_real") else "state-safe-fill"
+        scenario_is_real = bool(asset_urls.get("scenario_is_real"))
+        scenario_layer_class = "state-real" if scenario_is_real else "state-safe-fill"
+        scenario_shell_class = "state-real" if scenario_is_real else "state-safe-fill"
+        scenario_content_class = "state-real" if scenario_is_real else "state-safe-fill"
         bottom_region_class = "state-show" if poster.title or poster.subtitle or asset_urls["gallery"] else "state-hidden"
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
@@ -469,8 +471,10 @@ class PuppeteerStructuredRenderer:
             "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
+            "__SCENARIO_CONTENT_CLASS__": scenario_content_class,
             "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
             "__SCENARIO_URL__": asset_urls["scenario"],
+            "__PRODUCT_LAYER_CLASS__": "state-fit-contain",
             "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
             "__PRODUCT_URL__": asset_urls["product"],
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
