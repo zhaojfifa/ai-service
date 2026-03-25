@@ -30,6 +30,7 @@ from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
+from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -46,7 +47,9 @@ def load_template(template_id: str) -> TemplateSpec:
             f"TemplateSpec not found: {path}. "
             f"Available specs: {[p.stem for p in _SPECS_DIR.glob('*.json')]}"
         )
-    return TemplateSpec.from_json(path)
+    template = TemplateSpec.from_json(path)
+    validate_template_registration(template)
+    return template
 
 
 class PosterPipeline:
