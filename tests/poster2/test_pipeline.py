@@ -34,6 +34,7 @@ from app.services.poster2.contracts import (
     TemplateSpec,
 )
 from app.services.poster2.pipeline import PosterPipeline
+from app.services.poster2.quality_guard import QualityGuardError
 from app.services.poster2.renderer import ForegroundResult, LayoutRenderer
 from app.services.poster2.renderer_routing import RendererRoutingError
 
@@ -119,6 +120,59 @@ class _FakeDegradedRenderer:
             fallback_reason_code="puppeteer_timeout",
             fallback_reason_detail="puppeteer timed out",
             fallback_stage="navigation",
+        )
+
+
+class _FakeDegradedIncompleteRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="e" * 64,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            template_contract_version=spec.contract_version,
+            degraded=True,
+            degraded_reason="puppeteer_timeout",
+            fallback_reason_code="puppeteer_timeout",
+            fallback_reason_detail="puppeteer timed out",
+            fallback_stage="navigation",
+            layer_render_status={
+                "title_layer": {"count": 0},
+                "bottom_gallery_items_layer": {"count": 0},
+            },
+            region_render_status={
+                "header_region": {"rendered": True, "count": 2},
+                "scenario_region": {"rendered": False, "count": 0},
+                "product_region": {"rendered": True, "count": 1},
+                "feature_region": {"rendered": True, "count": 2},
+                "bottom_region": {"rendered": False, "count": 0},
+            },
+        )
+
+
+class _FakeIncompleteRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="d" * 64,
+            render_engine_used="puppeteer",
+            foreground_renderer="poster2.puppeteer_structured",
+            template_contract_version=spec.contract_version,
+            layer_render_status={
+                "title_layer": {"count": 0},
+                "bottom_gallery_items_layer": {"count": 0},
+            },
+            region_render_status={
+                "header_region": {"rendered": True, "count": 2},
+                "scenario_region": {"rendered": False, "count": 0},
+                "product_region": {"rendered": True, "count": 1},
+                "feature_region": {"rendered": True, "count": 2},
+                "bottom_region": {"rendered": False, "count": 0},
+            },
         )
 
 
@@ -243,6 +297,22 @@ class TestPosterPipelineRun:
         assert manifest.degraded_reason is None
         assert manifest.fallback_reason_code is None
         assert manifest.fallback_reason_detail is None
+        assert manifest.structure_complete is True
+        assert manifest.incomplete_structure is False
+        assert manifest.deliverable is True
+
+    def test_preflight_failure_rejects_invalid_input_before_rendering(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        with pytest.raises(QualityGuardError) as excinfo:
+            asyncio.run(pipeline.run(_make_spec(title=""), template))
+        assert excinfo.value.reason_code == "missing_required_input"
 
     def test_resolved_inputs_in_manifest(self):
         manifest = self._run(_make_spec())
@@ -353,6 +423,11 @@ class TestPosterPipelineRun:
         assert completeness["missing_mandatory_regions"] == []
         assert "header_region" in completeness["rendered_regions"]
         assert "gallery_strip_region" in completeness["collapsed_regions"]
+        assert metadata["structure_complete"] is True
+        assert metadata["incomplete_structure"] is False
+        assert metadata["deliverable"] is True
+        assert metadata["missing_required_slots"] == []
+        assert metadata["missing_mandatory_regions"] == []
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()
@@ -392,23 +467,35 @@ class TestPosterPipelineRun:
         assert metadata["effective_renderer_mode"] == "pillow"
         assert metadata["degraded"] is True
         assert metadata["fallback_reason_code"] == "puppeteer_timeout"
+        assert metadata["deliverable"] is True
 
     def test_fallback_result_requires_structure_recheck(self):
         template = _load_template()
         pipeline = PosterPipeline(
             background_svc=_mock_bg_service(),
-            renderer=_FakeDegradedRenderer(),
+            renderer=_FakeDegradedIncompleteRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(_make_assets()),
             put_bytes_fn=_mock_r2_put(),
         )
 
         with pytest.raises(RendererRoutingError) as excinfo:
-            asyncio.run(
-                pipeline.run(
-                    _make_spec(title=""),
-                    template,
-                )
-            )
+            asyncio.run(pipeline.run(_make_spec(), template))
 
-        assert excinfo.value.reason_code == "fallback_missing_required_slots"
+        assert excinfo.value.reason_code == "fallback_incomplete_structure"
+
+    def test_incomplete_structure_is_not_deliverable_even_when_image_exists(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeIncompleteRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+        assert manifest.final_url == "https://r2.example.com/final.png"
+        assert manifest.structure_complete is False
+        assert manifest.incomplete_structure is True
+        assert manifest.deliverable is False
+        assert "title_band_region" in manifest.missing_mandatory_regions

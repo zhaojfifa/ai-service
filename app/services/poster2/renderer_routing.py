@@ -143,3 +143,26 @@ def assert_fallback_result_is_deliverable(
             detail,
             failure_type="fallback_structure_failure",
         )
+
+
+def assert_quality_guard_deliverable(
+    *,
+    deliverable: bool,
+    missing_required_slots: list[str],
+    missing_mandatory_regions: list[str],
+) -> None:
+    if missing_required_slots:
+        raise RendererRoutingError(
+            "fallback_missing_required_slots",
+            "fallback result is missing required slots: " + ", ".join(missing_required_slots),
+            failure_type="fallback_structure_failure",
+        )
+    if not deliverable:
+        detail = "fallback result does not satisfy minimum deliverable regions"
+        if missing_mandatory_regions:
+            detail += ": " + ", ".join(missing_mandatory_regions)
+        raise RendererRoutingError(
+            "fallback_incomplete_structure",
+            detail,
+            failure_type="fallback_structure_failure",
+        )

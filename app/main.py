@@ -1503,6 +1503,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             fallback_reason_detail=manifest.fallback_reason_detail,
             degraded=manifest.degraded,
             degraded_reason=manifest.degraded_reason,
+            structure_complete=manifest.structure_complete,
+            incomplete_structure=manifest.incomplete_structure,
+            deliverable=manifest.deliverable,
+            missing_mandatory_regions=manifest.missing_mandatory_regions,
+            missing_required_slots=manifest.missing_required_slots,
+            region_render_status=manifest.region_render_status,
+            slot_binding_status=manifest.slot_binding_status,
         )
 
     except FileNotFoundError as exc:

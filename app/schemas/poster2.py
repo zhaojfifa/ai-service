@@ -98,3 +98,10 @@ class GeneratePosterV2Response(BaseModel):
     fallback_reason_detail: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None
+    structure_complete: Optional[bool] = None
+    incomplete_structure: Optional[bool] = None
+    deliverable: Optional[bool] = None
+    missing_mandatory_regions: list[str] = Field(default_factory=list)
+    missing_required_slots: list[str] = Field(default_factory=list)
+    region_render_status: dict = Field(default_factory=dict)
+    slot_binding_status: dict = Field(default_factory=dict)
