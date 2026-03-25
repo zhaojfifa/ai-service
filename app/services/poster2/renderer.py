@@ -778,6 +778,8 @@ def _build_renderer_layer_render_status(
     logo_source: Optional[str],
     scenario_safe_fill: bool,
 ) -> dict[str, dict[str, Any]]:
+    # This is renderer-side structural status derivation from bound inputs and
+    # renderer-controlled asset preparation. It is not a post-render pixel check.
     gallery_rendered = gallery_valid > 0
     scenario_rendered = has_scenario or scenario_safe_fill
     return {

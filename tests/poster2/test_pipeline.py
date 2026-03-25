@@ -330,7 +330,7 @@ class TestPosterPipelineRun:
         assert manifest.structure_complete is True
         assert manifest.incomplete_structure is False
         assert manifest.deliverable is True
-        assert manifest.structure_evidence_source == "renderer_emitted"
+        assert manifest.structure_evidence_source == "renderer_derived"
         assert manifest.structure_evidence_complete is True
 
     def test_preflight_failure_rejects_invalid_input_before_rendering(self):
@@ -458,7 +458,7 @@ class TestPosterPipelineRun:
         assert metadata["structure_complete"] is True
         assert metadata["incomplete_structure"] is False
         assert metadata["deliverable"] is True
-        assert metadata["structure_evidence_source"] == "renderer_emitted"
+        assert metadata["structure_evidence_source"] == "renderer_derived"
         assert metadata["structure_evidence_complete"] is True
         assert metadata["missing_required_slots"] == []
         assert metadata["missing_mandatory_regions"] == []
@@ -502,7 +502,7 @@ class TestPosterPipelineRun:
         assert metadata["degraded"] is True
         assert metadata["fallback_reason_code"] == "puppeteer_timeout"
         assert metadata["deliverable"] is True
-        assert metadata["structure_evidence_source"] == "renderer_emitted"
+        assert metadata["structure_evidence_source"] == "renderer_derived"
         assert metadata["structure_evidence_complete"] is True
 
     def test_fallback_result_requires_structure_recheck(self):
