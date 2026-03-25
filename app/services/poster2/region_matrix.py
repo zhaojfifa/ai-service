@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .template_registry import (
     FAMILY_A_CAMPAIGN_EXPLAINER,
@@ -53,6 +53,26 @@ class ResolvedRegionMatrix:
     regions: dict[str, RegionDefinition]
 
 
+@dataclass
+class RegionCompletenessReport:
+    rendered_regions: list[str]
+    collapsed_regions: list[str]
+    missing_mandatory_regions: list[str]
+    region_violation_reasons: dict[str, list[str]]
+    family_minimum_region_complete: bool
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "rendered_regions": sorted(self.rendered_regions),
+            "collapsed_regions": sorted(self.collapsed_regions),
+            "missing_mandatory_regions": sorted(self.missing_mandatory_regions),
+            "region_violation_reasons": {
+                key: reasons for key, reasons in sorted(self.region_violation_reasons.items())
+            },
+            "family_minimum_region_complete": self.family_minimum_region_complete,
+        }
+
+
 def resolve_region_matrix_for_template(template_id: str) -> ResolvedRegionMatrix:
     metadata = resolve_template_metadata(template_id)
     return resolve_region_matrix(metadata)
@@ -65,6 +85,41 @@ def resolve_region_matrix(metadata: TemplateMetadata) -> ResolvedRegionMatrix:
         return _resolve_family_b_matrix(metadata)
     raise RegionMatrixResolverError(
         f"Unsupported template family for region matrix resolution: {metadata.template_family}"
+    )
+
+
+def evaluate_region_completeness(
+    metadata: TemplateMetadata,
+    *,
+    layer_status: Optional[dict[str, dict[str, object]]] = None,
+    region_status: Optional[dict[str, dict[str, object]]] = None,
+    binding_inputs: Optional[dict[str, Any]] = None,
+) -> RegionCompletenessReport:
+    matrix = resolve_region_matrix(metadata)
+    presence = _resolve_region_presence(
+        matrix,
+        layer_status=layer_status or {},
+        region_status=region_status or {},
+        binding_inputs=binding_inputs or {},
+    )
+    rendered_regions = [name for name, state in presence.items() if state["rendered"]]
+    collapsed_regions = [name for name, state in presence.items() if state["collapsed"]]
+    missing_mandatory_regions = [
+        name for name in matrix.mandatory_regions if not presence.get(name, {}).get("rendered", False)
+    ]
+    region_violation_reasons: dict[str, list[str]] = {}
+    for name, state in presence.items():
+        reasons = list(state.get("reasons", []))
+        if reasons:
+            region_violation_reasons[name] = reasons
+    for name in missing_mandatory_regions:
+        region_violation_reasons.setdefault(name, []).append("mandatory_region_missing")
+    return RegionCompletenessReport(
+        rendered_regions=rendered_regions,
+        collapsed_regions=collapsed_regions,
+        missing_mandatory_regions=missing_mandatory_regions,
+        region_violation_reasons=region_violation_reasons,
+        family_minimum_region_complete=len(missing_mandatory_regions) == 0,
     )
 
 
@@ -306,6 +361,133 @@ def _load_slot_spec(template_id: str) -> dict:
     if not path.exists():
         raise RegionMatrixResolverError(f"slot spec not found for template_id={template_id}: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _resolve_region_presence(
+    matrix: ResolvedRegionMatrix,
+    *,
+    layer_status: dict[str, dict[str, object]],
+    region_status: dict[str, dict[str, object]],
+    binding_inputs: dict[str, Any],
+) -> dict[str, dict[str, object]]:
+    if matrix.template_family == FAMILY_A_CAMPAIGN_EXPLAINER:
+        return _resolve_family_a_presence(layer_status=layer_status, region_status=region_status)
+    if matrix.template_family == FAMILY_B_PRODUCT_SHEET_STORY:
+        return _resolve_family_b_presence(binding_inputs=binding_inputs)
+    raise RegionMatrixResolverError(
+        f"Unsupported template family for presence evaluation: {matrix.template_family}"
+    )
+
+
+def _resolve_family_a_presence(
+    *,
+    layer_status: dict[str, dict[str, object]],
+    region_status: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    def count(layer_name: str) -> int:
+        return int(layer_status.get(layer_name, {}).get("count", 0))
+
+    def region_rendered(region_name: str) -> bool:
+        return bool(region_status.get(region_name, {}).get("rendered", False))
+
+    title_rendered = count("title_layer") > 0
+    gallery_rendered = count("bottom_gallery_items_layer") > 0
+    bottom_rendered = region_rendered("bottom_region") or title_rendered or gallery_rendered
+    return {
+        "header_region": {
+            "rendered": region_rendered("header_region"),
+            "collapsed": not region_rendered("header_region"),
+            "reasons": [] if region_rendered("header_region") else ["brand identity missing"],
+        },
+        "scenario_region": {
+            "rendered": region_rendered("scenario_region"),
+            "collapsed": not region_rendered("scenario_region"),
+            "reasons": [] if region_rendered("scenario_region") else ["scenario collapsed or unavailable"],
+        },
+        "product_region": {
+            "rendered": region_rendered("product_region"),
+            "collapsed": not region_rendered("product_region"),
+            "reasons": [] if region_rendered("product_region") else ["product image missing"],
+        },
+        "feature_region": {
+            "rendered": region_rendered("feature_region"),
+            "collapsed": not region_rendered("feature_region"),
+            "reasons": [] if region_rendered("feature_region") else ["feature callouts collapsed or empty"],
+        },
+        "title_band_region": {
+            "rendered": title_rendered,
+            "collapsed": not title_rendered,
+            "reasons": [] if title_rendered else ["title missing from title band"],
+        },
+        "gallery_strip_region": {
+            "rendered": gallery_rendered,
+            "collapsed": not gallery_rendered,
+            "reasons": [] if gallery_rendered else ["gallery strip collapsed or empty"],
+        },
+        "bottom_region": {
+            "rendered": bottom_rendered,
+            "collapsed": not bottom_rendered,
+            "reasons": [] if bottom_rendered else ["bottom wrapper collapsed"],
+        },
+    }
+
+
+def _resolve_family_b_presence(
+    *,
+    binding_inputs: dict[str, Any],
+) -> dict[str, dict[str, object]]:
+    def has_text(key: str) -> bool:
+        value = binding_inputs.get(key)
+        return isinstance(value, str) and bool(value.strip())
+
+    def has_items(key: str) -> bool:
+        value = binding_inputs.get(key)
+        return isinstance(value, (list, tuple)) and any(bool(item) for item in value)
+
+    brand_rendered = has_text("brand_name") or has_text("brand_banner_text")
+    hero_rendered = bool(binding_inputs.get("hero_product_present"))
+    reference_rendered = has_text("reference_text")
+    spec_rendered = has_items("spec_items")
+    copy_rendered = has_text("copy_text")
+    cta_rendered = has_text("cta_text")
+    footer_rendered = has_text("footer_brand_text")
+    return {
+        "brand_banner_region": {
+            "rendered": brand_rendered,
+            "collapsed": not brand_rendered,
+            "reasons": [] if brand_rendered else ["brand banner missing"],
+        },
+        "reference_region": {
+            "rendered": reference_rendered,
+            "collapsed": not reference_rendered,
+            "reasons": [] if reference_rendered else ["reference region collapsed"],
+        },
+        "hero_product_region": {
+            "rendered": hero_rendered,
+            "collapsed": not hero_rendered,
+            "reasons": [] if hero_rendered else ["hero product missing"],
+        },
+        "spec_region": {
+            "rendered": spec_rendered,
+            "collapsed": not spec_rendered,
+            "reasons": [] if spec_rendered else ["spec region collapsed"],
+        },
+        "copy_region": {
+            "rendered": copy_rendered,
+            "collapsed": not copy_rendered,
+            "reasons": [] if copy_rendered else ["copy region collapsed"],
+        },
+        "cta_region": {
+            "rendered": cta_rendered,
+            "collapsed": not cta_rendered,
+            "reasons": [] if cta_rendered else ["cta region collapsed"],
+        },
+        "footer_brand_region": {
+            "rendered": footer_rendered,
+            "collapsed": not footer_rendered,
+            "reasons": [] if footer_rendered else ["footer brand region collapsed"],
+        },
+    }
 
 
 def _make_region(
