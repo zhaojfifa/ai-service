@@ -42,6 +42,9 @@ from app.services.poster2.renderer import (
     _fit_image,
     ForegroundResult,
     _build_puppeteer_failure_info,
+    _normalized_feature_texts,
+    _resolve_feature_callout_layout,
+    _resolve_feature_callout_map,
     _safe_preset_scenario_data_url,
     _prepare_gallery_urls,
 )
@@ -602,10 +605,27 @@ class TestStructuredGalleryMarkup:
 
         markup, layer_class = renderer._feature_markup(anchor_map, ("One",))
 
-        assert layer_class == "state-show"
+        assert layer_class == "state-show feature-mode-1"
         assert markup.count('class="feature-callout"') == 1
         assert markup.count("feature-callout-connector") == 1
         assert markup.count("feature-callout-marker") == 1
+
+    def test_feature_markup_ignores_blank_items_and_uses_real_count_mode(self):
+        renderer = PuppeteerStructuredRenderer()
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 10, "anchor_y": 20, "label_box": {"x": 30, "y": 0, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 70, "label_box": {"x": 30, "y": 50, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 120, "label_box": {"x": 30, "y": 100, "w": 60, "h": 40}},
+            ]
+        }
+
+        markup, layer_class = renderer._feature_markup(anchor_map, ("One", " ", "Three"))
+
+        assert layer_class == "state-show feature-mode-2"
+        assert markup.count('class="feature-callout"') == 2
+        assert markup.count("feature-callout-connector") == 2
+        assert markup.count("feature-callout-marker") == 2
 
     def test_feature_markup_hides_when_empty(self):
         renderer = PuppeteerStructuredRenderer()
@@ -613,7 +633,47 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup({"feature_callouts": []}, ())
 
         assert markup == ""
-        assert layer_class == "state-hidden"
+        assert layer_class == "state-hidden feature-mode-0"
+
+    def test_normalized_feature_texts_filter_blank_entries(self):
+        assert _normalized_feature_texts((" One ", "", "  ", "Two")) == ["One", "Two"]
+
+    def test_resolve_feature_callout_layout_centers_single_feature(self):
+        template = _load_real_template()
+
+        resolved = _resolve_feature_callout_layout(template.feature_callouts, ("One",))
+
+        assert len(resolved) == 1
+        callout, text = resolved[0]
+        assert text == "One"
+        assert callout.label_box.h == 72
+        assert callout.label_box.y == 360
+        assert callout.anchor_y == 396
+
+    def test_resolve_feature_callout_layout_uses_compact_three_feature_mode(self):
+        template = _load_real_template()
+
+        resolved = _resolve_feature_callout_layout(template.feature_callouts, ("One", "Two", "Three"))
+
+        assert len(resolved) == 3
+        assert [item[0].label_box.y for item in resolved] == [272, 360, 448]
+        assert all(item[0].label_box.h == 72 for item in resolved)
+
+    def test_resolve_feature_callout_map_matches_three_feature_mode_geometry(self):
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 764, "anchor_y": 250, "label_box": {"x": 784, "y": 216, "w": 144, "h": 60}},
+                {"anchor_x": 764, "anchor_y": 350, "label_box": {"x": 784, "y": 316, "w": 144, "h": 60}},
+                {"anchor_x": 764, "anchor_y": 450, "label_box": {"x": 784, "y": 416, "w": 144, "h": 60}},
+                {"anchor_x": 764, "anchor_y": 550, "label_box": {"x": 784, "y": 516, "w": 144, "h": 60}},
+            ]
+        }
+
+        resolved = _resolve_feature_callout_map(anchor_map, ("One", "Two", "Three"))
+
+        assert len(resolved) == 3
+        assert [item[0]["label_box"]["y"] for item in resolved] == [272, 360, 448]
+        assert [item[0]["anchor_y"] for item in resolved] == [308, 396, 484]
 
     def test_prepare_gallery_urls_caps_and_resizes(self):
         slot_spec = {

@@ -382,7 +382,7 @@ def _build_layer_render_status(
     gallery_requested = min(len(spec.gallery_images), 4)
     gallery_valid = min(len(assets.gallery), 4)
     gallery_rendered = gallery_valid > 0
-    feature_count = min(len(spec.features), len(template.feature_callouts))
+    feature_count = min(len([item for item in spec.features if item and item.strip()]), len(template.feature_callouts))
     layer_status = {
         "background_base_layer": {
             "rendered": True,
