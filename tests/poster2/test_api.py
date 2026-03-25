@@ -39,7 +39,7 @@ class _FakePoster2Pipeline:
             structure_complete=True,
             incomplete_structure=False,
             deliverable=True,
-            structure_evidence_source="renderer_emitted",
+            structure_evidence_source="renderer_derived",
             structure_evidence_complete=True,
             missing_mandatory_regions=[],
             missing_required_slots=[],
@@ -85,7 +85,7 @@ class _FakeDegradedPoster2Pipeline:
             structure_complete=True,
             incomplete_structure=False,
             deliverable=True,
-            structure_evidence_source="renderer_emitted",
+            structure_evidence_source="renderer_derived",
             structure_evidence_complete=True,
             missing_mandatory_regions=[],
             missing_required_slots=[],
@@ -131,7 +131,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["structure_complete"] is True
     assert body["incomplete_structure"] is False
     assert body["deliverable"] is True
-    assert body["structure_evidence_source"] == "renderer_emitted"
+    assert body["structure_evidence_source"] == "renderer_derived"
     assert body["structure_evidence_complete"] is True
     assert body["missing_required_slots"] == []
 

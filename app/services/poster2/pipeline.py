@@ -174,7 +174,7 @@ class PosterPipeline:
         inferred_region_render_status = _build_region_render_status(inferred_layer_render_status)
         structure_evidence_complete = bool(fg_result.layer_render_status) and bool(fg_result.region_render_status)
         structure_evidence_source = (
-            "renderer_emitted" if structure_evidence_complete else "pipeline_inferred"
+            "renderer_derived" if structure_evidence_complete else "pipeline_inferred"
         )
         layer_render_status = _merge_status_maps(inferred_layer_render_status, fg_result.layer_render_status)
         region_render_status = _merge_status_maps(inferred_region_render_status, fg_result.region_render_status)
