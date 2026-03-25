@@ -201,6 +201,13 @@ class TestTemplateSpecLoading:
         assert "layer_slots" in slot_spec
         assert "layer_states" in slot_spec
         assert "layer_contracts" in slot_spec
+        assert "regions" in slot_spec
+        assert "header_region" in slot_spec["regions"]
+        assert "scenario_region" in slot_spec["regions"]
+        assert "product_region" in slot_spec["regions"]
+        assert "bottom_region" in slot_spec["regions"]
+        assert "title_band_region" in slot_spec["regions"]
+        assert "gallery_strip_region" in slot_spec["regions"]
         assert "header_banner" in slot_spec["layers"]
         assert "background_base_layer" in slot_spec["layers"]
         assert "header_shell_layer" in slot_spec["layers"]
@@ -212,6 +219,9 @@ class TestTemplateSpecLoading:
         assert "product_card_shell_layer" in slot_spec["layers"]
         assert "product_image_layer" in slot_spec["layers"]
         assert "feature_callout_layer" in slot_spec["layers"]
+        assert "bottom_region_shell_layer" in slot_spec["layers"]
+        assert "title_band_region_shell_layer" in slot_spec["layers"]
+        assert "gallery_strip_region_shell_layer" in slot_spec["layers"]
         assert "title_layer" in slot_spec["layers"]
         assert "subtitle_layer" in slot_spec["layers"]
         assert "bottom_gallery" in slot_spec["layers"]
@@ -222,6 +232,8 @@ class TestTemplateSpecLoading:
         assert "brand_logo_slot" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
         assert "state-safe-fill" in slot_spec["layer_states"]["scenario"]
+        assert "feature_callouts" in slot_spec["layer_states"]
+        assert "state-hidden" in slot_spec["layer_states"]["feature_callouts"]
         for layer_name in [
             "background_base_layer",
             "header_shell_layer",
@@ -233,6 +245,9 @@ class TestTemplateSpecLoading:
             "product_card_shell_layer",
             "product_image_layer",
             "feature_callout_layer",
+            "bottom_region_shell_layer",
+            "title_band_region_shell_layer",
+            "gallery_strip_region_shell_layer",
             "title_layer",
             "subtitle_layer",
             "bottom_gallery_shell_layer",
@@ -259,7 +274,9 @@ class TestTemplateSpecLoading:
         assert bottom_gallery_items_contract["max_items"] == 4
         assert bottom_gallery_items_contract["max_lines"] == 0
         assert "ghost placeholders" in bottom_gallery_items_contract["fallback_rule"]
-        assert "fallback-fill" in slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"]
+        assert "ghost connectors" in slot_spec["layer_contracts"]["feature_callout_layer"]["fallback_rule"]
+        assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
+        assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4

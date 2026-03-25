@@ -481,7 +481,7 @@ class TestCtaPillRendering:
 
 class TestStructuredGalleryMarkup:
 
-    def test_partial_gallery_is_deterministically_filled(self):
+    def test_partial_gallery_renders_only_actual_items(self):
         renderer = PuppeteerStructuredRenderer()
         slot_spec = {
             "slots": {
@@ -496,10 +496,10 @@ class TestStructuredGalleryMarkup:
 
         markup, layer_class = renderer._gallery_markup(slot_spec, ["a.png", "b.png"])
 
-        assert layer_class == "state-fallback-fill"
-        assert markup.count("gallery-item") == 4
-        assert markup.count('src="a.png"') == 2
-        assert markup.count('src="b.png"') == 2
+        assert layer_class == "state-show"
+        assert markup.count("gallery-item") == 2
+        assert markup.count('src="a.png"') == 1
+        assert markup.count('src="b.png"') == 1
 
     def test_empty_gallery_hides_bottom_layer(self):
         renderer = PuppeteerStructuredRenderer()
@@ -525,6 +525,22 @@ class TestStructuredGalleryMarkup:
 
         assert layer_class == "state-show"
         assert markup.count("gallery-item") == 2
+
+    def test_feature_markup_collapses_cleanly(self):
+        renderer = PuppeteerStructuredRenderer()
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 10, "anchor_y": 20, "label_box": {"x": 30, "y": 0, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 70, "label_box": {"x": 30, "y": 50, "w": 60, "h": 40}},
+            ]
+        }
+
+        markup, layer_class = renderer._feature_markup(anchor_map, ("One",))
+
+        assert layer_class == "state-show"
+        assert markup.count('class="feature-callout"') == 1
+        assert markup.count("feature-callout-connector") == 1
+        assert markup.count("feature-callout-marker") == 1
 
     def test_prepare_gallery_urls_caps_and_resizes(self):
         slot_spec = {
@@ -601,3 +617,5 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
+        assert 'data-region="title_band_region"' in html_payload
+        assert "__SVG_OVERLAY__" not in html_payload

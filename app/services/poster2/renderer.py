@@ -392,9 +392,11 @@ class PuppeteerStructuredRenderer:
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
         gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
-        feature_markup = self._feature_markup(anchor_map, poster.features)
+        feature_markup, feature_layer_class = self._feature_markup(anchor_map, poster.features)
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
         scenario_layer_class = "state-show" if asset_urls.get("scenario_is_real") else "state-safe-fill"
+        scenario_shell_class = "" if asset_urls.get("scenario_is_real") else "state-safe-fill"
+        bottom_region_class = "state-show" if poster.title or poster.subtitle or asset_urls["gallery"] else "state-hidden"
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
         replacements = {
@@ -403,7 +405,7 @@ class PuppeteerStructuredRenderer:
             "__SAFE_MARGIN__": str(slot_spec.get("safe_margin", spec.safe_margin)),
             "__TEMPLATE_ID__": html.escape(spec.template_id),
             "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
-            "__SVG_OVERLAY__": svg_overlay,
+            "__SVG_OVERLAY__": "",
             "__HEADER_LAYER_CLASS__": header_layer_class,
             "__LOGO_STYLE__": _slot_style(slot_spec["slots"]["logo"]),
             "__LOGO_URL__": asset_urls["logo"],
@@ -416,10 +418,13 @@ class PuppeteerStructuredRenderer:
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
             "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
+            "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
             "__PRODUCT_URL__": asset_urls["product"],
+            "__FEATURE_LAYER_CLASS__": feature_layer_class,
+            "__BOTTOM_REGION_CLASS__": bottom_region_class,
             "__GALLERY_LAYER_CLASS__": gallery_layer_class,
             "__GALLERY_ITEMS__": gallery_markup,
             "__FEATURE_ITEMS__": feature_markup,
@@ -441,11 +446,10 @@ class PuppeteerStructuredRenderer:
             len(gallery_urls),
             len(gallery_slots),
         )
-        layer_class = "state-show" if len(gallery_urls) >= len(gallery_slots) else "state-fallback-fill"
-        filled_urls = [gallery_urls[idx % len(gallery_urls)] for idx in range(len(gallery_slots))]
+        layer_class = "state-show"
         items: list[str] = []
-        for idx, gallery_slot in enumerate(gallery_slots):
-            url = filled_urls[idx]
+        for idx, gallery_slot in enumerate(gallery_slots[: len(gallery_urls)]):
+            url = gallery_urls[idx]
             items.append(
                 f'<div class="gallery-item" style="{_slot_style(gallery_slot)}">'
                 f'<img src="{url}" alt="" loading="eager" />'
@@ -458,18 +462,30 @@ class PuppeteerStructuredRenderer:
         )
         return "".join(items), layer_class
 
-    def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> str:
+    def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> tuple[str, str]:
         items: list[str] = []
-        for idx, feature in enumerate(features[: len(anchor_map.get("feature_callouts", []))]):
+        for idx, feature in enumerate(features[: min(4, len(anchor_map.get("feature_callouts", [])))]):
             callout = anchor_map["feature_callouts"][idx]
+            anchor_x = int(callout["anchor_x"])
+            anchor_y = int(callout["anchor_y"])
+            label_box = callout["label_box"]
+            label_x = int(label_box["x"])
+            connector_left = min(anchor_x, label_x)
+            connector_width = max(label_x - anchor_x, 0)
+            items.append(
+                f'<div class="feature-callout-connector" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
+            )
+            items.append(
+                f'<div class="feature-callout-marker" style="left:{anchor_x}px;top:{anchor_y}px;"></div>'
+            )
             items.append(
                 (
-                    f'<div class="feature-callout" style="{_slot_style(callout["label_box"])}">'
+                    f'<div class="feature-callout" style="{_slot_style(label_box)}">'
                     f"{html.escape(feature)}"
                     "</div>"
                 )
             )
-        return "".join(items)
+        return "".join(items), ("state-show" if items else "state-hidden")
 
     async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
         try:

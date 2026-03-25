@@ -3,6 +3,14 @@
   "template_contract_version": "poster2.template_dual_v2.v1",
   "canvas": { "w": 1024, "h": 1024 },
   "safe_margin": 48,
+  "regions": {
+    "header_region": { "x": 72, "y": 56, "w": 880, "h": 104 },
+    "scenario_region": { "x": 96, "y": 188, "w": 288, "h": 520 },
+    "product_region": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 232 },
+    "title_band_region": { "x": 112, "y": 728, "w": 800, "h": 144 },
+    "gallery_strip_region": { "x": 96, "y": 888, "w": 832, "h": 72 }
+  },
   "layers": {
     "background": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "background_base_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
@@ -20,6 +28,10 @@
     "product_image_layer": { "x": 456, "y": 188, "w": 300, "h": 520 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "feature_callout_layer": { "x": 764, "y": 204, "w": 164, "h": 392 },
+    "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 232 },
+    "bottom_region_shell_layer": { "x": 96, "y": 728, "w": 832, "h": 232 },
+    "title_band_region_shell_layer": { "x": 112, "y": 728, "w": 800, "h": 144 },
+    "gallery_strip_region_shell_layer": { "x": 96, "y": 888, "w": 832, "h": 72 },
     "text_zone": { "x": 112, "y": 728, "w": 800, "h": 144 },
     "title_layer": { "x": 112, "y": 744, "w": 800, "h": 84 },
     "subtitle_layer": { "x": 152, "y": 840, "w": 720, "h": 28 },
@@ -38,7 +50,9 @@
   "layer_states": {
     "header_banner": ["state-logo-show", "state-logo-empty"],
     "scenario": ["state-show", "state-safe-fill"],
-    "bottom_gallery": ["state-show", "state-fallback-fill", "state-hidden"]
+    "feature_callouts": ["state-show", "state-hidden"],
+    "bottom_region": ["state-show", "state-hidden"],
+    "bottom_gallery": ["state-show", "state-hidden"]
   },
   "layer_contracts": {
     "background_base_layer": {
@@ -125,8 +139,35 @@
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 4,
       "max_lines": 2,
-      "fallback_rule": "render up to 4 fixed callout boxes without overlapping product card content area",
+      "fallback_rule": "render only actual feature callouts with matching connectors and markers; do not leave ghost connectors when slots collapse",
       "collapse_rule": "collapse when features.length == 0"
+    },
+    "bottom_region_shell_layer": {
+      "visible_when": "title, subtitle, or gallery content exists",
+      "bounds": { "x": 96, "y": 728, "w": 832, "h": 232 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "provide a single structural parent shell for title_band_region and gallery_strip_region only",
+      "collapse_rule": "collapse when all bottom region content is absent"
+    },
+    "title_band_region_shell_layer": {
+      "visible_when": "title or subtitle exists",
+      "bounds": { "x": 112, "y": 728, "w": 800, "h": 144 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 2,
+      "max_lines": 0,
+      "fallback_rule": "render a dedicated title band shell above the gallery strip",
+      "collapse_rule": "collapse when both title and subtitle are empty"
+    },
+    "gallery_strip_region_shell_layer": {
+      "visible_when": "gallery_images.length > 0",
+      "bounds": { "x": 96, "y": 888, "w": 832, "h": 72 },
+      "padding": { "top": 8, "right": 0, "bottom": 8, "left": 0 },
+      "max_items": 4,
+      "max_lines": 0,
+      "fallback_rule": "render the gallery strip shell only when gallery items resolve",
+      "collapse_rule": "collapse when gallery_images.length == 0"
     },
     "title_layer": {
       "visible_when": "title present",
@@ -147,13 +188,13 @@
       "collapse_rule": "collapse when subtitle is empty"
     },
     "bottom_gallery_shell_layer": {
-      "visible_when": "gallery state is show or fallback-fill",
+      "visible_when": "gallery_images.length > 0",
       "bounds": { "x": 96, "y": 888, "w": 832, "h": 72 },
       "padding": { "top": 8, "right": 0, "bottom": 8, "left": 0 },
       "max_items": 4,
       "max_lines": 0,
-      "fallback_rule": "keep shell for filled gallery states",
-      "collapse_rule": "collapse when gallery state is hidden"
+      "fallback_rule": "mirror gallery_strip_region shell visibility only",
+      "collapse_rule": "collapse when gallery_images.length == 0"
     },
     "bottom_gallery_items_layer": {
       "visible_when": "gallery_images.length > 0",
@@ -161,8 +202,8 @@
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 4,
       "max_lines": 0,
-      "fallback_rule": "cycle available gallery_images deterministically to fill up to 4 slots; if none, do not render ghost placeholders",
-      "collapse_rule": "collapse this items layer when gallery_images.length == 0; allow shell to hide or collapse with it"
+      "fallback_rule": "render actual gallery_images only in deterministic order; do not render ghost placeholders",
+      "collapse_rule": "collapse when gallery_images.length == 0"
     },
     "bottom_tagline_layer": {
       "visible_when": "operator tagline binding exists",
