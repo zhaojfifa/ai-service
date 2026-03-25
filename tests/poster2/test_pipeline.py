@@ -314,6 +314,10 @@ class TestPosterPipelineRun:
         region_status = metadata["region_render_status"]
         assert region_status["header_region"]["rendered"] is True
         assert region_status["header_region"]["count"] == 2
+        assert region_status["scenario_region"]["rendered"] is True
+        assert region_status["scenario_region"]["count"] == 1
+        assert region_status["product_region"]["rendered"] is True
+        assert region_status["product_region"]["count"] == 1
         assert region_status["feature_region"]["rendered"] is True
         assert region_status["feature_region"]["count"] == 2
         assert region_status["bottom_region"]["collapsed"] is True

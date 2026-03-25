@@ -205,6 +205,7 @@ class TestTemplateSpecLoading:
         assert "header_region" in slot_spec["regions"]
         assert "scenario_region" in slot_spec["regions"]
         assert "product_region" in slot_spec["regions"]
+        assert "feature_region" in slot_spec["regions"]
         assert "bottom_region" in slot_spec["regions"]
         assert "title_band_region" in slot_spec["regions"]
         assert "gallery_strip_region" in slot_spec["regions"]

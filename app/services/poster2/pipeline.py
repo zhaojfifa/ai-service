@@ -437,6 +437,8 @@ def _build_region_render_status(
         int(layer_status[layer_name]["count"])
         for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
     )
+    scenario_count = int(layer_status["scenario_image_layer"]["count"])
+    product_count = int(layer_status["product_image_layer"]["count"])
     feature_count = int(layer_status["feature_callout_layer"]["count"])
     bottom_count = int(layer_status["bottom_gallery_items_layer"]["count"])
     return {
@@ -444,6 +446,16 @@ def _build_region_render_status(
             "rendered": header_count > 0,
             "count": header_count,
             "collapsed": header_count == 0,
+        },
+        "scenario_region": {
+            "rendered": scenario_count > 0,
+            "count": scenario_count,
+            "collapsed": scenario_count == 0,
+        },
+        "product_region": {
+            "rendered": product_count > 0,
+            "count": product_count,
+            "collapsed": product_count == 0,
         },
         "feature_region": {
             "rendered": feature_count > 0,

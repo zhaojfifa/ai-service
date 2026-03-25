@@ -274,10 +274,23 @@ class PuppeteerStructuredRenderer:
     ENGINE_VERSION = "2.1.0"
     RENDER_ENGINE = "puppeteer"
     RENDERER_NAME = "poster2.puppeteer_structured"
+    DEFAULT_NAVIGATION_TIMEOUT_MS = 45000
+    DEFAULT_RENDER_TIMEOUT_MS = 45000
+    DEFAULT_FONT_READY_GRACE_MS = 1500
 
-    def __init__(self, templates_dir: Path | None = None, font_registry: FontRegistry | None = None):
+    def __init__(
+        self,
+        templates_dir: Path | None = None,
+        font_registry: FontRegistry | None = None,
+        navigation_timeout_ms: int | None = None,
+        render_timeout_ms: int | None = None,
+        font_ready_grace_ms: int | None = None,
+    ):
         self._templates_dir = templates_dir or _HTML_TEMPLATES_DIR
         self._fonts = font_registry or FontRegistry()
+        self._navigation_timeout_ms = navigation_timeout_ms or self.DEFAULT_NAVIGATION_TIMEOUT_MS
+        self._render_timeout_ms = render_timeout_ms or self.DEFAULT_RENDER_TIMEOUT_MS
+        self._font_ready_grace_ms = font_ready_grace_ms or self.DEFAULT_FONT_READY_GRACE_MS
 
     async def render(
         self,
@@ -515,21 +528,52 @@ class PuppeteerStructuredRenderer:
                     viewport={"width": width, "height": height},
                     device_scale_factor=1,
                 )
+                page.set_default_timeout(self._render_timeout_ms)
+                page.set_default_navigation_timeout(self._navigation_timeout_ms)
                 logger.info("poster2.puppeteer: navigation_start")
                 try:
-                    await page.set_content(html_payload, wait_until="load")
+                    await page.set_content(
+                        html_payload,
+                        wait_until="domcontentloaded",
+                        timeout=self._navigation_timeout_ms,
+                    )
+                    await self._stabilize_page_for_screenshot(page)
                 except Exception as exc:
                     raise _classify_puppeteer_exception(exc, stage="navigation") from exc
                 logger.info("poster2.puppeteer: navigation_done")
                 logger.info("poster2.puppeteer: screenshot_start")
                 try:
-                    png_bytes = await page.locator("#poster-root").screenshot(type="png", omit_background=True)
+                    png_bytes = await page.locator("#poster-root").screenshot(
+                        type="png",
+                        omit_background=True,
+                        timeout=self._render_timeout_ms,
+                    )
                 except Exception as exc:
                     raise _classify_puppeteer_exception(exc, stage="screenshot") from exc
                 logger.info("poster2.puppeteer: screenshot_done")
                 return png_bytes
             finally:
                 await browser.close()
+
+    async def _stabilize_page_for_screenshot(self, page: Any) -> None:
+        await page.locator("#poster-root").wait_for(
+            state="visible",
+            timeout=self._render_timeout_ms,
+        )
+        try:
+            await asyncio.wait_for(
+                page.evaluate(
+                    "() => document.fonts ? document.fonts.ready.then(() => true) : Promise.resolve(true)"
+                ),
+                timeout=self._font_ready_grace_ms / 1000,
+            )
+        except Exception:
+            logger.info("poster2.puppeteer: font_ready_grace_elapsed")
+        await page.wait_for_function(
+            "() => document.readyState === 'interactive' || document.readyState === 'complete'",
+            timeout=self._render_timeout_ms,
+        )
+        await page.wait_for_timeout(32)
 
     def _font_faces_css(self) -> str:
         font_defs: list[str] = []

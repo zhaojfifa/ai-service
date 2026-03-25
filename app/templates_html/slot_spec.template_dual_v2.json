@@ -7,6 +7,7 @@
     "header_region": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "scenario_region": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "product_region": { "x": 456, "y": 188, "w": 300, "h": 520 },
+    "feature_region": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 232 },
     "title_band_region": { "x": 112, "y": 728, "w": 800, "h": 144 },
     "gallery_strip_region": { "x": 96, "y": 888, "w": 832, "h": 72 }

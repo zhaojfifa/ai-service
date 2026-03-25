@@ -626,4 +626,52 @@ class TestStructuredScenarioLayer:
 
         assert "state-safe-fill" in html_payload
         assert 'data-region="title_band_region"' in html_payload
+        assert 'data-region="feature_region"' in html_payload
         assert "__SVG_OVERLAY__" not in html_payload
+
+
+class _FakeLocator:
+    def __init__(self):
+        self.wait_calls = []
+
+    async def wait_for(self, **kwargs):
+        self.wait_calls.append(kwargs)
+
+
+class _FakePage:
+    def __init__(self):
+        self.locator_obj = _FakeLocator()
+        self.ready_checks = []
+        self.wait_timeouts = []
+        self.evaluations = []
+
+    def locator(self, selector):
+        assert selector == "#poster-root"
+        return self.locator_obj
+
+    async def evaluate(self, expr):
+        self.evaluations.append(expr)
+        return True
+
+    async def wait_for_function(self, expr, **kwargs):
+        self.ready_checks.append((expr, kwargs))
+
+    async def wait_for_timeout(self, timeout_ms):
+        self.wait_timeouts.append(timeout_ms)
+
+
+class TestPuppeteerHardening:
+
+    def test_stabilize_page_waits_for_root_and_layout_flush(self):
+        renderer = PuppeteerStructuredRenderer(
+            render_timeout_ms=1234,
+            font_ready_grace_ms=100,
+        )
+        page = _FakePage()
+
+        asyncio.run(renderer._stabilize_page_for_screenshot(page))
+
+        assert page.locator_obj.wait_calls == [{"state": "visible", "timeout": 1234}]
+        assert page.evaluations
+        assert page.ready_checks[0][1]["timeout"] == 1234
+        assert page.wait_timeouts == [32]
