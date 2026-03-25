@@ -340,10 +340,8 @@ class PuppeteerStructuredRenderer:
         layer_timings["product_material_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
-        layer_render_status: dict[str, dict[str, Any]] = {}
-        region_render_status: dict[str, dict[str, Any]] = {}
         try:
-            html_payload, layer_render_status, region_render_status = self._build_html(
+            html_payload = self._build_html(
                 html_template=html_template,
                 css_template=css_template,
                 svg_overlay=svg_overlay,
@@ -368,8 +366,6 @@ class PuppeteerStructuredRenderer:
             template_contract_version=str(slot_spec.get("template_contract_version", spec.contract_version)),
             layer_timings_ms=layer_timings,
             gallery_items_status=gallery_items_status,
-            layer_render_status=layer_render_status,
-            region_render_status=region_render_status,
         )
 
     def _read_template_file(self, name: str, optional: bool = False) -> str:
@@ -394,23 +390,17 @@ class PuppeteerStructuredRenderer:
         slot_spec: dict[str, Any],
         anchor_map: dict[str, Any],
         spec: TemplateSpec,
-    ) -> tuple[str, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    ) -> str:
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
-        gallery_markup, gallery_layer_class, gallery_count = self._gallery_markup(slot_spec, asset_urls["gallery"])
-        feature_markup, feature_count = self._feature_markup(anchor_map, poster.features)
+        gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
+        feature_markup, feature_layer_class = self._feature_markup(anchor_map, poster.features)
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
         scenario_layer_class = "state-show" if asset_urls.get("scenario_is_real") else "state-safe-fill"
-        feature_layer_class = "state-show" if feature_count > 0 else "state-hidden"
+        scenario_shell_class = "" if asset_urls.get("scenario_is_real") else "state-safe-fill"
+        bottom_region_class = "state-show" if poster.title or poster.subtitle or asset_urls["gallery"] else "state-hidden"
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
-        layer_render_status = self._build_structured_layer_status(
-            poster=poster,
-            asset_urls=asset_urls,
-            feature_count=feature_count,
-            gallery_count=gallery_count,
-        )
-        region_render_status = self._build_structured_region_status(layer_render_status)
         replacements = {
             "__INLINE_CSS__": css_template,
             "__FONT_FACE_CSS__": font_css,
@@ -430,45 +420,37 @@ class PuppeteerStructuredRenderer:
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
             "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
+            "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
             "__PRODUCT_URL__": asset_urls["product"],
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
+            "__BOTTOM_REGION_CLASS__": bottom_region_class,
             "__GALLERY_LAYER_CLASS__": gallery_layer_class,
             "__GALLERY_ITEMS__": gallery_markup,
             "__FEATURE_ITEMS__": feature_markup,
             "__BOTTOM_TAGLINE_CLASS__": bottom_tagline_class,
             "__BOTTOM_TAGLINE_STYLE__": _slot_style(slot_spec["slots"]["bottom_tagline"]),
             "__BOTTOM_TAGLINE_TEXT__": html.escape(bottom_tagline_text),
-            "__HEADER_REGION_RENDERED__": _html_bool(region_render_status["header_region"]["rendered"]),
-            "__HEADER_REGION_COUNT__": str(region_render_status["header_region"]["count"]),
-            "__HEADER_REGION_COLLAPSED__": _html_bool(region_render_status["header_region"]["collapsed"]),
-            "__FEATURE_REGION_RENDERED__": _html_bool(region_render_status["feature_region"]["rendered"]),
-            "__FEATURE_REGION_COUNT__": str(region_render_status["feature_region"]["count"]),
-            "__FEATURE_REGION_COLLAPSED__": _html_bool(region_render_status["feature_region"]["collapsed"]),
-            "__BOTTOM_REGION_RENDERED__": _html_bool(region_render_status["bottom_region"]["rendered"]),
-            "__BOTTOM_REGION_COUNT__": str(region_render_status["bottom_region"]["count"]),
-            "__BOTTOM_REGION_COLLAPSED__": _html_bool(region_render_status["bottom_region"]["collapsed"]),
         }
         rendered = html_template
         for key, value in replacements.items():
             rendered = rendered.replace(key, value)
-        return rendered, layer_render_status, region_render_status
+        return rendered
 
-    def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> tuple[str, str, int]:
+    def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> tuple[str, str]:
         gallery_slots = slot_spec["slots"]["gallery"]
         if not gallery_urls:
-            return "", "state-hidden", 0
+            return "", "state-hidden"
         logger.info(
             "poster2.gallery_compose_start count=%d slots=%d",
             len(gallery_urls),
             len(gallery_slots),
         )
-        item_count = min(len(gallery_urls), len(gallery_slots))
         layer_class = "state-show"
         items: list[str] = []
-        for idx, gallery_slot in enumerate(gallery_slots[:item_count]):
+        for idx, gallery_slot in enumerate(gallery_slots[: len(gallery_urls)]):
             url = gallery_urls[idx]
             items.append(
                 f'<div class="gallery-item" style="{_slot_style(gallery_slot)}">'
@@ -480,12 +462,11 @@ class PuppeteerStructuredRenderer:
             len(items),
             layer_class,
         )
-        return "".join(items), layer_class, item_count
+        return "".join(items), layer_class
 
-    def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> tuple[str, int]:
+    def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> tuple[str, str]:
         items: list[str] = []
-        resolved_features = features[: min(4, len(anchor_map.get("feature_callouts", [])))]
-        for idx, feature in enumerate(resolved_features):
+        for idx, feature in enumerate(features[: min(4, len(anchor_map.get("feature_callouts", [])))]):
             callout = anchor_map["feature_callouts"][idx]
             anchor_x = int(callout["anchor_x"])
             anchor_y = int(callout["anchor_y"])
@@ -494,10 +475,10 @@ class PuppeteerStructuredRenderer:
             connector_left = min(anchor_x, label_x)
             connector_width = max(label_x - anchor_x, 0)
             items.append(
-                (
-                    f'<div class="feature-callout-connector" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
-                    f'<div class="feature-callout-marker" style="left:{anchor_x}px;top:{anchor_y}px;"></div>'
-                )
+                f'<div class="feature-callout-connector" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
+            )
+            items.append(
+                f'<div class="feature-callout-marker" style="left:{anchor_x}px;top:{anchor_y}px;"></div>'
             )
             items.append(
                 (
@@ -506,79 +487,7 @@ class PuppeteerStructuredRenderer:
                     "</div>"
                 )
             )
-        return "".join(items), len(resolved_features)
-
-    def _build_structured_layer_status(
-        self,
-        *,
-        poster: PosterSpec,
-        asset_urls: dict[str, Any],
-        feature_count: int,
-        gallery_count: int,
-    ) -> dict[str, dict[str, Any]]:
-        return {
-            "brand_logo_layer": {
-                "rendered": bool(asset_urls["logo"]),
-                "count": 1 if asset_urls["logo"] else 0,
-                "collapsed": not bool(asset_urls["logo"]),
-            },
-            "brand_text_layer": {
-                "rendered": bool(poster.brand_name),
-                "count": 1 if poster.brand_name else 0,
-                "collapsed": not bool(poster.brand_name),
-            },
-            "agent_pill_layer": {
-                "rendered": bool(poster.agent_name),
-                "count": 1 if poster.agent_name else 0,
-                "collapsed": not bool(poster.agent_name),
-            },
-            "feature_callout_layer": {
-                "rendered": feature_count > 0,
-                "count": feature_count,
-                "collapsed": feature_count == 0,
-            },
-            "bottom_gallery_shell_layer": {
-                "rendered": gallery_count > 0,
-                "count": 1 if gallery_count > 0 else 0,
-                "collapsed": gallery_count == 0,
-            },
-            "bottom_gallery_items_layer": {
-                "rendered": gallery_count > 0,
-                "count": gallery_count,
-                "collapsed": gallery_count == 0,
-            },
-        }
-
-    def _build_structured_region_status(
-        self,
-        layer_status: dict[str, dict[str, Any]],
-    ) -> dict[str, dict[str, Any]]:
-        return {
-            "header_region": {
-                "rendered": any(
-                    bool(layer_status[layer_name]["rendered"])
-                    for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
-                ),
-                "count": sum(
-                    int(layer_status[layer_name]["count"])
-                    for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
-                ),
-                "collapsed": not any(
-                    bool(layer_status[layer_name]["rendered"])
-                    for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
-                ),
-            },
-            "feature_region": {
-                "rendered": bool(layer_status["feature_callout_layer"]["rendered"]),
-                "count": int(layer_status["feature_callout_layer"]["count"]),
-                "collapsed": bool(layer_status["feature_callout_layer"]["collapsed"]),
-            },
-            "bottom_region": {
-                "rendered": bool(layer_status["bottom_gallery_items_layer"]["rendered"]),
-                "count": int(layer_status["bottom_gallery_items_layer"]["count"]),
-                "collapsed": bool(layer_status["bottom_gallery_items_layer"]["collapsed"]),
-            },
-        }
+        return "".join(items), ("state-show" if items else "state-hidden")
 
     async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
         try:
@@ -812,10 +721,6 @@ def _slot_style(slot: dict[str, Any]) -> str:
         f"left:{slot['x']}px;top:{slot['y']}px;width:{slot['w']}px;height:{slot['h']}px;"
         + "".join(extra)
     )
-
-
-def _html_bool(value: Any) -> str:
-    return "true" if bool(value) else "false"
 
 
 def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
