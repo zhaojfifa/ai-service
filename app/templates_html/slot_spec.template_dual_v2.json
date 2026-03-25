@@ -17,8 +17,8 @@
     "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "header_shell_layer": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "brand_logo_layer": { "x": 104, "y": 74, "w": 120, "h": 64 },
-    "brand_text_layer": { "x": 244, "y": 72, "w": 432, "h": 68 },
-    "agent_pill_layer": { "x": 756, "y": 78, "w": 156, "h": 48 },
+    "brand_text_layer": { "x": 244, "y": 72, "w": 484, "h": 68 },
+    "agent_pill_layer": { "x": 748, "y": 78, "w": 164, "h": 48 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_card_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_card_shell_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
@@ -37,13 +37,13 @@
     "subtitle_layer": { "x": 152, "y": 840, "w": 720, "h": 28 },
     "bottom_gallery": { "x": 96, "y": 888, "w": 832, "h": 72 },
     "bottom_gallery_shell_layer": { "x": 96, "y": 888, "w": 832, "h": 72 },
-    "bottom_gallery_items_layer": { "x": 96, "y": 904, "w": 832, "h": 56 },
+    "bottom_gallery_items_layer": { "x": 96, "y": 896, "w": 832, "h": 56 },
     "bottom_tagline_layer": { "x": 196, "y": 966, "w": 632, "h": 20 }
   },
   "layer_slots": {
     "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
-    "brand_name_slot": { "x": 244, "y": 72, "w": 432, "h": 68 },
-    "agent_pill_slot": { "x": 756, "y": 78, "w": 156, "h": 48 },
+    "brand_name_slot": { "x": 244, "y": 72, "w": 484, "h": 68 },
+    "agent_pill_slot": { "x": 748, "y": 78, "w": 164, "h": 48 },
     "scenario_card_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 }
   },
@@ -81,8 +81,8 @@
     },
     "brand_text_layer": {
       "visible_when": "brand_name present",
-      "bounds": { "x": 244, "y": 72, "w": 432, "h": 68 },
-      "padding": { "top": 10, "right": 16, "bottom": 10, "left": 0 },
+      "bounds": { "x": 244, "y": 72, "w": 484, "h": 68 },
+      "padding": { "top": 10, "right": 12, "bottom": 10, "left": 0 },
       "max_items": 1,
       "max_lines": 1,
       "fallback_rule": "expand width when brand_logo_layer collapses",
@@ -90,8 +90,8 @@
     },
     "agent_pill_layer": {
       "visible_when": "agent_name present",
-      "bounds": { "x": 756, "y": 78, "w": 156, "h": 48 },
-      "padding": { "top": 0, "right": 12, "bottom": 0, "left": 12 },
+      "bounds": { "x": 748, "y": 78, "w": 164, "h": 48 },
+      "padding": { "top": 0, "right": 14, "bottom": 0, "left": 14 },
       "max_items": 1,
       "max_lines": 1,
       "fallback_rule": "auto-shrink text inside pill",
@@ -198,7 +198,7 @@
     },
     "bottom_gallery_items_layer": {
       "visible_when": "gallery_images.length > 0",
-      "bounds": { "x": 96, "y": 904, "w": 832, "h": 56 },
+      "bounds": { "x": 96, "y": 896, "w": 832, "h": 56 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 4,
       "max_lines": 0,
@@ -225,15 +225,15 @@
   ],
   "slots": {
     "logo": { "x": 104, "y": 74, "w": 120, "h": 64, "fit": "contain" },
-    "brand_name": { "x": 244, "y": 72, "w": 432, "h": 68 },
-    "agent_name": { "x": 756, "y": 78, "w": 156, "h": 48 },
+    "brand_name": { "x": 244, "y": 72, "w": 484, "h": 68 },
+    "agent_name": { "x": 748, "y": 78, "w": 164, "h": 48 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520, "fit": "cover", "radius": 24 },
     "product": { "x": 456, "y": 188, "w": 300, "h": 520, "fit": "contain", "radius": 24 },
     "gallery": [
-      { "x": 96, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
-      { "x": 308, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
-      { "x": 520, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
-      { "x": 732, "y": 904, "w": 196, "h": 56, "fit": "cover", "radius": 14 }
+      { "x": 96, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 308, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 520, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
+      { "x": 732, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 }
     ],
     "title": { "x": 112, "y": 744, "w": 800, "h": 84 },
     "subtitle": { "x": 152, "y": 840, "w": 720, "h": 28 },

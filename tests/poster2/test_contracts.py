@@ -277,6 +277,9 @@ class TestTemplateSpecLoading:
         assert "ghost connectors" in slot_spec["layer_contracts"]["feature_callout_layer"]["fallback_rule"]
         assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
+        assert slot_spec["layers"]["brand_text_layer"]["w"] == 484
+        assert slot_spec["layers"]["agent_pill_layer"]["w"] == 164
+        assert slot_spec["slots"]["gallery"][0]["y"] == 896
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec
         assert len(slot_spec["slots"]["gallery"]) == 4

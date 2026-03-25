@@ -542,6 +542,14 @@ class TestStructuredGalleryMarkup:
         assert markup.count("feature-callout-connector") == 1
         assert markup.count("feature-callout-marker") == 1
 
+    def test_feature_markup_hides_when_empty(self):
+        renderer = PuppeteerStructuredRenderer()
+
+        markup, layer_class = renderer._feature_markup({"feature_callouts": []}, ())
+
+        assert markup == ""
+        assert layer_class == "state-hidden"
+
     def test_prepare_gallery_urls_caps_and_resizes(self):
         slot_spec = {
             "slots": {

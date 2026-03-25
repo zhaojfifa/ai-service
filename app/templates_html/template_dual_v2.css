@@ -90,7 +90,7 @@ body {
 
 .layer-header-banner.state-logo-empty .layer-brand-text .slot-brand {
   left: 120px !important;
-  width: 556px !important;
+  width: 608px !important;
 }
 
 .layer-header-banner.state-logo-empty .layer-brand-logo {
@@ -107,6 +107,10 @@ body {
 .slot-brand,
 .slot-agent {
   z-index: 6;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
 }
 
 .slot-logo {
@@ -115,9 +119,16 @@ body {
   justify-content: center;
 }
 
+.slot-brand {
+  display: flex;
+  align-items: center;
+}
+
 .text-brand {
   display: block;
-  padding: 10px 16px 0 0;
+  width: 100%;
+  padding: 10px 12px 10px 0;
+  box-sizing: border-box;
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-size: 28px;
   font-weight: 600;
@@ -128,11 +139,21 @@ body {
   text-overflow: ellipsis;
 }
 
+.slot-agent {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .text-agent {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  padding: 0 14px;
+  box-sizing: border-box;
   border-radius: 24px;
   background: #e8002a;
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
@@ -183,21 +204,20 @@ body {
   width: 288px;
   height: 520px;
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  box-shadow: 0 20px 40px rgba(22, 18, 18, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 22px 42px rgba(24, 18, 18, 0.14);
 }
 
 .region-shell-scenario.state-safe-fill {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(245, 236, 232, 0.18));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(245, 236, 232, 0.14));
   border-style: dashed;
 }
 
 .region-shell-product {
   left: 456px;
   width: 300px;
-  border: 1px solid rgba(232, 0, 42, 0.08);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(249, 241, 239, 0.9));
-  box-shadow: 0 26px 44px rgba(35, 24, 24, 0.16);
+  border: 1px solid rgba(232, 0, 42, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 241, 239, 0.9));
 }
 
 .slot-product {
@@ -290,6 +310,7 @@ body {
   z-index: 4;
   display: -webkit-box;
   padding: 8px 10px 8px 14px;
+  min-height: 60px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(232, 0, 42, 0.12);
