@@ -890,6 +890,83 @@ class TestHeaderAndTitleBandLayoutControl:
         assert 'data-region="title_band_region"' in html_payload
 
 
+class TestBottomSplitBehavior:
+
+    def _render_html_payload(self, *, title: str, subtitle: str, gallery: list[str]) -> str:
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        return renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(title=title, subtitle=subtitle),
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": gallery,
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+    def test_bottom_split_title_only_keeps_title_band_and_hides_gallery_strip(self):
+        html_payload = self._render_html_payload(title="Main title", subtitle="", gallery=[])
+        assert "layer-bottom-region state-show state-title-only" in html_payload
+        assert "layer-title-band-region-shell state-show" in html_payload
+        assert "layer-title-subtitle state-show" in html_payload
+        assert "layer-gallery-strip-region-shell state-hidden" in html_payload
+        assert "layer-bottom-gallery-items state-hidden" in html_payload
+
+    def test_bottom_split_gallery_only_hides_title_band_and_keeps_gallery_strip(self):
+        html_payload = self._render_html_payload(
+            title="",
+            subtitle="",
+            gallery=["data:image/png;base64,a", "data:image/png;base64,b"],
+        )
+        assert "layer-bottom-region state-show state-gallery-only" in html_payload
+        assert "layer-title-band-region-shell state-hidden" in html_payload
+        assert "layer-title-subtitle state-hidden" in html_payload
+        assert "layer-gallery-strip-region-shell state-show" in html_payload
+        assert "layer-bottom-gallery-items state-show" in html_payload
+
+    def test_bottom_split_title_and_gallery_show_both_regions(self):
+        html_payload = self._render_html_payload(
+            title="Main title",
+            subtitle="Sub title",
+            gallery=["data:image/png;base64,a"],
+        )
+        assert "layer-bottom-region state-show state-title-gallery" in html_payload
+        assert "layer-title-band-region-shell state-show" in html_payload
+        assert "layer-title-subtitle state-show" in html_payload
+        assert "layer-gallery-strip-region-shell state-show" in html_payload
+        assert "layer-bottom-gallery-items state-show" in html_payload
+
+
 class _FakeLocator:
     def __init__(self):
         self.wait_calls = []

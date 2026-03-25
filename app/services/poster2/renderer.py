@@ -448,7 +448,20 @@ class PuppeteerStructuredRenderer:
         scenario_layer_class = "state-real" if scenario_is_real else "state-safe-fill"
         scenario_shell_class = "state-real" if scenario_is_real else "state-safe-fill"
         scenario_content_class = "state-real" if scenario_is_real else "state-safe-fill"
-        bottom_region_class = "state-show" if poster.title or poster.subtitle or asset_urls["gallery"] else "state-hidden"
+        has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
+        has_gallery_strip = bool(asset_urls["gallery"])
+        if has_title_band and has_gallery_strip:
+            bottom_region_class = "state-show state-title-gallery"
+        elif has_title_band:
+            bottom_region_class = "state-show state-title-only"
+        elif has_gallery_strip:
+            bottom_region_class = "state-show state-gallery-only"
+        else:
+            bottom_region_class = "state-hidden"
+        title_band_class = "state-show" if has_title_band else "state-hidden"
+        title_content_class = "state-show" if has_title_band else "state-hidden"
+        gallery_region_class = "state-show" if has_gallery_strip else "state-hidden"
+        gallery_items_class = gallery_layer_class
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
         replacements = {
@@ -479,7 +492,10 @@ class PuppeteerStructuredRenderer:
             "__PRODUCT_URL__": asset_urls["product"],
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
             "__BOTTOM_REGION_CLASS__": bottom_region_class,
-            "__GALLERY_LAYER_CLASS__": gallery_layer_class,
+            "__TITLE_BAND_CLASS__": title_band_class,
+            "__TITLE_CONTENT_CLASS__": title_content_class,
+            "__GALLERY_REGION_CLASS__": gallery_region_class,
+            "__GALLERY_ITEMS_CLASS__": gallery_items_class,
             "__GALLERY_ITEMS__": gallery_markup,
             "__FEATURE_ITEMS__": feature_markup,
             "__BOTTOM_TAGLINE_CLASS__": bottom_tagline_class,
