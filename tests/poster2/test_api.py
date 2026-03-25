@@ -36,6 +36,13 @@ class _FakePoster2Pipeline:
                 final_composited_url="https://example.com/final.png",
                 renderer_metadata_url="https://example.com/renderer-metadata.json",
             ),
+            structure_complete=True,
+            incomplete_structure=False,
+            deliverable=True,
+            missing_mandatory_regions=[],
+            missing_required_slots=[],
+            region_render_status={"header_region": {"rendered": True}},
+            slot_binding_status={"missing_required_slots": []},
         )
 
 
@@ -73,6 +80,13 @@ class _FakeDegradedPoster2Pipeline:
             fallback_reason_detail="BrowserType.launch: target closed",
             degraded=True,
             degraded_reason="puppeteer_browser_launch_failed",
+            structure_complete=True,
+            incomplete_structure=False,
+            deliverable=True,
+            missing_mandatory_regions=[],
+            missing_required_slots=[],
+            region_render_status={"header_region": {"rendered": True}},
+            slot_binding_status={"missing_required_slots": []},
         )
 
 
@@ -110,6 +124,10 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["background_renderer"] == "firefly-v3"
     assert body["debug_artifacts"]["product_material_layer_url"] == "https://example.com/product-material.png"
     assert body["debug_artifacts"]["renderer_metadata_url"] == "https://example.com/renderer-metadata.json"
+    assert body["structure_complete"] is True
+    assert body["incomplete_structure"] is False
+    assert body["deliverable"] is True
+    assert body["missing_required_slots"] == []
 
 
 def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkeypatch):
@@ -160,6 +178,7 @@ def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch)
     assert body["degraded_reason"] == "puppeteer_browser_launch_failed"
     assert body["fallback_reason_code"] == "puppeteer_browser_launch_failed"
     assert body["fallback_reason_detail"] == "BrowserType.launch: target closed"
+    assert body["deliverable"] is True
 
 
 def test_generate_poster_v2_rejects_puppeteer_for_non_pilot_template():

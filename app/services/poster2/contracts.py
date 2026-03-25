@@ -285,6 +285,13 @@ class RenderManifest:
     fallback_reason_detail: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None
+    structure_complete: Optional[bool] = None
+    incomplete_structure: Optional[bool] = None
+    deliverable: Optional[bool] = None
+    missing_mandatory_regions: list[str] = field(default_factory=list)
+    missing_required_slots: list[str] = field(default_factory=list)
+    region_render_status: dict = field(default_factory=dict)
+    slot_binding_status: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

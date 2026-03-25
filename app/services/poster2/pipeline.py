@@ -29,11 +29,10 @@ from .background import (
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
-from .region_matrix import evaluate_region_completeness
+from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
-from .renderer_routing import assert_fallback_result_is_deliverable
-from .slot_contracts import evaluate_slot_bindings
-from .template_registry import resolve_template_metadata, validate_template_registration
+from .renderer_routing import assert_quality_guard_deliverable
+from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -100,6 +99,7 @@ class PosterPipeline:
             template = load_template(spec.template_id)
         else:
             validate_template_registration(template)
+        run_preflight_guard(template, spec)
 
         spec_hash = _hash_spec(spec)
 
@@ -166,22 +166,18 @@ class PosterPipeline:
             bg_result=bg_result,
         )
         region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
-        template_metadata = resolve_template_metadata(template.template_id)
-        region_completeness_status = evaluate_region_completeness(
-            template_metadata,
-            layer_status=layer_render_status,
-            region_status=region_render_status,
-        ).to_dict()
-        slot_binding_status = evaluate_slot_bindings(
-            template_metadata,
-            template,
-            spec,
-            assets,
-        ).to_dict()
+        quality_guard_report = evaluate_deliverability(
+            template=template,
+            spec=spec,
+            assets=assets,
+            layer_render_status=layer_render_status,
+            region_render_status=region_render_status,
+        )
         if fg_result.degraded:
-            assert_fallback_result_is_deliverable(
-                slot_binding_status=slot_binding_status,
-                region_completeness_status=region_completeness_status,
+            assert_quality_guard_deliverable(
+                deliverable=quality_guard_report.deliverable,
+                missing_required_slots=quality_guard_report.missing_required_slots,
+                missing_mandatory_regions=quality_guard_report.missing_mandatory_regions,
             )
 
         # ── Phase 3: load background bytes and compose ───────────────────────
@@ -250,9 +246,14 @@ class PosterPipeline:
             "degraded_reason": fg_result.degraded_reason,
             "timings_ms": timings,
             "layer_render_status": layer_render_status,
-            "region_render_status": region_render_status,
-            "region_completeness_status": region_completeness_status,
-            "slot_binding_status": slot_binding_status,
+            "region_render_status": quality_guard_report.region_render_status,
+            "region_completeness_status": quality_guard_report.region_completeness_status,
+            "slot_binding_status": quality_guard_report.slot_binding_status,
+            "structure_complete": quality_guard_report.structure_complete,
+            "incomplete_structure": quality_guard_report.incomplete_structure,
+            "deliverable": quality_guard_report.deliverable,
+            "missing_mandatory_regions": quality_guard_report.missing_mandatory_regions,
+            "missing_required_slots": quality_guard_report.missing_required_slots,
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -311,6 +312,13 @@ class PosterPipeline:
             fallback_reason_detail=fg_result.fallback_reason_detail,
             degraded=fg_result.degraded,
             degraded_reason=fg_result.degraded_reason,
+            structure_complete=quality_guard_report.structure_complete,
+            incomplete_structure=quality_guard_report.incomplete_structure,
+            deliverable=quality_guard_report.deliverable,
+            missing_mandatory_regions=quality_guard_report.missing_mandatory_regions,
+            missing_required_slots=quality_guard_report.missing_required_slots,
+            region_render_status=quality_guard_report.region_render_status,
+            slot_binding_status=quality_guard_report.slot_binding_status,
         )
 
 
