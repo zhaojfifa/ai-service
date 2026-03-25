@@ -18,7 +18,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
@@ -42,6 +42,12 @@ from .template_registry import resolve_template_metadata
 logger = logging.getLogger("ai-service.poster2")
 
 _HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
+_FEATURE_MODE_SPECS: dict[int, dict[str, int]] = {
+    1: {"box_h": 72, "gap": 0},
+    2: {"box_h": 72, "gap": 24},
+    3: {"box_h": 72, "gap": 16},
+    4: {"box_h": 60, "gap": 40},
+}
 
 
 class RendererUnavailableError(RuntimeError):
@@ -115,13 +121,14 @@ class LayoutRenderer:
         layer_timings["product_material_layer_ms"] = _elapsed(t0)
 
         t1 = _now()
-        self._draw_feature_callout_structure(canvas, spec.feature_callouts, poster.features)
+        resolved_callouts = _resolve_feature_callout_layout(spec.feature_callouts, poster.features)
+        self._draw_feature_callout_structure(canvas, resolved_callouts)
         if spec.agent_name_slot.bg_color:
             self._draw_slot_background(canvas, spec.agent_name_slot)
         layer_timings["foreground_structure_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
-        self._draw_feature_callout_labels(canvas, spec.feature_callouts, poster.features)
+        self._draw_feature_callout_labels(canvas, resolved_callouts)
         self._draw_text(canvas, spec.brand_name_slot, poster.brand_name, draw_background=False)
         self._draw_text(canvas, spec.agent_name_slot, poster.agent_name, draw_background=False)
         self._draw_text(canvas, spec.title_slot, poster.title, draw_background=False)
@@ -134,7 +141,7 @@ class LayoutRenderer:
             has_logo=assets.logo is not None,
             has_scenario=assets.scenario is not None,
             has_product=assets.product is not None,
-            feature_count=min(len(poster.features), len(spec.feature_callouts)),
+            feature_count=len(resolved_callouts),
             gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
             scenario_source=poster.scenario_image.url if poster.scenario_image else None,
@@ -157,12 +164,10 @@ class LayoutRenderer:
     def _draw_feature_callout_structure(
         self,
         canvas: PILImage.Image,
-        callouts: list[FeatureCalloutSpec],
-        features: tuple[str, ...],
+        callouts: list[tuple[FeatureCalloutSpec, str]],
     ) -> None:
         draw = ImageDraw.Draw(canvas)
-        for i, callout in enumerate(callouts):
-            text = features[i] if i < len(features) else ""
+        for callout, text in callouts:
             if not text or callout.anchor_radius <= 0:
                 continue
             r = callout.anchor_radius
@@ -178,11 +183,9 @@ class LayoutRenderer:
     def _draw_feature_callout_labels(
         self,
         canvas: PILImage.Image,
-        callouts: list[FeatureCalloutSpec],
-        features: tuple[str, ...],
+        callouts: list[tuple[FeatureCalloutSpec, str]],
     ) -> None:
-        for i, callout in enumerate(callouts):
-            text = features[i] if i < len(features) else ""
+        for callout, text in callouts:
             if not text:
                 continue
             self._draw_text(canvas, callout.label_box, text, draw_background=False)
@@ -510,9 +513,11 @@ class PuppeteerStructuredRenderer:
         return "".join(items), layer_class
 
     def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> tuple[str, str]:
+        callouts = _resolve_feature_callout_map(anchor_map, features)
+        if not callouts:
+            return "", "state-hidden feature-mode-0"
         items: list[str] = []
-        for idx, feature in enumerate(features[: min(4, len(anchor_map.get("feature_callouts", [])))]):
-            callout = anchor_map["feature_callouts"][idx]
+        for callout, feature in callouts:
             anchor_x = int(callout["anchor_x"])
             anchor_y = int(callout["anchor_y"])
             label_box = callout["label_box"]
@@ -532,7 +537,7 @@ class PuppeteerStructuredRenderer:
                     "</div>"
                 )
             )
-        return "".join(items), ("state-show" if items else "state-hidden")
+        return "".join(items), f"state-show feature-mode-{len(callouts)}"
 
     async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
         try:
@@ -762,6 +767,77 @@ def _truncate_detail(detail: str, limit: int = 240) -> str:
     if len(compact) <= limit:
         return compact
     return compact[: limit - 3] + "..."
+
+
+def _normalized_feature_texts(features: tuple[str, ...] | list[str]) -> list[str]:
+    return [item.strip() for item in features if item and item.strip()]
+
+
+def _resolve_feature_callout_layout(
+    callouts: list[FeatureCalloutSpec],
+    features: tuple[str, ...] | list[str],
+) -> list[tuple[FeatureCalloutSpec, str]]:
+    normalized_features = _normalized_feature_texts(features)
+    if not callouts or not normalized_features:
+        return []
+    limited_features = normalized_features[: min(len(normalized_features), len(callouts))]
+    count = len(limited_features)
+    mode = min(max(count, 1), 4)
+    mode_spec = _FEATURE_MODE_SPECS[mode]
+    source = callouts[:count]
+    first = source[0]
+    region_top = min(item.label_box.y for item in callouts)
+    region_bottom = max(item.label_box.y + item.label_box.h for item in callouts)
+    total_height = mode_spec["box_h"] * count + mode_spec["gap"] * max(count - 1, 0)
+    start_y = region_top + max((region_bottom - region_top - total_height) // 2, 0)
+    resolved: list[tuple[FeatureCalloutSpec, str]] = []
+    for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
+        label_y = start_y + idx * (mode_spec["box_h"] + mode_spec["gap"])
+        label_box = replace(
+            base.label_box,
+            y=label_y,
+            h=mode_spec["box_h"],
+            max_lines=2,
+        )
+        resolved_callout = replace(
+            base,
+            anchor_y=label_y + mode_spec["box_h"] // 2,
+            label_box=label_box,
+        )
+        resolved.append((resolved_callout, feature_text))
+    return resolved
+
+
+def _resolve_feature_callout_map(
+    anchor_map: dict[str, Any],
+    features: tuple[str, ...] | list[str],
+) -> list[tuple[dict[str, Any], str]]:
+    raw_callouts = anchor_map.get("feature_callouts", [])
+    if not raw_callouts:
+        return []
+    normalized_features = _normalized_feature_texts(features)
+    if not normalized_features:
+        return []
+    limited_features = normalized_features[: min(len(normalized_features), len(raw_callouts))]
+    count = len(limited_features)
+    mode = min(max(count, 1), 4)
+    mode_spec = _FEATURE_MODE_SPECS[mode]
+    source = raw_callouts[:count]
+    region_top = min(int(item["label_box"]["y"]) for item in raw_callouts)
+    region_bottom = max(int(item["label_box"]["y"]) + int(item["label_box"]["h"]) for item in raw_callouts)
+    total_height = mode_spec["box_h"] * count + mode_spec["gap"] * max(count - 1, 0)
+    start_y = region_top + max((region_bottom - region_top - total_height) // 2, 0)
+    resolved: list[tuple[dict[str, Any], str]] = []
+    for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
+        label_y = start_y + idx * (mode_spec["box_h"] + mode_spec["gap"])
+        label_box = dict(base["label_box"])
+        label_box["y"] = label_y
+        label_box["h"] = mode_spec["box_h"]
+        callout = dict(base)
+        callout["anchor_y"] = label_y + mode_spec["box_h"] // 2
+        callout["label_box"] = label_box
+        resolved.append((callout, feature_text))
+    return resolved
 
 
 def _build_renderer_layer_render_status(

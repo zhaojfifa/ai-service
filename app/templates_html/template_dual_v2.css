@@ -364,6 +364,8 @@ body {
   line-height: 1.3;
   color: #1a1a1a;
   overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
