@@ -8,6 +8,29 @@
 
 前端推荐部署在 GitHub Pages，后端部署在 Render，二者通过 HTTP API 协作完成整个流程。
 
+## Frontend Publish Rule
+
+GitHub Pages 发布目录使用 `docs/`。
+
+项目约定：
+
+- `frontend/` 是前端源码真相源
+- `docs/` 是 GitHub Pages 发布镜像
+- 每次发布前，必须先把 HTML / CSS / JS 从 `frontend/` 同步到 `docs/`
+
+可用脚本：
+
+```bash
+scripts/check_frontend_docs_sync.sh
+scripts/sync_frontend_to_docs.sh
+```
+
+简短发布检查项：
+
+1. 先运行 `scripts/check_frontend_docs_sync.sh`
+2. 如发现 stale，运行 `scripts/sync_frontend_to_docs.sh`
+3. 确认 `docs/` 变更已提交后再发布
+
 ## 项目结构
 
 ```
@@ -16,7 +39,7 @@ ai-service/
 │   ├── config.py         # 环境变量解析
 │   ├── main.py           # API 入口
 │   └── services/         # Glibatree、邮件与文案辅助逻辑
-├── frontend/             # GitHub Pages 静态站点
+├── frontend/             # 前端源码真相源
 │   ├── index.html        # 环节 1：素材输入与版式预览
 │   ├── stage2.html       # 环节 2：AI 海报生成
 │   ├── stage3.html       # 环节 3：营销邮件发送
@@ -24,7 +47,7 @@ ai-service/
 │   ├── app.js            # 多页面脚本，负责状态存储与 API 交互
 │   ├── prompts/          # 提示词预设（Prompt Inspector 读取）
 │   └── templates/        # 锁版模板 Base64 文本、蒙版与规范（供前后端共用）
-├── docs/
+├── docs/                 # GitHub Pages 发布镜像目录
 │   └── brand-guides/     # 品牌色板、字体与版式规范
 ├── requirements.txt      # 后端依赖
 ├── render.yaml           # Render 部署模版
