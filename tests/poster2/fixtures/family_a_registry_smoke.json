@@ -1,0 +1,12 @@
+{
+  "template_id": "template_dual_v2",
+  "expected_family": "family_a_campaign_explainer",
+  "expected_family_mode": "campaign_explainer_core",
+  "expected_preferred_renderer": "puppeteer",
+  "expected_fallback_renderer": "pillow",
+  "expected_minimum_deliverable_regions": [
+    "header_region",
+    "product_region",
+    "title_band_region"
+  ]
+}
