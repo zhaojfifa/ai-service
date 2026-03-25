@@ -34,7 +34,8 @@ from app.services.poster2.contracts import (
     TemplateSpec,
 )
 from app.services.poster2.pipeline import PosterPipeline
-from app.services.poster2.renderer import LayoutRenderer
+from app.services.poster2.renderer import ForegroundResult, LayoutRenderer
+from app.services.poster2.renderer_routing import RendererRoutingError
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -103,6 +104,32 @@ def _mock_r2_put(url: str = "https://r2.example.com/final.png"):
     return MagicMock(return_value=url)
 
 
+class _FakeDegradedRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="c" * 64,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            template_contract_version=spec.contract_version,
+            degraded=True,
+            degraded_reason="puppeteer_timeout",
+            fallback_reason_code="puppeteer_timeout",
+            fallback_reason_detail="puppeteer timed out",
+            fallback_stage="navigation",
+        )
+
+
+class _AsyncPillowRenderer:
+    def __init__(self):
+        self._renderer = LayoutRenderer()
+
+    async def render(self, spec, poster, assets):
+        return self._renderer.render(spec, poster, assets)
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestPosterPipelineRun:
@@ -129,7 +156,7 @@ class TestPosterPipelineRun:
 
         pipeline = PosterPipeline(
             background_svc=_mock_bg_service(),
-            renderer=LayoutRenderer(),
+            renderer=_AsyncPillowRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
             put_bytes_fn=fake_put_bytes,
@@ -241,7 +268,7 @@ class TestPosterPipelineRun:
         )
         pipeline = PosterPipeline(
             background_svc=bg_service,
-            renderer=LayoutRenderer(),
+            renderer=_AsyncPillowRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
             put_bytes_fn=fake_put_bytes,
@@ -289,7 +316,7 @@ class TestPosterPipelineRun:
         )
         pipeline = PosterPipeline(
             background_svc=_mock_bg_service(),
-            renderer=LayoutRenderer(),
+            renderer=_AsyncPillowRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
             put_bytes_fn=fake_put_bytes,
@@ -326,3 +353,62 @@ class TestPosterPipelineRun:
         assert completeness["missing_mandatory_regions"] == []
         assert "header_region" in completeness["rendered_regions"]
         assert "gallery_strip_region" in completeness["collapsed_regions"]
+
+    def test_renderer_metadata_includes_explicit_fallback_fields(self):
+        template = _load_template()
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            if key.endswith(".json"):
+                return "https://r2.example.com/renderer-metadata.json"
+            if "product-material" in key:
+                return "https://r2.example.com/product-material.png"
+            if "/fg/" in key:
+                return "https://r2.example.com/fg.png"
+            return "https://r2.example.com/final.png"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            scenario=None,
+            gallery=[],
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeDegradedRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert manifest.degraded is True
+        assert manifest.fallback_reason_code == "puppeteer_timeout"
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert metadata["requested_renderer_mode"] == "auto"
+        assert metadata["render_engine_used"] == "pillow"
+        assert metadata["effective_renderer_mode"] == "pillow"
+        assert metadata["degraded"] is True
+        assert metadata["fallback_reason_code"] == "puppeteer_timeout"
+
+    def test_fallback_result_requires_structure_recheck(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeDegradedRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+
+        with pytest.raises(RendererRoutingError) as excinfo:
+            asyncio.run(
+                pipeline.run(
+                    _make_spec(title=""),
+                    template,
+                )
+            )
+
+        assert excinfo.value.reason_code == "fallback_missing_required_slots"

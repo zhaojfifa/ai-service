@@ -31,6 +31,7 @@ from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, Templat
 from .font_registry import FontRegistry
 from .region_matrix import evaluate_region_completeness
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
+from .renderer_routing import assert_fallback_result_is_deliverable
 from .slot_contracts import evaluate_slot_bindings
 from .template_registry import resolve_template_metadata, validate_template_registration
 
@@ -97,6 +98,8 @@ class PosterPipeline:
 
         if template is None:
             template = load_template(spec.template_id)
+        else:
+            validate_template_registration(template)
 
         spec_hash = _hash_spec(spec)
 
@@ -156,6 +159,31 @@ class PosterPipeline:
             trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
         )
 
+        layer_render_status = fg_result.layer_render_status or _build_layer_render_status(
+            template=template,
+            spec=spec,
+            assets=assets,
+            bg_result=bg_result,
+        )
+        region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
+        template_metadata = resolve_template_metadata(template.template_id)
+        region_completeness_status = evaluate_region_completeness(
+            template_metadata,
+            layer_status=layer_render_status,
+            region_status=region_render_status,
+        ).to_dict()
+        slot_binding_status = evaluate_slot_bindings(
+            template_metadata,
+            template,
+            spec,
+            assets,
+        ).to_dict()
+        if fg_result.degraded:
+            assert_fallback_result_is_deliverable(
+                slot_binding_status=slot_binding_status,
+                region_completeness_status=region_completeness_status,
+            )
+
         # ── Phase 3: load background bytes and compose ───────────────────────
         t2 = _now()
         bg_image = await self._loader.load_url(bg_result.url)
@@ -199,25 +227,6 @@ class PosterPipeline:
         if not final_url:
             raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
 
-        layer_render_status = fg_result.layer_render_status or _build_layer_render_status(
-            template=template,
-            spec=spec,
-            assets=assets,
-            bg_result=bg_result,
-        )
-        region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
-        template_metadata = resolve_template_metadata(template.template_id)
-        region_completeness_status = evaluate_region_completeness(
-            template_metadata,
-            layer_status=layer_render_status,
-            region_status=region_render_status,
-        ).to_dict()
-        slot_binding_status = evaluate_slot_bindings(
-            template_metadata,
-            template,
-            spec,
-            assets,
-        ).to_dict()
         renderer_metadata_payload = {
             "trace_id": trace_id,
             "template_id": template.template_id,
