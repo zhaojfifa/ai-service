@@ -695,6 +695,80 @@ class TestStructuredScenarioLayer:
         assert "__SVG_OVERLAY__" not in html_payload
 
 
+class TestHeaderAndTitleBandLayoutControl:
+
+    def test_template_html_uses_header_and_title_band_layout_wrappers(self):
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+
+        assert 'class="layer-header-layout"' in html_template
+        assert "header-lane header-lane-logo" in html_template
+        assert "header-lane header-lane-brand" in html_template
+        assert "header-lane header-lane-agent" in html_template
+        assert 'class="layer-title-band-layout"' in html_template
+
+    def test_template_css_locks_header_width_budget_and_title_band_overflow_policy(self):
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+        assert "--header-logo-width: 120px;" in css_template
+        assert "grid-template-columns: var(--header-logo-width) minmax(0, 1fr) minmax(var(--header-agent-min-width), var(--header-agent-width));" in css_template
+        assert ".layer-header-banner.state-logo-empty .layer-header-layout" in css_template
+        assert ".slot-title:empty," in css_template
+        assert ".slot-subtitle:empty" in css_template
+
+    def test_build_html_keeps_header_in_three_lanes_and_title_inside_title_band(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(subtitle=""),
+            asset_urls={
+                "logo": "data:image/png;base64,abc",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert 'class="layer-header-layout"' in html_payload
+        assert 'class="layer layer-brand-logo header-lane header-lane-logo"' in html_payload
+        assert 'class="layer layer-agent-pill header-lane header-lane-agent"' in html_payload
+        assert 'class="layer-title-band-layout"' in html_payload
+        assert 'data-region="title_band_region"' in html_payload
+
+
 class _FakeLocator:
     def __init__(self):
         self.wait_calls = []
