@@ -321,3 +321,8 @@ class TestPosterPipelineRun:
         assert region_status["feature_region"]["rendered"] is True
         assert region_status["feature_region"]["count"] == 2
         assert region_status["bottom_region"]["collapsed"] is True
+        completeness = metadata["region_completeness_status"]
+        assert completeness["family_minimum_region_complete"] is True
+        assert completeness["missing_mandatory_regions"] == []
+        assert "header_region" in completeness["rendered_regions"]
+        assert "gallery_strip_region" in completeness["collapsed_regions"]

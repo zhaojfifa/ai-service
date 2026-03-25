@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.services.poster2.region_matrix import (
+    evaluate_region_completeness,
     RegionMatrixResolverError,
     resolve_region_matrix,
     resolve_region_matrix_for_template,
@@ -14,6 +15,7 @@ from app.services.poster2.template_registry import (
     FAMILY_A_CAMPAIGN_EXPLAINER,
     FAMILY_B_PRODUCT_SHEET_STORY,
     TemplateMetadata,
+    resolve_template_metadata,
 )
 
 
@@ -92,3 +94,90 @@ def test_region_matrix_rejects_missing_slot_spec_for_family_a():
     )
     with pytest.raises(RegionMatrixResolverError):
         resolve_region_matrix(metadata)
+
+
+def test_family_a_region_completeness_passes_when_mandatory_regions_render():
+    metadata = resolve_template_metadata("template_dual_v2")
+    report = evaluate_region_completeness(
+        metadata,
+        layer_status={
+            "title_layer": {"count": 1},
+            "bottom_gallery_items_layer": {"count": 0},
+        },
+        region_status={
+            "header_region": {"rendered": True},
+            "scenario_region": {"rendered": False},
+            "product_region": {"rendered": True},
+            "feature_region": {"rendered": False},
+            "bottom_region": {"rendered": False},
+        },
+    )
+    assert report.family_minimum_region_complete is True
+    assert report.missing_mandatory_regions == []
+    assert "header_region" in report.rendered_regions
+    assert "scenario_region" in report.collapsed_regions
+
+
+def test_family_a_region_completeness_fails_when_title_band_missing():
+    metadata = resolve_template_metadata("template_dual_v2")
+    report = evaluate_region_completeness(
+        metadata,
+        layer_status={
+            "title_layer": {"count": 0},
+            "bottom_gallery_items_layer": {"count": 0},
+        },
+        region_status={
+            "header_region": {"rendered": True},
+            "scenario_region": {"rendered": False},
+            "product_region": {"rendered": True},
+            "feature_region": {"rendered": False},
+            "bottom_region": {"rendered": False},
+        },
+    )
+    assert report.family_minimum_region_complete is False
+    assert "title_band_region" in report.missing_mandatory_regions
+    assert "mandatory_region_missing" in report.region_violation_reasons["title_band_region"]
+
+
+def test_family_b_region_completeness_passes_when_mandatory_regions_render():
+    metadata = TemplateMetadata(
+        template_id="template_sheet_story_v1",
+        template_version="1.0.0",
+        template_family=FAMILY_B_PRODUCT_SHEET_STORY,
+        family_mode="product_sheet_simple",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=("puppeteer_timeout",),
+        minimum_deliverable_regions=("brand_banner_region", "hero_product_region"),
+    )
+    report = evaluate_region_completeness(
+        metadata,
+        binding_inputs={
+            "brand_name": "Brand",
+            "hero_product_present": True,
+        },
+    )
+    assert report.family_minimum_region_complete is True
+    assert report.missing_mandatory_regions == []
+
+
+def test_family_b_region_completeness_fails_when_hero_product_missing():
+    metadata = TemplateMetadata(
+        template_id="template_sheet_story_v1",
+        template_version="1.0.0",
+        template_family=FAMILY_B_PRODUCT_SHEET_STORY,
+        family_mode="product_sheet_simple",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=("puppeteer_timeout",),
+        minimum_deliverable_regions=("brand_banner_region", "hero_product_region"),
+    )
+    report = evaluate_region_completeness(
+        metadata,
+        binding_inputs={
+            "brand_name": "Brand",
+            "hero_product_present": False,
+        },
+    )
+    assert report.family_minimum_region_complete is False
+    assert "hero_product_region" in report.missing_mandatory_regions
