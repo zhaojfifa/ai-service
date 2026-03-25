@@ -36,6 +36,8 @@ from .contracts import (
     TextSlotSpec,
 )
 from .font_registry import FontRegistry
+from .renderer_routing import RendererRoutingError, evaluate_fallback_eligibility, resolve_renderer_routing
+from .template_registry import resolve_template_metadata
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -619,13 +621,40 @@ class RendererSelector:
         poster: PosterSpec,
         assets: ResolvedAssets,
     ) -> ForegroundResult:
-        requested_mode = poster.renderer_mode
-        target_mode = self.resolve_mode(requested_mode)
+        metadata = resolve_template_metadata(spec.template_id)
+        routing = resolve_renderer_routing(
+            metadata,
+            poster.renderer_mode,
+            default_mode=self._default_mode,
+        )
+        target_mode = routing.effective_renderer_mode
         if target_mode == "puppeteer":
             try:
                 return await self._puppeteer.render(spec, poster, assets)
             except Exception as exc:
                 failure = _extract_puppeteer_failure_info(exc)
+                gate = evaluate_fallback_eligibility(metadata, spec, poster, assets)
+                if not gate.eligible:
+                    raise RendererRoutingError(
+                        gate.reason_code or "fallback_not_allowed",
+                        gate.detail or "fallback is not allowed for this contract/input state",
+                        failure_type=gate.failure_type,
+                    ) from exc
+                if failure.reason_code not in metadata.allowed_fallback_reason_codes:
+                    raise RendererRoutingError(
+                        "fallback_reason_not_allowed",
+                        (
+                            "renderer failure is not eligible for fallback: "
+                            f"{failure.reason_code}"
+                        ),
+                        failure_type="renderer_failure",
+                    ) from exc
+                if routing.fallback_renderer != "pillow":
+                    raise RendererRoutingError(
+                        "fallback_renderer_unavailable",
+                        f"unsupported fallback renderer configured: {routing.fallback_renderer}",
+                        failure_type="renderer_failure",
+                    ) from exc
                 logger.warning(
                     "poster2: puppeteer fallback stage=%s code=%s exc=%s detail=%s",
                     failure.stage,

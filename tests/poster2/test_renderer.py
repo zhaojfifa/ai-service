@@ -45,6 +45,8 @@ from app.services.poster2.renderer import (
     _safe_preset_scenario_data_url,
     _prepare_gallery_urls,
 )
+from app.services.poster2.renderer_routing import RendererRoutingError, resolve_renderer_routing
+from app.services.poster2.template_registry import FAMILY_B_PRODUCT_SHEET_STORY, TemplateMetadata
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -277,6 +279,32 @@ class _FakePuppeteerRenderer:
 
 class TestRendererSelector:
 
+    def test_auto_uses_family_preferred_renderer_for_family_a(self):
+        template = _load_real_template()
+        expected = ForegroundResult(
+            image=solid_image(1024, 1024),
+            png_bytes=b"png",
+            sha256="a" * 64,
+            render_engine_used="puppeteer",
+            foreground_renderer="poster2.puppeteer_structured",
+            template_contract_version="poster2.template_dual_v2.v1",
+        )
+        selector = RendererSelector(
+            pillow_renderer=LayoutRenderer(),
+            puppeteer_renderer=_FakePuppeteerRenderer(result=expected),
+        )
+
+        result = asyncio.run(
+            selector.render(
+                template,
+                _minimal_spec(renderer_mode="auto"),
+                _minimal_assets(),
+            )
+        )
+
+        assert result.render_engine_used == "puppeteer"
+        assert result.foreground_renderer == "poster2.puppeteer_structured"
+
     def test_prefers_requested_puppeteer_renderer(self):
         template = _load_real_template()
         expected = ForegroundResult(
@@ -322,6 +350,43 @@ class TestRendererSelector:
         assert result.fallback_reason_code == "puppeteer_unknown_error"
         assert result.fallback_exception_class == "RuntimeError"
         assert result.fallback_stage == "unknown"
+
+    def test_missing_required_input_does_not_fallback(self):
+        template = _load_real_template()
+        selector = RendererSelector(
+            pillow_renderer=LayoutRenderer(),
+            puppeteer_renderer=_FakePuppeteerRenderer(exc=RuntimeError("browser missing")),
+        )
+
+        with pytest.raises(RendererRoutingError) as excinfo:
+            asyncio.run(
+                selector.render(
+                    template,
+                    _minimal_spec(renderer_mode="puppeteer", title=""),
+                    _minimal_assets(),
+                )
+            )
+
+        assert excinfo.value.failure_type == "contract_input_failure"
+        assert excinfo.value.reason_code == "missing_required_input"
+
+    def test_resolve_renderer_routing_uses_family_metadata_for_family_b(self):
+        metadata = TemplateMetadata(
+            template_id="family_b_template_v1",
+            template_version="1.0.0",
+            template_family=FAMILY_B_PRODUCT_SHEET_STORY,
+            family_mode="product_sheet_core",
+            preferred_renderer="puppeteer",
+            fallback_renderer="pillow",
+            allowed_fallback_reason_codes=("puppeteer_timeout",),
+            minimum_deliverable_regions=("brand_banner_region", "hero_product_region"),
+        )
+
+        route = resolve_renderer_routing(metadata, "auto")
+
+        assert route.preferred_renderer == "puppeteer"
+        assert route.effective_renderer_mode == "puppeteer"
+        assert route.fallback_renderer == "pillow"
 
     def test_launch_failure_maps_to_browser_launch_failed(self):
         failure = _build_puppeteer_failure_info(
