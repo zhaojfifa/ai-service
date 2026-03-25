@@ -120,6 +120,23 @@ class _FakeDegradedRenderer:
             fallback_reason_code="puppeteer_timeout",
             fallback_reason_detail="puppeteer timed out",
             fallback_stage="navigation",
+            layer_render_status={
+                "title_layer": {"count": 1},
+                "bottom_gallery_items_layer": {"count": 0},
+                "brand_logo_layer": {"rendered": False, "count": 0},
+                "brand_text_layer": {"rendered": True, "count": 1},
+                "agent_pill_layer": {"rendered": True, "count": 1},
+                "scenario_image_layer": {"rendered": False, "count": 0},
+                "product_image_layer": {"rendered": True, "count": 1},
+                "feature_callout_layer": {"rendered": True, "count": 2},
+            },
+            region_render_status={
+                "header_region": {"rendered": True, "count": 2},
+                "scenario_region": {"rendered": False, "count": 0},
+                "product_region": {"rendered": True, "count": 1},
+                "feature_region": {"rendered": True, "count": 2},
+                "bottom_region": {"rendered": True, "count": 1},
+            },
         )
 
 
@@ -182,6 +199,19 @@ class _AsyncPillowRenderer:
 
     async def render(self, spec, poster, assets):
         return self._renderer.render(spec, poster, assets)
+
+
+class _FakeInferredRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="f" * 64,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            template_contract_version=spec.contract_version,
+        )
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -300,6 +330,8 @@ class TestPosterPipelineRun:
         assert manifest.structure_complete is True
         assert manifest.incomplete_structure is False
         assert manifest.deliverable is True
+        assert manifest.structure_evidence_source == "renderer_emitted"
+        assert manifest.structure_evidence_complete is True
 
     def test_preflight_failure_rejects_invalid_input_before_rendering(self):
         template = _load_template()
@@ -400,9 +432,9 @@ class TestPosterPipelineRun:
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
         assert layer_status["brand_logo_layer"]["reason_code"] == "logo_missing"
-        assert layer_status["scenario_image_layer"]["rendered"] is True
-        assert layer_status["scenario_image_layer"]["reason_code"] == "safe_preset_fill"
-        assert layer_status["scenario_image_layer"]["source_binding"] == "safe_preset_image"
+        assert layer_status["scenario_image_layer"]["rendered"] is False
+        assert layer_status["scenario_image_layer"]["reason_code"] == "scenario_missing"
+        assert layer_status["scenario_image_layer"]["source_binding"] is None
         assert layer_status["bottom_gallery_items_layer"]["rendered"] is False
         assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
         assert layer_status["bottom_gallery_items_layer"]["count"] == 0
@@ -411,13 +443,13 @@ class TestPosterPipelineRun:
         region_status = metadata["region_render_status"]
         assert region_status["header_region"]["rendered"] is True
         assert region_status["header_region"]["count"] == 2
-        assert region_status["scenario_region"]["rendered"] is True
-        assert region_status["scenario_region"]["count"] == 1
+        assert region_status["scenario_region"]["rendered"] is False
+        assert region_status["scenario_region"]["count"] == 0
         assert region_status["product_region"]["rendered"] is True
         assert region_status["product_region"]["count"] == 1
         assert region_status["feature_region"]["rendered"] is True
         assert region_status["feature_region"]["count"] == 2
-        assert region_status["bottom_region"]["collapsed"] is True
+        assert region_status["bottom_region"]["collapsed"] is False
         completeness = metadata["region_completeness_status"]
         assert completeness["family_minimum_region_complete"] is True
         assert completeness["missing_mandatory_regions"] == []
@@ -426,6 +458,8 @@ class TestPosterPipelineRun:
         assert metadata["structure_complete"] is True
         assert metadata["incomplete_structure"] is False
         assert metadata["deliverable"] is True
+        assert metadata["structure_evidence_source"] == "renderer_emitted"
+        assert metadata["structure_evidence_complete"] is True
         assert metadata["missing_required_slots"] == []
         assert metadata["missing_mandatory_regions"] == []
 
@@ -468,6 +502,8 @@ class TestPosterPipelineRun:
         assert metadata["degraded"] is True
         assert metadata["fallback_reason_code"] == "puppeteer_timeout"
         assert metadata["deliverable"] is True
+        assert metadata["structure_evidence_source"] == "renderer_emitted"
+        assert metadata["structure_evidence_complete"] is True
 
     def test_fallback_result_requires_structure_recheck(self):
         template = _load_template()
@@ -499,3 +535,21 @@ class TestPosterPipelineRun:
         assert manifest.incomplete_structure is True
         assert manifest.deliverable is False
         assert "title_band_region" in manifest.missing_mandatory_regions
+
+    def test_inferred_only_structure_path_does_not_overclaim_deliverable(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeInferredRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert manifest.structure_evidence_source == "pipeline_inferred"
+        assert manifest.structure_evidence_complete is False
+        assert manifest.structure_complete is False
+        assert manifest.incomplete_structure is True
+        assert manifest.deliverable is False

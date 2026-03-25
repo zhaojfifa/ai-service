@@ -65,10 +65,14 @@ def test_family_a_deliverability_passes_when_required_structure_is_present():
             "feature_region": {"rendered": True},
             "bottom_region": {"rendered": True},
         },
+        structure_evidence_source="renderer_emitted",
+        structure_evidence_complete=True,
     )
     assert report.structure_complete is True
     assert report.incomplete_structure is False
     assert report.deliverable is True
+    assert report.structure_evidence_source == "renderer_emitted"
+    assert report.structure_evidence_complete is True
 
 
 def test_family_b_deliverability_passes_when_minimum_regions_and_info_core_exist(monkeypatch):
@@ -100,6 +104,8 @@ def test_family_b_deliverability_passes_when_minimum_regions_and_info_core_exist
             "footer_brand_text": "",
             "cta_text": "",
         },
+        structure_evidence_source="renderer_emitted",
+        structure_evidence_complete=True,
     )
     assert report.deliverable is True
     assert report.incomplete_structure is False
@@ -132,8 +138,12 @@ def test_family_b_deliverability_fails_when_minimum_regions_are_missing(monkeypa
             "spec_items": [],
             "copy_text": "",
         },
+        structure_evidence_source="pipeline_inferred",
+        structure_evidence_complete=False,
     )
     assert report.structure_complete is False
     assert report.incomplete_structure is True
     assert report.deliverable is False
     assert "brand_banner_region" in report.missing_mandatory_regions
+    assert report.structure_evidence_source == "pipeline_inferred"
+    assert report.structure_evidence_complete is False

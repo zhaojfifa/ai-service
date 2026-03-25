@@ -165,13 +165,31 @@ class PosterPipeline:
             assets=assets,
             bg_result=bg_result,
         )
-        region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
+        inferred_layer_render_status = _build_layer_render_status(
+            template=template,
+            spec=spec,
+            assets=assets,
+            bg_result=bg_result,
+        )
+        inferred_region_render_status = _build_region_render_status(inferred_layer_render_status)
+        structure_evidence_complete = bool(fg_result.layer_render_status) and bool(fg_result.region_render_status)
+        structure_evidence_source = (
+            "renderer_emitted" if structure_evidence_complete else "pipeline_inferred"
+        )
+        layer_render_status = _merge_status_maps(inferred_layer_render_status, fg_result.layer_render_status)
+        region_render_status = _merge_status_maps(inferred_region_render_status, fg_result.region_render_status)
         quality_guard_report = evaluate_deliverability(
             template=template,
             spec=spec,
             assets=assets,
-            layer_render_status=layer_render_status,
-            region_render_status=region_render_status,
+            layer_render_status=(
+                fg_result.layer_render_status if structure_evidence_complete else inferred_layer_render_status
+            ),
+            region_render_status=(
+                fg_result.region_render_status if structure_evidence_complete else inferred_region_render_status
+            ),
+            structure_evidence_source=structure_evidence_source,
+            structure_evidence_complete=structure_evidence_complete,
         )
         if fg_result.degraded:
             assert_quality_guard_deliverable(
@@ -252,6 +270,8 @@ class PosterPipeline:
             "structure_complete": quality_guard_report.structure_complete,
             "incomplete_structure": quality_guard_report.incomplete_structure,
             "deliverable": quality_guard_report.deliverable,
+            "structure_evidence_source": quality_guard_report.structure_evidence_source,
+            "structure_evidence_complete": quality_guard_report.structure_evidence_complete,
             "missing_mandatory_regions": quality_guard_report.missing_mandatory_regions,
             "missing_required_slots": quality_guard_report.missing_required_slots,
             "gallery_items_status": fg_result.gallery_items_status,
@@ -315,6 +335,8 @@ class PosterPipeline:
             structure_complete=quality_guard_report.structure_complete,
             incomplete_structure=quality_guard_report.incomplete_structure,
             deliverable=quality_guard_report.deliverable,
+            structure_evidence_source=quality_guard_report.structure_evidence_source,
+            structure_evidence_complete=quality_guard_report.structure_evidence_complete,
             missing_mandatory_regions=quality_guard_report.missing_mandatory_regions,
             missing_required_slots=quality_guard_report.missing_required_slots,
             region_render_status=quality_guard_report.region_render_status,
@@ -504,3 +526,15 @@ def _build_region_render_status(
             "collapsed": bottom_count == 0,
         },
     }
+
+
+def _merge_status_maps(
+    inferred: dict[str, dict[str, object]],
+    emitted: Optional[dict[str, dict[str, object]]],
+) -> dict[str, dict[str, object]]:
+    if not emitted:
+        return inferred
+    merged = {key: dict(value) for key, value in inferred.items()}
+    for key, value in emitted.items():
+        merged[key] = dict(value)
+    return merged
