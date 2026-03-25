@@ -30,6 +30,8 @@ from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
+from .slot_contracts import evaluate_slot_bindings
+from .template_registry import resolve_template_metadata
 from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
@@ -204,6 +206,13 @@ class PosterPipeline:
             bg_result=bg_result,
         )
         region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
+        template_metadata = resolve_template_metadata(template.template_id)
+        slot_binding_status = evaluate_slot_bindings(
+            template_metadata,
+            template,
+            spec,
+            assets,
+        ).to_dict()
         renderer_metadata_payload = {
             "trace_id": trace_id,
             "template_id": template.template_id,
@@ -228,6 +237,7 @@ class PosterPipeline:
             "timings_ms": timings,
             "layer_render_status": layer_render_status,
             "region_render_status": region_render_status,
+            "slot_binding_status": slot_binding_status,
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
