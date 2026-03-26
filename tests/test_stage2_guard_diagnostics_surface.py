@@ -25,6 +25,7 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "poster2-gallery-mode",
         "poster2-gallery-count",
         "poster2-bottom-request-preview",
+        'maxlength="120"',
     ):
         assert marker in html
 
@@ -41,6 +42,8 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "bottom_contract_review",
         "bottom_mode",
         "gallery_mode",
+        "normalisePoster2BottomText",
+        "exceeds max length",
     ):
         assert field in js
 

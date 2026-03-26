@@ -133,6 +133,9 @@
               Validate bottom contract inputs before generation. This is contract testing for
               <code>title_band_region</code> and <code>gallery_strip_region</code>, not visual tuning.
             </p>
+            <p class="hint">
+              Contract limits: bottom title <= 120 chars, subtitle / support copy <= 120 chars.
+            </p>
             <div class="control-grid">
               <label class="field">
                 <span>Bottom mode</span>
@@ -167,11 +170,11 @@
             <div class="control-grid">
               <label class="field">
                 <span>Bottom title</span>
-                <input id="poster2-bottom-title" type="text" placeholder="Bottom title" />
+                <input id="poster2-bottom-title" type="text" maxlength="120" placeholder="Bottom title" />
               </label>
               <label class="field">
                 <span>Subtitle / bottom support copy</span>
-                <textarea id="poster2-bottom-subtitle" rows="2" placeholder="Bottom subtitle"></textarea>
+                <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Bottom subtitle"></textarea>
               </label>
             </div>
             <div class="poster2-diagnostics-detail">

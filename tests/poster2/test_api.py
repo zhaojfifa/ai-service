@@ -215,6 +215,36 @@ def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
     assert body["bottom_contract_review"]["gallery_mode"] == "supporting_packshots"
 
 
+def test_generate_poster_v2_accepts_three_gallery_items_with_edited_subtitle(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "编辑后的底部支持文案",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "gallery_images": [
+                {"url": "https://example.com/g1.png"},
+                {"url": "https://example.com/g2.png"},
+                {"url": "https://example.com/g3.png"},
+            ],
+            "template_id": "template_dual_v2",
+            "bottom_mode": "title_gallery_split",
+            "gallery_mode": "strip_local_visible_only",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
+    assert body["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
+
+
 def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakeDegradedPoster2Pipeline())
     client = TestClient(app)

@@ -174,6 +174,8 @@ const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
 const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
+const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
+const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
 const FRONTEND_BASELINE_STAMP = 'ee1cd4c';
 const BACKEND_BASELINE_EXPECTED = 'ee1cd4c';
 
@@ -309,6 +311,12 @@ function initStage2Poster2PilotControls(stage1Data, statusElement) {
   });
 }
 
+function normalisePoster2BottomText(value, maxChars) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return '';
+  return text.slice(0, maxChars);
+}
+
 function updatePoster2BottomRequestPreview() {
   const preview = document.getElementById('poster2-bottom-request-preview');
   if (!preview) return;
@@ -365,8 +373,12 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
     autoFillGallery: Boolean(stage2State.poster2.bottomContract?.autoFillGallery),
   };
   const sync = () => {
-    stage2State.poster2.bottomContract.title = titleInput.value.trim();
-    stage2State.poster2.bottomContract.subtitle = subtitleInput.value.trim();
+    const nextTitle = normalisePoster2BottomText(titleInput.value, POSTER2_BOTTOM_TITLE_MAX_CHARS);
+    const nextSubtitle = normalisePoster2BottomText(subtitleInput.value, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
+    titleInput.value = nextTitle;
+    subtitleInput.value = nextSubtitle;
+    stage2State.poster2.bottomContract.title = nextTitle;
+    stage2State.poster2.bottomContract.subtitle = nextSubtitle;
     stage2State.poster2.bottomContract.bottomMode = bottomMode.value;
     stage2State.poster2.bottomContract.galleryMode = galleryMode.value;
     stage2State.poster2.bottomContract.galleryCount = Number(galleryCount.value || 0);
@@ -4971,14 +4983,20 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
 
   const brandName = safeText(stage1Data.brand_name, 'Brand');
   const bottomContract = stage2State.poster2?.bottomContract || {};
-  const title = safeText(bottomContract.title || stage1Data.title, 'Poster');
+  const title = normalisePoster2BottomText(
+    safeText(bottomContract.title || stage1Data.title, 'Poster'),
+    POSTER2_BOTTOM_TITLE_MAX_CHARS
+  );
   const agentName = sanitizeAgentName(
     stage1Data.agent_name || stage1Data.channel || '',
     brandName
   );
-  const subtitle = safeText(
-    bottomContract.subtitle || stage1Data.subtitle || stage1Data.tagline || stage1Data.promo || stage1Data.price,
-    title
+  const subtitle = normalisePoster2BottomText(
+    safeText(
+      bottomContract.subtitle || stage1Data.subtitle || stage1Data.tagline || stage1Data.promo || stage1Data.price,
+      title
+    ),
+    POSTER2_BOTTOM_SUBTITLE_MAX_CHARS
   );
   const requestedGalleryCount = Math.max(0, Math.min(Number(bottomContract.galleryCount || 0), 4));
   const autoFillGallery = Boolean(bottomContract.autoFillGallery);
@@ -7156,7 +7174,13 @@ function formatPosterGenerationError(error) {
 
   if (Array.isArray(rawDetail)) {
     const first = rawDetail.find((entry) => entry?.msg || entry?.message);
-    if (first?.msg) return first.msg;
+    if (first?.msg) {
+      const loc = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : null;
+      if (loc && first?.type === 'string_too_long' && first?.ctx?.max_length) {
+        return `${loc} exceeds max length ${first.ctx.max_length}`;
+      }
+      return loc ? `${loc}: ${first.msg}` : first.msg;
+    }
     if (first?.message) return first.message;
   }
 
