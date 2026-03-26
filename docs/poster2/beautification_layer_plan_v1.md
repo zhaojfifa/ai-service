@@ -231,7 +231,12 @@ Beautification Layer 必须建立在以下前提上：
   - `shell_shadow`
   - `accent_tone`
   - `text_emphasis`
-- 当前也还没有完成 Pillow 对 shell/token 的最小语义对齐
+- 当前已完成 Pillow 对上述 token families 的最小语义对齐
+
+当前仍需明确的非目标：
+
+- 不追求 Pillow 与 Puppeteer 的 exact pixel parity
+- Pillow 仍是稳定 fallback path，而不是复杂布局引擎
 
 因此当前文档边界应保持清晰：
 

@@ -120,6 +120,14 @@ class LayoutRenderer:
         layer_timings: dict[str, int] = {}
 
         t0 = _now()
+        self._draw_shells(
+            canvas,
+            spec,
+            poster,
+            behavior,
+            has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
+            has_gallery=bool(assets.gallery),
+        )
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, spec.scenario_slot, assets.scenario)
         self._draw_product(canvas, spec.product_slot, assets.product)
@@ -199,6 +207,102 @@ class LayoutRenderer:
             layer_render_status=layer_render_status,
             region_render_status=_build_renderer_region_render_status(layer_render_status),
         )
+
+    def _draw_shells(
+        self,
+        canvas: PILImage.Image,
+        spec: TemplateSpec,
+        poster: PosterSpec,
+        behavior: Any,
+        *,
+        has_scenario: bool,
+        has_gallery: bool,
+    ) -> None:
+        has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
+        header_box = _header_shell_bounds(spec)
+        self._draw_shell_box(
+            canvas,
+            header_box,
+            radius=28,
+            fill=_pillow_shell_fill("header", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+            border=_pillow_border("header", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+            shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+        )
+        if behavior.hero_policy.scenario_enabled and spec.scenario_slot:
+            self._draw_shell_box(
+                canvas,
+                (spec.scenario_slot.x, spec.scenario_slot.y, spec.scenario_slot.w, spec.scenario_slot.h),
+                radius=24,
+                fill=_pillow_shell_fill(
+                    "scenario_real" if has_scenario else "scenario_safe",
+                    behavior.beauty_tokens.shell_surface,
+                    accent=behavior.accent_color,
+                ),
+                border=_pillow_border("hero", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+                shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+            )
+        self._draw_shell_box(
+            canvas,
+            (spec.product_slot.x, spec.product_slot.y, spec.product_slot.w, spec.product_slot.h),
+            radius=24,
+            fill=_pillow_shell_fill("product", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+            border=_pillow_border("product", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+            shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+        )
+        if has_title_band or has_gallery:
+            self._draw_shell_box(
+                canvas,
+                _bottom_shell_bounds(spec, has_title_band=has_title_band, has_gallery=has_gallery),
+                radius=28,
+                fill=_pillow_shell_fill("bottom", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+                border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+                shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+            )
+        if has_title_band:
+            self._draw_shell_box(
+                canvas,
+                _title_band_shell_bounds(spec),
+                radius=28,
+                fill=_pillow_shell_fill("title_band", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+                border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+                shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+            )
+        if has_gallery:
+            self._draw_shell_box(
+                canvas,
+                _gallery_strip_shell_bounds(spec),
+                radius=20,
+                fill=_pillow_shell_fill("gallery_strip", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+                border=_pillow_border("gallery", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+                shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+            )
+
+    def _draw_shell_box(
+        self,
+        canvas: PILImage.Image,
+        bounds: tuple[int, int, int, int],
+        *,
+        radius: int,
+        fill: tuple[int, int, int, int],
+        border: tuple[int, int, int, int],
+        shadow: tuple[int, int, int, int, int] | None,
+    ) -> None:
+        x, y, w, h = bounds
+        if shadow is not None:
+            ox, oy, blur, expansion, alpha = shadow
+            shadow_layer = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+            shadow_draw = ImageDraw.Draw(shadow_layer)
+            shadow_draw.rounded_rectangle(
+                [x - expansion + ox, y - expansion + oy, x + w + expansion + ox, y + h + expansion + oy],
+                radius=max(radius + expansion, 0),
+                fill=(20, 16, 16, alpha),
+            )
+            shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=blur))
+            canvas.alpha_composite(shadow_layer)
+        box_layer = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(box_layer)
+        draw.rounded_rectangle([x, y, x + w, y + h], radius=radius, fill=fill, outline=border, width=1)
+        canvas.alpha_composite(box_layer)
 
     def _draw_feature_callout_structure(
         self,
@@ -1279,6 +1383,108 @@ def render_product_material_debug_layer(
         foreground_renderer="poster2.debug_product_material",
         template_contract_version=spec.contract_version,
     )
+
+
+def _header_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
+    left = min(spec.logo_slot.x, spec.brand_name_slot.x, spec.agent_name_slot.x) - 32
+    top = min(spec.logo_slot.y, spec.brand_name_slot.y, spec.agent_name_slot.y) - 18
+    right = max(
+        spec.logo_slot.x + spec.logo_slot.w,
+        spec.brand_name_slot.x + spec.brand_name_slot.w,
+        spec.agent_name_slot.x + spec.agent_name_slot.w,
+    ) + 40
+    bottom = max(
+        spec.logo_slot.y + spec.logo_slot.h,
+        spec.brand_name_slot.y + spec.brand_name_slot.h,
+        spec.agent_name_slot.y + spec.agent_name_slot.h,
+    ) + 22
+    return left, top, right - left, bottom - top
+
+
+def _title_band_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
+    left = spec.title_slot.x
+    top = spec.title_slot.y - 16
+    right = spec.title_slot.x + spec.title_slot.w
+    bottom = spec.subtitle_slot.y + spec.subtitle_slot.h + 4
+    return left, top, right - left, bottom - top
+
+
+def _gallery_strip_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
+    return spec.gallery_slot.x, spec.gallery_slot.y - 16, spec.gallery_slot.w, spec.gallery_slot.h + 16
+
+
+def _bottom_shell_bounds(spec: TemplateSpec, *, has_title_band: bool, has_gallery: bool) -> tuple[int, int, int, int]:
+    if has_title_band and has_gallery:
+        return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 232
+    if has_title_band:
+        return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 160
+    return spec.gallery_slot.x, spec.gallery_slot.y - 16, spec.gallery_slot.w, 72
+
+
+def _pillow_shell_fill(role: str, shell_surface: str, *, accent: str) -> tuple[int, int, int, int]:
+    presets: dict[str, dict[str, tuple[int, int, int, int]]] = {
+        "glass_light": {
+            "header": (255, 250, 248, 238),
+            "scenario_safe": (247, 238, 234, 82),
+            "scenario_real": (255, 255, 255, 18),
+            "product": (255, 248, 246, 240),
+            "bottom": (255, 249, 247, 156),
+            "title_band": (255, 249, 247, 224),
+            "gallery_strip": (255, 249, 247, 168),
+        },
+        "panel_clean": {
+            "header": (255, 255, 255, 246),
+            "scenario_safe": (244, 244, 244, 240),
+            "scenario_real": (255, 255, 255, 28),
+            "product": (252, 252, 252, 248),
+            "bottom": (250, 250, 250, 228),
+            "title_band": (255, 255, 255, 244),
+            "gallery_strip": (255, 255, 255, 214),
+        },
+        "panel_dark_soft": {
+            "header": (43, 40, 46, 232),
+            "scenario_safe": (58, 54, 60, 194),
+            "scenario_real": (56, 52, 58, 118),
+            "product": (49, 46, 52, 232),
+            "bottom": (47, 43, 49, 210),
+            "title_band": (51, 47, 53, 222),
+            "gallery_strip": (46, 43, 49, 194),
+        },
+        "solid_soft": {
+            "header": (255, 252, 250, 250),
+            "scenario_safe": (246, 240, 236, 234),
+            "scenario_real": (255, 255, 255, 36),
+            "product": (255, 251, 248, 250),
+            "bottom": (255, 250, 247, 234),
+            "title_band": (255, 252, 250, 244),
+            "gallery_strip": (255, 250, 247, 208),
+        },
+    }
+    return presets[shell_surface][role]
+
+
+def _pillow_border(role: str, shell_border: str, *, accent: str) -> tuple[int, int, int, int]:
+    accent_rgb = _hex_to_rgb(accent)
+    alpha_by_preset = {"soft_line": 20, "clean_frame": 52, "none": 0}
+    if role in {"hero", "gallery"} and shell_border != "none":
+        white_alpha = {"soft_line": 60, "clean_frame": 88, "none": 0}[shell_border]
+        return (255, 255, 255, white_alpha)
+    return (*accent_rgb, alpha_by_preset[shell_border])
+
+
+def _pillow_shadow(shell_shadow: str) -> tuple[int, int, int, int, int] | None:
+    if shell_shadow == "none":
+        return None
+    if shell_shadow == "soft":
+        return (0, 10, 10, 0, 26)
+    if shell_shadow == "medium":
+        return (0, 12, 14, 0, 38)
+    raise ValueError(f"Unsupported shell_shadow: {shell_shadow}")
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    value = color.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
 
 
 def _font_file_bytes(font_registry: FontRegistry, font_key: str) -> bytes:

@@ -246,6 +246,7 @@ Behavior Layer 应位于：
 - 不扩展成 editor-first state model
 - 不把 CSS tuning 视为 behavior layer 进展
 - 不用 beauty tokens 替代 feature / hero behavior 的协议定义
+- 不要求 Pillow 与 Puppeteer 达到 exact pixel parity
 
 然后通过一个 `behavior_resolver`：
 

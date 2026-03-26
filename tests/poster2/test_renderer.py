@@ -139,6 +139,28 @@ class TestCanvasOutput:
         result = LayoutRenderer().render(template, _minimal_spec(), _minimal_assets())
         assert len(result.png_bytes) > 1000  # real PNG, not empty
 
+    def test_pillow_draws_header_shell_surface(self):
+        template = _load_real_template()
+        result = LayoutRenderer().render(template, _minimal_spec(), _minimal_assets())
+
+        assert result.image.getpixel((80, 70))[3] > 0
+
+    def test_pillow_beauty_tokens_change_shell_presentation(self):
+        template = _load_real_template()
+        baseline = LayoutRenderer().render(template, _minimal_spec(), _minimal_assets())
+        template.beauty_tokens = replace(
+            template.beauty_tokens,
+            shell_surface="panel_dark_soft",
+            shell_border="clean_frame",
+            shell_shadow="medium",
+            accent_tone="cool_blue",
+            text_emphasis="high_contrast",
+        )
+
+        alternate = LayoutRenderer().render(template, _minimal_spec(), _minimal_assets())
+
+        assert baseline.image.getpixel((80, 70)) != alternate.image.getpixel((80, 70))
+
 
 # ── Optional assets ───────────────────────────────────────────────────────────
 

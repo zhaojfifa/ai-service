@@ -67,6 +67,7 @@ Current repo status for the engineering line on `PosterSop01`:
 - a second reusable hero mode now exists to prove renderer behavior is protocol-driven rather than hard-coded
 - a second reusable feature mode now exists to prove feature count/connector/box policy is protocol-driven
 - beauty token presets now cover multiple governed options for shell surface, border, shadow, accent, and text emphasis
+- Pillow now consumes the same beauty token families for minimum shell/text parity, while exact pixel parity with Puppeteer remains a non-goal
 - minimal beauty tokens exist, but broader preset expansion and Pillow visual parity still remain staged follow-up work
 - geometry/evidence reinforcement remains intentionally limited until the dedicated evidence PR
 
