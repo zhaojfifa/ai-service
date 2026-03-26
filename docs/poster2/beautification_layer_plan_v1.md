@@ -237,6 +237,7 @@ Beautification Layer 必须建立在以下前提上：
 
 - 不追求 Pillow 与 Puppeteer 的 exact pixel parity
 - Pillow 仍是稳定 fallback path，而不是复杂布局引擎
+- geometry evidence 的补强属于独立证据层，不应混入 beauty token 语义
 
 因此当前文档边界应保持清晰：
 

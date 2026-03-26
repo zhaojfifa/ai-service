@@ -280,6 +280,11 @@ class PosterPipeline:
             "structure_evidence_complete": quality_guard_report.structure_evidence_complete,
             "missing_mandatory_regions": quality_guard_report.missing_mandatory_regions,
             "missing_required_slots": quality_guard_report.missing_required_slots,
+            "geometry_evidence": _build_geometry_evidence(
+                template,
+                layer_render_status=layer_render_status,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -545,3 +550,74 @@ def _merge_status_maps(
     for key, value in emitted.items():
         merged[key] = dict(value)
     return merged
+
+
+def _build_geometry_evidence(
+    template: TemplateSpec,
+    *,
+    layer_render_status: dict[str, dict[str, object]],
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "region_bounds": {
+            "header_region": _header_region_bounds(template),
+            "product_region": _slot_bounds(template.product_slot),
+            "gallery_strip_region": _gallery_strip_region_bounds(template),
+        },
+        "slot_bounds": {
+            "brand_logo_slot": _slot_bounds(template.logo_slot),
+            "brand_name_slot": _text_slot_bounds(template.brand_name_slot),
+            "agent_name_slot": _text_slot_bounds(template.agent_name_slot),
+            "product_slot": _slot_bounds(template.product_slot),
+            "gallery_slot": _gallery_item_slot_bounds(template),
+        },
+        "visible_item_count": {
+            "header_region": int(region_render_status.get("header_region", {}).get("count", 0)),
+            "product_region": int(region_render_status.get("product_region", {}).get("count", 0)),
+            "gallery_strip_region": int(
+                layer_render_status.get("bottom_gallery_items_layer", {}).get("count_visible", 0)
+            ),
+        },
+    }
+
+
+def _slot_bounds(slot) -> dict[str, int]:
+    return {"x": int(slot.x), "y": int(slot.y), "w": int(slot.w), "h": int(slot.h)}
+
+
+def _text_slot_bounds(slot) -> dict[str, int]:
+    return {"x": int(slot.x), "y": int(slot.y), "w": int(slot.w), "h": int(slot.h)}
+
+
+def _header_region_bounds(template: TemplateSpec) -> dict[str, int]:
+    left = min(template.logo_slot.x, template.brand_name_slot.x, template.agent_name_slot.x) - 32
+    top = min(template.logo_slot.y, template.brand_name_slot.y, template.agent_name_slot.y) - 18
+    right = max(
+        template.logo_slot.x + template.logo_slot.w,
+        template.brand_name_slot.x + template.brand_name_slot.w,
+        template.agent_name_slot.x + template.agent_name_slot.w,
+    ) + 40
+    bottom = max(
+        template.logo_slot.y + template.logo_slot.h,
+        template.brand_name_slot.y + template.brand_name_slot.h,
+        template.agent_name_slot.y + template.agent_name_slot.h,
+    ) + 22
+    return {"x": left, "y": top, "w": right - left, "h": bottom - top}
+
+
+def _gallery_strip_region_bounds(template: TemplateSpec) -> dict[str, int]:
+    return {
+        "x": int(template.gallery_slot.x),
+        "y": int(template.gallery_slot.y - 16),
+        "w": int(template.gallery_slot.w),
+        "h": int(template.gallery_slot.h + 16),
+    }
+
+
+def _gallery_item_slot_bounds(template: TemplateSpec) -> dict[str, int]:
+    return {
+        "x": int(template.gallery_slot.x),
+        "y": int(template.gallery_slot.y),
+        "w": int(template.gallery_slot.thumb_w),
+        "h": int(template.gallery_slot.h),
+    }

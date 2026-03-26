@@ -470,6 +470,12 @@ class TestPosterPipelineRun:
         assert metadata["structure_evidence_complete"] is True
         assert metadata["missing_required_slots"] == []
         assert metadata["missing_mandatory_regions"] == []
+        geometry = metadata["geometry_evidence"]
+        assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["visible_item_count"]["header_region"] == 2
+        assert geometry["visible_item_count"]["product_region"] == 1
 
     def test_renderer_metadata_keeps_gallery_visibility_geometry(self):
         stored_payloads: dict[str, bytes] = {}
@@ -508,6 +514,10 @@ class TestPosterPipelineRun:
         assert gallery_status[0]["visible_in_strip"] is True
         assert gallery_status[0]["local_bounds"]["x"] == 0
         assert gallery_status[0]["local_bounds"]["y"] == 0
+        geometry = metadata["geometry_evidence"]
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 888, "w": 832, "h": 72}
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 96, "y": 904, "w": 196, "h": 56}
+        assert geometry["visible_item_count"]["gallery_strip_region"] == 1
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()

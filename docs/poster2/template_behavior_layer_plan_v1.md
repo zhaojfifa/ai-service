@@ -247,6 +247,7 @@ Behavior Layer 应位于：
 - 不把 CSS tuning 视为 behavior layer 进展
 - 不用 beauty tokens 替代 feature / hero behavior 的协议定义
 - 不要求 Pillow 与 Puppeteer 达到 exact pixel parity
+- 不把 geometry evidence 扩展成大规模 diagnostics schema 重写
 
 然后通过一个 `behavior_resolver`：
 
