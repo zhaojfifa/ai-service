@@ -1107,6 +1107,20 @@ class TestBottomSplitBehavior:
         assert "layer-gallery-strip-region-shell state-show" in html_payload
         assert "layer-bottom-gallery-items state-show" in html_payload
 
+    def test_template_css_exposes_independent_bottom_split_state_tokens(self):
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+        assert "--bottom-shell-top: 728px;" in css_template
+        assert "--bottom-shell-height: 232px;" in css_template
+        assert "--gallery-items-top: 896px;" in css_template
+        assert ".layer-bottom-region.state-title-only {" in css_template
+        assert ".layer-bottom-region.state-gallery-only {" in css_template
+        assert ".layer-bottom-region.state-title-gallery {" in css_template
+        assert ".layer-bottom-gallery-items {" in css_template
+        assert "top: var(--gallery-items-top);" in css_template
+
 
 class _FakeLocator:
     def __init__(self):

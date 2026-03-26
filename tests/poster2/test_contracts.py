@@ -308,6 +308,13 @@ class TestTemplateSpecLoading:
         ]
         assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
+        assert slot_spec["layer_contracts"]["bottom_region_shell_layer"]["state_variants"] == [
+            "state-title-only",
+            "state-gallery-only",
+            "state-title-gallery",
+        ]
+        assert slot_spec["layer_contracts"]["title_band_region_shell_layer"]["layout_role"] == "independent_title_band"
+        assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["layout_role"] == "independent_gallery_strip"
         assert slot_spec["layers"]["header_identity_zone_layer"]["w"] == 556
         assert slot_spec["layers"]["brand_text_layer"]["w"] == 416
         assert slot_spec["layers"]["header_agent_zone_layer"]["w"] == 228

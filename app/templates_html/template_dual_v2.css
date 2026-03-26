@@ -101,6 +101,20 @@ body {
   --product-content-pad-right: 18px;
   --product-content-pad-bottom: 10px;
   --product-content-pad-left: 18px;
+  --bottom-shell-top: 728px;
+  --bottom-shell-height: 232px;
+  --title-band-top: 728px;
+  --title-band-height: 144px;
+  --title-content-top: 728px;
+  --title-content-height: 144px;
+  --title-content-pad-top: 22px;
+  --title-content-pad-right: 40px;
+  --title-content-pad-bottom: 18px;
+  --title-content-pad-left: 40px;
+  --gallery-shell-top: 888px;
+  --gallery-shell-height: 72px;
+  --gallery-items-top: 896px;
+  --gallery-items-height: 56px;
 }
 
 .region-shell {
@@ -531,10 +545,10 @@ body {
   z-index: 5;
   position: absolute;
   left: 112px;
-  top: 728px;
+  top: var(--title-content-top);
   width: 800px;
-  height: 144px;
-  padding: 22px 40px 18px;
+  height: var(--title-content-height);
+  padding: var(--title-content-pad-top) var(--title-content-pad-right) var(--title-content-pad-bottom) var(--title-content-pad-left);
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -544,9 +558,9 @@ body {
 .region-shell-bottom {
   position: absolute;
   left: 96px;
-  top: 728px;
+  top: var(--bottom-shell-top);
   width: 832px;
-  height: 232px;
+  height: var(--bottom-shell-height);
   border-radius: 28px;
   border: 1px solid rgba(232, 0, 42, 0.08);
   box-shadow: 0 18px 30px rgba(32, 22, 22, 0.08);
@@ -556,9 +570,27 @@ body {
   height: 160px;
 }
 
+.layer-bottom-region.state-title-only {
+  --bottom-shell-top: 728px;
+  --bottom-shell-height: 160px;
+  --title-band-top: 728px;
+  --title-band-height: 144px;
+  --title-content-top: 728px;
+  --title-content-height: 144px;
+}
+
 .layer-bottom-region.state-gallery-only .region-shell-bottom {
   top: 880px;
   height: 84px;
+}
+
+.layer-bottom-region.state-gallery-only {
+  --bottom-shell-top: 880px;
+  --bottom-shell-height: 84px;
+  --gallery-shell-top: 888px;
+  --gallery-shell-height: 72px;
+  --gallery-items-top: 896px;
+  --gallery-items-height: 56px;
 }
 
 .layer-bottom-region.state-title-gallery .region-shell-bottom {
@@ -566,12 +598,25 @@ body {
   height: 232px;
 }
 
+.layer-bottom-region.state-title-gallery {
+  --bottom-shell-top: 728px;
+  --bottom-shell-height: 232px;
+  --title-band-top: 728px;
+  --title-band-height: 144px;
+  --title-content-top: 728px;
+  --title-content-height: 144px;
+  --gallery-shell-top: 888px;
+  --gallery-shell-height: 72px;
+  --gallery-items-top: 896px;
+  --gallery-items-height: 56px;
+}
+
 .region-shell-title-band {
   position: absolute;
   left: 112px;
-  top: 728px;
+  top: var(--title-band-top);
   width: 800px;
-  height: 144px;
+  height: var(--title-band-height);
   border-radius: 28px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 249, 246, 0.86));
   border: 1px solid rgba(232, 0, 42, 0.08);
@@ -624,13 +669,21 @@ body {
 .region-shell-gallery-strip {
   position: absolute;
   left: 96px;
-  top: 888px;
+  top: var(--gallery-shell-top);
   width: 832px;
-  height: 72px;
+  height: var(--gallery-shell-height);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.66);
   border: 1px solid rgba(255, 255, 255, 0.42);
   box-shadow: 0 10px 24px rgba(28, 20, 20, 0.08);
+}
+
+.layer-bottom-gallery-items {
+  position: absolute;
+  left: 96px;
+  top: var(--gallery-items-top);
+  width: 832px;
+  height: var(--gallery-items-height);
 }
 
 .gallery-strip {
