@@ -218,6 +218,20 @@ Beautification Layer 必须建立在以下前提上：
 不允许改变：
 
 - hero/product geometry
+
+## 8. 当前实现边界
+
+当前工程线已经有最小 beauty token schema 与 resolver 接口，但本阶段判断仍然成立：
+
+- 当前已证明 token 可以被 renderer 消费
+- 当前还没有完成 beauty preset 的可复用扩展闭环
+- 当前也还没有完成 Pillow 对 shell/token 的最小语义对齐
+
+因此当前文档边界应保持清晰：
+
+- behavior layer 进展不等于 beautification layer 已成熟
+- 任何 shell/text 改动都必须继续服从现有 geometry
+- 不允许把局部 CSS 调整描述成 beautification architecture 完成
 - product non-distortion rule
 - scenario/product peer relationship
 

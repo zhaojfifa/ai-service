@@ -57,6 +57,22 @@ The next phase focus is:
 - Geometry / Evidence Layer
 - Render Service Layer
 
+## Current Implementation Status
+
+Current repo status for the engineering line on `PosterSop01`:
+
+- `hero_mode` has been lifted into template metadata and resolved through a shared behavior resolver
+- the validated baseline remains `scenario_cover_product_contain`
+- a second reusable hero mode now exists to prove renderer behavior is protocol-driven rather than hard-coded
+- minimal beauty tokens exist, but broader preset expansion and Pillow visual parity still remain staged follow-up work
+- geometry/evidence reinforcement remains intentionally limited until the dedicated evidence PR
+
+Current non-goals remain:
+
+- no free-collage/editor-first model
+- no CSS-only tuning presented as architecture progress
+- no five-region geometry redesign
+
 ## Current File Map
 
 Present and organized in this repo now:

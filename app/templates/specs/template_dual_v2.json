@@ -3,6 +3,17 @@
   "template_id": "template_dual_v2",
   "version": "2.1.3",
   "contract_version": "poster2.template_dual_v2.v1",
+  "behavior_modes": {
+    "hero_mode": "scenario_cover_product_contain",
+    "feature_mode": "count_driven_callout_stack"
+  },
+  "beauty_tokens": {
+    "shell_surface": "glass_light",
+    "shell_border": "soft_line",
+    "shell_shadow": "soft",
+    "accent_tone": "warm_red",
+    "text_emphasis": "campaign_primary"
+  },
   "canvas_w": 1024,
   "canvas_h": 1024,
   "safe_margin": 48,

@@ -32,6 +32,7 @@ from .font_registry import FontRegistry
 from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
 from .renderer_routing import assert_quality_guard_deliverable
+from .template_behavior import resolve_template_behavior
 from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
@@ -99,6 +100,7 @@ class PosterPipeline:
             template = load_template(spec.template_id)
         else:
             validate_template_registration(template)
+        resolved_behavior = resolve_template_behavior(template)
         run_preflight_guard(template, spec)
 
         spec_hash = _hash_spec(spec)
@@ -246,6 +248,7 @@ class PosterPipeline:
             "template_id": template.template_id,
             "template_version": template.version,
             "template_contract_version": fg_result.template_contract_version,
+            "template_behavior": resolved_behavior.as_dict(),
             "requested_renderer_mode": spec.renderer_mode,
             "effective_renderer_mode": fg_result.render_engine_used,
             "render_engine_used": fg_result.render_engine_used,

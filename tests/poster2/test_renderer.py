@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -51,6 +52,7 @@ from app.services.poster2.renderer import (
     _prepare_gallery_urls,
 )
 from app.services.poster2.renderer_routing import RendererRoutingError, resolve_renderer_routing
+from app.services.poster2.template_behavior import resolve_template_behavior
 from app.services.poster2.template_registry import FAMILY_B_PRODUCT_SHEET_STORY, TemplateMetadata
 
 
@@ -169,6 +171,22 @@ class TestOptionalAssets:
         )
         result = LayoutRenderer().render(template, _minimal_spec(), assets)
         assert result.image.size == (1024, 1024)
+
+    def test_single_product_focus_hero_mode_skips_scenario_render(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            hero_mode="single_product_focus",
+        )
+        assets = _minimal_assets(
+            scenario=solid_image(320, 600, (100, 150, 200, 255)),
+        )
+
+        result = LayoutRenderer().render(template, _minimal_spec(), assets)
+
+        assert result.image.getpixel((120, 220))[3] == 0
+        assert result.region_render_status["scenario_region"]["rendered"] is False
+        assert result.region_render_status["product_region"]["rendered"] is True
 
 
 # ── Feature slots ─────────────────────────────────────────────────────────────
@@ -660,7 +678,11 @@ class TestStructuredGalleryMarkup:
             ]
         }
 
-        markup, layer_class = renderer._feature_markup(anchor_map, ("One",))
+        markup, layer_class = renderer._feature_markup(
+            anchor_map,
+            ("One",),
+            feature_mode="count_driven_callout_stack",
+        )
 
         assert layer_class == "state-show feature-mode-1"
         assert markup.count('class="feature-callout feature-mode-box-1"') == 1
@@ -677,7 +699,11 @@ class TestStructuredGalleryMarkup:
             ]
         }
 
-        markup, layer_class = renderer._feature_markup(anchor_map, ("One", " ", "Three"))
+        markup, layer_class = renderer._feature_markup(
+            anchor_map,
+            ("One", " ", "Three"),
+            feature_mode="count_driven_callout_stack",
+        )
 
         assert layer_class == "state-show feature-mode-2"
         assert markup.count('class="feature-callout feature-mode-box-2"') == 2
@@ -697,7 +723,11 @@ class TestStructuredGalleryMarkup:
             ]
         }
 
-        markup, layer_class = renderer._feature_markup(anchor_map, ("One", "Two", "Three", "Four"))
+        markup, layer_class = renderer._feature_markup(
+            anchor_map,
+            ("One", "Two", "Three", "Four"),
+            feature_mode="count_driven_callout_stack",
+        )
 
         assert layer_class == "state-show feature-mode-4"
         assert markup.count('class="feature-callout feature-mode-box-4"') == 4
@@ -706,7 +736,11 @@ class TestStructuredGalleryMarkup:
     def test_feature_markup_hides_when_empty(self):
         renderer = PuppeteerStructuredRenderer()
 
-        markup, layer_class = renderer._feature_markup({"feature_callouts": []}, ())
+        markup, layer_class = renderer._feature_markup(
+            {"feature_callouts": []},
+            (),
+            feature_mode="count_driven_callout_stack",
+        )
 
         assert markup == ""
         assert layer_class == "state-hidden feature-mode-0"
@@ -801,6 +835,40 @@ class TestStructuredGalleryMarkup:
 
 class TestStructuredScenarioLayer:
 
+    def test_template_behavior_resolver_uses_template_metadata(self):
+        template = _load_real_template()
+
+        resolved = resolve_template_behavior(template)
+
+        assert resolved.hero_mode == "scenario_cover_product_contain"
+        assert resolved.feature_mode == "count_driven_callout_stack"
+        assert resolved.beauty_tokens.shell_surface == "glass_light"
+        assert resolved.css_vars["--accent-tone"] == "#E8002A"
+        assert resolved.hero_policy.scenario_enabled is True
+
+    def test_template_behavior_resolver_supports_second_hero_mode(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            hero_mode="single_product_focus",
+        )
+
+        resolved = resolve_template_behavior(template)
+
+        assert resolved.hero_mode == "single_product_focus"
+        assert resolved.hero_policy.scenario_enabled is False
+        assert resolved.hero_policy.product_anchor == "bottom"
+
+    def test_template_behavior_resolver_rejects_unknown_hero_mode(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            hero_mode="hero_mode_missing",
+        )
+
+        with pytest.raises(ValueError, match="Unsupported hero_mode"):
+            resolve_template_behavior(template)
+
     def test_safe_preset_scenario_url_is_non_empty(self):
         data_url = _safe_preset_scenario_data_url()
         assert data_url.startswith("data:image/png;base64,")
@@ -849,9 +917,11 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
-        assert "layer-hero-peer-region state-safe-fill state-fit-cover state-anchor-center" in html_payload
+        assert "hero-mode-scenario-cover-product-contain" in html_payload
+        assert "--accent-tone: #E8002A" in html_payload
+        assert "layer-hero-peer-region state-safe-fill state-fit-cover state-anchor-center hero-mode-scenario-cover-product-contain" in html_payload
         assert "scenario-fit-cover" in html_payload
-        assert "layer layer-product-content state-fit-contain state-anchor-bottom" in html_payload
+        assert "layer layer-product-content state-fit-contain state-anchor-bottom hero-mode-scenario-cover-product-contain" in html_payload
         assert "product-fit-contain" in html_payload
         assert 'data-region="title_band_region"' in html_payload
         assert 'data-region="feature_region"' in html_payload
@@ -900,9 +970,60 @@ class TestStructuredScenarioLayer:
             spec=template,
         )
 
-        assert "layer-hero-peer-region state-real state-fit-cover state-anchor-center" in html_payload
+        assert "layer-hero-peer-region state-real state-fit-cover state-anchor-center hero-mode-scenario-cover-product-contain" in html_payload
         assert "region-shell-scenario state-real" in html_payload
-        assert "layer layer-product layer-hero-peer-region state-fit-contain state-anchor-bottom" in html_payload
+        assert "layer layer-product layer-hero-peer-region state-fit-contain state-anchor-bottom hero-mode-scenario-cover-product-contain" in html_payload
+
+    def test_template_html_hides_scenario_for_single_product_focus(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            hero_mode="single_product_focus",
+        )
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(),
+            asset_urls={
+                "logo": "",
+                "scenario": "data:image/png;base64,real",
+                "scenario_is_real": True,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert "hero-mode-single-product-focus" in html_payload
+        assert 'class="layer layer-scenario layer-hero-peer-region state-hidden hero-mode-single-product-focus"' in html_payload
+        assert 'class="layer layer-product layer-hero-peer-region state-fit-contain state-anchor-bottom hero-mode-single-product-focus"' in html_payload
 
     def test_template_css_exposes_peer_region_fit_policies(self):
         css_template = (

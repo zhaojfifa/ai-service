@@ -429,6 +429,11 @@ class TestPosterPipelineRun:
         assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
         metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert metadata["template_behavior"]["behavior_modes"]["hero_mode"] == "scenario_cover_product_contain"
+        assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "count_driven_callout_stack"
+        assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
+        assert metadata["template_behavior"]["hero_policy"]["product_fit"] == "contain"
+        assert metadata["template_behavior"]["beauty_tokens"]["shell_surface"] == "glass_light"
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
         assert layer_status["brand_logo_layer"]["reason_code"] == "logo_missing"
