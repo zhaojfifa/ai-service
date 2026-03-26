@@ -19,11 +19,116 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack"}
-_SUPPORTED_SHELL_SURFACES = {"glass_light"}
-_SUPPORTED_SHELL_BORDERS = {"soft_line"}
-_SUPPORTED_SHELL_SHADOWS = {"soft"}
-_SUPPORTED_ACCENT_TONES = {"warm_red"}
-_SUPPORTED_TEXT_EMPHASIS = {"campaign_primary"}
+_SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
+    "glass_light": {
+        "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 243, 0.92))",
+        "--shell-surface-scenario-safe": "linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(247, 238, 234, 0.26))",
+        "--shell-surface-scenario-real": "linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02))",
+        "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(250, 242, 240, 0.92))",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(255, 255, 255, 0.70), rgba(255, 248, 246, 0.56))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 248, 245, 0.88))",
+        "--shell-surface-gallery-strip": "rgba(255, 255, 255, 0.68)",
+        "--feature-card-surface": "rgba(255, 255, 255, 0.95)",
+    },
+    "panel_clean": {
+        "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 248, 0.96))",
+        "--shell-surface-scenario-safe": "linear-gradient(180deg, rgba(249, 249, 249, 0.94), rgba(240, 240, 240, 0.96))",
+        "--shell-surface-scenario-real": "linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(250, 250, 250, 0.06))",
+        "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(246, 246, 246, 0.97))",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 247, 247, 0.88))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 246, 246, 0.94))",
+        "--shell-surface-gallery-strip": "rgba(255, 255, 255, 0.84)",
+        "--feature-card-surface": "rgba(255, 255, 255, 0.98)",
+    },
+    "panel_dark_soft": {
+        "--shell-surface-header": "linear-gradient(180deg, rgba(44, 42, 46, 0.92), rgba(34, 32, 36, 0.88))",
+        "--shell-surface-scenario-safe": "linear-gradient(180deg, rgba(58, 55, 61, 0.78), rgba(41, 39, 44, 0.74))",
+        "--shell-surface-scenario-real": "linear-gradient(180deg, rgba(54, 52, 58, 0.48), rgba(34, 32, 36, 0.18))",
+        "--shell-surface-product": "linear-gradient(180deg, rgba(53, 50, 57, 0.94), rgba(40, 38, 43, 0.90))",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(47, 44, 50, 0.82), rgba(36, 34, 38, 0.78))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(50, 48, 54, 0.88), rgba(36, 34, 39, 0.82))",
+        "--shell-surface-gallery-strip": "rgba(48, 46, 52, 0.76)",
+        "--feature-card-surface": "rgba(57, 54, 60, 0.92)",
+    },
+    "solid_soft": {
+        "--shell-surface-header": "rgba(255, 252, 250, 0.98)",
+        "--shell-surface-scenario-safe": "rgba(246, 240, 236, 0.92)",
+        "--shell-surface-scenario-real": "rgba(255, 255, 255, 0.14)",
+        "--shell-surface-product": "rgba(255, 251, 248, 0.98)",
+        "--shell-surface-bottom": "rgba(255, 250, 247, 0.92)",
+        "--shell-surface-title-band": "rgba(255, 252, 250, 0.96)",
+        "--shell-surface-gallery-strip": "rgba(255, 250, 247, 0.82)",
+        "--feature-card-surface": "rgba(255, 252, 250, 0.96)",
+    },
+}
+_SHELL_BORDER_PRESETS: dict[str, dict[str, str]] = {
+    "soft_line": {
+        "--shell-border-accent-alpha": "14",
+        "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.44)",
+        "--shell-border-hero": "1px solid rgba(255, 255, 255, 0.24)",
+        "--feature-card-border-alpha": "1f",
+    },
+    "clean_frame": {
+        "--shell-border-accent-alpha": "32",
+        "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.58)",
+        "--shell-border-hero": "1px solid rgba(255, 255, 255, 0.34)",
+        "--feature-card-border-alpha": "36",
+    },
+    "none": {
+        "--shell-border-accent-alpha": "00",
+        "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.00)",
+        "--shell-border-hero": "1px solid rgba(255, 255, 255, 0.00)",
+        "--feature-card-border-alpha": "00",
+    },
+}
+_SHELL_SHADOW_PRESETS: dict[str, dict[str, str]] = {
+    "none": {
+        "--shell-shadow-main": "0 0 0 rgba(0, 0, 0, 0)",
+        "--shell-shadow-secondary": "0 0 0 rgba(0, 0, 0, 0)",
+        "--feature-card-shadow": "0 0 0 rgba(0, 0, 0, 0)",
+        "--gallery-item-shadow": "0 0 0 rgba(0, 0, 0, 0)",
+    },
+    "soft": {
+        "--shell-shadow-main": "0 18px 36px rgba(34, 22, 22, 0.11)",
+        "--shell-shadow-secondary": "0 12px 26px rgba(31, 22, 22, 0.08)",
+        "--feature-card-shadow": "0 12px 24px rgba(24, 16, 16, 0.10)",
+        "--gallery-item-shadow": "0 10px 22px rgba(31, 22, 22, 0.10)",
+    },
+    "medium": {
+        "--shell-shadow-main": "0 22px 42px rgba(26, 18, 18, 0.16)",
+        "--shell-shadow-secondary": "0 16px 30px rgba(28, 20, 20, 0.12)",
+        "--feature-card-shadow": "0 14px 28px rgba(24, 16, 16, 0.14)",
+        "--gallery-item-shadow": "0 12px 24px rgba(31, 22, 22, 0.12)",
+    },
+}
+_ACCENT_TONE_PRESETS: dict[str, str] = {
+    "warm_red": "#E8002A",
+    "brand_gold": "#C69214",
+    "cool_blue": "#2D6CDF",
+}
+_TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
+    "campaign_primary": {
+        "brand": "#1A1A1A",
+        "agent": "#6F5757",
+        "title": "{accent}",
+        "subtitle": "{accent}",
+        "feature": "#1A1A1A",
+    },
+    "editorial_soft": {
+        "brand": "#242124",
+        "agent": "#7A6E76",
+        "title": "{accent}",
+        "subtitle": "#8A7A84",
+        "feature": "#262228",
+    },
+    "high_contrast": {
+        "brand": "#111111",
+        "agent": "#4A4A4A",
+        "title": "{accent}",
+        "subtitle": "{accent}",
+        "feature": "#111111",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -132,11 +237,11 @@ def resolve_template_behavior(spec: TemplateSpec, *, feature_count: int | None =
     beauty = spec.beauty_tokens
     hero_mode = _validate_token(modes.hero_mode, _SUPPORTED_HERO_MODES, "hero_mode")
     feature_mode = _validate_token(modes.feature_mode, _SUPPORTED_FEATURE_MODES, "feature_mode")
-    shell_surface = _validate_token(beauty.shell_surface, _SUPPORTED_SHELL_SURFACES, "shell_surface")
-    shell_border = _validate_token(beauty.shell_border, _SUPPORTED_SHELL_BORDERS, "shell_border")
-    shell_shadow = _validate_token(beauty.shell_shadow, _SUPPORTED_SHELL_SHADOWS, "shell_shadow")
-    accent_tone = _validate_token(beauty.accent_tone, _SUPPORTED_ACCENT_TONES, "accent_tone")
-    text_emphasis = _validate_token(beauty.text_emphasis, _SUPPORTED_TEXT_EMPHASIS, "text_emphasis")
+    shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
+    shell_border = _validate_token(beauty.shell_border, set(_SHELL_BORDER_PRESETS), "shell_border")
+    shell_shadow = _validate_token(beauty.shell_shadow, set(_SHELL_SHADOW_PRESETS), "shell_shadow")
+    accent_tone = _validate_token(beauty.accent_tone, set(_ACCENT_TONE_PRESETS), "accent_tone")
+    text_emphasis = _validate_token(beauty.text_emphasis, set(_TEXT_EMPHASIS_PRESETS), "text_emphasis")
     hero_policy = resolve_hero_behavior(hero_mode)
     feature_policy = resolve_feature_behavior(
         feature_mode,
@@ -272,60 +377,44 @@ def _validate_token(value: str, supported: set[str], field_name: str) -> str:
 
 
 def _resolve_shell_surface_vars(shell_surface: str) -> dict[str, str]:
-    if shell_surface != "glass_light":
+    if shell_surface not in _SHELL_SURFACE_PRESETS:
         raise ValueError(f"Unsupported shell_surface: {shell_surface}")
-    return {
-        "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 243, 0.92))",
-        "--shell-surface-scenario-safe": "linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(247, 238, 234, 0.26))",
-        "--shell-surface-scenario-real": "linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02))",
-        "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(250, 242, 240, 0.92))",
-        "--shell-surface-bottom": "linear-gradient(180deg, rgba(255, 255, 255, 0.70), rgba(255, 248, 246, 0.56))",
-        "--shell-surface-title-band": "linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 248, 245, 0.88))",
-        "--shell-surface-gallery-strip": "rgba(255, 255, 255, 0.68)",
-        "--feature-card-surface": "rgba(255, 255, 255, 0.95)",
-    }
+    return dict(_SHELL_SURFACE_PRESETS[shell_surface])
 
 
 def _resolve_shell_border_vars(shell_border: str, accent_color: str) -> dict[str, str]:
-    if shell_border != "soft_line":
+    if shell_border not in _SHELL_BORDER_PRESETS:
         raise ValueError(f"Unsupported shell_border: {shell_border}")
+    preset = _SHELL_BORDER_PRESETS[shell_border]
+    accent_alpha = preset["--shell-border-accent-alpha"]
+    feature_alpha = preset["--feature-card-border-alpha"]
     return {
-        "--shell-border-header": f"1px solid {accent_color}14",
-        "--shell-border-hero": "1px solid rgba(255, 255, 255, 0.24)",
-        "--shell-border-product": f"1px solid {accent_color}14",
-        "--shell-border-bottom": f"1px solid {accent_color}10",
-        "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.44)",
-        "--feature-card-border": f"1px solid {accent_color}1f",
+        "--shell-border-header": f"1px solid {accent_color}{accent_alpha}",
+        "--shell-border-hero": preset["--shell-border-hero"],
+        "--shell-border-product": f"1px solid {accent_color}{accent_alpha}",
+        "--shell-border-bottom": f"1px solid {accent_color}{accent_alpha}",
+        "--shell-border-gallery": preset["--shell-border-gallery"],
+        "--feature-card-border": f"1px solid {accent_color}{feature_alpha}",
     }
 
 
 def _resolve_shell_shadow_vars(shell_shadow: str) -> dict[str, str]:
-    if shell_shadow != "soft":
+    if shell_shadow not in _SHELL_SHADOW_PRESETS:
         raise ValueError(f"Unsupported shell_shadow: {shell_shadow}")
-    return {
-        "--shell-shadow-main": "0 18px 36px rgba(34, 22, 22, 0.11)",
-        "--shell-shadow-secondary": "0 12px 26px rgba(31, 22, 22, 0.08)",
-        "--feature-card-shadow": "0 12px 24px rgba(24, 16, 16, 0.10)",
-        "--gallery-item-shadow": "0 10px 22px rgba(31, 22, 22, 0.10)",
-    }
+    return dict(_SHELL_SHADOW_PRESETS[shell_shadow])
 
 
 def _resolve_accent_color(accent_tone: str) -> str:
-    if accent_tone != "warm_red":
+    if accent_tone not in _ACCENT_TONE_PRESETS:
         raise ValueError(f"Unsupported accent_tone: {accent_tone}")
-    return "#E8002A"
+    return _ACCENT_TONE_PRESETS[accent_tone]
 
 
 def _resolve_text_colors(text_emphasis: str, accent_color: str) -> dict[str, str]:
-    if text_emphasis != "campaign_primary":
+    if text_emphasis not in _TEXT_EMPHASIS_PRESETS:
         raise ValueError(f"Unsupported text_emphasis: {text_emphasis}")
-    return {
-        "brand": "#1A1A1A",
-        "agent": "#6F5757",
-        "title": accent_color,
-        "subtitle": accent_color,
-        "feature": "#1A1A1A",
-    }
+    preset = _TEXT_EMPHASIS_PRESETS[text_emphasis]
+    return {key: value.format(accent=accent_color) for key, value in preset.items()}
 
 
 def _css_mode_class(prefix: str, mode_name: str) -> str:

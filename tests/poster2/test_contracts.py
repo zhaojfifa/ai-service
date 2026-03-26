@@ -151,6 +151,21 @@ class TestTemplateSpecLoading:
 
         assert spec.behavior_modes.feature_mode == "uniform_callout_stack"
 
+    def test_template_beauty_tokens_accept_expanded_presets(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["beauty_tokens"] = {
+            "shell_surface": "panel_dark_soft",
+            "shell_border": "clean_frame",
+            "shell_shadow": "medium",
+            "accent_tone": "cool_blue",
+            "text_emphasis": "editorial_soft",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.beauty_tokens.shell_surface == "panel_dark_soft"
+        assert spec.beauty_tokens.accent_tone == "cool_blue"
+
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
         real_path = (

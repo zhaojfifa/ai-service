@@ -245,6 +245,7 @@ Behavior Layer 应位于：
 - 不引入复杂 DSL
 - 不扩展成 editor-first state model
 - 不把 CSS tuning 视为 behavior layer 进展
+- 不用 beauty tokens 替代 feature / hero behavior 的协议定义
 
 然后通过一个 `behavior_resolver`：
 
