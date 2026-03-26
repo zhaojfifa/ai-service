@@ -225,7 +225,12 @@ Beautification Layer 必须建立在以下前提上：
 
 - 当前已证明 token 可以被 renderer 消费
 - 当前已证明 behavior layer 与 beauty layer 可以保持边界分离
-- 当前还没有完成 beauty preset 的可复用扩展闭环
+- 当前已完成第一轮 beauty preset vocabulary 扩展：
+  - `shell_surface`
+  - `shell_border`
+  - `shell_shadow`
+  - `accent_tone`
+  - `text_emphasis`
 - 当前也还没有完成 Pillow 对 shell/token 的最小语义对齐
 
 因此当前文档边界应保持清晰：

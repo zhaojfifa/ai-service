@@ -943,6 +943,25 @@ class TestStructuredScenarioLayer:
         assert resolved.feature_policy.connector_policy == "uniform_stack"
         assert resolved.feature_policy.box_policy == "uniform_compact_stack"
 
+    def test_template_behavior_resolver_supports_expanded_beauty_presets(self):
+        template = _load_real_template()
+        template.beauty_tokens = replace(
+            template.beauty_tokens,
+            shell_surface="panel_dark_soft",
+            shell_border="clean_frame",
+            shell_shadow="medium",
+            accent_tone="cool_blue",
+            text_emphasis="editorial_soft",
+        )
+
+        resolved = resolve_template_behavior(template, feature_count=2)
+
+        assert resolved.beauty_tokens.shell_surface == "panel_dark_soft"
+        assert resolved.css_vars["--shell-surface-header"].startswith("linear-gradient")
+        assert resolved.css_vars["--shell-shadow-main"] == "0 22px 42px rgba(26, 18, 18, 0.16)"
+        assert resolved.accent_color == "#2D6CDF"
+        assert resolved.text_colors["subtitle"] == "#8A7A84"
+
     def test_template_behavior_resolver_rejects_unknown_hero_mode(self):
         template = _load_real_template()
         template.behavior_modes = replace(
@@ -1108,6 +1127,61 @@ class TestStructuredScenarioLayer:
         assert "hero-mode-single-product-focus" in html_payload
         assert 'class="layer layer-scenario layer-hero-peer-region state-hidden hero-mode-single-product-focus"' in html_payload
         assert 'class="layer layer-product layer-hero-peer-region state-fit-contain state-anchor-bottom hero-mode-single-product-focus"' in html_payload
+
+    def test_template_html_exposes_expanded_beauty_css_vars(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        template.beauty_tokens = replace(
+            template.beauty_tokens,
+            shell_surface="panel_clean",
+            shell_border="clean_frame",
+            shell_shadow="medium",
+            accent_tone="brand_gold",
+            text_emphasis="high_contrast",
+        )
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(),
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert "--accent-tone: #C69214" in html_payload
+        assert "--text-color-brand: #111111" in html_payload
+        assert "--shell-surface-gallery-strip: rgba(255, 255, 255, 0.84)" in html_payload
 
     def test_template_css_exposes_peer_region_fit_policies(self):
         css_template = (
