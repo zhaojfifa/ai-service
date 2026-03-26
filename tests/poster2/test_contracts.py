@@ -124,6 +124,21 @@ class TestTemplateSpecLoading:
         assert spec.product_slot.align_y == "end"
         assert spec.product_slot.pad_top == 24
         assert spec.product_slot.pad_bottom == 10
+        assert spec.behavior_modes.hero_mode == "scenario_cover_product_contain"
+        assert spec.behavior_modes.feature_mode == "count_driven_callout_stack"
+        assert spec.beauty_tokens.shell_surface == "glass_light"
+        assert spec.beauty_tokens.text_emphasis == "campaign_primary"
+
+    def test_template_behavior_modes_accept_second_hero_mode(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["behavior_modes"] = {
+            "hero_mode": "single_product_focus",
+            "feature_mode": "count_driven_callout_stack",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.behavior_modes.hero_mode == "single_product_focus"
 
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""

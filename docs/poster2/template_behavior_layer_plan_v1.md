@@ -218,6 +218,29 @@ Behavior Layer 应位于：
 }
 ```
 
+## 8. 当前实现进展
+
+当前工程线已经落地的部分：
+
+- template metadata 中已有 `behavior_modes`
+- 已有统一 resolver 负责把 mode 归一化为 renderer 可执行 policy
+- `hero_mode` 已不再只依赖 renderer 内部分支
+- 当前已覆盖：
+  - `scenario_cover_product_contain`
+  - `single_product_focus`
+
+这意味着当前已经能够证明：
+
+- hero 行为可以由协议声明
+- Pillow 与 Puppeteer 可以共享同一 hero semantic
+- unsupported hero mode 可以显式失败，而不是隐式退化成某个 renderer 默认行为
+
+当前仍明确不在本轮内的事项：
+
+- 不引入复杂 DSL
+- 不扩展成 editor-first state model
+- 不把 CSS tuning 视为 behavior layer 进展
+
 然后通过一个 `behavior_resolver`：
 
 - 读取 mode

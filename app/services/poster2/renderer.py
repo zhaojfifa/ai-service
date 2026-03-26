@@ -37,19 +37,12 @@ from .contracts import (
 )
 from .font_registry import FontRegistry
 from .renderer_routing import RendererRoutingError, evaluate_fallback_eligibility, resolve_renderer_routing
+from .template_behavior import resolve_feature_layout_mode, resolve_template_behavior
 from .template_registry import resolve_template_metadata
 
 logger = logging.getLogger("ai-service.poster2")
 
 _HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
-_FEATURE_MODE_SPECS: dict[int, dict[str, int | str]] = {
-    1: {"box_h": 80, "gap": 0, "connector_policy": "single_center"},
-    2: {"box_h": 76, "gap": 18, "connector_policy": "balanced_pair"},
-    3: {"box_h": 72, "gap": 16, "connector_policy": "compact_triplet"},
-    4: {"box_h": 60, "gap": 12, "connector_policy": "dense_quad"},
-}
-
-
 class RendererUnavailableError(RuntimeError):
     """Raised when a requested renderer is not available in the runtime."""
 
@@ -121,11 +114,12 @@ class LayoutRenderer:
         poster: PosterSpec,
         assets: ResolvedAssets,
     ) -> ForegroundResult:
+        behavior = resolve_template_behavior(spec)
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
         layer_timings: dict[str, int] = {}
 
         t0 = _now()
-        if spec.scenario_slot and assets.scenario:
+        if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, spec.scenario_slot, assets.scenario)
         self._draw_product(canvas, spec.product_slot, assets.product)
         self._draw_gallery(canvas, spec.gallery_slot, assets.gallery)
@@ -134,16 +128,42 @@ class LayoutRenderer:
         layer_timings["product_material_layer_ms"] = _elapsed(t0)
 
         t1 = _now()
-        resolved_callouts = _resolve_feature_callout_layout(spec.feature_callouts, poster.features)
+        resolved_callouts = _resolve_feature_callout_layout(
+            spec.feature_callouts,
+            poster.features,
+            feature_mode=behavior.feature_mode,
+            accent_color=behavior.accent_color,
+            text_color=behavior.text_colors["feature"],
+        )
         self._draw_feature_callout_structure(canvas, resolved_callouts)
         layer_timings["foreground_structure_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
         self._draw_feature_callout_labels(canvas, resolved_callouts)
-        self._draw_text(canvas, spec.brand_name_slot, poster.brand_name, draw_background=False)
-        self._draw_text(canvas, spec.agent_name_slot, poster.agent_name, draw_background=False)
-        self._draw_text(canvas, spec.title_slot, poster.title, draw_background=False)
-        self._draw_text(canvas, spec.subtitle_slot, poster.subtitle, draw_background=False)
+        self._draw_text(
+            canvas,
+            replace(spec.brand_name_slot, color=behavior.text_colors["brand"]),
+            poster.brand_name,
+            draw_background=False,
+        )
+        self._draw_text(
+            canvas,
+            replace(spec.agent_name_slot, color=behavior.text_colors["agent"]),
+            poster.agent_name,
+            draw_background=False,
+        )
+        self._draw_text(
+            canvas,
+            replace(spec.title_slot, color=behavior.text_colors["title"]),
+            poster.title,
+            draw_background=False,
+        )
+        self._draw_text(
+            canvas,
+            replace(spec.subtitle_slot, color=behavior.text_colors["subtitle"]),
+            poster.subtitle,
+            draw_background=False,
+        )
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
@@ -151,13 +171,17 @@ class LayoutRenderer:
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=assets.logo is not None,
-            has_scenario=assets.scenario is not None,
+            has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
             has_product=assets.product is not None,
             feature_count=len(resolved_callouts),
             gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_visible=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
-            scenario_source=poster.scenario_image.url if poster.scenario_image else None,
+            scenario_source=(
+                poster.scenario_image.url
+                if (poster.scenario_image and behavior.hero_policy.scenario_enabled)
+                else None
+            ),
             product_source=poster.product_image.url,
             logo_source=poster.logo.url if poster.logo else None,
             scenario_safe_fill=False,
@@ -346,6 +370,7 @@ class PuppeteerStructuredRenderer:
         poster: PosterSpec,
         assets: ResolvedAssets,
     ) -> ForegroundResult:
+        behavior = resolve_template_behavior(spec)
         t0 = _now()
         logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
         try:
@@ -362,12 +387,14 @@ class PuppeteerStructuredRenderer:
 
         t1 = _now()
         try:
-            has_real_scenario = assets.scenario is not None
-            scenario_url = (
-                _image_to_data_url(assets.scenario)
-                if has_real_scenario
-                else _safe_preset_scenario_data_url()
-            )
+            has_real_scenario = behavior.hero_policy.scenario_enabled and assets.scenario is not None
+            scenario_url = ""
+            if behavior.hero_policy.scenario_enabled:
+                scenario_url = (
+                    _image_to_data_url(assets.scenario)
+                    if has_real_scenario
+                    else _safe_preset_scenario_data_url()
+                )
             logger.info(
                 "poster2.gallery_prepare_start requested=%d resolved=%d",
                 len(assets.gallery_status),
@@ -423,16 +450,20 @@ class PuppeteerStructuredRenderer:
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=bool(asset_urls["logo"]),
-            has_scenario=bool(asset_urls.get("scenario_is_real")),
+            has_scenario=behavior.hero_policy.scenario_enabled and bool(asset_urls.get("scenario_is_real")),
             has_product=True,
             feature_count=min(len([item for item in poster.features if item]), len(spec.feature_callouts)),
             gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
             gallery_visible=gallery_visible_count,
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
-            scenario_source=poster.scenario_image.url if poster.scenario_image else "safe_preset_image",
+            scenario_source=(
+                poster.scenario_image.url
+                if (poster.scenario_image and behavior.hero_policy.scenario_enabled)
+                else ("safe_preset_image" if behavior.hero_policy.scenario_enabled else None)
+            ),
             product_source=poster.product_image.url,
             logo_source=poster.logo.url if poster.logo else None,
-            scenario_safe_fill=not bool(asset_urls.get("scenario_is_real")),
+            scenario_safe_fill=behavior.hero_policy.scenario_enabled and not bool(asset_urls.get("scenario_is_real")),
         )
         return ForegroundResult(
             image=image,
@@ -470,17 +501,35 @@ class PuppeteerStructuredRenderer:
         anchor_map: dict[str, Any],
         spec: TemplateSpec,
     ) -> str:
+        behavior = resolve_template_behavior(spec)
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
         gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
-        feature_markup, feature_layer_class = self._feature_markup(anchor_map, poster.features)
+        feature_markup, feature_layer_class = self._feature_markup(
+            anchor_map,
+            poster.features,
+            feature_mode=behavior.feature_mode,
+        )
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
-        scenario_is_real = bool(asset_urls.get("scenario_is_real"))
-        scenario_layer_class = ("state-real" if scenario_is_real else "state-safe-fill") + " state-fit-cover state-anchor-center"
-        scenario_shell_class = "state-real" if scenario_is_real else "state-safe-fill"
-        scenario_content_class = ("state-real" if scenario_is_real else "state-safe-fill") + " state-fit-cover state-anchor-center"
-        product_layer_class = "state-fit-contain state-anchor-bottom"
-        product_content_class = "state-fit-contain state-anchor-bottom"
+        scenario_is_real = bool(asset_urls.get("scenario_is_real")) and behavior.hero_policy.scenario_enabled
+        hero_mode_class = behavior.root_classes[0]
+        if behavior.hero_policy.scenario_enabled:
+            scenario_state = "state-real" if scenario_is_real else "state-safe-fill"
+            scenario_layer_class = (
+                f"{scenario_state} state-fit-{behavior.hero_policy.scenario_fit} "
+                f"state-anchor-{behavior.hero_policy.scenario_anchor} {hero_mode_class}"
+            )
+            scenario_shell_class = scenario_state
+            scenario_content_class = scenario_layer_class
+        else:
+            scenario_layer_class = f"state-hidden {hero_mode_class}"
+            scenario_shell_class = "state-hidden"
+            scenario_content_class = f"state-hidden {hero_mode_class}"
+        product_layer_class = (
+            f"state-fit-{behavior.hero_policy.product_fit} "
+            f"state-anchor-{behavior.hero_policy.product_anchor} {hero_mode_class}"
+        )
+        product_content_class = product_layer_class
         agent_text_class = "state-show" if (poster.agent_name or "").strip() else "state-hidden"
         has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
         has_gallery_strip = bool(asset_urls["gallery"])
@@ -502,6 +551,8 @@ class PuppeteerStructuredRenderer:
             "__INLINE_CSS__": css_template,
             "__FONT_FACE_CSS__": font_css,
             "__SAFE_MARGIN__": str(slot_spec.get("safe_margin", spec.safe_margin)),
+            "__ROOT_BEHAVIOR_CLASS__": html.escape(behavior.root_class_name()),
+            "__BEAUTY_CSS_VARS__": behavior.css_var_style(),
             "__TEMPLATE_ID__": html.escape(spec.template_id),
             "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
             "__SVG_OVERLAY__": "",
@@ -572,11 +623,17 @@ class PuppeteerStructuredRenderer:
         )
         return "".join(items), layer_class
 
-    def _feature_markup(self, anchor_map: dict[str, Any], features: tuple[str, ...]) -> tuple[str, str]:
-        callouts = _resolve_feature_callout_map(anchor_map, features)
+    def _feature_markup(
+        self,
+        anchor_map: dict[str, Any],
+        features: tuple[str, ...],
+        *,
+        feature_mode: str,
+    ) -> tuple[str, str]:
+        callouts = _resolve_feature_callout_map(anchor_map, features, feature_mode=feature_mode)
         if not callouts:
             return "", "state-hidden feature-mode-0"
-        mode, mode_spec = _resolve_feature_mode(len(callouts))
+        mode, mode_spec = resolve_feature_layout_mode(len(callouts), feature_mode)
         items: list[str] = []
         for callout, feature in callouts:
             anchor_x = int(callout["anchor_x"])
@@ -835,20 +892,23 @@ def _normalized_feature_texts(features: tuple[str, ...] | list[str]) -> list[str
 
 
 def _resolve_feature_mode(count: int) -> tuple[int, dict[str, int | str]]:
-    mode = min(max(count, 1), 4)
-    return mode, _FEATURE_MODE_SPECS[mode]
+    return resolve_feature_layout_mode(count, "count_driven_callout_stack")
 
 
 def _resolve_feature_callout_layout(
     callouts: list[FeatureCalloutSpec],
     features: tuple[str, ...] | list[str],
+    *,
+    feature_mode: str = "count_driven_callout_stack",
+    accent_color: str | None = None,
+    text_color: str | None = None,
 ) -> list[tuple[FeatureCalloutSpec, str]]:
     normalized_features = _normalized_feature_texts(features)
     if not callouts or not normalized_features:
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(callouts))]
     count = len(limited_features)
-    _, mode_spec = _resolve_feature_mode(count)
+    _, mode_spec = resolve_feature_layout_mode(count, feature_mode)
     source = callouts[:count]
     first = source[0]
     region_top = min(item.label_box.y for item in callouts)
@@ -869,8 +929,15 @@ def _resolve_feature_callout_layout(
         resolved_callout = replace(
             base,
             anchor_y=label_y + box_h // 2,
+            anchor_color=accent_color or base.anchor_color,
+            leader_color=accent_color or base.leader_color,
             label_box=label_box,
         )
+        if text_color:
+            resolved_callout = replace(
+                resolved_callout,
+                label_box=replace(resolved_callout.label_box, color=text_color),
+            )
         resolved.append((resolved_callout, feature_text))
     return resolved
 
@@ -878,6 +945,8 @@ def _resolve_feature_callout_layout(
 def _resolve_feature_callout_map(
     anchor_map: dict[str, Any],
     features: tuple[str, ...] | list[str],
+    *,
+    feature_mode: str = "count_driven_callout_stack",
 ) -> list[tuple[dict[str, Any], str]]:
     raw_callouts = anchor_map.get("feature_callouts", [])
     if not raw_callouts:
@@ -887,7 +956,7 @@ def _resolve_feature_callout_map(
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(raw_callouts))]
     count = len(limited_features)
-    _, mode_spec = _resolve_feature_mode(count)
+    _, mode_spec = resolve_feature_layout_mode(count, feature_mode)
     source = raw_callouts[:count]
     region_top = min(int(item["label_box"]["y"]) for item in raw_callouts)
     region_bottom = max(int(item["label_box"]["y"]) + int(item["label_box"]["h"]) for item in raw_callouts)
@@ -1172,8 +1241,9 @@ def render_product_material_debug_layer(
     selected for the final structured render.
     """
     renderer = LayoutRenderer(font_registry=font_registry)
+    behavior = resolve_template_behavior(spec)
     canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
-    if spec.scenario_slot and assets.scenario:
+    if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
         renderer._draw_image(canvas, spec.scenario_slot, assets.scenario)
     renderer._draw_product(canvas, spec.product_slot, assets.product)
     renderer._draw_gallery(canvas, spec.gallery_slot, assets.gallery)

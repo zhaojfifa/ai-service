@@ -137,6 +137,24 @@ class FeatureCalloutSpec:
     leader_width: int = 2
 
 
+@dataclass(frozen=True)
+class TemplateBehaviorModesSpec:
+    hero_mode: str = "scenario_cover_product_contain"
+    feature_mode: str = "count_driven_callout_stack"
+    header_mode: Optional[str] = None
+    bottom_mode: Optional[str] = None
+    gallery_mode: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class TemplateBeautyTokensSpec:
+    shell_surface: str = "glass_light"
+    shell_border: str = "soft_line"
+    shell_shadow: str = "soft"
+    accent_tone: str = "warm_red"
+    text_emphasis: str = "campaign_primary"
+
+
 @dataclass
 class TemplateSpec:
     template_id: str
@@ -163,6 +181,8 @@ class TemplateSpec:
 
     # Firefly background hint (never contains text/logo/UI words)
     background_prompt_hint: str = ""
+    behavior_modes: TemplateBehaviorModesSpec = field(default_factory=TemplateBehaviorModesSpec)
+    beauty_tokens: TemplateBeautyTokensSpec = field(default_factory=TemplateBeautyTokensSpec)
 
     # ---------- JSON loader ----------
 
@@ -198,6 +218,18 @@ class TemplateSpec:
                 leader_width=raw.get("leader_width", 2),
             )
 
+        def behavior_modes(raw: dict | None) -> TemplateBehaviorModesSpec:
+            if not raw:
+                return TemplateBehaviorModesSpec()
+            known = {f.name for f in TemplateBehaviorModesSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return TemplateBehaviorModesSpec(**{k: v for k, v in raw.items() if k in known})
+
+        def beauty_tokens(raw: dict | None) -> TemplateBeautyTokensSpec:
+            if not raw:
+                return TemplateBeautyTokensSpec()
+            known = {f.name for f in TemplateBeautyTokensSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return TemplateBeautyTokensSpec(**{k: v for k, v in raw.items() if k in known})
+
         # ── feature_callouts (preferred) vs legacy features_slot ──────────
         feature_callouts_raw = d.get("feature_callouts")
         if feature_callouts_raw:
@@ -227,6 +259,8 @@ class TemplateSpec:
             gallery_slot=gallery(d["gallery_slot"]),
             scenario_slot=img(scenario_raw) if scenario_raw else None,
             background_prompt_hint=d.get("background_prompt_hint", ""),
+            behavior_modes=behavior_modes(d.get("behavior_modes")),
+            beauty_tokens=beauty_tokens(d.get("beauty_tokens")),
         )
 
 
