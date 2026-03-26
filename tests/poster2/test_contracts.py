@@ -111,9 +111,8 @@ class TestTemplateSpecLoading:
         assert spec.gallery_slot.count == 4
         assert spec.version == "2.1.2"
         assert spec.gallery_slot.thumb_w == 196
-        # Agent name slot has CTA pill style
-        assert spec.agent_name_slot.bg_color == "#E8002A"
-        assert spec.agent_name_slot.bg_radius == 24
+        assert spec.agent_name_slot.bg_color == "transparent"
+        assert spec.agent_name_slot.bg_radius == 0
         assert spec.subtitle_slot.y + spec.subtitle_slot.h <= spec.canvas_h - spec.safe_margin
         assert spec.gallery_slot.y + spec.gallery_slot.h <= spec.canvas_h - spec.safe_margin
         assert spec.scenario_slot is not None
@@ -214,7 +213,7 @@ class TestTemplateSpecLoading:
         assert "header_shell_layer" in slot_spec["layers"]
         assert "brand_logo_layer" in slot_spec["layers"]
         assert "brand_text_layer" in slot_spec["layers"]
-        assert "agent_pill_layer" in slot_spec["layers"]
+        assert "agent_name_text_layer" in slot_spec["layers"]
         assert "scenario_card_shell_layer" in slot_spec["layers"]
         assert "scenario_image_layer" in slot_spec["layers"]
         assert "product_card_shell_layer" in slot_spec["layers"]
@@ -240,7 +239,7 @@ class TestTemplateSpecLoading:
             "header_shell_layer",
             "brand_logo_layer",
             "brand_text_layer",
-            "agent_pill_layer",
+            "agent_name_text_layer",
             "scenario_card_shell_layer",
             "scenario_image_layer",
             "product_card_shell_layer",
@@ -278,8 +277,8 @@ class TestTemplateSpecLoading:
         assert "ghost connectors" in slot_spec["layer_contracts"]["feature_callout_layer"]["fallback_rule"]
         assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
-        assert slot_spec["layers"]["brand_text_layer"]["w"] == 484
-        assert slot_spec["layers"]["agent_pill_layer"]["w"] == 164
+        assert slot_spec["layers"]["brand_text_layer"]["w"] == 668
+        assert slot_spec["layers"]["agent_name_text_layer"]["w"] == 668
         assert slot_spec["slots"]["gallery"][0]["y"] == 896
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec

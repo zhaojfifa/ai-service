@@ -91,7 +91,7 @@ body {
 
 .slot-logo,
 .slot-brand,
-.slot-agent {
+.slot-agent-name-text {
   z-index: 6;
   box-sizing: border-box;
   width: 100%;
@@ -113,101 +113,80 @@ body {
 .text-brand {
   display: block;
   width: 100%;
-  padding: 10px 12px 10px 0;
+  padding: 0;
   box-sizing: border-box;
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-size: 28px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.18;
   color: #1a1a1a;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.slot-agent {
+.slot-agent-name-text {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  width: 100%;
-  height: 100%;
   overflow: hidden;
 }
 
-.text-agent {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.text-agent-secondary {
+  display: block;
   width: 100%;
-  max-width: 100%;
-  height: 100%;
-  min-width: 0;
-  padding: 0 12px;
-  box-sizing: border-box;
-  border-radius: 24px;
-  background: #e8002a;
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  font-size: 18px;
+  font-size: 15px;
   line-height: 1.2;
-  color: #ffffff;
-  text-align: center;
+  color: #6f5757;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .layer-header-layout {
-  --header-logo-width: 120px;
-  --header-agent-width: 156px;
-  --header-lane-gap: 16px;
   position: absolute;
-  left: 104px;
-  right: 104px;
-  top: 74px;
-  height: 68px;
+  inset: 0;
   overflow: hidden;
 }
 
-.header-lane {
+.layer-brand-logo,
+.layer-header-text-block,
+.layer-brand-text,
+.layer-agent-name-text {
   position: absolute;
   min-width: 0;
 }
 
-.header-lane-logo {
-  left: 0;
-  top: 2px;
+.layer-brand-logo {
+  left: 104px;
+  top: 74px;
   width: 120px;
   height: 64px;
 }
 
-.header-lane-brand {
-  left: calc(var(--header-logo-width) + var(--header-lane-gap));
-  right: calc(var(--header-agent-width) + var(--header-lane-gap));
-  top: 0;
-  height: 68px;
+.layer-header-text-block {
+  left: 244px;
+  right: 112px;
+  top: 72px;
+  height: 54px;
   overflow: hidden;
 }
 
-.header-lane-agent {
-  right: 0;
-  top: 12px;
-  width: var(--header-agent-width);
-  max-width: var(--header-agent-width);
-  height: 44px;
-  overflow: hidden;
+.layer-brand-text,
+.layer-agent-name-text {
+  inset: 0;
 }
 
 .layer-header-banner.state-logo-empty .layer-header-layout {
-  left: 120px;
 }
 
-.layer-header-banner.state-logo-empty .header-lane-logo {
+.layer-header-banner.state-logo-empty .layer-brand-logo {
   display: none;
 }
 
-.layer-header-banner.state-logo-empty .header-lane-brand {
-  left: 0;
-  right: calc(var(--header-agent-width) + var(--header-lane-gap));
+.layer-header-banner.state-logo-empty .layer-header-text-block {
+  left: 104px;
 }
 
 .region-shell-header {
@@ -499,7 +478,7 @@ body {
 
 .layer-brand-logo,
 .layer-brand-text,
-.layer-agent-pill,
+.layer-agent-name-text,
 .layer-title,
 .layer-subtitle {
   position: relative;
@@ -509,7 +488,7 @@ body {
 
 .slot-logo,
 .slot-brand,
-.slot-agent,
+.slot-agent-name-text,
 .slot-title,
 .slot-subtitle {
   position: relative;
@@ -521,7 +500,7 @@ body {
 
 .slot-logo,
 .slot-brand,
-.slot-agent {
+.slot-agent-name-text {
   height: 100% !important;
 }
 

@@ -150,15 +150,15 @@ def _resolve_family_a_slot_contracts(
             collapse_rule="collapse when brand_name is empty",
             failure_semantics="header_region fails when logo and brand text are both missing",
         ),
-        "agent_pill_slot": SlotContractDefinition(
-            slot_id="agent_pill_slot",
+        "agent_name_text_slot": SlotContractDefinition(
+            slot_id="agent_name_text_slot",
             region_id="header_region",
             source_binding="agent_name",
             required=False,
             count_min=0,
             count_max=1,
             collapse_rule="collapse when agent_name is empty",
-            failure_semantics="agent pill may collapse without invalidating header_region",
+            failure_semantics="secondary agent text may collapse without invalidating header_region",
         ),
         "product_image_slot": SlotContractDefinition(
             slot_id="product_image_slot",

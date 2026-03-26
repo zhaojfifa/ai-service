@@ -410,7 +410,7 @@ def _build_layer_render_status(
             "count": 1 if spec.brand_name else 0,
             "collapsed": not bool(spec.brand_name),
         },
-        "agent_pill_layer": {
+        "agent_name_text_layer": {
             "rendered": bool(spec.agent_name),
             "reason_code": None if spec.agent_name else "agent_name_empty",
             "source_binding": "agent_name",
@@ -493,7 +493,7 @@ def _build_region_render_status(
 ) -> dict[str, dict[str, object]]:
     header_count = sum(
         int(layer_status[layer_name]["count"])
-        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
+        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
     )
     scenario_count = int(layer_status["scenario_image_layer"]["count"])
     product_count = int(layer_status["product_image_layer"]["count"])
