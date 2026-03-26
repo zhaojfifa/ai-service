@@ -213,13 +213,27 @@ class LayoutRenderer:
         _draw_pill_bg(draw, slot)
 
     def _draw_image(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
-        fitted = _fit_image(img, slot.w, slot.h, slot.fit)
+        inner_x = slot.x + slot.pad_left
+        inner_y = slot.y + slot.pad_top
+        inner_w = max(1, slot.w - slot.pad_left - slot.pad_right)
+        inner_h = max(1, slot.h - slot.pad_top - slot.pad_bottom)
+        fitted = _fit_image(img, inner_w, inner_h, slot.fit)
         if slot.shadow:
             fitted = _add_drop_shadow(fitted)
         if slot.radius > 0:
             fitted = _apply_radius(fitted, slot.radius)
-        ox = slot.x + (slot.w - fitted.width) // 2
-        oy = slot.y + (slot.h - fitted.height) // 2
+        if slot.align_x == "start":
+            ox = inner_x
+        elif slot.align_x == "end":
+            ox = inner_x + max(0, inner_w - fitted.width)
+        else:
+            ox = inner_x + max(0, (inner_w - fitted.width) // 2)
+        if slot.align_y == "start":
+            oy = inner_y
+        elif slot.align_y == "end":
+            oy = inner_y + max(0, inner_h - fitted.height)
+        else:
+            oy = inner_y + max(0, (inner_h - fitted.height) // 2)
         canvas.alpha_composite(fitted.convert("RGBA"), (ox, oy))
 
     def _draw_product(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
@@ -443,9 +457,11 @@ class PuppeteerStructuredRenderer:
         feature_markup, feature_layer_class = self._feature_markup(anchor_map, poster.features)
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
         scenario_is_real = bool(asset_urls.get("scenario_is_real"))
-        scenario_layer_class = "state-real" if scenario_is_real else "state-safe-fill"
+        scenario_layer_class = ("state-real" if scenario_is_real else "state-safe-fill") + " state-fit-cover state-anchor-center"
         scenario_shell_class = "state-real" if scenario_is_real else "state-safe-fill"
-        scenario_content_class = "state-real" if scenario_is_real else "state-safe-fill"
+        scenario_content_class = ("state-real" if scenario_is_real else "state-safe-fill") + " state-fit-cover state-anchor-center"
+        product_layer_class = "state-fit-contain state-anchor-bottom"
+        product_content_class = "state-fit-contain state-anchor-bottom"
         agent_text_class = "state-show" if (poster.agent_name or "").strip() else "state-hidden"
         has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
         has_gallery_strip = bool(asset_urls["gallery"])
@@ -487,7 +503,8 @@ class PuppeteerStructuredRenderer:
             "__AGENT_TEXT_CLASS__": agent_text_class,
             "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
             "__SCENARIO_URL__": asset_urls["scenario"],
-            "__PRODUCT_LAYER_CLASS__": "state-fit-contain",
+            "__PRODUCT_LAYER_CLASS__": product_layer_class,
+            "__PRODUCT_CONTENT_CLASS__": product_content_class,
             "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
             "__PRODUCT_URL__": asset_urls["product"],
             "__FEATURE_LAYER_CLASS__": feature_layer_class,

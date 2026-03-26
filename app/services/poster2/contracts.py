@@ -92,6 +92,12 @@ class ImageSlotSpec:
     w: int
     h: int
     fit: Literal["contain", "cover", "fill"] = "contain"
+    align_x: Literal["start", "center", "end"] = "center"
+    align_y: Literal["start", "center", "end"] = "center"
+    pad_top: int = 0
+    pad_right: int = 0
+    pad_bottom: int = 0
+    pad_left: int = 0
     bg_color: str = "transparent"
     shadow: bool = False
     radius: int = 0
