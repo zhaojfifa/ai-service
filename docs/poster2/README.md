@@ -1,113 +1,143 @@
-# poster2 Docs Index
+# poster2 Documentation Index
 
-## Directory Purpose
+`docs/poster2/README.md` is the single official entry point for poster2 documentation on this branch.
 
-`docs/poster2/` is the poster2 documentation domain for architecture, engineering execution, stage assessment, external reference, and next-phase planning.
+Its job is not to replace the underlying documents. Its job is to keep the document system anchored, ordered, and readable so engineering work stays on one contract-first path.
 
-The directory is organized by responsibility, not by time:
+## What This Document System Is For
 
-- `01_architecture/`
-  - stable business definition and architecture principles
-- `02_engineering/`
-  - implementation baselines, engineering execution, and acceptance-facing documents
-- `03_stage_assessment/`
-  - stage conclusions and transition/index notes
-- `04_external_reference/`
-  - external review inputs and migration judgments
-- `05_next_phase_plan/`
-  - forward plans for the next architecture layers
+poster2 documentation is organized as a governed document system, not a loose collection of implementation notes.
 
-## Reading Order
+This system exists to prevent four recurring failures:
 
-Recommended reading order for the current repo state:
+- readers skipping the product baseline and jumping straight into implementation detail
+- stage or rollout documents being read without architecture context
+- renderer behavior being mistaken for template truth
+- local engineering progress drifting away from the agreed contract-first path
 
-1. Architecture
-   - [template_dual_v2_architecture_business_definition.md](01_architecture/template_dual_v2_architecture_business_definition.md)
+When there is ambiguity, start from the product baseline, then move downward into architecture, engineering baselines, and next-phase plans.
 
-2. Engineering baseline
-   - [template_dual_v2_engineering_implementation_and_acceptance.md](02_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
-   - [template_dual_v2_structural_rebuild_baseline_v1.md](02_engineering/template_dual_v2_structural_rebuild_baseline_v1.md)
+## The Two Complementary Views
 
-3. Current stage assessment
-   - [current_stage_assessment_and_engineering_path_update_v1.md](03_stage_assessment/current_stage_assessment_and_engineering_path_update_v1.md)
-   - [index_update_stage_transition_v1.md](03_stage_assessment/index_update_stage_transition_v1.md)
+poster2 uses two complementary views of the same system:
 
-4. External reference mapping
-   - [external_reference_poster_design_review_and_migration_v1.md](04_external_reference/external_reference_poster_design_review_and_migration_v1.md)
+- Product governance view: `Structure -> Control -> Beautification`
+- Template execution view: `Background -> Shell -> Content`
 
-5. Next-phase plans
-   - [template_behavior_layer_plan_v1.md](05_next_phase_plan/template_behavior_layer_plan_v1.md)
-   - [beautification_layer_plan_v1.md](05_next_phase_plan/beautification_layer_plan_v1.md)
+These are not competing models.
 
-## Current Stage Conclusion
+- `Structure / Control / Beautification` is the product-governance and rollout order.
+- `Background / Shell / Content` is the template execution-layer view.
 
-Current conclusion from the docs and implemented repo state:
+The governance view explains what must be proven in sequence.
+The execution view explains how the template is actually organized at runtime.
 
-- poster2 has validated its contract-first baseline
-- structure can be controlled
-- content injection can be controlled
-- outputs are reproducible and diagnosable
-- the current architecture goal and basic route are correct
-- the main remaining gap is not architecture direction, but engineering path and implementation maturity
+## Non-Negotiable Architectural Position
 
-The next phase focus is:
+All poster2 documents in this directory should remain aligned to the following position:
 
-- Template Behavior Layer
-- Beautification Pathfinding
-- Geometry / Evidence Layer
-- Render Service Layer
+- poster2 is not free collage
+- poster2 is contract-first
+- renderer is the execution layer, not the template truth-source
+- behavior should be lifted from CSS/Python branching into declarative template modes
+- beautification must not hide structure or control failures
 
-## Current Implementation Status
+If a stage or implementation document appears to weaken any of the above, read it as subordinate to the baseline documents below.
 
-Current repo status for the engineering line on `PosterSop01`:
+## Document Groups
 
-- `hero_mode` has been lifted into template metadata and resolved through a shared behavior resolver
-- `feature_mode` has been lifted into template metadata and resolved through a shared feature policy layer
-- the validated baseline remains `scenario_cover_product_contain`
-- a second reusable hero mode now exists to prove renderer behavior is protocol-driven rather than hard-coded
-- a second reusable feature mode now exists to prove feature count/connector/box policy is protocol-driven
-- beauty token presets now cover multiple governed options for shell surface, border, shadow, accent, and text emphasis
-- Pillow now consumes the same beauty token families for minimum shell/text parity, while exact pixel parity with Puppeteer remains a non-goal
-- renderer metadata now includes minimum geometry evidence for header, product, and gallery strip review
-- minimal beauty tokens exist, but broader preset expansion and Pillow visual parity still remain staged follow-up work
-- geometry/evidence reinforcement remains intentionally limited until the dedicated evidence PR
+Use the documentation in the following groups. The groups matter because they define how readers should descend from product intent into engineering execution.
 
-Current non-goals remain:
+### 1. Product Baseline
 
-- no free-collage/editor-first model
-- no CSS-only tuning presented as architecture progress
-- no five-region geometry redesign
+Start here first. Do not skip this section.
 
-## Current File Map
+- [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
+  The top-level poster2 anchor. Defines the product essence, the two template families, and the governance order `Structure -> Control -> Beautification`.
 
-Present and organized in this repo now:
+This baseline is the primary reference whenever later documents appear to diverge.
 
-- `01_architecture/`
-  - [template_dual_v2_architecture_business_definition.md](01_architecture/template_dual_v2_architecture_business_definition.md)
-- `02_engineering/`
-  - [template_dual_v2_engineering_implementation_and_acceptance.md](02_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
-  - [template_dual_v2_structural_rebuild_baseline_v1.md](02_engineering/template_dual_v2_structural_rebuild_baseline_v1.md)
-- `03_stage_assessment/`
-  - [current_stage_assessment_and_engineering_path_update_v1.md](03_stage_assessment/current_stage_assessment_and_engineering_path_update_v1.md)
-  - [index_update_stage_transition_v1.md](03_stage_assessment/index_update_stage_transition_v1.md)
-- `04_external_reference/`
-  - [external_reference_poster_design_review_and_migration_v1.md](04_external_reference/external_reference_poster_design_review_and_migration_v1.md)
-- `05_next_phase_plan/`
-  - [template_behavior_layer_plan_v1.md](05_next_phase_plan/template_behavior_layer_plan_v1.md)
-  - [beautification_layer_plan_v1.md](05_next_phase_plan/beautification_layer_plan_v1.md)
+### 2. Architecture Guidance
 
-Additional target files still not present in the current repo tree:
+Read this section after the product baseline. It defines the stable architecture shape that engineering must preserve.
 
-- `01_architecture/`
-  - `poster_generation_product_design_baseline_v1.md`
-- `02_engineering/`
-  - `poster_sop01_engineering_kickoff_v1.md`
-- `05_next_phase_plan/`
-  - `render_service_layer_plan_v1.md`
-  - `geometry_evidence_layer_plan_v1.md`
+- [template_dual_v2_architecture_business_definition.md](template_dual_v2_architecture_business_definition.md)
+  Family A engineering definition under the product baseline.
+- [template_family_region_matrix_v1.md](template_family_region_matrix_v1.md)
+  Region-level framing for template-family structure.
+- [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
+  Slot contract baseline and SSOT expectations.
+- [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
+  Execution routing and fallback rules. This explains renderer responsibility; it does not redefine template truth.
+- [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
+  Quality and structure-completeness guardrails for contract-first generation.
 
-## Pointer To Next-Phase Plans
+### 3. Engineering Baseline & Progress
 
-The next-phase planning directory is:
+Read this section only after the product baseline and architecture guidance. These documents describe implementation closure and stage progression, not a replacement architecture.
 
-- [05_next_phase_plan](05_next_phase_plan)
+- [template_dual_v2_structural_rebuild_baseline_v1.md](template_dual_v2_structural_rebuild_baseline_v1.md)
+  Structural rebuild baseline for the validated Family A template path.
+- [template_dual_v2_engineering_implementation_and_acceptance.md](template_dual_v2_engineering_implementation_and_acceptance.md)
+  Engineering implementation and acceptance framing for template_dual_v2.
+- [current_stage_assessment_and_engineering_path_update_v1.md](current_stage_assessment_and_engineering_path_update_v1.md)
+  Current stage judgment and engineering path update. Read this as stage assessment under the restored baseline, not as a new top-level definition.
+- [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
+  Transition/index helper for stage movement and reading continuity.
+- [poster_generation_project_restructure_checklist_v1.md](poster_generation_project_restructure_checklist_v1.md)
+  Supporting project-level restructuring checklist for keeping implementation aligned.
+
+### 4. Next-Phase Plans
+
+Read this section only after the validated baseline and current stage judgment are understood.
+
+- [template_behavior_layer_plan_v1.md](template_behavior_layer_plan_v1.md)
+  Control-layer rollout plan: behavior lifted into declarative template modes.
+- [beautification_layer_plan_v1.md](beautification_layer_plan_v1.md)
+  Beautification-layer rollout plan, downstream of contract and behavior stability.
+
+## Recommended Reading Order
+
+If you are new to poster2, use this order:
+
+1. [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
+2. [template_dual_v2_architecture_business_definition.md](template_dual_v2_architecture_business_definition.md)
+3. [template_family_region_matrix_v1.md](template_family_region_matrix_v1.md)
+4. [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
+5. [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
+6. [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
+7. [template_dual_v2_structural_rebuild_baseline_v1.md](template_dual_v2_structural_rebuild_baseline_v1.md)
+8. [template_dual_v2_engineering_implementation_and_acceptance.md](template_dual_v2_engineering_implementation_and_acceptance.md)
+9. [current_stage_assessment_and_engineering_path_update_v1.md](current_stage_assessment_and_engineering_path_update_v1.md)
+10. [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
+11. [template_behavior_layer_plan_v1.md](template_behavior_layer_plan_v1.md)
+12. [beautification_layer_plan_v1.md](beautification_layer_plan_v1.md)
+
+If you are working on implementation and want to jump ahead, do not start from a phase-plan document. Re-anchor on the product baseline first, then re-enter through the architecture guidance set.
+
+## Family Framing
+
+The top-level baseline keeps two template families in scope:
+
+- `Family A: Campaign Explainer Poster`
+- `Family B: Product Sheet / Product Story Poster`
+
+`template_dual_v2` belongs to Family A. Current structure, behavior, and beautification work should continue to be interpreted inside that family framing rather than as a general free-form poster model.
+
+## Usage Rules For Future Updates
+
+When adding or updating poster2 docs:
+
+- keep this README as the official entry point
+- anchor new stage documents back to the product baseline
+- do not present rollout plans as architecture replacements
+- do not present renderer behavior as template truth
+- do not describe local CSS tuning as architecture progress
+
+If a new document cannot be placed cleanly into one of the groups above, that is a signal to check for architecture drift before adding it.
+
+## Notes On Branch-Local Materials
+
+This branch may still contain historical or grouped copies under subdirectories such as `01_architecture/`, `02_engineering/`, `03_stage_assessment/`, `04_external_reference/`, and `05_next_phase_plan/`.
+
+Those materials may remain useful as branch-local history or organization aids, but the root-level documents listed in this README are the formal poster2 document system for this branch.
