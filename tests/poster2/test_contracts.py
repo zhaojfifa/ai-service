@@ -211,8 +211,9 @@ class TestTemplateSpecLoading:
         assert "header_banner" in slot_spec["layers"]
         assert "background_base_layer" in slot_spec["layers"]
         assert "header_shell_layer" in slot_spec["layers"]
+        assert "header_center_group_layer" in slot_spec["layers"]
         assert "brand_logo_layer" in slot_spec["layers"]
-        assert "brand_text_block_layer" in slot_spec["layers"]
+        assert "header_agent_text_layer" in slot_spec["layers"]
         assert "brand_text_layer" in slot_spec["layers"]
         assert "agent_name_text_layer" in slot_spec["layers"]
         assert "scenario_card_shell_layer" in slot_spec["layers"]
@@ -230,6 +231,8 @@ class TestTemplateSpecLoading:
         assert "bottom_gallery_items_layer" in slot_spec["layers"]
         assert "bottom_tagline_layer" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
+        assert "header_center_group_slot" in slot_spec["layer_slots"]
+        assert "header_agent_text_slot" in slot_spec["layer_slots"]
         assert "brand_logo_slot" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
         assert "state-safe-fill" in slot_spec["layer_states"]["scenario"]
@@ -238,8 +241,9 @@ class TestTemplateSpecLoading:
         for layer_name in [
             "background_base_layer",
             "header_shell_layer",
+            "header_center_group_layer",
             "brand_logo_layer",
-            "brand_text_block_layer",
+            "header_agent_text_layer",
             "brand_text_layer",
             "agent_name_text_layer",
             "scenario_card_shell_layer",
@@ -263,15 +267,17 @@ class TestTemplateSpecLoading:
             assert "fallback_rule" in contract
             assert "collapse_rule" in contract
         brand_logo_contract = slot_spec["layer_contracts"]["brand_logo_layer"]
-        brand_text_block_contract = slot_spec["layer_contracts"]["brand_text_block_layer"]
+        header_center_group_contract = slot_spec["layer_contracts"]["header_center_group_layer"]
+        header_agent_text_contract = slot_spec["layer_contracts"]["header_agent_text_layer"]
         scenario_image_contract = slot_spec["layer_contracts"]["scenario_image_layer"]
         bottom_gallery_items_contract = slot_spec["layer_contracts"]["bottom_gallery_items_layer"]
         assert brand_logo_contract["visible_when"] == "logo.url exists"
         assert brand_logo_contract["max_items"] == 1
         assert brand_logo_contract["max_lines"] == 0
-        assert brand_text_block_contract["anchor"] == "after brand_logo_layer inside header_shell_layer"
-        assert brand_text_block_contract["group_behavior"] == "vertical_stack"
-        assert brand_text_block_contract["gap"] == 4
+        assert header_center_group_contract["anchor"] == "centered inside header_shell_layer"
+        assert header_center_group_contract["group_behavior"] == "horizontal_group"
+        assert header_center_group_contract["gap"] == 20
+        assert header_agent_text_contract["anchor"] == "right inside header_shell_layer"
         assert scenario_image_contract["visible_when"] == "scenario_image.url exists or safe preset fill is resolved"
         assert scenario_image_contract["max_items"] == 1
         assert scenario_image_contract["max_lines"] == 0
@@ -283,10 +289,13 @@ class TestTemplateSpecLoading:
         assert "ghost connectors" in slot_spec["layer_contracts"]["feature_callout_layer"]["fallback_rule"]
         assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
-        assert slot_spec["layers"]["brand_text_layer"]["w"] == 668
-        assert slot_spec["layers"]["brand_text_block_layer"]["w"] == 668
-        assert slot_spec["layers"]["agent_name_text_layer"]["w"] == 668
-        assert slot_spec["layer_slots"]["brand_name_slot"]["w"] == 668
+        assert slot_spec["layers"]["header_center_group_layer"]["w"] == 352
+        assert slot_spec["layers"]["brand_text_layer"]["w"] == 212
+        assert slot_spec["layers"]["header_agent_text_layer"]["w"] == 228
+        assert slot_spec["layers"]["agent_name_text_layer"]["w"] == 228
+        assert slot_spec["layer_slots"]["header_center_group_slot"]["w"] == 352
+        assert slot_spec["layer_slots"]["brand_name_slot"]["w"] == 212
+        assert slot_spec["layer_slots"]["header_agent_text_slot"]["w"] == 228
         assert slot_spec["slots"]["gallery"][0]["y"] == 896
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec

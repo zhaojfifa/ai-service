@@ -824,8 +824,10 @@ class TestHeaderAndTitleBandLayoutControl:
         ).read_text(encoding="utf-8")
 
         assert 'class="layer-header-layout"' in html_template
+        assert 'class="layer layer-header-center-group" data-slot="header_center_group_slot"' in html_template
         assert 'class="layer layer-brand-logo"' in html_template
-        assert 'class="layer layer-header-text-block" data-layer="brand_text_block_layer"' in html_template
+        assert 'class="layer layer-brand-text"' in html_template
+        assert 'class="layer layer-header-agent-slot" data-slot="header_agent_text_slot"' in html_template
         assert 'class="layer layer-agent-name-text __AGENT_TEXT_CLASS__"' in html_template
         assert 'class="layer-title-band-layout"' in html_template
 
@@ -836,13 +838,19 @@ class TestHeaderAndTitleBandLayoutControl:
 
         assert "--header-inner-left: 104px;" in css_template
         assert "--header-inner-right: 112px;" in css_template
+        assert "--header-side-width: 228px;" in css_template
         assert "--header-logo-gap: 20px;" in css_template
-        assert "--header-text-gap: 4px;" in css_template
         assert ".layer-header-layout {" in css_template
+        assert "display: grid;" in css_template
+        assert "grid-template-columns: minmax(0, var(--header-side-width)) minmax(0, 1fr) minmax(0, var(--header-side-width));" in css_template
+        assert ".layer-header-center-group {" in css_template
+        assert "grid-column: 2;" in css_template
+        assert "justify-self: center;" in css_template
         assert "display: flex;" in css_template
         assert "gap: var(--header-logo-gap);" in css_template
-        assert ".layer-header-text-block {" in css_template
-        assert "flex-direction: column;" in css_template
+        assert ".layer-header-agent-slot {" in css_template
+        assert "grid-column: 3;" in css_template
+        assert "justify-self: end;" in css_template
         assert ".layer-agent-name-text {" in css_template
         assert ".slot-agent-name-text {" in css_template
         assert ".text-agent-secondary {" in css_template
@@ -895,8 +903,9 @@ class TestHeaderAndTitleBandLayoutControl:
         )
 
         assert 'class="layer-header-layout"' in html_payload
+        assert 'class="layer layer-header-center-group" data-slot="header_center_group_slot"' in html_payload
         assert 'class="layer layer-brand-logo"' in html_payload
-        assert 'class="layer layer-header-text-block" data-layer="brand_text_block_layer"' in html_payload
+        assert 'class="layer layer-header-agent-slot" data-slot="header_agent_text_slot"' in html_payload
         assert 'class="layer layer-agent-name-text state-show"' in html_payload
         assert 'class="layer-title-band-layout"' in html_payload
         assert 'data-region="title_band_region"' in html_payload
@@ -944,7 +953,8 @@ class TestHeaderAndTitleBandLayoutControl:
             spec=template,
         )
 
-        assert 'class="layer layer-header-text-block" data-layer="brand_text_block_layer"' in html_payload
+        assert 'class="layer layer-header-center-group" data-slot="header_center_group_slot"' in html_payload
+        assert 'class="layer layer-header-agent-slot" data-slot="header_agent_text_slot"' in html_payload
         assert 'class="layer layer-agent-name-text state-hidden"' in html_payload
 
 
