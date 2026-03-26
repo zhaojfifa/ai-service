@@ -17,10 +17,10 @@
     "background_base_layer": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
     "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "header_shell_layer": { "x": 72, "y": 56, "w": 880, "h": 104 },
-    "header_center_group_layer": { "x": 332, "y": 72, "w": 352, "h": 64 },
+    "header_identity_zone_layer": { "x": 104, "y": 72, "w": 556, "h": 64 },
     "brand_logo_layer": { "x": 104, "y": 74, "w": 120, "h": 64 },
-    "brand_text_layer": { "x": 472, "y": 88, "w": 212, "h": 36 },
-    "header_agent_text_layer": { "x": 684, "y": 92, "w": 228, "h": 24 },
+    "brand_text_layer": { "x": 244, "y": 88, "w": 416, "h": 36 },
+    "header_agent_zone_layer": { "x": 684, "y": 92, "w": 228, "h": 24 },
     "agent_name_text_layer": { "x": 684, "y": 96, "w": 228, "h": 18 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_card_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
@@ -44,10 +44,10 @@
     "bottom_tagline_layer": { "x": 196, "y": 966, "w": 632, "h": 20 }
   },
   "layer_slots": {
-    "header_center_group_slot": { "x": 332, "y": 72, "w": 352, "h": 64 },
+    "header_identity_zone_slot": { "x": 104, "y": 72, "w": 556, "h": 64 },
     "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
-    "brand_name_slot": { "x": 472, "y": 88, "w": 212, "h": 36 },
-    "header_agent_text_slot": { "x": 684, "y": 92, "w": 228, "h": 24 },
+    "brand_name_slot": { "x": 244, "y": 88, "w": 416, "h": 36 },
+    "header_agent_zone_slot": { "x": 684, "y": 92, "w": 228, "h": 24 },
     "agent_name_text_slot": { "x": 684, "y": 96, "w": 228, "h": 18 },
     "scenario_card_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 }
@@ -84,39 +84,39 @@
       "fallback_rule": "hide logo only; do not make logo visibility depend on brand_text_layer",
       "collapse_rule": "collapse only this layer when logo is absent"
     },
-    "header_center_group_layer": {
+    "header_identity_zone_layer": {
       "visible_when": "brand_name present or logo.url exists",
-      "bounds": { "x": 332, "y": 72, "w": 352, "h": 64 },
+      "bounds": { "x": 104, "y": 72, "w": 556, "h": 64 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "anchor": "centered inside header_shell_layer",
+      "anchor": "start inside header_shell_layer",
       "gap": 20,
       "group_behavior": "horizontal_group",
       "min_width": 0,
-      "max_width": 352,
-      "fallback_rule": "keep logo and brand name centered as one grouped unit inside banner safe area only",
+      "max_width": 556,
+      "fallback_rule": "keep logo and brand name grouped inside the start identity zone within banner safe area only",
       "collapse_rule": "collapse when both logo.url and brand_name are absent"
     },
     "brand_text_layer": {
       "visible_when": "brand_name present",
-      "bounds": { "x": 472, "y": 88, "w": 212, "h": 36 },
+      "bounds": { "x": 244, "y": 88, "w": 416, "h": 36 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 1,
       "max_lines": 1,
       "line_budget": 1,
-      "overflow_rule": "single-line ellipsis inside centered main group",
-      "fallback_rule": "shrink within centered group before affecting header_agent_text_slot",
+      "overflow_rule": "single-line ellipsis inside header identity zone",
+      "fallback_rule": "shrink within identity zone before affecting header_agent_zone_slot",
       "collapse_rule": "do not depend on logo visibility"
     },
-    "header_agent_text_layer": {
+    "header_agent_zone_layer": {
       "visible_when": "agent_name present",
       "bounds": { "x": 684, "y": 92, "w": 228, "h": 24 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
-      "anchor": "right inside header_shell_layer",
+      "anchor": "end inside header_shell_layer",
       "max_items": 1,
       "max_lines": 1,
       "line_budget": 1,
-      "overflow_rule": "single-line ellipsis inside right secondary slot",
-      "fallback_rule": "collapse secondary slot only when agent_name is absent",
+      "overflow_rule": "single-line ellipsis inside header agent zone",
+      "fallback_rule": "collapse the end-aligned secondary zone only when agent_name is absent",
       "collapse_rule": "collapse when agent_name is empty"
     },
     "agent_name_text_layer": {
@@ -126,7 +126,7 @@
       "max_items": 1,
       "max_lines": 1,
       "line_budget": 1,
-      "overflow_rule": "single-line ellipsis inside right secondary slot",
+      "overflow_rule": "single-line ellipsis inside header agent zone",
       "fallback_rule": "render as secondary right-aligned text only",
       "collapse_rule": "collapse when agent_name is empty"
     },
