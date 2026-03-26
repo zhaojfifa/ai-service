@@ -538,13 +538,13 @@ class TestCtaPillRendering:
         assert pixel[3] == 255, "Pill center must be fully opaque"
         assert pixel[0] > 200, "Pill center should be red"
 
-    def test_real_template_agent_slot_has_pill(self):
-        """Real template: agent_name_slot has bg_color and bg_radius set."""
+    def test_real_template_agent_slot_is_plain_secondary_text(self):
+        """Real template: agent_name_slot is plain secondary text, not a pill."""
         template = _load_real_template()
         slot = template.agent_name_slot
-        assert slot.bg_color == "#E8002A"
-        assert slot.bg_radius == 24
-        assert slot.color == "#FFFFFF"
+        assert slot.bg_color == "transparent"
+        assert slot.bg_radius == 0
+        assert slot.color == "#6F5757"
 
 
 class TestStructuredGalleryMarkup:
@@ -824,9 +824,9 @@ class TestHeaderAndTitleBandLayoutControl:
         ).read_text(encoding="utf-8")
 
         assert 'class="layer-header-layout"' in html_template
-        assert "header-lane header-lane-logo" in html_template
-        assert "header-lane header-lane-brand" in html_template
-        assert "header-lane header-lane-agent" in html_template
+        assert 'class="layer layer-brand-logo"' in html_template
+        assert 'class="layer layer-header-text-block"' in html_template
+        assert 'class="layer layer-agent-name-text __AGENT_TEXT_CLASS__"' in html_template
         assert 'class="layer-title-band-layout"' in html_template
 
     def test_template_css_locks_header_width_budget_and_title_band_overflow_policy(self):
@@ -834,18 +834,13 @@ class TestHeaderAndTitleBandLayoutControl:
             Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
         ).read_text(encoding="utf-8")
 
-        assert "--header-logo-width: 120px;" in css_template
-        assert "--header-agent-width: 156px;" in css_template
-        assert "right: 104px;" in css_template
-        assert ".header-lane-agent {" in css_template
-        assert "right: 0;" in css_template
-        assert "width: var(--header-agent-width);" in css_template
-        assert ".header-lane-brand {" in css_template
-        assert "right: calc(var(--header-agent-width) + var(--header-lane-gap));" in css_template
-        assert ".slot-agent {" in css_template
-        assert ".text-agent {" in css_template
-        assert ".layer-header-banner.state-logo-empty .layer-header-layout" in css_template
-        assert ".layer-header-banner.state-logo-empty .header-lane-brand" in css_template
+        assert ".layer-header-text-block {" in css_template
+        assert "left: 244px;" in css_template
+        assert "right: 112px;" in css_template
+        assert ".layer-agent-name-text {" in css_template
+        assert ".slot-agent-name-text {" in css_template
+        assert ".text-agent-secondary {" in css_template
+        assert ".layer-header-banner.state-logo-empty .layer-header-text-block" in css_template
         assert ".slot-title:empty," in css_template
         assert ".slot-subtitle:empty" in css_template
 
@@ -893,8 +888,9 @@ class TestHeaderAndTitleBandLayoutControl:
         )
 
         assert 'class="layer-header-layout"' in html_payload
-        assert 'class="layer layer-brand-logo header-lane header-lane-logo"' in html_payload
-        assert 'class="layer layer-agent-pill header-lane header-lane-agent"' in html_payload
+        assert 'class="layer layer-brand-logo"' in html_payload
+        assert 'class="layer layer-header-text-block"' in html_payload
+        assert 'class="layer layer-agent-name-text state-show"' in html_payload
         assert 'class="layer-title-band-layout"' in html_payload
         assert 'data-region="title_band_region"' in html_payload
 

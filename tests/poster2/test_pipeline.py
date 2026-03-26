@@ -125,7 +125,7 @@ class _FakeDegradedRenderer:
                 "bottom_gallery_items_layer": {"count": 0},
                 "brand_logo_layer": {"rendered": False, "count": 0},
                 "brand_text_layer": {"rendered": True, "count": 1},
-                "agent_pill_layer": {"rendered": True, "count": 1},
+                "agent_name_text_layer": {"rendered": True, "count": 1},
                 "scenario_image_layer": {"rendered": False, "count": 0},
                 "product_image_layer": {"rendered": True, "count": 1},
                 "feature_callout_layer": {"rendered": True, "count": 2},

@@ -148,7 +148,7 @@ def _resolve_family_a_matrix(metadata: TemplateMetadata) -> ResolvedRegionMatrix
             ),
             collapse_conditions=(),
             replacement_rules=(
-                "agent_pill_slot may collapse without invalidating header_region",
+                "agent_name_text_slot may collapse without invalidating header_region",
             ),
         ),
         "scenario_region": _make_region(

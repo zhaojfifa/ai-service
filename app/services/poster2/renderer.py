@@ -123,8 +123,6 @@ class LayoutRenderer:
         t1 = _now()
         resolved_callouts = _resolve_feature_callout_layout(spec.feature_callouts, poster.features)
         self._draw_feature_callout_structure(canvas, resolved_callouts)
-        if spec.agent_name_slot.bg_color:
-            self._draw_slot_background(canvas, spec.agent_name_slot)
         layer_timings["foreground_structure_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
@@ -448,6 +446,7 @@ class PuppeteerStructuredRenderer:
         scenario_layer_class = "state-real" if scenario_is_real else "state-safe-fill"
         scenario_shell_class = "state-real" if scenario_is_real else "state-safe-fill"
         scenario_content_class = "state-real" if scenario_is_real else "state-safe-fill"
+        agent_text_class = "state-show" if (poster.agent_name or "").strip() else "state-hidden"
         has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
         has_gallery_strip = bool(asset_urls["gallery"])
         if has_title_band and has_gallery_strip:
@@ -485,6 +484,7 @@ class PuppeteerStructuredRenderer:
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_CONTENT_CLASS__": scenario_content_class,
+            "__AGENT_TEXT_CLASS__": agent_text_class,
             "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_LAYER_CLASS__": "state-fit-contain",
@@ -893,7 +893,7 @@ def _build_renderer_layer_render_status(
             "count": 1 if poster.brand_name else 0,
             "collapsed": not bool(poster.brand_name),
         },
-        "agent_pill_layer": {
+        "agent_name_text_layer": {
             "rendered": bool(poster.agent_name),
             "reason_code": None if poster.agent_name else "agent_name_empty",
             "source_binding": "agent_name",
@@ -952,7 +952,7 @@ def _build_renderer_region_render_status(
 ) -> dict[str, dict[str, Any]]:
     header_count = sum(
         int(layer_status[layer_name]["count"])
-        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
+        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
     )
     scenario_count = int(layer_status["scenario_image_layer"]["count"])
     product_count = int(layer_status["product_image_layer"]["count"])
