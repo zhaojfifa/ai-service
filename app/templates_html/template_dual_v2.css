@@ -477,11 +477,33 @@ body {
   -webkit-line-clamp: 2;
 }
 
+.layer-feature-callouts.feature-mode-1 .feature-callout {
+  min-height: 80px;
+}
+
+.layer-feature-callouts.feature-mode-2 .feature-callout {
+  min-height: 76px;
+}
+
+.layer-feature-callouts.feature-mode-3 .feature-callout {
+  min-height: 72px;
+}
+
+.layer-feature-callouts.feature-mode-4 .feature-callout {
+  min-height: 60px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+
 .feature-callout-connector {
   position: absolute;
   height: 2px;
   transform: translateY(-50%);
   background: #e8002a;
+}
+
+.layer-feature-callouts.feature-mode-4 .feature-callout-connector {
+  opacity: 0.92;
 }
 
 .feature-callout-marker {

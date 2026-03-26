@@ -300,6 +300,12 @@ class TestTemplateSpecLoading:
         assert bottom_gallery_items_contract["max_lines"] == 0
         assert "ghost placeholders" in bottom_gallery_items_contract["fallback_rule"]
         assert "ghost connectors" in slot_spec["layer_contracts"]["feature_callout_layer"]["fallback_rule"]
+        assert slot_spec["layer_contracts"]["feature_callout_layer"]["layout_modes"] == [
+            "feature-mode-1",
+            "feature-mode-2",
+            "feature-mode-3",
+            "feature-mode-4",
+        ]
         assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layers"]["header_identity_zone_layer"]["w"] == 556

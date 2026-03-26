@@ -42,11 +42,11 @@ from .template_registry import resolve_template_metadata
 logger = logging.getLogger("ai-service.poster2")
 
 _HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
-_FEATURE_MODE_SPECS: dict[int, dict[str, int]] = {
-    1: {"box_h": 72, "gap": 0},
-    2: {"box_h": 72, "gap": 24},
-    3: {"box_h": 72, "gap": 16},
-    4: {"box_h": 60, "gap": 40},
+_FEATURE_MODE_SPECS: dict[int, dict[str, int | str]] = {
+    1: {"box_h": 80, "gap": 0, "connector_policy": "single_center"},
+    2: {"box_h": 76, "gap": 18, "connector_policy": "balanced_pair"},
+    3: {"box_h": 72, "gap": 16, "connector_policy": "compact_triplet"},
+    4: {"box_h": 60, "gap": 12, "connector_policy": "dense_quad"},
 }
 
 
@@ -553,6 +553,7 @@ class PuppeteerStructuredRenderer:
         callouts = _resolve_feature_callout_map(anchor_map, features)
         if not callouts:
             return "", "state-hidden feature-mode-0"
+        mode, mode_spec = _resolve_feature_mode(len(callouts))
         items: list[str] = []
         for callout, feature in callouts:
             anchor_x = int(callout["anchor_x"])
@@ -562,19 +563,19 @@ class PuppeteerStructuredRenderer:
             connector_left = min(anchor_x, label_x)
             connector_width = max(label_x - anchor_x, 0)
             items.append(
-                f'<div class="feature-callout-connector" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
+                f'<div class="feature-callout-connector connector-policy-{html.escape(str(mode_spec["connector_policy"]))}" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
             )
             items.append(
                 f'<div class="feature-callout-marker" style="left:{anchor_x}px;top:{anchor_y}px;"></div>'
             )
             items.append(
                 (
-                    f'<div class="feature-callout" style="{_slot_style(label_box)}">'
+                    f'<div class="feature-callout feature-mode-box-{mode}" style="{_slot_style(label_box)}">'
                     f"{html.escape(feature)}"
                     "</div>"
                 )
             )
-        return "".join(items), f"state-show feature-mode-{len(callouts)}"
+        return "".join(items), f"state-show feature-mode-{mode}"
 
     async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
         try:
@@ -810,6 +811,11 @@ def _normalized_feature_texts(features: tuple[str, ...] | list[str]) -> list[str
     return [item.strip() for item in features if item and item.strip()]
 
 
+def _resolve_feature_mode(count: int) -> tuple[int, dict[str, int | str]]:
+    mode = min(max(count, 1), 4)
+    return mode, _FEATURE_MODE_SPECS[mode]
+
+
 def _resolve_feature_callout_layout(
     callouts: list[FeatureCalloutSpec],
     features: tuple[str, ...] | list[str],
@@ -819,26 +825,27 @@ def _resolve_feature_callout_layout(
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(callouts))]
     count = len(limited_features)
-    mode = min(max(count, 1), 4)
-    mode_spec = _FEATURE_MODE_SPECS[mode]
+    _, mode_spec = _resolve_feature_mode(count)
     source = callouts[:count]
     first = source[0]
     region_top = min(item.label_box.y for item in callouts)
     region_bottom = max(item.label_box.y + item.label_box.h for item in callouts)
-    total_height = mode_spec["box_h"] * count + mode_spec["gap"] * max(count - 1, 0)
+    box_h = int(mode_spec["box_h"])
+    gap = int(mode_spec["gap"])
+    total_height = box_h * count + gap * max(count - 1, 0)
     start_y = region_top + max((region_bottom - region_top - total_height) // 2, 0)
     resolved: list[tuple[FeatureCalloutSpec, str]] = []
     for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
-        label_y = start_y + idx * (mode_spec["box_h"] + mode_spec["gap"])
+        label_y = start_y + idx * (box_h + gap)
         label_box = replace(
             base.label_box,
             y=label_y,
-            h=mode_spec["box_h"],
+            h=box_h,
             max_lines=2,
         )
         resolved_callout = replace(
             base,
-            anchor_y=label_y + mode_spec["box_h"] // 2,
+            anchor_y=label_y + box_h // 2,
             label_box=label_box,
         )
         resolved.append((resolved_callout, feature_text))
@@ -857,21 +864,23 @@ def _resolve_feature_callout_map(
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(raw_callouts))]
     count = len(limited_features)
-    mode = min(max(count, 1), 4)
-    mode_spec = _FEATURE_MODE_SPECS[mode]
+    _, mode_spec = _resolve_feature_mode(count)
     source = raw_callouts[:count]
     region_top = min(int(item["label_box"]["y"]) for item in raw_callouts)
     region_bottom = max(int(item["label_box"]["y"]) + int(item["label_box"]["h"]) for item in raw_callouts)
-    total_height = mode_spec["box_h"] * count + mode_spec["gap"] * max(count - 1, 0)
+    box_h = int(mode_spec["box_h"])
+    gap = int(mode_spec["gap"])
+    total_height = box_h * count + gap * max(count - 1, 0)
     start_y = region_top + max((region_bottom - region_top - total_height) // 2, 0)
     resolved: list[tuple[dict[str, Any], str]] = []
     for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
-        label_y = start_y + idx * (mode_spec["box_h"] + mode_spec["gap"])
+        label_y = start_y + idx * (box_h + gap)
         label_box = dict(base["label_box"])
         label_box["y"] = label_y
-        label_box["h"] = mode_spec["box_h"]
+        label_box["h"] = box_h
         callout = dict(base)
-        callout["anchor_y"] = label_y + mode_spec["box_h"] // 2
+        callout["anchor_y"] = label_y + box_h // 2
+        callout["mode_connector_policy"] = str(mode_spec["connector_policy"])
         callout["label_box"] = label_box
         resolved.append((callout, feature_text))
     return resolved

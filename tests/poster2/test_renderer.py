@@ -43,6 +43,7 @@ from app.services.poster2.renderer import (
     ForegroundResult,
     _build_puppeteer_failure_info,
     _normalized_feature_texts,
+    _resolve_feature_mode,
     _resolve_feature_callout_layout,
     _resolve_feature_callout_map,
     _safe_preset_scenario_data_url,
@@ -628,7 +629,7 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup(anchor_map, ("One",))
 
         assert layer_class == "state-show feature-mode-1"
-        assert markup.count('class="feature-callout"') == 1
+        assert markup.count('class="feature-callout feature-mode-box-1"') == 1
         assert markup.count("feature-callout-connector") == 1
         assert markup.count("feature-callout-marker") == 1
 
@@ -645,9 +646,28 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup(anchor_map, ("One", " ", "Three"))
 
         assert layer_class == "state-show feature-mode-2"
-        assert markup.count('class="feature-callout"') == 2
+        assert markup.count('class="feature-callout feature-mode-box-2"') == 2
         assert markup.count("feature-callout-connector") == 2
         assert markup.count("feature-callout-marker") == 2
+        assert "feature-mode-box-2" in markup
+        assert "connector-policy-balanced_pair" in markup
+
+    def test_feature_markup_uses_dense_mode_for_four_real_items(self):
+        renderer = PuppeteerStructuredRenderer()
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 10, "anchor_y": 20, "label_box": {"x": 30, "y": 0, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 70, "label_box": {"x": 30, "y": 50, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 120, "label_box": {"x": 30, "y": 100, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 170, "label_box": {"x": 30, "y": 150, "w": 60, "h": 40}},
+            ]
+        }
+
+        markup, layer_class = renderer._feature_markup(anchor_map, ("One", "Two", "Three", "Four"))
+
+        assert layer_class == "state-show feature-mode-4"
+        assert markup.count('class="feature-callout feature-mode-box-4"') == 4
+        assert markup.count("connector-policy-dense_quad") == 4
 
     def test_feature_markup_hides_when_empty(self):
         renderer = PuppeteerStructuredRenderer()
@@ -668,9 +688,18 @@ class TestStructuredGalleryMarkup:
         assert len(resolved) == 1
         callout, text = resolved[0]
         assert text == "One"
-        assert callout.label_box.h == 72
-        assert callout.label_box.y == 360
+        assert callout.label_box.h == 80
+        assert callout.label_box.y == 356
         assert callout.anchor_y == 396
+
+    def test_resolve_feature_callout_layout_balances_two_feature_mode(self):
+        template = _load_real_template()
+
+        resolved = _resolve_feature_callout_layout(template.feature_callouts, ("One", "Two"))
+
+        assert len(resolved) == 2
+        assert [item[0].label_box.y for item in resolved] == [311, 405]
+        assert all(item[0].label_box.h == 76 for item in resolved)
 
     def test_resolve_feature_callout_layout_uses_compact_three_feature_mode(self):
         template = _load_real_template()
@@ -680,6 +709,15 @@ class TestStructuredGalleryMarkup:
         assert len(resolved) == 3
         assert [item[0].label_box.y for item in resolved] == [272, 360, 448]
         assert all(item[0].label_box.h == 72 for item in resolved)
+
+    def test_resolve_feature_callout_layout_uses_dense_four_feature_mode(self):
+        template = _load_real_template()
+
+        resolved = _resolve_feature_callout_layout(template.feature_callouts, ("One", "Two", "Three", "Four"))
+
+        assert len(resolved) == 4
+        assert [item[0].label_box.y for item in resolved] == [258, 330, 402, 474]
+        assert all(item[0].label_box.h == 60 for item in resolved)
 
     def test_resolve_feature_callout_map_matches_three_feature_mode_geometry(self):
         anchor_map = {
@@ -696,6 +734,11 @@ class TestStructuredGalleryMarkup:
         assert len(resolved) == 3
         assert [item[0]["label_box"]["y"] for item in resolved] == [272, 360, 448]
         assert [item[0]["anchor_y"] for item in resolved] == [308, 396, 484]
+
+    def test_resolve_feature_mode_clamps_to_supported_range(self):
+        assert _resolve_feature_mode(0)[0] == 1
+        assert _resolve_feature_mode(2)[0] == 2
+        assert _resolve_feature_mode(5)[0] == 4
 
     def test_prepare_gallery_urls_caps_and_resizes(self):
         slot_spec = {
@@ -842,6 +885,8 @@ class TestStructuredScenarioLayer:
         assert ".product-fit-contain img" in css_template
         assert "object-fit: contain;" in css_template
         assert "object-position: center bottom;" in css_template
+        assert ".layer-feature-callouts.feature-mode-1 .feature-callout" in css_template
+        assert ".layer-feature-callouts.feature-mode-4 .feature-callout" in css_template
 
 
 class TestHeaderAndTitleBandLayoutControl:
