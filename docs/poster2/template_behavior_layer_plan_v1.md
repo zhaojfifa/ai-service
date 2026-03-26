@@ -225,14 +225,19 @@ Behavior Layer 应位于：
 - template metadata 中已有 `behavior_modes`
 - 已有统一 resolver 负责把 mode 归一化为 renderer 可执行 policy
 - `hero_mode` 已不再只依赖 renderer 内部分支
+- `feature_mode` 已不再只依赖 renderer 内部布局条件和 CSS 局部规则
 - 当前已覆盖：
   - `scenario_cover_product_contain`
   - `single_product_focus`
+  - `count_driven_callout_stack`
+  - `uniform_callout_stack`
 
 这意味着当前已经能够证明：
 
 - hero 行为可以由协议声明
+- feature count / connector / box / collapse 行为也可以由协议声明
 - Pillow 与 Puppeteer 可以共享同一 hero semantic
+- Pillow 与 Puppeteer 可以共享同一 feature semantic
 - unsupported hero mode 可以显式失败，而不是隐式退化成某个 renderer 默认行为
 
 当前仍明确不在本轮内的事项：

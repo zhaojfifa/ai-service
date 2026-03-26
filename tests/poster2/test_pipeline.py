@@ -433,6 +433,8 @@ class TestPosterPipelineRun:
         assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "count_driven_callout_stack"
         assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
         assert metadata["template_behavior"]["hero_policy"]["product_fit"] == "contain"
+        assert metadata["template_behavior"]["feature_policy"]["visible_item_count"] == 2
+        assert metadata["template_behavior"]["feature_policy"]["connector_policy"] == "balanced_pair"
         assert metadata["template_behavior"]["beauty_tokens"]["shell_surface"] == "glass_light"
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False

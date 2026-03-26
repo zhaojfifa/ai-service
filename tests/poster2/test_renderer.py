@@ -52,7 +52,7 @@ from app.services.poster2.renderer import (
     _prepare_gallery_urls,
 )
 from app.services.poster2.renderer_routing import RendererRoutingError, resolve_renderer_routing
-from app.services.poster2.template_behavior import resolve_template_behavior
+from app.services.poster2.template_behavior import resolve_feature_behavior, resolve_template_behavior
 from app.services.poster2.template_registry import FAMILY_B_PRODUCT_SHEET_STORY, TemplateMetadata
 
 
@@ -681,7 +681,11 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup(
             anchor_map,
             ("One",),
-            feature_mode="count_driven_callout_stack",
+            feature_policy=resolve_feature_behavior(
+                "count_driven_callout_stack",
+                requested_count=1,
+                max_items=4,
+            ),
         )
 
         assert layer_class == "state-show feature-mode-1"
@@ -702,7 +706,11 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup(
             anchor_map,
             ("One", " ", "Three"),
-            feature_mode="count_driven_callout_stack",
+            feature_policy=resolve_feature_behavior(
+                "count_driven_callout_stack",
+                requested_count=2,
+                max_items=4,
+            ),
         )
 
         assert layer_class == "state-show feature-mode-2"
@@ -726,7 +734,11 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup(
             anchor_map,
             ("One", "Two", "Three", "Four"),
-            feature_mode="count_driven_callout_stack",
+            feature_policy=resolve_feature_behavior(
+                "count_driven_callout_stack",
+                requested_count=4,
+                max_items=4,
+            ),
         )
 
         assert layer_class == "state-show feature-mode-4"
@@ -739,7 +751,11 @@ class TestStructuredGalleryMarkup:
         markup, layer_class = renderer._feature_markup(
             {"feature_callouts": []},
             (),
-            feature_mode="count_driven_callout_stack",
+            feature_policy=resolve_feature_behavior(
+                "count_driven_callout_stack",
+                requested_count=0,
+                max_items=4,
+            ),
         )
 
         assert markup == ""
@@ -803,6 +819,60 @@ class TestStructuredGalleryMarkup:
         assert [item[0]["label_box"]["y"] for item in resolved] == [272, 360, 448]
         assert [item[0]["anchor_y"] for item in resolved] == [308, 396, 484]
 
+    def test_resolve_feature_behavior_supports_second_feature_mode(self):
+        resolved = resolve_feature_behavior(
+            "uniform_callout_stack",
+            requested_count=3,
+            max_items=4,
+        )
+
+        assert resolved.mode == "uniform_callout_stack"
+        assert resolved.visible_item_count == 3
+        assert resolved.connector_policy == "uniform_stack"
+        assert resolved.box_policy == "uniform_compact_stack"
+        assert resolved.box_h == 68
+
+    def test_resolve_feature_callout_layout_uses_uniform_feature_mode(self):
+        template = _load_real_template()
+        feature_policy = resolve_feature_behavior(
+            "uniform_callout_stack",
+            requested_count=3,
+            max_items=len(template.feature_callouts),
+        )
+
+        resolved = _resolve_feature_callout_layout(
+            template.feature_callouts,
+            ("One", "Two", "Three"),
+            feature_policy=feature_policy,
+        )
+
+        assert len(resolved) == 3
+        assert [item[0].label_box.y for item in resolved] == [282, 362, 442]
+        assert all(item[0].label_box.h == 68 for item in resolved)
+
+    def test_feature_markup_uses_uniform_mode_policy(self):
+        renderer = PuppeteerStructuredRenderer()
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 10, "anchor_y": 20, "label_box": {"x": 30, "y": 0, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 70, "label_box": {"x": 30, "y": 50, "w": 60, "h": 40}},
+                {"anchor_x": 10, "anchor_y": 120, "label_box": {"x": 30, "y": 100, "w": 60, "h": 40}},
+            ]
+        }
+
+        markup, layer_class = renderer._feature_markup(
+            anchor_map,
+            ("One", "Two", "Three"),
+            feature_policy=resolve_feature_behavior(
+                "uniform_callout_stack",
+                requested_count=3,
+                max_items=4,
+            ),
+        )
+
+        assert layer_class == "state-show feature-mode-3"
+        assert markup.count("connector-policy-uniform_stack") == 3
+
     def test_resolve_feature_mode_clamps_to_supported_range(self):
         assert _resolve_feature_mode(0)[0] == 1
         assert _resolve_feature_mode(2)[0] == 2
@@ -845,6 +915,7 @@ class TestStructuredScenarioLayer:
         assert resolved.beauty_tokens.shell_surface == "glass_light"
         assert resolved.css_vars["--accent-tone"] == "#E8002A"
         assert resolved.hero_policy.scenario_enabled is True
+        assert resolved.feature_policy.mode == "count_driven_callout_stack"
 
     def test_template_behavior_resolver_supports_second_hero_mode(self):
         template = _load_real_template()
@@ -858,6 +929,19 @@ class TestStructuredScenarioLayer:
         assert resolved.hero_mode == "single_product_focus"
         assert resolved.hero_policy.scenario_enabled is False
         assert resolved.hero_policy.product_anchor == "bottom"
+
+    def test_template_behavior_resolver_supports_second_feature_mode(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            feature_mode="uniform_callout_stack",
+        )
+
+        resolved = resolve_template_behavior(template, feature_count=3)
+
+        assert resolved.feature_mode == "uniform_callout_stack"
+        assert resolved.feature_policy.connector_policy == "uniform_stack"
+        assert resolved.feature_policy.box_policy == "uniform_compact_stack"
 
     def test_template_behavior_resolver_rejects_unknown_hero_mode(self):
         template = _load_real_template()

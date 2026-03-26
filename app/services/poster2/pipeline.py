@@ -100,7 +100,10 @@ class PosterPipeline:
             template = load_template(spec.template_id)
         else:
             validate_template_registration(template)
-        resolved_behavior = resolve_template_behavior(template)
+        resolved_behavior = resolve_template_behavior(
+            template,
+            feature_count=len([item for item in spec.features if item and item.strip()]),
+        )
         run_preflight_guard(template, spec)
 
         spec_hash = _hash_spec(spec)

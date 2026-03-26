@@ -10,9 +10,15 @@ _FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
     3: {"box_h": 72, "gap": 16, "connector_policy": "compact_triplet"},
     4: {"box_h": 60, "gap": 12, "connector_policy": "dense_quad"},
 }
+_UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
+    1: {"box_h": 68, "gap": 0, "connector_policy": "uniform_stack"},
+    2: {"box_h": 68, "gap": 14, "connector_policy": "uniform_stack"},
+    3: {"box_h": 68, "gap": 12, "connector_policy": "uniform_stack"},
+    4: {"box_h": 68, "gap": 10, "connector_policy": "uniform_stack"},
+}
 
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
-_SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack"}
+_SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack"}
 _SUPPORTED_SHELL_SURFACES = {"glass_light"}
 _SUPPORTED_SHELL_BORDERS = {"soft_line"}
 _SUPPORTED_SHELL_SHADOWS = {"soft"}
@@ -45,6 +51,40 @@ class ResolvedHeroBehavior:
 
 
 @dataclass(frozen=True)
+class ResolvedFeatureBehavior:
+    mode: str
+    requested_item_count: int
+    visible_item_count: int
+    max_items: int
+    visible_item_count_policy: str
+    connector_policy: str
+    box_policy: str
+    truncation_policy: str
+    collapse_policy: str
+    line_clamp: int
+    box_h: int
+    gap: int
+    start_strategy: str
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "requested_item_count": self.requested_item_count,
+            "visible_item_count": self.visible_item_count,
+            "max_items": self.max_items,
+            "visible_item_count_policy": self.visible_item_count_policy,
+            "connector_policy": self.connector_policy,
+            "box_policy": self.box_policy,
+            "truncation_policy": self.truncation_policy,
+            "collapse_policy": self.collapse_policy,
+            "line_clamp": self.line_clamp,
+            "box_h": self.box_h,
+            "gap": self.gap,
+            "start_strategy": self.start_strategy,
+        }
+
+
+@dataclass(frozen=True)
 class ResolvedTemplateBehavior:
     hero_mode: str
     feature_mode: str
@@ -53,6 +93,7 @@ class ResolvedTemplateBehavior:
     gallery_mode: str | None
     beauty_tokens: TemplateBeautyTokensSpec
     hero_policy: ResolvedHeroBehavior
+    feature_policy: ResolvedFeatureBehavior
     css_vars: dict[str, str]
     accent_color: str
     text_colors: dict[str, str]
@@ -74,6 +115,7 @@ class ResolvedTemplateBehavior:
                 "gallery_mode": self.gallery_mode,
             },
             "hero_policy": self.hero_policy.as_dict(),
+            "feature_policy": self.feature_policy.as_dict(),
             "beauty_tokens": {
                 "shell_surface": self.beauty_tokens.shell_surface,
                 "shell_border": self.beauty_tokens.shell_border,
@@ -85,7 +127,7 @@ class ResolvedTemplateBehavior:
         }
 
 
-def resolve_template_behavior(spec: TemplateSpec) -> ResolvedTemplateBehavior:
+def resolve_template_behavior(spec: TemplateSpec, *, feature_count: int | None = None) -> ResolvedTemplateBehavior:
     modes = spec.behavior_modes
     beauty = spec.beauty_tokens
     hero_mode = _validate_token(modes.hero_mode, _SUPPORTED_HERO_MODES, "hero_mode")
@@ -96,6 +138,11 @@ def resolve_template_behavior(spec: TemplateSpec) -> ResolvedTemplateBehavior:
     accent_tone = _validate_token(beauty.accent_tone, _SUPPORTED_ACCENT_TONES, "accent_tone")
     text_emphasis = _validate_token(beauty.text_emphasis, _SUPPORTED_TEXT_EMPHASIS, "text_emphasis")
     hero_policy = resolve_hero_behavior(hero_mode)
+    feature_policy = resolve_feature_behavior(
+        feature_mode,
+        requested_count=feature_count or 0,
+        max_items=len(spec.feature_callouts),
+    )
 
     accent_color = _resolve_accent_color(accent_tone)
     text_colors = _resolve_text_colors(text_emphasis, accent_color)
@@ -127,6 +174,7 @@ def resolve_template_behavior(spec: TemplateSpec) -> ResolvedTemplateBehavior:
             text_emphasis=text_emphasis,
         ),
         hero_policy=hero_policy,
+        feature_policy=feature_policy,
         css_vars=css_vars,
         accent_color=accent_color,
         text_colors=text_colors,
@@ -163,11 +211,58 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
     raise ValueError(f"Unsupported hero_mode: {hero_mode}")
 
 
+def resolve_feature_behavior(
+    feature_mode: str,
+    *,
+    requested_count: int,
+    max_items: int,
+) -> ResolvedFeatureBehavior:
+    visible_item_count = min(max(requested_count, 0), max_items)
+    clamped_count = min(max(visible_item_count, 1), 4)
+    if feature_mode == "count_driven_callout_stack":
+        layout_spec = _FEATURE_MODE_LAYOUT_SPECS[clamped_count]
+        return ResolvedFeatureBehavior(
+            mode=feature_mode,
+            requested_item_count=requested_count,
+            visible_item_count=visible_item_count,
+            max_items=max_items,
+            visible_item_count_policy="real_items_capped_to_slots",
+            connector_policy=str(layout_spec["connector_policy"]),
+            box_policy="count_scaled_stack",
+            truncation_policy="two_line_clamp",
+            collapse_policy="collapse_when_empty",
+            line_clamp=2,
+            box_h=int(layout_spec["box_h"]),
+            gap=int(layout_spec["gap"]),
+            start_strategy="centered_in_region",
+        )
+    if feature_mode == "uniform_callout_stack":
+        layout_spec = _UNIFORM_FEATURE_MODE_LAYOUT_SPECS[clamped_count]
+        return ResolvedFeatureBehavior(
+            mode=feature_mode,
+            requested_item_count=requested_count,
+            visible_item_count=visible_item_count,
+            max_items=max_items,
+            visible_item_count_policy="real_items_capped_to_slots",
+            connector_policy=str(layout_spec["connector_policy"]),
+            box_policy="uniform_compact_stack",
+            truncation_policy="two_line_clamp",
+            collapse_policy="collapse_when_empty",
+            line_clamp=2,
+            box_h=int(layout_spec["box_h"]),
+            gap=int(layout_spec["gap"]),
+            start_strategy="centered_in_region",
+        )
+    raise ValueError(f"Unsupported feature_mode: {feature_mode}")
+
+
 def resolve_feature_layout_mode(count: int, feature_mode: str) -> tuple[int, dict[str, int | str]]:
-    if feature_mode != "count_driven_callout_stack":
-        raise ValueError(f"Unsupported feature_mode: {feature_mode}")
-    mode = min(max(count, 1), 4)
-    return mode, _FEATURE_MODE_LAYOUT_SPECS[mode]
+    policy = resolve_feature_behavior(feature_mode, requested_count=count, max_items=4)
+    return min(max(policy.visible_item_count, 1), 4), {
+        "box_h": policy.box_h,
+        "gap": policy.gap,
+        "connector_policy": policy.connector_policy,
+    }
 
 
 def _validate_token(value: str, supported: set[str], field_name: str) -> str:

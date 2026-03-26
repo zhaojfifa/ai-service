@@ -140,6 +140,17 @@ class TestTemplateSpecLoading:
 
         assert spec.behavior_modes.hero_mode == "single_product_focus"
 
+    def test_template_behavior_modes_accept_second_feature_mode(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["behavior_modes"] = {
+            "hero_mode": "scenario_cover_product_contain",
+            "feature_mode": "uniform_callout_stack",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.behavior_modes.feature_mode == "uniform_callout_stack"
+
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
         real_path = (
