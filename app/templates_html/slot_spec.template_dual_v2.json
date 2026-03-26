@@ -176,9 +176,10 @@
       "visible_when": "features.length > 0",
       "bounds": { "x": 764, "y": 204, "w": 164, "h": 392 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "layout_modes": ["feature-mode-1", "feature-mode-2", "feature-mode-3", "feature-mode-4"],
       "max_items": 4,
       "max_lines": 2,
-      "fallback_rule": "render only actual feature callouts with matching connectors and markers; do not leave ghost connectors when slots collapse",
+      "fallback_rule": "render only actual feature callouts with count-driven layout modes and matching connectors and markers; do not leave ghost connectors when slots collapse",
       "collapse_rule": "collapse when features.length == 0"
     },
     "bottom_region_shell_layer": {
