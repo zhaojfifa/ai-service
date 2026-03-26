@@ -37,7 +37,7 @@ from .contracts import (
 )
 from .font_registry import FontRegistry
 from .renderer_routing import RendererRoutingError, evaluate_fallback_eligibility, resolve_renderer_routing
-from .template_behavior import resolve_feature_layout_mode, resolve_template_behavior
+from .template_behavior import ResolvedFeatureBehavior, resolve_feature_layout_mode, resolve_template_behavior
 from .template_registry import resolve_template_metadata
 
 logger = logging.getLogger("ai-service.poster2")
@@ -114,7 +114,8 @@ class LayoutRenderer:
         poster: PosterSpec,
         assets: ResolvedAssets,
     ) -> ForegroundResult:
-        behavior = resolve_template_behavior(spec)
+        feature_count = len(_normalized_feature_texts(poster.features))
+        behavior = resolve_template_behavior(spec, feature_count=feature_count)
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
         layer_timings: dict[str, int] = {}
 
@@ -131,7 +132,7 @@ class LayoutRenderer:
         resolved_callouts = _resolve_feature_callout_layout(
             spec.feature_callouts,
             poster.features,
-            feature_mode=behavior.feature_mode,
+            feature_policy=behavior.feature_policy,
             accent_color=behavior.accent_color,
             text_color=behavior.text_colors["feature"],
         )
@@ -173,7 +174,7 @@ class LayoutRenderer:
             has_logo=assets.logo is not None,
             has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
             has_product=assets.product is not None,
-            feature_count=len(resolved_callouts),
+            feature_count=behavior.feature_policy.visible_item_count,
             gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_visible=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
@@ -370,7 +371,8 @@ class PuppeteerStructuredRenderer:
         poster: PosterSpec,
         assets: ResolvedAssets,
     ) -> ForegroundResult:
-        behavior = resolve_template_behavior(spec)
+        feature_count = len(_normalized_feature_texts(poster.features))
+        behavior = resolve_template_behavior(spec, feature_count=feature_count)
         t0 = _now()
         logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
         try:
@@ -439,6 +441,7 @@ class PuppeteerStructuredRenderer:
                 slot_spec=slot_spec,
                 anchor_map=anchor_map,
                 spec=spec,
+                behavior=behavior,
             )
         except Exception as exc:
             raise _classify_puppeteer_exception(exc, stage="template_render") from exc
@@ -452,7 +455,7 @@ class PuppeteerStructuredRenderer:
             has_logo=bool(asset_urls["logo"]),
             has_scenario=behavior.hero_policy.scenario_enabled and bool(asset_urls.get("scenario_is_real")),
             has_product=True,
-            feature_count=min(len([item for item in poster.features if item]), len(spec.feature_callouts)),
+            feature_count=behavior.feature_policy.visible_item_count,
             gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
             gallery_visible=gallery_visible_count,
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
@@ -500,15 +503,19 @@ class PuppeteerStructuredRenderer:
         slot_spec: dict[str, Any],
         anchor_map: dict[str, Any],
         spec: TemplateSpec,
+        behavior: Any | None = None,
     ) -> str:
-        behavior = resolve_template_behavior(spec)
+        behavior = behavior or resolve_template_behavior(
+            spec,
+            feature_count=len(_normalized_feature_texts(poster.features)),
+        )
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
         gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
         feature_markup, feature_layer_class = self._feature_markup(
             anchor_map,
             poster.features,
-            feature_mode=behavior.feature_mode,
+            feature_policy=behavior.feature_policy,
         )
         header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
         scenario_is_real = bool(asset_urls.get("scenario_is_real")) and behavior.hero_policy.scenario_enabled
@@ -628,12 +635,12 @@ class PuppeteerStructuredRenderer:
         anchor_map: dict[str, Any],
         features: tuple[str, ...],
         *,
-        feature_mode: str,
+        feature_policy: ResolvedFeatureBehavior,
     ) -> tuple[str, str]:
-        callouts = _resolve_feature_callout_map(anchor_map, features, feature_mode=feature_mode)
+        callouts = _resolve_feature_callout_map(anchor_map, features, feature_policy=feature_policy)
         if not callouts:
             return "", "state-hidden feature-mode-0"
-        mode, mode_spec = resolve_feature_layout_mode(len(callouts), feature_mode)
+        mode, mode_spec = resolve_feature_layout_mode(feature_policy.visible_item_count, feature_policy.mode)
         items: list[str] = []
         for callout, feature in callouts:
             anchor_x = int(callout["anchor_x"])
@@ -899,7 +906,7 @@ def _resolve_feature_callout_layout(
     callouts: list[FeatureCalloutSpec],
     features: tuple[str, ...] | list[str],
     *,
-    feature_mode: str = "count_driven_callout_stack",
+    feature_policy: ResolvedFeatureBehavior | None = None,
     accent_color: str | None = None,
     text_color: str | None = None,
 ) -> list[tuple[FeatureCalloutSpec, str]]:
@@ -908,7 +915,14 @@ def _resolve_feature_callout_layout(
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(callouts))]
     count = len(limited_features)
-    _, mode_spec = resolve_feature_layout_mode(count, feature_mode)
+    if feature_policy is None:
+        _, mode_spec = resolve_feature_layout_mode(count, "count_driven_callout_stack")
+    else:
+        mode_spec = {
+            "box_h": feature_policy.box_h,
+            "gap": feature_policy.gap,
+            "connector_policy": feature_policy.connector_policy,
+        }
     source = callouts[:count]
     first = source[0]
     region_top = min(item.label_box.y for item in callouts)
@@ -946,7 +960,7 @@ def _resolve_feature_callout_map(
     anchor_map: dict[str, Any],
     features: tuple[str, ...] | list[str],
     *,
-    feature_mode: str = "count_driven_callout_stack",
+    feature_policy: ResolvedFeatureBehavior | None = None,
 ) -> list[tuple[dict[str, Any], str]]:
     raw_callouts = anchor_map.get("feature_callouts", [])
     if not raw_callouts:
@@ -956,7 +970,14 @@ def _resolve_feature_callout_map(
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(raw_callouts))]
     count = len(limited_features)
-    _, mode_spec = resolve_feature_layout_mode(count, feature_mode)
+    if feature_policy is None:
+        _, mode_spec = resolve_feature_layout_mode(count, "count_driven_callout_stack")
+    else:
+        mode_spec = {
+            "box_h": feature_policy.box_h,
+            "gap": feature_policy.gap,
+            "connector_policy": feature_policy.connector_policy,
+        }
     source = raw_callouts[:count]
     region_top = min(int(item["label_box"]["y"]) for item in raw_callouts)
     region_bottom = max(int(item["label_box"]["y"]) + int(item["label_box"]["h"]) for item in raw_callouts)

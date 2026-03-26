@@ -224,6 +224,7 @@ Beautification Layer 必须建立在以下前提上：
 当前工程线已经有最小 beauty token schema 与 resolver 接口，但本阶段判断仍然成立：
 
 - 当前已证明 token 可以被 renderer 消费
+- 当前已证明 behavior layer 与 beauty layer 可以保持边界分离
 - 当前还没有完成 beauty preset 的可复用扩展闭环
 - 当前也还没有完成 Pillow 对 shell/token 的最小语义对齐
 
