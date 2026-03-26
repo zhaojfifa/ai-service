@@ -476,6 +476,7 @@ def _build_layer_render_status(
             "count": gallery_valid,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
+            "count_visible": gallery_valid,
             "collapsed": not gallery_rendered,
         },
         "bottom_tagline_layer": {

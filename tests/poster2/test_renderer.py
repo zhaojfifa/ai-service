@@ -47,6 +47,7 @@ from app.services.poster2.renderer import (
     _resolve_feature_callout_layout,
     _resolve_feature_callout_map,
     _safe_preset_scenario_data_url,
+    _visible_gallery_item_count,
     _prepare_gallery_urls,
 )
 from app.services.poster2.renderer_routing import RendererRoutingError, resolve_renderer_routing
@@ -464,6 +465,39 @@ class TestGalleryPositions:
             assert computed == ex_x, (
                 f"Gallery item {i}: expected x={ex_x}, got x={computed}"
             )
+
+    def test_gallery_markup_uses_strip_local_coordinates(self):
+        renderer = PuppeteerStructuredRenderer()
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        markup, layer_class = renderer._gallery_markup(
+            slot_spec,
+            ["data:image/png;base64,a", "data:image/png;base64,b"],
+        )
+
+        assert layer_class == "state-show"
+        assert 'left:0px;top:0px;width:196px;height:56px;' in markup
+        assert 'left:212px;top:0px;width:196px;height:56px;' in markup
+
+    def test_visible_gallery_item_count_checks_intersection_with_strip_bounds(self):
+        slot_spec = {
+            "layers": {"bottom_gallery_items_layer": {"x": 96, "y": 896, "w": 832, "h": 56}},
+            "slots": {
+                "gallery": [
+                    {"x": 96, "y": 896, "w": 196, "h": 56},
+                    {"x": 1200, "y": 896, "w": 196, "h": 56},
+                ]
+            },
+        }
+
+        assert _visible_gallery_item_count(slot_spec, 2) == 1
 
 
 # ── Feature callout rendering ─────────────────────────────────────────────────

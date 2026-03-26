@@ -438,6 +438,7 @@ class TestPosterPipelineRun:
         assert layer_status["bottom_gallery_items_layer"]["rendered"] is False
         assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
         assert layer_status["bottom_gallery_items_layer"]["count"] == 0
+        assert layer_status["bottom_gallery_items_layer"]["count_visible"] == 0
         assert layer_status["bottom_gallery_items_layer"]["collapsed"] is True
         assert layer_status["bottom_tagline_layer"]["reason_code"] == "operator_tagline_unbound"
         region_status = metadata["region_render_status"]
@@ -462,6 +463,44 @@ class TestPosterPipelineRun:
         assert metadata["structure_evidence_complete"] is True
         assert metadata["missing_required_slots"] == []
         assert metadata["missing_mandatory_regions"] == []
+
+    def test_renderer_metadata_keeps_gallery_visibility_geometry(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255))],
+            gallery_status=[
+                {"index": 0, "url": "mock://gallery-0", "resolved": True, "error_code": None},
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(gallery_images=(AssetRef(url="mock://gallery-0"),)),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        gallery_status = metadata["gallery_items_status"]
+        assert gallery_status
+        assert gallery_status[0]["visible_in_strip"] is True
+        assert gallery_status[0]["local_bounds"]["x"] == 0
+        assert gallery_status[0]["local_bounds"]["y"] == 0
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()
