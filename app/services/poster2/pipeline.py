@@ -299,6 +299,7 @@ class PosterPipeline:
             "missing_required_slots": quality_guard_report.missing_required_slots,
             "geometry_evidence": _build_geometry_evidence(
                 template,
+                resolved_behavior=resolved_behavior,
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
             ),
@@ -610,23 +611,24 @@ def _merge_status_maps(
 def _build_geometry_evidence(
     template: TemplateSpec,
     *,
+    resolved_behavior,
     layer_render_status: dict[str, dict[str, object]],
     region_render_status: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     return {
         "region_bounds": {
             "header_region": _header_region_bounds(template),
-            "bottom_region": _bottom_region_bounds(template),
-            "title_band_region": _title_band_region_bounds(template),
+            "bottom_region": _bottom_region_bounds(template, resolved_behavior),
+            "title_band_region": _title_band_region_bounds(template, resolved_behavior),
             "product_region": _slot_bounds(template.product_slot),
-            "gallery_strip_region": _gallery_strip_region_bounds(template),
+            "gallery_strip_region": _gallery_strip_region_bounds(template, resolved_behavior),
         },
         "slot_bounds": {
             "brand_logo_slot": _slot_bounds(template.logo_slot),
             "brand_name_slot": _text_slot_bounds(template.brand_name_slot),
             "agent_name_slot": _text_slot_bounds(template.agent_name_slot),
-            "title_slot": _text_slot_bounds(template.title_slot),
-            "subtitle_slot": _text_slot_bounds(template.subtitle_slot),
+            "title_slot": _title_slot_bounds(template, resolved_behavior),
+            "subtitle_slot": _subtitle_slot_bounds(template, resolved_behavior),
             "product_slot": _slot_bounds(template.product_slot),
             "gallery_slot": _gallery_item_slot_bounds(template),
         },
@@ -666,20 +668,33 @@ def _header_region_bounds(template: TemplateSpec) -> dict[str, int]:
     return {"x": left, "y": top, "w": right - left, "h": bottom - top}
 
 
-def _bottom_region_bounds(template: TemplateSpec) -> dict[str, int]:
-    return {"x": 96, "y": 728, "w": 832, "h": 232}
+def _bottom_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": 96,
+        "y": int(layout["bottom_shell_top"]),
+        "w": 832,
+        "h": int(layout["bottom_shell_height"]),
+    }
 
 
-def _title_band_region_bounds(template: TemplateSpec) -> dict[str, int]:
-    return {"x": 112, "y": 728, "w": 800, "h": 144}
+def _title_band_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": 112,
+        "y": int(layout["title_band_top"]),
+        "w": 800,
+        "h": int(layout["title_band_height"]),
+    }
 
 
-def _gallery_strip_region_bounds(template: TemplateSpec) -> dict[str, int]:
+def _gallery_strip_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
     return {
         "x": int(template.gallery_slot.x),
-        "y": int(template.gallery_slot.y - 16),
+        "y": int(layout["gallery_shell_top"]),
         "w": int(template.gallery_slot.w),
-        "h": int(template.gallery_slot.h + 16),
+        "h": int(layout["gallery_shell_height"]),
     }
 
 
@@ -689,6 +704,26 @@ def _gallery_item_slot_bounds(template: TemplateSpec) -> dict[str, int]:
         "y": int(template.gallery_slot.y),
         "w": int(template.gallery_slot.thumb_w),
         "h": int(template.gallery_slot.h),
+    }
+
+
+def _title_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": int(template.title_slot.x),
+        "y": int(layout["title_slot_y"]),
+        "w": int(template.title_slot.w),
+        "h": int(layout["title_slot_height"]),
+    }
+
+
+def _subtitle_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": int(template.subtitle_slot.x),
+        "y": int(layout["subtitle_slot_y"]),
+        "w": int(template.subtitle_slot.w),
+        "h": int(layout["subtitle_slot_height"]),
     }
 
 
@@ -711,12 +746,24 @@ def _build_bottom_contract_review(
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
         "title_band_region": {
             "rendered": bool(region_render_status.get("title_band_region", {}).get("rendered", False)),
-            "bounds": _title_band_region_bounds(template),
+            "bounds": _title_band_region_bounds(template, resolved_behavior),
         },
         "gallery_strip_region": {
             "rendered": bool(region_render_status.get("gallery_strip_region", {}).get("rendered", False)),
             "visible_item_count": resolved_behavior.bottom_policy.visible_item_count,
-            "bounds": _gallery_strip_region_bounds(template),
+            "bounds": _gallery_strip_region_bounds(template, resolved_behavior),
+        },
+        "behavior_policy": {
+            "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
+            "subtitle_overflow_policy": resolved_behavior.bottom_policy.subtitle_overflow_policy,
+            "title_text_budget_policy": resolved_behavior.bottom_policy.title_text_budget_policy,
+            "subtitle_text_budget_policy": resolved_behavior.bottom_policy.subtitle_text_budget_policy,
+            "peer_balance_policy": resolved_behavior.bottom_policy.peer_balance_policy,
+            "title_line_clamp": resolved_behavior.bottom_policy.title_line_clamp,
+            "subtitle_line_clamp": resolved_behavior.bottom_policy.subtitle_line_clamp,
+            "title_char_budget": resolved_behavior.bottom_policy.title_char_budget,
+            "subtitle_char_budget": resolved_behavior.bottom_policy.subtitle_char_budget,
+            "layout_metrics": dict(resolved_behavior.bottom_policy.layout_metrics),
         },
         "collapsed_optional_slots": list(resolved_behavior.bottom_policy.collapsed_optional_slots),
         "subtitle_slot": dict(resolved_behavior.bottom_policy.subtitle_slot_state),

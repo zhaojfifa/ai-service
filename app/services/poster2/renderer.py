@@ -182,14 +182,14 @@ class LayoutRenderer:
         if behavior.bottom_policy.title_slot_rendered:
             self._draw_text(
                 canvas,
-                replace(spec.title_slot, color=behavior.text_colors["title"]),
+                _title_text_slot(spec, behavior.bottom_policy, color=behavior.text_colors["title"]),
                 poster.title,
                 draw_background=False,
             )
         if behavior.bottom_policy.subtitle_slot_rendered:
             self._draw_text(
                 canvas,
-                replace(spec.subtitle_slot, color=behavior.text_colors["subtitle"]),
+                _subtitle_text_slot(spec, behavior.bottom_policy, color=behavior.text_colors["subtitle"]),
                 poster.subtitle,
                 draw_background=False,
             )
@@ -273,11 +273,7 @@ class LayoutRenderer:
         if has_title_band or has_gallery:
             self._draw_shell_box(
                 canvas,
-                _bottom_shell_bounds(
-                    spec,
-                    bottom_mode=behavior.bottom_policy.mode,
-                    has_bottom=behavior.bottom_policy.bottom_region_rendered,
-                ),
+                _bottom_shell_bounds(spec, behavior.bottom_policy),
                 radius=28,
                 fill=_pillow_shell_fill("bottom", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
                 border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -286,7 +282,7 @@ class LayoutRenderer:
         if has_title_band:
             self._draw_shell_box(
                 canvas,
-                _title_band_shell_bounds(spec),
+                _title_band_shell_bounds(spec, behavior.bottom_policy),
                 radius=28,
                 fill=_pillow_shell_fill("title_band", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
                 border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -295,7 +291,7 @@ class LayoutRenderer:
         if has_gallery:
             self._draw_shell_box(
                 canvas,
-                _gallery_strip_shell_bounds(spec),
+                _gallery_strip_shell_bounds(spec, behavior.bottom_policy),
                 radius=20,
                 fill=_pillow_shell_fill("gallery_strip", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
                 border=_pillow_border("gallery", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -1472,26 +1468,57 @@ def _header_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
     return left, top, right - left, bottom - top
 
 
-def _title_band_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
-    left = spec.title_slot.x
-    top = spec.title_slot.y - 16
-    right = spec.title_slot.x + spec.title_slot.w
-    bottom = spec.subtitle_slot.y + spec.subtitle_slot.h + 4
-    return left, top, right - left, bottom - top
+def _title_band_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
+    layout = bottom_policy.layout_metrics
+    return (
+        spec.title_slot.x,
+        int(layout["title_band_top"]),
+        spec.title_slot.w,
+        int(layout["title_band_height"]),
+    )
 
 
-def _gallery_strip_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
-    return spec.gallery_slot.x, spec.gallery_slot.y - 16, spec.gallery_slot.w, spec.gallery_slot.h + 16
+def _gallery_strip_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
+    layout = bottom_policy.layout_metrics
+    return (
+        spec.gallery_slot.x,
+        int(layout["gallery_shell_top"]),
+        spec.gallery_slot.w,
+        int(layout["gallery_shell_height"]),
+    )
 
 
-def _bottom_shell_bounds(spec: TemplateSpec, *, bottom_mode: str, has_bottom: bool) -> tuple[int, int, int, int]:
-    if not has_bottom:
-        return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 0
-    if bottom_mode == "title_gallery_split":
-        return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 232
-    if bottom_mode == "title_only":
-        return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 160
-    return spec.gallery_slot.x, spec.gallery_slot.y - 16, spec.gallery_slot.w, 72
+def _bottom_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
+    if not bottom_policy.bottom_region_rendered:
+        return spec.gallery_slot.x, int(bottom_policy.layout_metrics["bottom_shell_top"]), spec.gallery_slot.w, 0
+    return (
+        spec.gallery_slot.x,
+        int(bottom_policy.layout_metrics["bottom_shell_top"]),
+        spec.gallery_slot.w,
+        int(bottom_policy.layout_metrics["bottom_shell_height"]),
+    )
+
+
+def _title_text_slot(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior, *, color: str) -> TextSlotSpec:
+    layout = bottom_policy.layout_metrics
+    return replace(
+        spec.title_slot,
+        y=int(layout["title_slot_y"]),
+        h=int(layout["title_slot_height"]),
+        color=color,
+        max_lines=max(bottom_policy.title_line_clamp, 1),
+    )
+
+
+def _subtitle_text_slot(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior, *, color: str) -> TextSlotSpec:
+    layout = bottom_policy.layout_metrics
+    return replace(
+        spec.subtitle_slot,
+        y=int(layout["subtitle_slot_y"]),
+        h=int(layout["subtitle_slot_height"]),
+        color=color,
+        max_lines=max(bottom_policy.subtitle_line_clamp, 1),
+    )
 
 
 def _pillow_shell_fill(role: str, shell_surface: str, *, accent: str) -> tuple[int, int, int, int]:

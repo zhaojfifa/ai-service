@@ -1014,6 +1014,30 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.title_band_rendered is True
         assert resolved.bottom_policy.gallery_strip_rendered is False
         assert resolved.bottom_policy.subtitle_slot_rendered is True
+        assert resolved.bottom_policy.title_band_sizing_mode == "standard"
+        assert resolved.bottom_policy.subtitle_overflow_policy == "single_line_ellipsis_inside_title_band"
+
+    def test_template_behavior_resolver_promotes_bottom_into_behavior_policy(self):
+        template = _load_real_template()
+
+        resolved = resolve_template_behavior(
+            template,
+            title_text="超长标题超长标题超长标题超长标题",
+            subtitle_text="这是一段更长的底部说明文案，用来验证 subtitle overflow、title band sizing 和 gallery peer balance 会不会进入 resolver 策略。",
+            gallery_requested_count=4,
+            gallery_resolved_count=4,
+            bottom_mode="title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+        )
+
+        assert resolved.bottom_policy.title_band_sizing_mode == "expanded"
+        assert resolved.bottom_policy.subtitle_overflow_policy == "two_line_clamp_inside_split_title_band"
+        assert resolved.bottom_policy.peer_balance_policy == "title_band_priority_under_dense_copy"
+        assert resolved.bottom_policy.title_line_clamp in {1, 2}
+        assert resolved.bottom_policy.subtitle_line_clamp == 2
+        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 160
+        assert resolved.css_vars["--title-band-height"] == "160px"
+        assert resolved.css_vars["--subtitle-line-clamp"] == "2"
 
     def test_template_behavior_resolver_rejects_unknown_bottom_mode(self):
         template = _load_real_template()
@@ -1523,6 +1547,23 @@ class TestBottomSplitBehavior:
         assert "layer-gallery-strip-region-shell state-show" in html_payload
         assert "layer-bottom-gallery-items state-show" in html_payload
 
+    def test_bottom_split_dense_copy_uses_resolved_bottom_behavior_vars(self):
+        html_payload = self._render_html_payload(
+            title="超长标题超长标题超长标题超长标题",
+            subtitle="这是一段更长的底部说明文案，用来验证 subtitle overflow、title band sizing 和 gallery peer balance 会不会进入 resolver 策略。",
+            gallery=[
+                "data:image/png;base64,a",
+                "data:image/png;base64,b",
+                "data:image/png;base64,c",
+                "data:image/png;base64,d",
+            ],
+        )
+
+        assert "--title-band-height: 160px" in html_payload
+        assert "--title-line-clamp:" in html_payload
+        assert "--subtitle-line-clamp: 2" in html_payload
+        assert "--title-stack-gap: 6px" in html_payload
+
     def test_template_css_exposes_independent_bottom_split_state_tokens(self):
         css_template = (
             Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
@@ -1536,6 +1577,9 @@ class TestBottomSplitBehavior:
         assert ".layer-bottom-region.state-title-gallery {" in css_template
         assert ".layer-bottom-gallery-items {" in css_template
         assert "top: var(--gallery-items-top);" in css_template
+        assert "--title-stack-gap: 8px;" in css_template
+        assert "-webkit-line-clamp: var(--title-line-clamp);" in css_template
+        assert "-webkit-line-clamp: var(--subtitle-line-clamp);" in css_template
 
 
 class _FakeLocator:

@@ -135,10 +135,13 @@ body {
   --title-content-pad-right: 40px;
   --title-content-pad-bottom: 18px;
   --title-content-pad-left: 40px;
+  --title-stack-gap: 8px;
   --gallery-shell-top: 888px;
   --gallery-shell-height: 72px;
   --gallery-items-top: 896px;
   --gallery-items-height: 56px;
+  --title-line-clamp: 2;
+  --subtitle-line-clamp: 1;
 }
 
 .region-shell {
@@ -438,7 +441,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: var(--title-stack-gap);
 }
 
 .text-title {
@@ -452,11 +455,11 @@ body {
   color: var(--text-color-title);
   overflow: hidden;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: var(--title-line-clamp);
 }
 
 .text-subtitle {
-  display: block;
+  display: -webkit-box;
   padding: 4px 14px 0;
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
   font-size: 20px;
@@ -464,8 +467,9 @@ body {
   text-align: center;
   color: var(--text-color-subtitle);
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--subtitle-line-clamp);
 }
 
 .layer-bottom-tagline {
