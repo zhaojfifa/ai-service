@@ -825,7 +825,7 @@ class TestHeaderAndTitleBandLayoutControl:
 
         assert 'class="layer-header-layout"' in html_template
         assert 'class="layer layer-brand-logo"' in html_template
-        assert 'class="layer layer-header-text-block"' in html_template
+        assert 'class="layer layer-header-text-block" data-layer="brand_text_block_layer"' in html_template
         assert 'class="layer layer-agent-name-text __AGENT_TEXT_CLASS__"' in html_template
         assert 'class="layer-title-band-layout"' in html_template
 
@@ -834,13 +834,20 @@ class TestHeaderAndTitleBandLayoutControl:
             Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
         ).read_text(encoding="utf-8")
 
+        assert "--header-inner-left: 104px;" in css_template
+        assert "--header-inner-right: 112px;" in css_template
+        assert "--header-logo-gap: 20px;" in css_template
+        assert "--header-text-gap: 4px;" in css_template
+        assert ".layer-header-layout {" in css_template
+        assert "display: flex;" in css_template
+        assert "gap: var(--header-logo-gap);" in css_template
         assert ".layer-header-text-block {" in css_template
-        assert "left: 244px;" in css_template
-        assert "right: 112px;" in css_template
+        assert "flex-direction: column;" in css_template
         assert ".layer-agent-name-text {" in css_template
         assert ".slot-agent-name-text {" in css_template
         assert ".text-agent-secondary {" in css_template
-        assert ".layer-header-banner.state-logo-empty .layer-header-text-block" in css_template
+        assert ".layer-header-banner.state-logo-empty {" in css_template
+        assert ".layer-header-banner.state-logo-empty .layer-brand-logo" in css_template
         assert ".slot-title:empty," in css_template
         assert ".slot-subtitle:empty" in css_template
 
@@ -889,10 +896,56 @@ class TestHeaderAndTitleBandLayoutControl:
 
         assert 'class="layer-header-layout"' in html_payload
         assert 'class="layer layer-brand-logo"' in html_payload
-        assert 'class="layer layer-header-text-block"' in html_payload
+        assert 'class="layer layer-header-text-block" data-layer="brand_text_block_layer"' in html_payload
         assert 'class="layer layer-agent-name-text state-show"' in html_payload
         assert 'class="layer-title-band-layout"' in html_payload
         assert 'data-region="title_band_region"' in html_payload
+
+    def test_build_html_collapses_secondary_agent_text_when_empty(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(agent_name=""),
+            asset_urls={
+                "logo": "data:image/png;base64,abc",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert 'class="layer layer-header-text-block" data-layer="brand_text_block_layer"' in html_payload
+        assert 'class="layer layer-agent-name-text state-hidden"' in html_payload
 
 
 class TestBottomSplitBehavior:
