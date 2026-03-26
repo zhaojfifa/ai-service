@@ -95,6 +95,14 @@ body {
   z-index: 5;
 }
 
+#poster-root {
+  --peer-region-gap: 24px;
+  --product-content-pad-top: 24px;
+  --product-content-pad-right: 18px;
+  --product-content-pad-bottom: 10px;
+  --product-content-pad-left: 18px;
+}
+
 .region-shell {
   position: absolute;
   pointer-events: none;
@@ -251,6 +259,11 @@ body {
   z-index: 3;
 }
 
+.layer-scenario,
+.layer-product {
+  overflow: hidden;
+}
+
 .layer-scenario-content,
 .layer-product-content,
 .layer-scenario-image,
@@ -261,12 +274,33 @@ body {
 
 .layer-scenario-content,
 .layer-product-content {
-  padding: 0;
   box-sizing: border-box;
 }
 
+.layer-scenario-content {
+  padding: 0;
+}
+
 .layer-product-content {
-  padding: 22px 20px;
+  padding: var(--product-content-pad-top) var(--product-content-pad-right) var(--product-content-pad-bottom) var(--product-content-pad-left);
+}
+
+.layer-scenario-content.state-fit-cover,
+.layer-product-content.state-fit-contain {
+  display: flex;
+}
+
+.layer-scenario-content.state-anchor-center,
+.layer-product-content.state-anchor-bottom {
+  justify-content: center;
+}
+
+.layer-scenario-content.state-anchor-center {
+  align-items: center;
+}
+
+.layer-product-content.state-anchor-bottom {
+  align-items: flex-end;
 }
 
 .region-shell-scenario,
@@ -302,7 +336,7 @@ body {
 .slot-product {
   z-index: 4;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   overflow: hidden;
   border-radius: 24px;
@@ -310,6 +344,7 @@ body {
 
 .slot-scenario {
   padding: 0;
+  align-items: center;
 }
 
 .slot-product {
@@ -324,15 +359,19 @@ body {
 }
 
 .scenario-fit-cover img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   object-position: center center;
 }
 
 .product-fit-contain img {
+  width: auto;
+  height: auto;
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  object-position: center center;
+  object-position: center bottom;
   filter: drop-shadow(0 16px 28px rgba(0, 0, 0, 0.18));
 }
 

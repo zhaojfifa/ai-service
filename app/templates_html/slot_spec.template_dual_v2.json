@@ -143,8 +143,11 @@
       "visible_when": "scenario_image.url exists or safe preset fill is resolved",
       "bounds": { "x": 96, "y": 188, "w": 288, "h": 520 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "fit_policy": "cover",
+      "anchor": "center inside scenario_card_shell_layer",
       "max_items": 1,
       "max_lines": 0,
+      "overflow_rule": "cover inside scenario shell safe bounds only",
       "fallback_rule": "render scenario_image as the true content layer; fallback to safe preset image only if scenario_image is absent; background_base_layer must not substitute for this layer",
       "collapse_rule": "never collapse into background substitution; render safe preset when scenario_image is absent"
     },
@@ -160,10 +163,13 @@
     "product_image_layer": {
       "visible_when": "product_image.url exists",
       "bounds": { "x": 456, "y": 188, "w": 300, "h": 520 },
-      "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
+      "padding": { "top": 24, "right": 18, "bottom": 10, "left": 18 },
+      "fit_policy": "contain",
+      "anchor": "bottom-center inside product_card_shell_layer",
       "max_items": 1,
       "max_lines": 0,
-      "fallback_rule": "contain product image inside product card shell only",
+      "overflow_rule": "contain product image within card safe bounds without distortion",
+      "fallback_rule": "contain and bottom-anchor product image inside product card shell only",
       "collapse_rule": "collapse when product_image.url is absent"
     },
     "feature_callout_layer": {
@@ -260,8 +266,8 @@
     "logo": { "x": 104, "y": 74, "w": 120, "h": 64, "fit": "contain" },
     "brand_name": { "x": 244, "y": 72, "w": 484, "h": 68 },
     "agent_name": { "x": 748, "y": 78, "w": 164, "h": 48 },
-    "scenario": { "x": 96, "y": 188, "w": 288, "h": 520, "fit": "cover", "radius": 24 },
-    "product": { "x": 456, "y": 188, "w": 300, "h": 520, "fit": "contain", "radius": 24 },
+    "scenario": { "x": 96, "y": 188, "w": 288, "h": 520, "fit": "cover", "align_x": "center", "align_y": "center", "radius": 24 },
+    "product": { "x": 456, "y": 188, "w": 300, "h": 520, "fit": "contain", "align_x": "center", "align_y": "end", "pad_top": 24, "pad_right": 18, "pad_bottom": 10, "pad_left": 18, "radius": 24 },
     "gallery": [
       { "x": 96, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
       { "x": 308, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },

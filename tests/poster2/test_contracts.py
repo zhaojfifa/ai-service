@@ -109,7 +109,7 @@ class TestTemplateSpecLoading:
         assert spec.contract_version == "poster2.template_dual_v2.v1"
         assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
-        assert spec.version == "2.1.2"
+        assert spec.version == "2.1.3"
         assert spec.gallery_slot.thumb_w == 196
         assert spec.agent_name_slot.bg_color == "transparent"
         assert spec.agent_name_slot.bg_radius == 0
@@ -117,7 +117,13 @@ class TestTemplateSpecLoading:
         assert spec.gallery_slot.y + spec.gallery_slot.h <= spec.canvas_h - spec.safe_margin
         assert spec.scenario_slot is not None
         assert spec.scenario_slot.x == 96
+        assert spec.scenario_slot.align_x == "center"
+        assert spec.scenario_slot.align_y == "center"
         assert spec.product_slot.w == 300
+        assert spec.product_slot.align_x == "center"
+        assert spec.product_slot.align_y == "end"
+        assert spec.product_slot.pad_top == 24
+        assert spec.product_slot.pad_bottom == 10
 
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
@@ -279,9 +285,16 @@ class TestTemplateSpecLoading:
         assert header_identity_zone_contract["gap"] == 20
         assert header_agent_zone_contract["anchor"] == "end inside header_shell_layer"
         assert scenario_image_contract["visible_when"] == "scenario_image.url exists or safe preset fill is resolved"
+        assert scenario_image_contract["fit_policy"] == "cover"
+        assert scenario_image_contract["anchor"] == "center inside scenario_card_shell_layer"
         assert scenario_image_contract["max_items"] == 1
         assert scenario_image_contract["max_lines"] == 0
         assert "background_base_layer must not substitute" in scenario_image_contract["fallback_rule"]
+        product_image_contract = slot_spec["layer_contracts"]["product_image_layer"]
+        assert product_image_contract["fit_policy"] == "contain"
+        assert product_image_contract["anchor"] == "bottom-center inside product_card_shell_layer"
+        assert product_image_contract["padding"] == {"top": 24, "right": 18, "bottom": 10, "left": 18}
+        assert "without distortion" in product_image_contract["overflow_rule"]
         assert bottom_gallery_items_contract["visible_when"] == "gallery_images.length > 0"
         assert bottom_gallery_items_contract["max_items"] == 4
         assert bottom_gallery_items_contract["max_lines"] == 0
@@ -296,6 +309,9 @@ class TestTemplateSpecLoading:
         assert slot_spec["layer_slots"]["header_identity_zone_slot"]["w"] == 556
         assert slot_spec["layer_slots"]["brand_name_slot"]["w"] == 416
         assert slot_spec["layer_slots"]["header_agent_zone_slot"]["w"] == 228
+        assert slot_spec["slots"]["scenario"]["align_y"] == "center"
+        assert slot_spec["slots"]["product"]["align_y"] == "end"
+        assert slot_spec["slots"]["product"]["pad_bottom"] == 10
         assert slot_spec["slots"]["gallery"][0]["y"] == 896
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec

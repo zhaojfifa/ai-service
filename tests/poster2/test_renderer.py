@@ -220,6 +220,28 @@ class TestFitImage:
         fitted = _fit_image(img, 50, 50, "cover")
         assert fitted.mode == "RGBA"
 
+    def test_product_anchor_bottom_keeps_contained_image_low_in_slot(self):
+        canvas = PILImage.new("RGBA", (120, 120), (0, 0, 0, 0))
+        product = solid_image(40, 40, (255, 0, 0, 255))
+        slot = ImageSlotSpec(
+            x=10,
+            y=10,
+            w=100,
+            h=100,
+            fit="contain",
+            align_x="center",
+            align_y="end",
+            pad_top=20,
+            pad_right=10,
+            pad_bottom=8,
+            pad_left=10,
+        )
+
+        LayoutRenderer()._draw_product(canvas, slot, product)
+
+        assert canvas.getpixel((60, 24))[3] == 0
+        assert canvas.getpixel((60, 96))[3] == 255
+
 
 # ── Radius / shadow utilities ─────────────────────────────────────────────────
 
@@ -750,8 +772,9 @@ class TestStructuredScenarioLayer:
         )
 
         assert "state-safe-fill" in html_payload
-        assert "layer-hero-peer-region state-safe-fill" in html_payload
+        assert "layer-hero-peer-region state-safe-fill state-fit-cover state-anchor-center" in html_payload
         assert "scenario-fit-cover" in html_payload
+        assert "layer layer-product-content state-fit-contain state-anchor-bottom" in html_payload
         assert "product-fit-contain" in html_payload
         assert 'data-region="title_band_region"' in html_payload
         assert 'data-region="feature_region"' in html_payload
@@ -800,9 +823,9 @@ class TestStructuredScenarioLayer:
             spec=template,
         )
 
-        assert "layer-hero-peer-region state-real" in html_payload
+        assert "layer-hero-peer-region state-real state-fit-cover state-anchor-center" in html_payload
         assert "region-shell-scenario state-real" in html_payload
-        assert "layer layer-product layer-hero-peer-region state-fit-contain" in html_payload
+        assert "layer layer-product layer-hero-peer-region state-fit-contain state-anchor-bottom" in html_payload
 
     def test_template_css_exposes_peer_region_fit_policies(self):
         css_template = (
@@ -810,10 +833,15 @@ class TestStructuredScenarioLayer:
         ).read_text(encoding="utf-8")
 
         assert ".layer-hero-peer-region" in css_template
+        assert "--product-content-pad-top: 24px;" in css_template
+        assert "--product-content-pad-bottom: 10px;" in css_template
+        assert ".layer-product-content.state-anchor-bottom {" in css_template
+        assert "align-items: flex-end;" in css_template
         assert ".scenario-fit-cover img" in css_template
         assert "object-fit: cover;" in css_template
         assert ".product-fit-contain img" in css_template
         assert "object-fit: contain;" in css_template
+        assert "object-position: center bottom;" in css_template
 
 
 class TestHeaderAndTitleBandLayoutControl:
