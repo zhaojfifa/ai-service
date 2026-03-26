@@ -13,7 +13,7 @@ The directory is organized by responsibility, not by time:
 - `03_stage_assessment/`
   - stage conclusions and transition/index notes
 - `04_external_reference/`
-  - external review inputs kept for reference only
+  - external review inputs and migration judgments
 - `05_next_phase_plan/`
   - forward plans for the next architecture layers
 
@@ -22,39 +22,60 @@ The directory is organized by responsibility, not by time:
 Recommended reading order for the current repo state:
 
 1. Architecture
-   - [template_dual_v2_architecture_business_definition.md](/Users/tylerzhao/Code/ai-service/docs/poster2/01_architecture/template_dual_v2_architecture_business_definition.md)
-2. Engineering implementation and acceptance
-   - [template_dual_v2_engineering_implementation_and_acceptance.md](/Users/tylerzhao/Code/ai-service/docs/poster2/02_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
-3. Structural rebuild baseline
-   - [template_dual_v2_structural_rebuild_baseline_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/02_engineering/template_dual_v2_structural_rebuild_baseline_v1.md)
+   - [template_dual_v2_architecture_business_definition.md](01_architecture/template_dual_v2_architecture_business_definition.md)
+
+2. Engineering baseline
+   - [template_dual_v2_engineering_implementation_and_acceptance.md](02_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
+   - [template_dual_v2_structural_rebuild_baseline_v1.md](02_engineering/template_dual_v2_structural_rebuild_baseline_v1.md)
+
+3. Current stage assessment
+   - [current_stage_assessment_and_engineering_path_update_v1.md](03_stage_assessment/current_stage_assessment_and_engineering_path_update_v1.md)
+   - [index_update_stage_transition_v1.md](03_stage_assessment/index_update_stage_transition_v1.md)
+
+4. External reference mapping
+   - [external_reference_poster_design_review_and_migration_v1.md](04_external_reference/external_reference_poster_design_review_and_migration_v1.md)
+
+5. Next-phase plans
+   - [template_behavior_layer_plan_v1.md](05_next_phase_plan/template_behavior_layer_plan_v1.md)
+   - [beautification_layer_plan_v1.md](05_next_phase_plan/beautification_layer_plan_v1.md)
 
 ## Current Stage Conclusion
 
 Current conclusion from the docs and implemented repo state:
 
-- poster2 has completed the structural rebuild baseline for `template_dual_v2`
-- the system is operating as a contract-first, diagnostics-visible, dual-renderer poster pipeline
-- the current phase focus has moved from Phase-1 foundation closeout into template-driven layout control and follow-up architecture layering
+- poster2 has validated its contract-first baseline
+- structure can be controlled
+- content injection can be controlled
+- outputs are reproducible and diagnosable
+- the current architecture goal and basic route are correct
+- the main remaining gap is not architecture direction, but engineering path and implementation maturity
+
+The next phase focus is:
+
+- Template Behavior Layer
+- Beautification Pathfinding
+- Geometry / Evidence Layer
+- Render Service Layer
 
 ## Current File Map
 
 Present and organized in this repo now:
 
 - `01_architecture/`
-  - [template_dual_v2_architecture_business_definition.md](/Users/tylerzhao/Code/ai-service/docs/poster2/01_architecture/template_dual_v2_architecture_business_definition.md)
+  - [template_dual_v2_architecture_business_definition.md](01_architecture/template_dual_v2_architecture_business_definition.md)
 - `02_engineering/`
-  - [template_dual_v2_engineering_implementation_and_acceptance.md](/Users/tylerzhao/Code/ai-service/docs/poster2/02_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
-  - [template_dual_v2_structural_rebuild_baseline_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/02_engineering/template_dual_v2_structural_rebuild_baseline_v1.md)
+  - [template_dual_v2_engineering_implementation_and_acceptance.md](02_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
+  - [template_dual_v2_structural_rebuild_baseline_v1.md](02_engineering/template_dual_v2_structural_rebuild_baseline_v1.md)
 - `03_stage_assessment/`
-  - [current_stage_assessment_and_engineering_path_update_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/03_stage_assessment/current_stage_assessment_and_engineering_path_update_v1.md)
-  - [index_update_stage_transition_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/03_stage_assessment/index_update_stage_transition_v1.md)
+  - [current_stage_assessment_and_engineering_path_update_v1.md](03_stage_assessment/current_stage_assessment_and_engineering_path_update_v1.md)
+  - [index_update_stage_transition_v1.md](03_stage_assessment/index_update_stage_transition_v1.md)
 - `04_external_reference/`
-  - [external_reference_poster_design_review_and_migration_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/04_external_reference/external_reference_poster_design_review_and_migration_v1.md)
+  - [external_reference_poster_design_review_and_migration_v1.md](04_external_reference/external_reference_poster_design_review_and_migration_v1.md)
 - `05_next_phase_plan/`
-  - [template_behavior_layer_plan_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/05_next_phase_plan/template_behavior_layer_plan_v1.md)
-  - [beautification_layer_plan_v1.md](/Users/tylerzhao/Code/ai-service/docs/poster2/05_next_phase_plan/beautification_layer_plan_v1.md)
+  - [template_behavior_layer_plan_v1.md](05_next_phase_plan/template_behavior_layer_plan_v1.md)
+  - [beautification_layer_plan_v1.md](05_next_phase_plan/beautification_layer_plan_v1.md)
 
-Additional target files still not present in the current `PosterSop01` tree:
+Additional target files still not present in the current repo tree:
 
 - `01_architecture/`
   - `poster_generation_product_design_baseline_v1.md`
@@ -68,6 +89,4 @@ Additional target files still not present in the current `PosterSop01` tree:
 
 The next-phase planning directory is:
 
-- [05_next_phase_plan](/Users/tylerzhao/Code/ai-service/docs/poster2/05_next_phase_plan)
-
-At the moment, the first next-phase plan entry paths are present. The remaining plan documents above are still not present in the current `PosterSop01` tree.
+- [05_next_phase_plan](05_next_phase_plan)
