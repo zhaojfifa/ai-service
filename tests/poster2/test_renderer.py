@@ -835,7 +835,14 @@ class TestHeaderAndTitleBandLayoutControl:
         ).read_text(encoding="utf-8")
 
         assert "--header-logo-width: 120px;" in css_template
-        assert "grid-template-columns: var(--header-logo-width) minmax(0, 1fr) minmax(var(--header-agent-min-width), var(--header-agent-width));" in css_template
+        assert "--header-agent-max-width: 156px;" in css_template
+        assert "--header-agent-min-width: 96px;" in css_template
+        assert "right: 120px;" in css_template
+        assert "grid-template-columns: var(--header-logo-width) minmax(0, 1fr) minmax(var(--header-agent-min-width), var(--header-agent-max-width));" in css_template
+        assert ".header-lane-agent {" in css_template
+        assert "max-width: 100%;" in css_template
+        assert ".slot-agent {" in css_template
+        assert ".text-agent {" in css_template
         assert ".layer-header-banner.state-logo-empty .layer-header-layout" in css_template
         assert ".slot-title:empty," in css_template
         assert ".slot-subtitle:empty" in css_template
