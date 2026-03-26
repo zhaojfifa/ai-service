@@ -18,6 +18,7 @@
     "header_banner": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "header_shell_layer": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "brand_logo_layer": { "x": 104, "y": 74, "w": 120, "h": 64 },
+    "brand_text_block_layer": { "x": 244, "y": 72, "w": 668, "h": 54 },
     "brand_text_layer": { "x": 244, "y": 72, "w": 668, "h": 36 },
     "agent_name_text_layer": { "x": 244, "y": 108, "w": 668, "h": 18 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520 },
@@ -43,7 +44,7 @@
   },
   "layer_slots": {
     "brand_logo_slot": { "x": 104, "y": 74, "w": 120, "h": 64 },
-    "brand_name_slot": { "x": 244, "y": 72, "w": 484, "h": 68 },
+    "brand_name_slot": { "x": 244, "y": 72, "w": 668, "h": 36 },
     "agent_name_text_slot": { "x": 244, "y": 108, "w": 668, "h": 18 },
     "scenario_card_slot": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "bottom_gallery_strip": { "x": 96, "y": 888, "w": 832, "h": 72 }
@@ -80,12 +81,26 @@
       "fallback_rule": "hide logo only; do not make logo visibility depend on brand_text_layer",
       "collapse_rule": "collapse only this layer when logo is absent"
     },
+    "brand_text_block_layer": {
+      "visible_when": "brand_name present or agent_name present",
+      "bounds": { "x": 244, "y": 72, "w": 668, "h": 54 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "anchor": "after brand_logo_layer inside header_shell_layer",
+      "gap": 4,
+      "group_behavior": "vertical_stack",
+      "min_width": 0,
+      "max_width": 668,
+      "fallback_rule": "keep brand and agent text grouped inside header safe area only",
+      "collapse_rule": "collapse when both brand_name and agent_name are empty"
+    },
     "brand_text_layer": {
       "visible_when": "brand_name present",
       "bounds": { "x": 244, "y": 72, "w": 668, "h": 36 },
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 1,
       "max_lines": 1,
+      "line_budget": 1,
+      "overflow_rule": "single-line ellipsis inside grouped text block",
       "fallback_rule": "expand width when brand_logo_layer collapses",
       "collapse_rule": "do not depend on logo visibility"
     },
@@ -95,6 +110,8 @@
       "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
       "max_items": 1,
       "max_lines": 1,
+      "line_budget": 1,
+      "overflow_rule": "single-line ellipsis as secondary text only",
       "fallback_rule": "render as secondary plain text line under brand name only",
       "collapse_rule": "collapse when agent_name is empty"
     },
