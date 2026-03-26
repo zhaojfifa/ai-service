@@ -88,6 +88,19 @@ class ForegroundResult:
     region_render_status: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
+def _rectangles_intersect(
+    ax: int,
+    ay: int,
+    aw: int,
+    ah: int,
+    bx: int,
+    by: int,
+    bw: int,
+    bh: int,
+) -> bool:
+    return ax < bx + bw and ax + aw > bx and ay < by + bh and ay + ah > by
+
+
 class LayoutRenderer:
     """
     Deterministic foreground rendering via Pillow.
@@ -134,6 +147,7 @@ class LayoutRenderer:
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
+        gallery_items_status = _annotate_gallery_items_status_from_spec(assets.gallery_status, spec)
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=assets.logo is not None,
@@ -141,6 +155,7 @@ class LayoutRenderer:
             has_product=assets.product is not None,
             feature_count=len(resolved_callouts),
             gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
+            gallery_visible=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
             scenario_source=poster.scenario_image.url if poster.scenario_image else None,
             product_source=poster.product_image.url,
@@ -155,6 +170,7 @@ class LayoutRenderer:
             foreground_renderer=self.RENDERER_NAME,
             template_contract_version=spec.contract_version,
             layer_timings_ms=layer_timings,
+            gallery_items_status=gallery_items_status,
             layer_render_status=layer_render_status,
             region_render_status=_build_renderer_region_render_status(layer_render_status),
         )
@@ -380,6 +396,7 @@ class PuppeteerStructuredRenderer:
                 len(gallery_urls),
                 sum(len(url) for url in gallery_urls),
             )
+            gallery_visible_count = _visible_gallery_item_count(slot_spec, len(gallery_urls))
         except Exception as exc:
             raise _classify_puppeteer_exception(exc, stage="gallery_render") from exc
         layer_timings["product_material_layer_ms"] = _elapsed(t1)
@@ -402,6 +419,7 @@ class PuppeteerStructuredRenderer:
 
         png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
+        gallery_items_status = _annotate_gallery_items_status(gallery_items_status, slot_spec)
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=bool(asset_urls["logo"]),
@@ -409,6 +427,7 @@ class PuppeteerStructuredRenderer:
             has_product=True,
             feature_count=min(len([item for item in poster.features if item]), len(spec.feature_callouts)),
             gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
+            gallery_visible=gallery_visible_count,
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
             scenario_source=poster.scenario_image.url if poster.scenario_image else "safe_preset_image",
             product_source=poster.product_image.url,
@@ -526,6 +545,7 @@ class PuppeteerStructuredRenderer:
 
     def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> tuple[str, str]:
         gallery_slots = slot_spec["slots"]["gallery"]
+        gallery_layer = slot_spec.get("layers", {}).get("bottom_gallery_items_layer", {"x": 0, "y": 0})
         if not gallery_urls:
             return "", "state-hidden"
         logger.info(
@@ -537,8 +557,11 @@ class PuppeteerStructuredRenderer:
         items: list[str] = []
         for idx, gallery_slot in enumerate(gallery_slots[: len(gallery_urls)]):
             url = gallery_urls[idx]
+            local_slot = dict(gallery_slot)
+            local_slot["x"] = int(gallery_slot["x"]) - int(gallery_layer["x"])
+            local_slot["y"] = int(gallery_slot["y"]) - int(gallery_layer["y"])
             items.append(
-                f'<div class="gallery-item" style="{_slot_style(gallery_slot)}">'
+                f'<div class="gallery-item" style="{_slot_style(local_slot)}">'
                 f'<img src="{url}" alt="" loading="eager" />'
                 "</div>"
             )
@@ -886,6 +909,126 @@ def _resolve_feature_callout_map(
     return resolved
 
 
+def _visible_gallery_item_count(slot_spec: dict[str, Any], gallery_count: int) -> int:
+    gallery_slots = slot_spec["slots"]["gallery"][:gallery_count]
+    gallery_layer = slot_spec["layers"]["bottom_gallery_items_layer"]
+    visible = 0
+    for slot in gallery_slots:
+        local_x = int(slot["x"]) - int(gallery_layer["x"])
+        local_y = int(slot["y"]) - int(gallery_layer["y"])
+        if _rectangles_intersect(
+            local_x,
+            local_y,
+            int(slot["w"]),
+            int(slot["h"]),
+            0,
+            0,
+            int(gallery_layer["w"]),
+            int(gallery_layer["h"]),
+        ):
+            visible += 1
+    return visible
+
+
+def _gallery_layer_bounds_from_spec(spec: TemplateSpec) -> dict[str, int]:
+    return {
+        "x": spec.gallery_slot.x,
+        "y": spec.gallery_slot.y,
+        "w": spec.gallery_slot.w,
+        "h": spec.gallery_slot.h,
+    }
+
+
+def _gallery_slots_from_spec(spec: TemplateSpec) -> list[dict[str, int]]:
+    slots: list[dict[str, int]] = []
+    for idx in range(spec.gallery_slot.count):
+        slots.append(
+            {
+                "x": spec.gallery_slot.x + idx * (spec.gallery_slot.thumb_w + spec.gallery_slot.gap),
+                "y": spec.gallery_slot.y,
+                "w": spec.gallery_slot.thumb_w,
+                "h": spec.gallery_slot.h,
+            }
+        )
+    return slots
+
+
+def _annotate_gallery_items_status(
+    gallery_items_status: list[dict[str, Any]],
+    slot_spec: dict[str, Any],
+) -> list[dict[str, Any]]:
+    gallery_layer = slot_spec["layers"]["bottom_gallery_items_layer"]
+    gallery_slots = slot_spec["slots"]["gallery"]
+    annotated: list[dict[str, Any]] = []
+    for idx, status in enumerate(gallery_items_status):
+        slot = gallery_slots[idx] if idx < len(gallery_slots) else None
+        item = dict(status)
+        if slot is None:
+            item["visible_in_strip"] = False
+            item["local_bounds"] = None
+            annotated.append(item)
+            continue
+        local_x = int(slot["x"]) - int(gallery_layer["x"])
+        local_y = int(slot["y"]) - int(gallery_layer["y"])
+        visible = _rectangles_intersect(
+            local_x,
+            local_y,
+            int(slot["w"]),
+            int(slot["h"]),
+            0,
+            0,
+            int(gallery_layer["w"]),
+            int(gallery_layer["h"]),
+        )
+        item["visible_in_strip"] = visible
+        item["local_bounds"] = {
+            "x": local_x,
+            "y": local_y,
+            "w": int(slot["w"]),
+            "h": int(slot["h"]),
+        }
+        annotated.append(item)
+    return annotated
+
+
+def _annotate_gallery_items_status_from_spec(
+    gallery_items_status: list[dict[str, Any]],
+    spec: TemplateSpec,
+) -> list[dict[str, Any]]:
+    gallery_layer = _gallery_layer_bounds_from_spec(spec)
+    gallery_slots = _gallery_slots_from_spec(spec)
+    annotated: list[dict[str, Any]] = []
+    for idx, status in enumerate(gallery_items_status):
+        slot = gallery_slots[idx] if idx < len(gallery_slots) else None
+        item = dict(status)
+        if slot is None:
+            item["visible_in_strip"] = False
+            item["local_bounds"] = None
+            annotated.append(item)
+            continue
+        local_x = int(slot["x"]) - int(gallery_layer["x"])
+        local_y = int(slot["y"]) - int(gallery_layer["y"])
+        visible = _rectangles_intersect(
+            local_x,
+            local_y,
+            int(slot["w"]),
+            int(slot["h"]),
+            0,
+            0,
+            int(gallery_layer["w"]),
+            int(gallery_layer["h"]),
+        )
+        item["visible_in_strip"] = visible
+        item["local_bounds"] = {
+            "x": local_x,
+            "y": local_y,
+            "w": int(slot["w"]),
+            "h": int(slot["h"]),
+        }
+        annotated.append(item)
+    return annotated
+
+
 def _build_renderer_layer_render_status(
     *,
     poster: PosterSpec,
@@ -894,6 +1037,7 @@ def _build_renderer_layer_render_status(
     has_product: bool,
     feature_count: int,
     gallery_valid: int,
+    gallery_visible: int,
     gallery_requested: int,
     scenario_source: Optional[str],
     product_source: str,
@@ -902,7 +1046,7 @@ def _build_renderer_layer_render_status(
 ) -> dict[str, dict[str, Any]]:
     # This is renderer-side structural status derivation from bound inputs and
     # renderer-controlled asset preparation. It is not a post-render pixel check.
-    gallery_rendered = gallery_valid > 0
+    gallery_rendered = gallery_visible > 0
     scenario_rendered = has_scenario or scenario_safe_fill
     return {
         "brand_logo_layer": {
@@ -963,11 +1107,12 @@ def _build_renderer_layer_render_status(
         },
         "bottom_gallery_items_layer": {
             "rendered": gallery_rendered,
-            "reason_code": None if gallery_rendered else "gallery_empty",
+            "reason_code": None if gallery_rendered else ("gallery_not_visible" if gallery_valid > 0 else "gallery_empty"),
             "source_binding": "gallery_images",
-            "count": gallery_valid,
+            "count": gallery_visible,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
+            "count_visible": gallery_visible,
             "collapsed": not gallery_rendered,
         },
     }
