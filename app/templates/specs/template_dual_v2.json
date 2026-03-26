@@ -18,7 +18,7 @@
   },
 
   "brand_name_slot": {
-    "x": 244, "y": 72, "w": 668, "h": 36,
+    "x": 472, "y": 88, "w": 212, "h": 36,
     "font_key": "brand_bold",
     "font_size": 28,
     "color": "#1A1A1A",
@@ -29,11 +29,11 @@
   },
 
   "agent_name_slot": {
-    "x": 244, "y": 108, "w": 668, "h": 18,
+    "x": 684, "y": 96, "w": 228, "h": 18,
     "font_key": "brand_regular",
     "font_size": 15,
     "color": "#6F5757",
-    "align": "left",
+    "align": "right",
     "max_lines": 1,
     "line_height": 1.2,
     "auto_shrink": true,
