@@ -565,6 +565,7 @@ body {
 .layer-bottom-region.state-hidden,
 .layer-title-band-region-shell.state-hidden,
 .layer-title-subtitle.state-hidden,
+.layer-subtitle.state-hidden,
 .layer-gallery-strip-region-shell.state-hidden,
 .layer-bottom-gallery-items.state-hidden {
   display: none;

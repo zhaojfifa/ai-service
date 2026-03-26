@@ -112,6 +112,73 @@
                 <span>slot_binding_status</span>
                 <pre id="poster2-slot-binding-status">{}</pre>
               </div>
+              <div>
+                <span>template_behavior</span>
+                <pre id="poster2-template-behavior">{}</pre>
+              </div>
+              <div>
+                <span>geometry_evidence</span>
+                <pre id="poster2-geometry-evidence">{}</pre>
+              </div>
+              <div>
+                <span>bottom_contract_review</span>
+                <pre id="poster2-bottom-contract-review">{}</pre>
+              </div>
+            </div>
+          </div>
+
+          <div id="poster2-bottom-contract-panel" class="poster2-diagnostics">
+            <h4>Bottom Contract Validation</h4>
+            <p class="hint">
+              Validate bottom contract inputs before generation. This is contract testing for
+              <code>title_band_region</code> and <code>gallery_strip_region</code>, not visual tuning.
+            </p>
+            <div class="control-grid">
+              <label class="field">
+                <span>Bottom mode</span>
+                <select id="poster2-bottom-mode">
+                  <option value="title_gallery_split">title_gallery_split</option>
+                  <option value="title_only">title_only</option>
+                  <option value="gallery_only">gallery_only</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Gallery mode</span>
+                <select id="poster2-gallery-mode">
+                  <option value="strip_local_visible_only">strip_local_visible_only</option>
+                  <option value="supporting_packshots">supporting_packshots</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Bottom thumbnails</span>
+                <select id="poster2-gallery-count">
+                  <option value="0">0</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4" selected>4</option>
+                </select>
+              </label>
+              <label class="field inline">
+                <input type="checkbox" id="poster2-gallery-autofill" />
+                <span>Auto-fill missing thumbnails from product image</span>
+              </label>
+            </div>
+            <div class="control-grid">
+              <label class="field">
+                <span>Bottom title</span>
+                <input id="poster2-bottom-title" type="text" placeholder="Bottom title" />
+              </label>
+              <label class="field">
+                <span>Subtitle / bottom support copy</span>
+                <textarea id="poster2-bottom-subtitle" rows="2" placeholder="Bottom subtitle"></textarea>
+              </label>
+            </div>
+            <div class="poster2-diagnostics-detail">
+              <div>
+                <span>bottom_request_preview</span>
+                <pre id="poster2-bottom-request-preview">{}</pre>
+              </div>
             </div>
           </div>
 

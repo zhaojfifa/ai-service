@@ -5,7 +5,9 @@
   "contract_version": "poster2.template_dual_v2.v1",
   "behavior_modes": {
     "hero_mode": "scenario_cover_product_contain",
-    "feature_mode": "count_driven_callout_stack"
+    "feature_mode": "count_driven_callout_stack",
+    "bottom_mode": "title_gallery_split",
+    "gallery_mode": "strip_local_visible_only"
   },
   "beauty_tokens": {
     "shell_surface": "glass_light",

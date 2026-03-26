@@ -18,6 +18,13 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "poster2-missing-required-slots",
         "poster2-region-render-status",
         "poster2-slot-binding-status",
+        "poster2-template-behavior",
+        "poster2-geometry-evidence",
+        "poster2-bottom-contract-review",
+        "poster2-bottom-mode",
+        "poster2-gallery-mode",
+        "poster2-gallery-count",
+        "poster2-bottom-request-preview",
     ):
         assert marker in html
 
@@ -29,6 +36,11 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "missing_required_slots",
         "region_render_status",
         "slot_binding_status",
+        "template_behavior",
+        "geometry_evidence",
+        "bottom_contract_review",
+        "bottom_mode",
+        "gallery_mode",
     ):
         assert field in js
 

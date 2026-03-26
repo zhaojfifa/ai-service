@@ -938,6 +938,8 @@ class TestStructuredScenarioLayer:
         assert resolved.css_vars["--accent-tone"] == "#E8002A"
         assert resolved.hero_policy.scenario_enabled is True
         assert resolved.feature_policy.mode == "count_driven_callout_stack"
+        assert resolved.bottom_policy.mode == "title_gallery_split"
+        assert resolved.bottom_policy.gallery_mode == "strip_local_visible_only"
 
     def test_template_behavior_resolver_supports_second_hero_mode(self):
         template = _load_real_template()
@@ -993,6 +995,31 @@ class TestStructuredScenarioLayer:
 
         with pytest.raises(ValueError, match="Unsupported hero_mode"):
             resolve_template_behavior(template)
+
+    def test_template_behavior_resolver_supports_bottom_mode_overrides(self):
+        template = _load_real_template()
+
+        resolved = resolve_template_behavior(
+            template,
+            title_text="测试标题",
+            subtitle_text="副标题",
+            gallery_requested_count=3,
+            gallery_resolved_count=3,
+            bottom_mode="title_only",
+            gallery_mode="supporting_packshots",
+        )
+
+        assert resolved.bottom_policy.mode == "title_only"
+        assert resolved.bottom_policy.gallery_mode == "supporting_packshots"
+        assert resolved.bottom_policy.title_band_rendered is True
+        assert resolved.bottom_policy.gallery_strip_rendered is False
+        assert resolved.bottom_policy.subtitle_slot_rendered is True
+
+    def test_template_behavior_resolver_rejects_unknown_bottom_mode(self):
+        template = _load_real_template()
+
+        with pytest.raises(ValueError, match="Unsupported bottom_mode"):
+            resolve_template_behavior(template, bottom_mode="unknown_bottom_mode")
 
     def test_safe_preset_scenario_url_is_non_empty(self):
         data_url = _safe_preset_scenario_data_url()
@@ -1051,6 +1078,60 @@ class TestStructuredScenarioLayer:
         assert 'data-region="title_band_region"' in html_payload
         assert 'data-region="feature_region"' in html_payload
         assert "__SVG_OVERLAY__" not in html_payload
+
+    def test_template_html_hides_title_band_when_gallery_only(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        poster = _minimal_spec(
+            gallery_images=(
+                AssetRef(url="mock://gallery-1"),
+                AssetRef(url="mock://gallery-2"),
+            ),
+            bottom_mode="gallery_only",
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=poster,
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": ["data:image/png;base64,g1", "data:image/png;base64,g2"],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert "state-gallery-only" in html_payload
+        assert "layer-title-band-region-shell state-hidden" in html_payload
+        assert "layer-subtitle state-hidden" in html_payload
 
     def test_template_html_marks_real_scenario_when_asset_exists(self):
         renderer = PuppeteerStructuredRenderer()

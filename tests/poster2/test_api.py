@@ -45,6 +45,19 @@ class _FakePoster2Pipeline:
             missing_required_slots=[],
             region_render_status={"header_region": {"rendered": True}},
             slot_binding_status={"missing_required_slots": []},
+            template_behavior={
+                "behavior_modes": {
+                    "bottom_mode": spec.bottom_mode or "title_gallery_split",
+                    "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
+                }
+            },
+            geometry_evidence={"region_bounds": {"bottom_region": {"x": 96, "y": 728, "w": 832, "h": 232}}},
+            bottom_contract_review={
+                "bottom_mode": spec.bottom_mode or "title_gallery_split",
+                "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
+                "title_band_region": {"rendered": True},
+                "gallery_strip_region": {"rendered": False},
+            },
         )
 
 
@@ -91,6 +104,19 @@ class _FakeDegradedPoster2Pipeline:
             missing_required_slots=[],
             region_render_status={"header_region": {"rendered": True}},
             slot_binding_status={"missing_required_slots": []},
+            template_behavior={
+                "behavior_modes": {
+                    "bottom_mode": spec.bottom_mode or "title_gallery_split",
+                    "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
+                }
+            },
+            geometry_evidence={"region_bounds": {"bottom_region": {"x": 96, "y": 728, "w": 832, "h": 232}}},
+            bottom_contract_review={
+                "bottom_mode": spec.bottom_mode or "title_gallery_split",
+                "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
+                "title_band_region": {"rendered": True},
+                "gallery_strip_region": {"rendered": False},
+            },
         )
 
 
@@ -134,6 +160,9 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["structure_evidence_source"] == "renderer_derived"
     assert body["structure_evidence_complete"] is True
     assert body["missing_required_slots"] == []
+    assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
+    assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
+    assert body["geometry_evidence"]["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
 
 
 def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkeypatch):
@@ -157,6 +186,33 @@ def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkey
     assert response.status_code == 200
     body = response.json()
     assert body["renderer_mode"] == "puppeteer"
+
+
+def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "bottom_mode": "gallery_only",
+            "gallery_mode": "supporting_packshots",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "gallery_only"
+    assert body["template_behavior"]["behavior_modes"]["gallery_mode"] == "supporting_packshots"
+    assert body["bottom_contract_review"]["bottom_mode"] == "gallery_only"
+    assert body["bottom_contract_review"]["gallery_mode"] == "supporting_packshots"
 
 
 def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch):

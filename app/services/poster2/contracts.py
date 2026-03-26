@@ -51,6 +51,8 @@ class PosterSpec:
     logo: Optional[AssetRef] = None
     scenario_image: Optional[AssetRef] = None
     gallery_images: tuple[AssetRef, ...] = field(default_factory=tuple)
+    bottom_mode: Optional[str] = None
+    gallery_mode: Optional[str] = None
 
     # --- Style (only for background generation) ---
     style: StyleSpec = field(default_factory=StyleSpec)
@@ -142,8 +144,8 @@ class TemplateBehaviorModesSpec:
     hero_mode: str = "scenario_cover_product_contain"
     feature_mode: str = "count_driven_callout_stack"
     header_mode: Optional[str] = None
-    bottom_mode: Optional[str] = None
-    gallery_mode: Optional[str] = None
+    bottom_mode: str = "title_gallery_split"
+    gallery_mode: str = "strip_local_visible_only"
 
 
 @dataclass(frozen=True)
@@ -334,6 +336,9 @@ class RenderManifest:
     missing_required_slots: list[str] = field(default_factory=list)
     region_render_status: dict = field(default_factory=dict)
     slot_binding_status: dict = field(default_factory=dict)
+    template_behavior: dict = field(default_factory=dict)
+    geometry_evidence: dict = field(default_factory=dict)
+    bottom_contract_review: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

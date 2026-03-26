@@ -431,10 +431,14 @@ class TestPosterPipelineRun:
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         assert metadata["template_behavior"]["behavior_modes"]["hero_mode"] == "scenario_cover_product_contain"
         assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "count_driven_callout_stack"
+        assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
+        assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
         assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
         assert metadata["template_behavior"]["hero_policy"]["product_fit"] == "contain"
         assert metadata["template_behavior"]["feature_policy"]["visible_item_count"] == 2
         assert metadata["template_behavior"]["feature_policy"]["connector_policy"] == "balanced_pair"
+        assert metadata["template_behavior"]["bottom_policy"]["title_band_rendered"] is True
+        assert metadata["template_behavior"]["bottom_policy"]["gallery_strip_rendered"] is False
         assert metadata["template_behavior"]["beauty_tokens"]["shell_surface"] == "glass_light"
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
@@ -457,6 +461,8 @@ class TestPosterPipelineRun:
         assert region_status["product_region"]["count"] == 1
         assert region_status["feature_region"]["rendered"] is True
         assert region_status["feature_region"]["count"] == 2
+        assert region_status["title_band_region"]["rendered"] is True
+        assert region_status["gallery_strip_region"]["rendered"] is False
         assert region_status["bottom_region"]["collapsed"] is False
         completeness = metadata["region_completeness_status"]
         assert completeness["family_minimum_region_complete"] is True
@@ -472,10 +478,19 @@ class TestPosterPipelineRun:
         assert metadata["missing_mandatory_regions"] == []
         geometry = metadata["geometry_evidence"]
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
+        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 840, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
+        assert geometry["visible_item_count"]["title_band_region"] == 2
         assert geometry["visible_item_count"]["product_region"] == 1
+        bottom_review = metadata["bottom_contract_review"]
+        assert bottom_review["bottom_mode"] == "title_gallery_split"
+        assert bottom_review["gallery_mode"] == "strip_local_visible_only"
+        assert bottom_review["subtitle_slot"]["rendered"] is True
+        assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is False
 
     def test_renderer_metadata_keeps_gallery_visibility_geometry(self):
         stored_payloads: dict[str, bytes] = {}
@@ -518,6 +533,47 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 888, "w": 832, "h": 72}
         assert geometry["slot_bounds"]["gallery_slot"] == {"x": 96, "y": 904, "w": 196, "h": 56}
         assert geometry["visible_item_count"]["gallery_strip_region"] == 1
+
+    def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255))],
+            gallery_status=[
+                {"index": 0, "url": "mock://gallery-0", "resolved": True, "error_code": None},
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    gallery_images=(AssetRef(url="mock://gallery-0"),),
+                    bottom_mode="gallery_only",
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "gallery_only"
+        assert metadata["bottom_contract_review"]["title_band_region"]["rendered"] is False
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
+        assert metadata["bottom_contract_review"]["subtitle_slot"]["reason_code"] == "suppressed_by_bottom_mode"
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()

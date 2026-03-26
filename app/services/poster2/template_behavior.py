@@ -19,6 +19,8 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack"}
+_SUPPORTED_BOTTOM_MODES = {"title_gallery_split", "title_only", "gallery_only"}
+_SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
 _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
     "glass_light": {
         "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 243, 0.92))",
@@ -190,6 +192,53 @@ class ResolvedFeatureBehavior:
 
 
 @dataclass(frozen=True)
+class ResolvedBottomBehavior:
+    mode: str
+    gallery_mode: str
+    requested_gallery_count: int
+    visible_item_count: int
+    max_gallery_items: int
+    title_present: bool
+    subtitle_present: bool
+    title_slot_rendered: bool
+    subtitle_slot_rendered: bool
+    title_band_rendered: bool
+    gallery_strip_rendered: bool
+    bottom_region_rendered: bool
+    visible_item_count_policy: str
+    gallery_content_policy: str
+    collapse_policy: str
+    bottom_region_state: str
+    collapsed_optional_slots: tuple[str, ...]
+    subtitle_slot_state: dict[str, object]
+    gallery_slot_states: tuple[dict[str, object], ...]
+    css_classes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "gallery_mode": self.gallery_mode,
+            "requested_gallery_count": self.requested_gallery_count,
+            "visible_item_count": self.visible_item_count,
+            "max_gallery_items": self.max_gallery_items,
+            "title_present": self.title_present,
+            "subtitle_present": self.subtitle_present,
+            "title_slot_rendered": self.title_slot_rendered,
+            "subtitle_slot_rendered": self.subtitle_slot_rendered,
+            "title_band_rendered": self.title_band_rendered,
+            "gallery_strip_rendered": self.gallery_strip_rendered,
+            "bottom_region_rendered": self.bottom_region_rendered,
+            "visible_item_count_policy": self.visible_item_count_policy,
+            "gallery_content_policy": self.gallery_content_policy,
+            "collapse_policy": self.collapse_policy,
+            "bottom_region_state": self.bottom_region_state,
+            "collapsed_optional_slots": list(self.collapsed_optional_slots),
+            "subtitle_slot_state": dict(self.subtitle_slot_state),
+            "gallery_slot_states": [dict(item) for item in self.gallery_slot_states],
+        }
+
+
+@dataclass(frozen=True)
 class ResolvedTemplateBehavior:
     hero_mode: str
     feature_mode: str
@@ -199,6 +248,7 @@ class ResolvedTemplateBehavior:
     beauty_tokens: TemplateBeautyTokensSpec
     hero_policy: ResolvedHeroBehavior
     feature_policy: ResolvedFeatureBehavior
+    bottom_policy: ResolvedBottomBehavior
     css_vars: dict[str, str]
     accent_color: str
     text_colors: dict[str, str]
@@ -221,6 +271,7 @@ class ResolvedTemplateBehavior:
             },
             "hero_policy": self.hero_policy.as_dict(),
             "feature_policy": self.feature_policy.as_dict(),
+            "bottom_policy": self.bottom_policy.as_dict(),
             "beauty_tokens": {
                 "shell_surface": self.beauty_tokens.shell_surface,
                 "shell_border": self.beauty_tokens.shell_border,
@@ -232,11 +283,23 @@ class ResolvedTemplateBehavior:
         }
 
 
-def resolve_template_behavior(spec: TemplateSpec, *, feature_count: int | None = None) -> ResolvedTemplateBehavior:
+def resolve_template_behavior(
+    spec: TemplateSpec,
+    *,
+    feature_count: int | None = None,
+    title_text: str | None = None,
+    subtitle_text: str | None = None,
+    gallery_requested_count: int | None = None,
+    gallery_resolved_count: int | None = None,
+    bottom_mode: str | None = None,
+    gallery_mode: str | None = None,
+) -> ResolvedTemplateBehavior:
     modes = spec.behavior_modes
     beauty = spec.beauty_tokens
     hero_mode = _validate_token(modes.hero_mode, _SUPPORTED_HERO_MODES, "hero_mode")
     feature_mode = _validate_token(modes.feature_mode, _SUPPORTED_FEATURE_MODES, "feature_mode")
+    resolved_bottom_mode = _validate_token(bottom_mode or modes.bottom_mode, _SUPPORTED_BOTTOM_MODES, "bottom_mode")
+    resolved_gallery_mode = _validate_token(gallery_mode or modes.gallery_mode, _SUPPORTED_GALLERY_MODES, "gallery_mode")
     shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
     shell_border = _validate_token(beauty.shell_border, set(_SHELL_BORDER_PRESETS), "shell_border")
     shell_shadow = _validate_token(beauty.shell_shadow, set(_SHELL_SHADOW_PRESETS), "shell_shadow")
@@ -247,6 +310,15 @@ def resolve_template_behavior(spec: TemplateSpec, *, feature_count: int | None =
         feature_mode,
         requested_count=feature_count or 0,
         max_items=len(spec.feature_callouts),
+    )
+    bottom_policy = resolve_bottom_behavior(
+        resolved_bottom_mode,
+        gallery_mode=resolved_gallery_mode,
+        title_text=title_text,
+        subtitle_text=subtitle_text,
+        requested_gallery_count=gallery_requested_count or 0,
+        resolved_gallery_count=gallery_resolved_count or 0,
+        max_items=spec.gallery_slot.count,
     )
 
     accent_color = _resolve_accent_color(accent_tone)
@@ -269,8 +341,8 @@ def resolve_template_behavior(spec: TemplateSpec, *, feature_count: int | None =
         hero_mode=hero_mode,
         feature_mode=feature_mode,
         header_mode=modes.header_mode,
-        bottom_mode=modes.bottom_mode,
-        gallery_mode=modes.gallery_mode,
+        bottom_mode=resolved_bottom_mode,
+        gallery_mode=resolved_gallery_mode,
         beauty_tokens=TemplateBeautyTokensSpec(
             shell_surface=shell_surface,
             shell_border=shell_border,
@@ -280,12 +352,14 @@ def resolve_template_behavior(spec: TemplateSpec, *, feature_count: int | None =
         ),
         hero_policy=hero_policy,
         feature_policy=feature_policy,
+        bottom_policy=bottom_policy,
         css_vars=css_vars,
         accent_color=accent_color,
         text_colors=text_colors,
         root_classes=(
             *hero_policy.css_classes,
             _css_mode_class("feature-behavior", feature_mode),
+            *bottom_policy.css_classes,
         ),
     )
 
@@ -368,6 +442,128 @@ def resolve_feature_layout_mode(count: int, feature_mode: str) -> tuple[int, dic
         "gap": policy.gap,
         "connector_policy": policy.connector_policy,
     }
+
+
+def resolve_bottom_behavior(
+    bottom_mode: str,
+    *,
+    gallery_mode: str,
+    title_text: str | None,
+    subtitle_text: str | None,
+    requested_gallery_count: int,
+    resolved_gallery_count: int,
+    max_items: int,
+) -> ResolvedBottomBehavior:
+    title_present = bool((title_text or "").strip())
+    subtitle_present = bool((subtitle_text or "").strip())
+    requested_gallery_count = min(max(requested_gallery_count, 0), max_items)
+    visible_item_count = min(max(resolved_gallery_count, 0), max_items)
+    title_slot_rendered = title_present and bottom_mode != "gallery_only"
+    subtitle_slot_rendered = subtitle_present and bottom_mode != "gallery_only" and title_present
+
+    if bottom_mode == "title_gallery_split":
+        title_band_rendered = title_slot_rendered
+        gallery_strip_rendered = visible_item_count > 0
+        gallery_content_policy = "render_real_gallery_items_in_local_strip_only"
+    elif bottom_mode == "title_only":
+        title_band_rendered = title_slot_rendered
+        gallery_strip_rendered = False
+        gallery_content_policy = "collapse_gallery_strip_even_when_gallery_inputs_exist"
+    elif bottom_mode == "gallery_only":
+        title_band_rendered = False
+        gallery_strip_rendered = visible_item_count > 0
+        gallery_content_policy = "render_gallery_strip_without_title_band"
+    else:
+        raise ValueError(f"Unsupported bottom_mode: {bottom_mode}")
+
+    bottom_region_rendered = title_band_rendered or gallery_strip_rendered
+    if title_band_rendered and gallery_strip_rendered:
+        bottom_region_state = "state-title-gallery"
+    elif title_band_rendered:
+        bottom_region_state = "state-title-only"
+    elif gallery_strip_rendered:
+        bottom_region_state = "state-gallery-only"
+    else:
+        bottom_region_state = "state-hidden"
+
+    subtitle_reason = (
+        None
+        if subtitle_slot_rendered
+        else (
+            "subtitle_empty"
+            if not subtitle_present
+            else ("title_missing" if not title_present else "suppressed_by_bottom_mode")
+        )
+    )
+    subtitle_slot_state = {
+        "slot_id": "subtitle_slot",
+        "rendered": subtitle_slot_rendered,
+        "state": "rendered" if subtitle_slot_rendered else "collapsed",
+        "reason_code": subtitle_reason,
+        "owner_region": "title_band_region",
+    }
+
+    gallery_slot_states: list[dict[str, object]] = []
+    collapsed_optional_slots: list[str] = []
+    if not subtitle_slot_rendered:
+        collapsed_optional_slots.append("subtitle_slot")
+    for index in range(max_items):
+        slot_id = f"gallery_item_slot_{index + 1}"
+        slot_rendered = gallery_strip_rendered and index < visible_item_count
+        if slot_rendered:
+            reason_code = None
+            state = "rendered"
+        elif bottom_mode == "title_only":
+            reason_code = "suppressed_by_bottom_mode"
+            state = "collapsed"
+        elif index >= requested_gallery_count:
+            reason_code = "gallery_input_missing"
+            state = "collapsed"
+        elif index >= visible_item_count:
+            reason_code = "not_visible_after_resolution"
+            state = "collapsed"
+        else:
+            reason_code = "gallery_strip_hidden"
+            state = "collapsed"
+        gallery_slot_states.append(
+            {
+                "slot_id": slot_id,
+                "index": index,
+                "rendered": slot_rendered,
+                "state": state,
+                "reason_code": reason_code,
+                "owner_region": "gallery_strip_region",
+                "gallery_mode": gallery_mode,
+            }
+        )
+        if not slot_rendered:
+            collapsed_optional_slots.append(slot_id)
+
+    return ResolvedBottomBehavior(
+        mode=bottom_mode,
+        gallery_mode=gallery_mode,
+        requested_gallery_count=requested_gallery_count,
+        visible_item_count=visible_item_count,
+        max_gallery_items=max_items,
+        title_present=title_present,
+        subtitle_present=subtitle_present,
+        title_slot_rendered=title_slot_rendered,
+        subtitle_slot_rendered=subtitle_slot_rendered,
+        title_band_rendered=title_band_rendered,
+        gallery_strip_rendered=gallery_strip_rendered,
+        bottom_region_rendered=bottom_region_rendered,
+        visible_item_count_policy="real_items_capped_to_slots",
+        gallery_content_policy=gallery_content_policy,
+        collapse_policy="title_band_and_gallery_strip_collapse_independently_under_bottom_mode",
+        bottom_region_state=bottom_region_state,
+        collapsed_optional_slots=tuple(collapsed_optional_slots),
+        subtitle_slot_state=subtitle_slot_state,
+        gallery_slot_states=tuple(gallery_slot_states),
+        css_classes=(
+            _css_mode_class("bottom-mode", bottom_mode),
+            _css_mode_class("gallery-mode", gallery_mode),
+        ),
+    )
 
 
 def _validate_token(value: str, supported: set[str], field_name: str) -> str:

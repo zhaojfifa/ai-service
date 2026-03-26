@@ -126,6 +126,8 @@ class TestTemplateSpecLoading:
         assert spec.product_slot.pad_bottom == 10
         assert spec.behavior_modes.hero_mode == "scenario_cover_product_contain"
         assert spec.behavior_modes.feature_mode == "count_driven_callout_stack"
+        assert spec.behavior_modes.bottom_mode == "title_gallery_split"
+        assert spec.behavior_modes.gallery_mode == "strip_local_visible_only"
         assert spec.beauty_tokens.shell_surface == "glass_light"
         assert spec.beauty_tokens.text_emphasis == "campaign_primary"
 
@@ -150,6 +152,20 @@ class TestTemplateSpecLoading:
         spec = TemplateSpec._from_dict(d)
 
         assert spec.behavior_modes.feature_mode == "uniform_callout_stack"
+
+    def test_template_behavior_modes_accept_bottom_modes(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["behavior_modes"] = {
+            "hero_mode": "scenario_cover_product_contain",
+            "feature_mode": "count_driven_callout_stack",
+            "bottom_mode": "gallery_only",
+            "gallery_mode": "supporting_packshots",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.behavior_modes.bottom_mode == "gallery_only"
+        assert spec.behavior_modes.gallery_mode == "supporting_packshots"
 
     def test_template_beauty_tokens_accept_expanded_presets(self):
         d = {**MINIMAL_TEMPLATE_DICT}

@@ -37,7 +37,12 @@ from .contracts import (
 )
 from .font_registry import FontRegistry
 from .renderer_routing import RendererRoutingError, evaluate_fallback_eligibility, resolve_renderer_routing
-from .template_behavior import ResolvedFeatureBehavior, resolve_feature_layout_mode, resolve_template_behavior
+from .template_behavior import (
+    ResolvedBottomBehavior,
+    ResolvedFeatureBehavior,
+    resolve_feature_layout_mode,
+    resolve_template_behavior,
+)
 from .template_registry import resolve_template_metadata
 
 logger = logging.getLogger("ai-service.poster2")
@@ -115,7 +120,16 @@ class LayoutRenderer:
         assets: ResolvedAssets,
     ) -> ForegroundResult:
         feature_count = len(_normalized_feature_texts(poster.features))
-        behavior = resolve_template_behavior(spec, feature_count=feature_count)
+        behavior = resolve_template_behavior(
+            spec,
+            feature_count=feature_count,
+            title_text=poster.title,
+            subtitle_text=poster.subtitle,
+            gallery_requested_count=len(poster.gallery_images),
+            gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
+            bottom_mode=poster.bottom_mode,
+            gallery_mode=poster.gallery_mode,
+        )
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
         layer_timings: dict[str, int] = {}
 
@@ -126,12 +140,16 @@ class LayoutRenderer:
             poster,
             behavior,
             has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
-            has_gallery=bool(assets.gallery),
         )
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, spec.scenario_slot, assets.scenario)
         self._draw_product(canvas, spec.product_slot, assets.product)
-        self._draw_gallery(canvas, spec.gallery_slot, assets.gallery)
+        self._draw_gallery(
+            canvas,
+            spec.gallery_slot,
+            assets.gallery,
+            visible_count=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
+        )
         if spec.logo_slot and assets.logo:
             self._draw_image(canvas, spec.logo_slot, assets.logo)
         layer_timings["product_material_layer_ms"] = _elapsed(t0)
@@ -161,18 +179,20 @@ class LayoutRenderer:
             poster.agent_name,
             draw_background=False,
         )
-        self._draw_text(
-            canvas,
-            replace(spec.title_slot, color=behavior.text_colors["title"]),
-            poster.title,
-            draw_background=False,
-        )
-        self._draw_text(
-            canvas,
-            replace(spec.subtitle_slot, color=behavior.text_colors["subtitle"]),
-            poster.subtitle,
-            draw_background=False,
-        )
+        if behavior.bottom_policy.title_slot_rendered:
+            self._draw_text(
+                canvas,
+                replace(spec.title_slot, color=behavior.text_colors["title"]),
+                poster.title,
+                draw_background=False,
+            )
+        if behavior.bottom_policy.subtitle_slot_rendered:
+            self._draw_text(
+                canvas,
+                replace(spec.subtitle_slot, color=behavior.text_colors["subtitle"]),
+                poster.subtitle,
+                draw_background=False,
+            )
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
@@ -184,7 +204,7 @@ class LayoutRenderer:
             has_product=assets.product is not None,
             feature_count=behavior.feature_policy.visible_item_count,
             gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
-            gallery_visible=min(len(assets.gallery), spec.gallery_slot.count),
+            gallery_visible=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
             scenario_source=(
                 poster.scenario_image.url
@@ -194,6 +214,7 @@ class LayoutRenderer:
             product_source=poster.product_image.url,
             logo_source=poster.logo.url if poster.logo else None,
             scenario_safe_fill=False,
+            bottom_policy=behavior.bottom_policy,
         )
         return ForegroundResult(
             image=canvas,
@@ -216,9 +237,9 @@ class LayoutRenderer:
         behavior: Any,
         *,
         has_scenario: bool,
-        has_gallery: bool,
     ) -> None:
-        has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
+        has_title_band = behavior.bottom_policy.title_band_rendered
+        has_gallery = behavior.bottom_policy.gallery_strip_rendered
         header_box = _header_shell_bounds(spec)
         self._draw_shell_box(
             canvas,
@@ -252,7 +273,11 @@ class LayoutRenderer:
         if has_title_band or has_gallery:
             self._draw_shell_box(
                 canvas,
-                _bottom_shell_bounds(spec, has_title_band=has_title_band, has_gallery=has_gallery),
+                _bottom_shell_bounds(
+                    spec,
+                    bottom_mode=behavior.bottom_policy.mode,
+                    has_bottom=behavior.bottom_policy.bottom_region_rendered,
+                ),
                 radius=28,
                 fill=_pillow_shell_fill("bottom", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
                 border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -389,10 +414,12 @@ class LayoutRenderer:
         canvas: PILImage.Image,
         strip: GalleryStripSpec,
         images: list[PILImage.Image],
+        *,
+        visible_count: int,
     ) -> None:
-        if not images:
+        if not images or visible_count <= 0:
             return
-        for i, img in enumerate(images[: strip.count]):
+        for i, img in enumerate(images[: min(strip.count, visible_count)]):
             x = strip.x + i * (strip.thumb_w + strip.gap)
             thumb_slot = ImageSlotSpec(
                 x=x,
@@ -476,7 +503,16 @@ class PuppeteerStructuredRenderer:
         assets: ResolvedAssets,
     ) -> ForegroundResult:
         feature_count = len(_normalized_feature_texts(poster.features))
-        behavior = resolve_template_behavior(spec, feature_count=feature_count)
+        behavior = resolve_template_behavior(
+            spec,
+            feature_count=feature_count,
+            title_text=poster.title,
+            subtitle_text=poster.subtitle,
+            gallery_requested_count=len(poster.gallery_images),
+            gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
+            bottom_mode=poster.bottom_mode,
+            gallery_mode=poster.gallery_mode,
+        )
         t0 = _now()
         logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
         try:
@@ -561,7 +597,7 @@ class PuppeteerStructuredRenderer:
             has_product=True,
             feature_count=behavior.feature_policy.visible_item_count,
             gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
-            gallery_visible=gallery_visible_count,
+            gallery_visible=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
             gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
             scenario_source=(
                 poster.scenario_image.url
@@ -571,6 +607,7 @@ class PuppeteerStructuredRenderer:
             product_source=poster.product_image.url,
             logo_source=poster.logo.url if poster.logo else None,
             scenario_safe_fill=behavior.hero_policy.scenario_enabled and not bool(asset_urls.get("scenario_is_real")),
+            bottom_policy=behavior.bottom_policy,
         )
         return ForegroundResult(
             image=image,
@@ -612,10 +649,19 @@ class PuppeteerStructuredRenderer:
         behavior = behavior or resolve_template_behavior(
             spec,
             feature_count=len(_normalized_feature_texts(poster.features)),
+            title_text=poster.title,
+            subtitle_text=poster.subtitle,
+            gallery_requested_count=len(poster.gallery_images),
+            gallery_resolved_count=len(asset_urls.get("gallery") or []),
+            bottom_mode=poster.bottom_mode,
+            gallery_mode=poster.gallery_mode,
         )
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
-        gallery_markup, gallery_layer_class = self._gallery_markup(slot_spec, asset_urls["gallery"])
+        gallery_markup, gallery_layer_class = self._gallery_markup(
+            slot_spec,
+            asset_urls["gallery"][: behavior.bottom_policy.visible_item_count],
+        )
         feature_markup, feature_layer_class = self._feature_markup(
             anchor_map,
             poster.features,
@@ -642,19 +688,15 @@ class PuppeteerStructuredRenderer:
         )
         product_content_class = product_layer_class
         agent_text_class = "state-show" if (poster.agent_name or "").strip() else "state-hidden"
-        has_title_band = bool((poster.title or "").strip() or (poster.subtitle or "").strip())
-        has_gallery_strip = bool(asset_urls["gallery"])
-        if has_title_band and has_gallery_strip:
-            bottom_region_class = "state-show state-title-gallery"
-        elif has_title_band:
-            bottom_region_class = "state-show state-title-only"
-        elif has_gallery_strip:
-            bottom_region_class = "state-show state-gallery-only"
-        else:
-            bottom_region_class = "state-hidden"
-        title_band_class = "state-show" if has_title_band else "state-hidden"
-        title_content_class = "state-show" if has_title_band else "state-hidden"
-        gallery_region_class = "state-show" if has_gallery_strip else "state-hidden"
+        bottom_region_class = (
+            f"state-show {behavior.bottom_policy.bottom_region_state}"
+            if behavior.bottom_policy.bottom_region_rendered
+            else "state-hidden"
+        )
+        title_band_class = "state-show" if behavior.bottom_policy.title_band_rendered else "state-hidden"
+        title_content_class = "state-show" if behavior.bottom_policy.title_band_rendered else "state-hidden"
+        subtitle_class = "state-show" if behavior.bottom_policy.subtitle_slot_rendered else "state-hidden"
+        gallery_region_class = "state-show" if behavior.bottom_policy.gallery_strip_rendered else "state-hidden"
         gallery_items_class = gallery_layer_class
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
@@ -678,6 +720,7 @@ class PuppeteerStructuredRenderer:
             "__TITLE_TEXT__": html.escape(poster.title),
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
             "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
+            "__SUBTITLE_CLASS__": subtitle_class,
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_CONTENT_CLASS__": scenario_content_class,
@@ -1237,10 +1280,11 @@ def _build_renderer_layer_render_status(
     product_source: str,
     logo_source: Optional[str],
     scenario_safe_fill: bool,
+    bottom_policy: ResolvedBottomBehavior,
 ) -> dict[str, dict[str, Any]]:
     # This is renderer-side structural status derivation from bound inputs and
     # renderer-controlled asset preparation. It is not a post-render pixel check.
-    gallery_rendered = gallery_visible > 0
+    gallery_rendered = bottom_policy.gallery_strip_rendered and gallery_visible > 0
     scenario_rendered = has_scenario or scenario_safe_fill
     return {
         "brand_logo_layer": {
@@ -1286,27 +1330,41 @@ def _build_renderer_layer_render_status(
             "collapsed": feature_count == 0,
         },
         "title_layer": {
-            "rendered": bool(poster.title),
-            "reason_code": None if poster.title else "title_empty",
+            "rendered": bottom_policy.title_slot_rendered,
+            "reason_code": None if bottom_policy.title_slot_rendered else ("title_empty" if not poster.title else "suppressed_by_bottom_mode"),
             "source_binding": "title",
-            "count": 1 if poster.title else 0,
-            "collapsed": not bool(poster.title),
+            "count": 1 if bottom_policy.title_slot_rendered else 0,
+            "collapsed": not bottom_policy.title_slot_rendered,
         },
         "subtitle_layer": {
-            "rendered": bool(poster.subtitle),
-            "reason_code": None if poster.subtitle else "subtitle_empty",
+            "rendered": bottom_policy.subtitle_slot_rendered,
+            "reason_code": bottom_policy.subtitle_slot_state["reason_code"],
             "source_binding": "subtitle",
-            "count": 1 if poster.subtitle else 0,
-            "collapsed": not bool(poster.subtitle),
+            "count": 1 if bottom_policy.subtitle_slot_rendered else 0,
+            "collapsed": not bottom_policy.subtitle_slot_rendered,
+        },
+        "title_band_region_shell_layer": {
+            "rendered": bottom_policy.title_band_rendered,
+            "reason_code": None if bottom_policy.title_band_rendered else "title_band_collapsed",
+            "source_binding": "bottom_mode",
+            "count": 1 if bottom_policy.title_band_rendered else 0,
+            "collapsed": not bottom_policy.title_band_rendered,
+        },
+        "gallery_strip_region_shell_layer": {
+            "rendered": bottom_policy.gallery_strip_rendered,
+            "reason_code": None if bottom_policy.gallery_strip_rendered else ("gallery_hidden_by_bottom_mode" if gallery_requested > 0 else "gallery_empty"),
+            "source_binding": "gallery_mode",
+            "count": 1 if bottom_policy.gallery_strip_rendered else 0,
+            "collapsed": not bottom_policy.gallery_strip_rendered,
         },
         "bottom_gallery_items_layer": {
             "rendered": gallery_rendered,
             "reason_code": None if gallery_rendered else ("gallery_not_visible" if gallery_valid > 0 else "gallery_empty"),
             "source_binding": "gallery_images",
-            "count": gallery_visible,
+            "count": bottom_policy.visible_item_count,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
-            "count_visible": gallery_visible,
+            "count_visible": bottom_policy.visible_item_count,
             "collapsed": not gallery_rendered,
         },
     }
@@ -1323,8 +1381,11 @@ def _build_renderer_region_render_status(
     product_count = int(layer_status["product_image_layer"]["count"])
     feature_count = int(layer_status["feature_callout_layer"]["count"])
     title_count = int(layer_status["title_layer"]["count"])
+    subtitle_count = int(layer_status["subtitle_layer"]["count"])
     gallery_count = int(layer_status["bottom_gallery_items_layer"]["count"])
-    bottom_count = title_count + gallery_count
+    title_band_region_rendered = int(layer_status["title_band_region_shell_layer"]["count"]) > 0
+    gallery_strip_region_rendered = int(layer_status["gallery_strip_region_shell_layer"]["count"]) > 0
+    bottom_count = title_count + subtitle_count + gallery_count
     return {
         "header_region": {
             "rendered": header_count > 0,
@@ -1345,6 +1406,16 @@ def _build_renderer_region_render_status(
             "rendered": feature_count > 0,
             "count": feature_count,
             "collapsed": feature_count == 0,
+        },
+        "title_band_region": {
+            "rendered": title_band_region_rendered,
+            "count": title_count + subtitle_count,
+            "collapsed": not title_band_region_rendered,
+        },
+        "gallery_strip_region": {
+            "rendered": gallery_strip_region_rendered,
+            "count": gallery_count,
+            "collapsed": not gallery_strip_region_rendered,
         },
         "bottom_region": {
             "rendered": bottom_count > 0,
@@ -1371,7 +1442,7 @@ def render_product_material_debug_layer(
     if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
         renderer._draw_image(canvas, spec.scenario_slot, assets.scenario)
     renderer._draw_product(canvas, spec.product_slot, assets.product)
-    renderer._draw_gallery(canvas, spec.gallery_slot, assets.gallery)
+    renderer._draw_gallery(canvas, spec.gallery_slot, assets.gallery, visible_count=min(len(assets.gallery), spec.gallery_slot.count))
     if spec.logo_slot and assets.logo:
         renderer._draw_image(canvas, spec.logo_slot, assets.logo)
     png_bytes = _to_png(canvas)
@@ -1413,10 +1484,12 @@ def _gallery_strip_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]
     return spec.gallery_slot.x, spec.gallery_slot.y - 16, spec.gallery_slot.w, spec.gallery_slot.h + 16
 
 
-def _bottom_shell_bounds(spec: TemplateSpec, *, has_title_band: bool, has_gallery: bool) -> tuple[int, int, int, int]:
-    if has_title_band and has_gallery:
+def _bottom_shell_bounds(spec: TemplateSpec, *, bottom_mode: str, has_bottom: bool) -> tuple[int, int, int, int]:
+    if not has_bottom:
+        return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 0
+    if bottom_mode == "title_gallery_split":
         return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 232
-    if has_title_band:
+    if bottom_mode == "title_only":
         return spec.gallery_slot.x, spec.title_slot.y - 16, spec.gallery_slot.w, 160
     return spec.gallery_slot.x, spec.gallery_slot.y - 16, spec.gallery_slot.w, 72
 

@@ -1450,6 +1450,8 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             gallery_images=tuple(
                 P2AssetRef(url=g.url, key=g.key) for g in payload.gallery_images
             ),
+            bottom_mode=payload.bottom_mode,
+            gallery_mode=payload.gallery_mode,
             style=P2StyleSpec(
                 prompt=payload.style.prompt,
                 negative_prompt=payload.style.negative_prompt,
@@ -1512,6 +1514,9 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             missing_required_slots=manifest.missing_required_slots,
             region_render_status=manifest.region_render_status,
             slot_binding_status=manifest.slot_binding_status,
+            template_behavior=manifest.template_behavior,
+            geometry_evidence=manifest.geometry_evidence,
+            bottom_contract_review=manifest.bottom_contract_review,
         )
 
     except FileNotFoundError as exc:
