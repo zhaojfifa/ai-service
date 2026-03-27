@@ -100,15 +100,6 @@ class PosterPipeline:
             template = load_template(spec.template_id)
         else:
             validate_template_registration(template)
-        resolved_behavior = resolve_template_behavior(
-            template,
-            feature_count=len([item for item in spec.features if item and item.strip()]),
-            title_text=spec.title,
-            subtitle_text=spec.subtitle,
-            gallery_requested_count=len(spec.gallery_images),
-            bottom_mode=spec.bottom_mode,
-            gallery_mode=spec.gallery_mode,
-        )
         run_preflight_guard(template, spec)
 
         spec_hash = _hash_spec(spec)
@@ -158,6 +149,7 @@ class PosterPipeline:
             gallery_resolved_count=min(len(assets.gallery), template.gallery_slot.count),
             bottom_mode=spec.bottom_mode,
             gallery_mode=spec.gallery_mode,
+            agent_name=spec.agent_name,
         )
         logger.info(
             "poster2: trace=%s bg=%.1fs assets=loaded",

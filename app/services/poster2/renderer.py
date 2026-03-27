@@ -40,6 +40,7 @@ from .renderer_routing import RendererRoutingError, evaluate_fallback_eligibilit
 from .template_behavior import (
     ResolvedBottomBehavior,
     ResolvedFeatureBehavior,
+    ResolvedHeaderBehavior,
     resolve_feature_layout_mode,
     resolve_template_behavior,
 )
@@ -129,6 +130,7 @@ class LayoutRenderer:
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
+            agent_name=poster.agent_name,
         )
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
         layer_timings: dict[str, int] = {}
@@ -174,12 +176,13 @@ class LayoutRenderer:
             poster.brand_name,
             draw_background=False,
         )
-        self._draw_text(
-            canvas,
-            replace(spec.agent_name_slot, color=behavior.text_colors["agent"]),
-            poster.agent_name,
-            draw_background=False,
-        )
+        if behavior.header_policy.agent_pill_visible:
+            self._draw_text(
+                canvas,
+                replace(spec.agent_name_slot, color=behavior.text_colors["agent"]),
+                poster.agent_name,
+                draw_background=False,
+            )
         if behavior.bottom_policy.title_slot_rendered:
             self._draw_text(
                 canvas,
@@ -216,6 +219,7 @@ class LayoutRenderer:
             logo_source=poster.logo.url if poster.logo else None,
             scenario_safe_fill=False,
             bottom_policy=behavior.bottom_policy,
+            header_policy=behavior.header_policy,
         )
         return ForegroundResult(
             image=canvas,
@@ -418,18 +422,24 @@ class LayoutRenderer:
         if not images or visible_count <= 0:
             return
         gallery_item_layouts = list(bottom_policy.layout_metrics.get("gallery_item_layouts", []))
+        if not gallery_item_layouts:
+            raise AssertionError(
+                "gallery_item_layouts must be populated by the behavior resolver before "
+                "gallery strip render. Call resolve_template_behavior() with "
+                "gallery_resolved_count before invoking _draw_gallery."
+            )
         for i, img in enumerate(images[: min(strip.count, visible_count)]):
-            slot_layout = gallery_item_layouts[i] if i < len(gallery_item_layouts) else None
-            if slot_layout is None:
-                x = strip.x + i * (strip.thumb_w + strip.gap)
-                y = strip.y
-                w = strip.thumb_w
-                h = strip.h
-            else:
-                x = int(slot_layout["x"])
-                y = int(slot_layout["y"])
-                w = int(slot_layout["w"])
-                h = int(slot_layout["h"])
+            if i >= len(gallery_item_layouts):
+                raise AssertionError(
+                    f"gallery_item_layouts has {len(gallery_item_layouts)} entries but "
+                    f"slot index {i} was requested. visible_count ({visible_count}) must "
+                    "not exceed len(gallery_item_layouts)."
+                )
+            slot_layout = gallery_item_layouts[i]
+            x = int(slot_layout["x"])
+            y = int(slot_layout["y"])
+            w = int(slot_layout["w"])
+            h = int(slot_layout["h"])
             thumb_slot = ImageSlotSpec(
                 x=x,
                 y=y,
@@ -521,6 +531,7 @@ class PuppeteerStructuredRenderer:
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
+            agent_name=poster.agent_name,
         )
         t0 = _now()
         logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
@@ -617,6 +628,7 @@ class PuppeteerStructuredRenderer:
             logo_source=poster.logo.url if poster.logo else None,
             scenario_safe_fill=behavior.hero_policy.scenario_enabled and not bool(asset_urls.get("scenario_is_real")),
             bottom_policy=behavior.bottom_policy,
+            header_policy=behavior.header_policy,
         )
         return ForegroundResult(
             image=image,
@@ -664,6 +676,7 @@ class PuppeteerStructuredRenderer:
             gallery_resolved_count=len(asset_urls.get("gallery") or []),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
+            agent_name=poster.agent_name,
         )
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
@@ -677,7 +690,8 @@ class PuppeteerStructuredRenderer:
             poster.features,
             feature_policy=behavior.feature_policy,
         )
-        header_layer_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
+        header_logo_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
+        header_layer_class = " ".join(filter(None, [header_logo_class, *behavior.header_policy.css_classes]))
         scenario_is_real = bool(asset_urls.get("scenario_is_real")) and behavior.hero_policy.scenario_enabled
         hero_mode_class = behavior.root_classes[0]
         if behavior.hero_policy.scenario_enabled:
@@ -697,7 +711,7 @@ class PuppeteerStructuredRenderer:
             f"state-anchor-{behavior.hero_policy.product_anchor} {hero_mode_class}"
         )
         product_content_class = product_layer_class
-        agent_text_class = "state-show" if (poster.agent_name or "").strip() else "state-hidden"
+        agent_text_class = "state-show" if behavior.header_policy.agent_pill_visible else "state-hidden"
         bottom_region_class = (
             f"state-show {behavior.bottom_policy.bottom_region_state}"
             if behavior.bottom_policy.bottom_region_rendered
@@ -1310,6 +1324,7 @@ def _build_renderer_layer_render_status(
     logo_source: Optional[str],
     scenario_safe_fill: bool,
     bottom_policy: ResolvedBottomBehavior,
+    header_policy: ResolvedHeaderBehavior,
 ) -> dict[str, dict[str, Any]]:
     # This is renderer-side structural status derivation from bound inputs and
     # renderer-controlled asset preparation. It is not a post-render pixel check.
@@ -1331,11 +1346,14 @@ def _build_renderer_layer_render_status(
             "collapsed": not bool(poster.brand_name),
         },
         "agent_name_text_layer": {
-            "rendered": bool(poster.agent_name),
-            "reason_code": None if poster.agent_name else "agent_name_empty",
+            "rendered": header_policy.agent_pill_visible,
+            "reason_code": (
+                None if header_policy.agent_pill_visible
+                else ("agent_name_empty" if not poster.agent_name else "suppressed_by_header_mode")
+            ),
             "source_binding": "agent_name",
-            "count": 1 if poster.agent_name else 0,
-            "collapsed": not bool(poster.agent_name),
+            "count": 1 if header_policy.agent_pill_visible else 0,
+            "collapsed": not header_policy.agent_pill_visible,
         },
         "scenario_image_layer": {
             "rendered": scenario_rendered,
@@ -1466,7 +1484,12 @@ def render_product_material_debug_layer(
     selected for the final structured render.
     """
     renderer = LayoutRenderer(font_registry=font_registry)
-    behavior = resolve_template_behavior(spec)
+    gallery_resolved = min(len(assets.gallery), spec.gallery_slot.count)
+    behavior = resolve_template_behavior(
+        spec,
+        gallery_resolved_count=gallery_resolved,
+        gallery_requested_count=gallery_resolved,
+    )
     canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
     if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
         renderer._draw_image(canvas, spec.scenario_slot, assets.scenario)
@@ -1476,7 +1499,7 @@ def render_product_material_debug_layer(
         spec.gallery_slot,
         assets.gallery,
         bottom_policy=behavior.bottom_policy,
-        visible_count=min(len(assets.gallery), spec.gallery_slot.count),
+        visible_count=behavior.bottom_policy.visible_item_count,
     )
     if spec.logo_slot and assets.logo:
         renderer._draw_image(canvas, spec.logo_slot, assets.logo)

@@ -1,5 +1,16 @@
 # 当前阶段判断与工程路径修订 v1
 
+## 0. 文档锚点说明
+
+本文档的阶段判断服从已恢复的顶层产品基线 [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)。
+
+也就是说：
+
+- 产品治理口径仍是 `Structure -> Control -> Beautification`
+- 模板执行口径仍是 `Background -> Shell -> Content`
+
+本文档只负责给出当前阶段判断，不重写这些基线。
+
 ## 1. 结论
 
 当前 `poster2` 的**架构目标与基本路线是正确的**，这一点已经通过本轮工程验证成立。

@@ -1,5 +1,16 @@
 # Beautification Layer 计划 v1
 
+## 0. 文档锚点说明
+
+本文档位于顶层产品基线 [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md) 与 behavior 稳定化之后。
+
+它的前提是：
+
+- contract-first 结构已成立
+- behavior / control 路径已开始上浮
+
+因此 beautification 永远是下游层，不应用来掩盖 structure 或 control failure。
+
 ## 1. 文档定位
 
 本文档用于定义 `poster2` 下一阶段新增的 **Beautification Layer**。

@@ -1,5 +1,11 @@
 # poster2 索引更新（阶段切换）v1
 
+## 0. 文档锚点说明
+
+本文档是顶层产品基线 [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md) 之下的阶段切换索引补丁。
+
+它只负责帮助读者从较早阶段阅读顺序切到当前阶段，不单独定义新的产品架构。
+
 ## 1. 文档定位
 
 本文档用于在不破坏现有索引结构的前提下，补充当前阶段切换后的推荐阅读顺序。
