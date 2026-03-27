@@ -706,9 +706,9 @@ def _title_band_region_bounds(template: TemplateSpec, resolved_behavior) -> dict
 def _gallery_strip_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
-        "x": int(template.gallery_slot.x),
+        "x": int(layout.get("gallery_shell_x", template.gallery_slot.x)),
         "y": int(layout["gallery_shell_top"]),
-        "w": int(template.gallery_slot.w),
+        "w": int(layout.get("gallery_shell_w", template.gallery_slot.w)),
         "h": int(layout["gallery_shell_height"]),
     }
 
@@ -782,12 +782,19 @@ def _build_bottom_contract_review(
         },
         "behavior_policy": {
             "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
+            "title_band_growth_policy": resolved_behavior.bottom_policy.title_band_growth_policy,
             "subtitle_overflow_policy": resolved_behavior.bottom_policy.subtitle_overflow_policy,
             "title_text_budget_policy": resolved_behavior.bottom_policy.title_text_budget_policy,
             "subtitle_text_budget_policy": resolved_behavior.bottom_policy.subtitle_text_budget_policy,
             "content_priority_policy": resolved_behavior.bottom_policy.content_priority_policy,
             "peer_balance_policy": resolved_behavior.bottom_policy.peer_balance_policy,
+            "bottom_peer_balance_policy": resolved_behavior.bottom_policy.bottom_peer_balance_policy,
             "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
+            "gallery_shell_frame_policy": resolved_behavior.bottom_policy.gallery_shell_frame_policy,
+            "gallery_strip_shift_policy": resolved_behavior.bottom_policy.gallery_strip_shift_policy,
+            "gallery_aspect_policy": resolved_behavior.bottom_policy.gallery_aspect_policy,
+            "gallery_spacing_policy": resolved_behavior.bottom_policy.gallery_spacing_policy,
+            "bottom_text_emphasis_policy": resolved_behavior.bottom_policy.bottom_text_emphasis_policy,
             "title_line_clamp": resolved_behavior.bottom_policy.title_line_clamp,
             "subtitle_line_clamp": resolved_behavior.bottom_policy.subtitle_line_clamp,
             "title_char_budget": resolved_behavior.bottom_policy.title_char_budget,

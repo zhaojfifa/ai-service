@@ -4,6 +4,13 @@
 
 Promote bottom from early behavior into stable behavior so that bottom peer rebalance, count-driven gallery distribution, and mixed text-image layout response are contract-driven rather than fixed-layout driven.
 
+Current round objective:
+
+- keep bottom contract and behavior stable
+- close out the remaining designer-first coordination problems in `2 / 3` gallery cases
+- improve pair / triplet mixed-content layout without leaving the contract-first path
+- add the smallest shell/text refinement needed so bottom no longer feels like a residual full-width strip
+
 This status is scoped to preserving:
 
 - `bottom_region`
@@ -28,6 +35,7 @@ while completing:
 - Root anchor: `AGENTS.md`
 - Poster2 anchor: `docs/poster2/README.md`
 - Task doc: `docs/poster2/template_behavior_layer_plan_v1.md`
+- fixed read state remained limited to the three startup anchors above
 
 Blocked note:
 
@@ -56,6 +64,13 @@ But bottom still behaved like a mostly fixed layout:
 
 This meant bottom was explainable at the structure level, but not fully explainable at the peer-layout response level.
 
+In the current closeout round, the most visible remaining issue was narrower:
+
+- protocol already worked
+- but pair / triplet bottom layouts still felt too compressed or too mechanically even
+- title band growth, gallery strip shift, and gallery sizing still lacked enough policy granularity to produce more natural designer-first mixed-content balance
+- gallery shell still visually read too much like a leftover strip container even when item sizing improved
+
 ## 4. Root Cause
 
 The root cause was split semantic ownership:
@@ -67,6 +82,13 @@ The root cause was split semantic ownership:
 
 So bottom was only partially declarative: contract and visibility were explicit, but peer layout response was still partly renderer-shaped.
 
+For the current round, the root cause was that some policy buckets were still too coarse:
+
+- pair and triplet gallery cases reused overly similar strip sizing logic
+- title-band growth policy was implicit in sizing mode, not explicit enough for review
+- gallery shift / aspect / spacing decisions were resolved numerically, but not named as protocol-level behavior
+- minimal shell framing and text emphasis were still inherited from generic bottom styling instead of reacting to bottom behavior
+
 ## 5. Changed Files
 
 Current stable behavior is implemented in:
@@ -76,6 +98,7 @@ Current stable behavior is implemented in:
 - `tests/poster2/test_renderer.py`
 - `tests/poster2/test_pipeline.py`
 - `docs/poster2/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/template_layout_protocol_status_v1.md`
 
 ## 6. Behavior Policies Introduced Or Completed
 
@@ -86,6 +109,12 @@ Bottom now includes explicit behavior policy for:
   - `standard`
   - `expanded`
   - `collapsed`
+- `title_band_growth_policy`
+  - `grow_title_band_for_support_copy_priority`
+  - `temper_growth_for_triplet_gallery_balance`
+  - `hold_growth_under_dense_quad_pressure`
+  - `hold_standard_title_band_with_balanced_gallery`
+  - `keep_compact_title_band_for_light_copy`
 - `subtitle_overflow_policy`
   - `single_line_ellipsis_inside_title_band`
   - `single_line_ellipsis_inside_split_title_band`
@@ -100,6 +129,12 @@ Bottom now includes explicit behavior policy for:
   - `balanced_title_band_and_gallery_strip`
   - `title_band_only`
   - `gallery_strip_only`
+- `bottom_peer_balance_policy`
+  - `copy_priority_with_spacious_gallery`
+  - `triplet_gallery_and_copy_co_balance`
+  - `quad_gallery_priority_over_copy_growth`
+  - `balanced_bottom_regions`
+  - `gallery_only_bottom_rebalance`
 - `gallery_distribution_policy`
   - `single_center_focus`
   - `balanced_pair`
@@ -116,15 +151,55 @@ Bottom now includes explicit behavior policy for:
   - `gallery_count_priority_with_text_compaction`
   - `title_priority_with_gallery_support`
   - `gallery_support_with_compact_title`
+- `gallery_strip_shift_policy`
+  - `single_gallery_centered_shift`
+  - `downshift_for_spacious_pair`
+  - `balanced_triplet_shift`
+  - `tight_quad_shift`
+- `gallery_aspect_policy`
+  - `single_gallery_focus_aspect`
+  - `spacious_pair_aspect`
+  - `balanced_triplet_aspect`
+  - `compact_quad_aspect`
+  - `single_packshot_aspect`
+- `gallery_spacing_policy`
+  - `centered_single_spacing`
+  - `relaxed_pair_spacing`
+  - `balanced_triplet_spacing`
+  - `compact_quad_spacing`
+  - `supporting_pair_spacing`
+- `gallery_shell_frame_policy`
+  - `single_showcase_frame`
+  - `pair_showcase_frame`
+  - `triplet_balanced_frame`
+  - `quad_strip_frame`
+- `bottom_text_emphasis_policy`
+  - `copy_priority_strong_title`
+  - `balanced_triplet_text_emphasis`
+  - `compact_quad_text_emphasis`
+  - `balanced_bottom_text_emphasis`
+  - `gallery_only_neutral_text`
 
 The resolver now emits:
 
 - `gallery_item_layouts`
 - dynamic `gallery_shell_top`
 - dynamic `gallery_shell_height`
+- dynamic `gallery_shell_x`
+- dynamic `gallery_shell_w`
+- dynamic `gallery_shell_radius`
 - dynamic `gallery_items_top`
 - dynamic `gallery_items_height`
+- dynamic `gallery_item_radius`
 - derived title / subtitle slot bounds without fixed per-mode coordinate branches
+
+In this round, pair / triplet gallery distribution was further tuned so that:
+
+- `2` items are no longer treated like a narrower strip remainder
+- `3` items get their own balanced triplet behavior instead of inheriting over-compressed quad logic
+- title-band growth now explains whether copy priority, triplet co-balance, or quad restraint won the decision
+- pair / triplet gallery shell framing now narrows around the actual composition instead of always reading as a full-width strip
+- title / subtitle emphasis now varies minimally by resolved bottom text policy rather than staying visually identical across pressure states
 
 So both Pillow and Puppeteer consume the same bottom peer-layout result for `1 / 2 / 3 / 4` visible items.
 
@@ -133,10 +208,17 @@ So both Pillow and Puppeteer consume the same bottom peer-layout result for `1 /
 `template_behavior.bottom_policy` and `bottom_contract_review.behavior_policy` now expose:
 
 - `title_band_sizing_mode`
+- `title_band_growth_policy`
 - `subtitle_overflow_policy`
 - `content_priority_policy`
 - `peer_balance_policy`
+- `bottom_peer_balance_policy`
 - `gallery_distribution_policy`
+- `gallery_shell_frame_policy`
+- `gallery_strip_shift_policy`
+- `gallery_aspect_policy`
+- `gallery_spacing_policy`
+- `bottom_text_emphasis_policy`
 - effective line clamps
 - effective budgets
 - dynamic shell / item geometry metrics
@@ -154,24 +236,39 @@ So both Pillow and Puppeteer consume the same bottom peer-layout result for `1 /
 
 This makes bottom output operator-reviewable under input variation.
 
+This round also introduced the smallest design optimization layer that still stays inside the behavior contract:
+
+- pair gallery cards are allowed to become wider / taller
+- triplet gallery cards are allowed to stay more balanced and less cramped
+- strip shift is now an explicit policy rather than a hidden numeric consequence
+- gallery shell frame can narrow and round differently for single / pair / triplet / quad states
+- title letter-spacing and subtitle opacity can vary minimally by resolved bottom text policy
+
 ## 8. Validation Steps And Observed Results
 
 Executed:
 
 ```bash
+./.venv/bin/python -m pytest tests/poster2/test_renderer.py tests/poster2/test_pipeline.py
 ./.venv/bin/python -m pytest tests/poster2/test_api.py tests/poster2/test_contracts.py tests/poster2/test_renderer.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py
 ```
 
 Observed result:
 
-- `140 passed, 2 warnings in 10.93s`
+- `116 passed in 10.51s`
+- `116 passed in 10.77s`
+- `143 passed, 2 warnings`
 
 Validated coverage includes:
 
 - gallery distribution for `1 / 2 / 3 / 4`
 - dense subtitle with light gallery allowing title growth
+- pair gallery widening / height increase under copy-priority behavior
+- triplet gallery balancing under dense mixed-content behavior
 - dense subtitle with quad gallery constraining title growth
 - dynamic strip height / item height / peer gap response under varying gallery density
+- dynamic gallery shell framing / radius response
+- minimal bottom text emphasis response
 - `gallery_only + supporting_packshots`
 - metadata / evidence exposing resolved gallery slot bounds
 - Stage2 diagnostics still surfacing:
@@ -184,10 +281,12 @@ Validated coverage includes:
 - gallery distribution is resolver-driven but still rule-based rather than measurement-optimized
 - `supporting_packshots` has minimum distribution semantics, not a richer primary/secondary hierarchy yet
 - the local doc system still references a top-level product baseline file that is not present as a tracked root-level file in this worktree
+- this round improves pair / triplet naturalness, but does not yet make bottom a measurement-driven art direction engine
+- minimal text emphasis is intentionally conservative and not a full typography system
 
 ## 10. Next Recommended Step
 
-Keep bottom behavior stable and move the next increment to template-level protocol reuse: treat bottom as the validated SOP, then reuse its mixed-content logic for cross-region priority and rebalance decisions rather than re-solving them locally.
+Keep bottom behavior stable and move the next increment to preview/evidence parity: surface frame and text-emphasis policy more directly in operator review so design tuning remains contract-led rather than screenshot-led.
 
 ## 11. Strategy Sentence
 

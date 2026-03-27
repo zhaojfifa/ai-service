@@ -209,12 +209,19 @@ class ResolvedBottomBehavior:
     gallery_content_policy: str
     collapse_policy: str
     title_band_sizing_mode: str
+    title_band_growth_policy: str
     subtitle_overflow_policy: str
     title_text_budget_policy: str
     subtitle_text_budget_policy: str
     content_priority_policy: str
     peer_balance_policy: str
+    bottom_peer_balance_policy: str
     gallery_distribution_policy: str
+    gallery_shell_frame_policy: str
+    gallery_strip_shift_policy: str
+    gallery_aspect_policy: str
+    gallery_spacing_policy: str
+    bottom_text_emphasis_policy: str
     title_line_clamp: int
     subtitle_line_clamp: int
     title_char_budget: int
@@ -244,12 +251,19 @@ class ResolvedBottomBehavior:
             "gallery_content_policy": self.gallery_content_policy,
             "collapse_policy": self.collapse_policy,
             "title_band_sizing_mode": self.title_band_sizing_mode,
+            "title_band_growth_policy": self.title_band_growth_policy,
             "subtitle_overflow_policy": self.subtitle_overflow_policy,
             "title_text_budget_policy": self.title_text_budget_policy,
             "subtitle_text_budget_policy": self.subtitle_text_budget_policy,
             "content_priority_policy": self.content_priority_policy,
             "peer_balance_policy": self.peer_balance_policy,
+            "bottom_peer_balance_policy": self.bottom_peer_balance_policy,
             "gallery_distribution_policy": self.gallery_distribution_policy,
+            "gallery_shell_frame_policy": self.gallery_shell_frame_policy,
+            "gallery_strip_shift_policy": self.gallery_strip_shift_policy,
+            "gallery_aspect_policy": self.gallery_aspect_policy,
+            "gallery_spacing_policy": self.gallery_spacing_policy,
+            "bottom_text_emphasis_policy": self.bottom_text_emphasis_policy,
             "title_line_clamp": self.title_line_clamp,
             "subtitle_line_clamp": self.subtitle_line_clamp,
             "title_char_budget": self.title_char_budget,
@@ -610,12 +624,19 @@ def resolve_bottom_behavior(
 
     (
         title_band_sizing_mode,
+        title_band_growth_policy,
         subtitle_overflow_policy,
         title_text_budget_policy,
         subtitle_text_budget_policy,
         content_priority_policy,
         peer_balance_policy,
+        bottom_peer_balance_policy,
         gallery_distribution_policy,
+        gallery_shell_frame_policy,
+        gallery_strip_shift_policy,
+        gallery_aspect_policy,
+        gallery_spacing_policy,
+        bottom_text_emphasis_policy,
         title_line_clamp,
         subtitle_line_clamp,
         title_char_budget,
@@ -737,12 +758,19 @@ def resolve_bottom_behavior(
         gallery_content_policy=gallery_content_policy,
         collapse_policy="title_band_and_gallery_strip_collapse_independently_under_bottom_mode",
         title_band_sizing_mode=title_band_sizing_mode,
+        title_band_growth_policy=title_band_growth_policy,
         subtitle_overflow_policy=subtitle_overflow_policy,
         title_text_budget_policy=title_text_budget_policy,
         subtitle_text_budget_policy=subtitle_text_budget_policy,
         content_priority_policy=content_priority_policy,
         peer_balance_policy=peer_balance_policy,
+        bottom_peer_balance_policy=bottom_peer_balance_policy,
         gallery_distribution_policy=gallery_distribution_policy,
+        gallery_shell_frame_policy=gallery_shell_frame_policy,
+        gallery_strip_shift_policy=gallery_strip_shift_policy,
+        gallery_aspect_policy=gallery_aspect_policy,
+        gallery_spacing_policy=gallery_spacing_policy,
+        bottom_text_emphasis_policy=bottom_text_emphasis_policy,
         title_line_clamp=title_line_clamp,
         subtitle_line_clamp=subtitle_line_clamp,
         title_char_budget=title_char_budget,
@@ -773,7 +801,7 @@ def _resolve_bottom_layout_policies(
     title_length: int,
     subtitle_length: int,
     visible_item_count: int,
-) -> tuple[str, str, str, str, str, str, str, int, int, int, int, dict[str, object]]:
+) -> tuple[str, str, str, str, str, str, str, str, str, str, str, str, int, int, int, int, dict[str, object]]:
     bottom_shell_top = 728
     title_band_top = 728
     title_content_pad_left = 40
@@ -781,11 +809,14 @@ def _resolve_bottom_layout_policies(
 
     if not title_slot_rendered:
         title_band_sizing_mode = "collapsed"
+        title_band_growth_policy = "title_band_collapsed_without_title"
         subtitle_overflow_policy = "suppressed_with_title_band"
         title_text_budget_policy = "no_title_band_budget"
         subtitle_text_budget_policy = "no_subtitle_budget"
         content_priority_policy = "gallery_priority_without_title_band"
         peer_balance_policy = "gallery_strip_only"
+        bottom_peer_balance_policy = "gallery_only_bottom_rebalance"
+        bottom_text_emphasis_policy = "gallery_only_neutral_text"
         title_line_clamp = 0
         subtitle_line_clamp = 0
         title_char_budget = 0
@@ -799,8 +830,11 @@ def _resolve_bottom_layout_policies(
     elif bottom_mode == "title_only":
         content_priority_policy = "title_and_subtitle_priority_without_gallery"
         peer_balance_policy = "title_band_only"
+        bottom_peer_balance_policy = "title_only_bottom_rebalance"
+        bottom_text_emphasis_policy = "title_only_strong_emphasis"
         if subtitle_slot_rendered and subtitle_length > 42:
             title_band_sizing_mode = "expanded"
+            title_band_growth_policy = "grow_for_title_only_support_copy"
             subtitle_overflow_policy = "two_line_clamp_inside_title_band"
             title_text_budget_policy = "two_line_title_budget_in_title_only_shell"
             subtitle_text_budget_policy = "two_line_support_copy_budget"
@@ -814,6 +848,7 @@ def _resolve_bottom_layout_policies(
             title_stack_gap = 6
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_standard_title_band_with_subtitle"
             subtitle_overflow_policy = "single_line_ellipsis_inside_title_band"
             title_text_budget_policy = "two_line_title_budget_with_subtitle"
             subtitle_text_budget_policy = "single_line_support_copy_budget"
@@ -827,6 +862,7 @@ def _resolve_bottom_layout_policies(
             title_stack_gap = 8
         else:
             title_band_sizing_mode = "compact"
+            title_band_growth_policy = "compact_title_band_without_subtitle"
             subtitle_overflow_policy = "subtitle_collapsed"
             title_text_budget_policy = "title_priority_budget_without_subtitle"
             subtitle_text_budget_policy = "subtitle_collapsed_budget"
@@ -844,11 +880,14 @@ def _resolve_bottom_layout_policies(
         dense_copy = subtitle_length > 36 or title_length > 24
         if subtitle_slot_rendered and dense_copy and visible_item_count <= 2:
             title_band_sizing_mode = "expanded"
+            title_band_growth_policy = "grow_title_band_for_support_copy_priority"
             subtitle_overflow_policy = "two_line_clamp_inside_split_title_band"
             title_text_budget_policy = "balanced_title_budget_under_dense_bottom_split"
             subtitle_text_budget_policy = "two_line_support_copy_budget"
             content_priority_policy = "title_and_subtitle_priority_over_gallery_density"
             peer_balance_policy = "title_growth_allowed_with_light_gallery"
+            bottom_peer_balance_policy = "copy_priority_with_spacious_gallery"
+            bottom_text_emphasis_policy = "copy_priority_strong_title"
             title_line_clamp = 1 if subtitle_length > 58 and title_length > 20 else 2
             subtitle_line_clamp = 2
             title_char_budget = 22 if title_line_clamp == 1 else 42
@@ -859,26 +898,32 @@ def _resolve_bottom_layout_policies(
             title_stack_gap = 6
         elif subtitle_slot_rendered and dense_copy and visible_item_count == 3:
             title_band_sizing_mode = "standard"
+            title_band_growth_policy = "temper_growth_for_triplet_gallery_balance"
             subtitle_overflow_policy = "two_line_clamp_inside_split_title_band"
             title_text_budget_policy = "balanced_title_budget_with_triplet_gallery_peer"
             subtitle_text_budget_policy = "two_line_support_copy_budget"
             content_priority_policy = "balanced_text_and_gallery_priority"
             peer_balance_policy = "balanced_dense_copy_with_triplet_gallery"
+            bottom_peer_balance_policy = "triplet_gallery_and_copy_co_balance"
+            bottom_text_emphasis_policy = "balanced_triplet_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 38
             subtitle_char_budget = 44
-            title_band_height = 144
-            title_content_pad_top = 20
-            title_content_pad_bottom = 14
+            title_band_height = 152
+            title_content_pad_top = 18
+            title_content_pad_bottom = 12
             title_stack_gap = 6
         elif subtitle_slot_rendered and dense_copy and visible_item_count >= 4:
             title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_growth_under_dense_quad_pressure"
             subtitle_overflow_policy = "single_line_ellipsis_inside_split_title_band"
             title_text_budget_policy = "gallery_priority_title_budget_under_dense_quad"
             subtitle_text_budget_policy = "single_line_support_copy_budget"
             content_priority_policy = "gallery_count_priority_with_text_compaction"
             peer_balance_policy = "gallery_priority_under_dense_quad"
+            bottom_peer_balance_policy = "quad_gallery_priority_over_copy_growth"
+            bottom_text_emphasis_policy = "compact_quad_text_emphasis"
             title_line_clamp = 1 if subtitle_length > 48 else 2
             subtitle_line_clamp = 1
             title_char_budget = 20 if title_line_clamp == 1 else 36
@@ -889,11 +934,14 @@ def _resolve_bottom_layout_policies(
             title_stack_gap = 6
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_standard_title_band_with_balanced_gallery"
             subtitle_overflow_policy = "single_line_ellipsis_inside_split_title_band"
             title_text_budget_policy = "two_line_title_budget_with_balanced_gallery_peer"
             subtitle_text_budget_policy = "single_line_support_copy_budget"
             content_priority_policy = "balanced_text_and_gallery_priority"
             peer_balance_policy = "balanced_title_band_and_gallery_strip"
+            bottom_peer_balance_policy = "balanced_bottom_regions"
+            bottom_text_emphasis_policy = "balanced_bottom_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 1
             title_char_budget = 40
@@ -904,11 +952,14 @@ def _resolve_bottom_layout_policies(
             title_stack_gap = 8
         elif title_length > 28:
             title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_standard_title_band_for_long_title"
             subtitle_overflow_policy = "subtitle_collapsed"
             title_text_budget_policy = "two_line_title_budget_with_gallery_peer"
             subtitle_text_budget_policy = "subtitle_collapsed_budget"
             content_priority_policy = "title_priority_with_gallery_support"
             peer_balance_policy = "balanced_title_band_and_gallery_strip"
+            bottom_peer_balance_policy = "title_priority_with_gallery_support"
+            bottom_text_emphasis_policy = "title_priority_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 0
             title_char_budget = 38
@@ -919,11 +970,14 @@ def _resolve_bottom_layout_policies(
             title_stack_gap = 0
         else:
             title_band_sizing_mode = "compact"
+            title_band_growth_policy = "keep_compact_title_band_for_light_copy"
             subtitle_overflow_policy = "subtitle_collapsed"
             title_text_budget_policy = "title_priority_budget_with_light_copy"
             subtitle_text_budget_policy = "subtitle_collapsed_budget"
             content_priority_policy = "gallery_support_with_compact_title"
             peer_balance_policy = "title_compact_with_light_gallery"
+            bottom_peer_balance_policy = "compact_title_with_gallery_support"
+            bottom_text_emphasis_policy = "compact_light_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 0
             title_char_budget = 34
@@ -946,13 +1000,24 @@ def _resolve_bottom_layout_policies(
         if gallery_strip_rendered and title_slot_rendered
         else (888 if gallery_strip_rendered else title_band_top + title_band_height)
     )
-    gallery_shell_height, gallery_items_top, gallery_items_height = _resolve_gallery_strip_vertical_metrics(
+    (
+        gallery_strip_shift_policy,
+        gallery_shell_height,
+        gallery_items_top,
+        gallery_items_height,
+    ) = _resolve_gallery_strip_vertical_metrics(
         gallery_mode=gallery_mode,
         visible_item_count=visible_item_count if gallery_strip_rendered else 0,
         peer_balance_policy=peer_balance_policy,
         gallery_shell_top=gallery_shell_top,
     )
-    gallery_distribution_policy, gallery_item_layouts = _resolve_gallery_distribution_layout(
+    (
+        gallery_distribution_policy,
+        gallery_shell_frame_policy,
+        gallery_aspect_policy,
+        gallery_spacing_policy,
+        gallery_item_layouts,
+    ) = _resolve_gallery_distribution_layout(
         gallery_mode=gallery_mode,
         visible_item_count=visible_item_count if gallery_strip_rendered else 0,
         gallery_items_top=gallery_items_top,
@@ -969,6 +1034,11 @@ def _resolve_bottom_layout_policies(
         gallery_shell_top=gallery_shell_top,
         gallery_shell_height=gallery_shell_height,
     )
+    gallery_shell_x, gallery_shell_w, gallery_shell_radius, gallery_item_radius = _resolve_gallery_shell_frame_metrics(
+        visible_item_count=visible_item_count if gallery_strip_rendered else 0,
+        gallery_distribution_policy=gallery_distribution_policy,
+        gallery_items=gallery_item_layouts,
+    )
     title_slot_y, title_slot_h, subtitle_slot_y, subtitle_slot_h = _resolve_bottom_text_slot_metrics(
         bottom_mode=bottom_mode,
         title_band_sizing_mode=title_band_sizing_mode,
@@ -984,12 +1054,19 @@ def _resolve_bottom_layout_policies(
 
     return (
         title_band_sizing_mode,
+        title_band_growth_policy,
         subtitle_overflow_policy,
         title_text_budget_policy,
         subtitle_text_budget_policy,
         content_priority_policy,
         peer_balance_policy,
+        bottom_peer_balance_policy,
         gallery_distribution_policy,
+        gallery_shell_frame_policy,
+        gallery_strip_shift_policy,
+        gallery_aspect_policy,
+        gallery_spacing_policy,
+        bottom_text_emphasis_policy,
         title_line_clamp,
         subtitle_line_clamp,
         title_char_budget,
@@ -1008,8 +1085,12 @@ def _resolve_bottom_layout_policies(
             "title_stack_gap": title_stack_gap,
             "gallery_shell_top": gallery_shell_top,
             "gallery_shell_height": gallery_shell_height,
+            "gallery_shell_x": gallery_shell_x,
+            "gallery_shell_w": gallery_shell_w,
+            "gallery_shell_radius": gallery_shell_radius,
             "gallery_items_top": gallery_items_top,
             "gallery_items_height": gallery_items_height,
+            "gallery_item_radius": gallery_item_radius,
             "gallery_item_layouts": gallery_item_layouts,
             "peer_gap": peer_gap,
             "title_slot_y": title_slot_y,
@@ -1060,26 +1141,28 @@ def _resolve_gallery_distribution_layout(
     gallery_items_top: int,
     gallery_items_height: int,
     gallery_shell_height: int,
-) -> tuple[str, list[dict[str, int | str]]]:
+) -> tuple[str, str, str, str, list[dict[str, int | str]]]:
     if visible_item_count <= 0:
-        return "gallery_collapsed", []
+        return "gallery_collapsed", "gallery_collapsed", "gallery_collapsed", "gallery_collapsed", []
 
-    layout_table: dict[str, dict[int, tuple[str, int, int]]] = {
+    layout_table: dict[str, dict[int, tuple[str, str, str, int, int]]] = {
         "strip_local_visible_only": {
-            1: ("single_center_focus", 272, 0),
-            2: ("balanced_pair", 248, 24),
-            3: ("balanced_triplet", 208, 16),
-            4: ("dense_quad", 196, 16),
+            1: ("single_center_focus", "single_showcase_frame", "single_gallery_focus_aspect", "centered_single_spacing", 288, 0),
+            2: ("balanced_pair", "pair_showcase_frame", "spacious_pair_aspect", "relaxed_pair_spacing", 260, 20),
+            3: ("balanced_triplet", "triplet_balanced_frame", "balanced_triplet_aspect", "balanced_triplet_spacing", 220, 12),
+            4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 196, 16),
         },
         "supporting_packshots": {
-            1: ("single_packshot_focus", 232, 0),
-            2: ("supporting_pair", 208, 24),
-            3: ("supporting_triplet", 184, 16),
-            4: ("dense_quad", 196, 16),
+            1: ("single_packshot_focus", "single_showcase_frame", "single_packshot_aspect", "centered_single_spacing", 240, 0),
+            2: ("supporting_pair", "pair_showcase_frame", "supporting_pair_aspect", "supporting_pair_spacing", 220, 18),
+            3: ("supporting_triplet", "triplet_balanced_frame", "supporting_triplet_aspect", "supporting_triplet_spacing", 196, 12),
+            4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 196, 16),
         },
     }
     mode_table = layout_table.get(gallery_mode, layout_table["strip_local_visible_only"])
-    distribution_policy, item_width, gap = mode_table[min(max(visible_item_count, 1), 4)]
+    distribution_policy, gallery_shell_frame_policy, gallery_aspect_policy, gallery_spacing_policy, item_width, gap = mode_table[
+        min(max(visible_item_count, 1), 4)
+    ]
     strip_width = 832
     strip_left = 96
     used_width = item_width * visible_item_count + gap * max(visible_item_count - 1, 0)
@@ -1101,7 +1184,7 @@ def _resolve_gallery_distribution_layout(
                 "local_y": local_y,
             }
         )
-    return distribution_policy, layouts
+    return distribution_policy, gallery_shell_frame_policy, gallery_aspect_policy, gallery_spacing_policy, layouts
 
 
 def _resolve_bottom_peer_gap(
@@ -1132,28 +1215,63 @@ def _resolve_gallery_strip_vertical_metrics(
     gallery_shell_top: int,
 ) -> tuple[int, int, int]:
     if visible_item_count <= 0:
-        return 0, gallery_shell_top, 0
-    vertical_table: dict[str, dict[int, tuple[int, int]]] = {
+        return "gallery_collapsed", 0, gallery_shell_top, 0
+    vertical_table: dict[str, dict[int, tuple[str, int, int]]] = {
         "strip_local_visible_only": {
-            1: (84, 64),
-            2: (76, 60),
-            3: (72, 56),
-            4: (68, 52),
+            1: ("single_gallery_centered_shift", 88, 68),
+            2: ("downshift_for_spacious_pair", 88, 68),
+            3: ("balanced_triplet_shift", 80, 60),
+            4: ("tight_quad_shift", 68, 52),
         },
         "supporting_packshots": {
-            1: (80, 60),
-            2: (72, 56),
-            3: (68, 52),
-            4: (68, 52),
+            1: ("single_gallery_centered_shift", 84, 64),
+            2: ("downshift_for_supporting_pair", 76, 58),
+            3: ("balanced_triplet_shift", 72, 54),
+            4: ("tight_quad_shift", 68, 52),
         },
     }
-    shell_height, item_height = vertical_table.get(gallery_mode, vertical_table["strip_local_visible_only"])[
+    shift_policy, shell_height, item_height = vertical_table.get(gallery_mode, vertical_table["strip_local_visible_only"])[
         min(max(visible_item_count, 1), 4)
     ]
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)
-    return shell_height, gallery_shell_top + inner_pad_y, item_height
+    return shift_policy, shell_height, gallery_shell_top + inner_pad_y, item_height
+
+
+def _resolve_gallery_shell_frame_metrics(
+    *,
+    visible_item_count: int,
+    gallery_distribution_policy: str,
+    gallery_items: list[dict[str, int | str]],
+) -> tuple[int, int, int, int]:
+    if visible_item_count <= 0 or not gallery_items:
+        return 96, 832, 20, 14
+    frame_by_policy: dict[str, tuple[int, int]] = {
+        "single_center_focus": (18, 24),
+        "single_packshot_focus": (16, 24),
+        "balanced_pair": (16, 24),
+        "supporting_pair": (14, 22),
+        "balanced_triplet": (14, 22),
+        "supporting_triplet": (12, 20),
+        "dense_quad": (0, 20),
+    }
+    item_radius_by_policy: dict[str, int] = {
+        "single_center_focus": 18,
+        "single_packshot_focus": 18,
+        "balanced_pair": 18,
+        "supporting_pair": 16,
+        "balanced_triplet": 16,
+        "supporting_triplet": 16,
+        "dense_quad": 14,
+    }
+    frame_pad_x, shell_radius = frame_by_policy.get(gallery_distribution_policy, (0, 20))
+    first = gallery_items[0]
+    last = gallery_items[-1]
+    left = max(int(first["x"]) - frame_pad_x, 96)
+    right = min(int(last["x"]) + int(last["w"]) + frame_pad_x, 928)
+    width = max(right - left, 0)
+    return left, width, shell_radius, item_radius_by_policy.get(gallery_distribution_policy, 14)
 
 
 def _resolve_bottom_shell_height(
@@ -1199,11 +1317,45 @@ def _resolve_bottom_behavior_vars(policy: ResolvedBottomBehavior) -> dict[str, s
         "--title-stack-gap": f"{int(layout['title_stack_gap'])}px",
         "--gallery-shell-top": f"{int(layout['gallery_shell_top'])}px",
         "--gallery-shell-height": f"{int(layout['gallery_shell_height'])}px",
+        "--gallery-shell-left": f"{int(layout['gallery_shell_x'])}px",
+        "--gallery-shell-width": f"{int(layout['gallery_shell_w'])}px",
+        "--gallery-shell-radius": f"{int(layout['gallery_shell_radius'])}px",
         "--gallery-items-top": f"{int(layout['gallery_items_top'])}px",
         "--gallery-items-height": f"{int(layout['gallery_items_height'])}px",
+        "--gallery-item-radius": f"{int(layout['gallery_item_radius'])}px",
+        "--bottom-title-letter-spacing": _resolve_bottom_title_letter_spacing(policy.bottom_text_emphasis_policy),
+        "--bottom-subtitle-opacity": _resolve_bottom_subtitle_opacity(policy.bottom_text_emphasis_policy),
         "--title-line-clamp": str(title_line_clamp),
         "--subtitle-line-clamp": str(subtitle_line_clamp),
     }
+
+
+def _resolve_bottom_title_letter_spacing(policy: str) -> str:
+    table = {
+        "copy_priority_strong_title": "0.01em",
+        "balanced_triplet_text_emphasis": "0.008em",
+        "compact_quad_text_emphasis": "0em",
+        "balanced_bottom_text_emphasis": "0.006em",
+        "title_only_strong_emphasis": "0.012em",
+        "title_priority_text_emphasis": "0.01em",
+        "compact_light_text_emphasis": "0.004em",
+        "gallery_only_neutral_text": "0em",
+    }
+    return table.get(policy, "0.006em")
+
+
+def _resolve_bottom_subtitle_opacity(policy: str) -> str:
+    table = {
+        "copy_priority_strong_title": "0.92",
+        "balanced_triplet_text_emphasis": "0.94",
+        "compact_quad_text_emphasis": "0.86",
+        "balanced_bottom_text_emphasis": "0.9",
+        "title_only_strong_emphasis": "0.92",
+        "title_priority_text_emphasis": "0.9",
+        "compact_light_text_emphasis": "0.88",
+        "gallery_only_neutral_text": "0.86",
+    }
+    return table.get(policy, "0.9")
 
 
 def _validate_token(value: str, supported: set[str], field_name: str) -> str:

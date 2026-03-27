@@ -138,8 +138,14 @@ body {
   --title-stack-gap: 8px;
   --gallery-shell-top: 888px;
   --gallery-shell-height: 72px;
+  --gallery-shell-left: 96px;
+  --gallery-shell-width: 832px;
+  --gallery-shell-radius: 20px;
   --gallery-items-top: 896px;
   --gallery-items-height: 56px;
+  --gallery-item-radius: 14px;
+  --bottom-title-letter-spacing: 0.006em;
+  --bottom-subtitle-opacity: 0.9;
   --title-line-clamp: 2;
   --subtitle-line-clamp: 1;
 }
@@ -450,6 +456,7 @@ body {
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-size: 40px;
   font-weight: 600;
+  letter-spacing: var(--bottom-title-letter-spacing);
   line-height: 1.12;
   text-align: center;
   color: var(--text-color-title);
@@ -466,6 +473,7 @@ body {
   line-height: 1.2;
   text-align: center;
   color: var(--text-color-subtitle);
+  opacity: var(--bottom-subtitle-opacity);
   overflow: hidden;
   white-space: normal;
   -webkit-box-orient: vertical;
@@ -703,11 +711,11 @@ body {
 
 .region-shell-gallery-strip {
   position: absolute;
-  left: 96px;
+  left: var(--gallery-shell-left);
   top: var(--gallery-shell-top);
-  width: 832px;
+  width: var(--gallery-shell-width);
   height: var(--gallery-shell-height);
-  border-radius: 20px;
+  border-radius: var(--gallery-shell-radius);
   background: var(--shell-surface-gallery-strip);
   border: var(--shell-border-gallery);
   box-shadow: var(--shell-shadow-secondary);
@@ -730,7 +738,7 @@ body {
 .gallery-item {
   z-index: 5;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--gallery-item-radius);
   background: rgba(255, 255, 255, 0.76);
   box-shadow: var(--gallery-item-shadow);
 }

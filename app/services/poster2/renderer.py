@@ -293,7 +293,7 @@ class LayoutRenderer:
             self._draw_shell_box(
                 canvas,
                 _gallery_strip_shell_bounds(spec, behavior.bottom_policy),
-                radius=20,
+                radius=int(behavior.bottom_policy.layout_metrics.get("gallery_shell_radius", 20)),
                 fill=_pillow_shell_fill("gallery_strip", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
                 border=_pillow_border("gallery", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
                 shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
@@ -436,7 +436,7 @@ class LayoutRenderer:
                 w=w,
                 h=h,
                 fit="cover",
-                radius=strip.thumb_radius,
+                radius=int(bottom_policy.layout_metrics.get("gallery_item_radius", strip.thumb_radius)),
             )
             self._draw_image(canvas, thumb_slot, img)
 
@@ -1520,9 +1520,9 @@ def _title_band_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBe
 def _gallery_strip_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
     layout = bottom_policy.layout_metrics
     return (
-        spec.gallery_slot.x,
+        int(layout.get("gallery_shell_x", spec.gallery_slot.x)),
         int(layout["gallery_shell_top"]),
-        spec.gallery_slot.w,
+        int(layout.get("gallery_shell_w", spec.gallery_slot.w)),
         int(layout["gallery_shell_height"]),
     )
 

@@ -532,11 +532,11 @@ class TestPosterPipelineRun:
         gallery_status = metadata["gallery_items_status"]
         assert gallery_status
         assert gallery_status[0]["visible_in_strip"] is True
-        assert gallery_status[0]["local_bounds"]["x"] == 280
+        assert gallery_status[0]["local_bounds"]["x"] == 272
         assert gallery_status[0]["local_bounds"]["y"] == 0
         geometry = metadata["geometry_evidence"]
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 888, "w": 832, "h": 84}
-        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 376, "y": 898, "w": 272, "h": 64}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 350, "y": 888, "w": 324, "h": 88}
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 368, "y": 898, "w": 288, "h": 68}
         assert geometry["visible_item_count"]["gallery_strip_region"] == 1
 
     def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
@@ -581,14 +581,20 @@ class TestPosterPipelineRun:
         assert metadata["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
         assert metadata["bottom_contract_review"]["subtitle_slot"]["reason_code"] == "suppressed_by_bottom_mode"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
+        assert metadata["bottom_contract_review"]["behavior_policy"]["title_band_growth_policy"] == "title_band_collapsed_without_title"
         assert metadata["bottom_contract_review"]["behavior_policy"]["content_priority_policy"] == "gallery_priority_without_title_band"
         assert metadata["bottom_contract_review"]["behavior_policy"]["peer_balance_policy"] == "gallery_strip_only"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_peer_balance_policy"] == "gallery_only_bottom_rebalance"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_shell_frame_policy"] == "single_showcase_frame"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "single_gallery_centered_shift"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_aspect_policy"] == "single_packshot_aspect"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_text_emphasis_policy"] == "gallery_only_neutral_text"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
-            "x": 300,
+            "x": 296,
             "y": 10,
-            "w": 232,
-            "h": 60,
+            "w": 240,
+            "h": 64,
         }
 
     def test_renderer_metadata_exposes_dense_bottom_behavior_policy(self):
@@ -631,10 +637,16 @@ class TestPosterPipelineRun:
         behavior = metadata["bottom_contract_review"]["behavior_policy"]
         geometry = metadata["geometry_evidence"]
         assert behavior["title_band_sizing_mode"] == "standard"
+        assert behavior["title_band_growth_policy"] == "hold_growth_under_dense_quad_pressure"
         assert behavior["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
         assert behavior["content_priority_policy"] == "gallery_count_priority_with_text_compaction"
         assert behavior["peer_balance_policy"] == "gallery_priority_under_dense_quad"
+        assert behavior["bottom_peer_balance_policy"] == "quad_gallery_priority_over_copy_growth"
         assert behavior["gallery_distribution_policy"] == "dense_quad"
+        assert behavior["gallery_shell_frame_policy"] == "quad_strip_frame"
+        assert behavior["gallery_strip_shift_policy"] == "tight_quad_shift"
+        assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
+        assert behavior["bottom_text_emphasis_policy"] == "compact_quad_text_emphasis"
         assert behavior["subtitle_line_clamp"] == 1
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
@@ -679,13 +691,74 @@ class TestPosterPipelineRun:
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         behavior = metadata["bottom_contract_review"]["behavior_policy"]
         assert behavior["title_band_sizing_mode"] == "expanded"
+        assert behavior["title_band_growth_policy"] == "grow_title_band_for_support_copy_priority"
         assert behavior["content_priority_policy"] == "title_and_subtitle_priority_over_gallery_density"
         assert behavior["peer_balance_policy"] == "title_growth_allowed_with_light_gallery"
+        assert behavior["bottom_peer_balance_policy"] == "copy_priority_with_spacious_gallery"
         assert behavior["gallery_distribution_policy"] == "balanced_pair"
+        assert behavior["gallery_shell_frame_policy"] == "pair_showcase_frame"
+        assert behavior["gallery_strip_shift_policy"] == "downshift_for_spacious_pair"
+        assert behavior["gallery_aspect_policy"] == "spacious_pair_aspect"
+        assert behavior["bottom_text_emphasis_policy"] == "copy_priority_strong_title"
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 226, "y": 902, "w": 572, "h": 88}
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
-            "x": 156,
-            "y": 8,
-            "w": 248,
+            "x": 146,
+            "y": 10,
+            "w": 260,
+            "h": 68,
+        }
+
+    def test_renderer_metadata_exposes_triplet_gallery_balancing_policy(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(3)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(3)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来明确触发 triplet gallery 的 mixed-content 行为。",
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(3)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        behavior = metadata["bottom_contract_review"]["behavior_policy"]
+        assert behavior["title_band_growth_policy"] == "temper_growth_for_triplet_gallery_balance"
+        assert behavior["bottom_peer_balance_policy"] == "triplet_gallery_and_copy_co_balance"
+        assert behavior["gallery_distribution_policy"] == "balanced_triplet"
+        assert behavior["gallery_shell_frame_policy"] == "triplet_balanced_frame"
+        assert behavior["gallery_strip_shift_policy"] == "balanced_triplet_shift"
+        assert behavior["gallery_aspect_policy"] == "balanced_triplet_aspect"
+        assert behavior["gallery_spacing_policy"] == "balanced_triplet_spacing"
+        assert behavior["bottom_text_emphasis_policy"] == "balanced_triplet_text_emphasis"
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 156, "y": 892, "w": 712, "h": 80}
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
+            "x": 74,
+            "y": 10,
+            "w": 220,
             "h": 60,
         }
 
