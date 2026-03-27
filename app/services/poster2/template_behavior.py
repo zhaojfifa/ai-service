@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .contracts import TemplateBeautyTokensSpec, TemplateBehaviorModesSpec, TemplateSpec
 
@@ -263,6 +263,26 @@ class ResolvedBottomBehavior:
 
 
 @dataclass(frozen=True)
+class ResolvedTemplateLayoutPolicy:
+    content_priority_policy: str
+    region_priority_policy: str
+    peer_rebalance_policy: str
+    layout_density_mode: str
+    decision_scope: str
+    drivers: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "content_priority_policy": self.content_priority_policy,
+            "region_priority_policy": self.region_priority_policy,
+            "peer_rebalance_policy": self.peer_rebalance_policy,
+            "layout_density_mode": self.layout_density_mode,
+            "decision_scope": self.decision_scope,
+            "drivers": list(self.drivers),
+        }
+
+
+@dataclass(frozen=True)
 class ResolvedTemplateBehavior:
     hero_mode: str
     feature_mode: str
@@ -273,6 +293,7 @@ class ResolvedTemplateBehavior:
     hero_policy: ResolvedHeroBehavior
     feature_policy: ResolvedFeatureBehavior
     bottom_policy: ResolvedBottomBehavior
+    template_layout_policy: ResolvedTemplateLayoutPolicy
     css_vars: dict[str, str]
     accent_color: str
     text_colors: dict[str, str]
@@ -296,6 +317,7 @@ class ResolvedTemplateBehavior:
             "hero_policy": self.hero_policy.as_dict(),
             "feature_policy": self.feature_policy.as_dict(),
             "bottom_policy": self.bottom_policy.as_dict(),
+            "template_layout_policy": self.template_layout_policy.as_dict(),
             "beauty_tokens": {
                 "shell_surface": self.beauty_tokens.shell_surface,
                 "shell_border": self.beauty_tokens.shell_border,
@@ -344,6 +366,11 @@ def resolve_template_behavior(
         resolved_gallery_count=gallery_resolved_count or 0,
         max_items=spec.gallery_slot.count,
     )
+    template_layout_policy = resolve_template_layout_policy(
+        feature_policy=feature_policy,
+        bottom_policy=bottom_policy,
+    )
+    feature_policy = _apply_template_layout_policy_to_feature(feature_policy, template_layout_policy)
 
     accent_color = _resolve_accent_color(accent_tone)
     text_colors = _resolve_text_colors(text_emphasis, accent_color)
@@ -378,12 +405,16 @@ def resolve_template_behavior(
         hero_policy=hero_policy,
         feature_policy=feature_policy,
         bottom_policy=bottom_policy,
+        template_layout_policy=template_layout_policy,
         css_vars=css_vars,
         accent_color=accent_color,
         text_colors=text_colors,
         root_classes=(
             *hero_policy.css_classes,
             _css_mode_class("feature-behavior", feature_mode),
+            _css_mode_class("layout-density", template_layout_policy.layout_density_mode),
+            _css_mode_class("region-priority", template_layout_policy.region_priority_policy),
+            _css_mode_class("template-peer-rebalance", template_layout_policy.peer_rebalance_policy),
             *bottom_policy.css_classes,
         ),
     )
@@ -467,6 +498,80 @@ def resolve_feature_layout_mode(count: int, feature_mode: str) -> tuple[int, dic
         "gap": policy.gap,
         "connector_policy": policy.connector_policy,
     }
+
+
+def resolve_template_layout_policy(
+    *,
+    feature_policy: ResolvedFeatureBehavior,
+    bottom_policy: ResolvedBottomBehavior,
+) -> ResolvedTemplateLayoutPolicy:
+    feature_dense = feature_policy.visible_item_count >= 3
+    bottom_copy_dense = bottom_policy.title_band_sizing_mode == "expanded" or bottom_policy.subtitle_line_clamp >= 2
+    bottom_gallery_dense = bottom_policy.visible_item_count >= 3
+    drivers: list[str] = []
+    if bottom_copy_dense:
+        drivers.append("bottom_copy_dense")
+    if bottom_gallery_dense:
+        drivers.append("bottom_gallery_dense")
+    if feature_dense:
+        drivers.append("feature_region_dense")
+    if bottom_policy.gallery_strip_rendered:
+        drivers.append("bottom_gallery_present")
+    if bottom_policy.title_band_rendered:
+        drivers.append("bottom_title_band_present")
+
+    if feature_dense and (bottom_copy_dense or bottom_gallery_dense):
+        return ResolvedTemplateLayoutPolicy(
+            content_priority_policy="bottom_copy_first_feature_stack_second",
+            region_priority_policy="bottom_and_feature_dual_density",
+            peer_rebalance_policy="feature_compacts_before_template_reflow",
+            layout_density_mode="multi_region_dense",
+            decision_scope="template_level_feature_bottom_rebalance",
+            drivers=tuple(drivers),
+        )
+    if bottom_copy_dense or bottom_gallery_dense:
+        return ResolvedTemplateLayoutPolicy(
+            content_priority_policy="bottom_region_priority_before_template_shift",
+            region_priority_policy="bottom_region_priority",
+            peer_rebalance_policy="bottom_local_rebalance_only",
+            layout_density_mode="bottom_dense",
+            decision_scope="bottom_local_behavior_with_template_awareness",
+            drivers=tuple(drivers),
+        )
+    if feature_dense:
+        return ResolvedTemplateLayoutPolicy(
+            content_priority_policy="feature_region_priority_before_bottom_shift",
+            region_priority_policy="feature_region_priority",
+            peer_rebalance_policy="feature_local_compaction_only",
+            layout_density_mode="feature_dense",
+            decision_scope="feature_local_behavior_with_template_awareness",
+            drivers=tuple(drivers),
+        )
+    return ResolvedTemplateLayoutPolicy(
+        content_priority_policy="balanced_local_region_preservation",
+        region_priority_policy="local_region_autonomy",
+        peer_rebalance_policy="local_region_behavior_only",
+        layout_density_mode="balanced",
+        decision_scope="local_region_behavior_only",
+        drivers=tuple(drivers),
+    )
+
+
+def _apply_template_layout_policy_to_feature(
+    feature_policy: ResolvedFeatureBehavior,
+    template_layout_policy: ResolvedTemplateLayoutPolicy,
+) -> ResolvedFeatureBehavior:
+    if (
+        template_layout_policy.peer_rebalance_policy == "feature_compacts_before_template_reflow"
+        and feature_policy.visible_item_count >= 3
+    ):
+        return replace(
+            feature_policy,
+            box_h=max(feature_policy.box_h - 4, 56),
+            gap=max(feature_policy.gap - 2, 8),
+            start_strategy="top_weighted_compact_region",
+        )
+    return feature_policy
 
 
 def resolve_bottom_behavior(

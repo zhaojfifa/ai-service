@@ -303,6 +303,21 @@ class PosterPipeline:
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "template_layout_review": {
+                "template_layout_policy": resolved_behavior.template_layout_policy.as_dict(),
+                "feature_region_response": {
+                    "visible_item_count": resolved_behavior.feature_policy.visible_item_count,
+                    "box_h": resolved_behavior.feature_policy.box_h,
+                    "gap": resolved_behavior.feature_policy.gap,
+                    "start_strategy": resolved_behavior.feature_policy.start_strategy,
+                },
+                "bottom_region_response": {
+                    "content_priority_policy": resolved_behavior.bottom_policy.content_priority_policy,
+                    "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
+                    "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
+                    "visible_item_count": resolved_behavior.bottom_policy.visible_item_count,
+                },
+            },
             "bottom_contract_review": _build_bottom_contract_review(
                 template,
                 resolved_behavior=resolved_behavior,

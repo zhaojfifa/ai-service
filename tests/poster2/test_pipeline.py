@@ -439,6 +439,7 @@ class TestPosterPipelineRun:
         assert metadata["template_behavior"]["feature_policy"]["connector_policy"] == "balanced_pair"
         assert metadata["template_behavior"]["bottom_policy"]["title_band_rendered"] is True
         assert metadata["template_behavior"]["bottom_policy"]["gallery_strip_rendered"] is False
+        assert metadata["template_behavior"]["template_layout_policy"]["layout_density_mode"] == "balanced"
         assert metadata["template_behavior"]["beauty_tokens"]["shell_surface"] == "glass_light"
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
@@ -687,6 +688,55 @@ class TestPosterPipelineRun:
             "w": 248,
             "h": 60,
         }
+
+    def test_renderer_metadata_exposes_template_level_layout_policy_when_feature_and_bottom_are_both_dense(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(4)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(4)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来验证 template-level priority 和 rebalance 是否已经从 bottom SOP 上升出来。",
+                    features=("特性A", "特性B", "特性C", "特性D"),
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        template_layout = metadata["template_behavior"]["template_layout_policy"]
+        layout_review = metadata["template_layout_review"]
+        feature_policy = metadata["template_behavior"]["feature_policy"]
+
+        assert template_layout["layout_density_mode"] == "multi_region_dense"
+        assert template_layout["region_priority_policy"] == "bottom_and_feature_dual_density"
+        assert template_layout["peer_rebalance_policy"] == "feature_compacts_before_template_reflow"
+        assert layout_review["feature_region_response"]["start_strategy"] == "top_weighted_compact_region"
+        assert feature_policy["box_h"] == 56
+        assert feature_policy["gap"] == 10
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()

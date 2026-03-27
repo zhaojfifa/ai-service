@@ -187,7 +187,7 @@ Validated coverage includes:
 
 ## 10. Next Recommended Step
 
-Keep bottom behavior stable and move the next increment to preview-path parity: make Stage2 preview consume the same resolved bottom layout semantics directly, rather than depending mainly on diagnostics inspection.
+Keep bottom behavior stable and move the next increment to template-level protocol reuse: treat bottom as the validated SOP, then reuse its mixed-content logic for cross-region priority and rebalance decisions rather than re-solving them locally.
 
 ## 11. Strategy Sentence
 

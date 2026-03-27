@@ -1120,6 +1120,42 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 882
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
 
+    def test_template_behavior_resolver_promotes_dense_feature_and_bottom_into_template_policy(self):
+        template = _load_real_template()
+
+        resolved = resolve_template_behavior(
+            template,
+            feature_count=4,
+            title_text="超长标题超长标题超长标题超长标题",
+            subtitle_text="这是一段更长的底部说明文案，用来验证 template-level priority 和 rebalance 是否已经从 bottom SOP 上升出来。",
+            gallery_requested_count=4,
+            gallery_resolved_count=4,
+        )
+
+        assert resolved.template_layout_policy.layout_density_mode == "multi_region_dense"
+        assert resolved.template_layout_policy.region_priority_policy == "bottom_and_feature_dual_density"
+        assert resolved.template_layout_policy.peer_rebalance_policy == "feature_compacts_before_template_reflow"
+        assert resolved.template_layout_policy.content_priority_policy == "bottom_copy_first_feature_stack_second"
+        assert resolved.feature_policy.start_strategy == "top_weighted_compact_region"
+        assert resolved.feature_policy.box_h == 56
+        assert resolved.feature_policy.gap == 10
+
+    def test_template_behavior_resolver_keeps_bottom_dense_case_local_when_feature_is_light(self):
+        template = _load_real_template()
+
+        resolved = resolve_template_behavior(
+            template,
+            feature_count=2,
+            title_text="超长标题超长标题超长标题超长标题",
+            subtitle_text="这是一段更长的底部说明文案，用来验证 bottom 仍可以作为 local behavior 先自行响应。",
+            gallery_requested_count=2,
+            gallery_resolved_count=2,
+        )
+
+        assert resolved.template_layout_policy.layout_density_mode == "bottom_dense"
+        assert resolved.template_layout_policy.peer_rebalance_policy == "bottom_local_rebalance_only"
+        assert resolved.feature_policy.start_strategy == "centered_in_region"
+
     def test_template_behavior_resolver_rejects_unknown_bottom_mode(self):
         template = _load_real_template()
 
