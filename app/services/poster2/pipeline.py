@@ -630,7 +630,7 @@ def _build_geometry_evidence(
             "title_slot": _title_slot_bounds(template, resolved_behavior),
             "subtitle_slot": _subtitle_slot_bounds(template, resolved_behavior),
             "product_slot": _slot_bounds(template.product_slot),
-            "gallery_slot": _gallery_item_slot_bounds(template),
+            "gallery_slot": _gallery_item_slot_bounds(template, resolved_behavior),
         },
         "visible_item_count": {
             "header_region": int(region_render_status.get("header_region", {}).get("count", 0)),
@@ -698,7 +698,16 @@ def _gallery_strip_region_bounds(template: TemplateSpec, resolved_behavior) -> d
     }
 
 
-def _gallery_item_slot_bounds(template: TemplateSpec) -> dict[str, int]:
+def _gallery_item_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    gallery_layouts = list(resolved_behavior.bottom_policy.layout_metrics.get("gallery_item_layouts", []))
+    if gallery_layouts:
+        first = gallery_layouts[0]
+        return {
+            "x": int(first["x"]),
+            "y": int(first["y"]),
+            "w": int(first["w"]),
+            "h": int(first["h"]),
+        }
     return {
         "x": int(template.gallery_slot.x),
         "y": int(template.gallery_slot.y),
@@ -738,6 +747,9 @@ def _build_bottom_contract_review(
             "rendered": slot_state["rendered"],
             "state": slot_state["state"],
             "reason_code": slot_state["reason_code"],
+            "distribution_policy": slot_state.get("distribution_policy"),
+            "bounds": slot_state.get("bounds"),
+            "local_bounds": slot_state.get("local_bounds"),
         }
         for slot_state in resolved_behavior.bottom_policy.gallery_slot_states
     }
@@ -759,6 +771,7 @@ def _build_bottom_contract_review(
             "title_text_budget_policy": resolved_behavior.bottom_policy.title_text_budget_policy,
             "subtitle_text_budget_policy": resolved_behavior.bottom_policy.subtitle_text_budget_policy,
             "peer_balance_policy": resolved_behavior.bottom_policy.peer_balance_policy,
+            "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
             "title_line_clamp": resolved_behavior.bottom_policy.title_line_clamp,
             "subtitle_line_clamp": resolved_behavior.bottom_policy.subtitle_line_clamp,
             "title_char_budget": resolved_behavior.bottom_policy.title_char_budget,

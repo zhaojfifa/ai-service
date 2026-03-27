@@ -148,6 +148,7 @@ class LayoutRenderer:
             canvas,
             spec.gallery_slot,
             assets.gallery,
+            bottom_policy=behavior.bottom_policy,
             visible_count=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
         )
         if spec.logo_slot and assets.logo:
@@ -196,7 +197,7 @@ class LayoutRenderer:
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
-        gallery_items_status = _annotate_gallery_items_status_from_spec(assets.gallery_status, spec)
+        gallery_items_status = _annotate_gallery_items_status_from_spec(assets.gallery_status, spec, behavior.bottom_policy)
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=assets.logo is not None,
@@ -411,17 +412,29 @@ class LayoutRenderer:
         strip: GalleryStripSpec,
         images: list[PILImage.Image],
         *,
+        bottom_policy: ResolvedBottomBehavior,
         visible_count: int,
     ) -> None:
         if not images or visible_count <= 0:
             return
+        gallery_item_layouts = list(bottom_policy.layout_metrics.get("gallery_item_layouts", []))
         for i, img in enumerate(images[: min(strip.count, visible_count)]):
-            x = strip.x + i * (strip.thumb_w + strip.gap)
+            slot_layout = gallery_item_layouts[i] if i < len(gallery_item_layouts) else None
+            if slot_layout is None:
+                x = strip.x + i * (strip.thumb_w + strip.gap)
+                y = strip.y
+                w = strip.thumb_w
+                h = strip.h
+            else:
+                x = int(slot_layout["x"])
+                y = int(slot_layout["y"])
+                w = int(slot_layout["w"])
+                h = int(slot_layout["h"])
             thumb_slot = ImageSlotSpec(
                 x=x,
-                y=strip.y,
-                w=strip.thumb_w,
-                h=strip.h,
+                y=y,
+                w=w,
+                h=h,
                 fit="cover",
                 radius=strip.thumb_radius,
             )
@@ -585,7 +598,7 @@ class PuppeteerStructuredRenderer:
 
         png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
-        gallery_items_status = _annotate_gallery_items_status(gallery_items_status, slot_spec)
+        gallery_items_status = _annotate_gallery_items_status(gallery_items_status, behavior.bottom_policy)
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=bool(asset_urls["logo"]),
@@ -657,6 +670,7 @@ class PuppeteerStructuredRenderer:
         gallery_markup, gallery_layer_class = self._gallery_markup(
             slot_spec,
             asset_urls["gallery"][: behavior.bottom_policy.visible_item_count],
+            behavior.bottom_policy,
         )
         feature_markup, feature_layer_class = self._feature_markup(
             anchor_map,
@@ -744,9 +758,13 @@ class PuppeteerStructuredRenderer:
             rendered = rendered.replace(key, value)
         return rendered
 
-    def _gallery_markup(self, slot_spec: dict[str, Any], gallery_urls: list[str]) -> tuple[str, str]:
-        gallery_slots = slot_spec["slots"]["gallery"]
-        gallery_layer = slot_spec.get("layers", {}).get("bottom_gallery_items_layer", {"x": 0, "y": 0})
+    def _gallery_markup(
+        self,
+        slot_spec: dict[str, Any],
+        gallery_urls: list[str],
+        bottom_policy: ResolvedBottomBehavior,
+    ) -> tuple[str, str]:
+        gallery_slots = list(bottom_policy.layout_metrics.get("gallery_item_layouts", []))
         if not gallery_urls:
             return "", "state-hidden"
         logger.info(
@@ -758,9 +776,12 @@ class PuppeteerStructuredRenderer:
         items: list[str] = []
         for idx, gallery_slot in enumerate(gallery_slots[: len(gallery_urls)]):
             url = gallery_urls[idx]
-            local_slot = dict(gallery_slot)
-            local_slot["x"] = int(gallery_slot["x"]) - int(gallery_layer["x"])
-            local_slot["y"] = int(gallery_slot["y"]) - int(gallery_layer["y"])
+            local_slot = {
+                "x": int(gallery_slot["local_x"]),
+                "y": int(gallery_slot["local_y"]),
+                "w": int(gallery_slot["w"]),
+                "h": int(gallery_slot["h"]),
+            }
             items.append(
                 f'<div class="gallery-item" style="{_slot_style(local_slot)}">'
                 f'<img src="{url}" alt="" loading="eager" />'
@@ -1163,7 +1184,18 @@ def _visible_gallery_item_count(slot_spec: dict[str, Any], gallery_count: int) -
     return visible
 
 
-def _gallery_layer_bounds_from_spec(spec: TemplateSpec) -> dict[str, int]:
+def _gallery_layer_bounds_from_spec(
+    spec: TemplateSpec,
+    bottom_policy: ResolvedBottomBehavior | None = None,
+) -> dict[str, int]:
+    if bottom_policy is not None:
+        layout = bottom_policy.layout_metrics
+        return {
+            "x": spec.gallery_slot.x,
+            "y": int(layout["gallery_items_top"]),
+            "w": spec.gallery_slot.w,
+            "h": int(layout["gallery_items_height"]),
+        }
     return {
         "x": spec.gallery_slot.x,
         "y": spec.gallery_slot.y,
@@ -1172,8 +1204,21 @@ def _gallery_layer_bounds_from_spec(spec: TemplateSpec) -> dict[str, int]:
     }
 
 
-def _gallery_slots_from_spec(spec: TemplateSpec) -> list[dict[str, int]]:
-    slots: list[dict[str, int]] = []
+def _gallery_slots_from_spec(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior | None = None) -> list[dict[str, int]]:
+    if bottom_policy is not None:
+        slots: list[dict[str, int]] = []
+        for item in bottom_policy.layout_metrics.get("gallery_item_layouts", []):
+            slots.append(
+                {
+                    "x": int(item["x"]),
+                    "y": int(item["y"]),
+                    "w": int(item["w"]),
+                    "h": int(item["h"]),
+                }
+            )
+        if slots:
+            return slots
+    slots = []
     for idx in range(spec.gallery_slot.count):
         slots.append(
             {
@@ -1188,10 +1233,9 @@ def _gallery_slots_from_spec(spec: TemplateSpec) -> list[dict[str, int]]:
 
 def _annotate_gallery_items_status(
     gallery_items_status: list[dict[str, Any]],
-    slot_spec: dict[str, Any],
+    bottom_policy: ResolvedBottomBehavior,
 ) -> list[dict[str, Any]]:
-    gallery_layer = slot_spec["layers"]["bottom_gallery_items_layer"]
-    gallery_slots = slot_spec["slots"]["gallery"]
+    gallery_slots = list(bottom_policy.layout_metrics.get("gallery_item_layouts", []))
     annotated: list[dict[str, Any]] = []
     for idx, status in enumerate(gallery_items_status):
         slot = gallery_slots[idx] if idx < len(gallery_slots) else None
@@ -1201,22 +1245,10 @@ def _annotate_gallery_items_status(
             item["local_bounds"] = None
             annotated.append(item)
             continue
-        local_x = int(slot["x"]) - int(gallery_layer["x"])
-        local_y = int(slot["y"]) - int(gallery_layer["y"])
-        visible = _rectangles_intersect(
-            local_x,
-            local_y,
-            int(slot["w"]),
-            int(slot["h"]),
-            0,
-            0,
-            int(gallery_layer["w"]),
-            int(gallery_layer["h"]),
-        )
-        item["visible_in_strip"] = visible
+        item["visible_in_strip"] = True
         item["local_bounds"] = {
-            "x": local_x,
-            "y": local_y,
+            "x": int(slot["local_x"]),
+            "y": int(slot["local_y"]),
             "w": int(slot["w"]),
             "h": int(slot["h"]),
         }
@@ -1227,9 +1259,10 @@ def _annotate_gallery_items_status(
 def _annotate_gallery_items_status_from_spec(
     gallery_items_status: list[dict[str, Any]],
     spec: TemplateSpec,
+    bottom_policy: ResolvedBottomBehavior | None = None,
 ) -> list[dict[str, Any]]:
-    gallery_layer = _gallery_layer_bounds_from_spec(spec)
-    gallery_slots = _gallery_slots_from_spec(spec)
+    gallery_layer = _gallery_layer_bounds_from_spec(spec, bottom_policy)
+    gallery_slots = _gallery_slots_from_spec(spec, bottom_policy)
     annotated: list[dict[str, Any]] = []
     for idx, status in enumerate(gallery_items_status):
         slot = gallery_slots[idx] if idx < len(gallery_slots) else None
@@ -1438,7 +1471,13 @@ def render_product_material_debug_layer(
     if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
         renderer._draw_image(canvas, spec.scenario_slot, assets.scenario)
     renderer._draw_product(canvas, spec.product_slot, assets.product)
-    renderer._draw_gallery(canvas, spec.gallery_slot, assets.gallery, visible_count=min(len(assets.gallery), spec.gallery_slot.count))
+    renderer._draw_gallery(
+        canvas,
+        spec.gallery_slot,
+        assets.gallery,
+        bottom_policy=behavior.bottom_policy,
+        visible_count=min(len(assets.gallery), spec.gallery_slot.count),
+    )
     if spec.logo_slot and assets.logo:
         renderer._draw_image(canvas, spec.logo_slot, assets.logo)
     png_bytes = _to_png(canvas)

@@ -213,6 +213,7 @@ class ResolvedBottomBehavior:
     title_text_budget_policy: str
     subtitle_text_budget_policy: str
     peer_balance_policy: str
+    gallery_distribution_policy: str
     title_line_clamp: int
     subtitle_line_clamp: int
     title_char_budget: int
@@ -246,6 +247,7 @@ class ResolvedBottomBehavior:
             "title_text_budget_policy": self.title_text_budget_policy,
             "subtitle_text_budget_policy": self.subtitle_text_budget_policy,
             "peer_balance_policy": self.peer_balance_policy,
+            "gallery_distribution_policy": self.gallery_distribution_policy,
             "title_line_clamp": self.title_line_clamp,
             "subtitle_line_clamp": self.subtitle_line_clamp,
             "title_char_budget": self.title_char_budget,
@@ -505,6 +507,7 @@ def resolve_bottom_behavior(
         title_text_budget_policy,
         subtitle_text_budget_policy,
         peer_balance_policy,
+        gallery_distribution_policy,
         title_line_clamp,
         subtitle_line_clamp,
         title_char_budget,
@@ -512,6 +515,7 @@ def resolve_bottom_behavior(
         layout_metrics,
     ) = _resolve_bottom_layout_policies(
         bottom_mode=bottom_mode,
+        gallery_mode=gallery_mode,
         title_slot_rendered=title_slot_rendered,
         subtitle_slot_rendered=subtitle_slot_rendered,
         gallery_strip_rendered=gallery_strip_rendered,
@@ -554,6 +558,10 @@ def resolve_bottom_behavior(
     for index in range(max_items):
         slot_id = f"gallery_item_slot_{index + 1}"
         slot_rendered = gallery_strip_rendered and index < visible_item_count
+        slot_layout = next(
+            (item for item in layout_metrics["gallery_item_layouts"] if item["slot_id"] == slot_id),
+            None,
+        )
         if slot_rendered:
             reason_code = None
             state = "rendered"
@@ -578,6 +586,27 @@ def resolve_bottom_behavior(
                 "reason_code": reason_code,
                 "owner_region": "gallery_strip_region",
                 "gallery_mode": gallery_mode,
+                "distribution_policy": gallery_distribution_policy,
+                "bounds": (
+                    {
+                        "x": int(slot_layout["x"]),
+                        "y": int(slot_layout["y"]),
+                        "w": int(slot_layout["w"]),
+                        "h": int(slot_layout["h"]),
+                    }
+                    if slot_layout is not None
+                    else None
+                ),
+                "local_bounds": (
+                    {
+                        "x": int(slot_layout["local_x"]),
+                        "y": int(slot_layout["local_y"]),
+                        "w": int(slot_layout["w"]),
+                        "h": int(slot_layout["h"]),
+                    }
+                    if slot_layout is not None
+                    else None
+                ),
             }
         )
         if not slot_rendered:
@@ -604,6 +633,7 @@ def resolve_bottom_behavior(
         title_text_budget_policy=title_text_budget_policy,
         subtitle_text_budget_policy=subtitle_text_budget_policy,
         peer_balance_policy=peer_balance_policy,
+        gallery_distribution_policy=gallery_distribution_policy,
         title_line_clamp=title_line_clamp,
         subtitle_line_clamp=subtitle_line_clamp,
         title_char_budget=title_char_budget,
@@ -619,6 +649,7 @@ def resolve_bottom_behavior(
             _css_mode_class("title-band-size", title_band_sizing_mode),
             _css_mode_class("subtitle-overflow", subtitle_overflow_policy),
             _css_mode_class("bottom-peer-balance", peer_balance_policy),
+            _css_mode_class("gallery-distribution", gallery_distribution_policy),
         ),
     )
 
@@ -626,13 +657,14 @@ def resolve_bottom_behavior(
 def _resolve_bottom_layout_policies(
     *,
     bottom_mode: str,
+    gallery_mode: str,
     title_slot_rendered: bool,
     subtitle_slot_rendered: bool,
     gallery_strip_rendered: bool,
     title_length: int,
     subtitle_length: int,
     visible_item_count: int,
-) -> tuple[str, str, str, str, str, int, int, int, int, dict[str, object]]:
+) -> tuple[str, str, str, str, str, str, int, int, int, int, dict[str, object]]:
     bottom_shell_top = 728
     bottom_shell_height = 232 if bottom_mode == "title_gallery_split" else (160 if bottom_mode == "title_only" else 84)
     title_band_top = 728
@@ -642,6 +674,12 @@ def _resolve_bottom_layout_policies(
     gallery_items_height = 56
     title_content_pad_left = 40
     title_content_pad_right = 40
+    gallery_distribution_policy, gallery_item_layouts = _resolve_gallery_distribution_layout(
+        gallery_mode=gallery_mode,
+        visible_item_count=visible_item_count if gallery_strip_rendered else 0,
+        gallery_items_top=gallery_items_top,
+        gallery_items_height=gallery_items_height,
+    )
 
     if not title_slot_rendered:
         title_band_sizing_mode = "collapsed"
@@ -703,19 +741,48 @@ def _resolve_bottom_layout_policies(
         title_content_top = title_band_top
         title_content_height = title_band_height
     else:
-        if subtitle_slot_rendered and (subtitle_length > 36 or title_length > 24 or visible_item_count >= 3):
+        dense_copy = subtitle_length > 36 or title_length > 24
+        if subtitle_slot_rendered and dense_copy and visible_item_count <= 2:
             title_band_sizing_mode = "expanded"
             subtitle_overflow_policy = "two_line_clamp_inside_split_title_band"
             title_text_budget_policy = "balanced_title_budget_under_dense_bottom_split"
             subtitle_text_budget_policy = "two_line_support_copy_budget"
-            peer_balance_policy = "title_band_priority_under_dense_copy"
-            title_line_clamp = 1 if subtitle_length > 52 and title_length > 20 else 2
+            peer_balance_policy = "title_growth_allowed_with_light_gallery"
+            title_line_clamp = 1 if subtitle_length > 58 and title_length > 20 else 2
             subtitle_line_clamp = 2
             title_char_budget = 22 if title_line_clamp == 1 else 42
             subtitle_char_budget = 48
             title_band_height = 160
             title_content_pad_top = 16
             title_content_pad_bottom = 10
+            title_stack_gap = 6
+        elif subtitle_slot_rendered and dense_copy and visible_item_count == 3:
+            title_band_sizing_mode = "standard"
+            subtitle_overflow_policy = "two_line_clamp_inside_split_title_band"
+            title_text_budget_policy = "balanced_title_budget_with_triplet_gallery_peer"
+            subtitle_text_budget_policy = "two_line_support_copy_budget"
+            peer_balance_policy = "balanced_dense_copy_with_triplet_gallery"
+            title_line_clamp = 2
+            subtitle_line_clamp = 2
+            title_char_budget = 38
+            subtitle_char_budget = 44
+            title_band_height = 144
+            title_content_pad_top = 20
+            title_content_pad_bottom = 14
+            title_stack_gap = 6
+        elif subtitle_slot_rendered and dense_copy and visible_item_count >= 4:
+            title_band_sizing_mode = "standard"
+            subtitle_overflow_policy = "single_line_ellipsis_inside_split_title_band"
+            title_text_budget_policy = "gallery_priority_title_budget_under_dense_quad"
+            subtitle_text_budget_policy = "single_line_support_copy_budget"
+            peer_balance_policy = "gallery_priority_under_dense_quad"
+            title_line_clamp = 1 if subtitle_length > 48 else 2
+            subtitle_line_clamp = 1
+            title_char_budget = 20 if title_line_clamp == 1 else 36
+            subtitle_char_budget = 24
+            title_band_height = 144
+            title_content_pad_top = 22
+            title_content_pad_bottom = 18
             title_stack_gap = 6
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
@@ -750,7 +817,7 @@ def _resolve_bottom_layout_policies(
             subtitle_overflow_policy = "subtitle_collapsed"
             title_text_budget_policy = "title_priority_budget_with_light_copy"
             subtitle_text_budget_policy = "subtitle_collapsed_budget"
-            peer_balance_policy = "gallery_gap_preserved_under_light_copy"
+            peer_balance_policy = "title_compact_with_light_gallery"
             title_line_clamp = 2
             subtitle_line_clamp = 0
             title_char_budget = 34
@@ -782,6 +849,7 @@ def _resolve_bottom_layout_policies(
         title_text_budget_policy,
         subtitle_text_budget_policy,
         peer_balance_policy,
+        gallery_distribution_policy,
         title_line_clamp,
         subtitle_line_clamp,
         title_char_budget,
@@ -802,6 +870,7 @@ def _resolve_bottom_layout_policies(
             "gallery_shell_height": gallery_shell_height,
             "gallery_items_top": gallery_items_top,
             "gallery_items_height": gallery_items_height,
+            "gallery_item_layouts": gallery_item_layouts,
             "peer_gap": peer_gap,
             "title_slot_y": title_slot_y,
             "title_slot_height": title_slot_h,
@@ -847,6 +916,55 @@ def _resolve_bottom_text_slot_metrics(
     title_slot_y = available_top + offset
     subtitle_slot_y = title_slot_y + title_slot_height + stack_gap if subtitle_slot_rendered else title_slot_y + title_slot_height
     return title_slot_y, title_slot_height, subtitle_slot_y, subtitle_slot_height
+
+
+def _resolve_gallery_distribution_layout(
+    *,
+    gallery_mode: str,
+    visible_item_count: int,
+    gallery_items_top: int,
+    gallery_items_height: int,
+) -> tuple[str, list[dict[str, int | str]]]:
+    if visible_item_count <= 0:
+        return "gallery_collapsed", []
+
+    layout_table: dict[str, dict[int, tuple[str, int, int]]] = {
+        "strip_local_visible_only": {
+            1: ("single_center_focus", 272, 0),
+            2: ("balanced_pair", 248, 24),
+            3: ("balanced_triplet", 208, 16),
+            4: ("dense_quad", 196, 16),
+        },
+        "supporting_packshots": {
+            1: ("single_packshot_focus", 232, 0),
+            2: ("supporting_pair", 208, 24),
+            3: ("supporting_triplet", 184, 16),
+            4: ("dense_quad", 196, 16),
+        },
+    }
+    mode_table = layout_table.get(gallery_mode, layout_table["strip_local_visible_only"])
+    distribution_policy, item_width, gap = mode_table[min(max(visible_item_count, 1), 4)]
+    strip_width = 832
+    strip_left = 96
+    used_width = item_width * visible_item_count + gap * max(visible_item_count - 1, 0)
+    local_start_x = max((strip_width - used_width) // 2, 0)
+    layouts: list[dict[str, int | str]] = []
+    for index in range(visible_item_count):
+        local_x = local_start_x + index * (item_width + gap)
+        x = strip_left + local_x
+        layouts.append(
+            {
+                "slot_id": f"gallery_item_slot_{index + 1}",
+                "index": index,
+                "x": x,
+                "y": gallery_items_top,
+                "w": item_width,
+                "h": gallery_items_height,
+                "local_x": local_x,
+                "local_y": 0,
+            }
+        )
+    return distribution_policy, layouts
 
 
 def _resolve_bottom_behavior_vars(policy: ResolvedBottomBehavior) -> dict[str, str]:

@@ -530,11 +530,11 @@ class TestPosterPipelineRun:
         gallery_status = metadata["gallery_items_status"]
         assert gallery_status
         assert gallery_status[0]["visible_in_strip"] is True
-        assert gallery_status[0]["local_bounds"]["x"] == 0
+        assert gallery_status[0]["local_bounds"]["x"] == 280
         assert gallery_status[0]["local_bounds"]["y"] == 0
         geometry = metadata["geometry_evidence"]
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 888, "w": 832, "h": 72}
-        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 96, "y": 904, "w": 196, "h": 56}
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 376, "y": 896, "w": 272, "h": 56}
         assert geometry["visible_item_count"]["gallery_strip_region"] == 1
 
     def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
@@ -565,6 +565,7 @@ class TestPosterPipelineRun:
                 _make_spec(
                     gallery_images=(AssetRef(url="mock://gallery-0"),),
                     bottom_mode="gallery_only",
+                    gallery_mode="supporting_packshots",
                 ),
                 _load_template(),
             )
@@ -573,11 +574,19 @@ class TestPosterPipelineRun:
         metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "gallery_only"
+        assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "supporting_packshots"
         assert metadata["bottom_contract_review"]["title_band_region"]["rendered"] is False
         assert metadata["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
         assert metadata["bottom_contract_review"]["subtitle_slot"]["reason_code"] == "suppressed_by_bottom_mode"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
         assert metadata["bottom_contract_review"]["behavior_policy"]["peer_balance_policy"] == "gallery_strip_only"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
+            "x": 300,
+            "y": 0,
+            "w": 232,
+            "h": 56,
+        }
 
     def test_renderer_metadata_exposes_dense_bottom_behavior_policy(self):
         stored_payloads: dict[str, bytes] = {}
@@ -618,12 +627,61 @@ class TestPosterPipelineRun:
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         behavior = metadata["bottom_contract_review"]["behavior_policy"]
         geometry = metadata["geometry_evidence"]
+        assert behavior["title_band_sizing_mode"] == "standard"
+        assert behavior["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
+        assert behavior["peer_balance_policy"] == "gallery_priority_under_dense_quad"
+        assert behavior["gallery_distribution_policy"] == "dense_quad"
+        assert behavior["subtitle_line_clamp"] == 1
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 840, "w": 720, "h": 28}
+
+    def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(2)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(2)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来验证 subtitle overflow、title band sizing 和 gallery peer balance 会不会进入 resolver 策略。",
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(2)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        behavior = metadata["bottom_contract_review"]["behavior_policy"]
         assert behavior["title_band_sizing_mode"] == "expanded"
-        assert behavior["subtitle_overflow_policy"] == "two_line_clamp_inside_split_title_band"
-        assert behavior["peer_balance_policy"] == "title_band_priority_under_dense_copy"
-        assert behavior["subtitle_line_clamp"] == 2
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 160}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 820, "w": 720, "h": 44}
+        assert behavior["peer_balance_policy"] == "title_growth_allowed_with_light_gallery"
+        assert behavior["gallery_distribution_policy"] == "balanced_pair"
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
+            "x": 156,
+            "y": 0,
+            "w": 248,
+            "h": 56,
+        }
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()
