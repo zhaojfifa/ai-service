@@ -21,6 +21,7 @@ _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack"}
 _SUPPORTED_BOTTOM_MODES = {"title_gallery_split", "title_only", "gallery_only"}
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
+_SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
 _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
     "glass_light": {
         "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 243, 0.92))",
@@ -131,6 +132,27 @@ _TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
         "feature": "#111111",
     },
 }
+
+
+@dataclass(frozen=True)
+class ResolvedHeaderBehavior:
+    mode: str
+    lane_layout_mode: str               # "single_line" | "two_line" | "brand_only"
+    identity_zone_mode: str             # "logo_and_brand" | "brand_only"
+    agent_pill_collapse_condition: str  # "always_collapse" | "collapse_when_empty"
+    agent_pill_visible: bool
+
+    css_classes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "lane_layout_mode": self.lane_layout_mode,
+            "identity_zone_mode": self.identity_zone_mode,
+            "agent_pill_collapse_condition": self.agent_pill_collapse_condition,
+            "agent_pill_visible": self.agent_pill_visible,
+            "css_classes": list(self.css_classes),
+        }
 
 
 @dataclass(frozen=True)
@@ -308,6 +330,7 @@ class ResolvedTemplateBehavior:
     feature_policy: ResolvedFeatureBehavior
     bottom_policy: ResolvedBottomBehavior
     template_layout_policy: ResolvedTemplateLayoutPolicy
+    header_policy: ResolvedHeaderBehavior
     css_vars: dict[str, str]
     accent_color: str
     text_colors: dict[str, str]
@@ -332,6 +355,7 @@ class ResolvedTemplateBehavior:
             "feature_policy": self.feature_policy.as_dict(),
             "bottom_policy": self.bottom_policy.as_dict(),
             "template_layout_policy": self.template_layout_policy.as_dict(),
+            "header_policy": self.header_policy.as_dict(),
             "beauty_tokens": {
                 "shell_surface": self.beauty_tokens.shell_surface,
                 "shell_border": self.beauty_tokens.shell_border,
@@ -353,6 +377,7 @@ def resolve_template_behavior(
     gallery_resolved_count: int | None = None,
     bottom_mode: str | None = None,
     gallery_mode: str | None = None,
+    agent_name: str | None = None,
 ) -> ResolvedTemplateBehavior:
     modes = spec.behavior_modes
     beauty = spec.beauty_tokens
@@ -385,6 +410,10 @@ def resolve_template_behavior(
         bottom_policy=bottom_policy,
     )
     feature_policy = _apply_template_layout_policy_to_feature(feature_policy, template_layout_policy)
+    header_policy = resolve_header_behavior(
+        modes.header_mode or "identity_left_agent_right",
+        agent_name=agent_name,
+    )
 
     accent_color = _resolve_accent_color(accent_tone)
     text_colors = _resolve_text_colors(text_emphasis, accent_color)
@@ -420,6 +449,7 @@ def resolve_template_behavior(
         feature_policy=feature_policy,
         bottom_policy=bottom_policy,
         template_layout_policy=template_layout_policy,
+        header_policy=header_policy,
         css_vars=css_vars,
         accent_color=accent_color,
         text_colors=text_colors,
@@ -430,6 +460,7 @@ def resolve_template_behavior(
             _css_mode_class("region-priority", template_layout_policy.region_priority_policy),
             _css_mode_class("template-peer-rebalance", template_layout_policy.peer_rebalance_policy),
             *bottom_policy.css_classes,
+            *header_policy.css_classes,
         ),
     )
 
@@ -586,6 +617,49 @@ def _apply_template_layout_policy_to_feature(
             start_strategy="top_weighted_compact_region",
         )
     return feature_policy
+
+
+def resolve_header_behavior(
+    header_mode: str,
+    *,
+    agent_name: str | None = None,
+) -> ResolvedHeaderBehavior:
+    _validate_token(header_mode, _SUPPORTED_HEADER_MODES, "header_mode")
+    agent_name_present = bool((agent_name or "").strip())
+
+    if header_mode == "identity_left_agent_right":
+        lane_layout_mode = "single_line"
+        identity_zone_mode = "logo_and_brand"
+        agent_pill_collapse_condition = "collapse_when_empty"
+    elif header_mode == "brand_block_two_line":
+        lane_layout_mode = "two_line"
+        identity_zone_mode = "logo_and_brand"
+        agent_pill_collapse_condition = "collapse_when_empty"
+    elif header_mode == "brand_only":
+        lane_layout_mode = "single_line"
+        identity_zone_mode = "brand_only"
+        agent_pill_collapse_condition = "always_collapse"
+    else:
+        raise ValueError(f"Unsupported header_mode: {header_mode}")
+
+    agent_pill_visible = (
+        False
+        if agent_pill_collapse_condition == "always_collapse"
+        else agent_name_present
+    )
+
+    css_classes: tuple[str, ...] = (_css_mode_class("header-mode", header_mode),)
+    if not agent_pill_visible:
+        css_classes = (*css_classes, "header-agent-collapsed")
+
+    return ResolvedHeaderBehavior(
+        mode=header_mode,
+        lane_layout_mode=lane_layout_mode,
+        identity_zone_mode=identity_zone_mode,
+        agent_pill_collapse_condition=agent_pill_collapse_condition,
+        agent_pill_visible=agent_pill_visible,
+        css_classes=css_classes,
+    )
 
 
 def resolve_bottom_behavior(

@@ -1,5 +1,16 @@
 # Template Behavior Layer 计划 v1
 
+## 0. 文档锚点说明
+
+本文档是顶层产品基线 [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md) 之下的 Control Layer rollout 文档。
+
+它讨论的是：
+
+- 如何把 behavior 从 CSS / Python branching 中上浮为 declarative modes
+- 如何在不改变 contract-first 路线的前提下推进控制层
+
+它不重写产品基线，也不与 `Background / Shell / Content` 的执行层视角冲突。
+
 ## 1. 文档定位
 
 本文档用于定义 `poster2` 下一阶段新增的 **Template Behavior Layer**。
