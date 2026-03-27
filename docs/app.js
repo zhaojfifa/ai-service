@@ -6778,6 +6778,122 @@ function updatePoster2DiagnosticsPanel(data) {
   setPoster2Link('poster2-link-foreground', data?.debug_artifacts?.foreground_layer_url || data?.foreground_url || '');
   setPoster2Link('poster2-link-final', data?.debug_artifacts?.final_composited_url || data?.final_url || '');
   setPoster2Link('poster2-link-metadata', data?.debug_artifacts?.renderer_metadata_url || '');
+  renderResolverLayoutPreview(data);
+}
+
+function renderResolverLayoutPreview(data) {
+  const wrap = document.getElementById('poster2-resolver-canvas-wrap');
+  const section = document.getElementById('poster2-resolver-layout-preview');
+  if (!wrap || !section) return;
+
+  const review = data?.bottom_contract_review;
+  if (!review) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  const metrics = review.behavior_policy?.layout_metrics || {};
+  const bottomShellTop = metrics.bottom_shell_top;
+  const bottomShellHeight = metrics.bottom_shell_height;
+
+  if (bottomShellTop == null || !bottomShellHeight) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', `0 ${bottomShellTop} 1024 ${bottomShellHeight}`);
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const addRect = (x, y, w, h, fill, stroke) => {
+    const el = document.createElementNS(NS, 'rect');
+    el.setAttribute('x', x); el.setAttribute('y', y);
+    el.setAttribute('width', w); el.setAttribute('height', h);
+    el.setAttribute('fill', fill);
+    if (stroke) { el.setAttribute('stroke', stroke); el.setAttribute('stroke-width', '4'); }
+    svg.appendChild(el);
+  };
+  const addText = (x, y, content, fill) => {
+    const el = document.createElementNS(NS, 'text');
+    el.setAttribute('x', x); el.setAttribute('y', y);
+    el.setAttribute('font-size', '20'); el.setAttribute('font-family', 'monospace');
+    el.setAttribute('fill', fill || '#334155');
+    el.textContent = content;
+    svg.appendChild(el);
+  };
+
+  // Bottom shell background
+  addRect(0, bottomShellTop, 1024, bottomShellHeight, '#f8fafc', '#cbd5e1');
+
+  // title_band_region
+  const tb = review.title_band_region?.bounds;
+  if (tb) {
+    addRect(tb.x, tb.y, tb.w, tb.h, 'rgba(59,130,246,0.08)', '#93c5fd');
+    addText(tb.x + 8, tb.y + 18, 'title_band_region', '#3b82f6');
+  }
+
+  // gallery_strip_region
+  const gs = review.gallery_strip_region?.bounds;
+  if (gs && gs.h > 0) {
+    addRect(gs.x, gs.y, gs.w, gs.h, 'rgba(34,197,94,0.08)', '#86efac');
+    addText(gs.x + 8, gs.y + 18, 'gallery_strip_region', '#16a34a');
+  }
+
+  // title_slot
+  const tsY = metrics.title_slot_y;
+  const tsH = metrics.title_slot_height;
+  const tsX = tb?.x ?? 112;
+  const tsW = tb?.w ?? 800;
+  if (tsY != null && tsH != null) {
+    addRect(tsX, tsY, tsW, tsH, 'rgba(59,130,246,0.22)', '#3b82f6');
+    addText(tsX + 8, Math.max(tsY + 18, tsY + tsH - 6), `title_slot  y=${tsY}  h=${tsH}`, '#1d4ed8');
+  }
+
+  // subtitle_slot (only when not collapsed)
+  const ssY = metrics.subtitle_slot_y;
+  const ssH = metrics.subtitle_slot_height;
+  const subtitleCollapsed = review.subtitle_slot?.state === 'collapsed';
+  if (ssY != null && ssH != null && !subtitleCollapsed) {
+    addRect(152, ssY, 720, ssH, 'rgba(20,184,166,0.22)', '#14b8a6');
+    addText(160, Math.max(ssY + 18, ssY + ssH - 6), `subtitle_slot  y=${ssY}  h=${ssH}`, '#0f766e');
+  }
+
+  // gallery item slots
+  const gallerySlots = review.gallery_slots || {};
+  const itemColors = ['#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+  Object.entries(gallerySlots)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([key, slot], i) => {
+      const b = slot?.bounds;
+      if (!b || slot.state === 'collapsed') return;
+      const color = itemColors[i % itemColors.length];
+      addRect(b.x, b.y, b.w, b.h, 'rgba(245,158,11,0.15)', color);
+      addText(b.x + 4, b.y + 18, key.replace('gallery_item_slot_', 'g'), color);
+    });
+
+  wrap.innerHTML = '';
+  wrap.appendChild(svg);
+
+  // Summary table
+  const table = document.getElementById('poster2-resolver-slot-table');
+  if (table) {
+    const rows = [
+      ['bottom_mode', review.bottom_mode],
+      ['gallery_mode', review.gallery_mode],
+      ['bottom_shell_top', bottomShellTop],
+      ['bottom_shell_height', bottomShellHeight],
+      ['title_slot_y / h', `${metrics.title_slot_y ?? 'N/A'} / ${metrics.title_slot_height ?? 'N/A'}`],
+      ['subtitle_slot_y / h', subtitleCollapsed ? 'collapsed' : `${metrics.subtitle_slot_y ?? 'N/A'} / ${metrics.subtitle_slot_height ?? 'N/A'}`],
+      ['visible_items', review.gallery_strip_region?.visible_item_count ?? 'N/A'],
+    ];
+    table.innerHTML = rows.map(([k, v]) =>
+      `<div class="poster2-resolver-slot-row"><dt>${k}</dt><dd>${v}</dd></div>`
+    ).join('');
+  }
 }
 
 function renderPoster2RunHistory() {
