@@ -478,11 +478,11 @@ class TestPosterPipelineRun:
         assert metadata["missing_mandatory_regions"] == []
         geometry = metadata["geometry_evidence"]
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
-        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
+        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 144}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 840, "w": 720, "h": 28}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 826, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["title_band_region"] == 2
         assert geometry["visible_item_count"]["product_region"] == 1
@@ -493,6 +493,7 @@ class TestPosterPipelineRun:
         assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is False
         assert bottom_review["behavior_policy"]["title_band_sizing_mode"] == "standard"
         assert bottom_review["behavior_policy"]["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
+        assert bottom_review["behavior_policy"]["content_priority_policy"] == "balanced_text_and_gallery_priority"
         assert bottom_review["behavior_policy"]["layout_metrics"]["title_band_height"] == 144
 
     def test_renderer_metadata_keeps_gallery_visibility_geometry(self):
@@ -533,8 +534,8 @@ class TestPosterPipelineRun:
         assert gallery_status[0]["local_bounds"]["x"] == 280
         assert gallery_status[0]["local_bounds"]["y"] == 0
         geometry = metadata["geometry_evidence"]
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 888, "w": 832, "h": 72}
-        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 376, "y": 896, "w": 272, "h": 56}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 888, "w": 832, "h": 84}
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 376, "y": 898, "w": 272, "h": 64}
         assert geometry["visible_item_count"]["gallery_strip_region"] == 1
 
     def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
@@ -579,13 +580,14 @@ class TestPosterPipelineRun:
         assert metadata["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
         assert metadata["bottom_contract_review"]["subtitle_slot"]["reason_code"] == "suppressed_by_bottom_mode"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
+        assert metadata["bottom_contract_review"]["behavior_policy"]["content_priority_policy"] == "gallery_priority_without_title_band"
         assert metadata["bottom_contract_review"]["behavior_policy"]["peer_balance_policy"] == "gallery_strip_only"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 300,
-            "y": 0,
+            "y": 10,
             "w": 232,
-            "h": 56,
+            "h": 60,
         }
 
     def test_renderer_metadata_exposes_dense_bottom_behavior_policy(self):
@@ -629,11 +631,13 @@ class TestPosterPipelineRun:
         geometry = metadata["geometry_evidence"]
         assert behavior["title_band_sizing_mode"] == "standard"
         assert behavior["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
+        assert behavior["content_priority_policy"] == "gallery_count_priority_with_text_compaction"
         assert behavior["peer_balance_policy"] == "gallery_priority_under_dense_quad"
         assert behavior["gallery_distribution_policy"] == "dense_quad"
         assert behavior["subtitle_line_clamp"] == 1
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 840, "w": 720, "h": 28}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
 
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
         stored_payloads: dict[str, bytes] = {}
@@ -674,13 +678,14 @@ class TestPosterPipelineRun:
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         behavior = metadata["bottom_contract_review"]["behavior_policy"]
         assert behavior["title_band_sizing_mode"] == "expanded"
+        assert behavior["content_priority_policy"] == "title_and_subtitle_priority_over_gallery_density"
         assert behavior["peer_balance_policy"] == "title_growth_allowed_with_light_gallery"
         assert behavior["gallery_distribution_policy"] == "balanced_pair"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 156,
-            "y": 0,
+            "y": 8,
             "w": 248,
-            "h": 56,
+            "h": 60,
         }
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):

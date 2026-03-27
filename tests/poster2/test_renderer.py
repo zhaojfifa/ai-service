@@ -509,8 +509,10 @@ class TestGalleryPositions:
         gallery_layouts = resolved.bottom_policy.layout_metrics["gallery_item_layouts"]
 
         assert resolved.bottom_policy.gallery_distribution_policy == "dense_quad"
+        assert resolved.bottom_policy.content_priority_policy == "balanced_text_and_gallery_priority"
         assert [item["x"] for item in gallery_layouts] == [96, 308, 520, 732]
         assert [item["w"] for item in gallery_layouts] == [196, 196, 196, 196]
+        assert [item["h"] for item in gallery_layouts] == [52, 52, 52, 52]
 
     def test_two_item_distribution_recenters_gallery_strip(self):
         template = _load_real_template()
@@ -525,9 +527,12 @@ class TestGalleryPositions:
         gallery_layouts = resolved.bottom_policy.layout_metrics["gallery_item_layouts"]
 
         assert resolved.bottom_policy.gallery_distribution_policy == "balanced_pair"
+        assert resolved.bottom_policy.content_priority_policy == "title_and_subtitle_priority_over_gallery_density"
         assert resolved.bottom_policy.peer_balance_policy == "title_growth_allowed_with_light_gallery"
         assert [item["x"] for item in gallery_layouts] == [252, 524]
         assert [item["w"] for item in gallery_layouts] == [248, 248]
+        assert [item["y"] for item in gallery_layouts] == [910, 910]
+        assert [item["h"] for item in gallery_layouts] == [60, 60]
 
     def test_gallery_markup_uses_strip_local_coordinates(self):
         renderer = PuppeteerStructuredRenderer()
@@ -555,8 +560,8 @@ class TestGalleryPositions:
         )
 
         assert layer_class == "state-show"
-        assert 'left:156px;top:0px;width:248px;height:56px;' in markup
-        assert 'left:428px;top:0px;width:248px;height:56px;' in markup
+        assert 'left:156px;top:8px;width:248px;height:60px;' in markup
+        assert 'left:428px;top:8px;width:248px;height:60px;' in markup
 
     def test_visible_gallery_item_count_checks_intersection_with_strip_bounds(self):
         slot_spec = {
@@ -1082,11 +1087,14 @@ class TestStructuredScenarioLayer:
 
         assert resolved.bottom_policy.title_band_sizing_mode == "expanded"
         assert resolved.bottom_policy.subtitle_overflow_policy == "two_line_clamp_inside_split_title_band"
+        assert resolved.bottom_policy.content_priority_policy == "title_and_subtitle_priority_over_gallery_density"
         assert resolved.bottom_policy.peer_balance_policy == "title_growth_allowed_with_light_gallery"
         assert resolved.bottom_policy.gallery_distribution_policy == "balanced_pair"
         assert resolved.bottom_policy.title_line_clamp in {1, 2}
         assert resolved.bottom_policy.subtitle_line_clamp == 2
         assert resolved.bottom_policy.layout_metrics["title_band_height"] == 160
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 902
+        assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 60
         assert resolved.css_vars["--title-band-height"] == "160px"
         assert resolved.css_vars["--subtitle-line-clamp"] == "2"
 
@@ -1104,10 +1112,13 @@ class TestStructuredScenarioLayer:
         )
 
         assert resolved.bottom_policy.title_band_sizing_mode == "standard"
+        assert resolved.bottom_policy.content_priority_policy == "gallery_count_priority_with_text_compaction"
         assert resolved.bottom_policy.peer_balance_policy == "gallery_priority_under_dense_quad"
         assert resolved.bottom_policy.gallery_distribution_policy == "dense_quad"
         assert resolved.bottom_policy.subtitle_line_clamp == 1
         assert resolved.bottom_policy.layout_metrics["title_band_height"] == 144
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 882
+        assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
 
     def test_template_behavior_resolver_rejects_unknown_bottom_mode(self):
         template = _load_real_template()
@@ -1631,7 +1642,7 @@ class TestBottomSplitBehavior:
         assert "--title-line-clamp:" in html_payload
         assert "--subtitle-line-clamp: 2" in html_payload
         assert "--title-stack-gap: 6px" in html_payload
-        assert "left:156px;top:0px;width:248px;height:56px;" in html_payload
+        assert "left:156px;top:8px;width:248px;height:60px;" in html_payload
 
     def test_bottom_split_dense_quad_limits_title_growth_and_keeps_quad_distribution(self):
         html_payload = self._render_html_payload(
@@ -1647,8 +1658,8 @@ class TestBottomSplitBehavior:
 
         assert "--title-band-height: 144px" in html_payload
         assert "--subtitle-line-clamp: 1" in html_payload
-        assert "left:0px;top:0px;width:196px;height:56px;" in html_payload
-        assert "left:636px;top:0px;width:196px;height:56px;" in html_payload
+        assert "left:0px;top:6px;width:196px;height:52px;" in html_payload
+        assert "left:636px;top:6px;width:196px;height:52px;" in html_payload
 
     def test_template_css_exposes_independent_bottom_split_state_tokens(self):
         css_template = (

@@ -2,7 +2,7 @@
 
 ## 1. Task Objective
 
-Promote bottom from early behavior into stable behavior so that bottom peer rebalance and count-driven gallery distribution are contract-driven rather than fixed-layout driven.
+Promote bottom from early behavior into stable behavior so that bottom peer rebalance, count-driven gallery distribution, and mixed text-image layout response are contract-driven rather than fixed-layout driven.
 
 This status is scoped to preserving:
 
@@ -20,6 +20,7 @@ while completing:
 - subtitle overflow behavior
 - peer balance between title band and gallery strip
 - `1 / 2 / 3 / 4` gallery item distribution
+- content preservation priority under mixed text-image pressure
 - metadata / evidence that explains the result
 
 ## 2. Startup Context Used
@@ -50,6 +51,7 @@ But bottom still behaved like a mostly fixed layout:
 - subtitle length could change budget / line behavior
 - gallery count could change visibility
 - yet gallery strip distribution still depended on fixed slot assumptions
+- title and subtitle slot metrics still had hard-coded positional branches
 - title band growth and gallery density were not solved together as one bottom behavior policy
 
 This meant bottom was explainable at the structure level, but not fully explainable at the peer-layout response level.
@@ -60,7 +62,8 @@ The root cause was split semantic ownership:
 
 - resolver owned part of title/subtitle behavior
 - renderer still owned gallery strip geometry through fixed slot math / fixed slot-spec usage
-- metadata exposed count and collapse, but not resolved gallery distribution and per-slot bounds
+- resolver still contained hard-coded text-slot coordinate branches for several bottom states
+- metadata exposed count and collapse, but not enough layout-response evidence to explain who yielded first under dense text-image cases
 
 So bottom was only partially declarative: contract and visibility were explicit, but peer layout response was still partly renderer-shaped.
 
@@ -69,13 +72,9 @@ So bottom was only partially declarative: contract and visibility were explicit,
 Current stable behavior is implemented in:
 
 - `app/services/poster2/template_behavior.py`
-- `app/services/poster2/renderer.py`
 - `app/services/poster2/pipeline.py`
 - `tests/poster2/test_renderer.py`
 - `tests/poster2/test_pipeline.py`
-
-This run adds:
-
 - `docs/poster2/bottom_behavior_contract_status_v1.md`
 
 ## 6. Behavior Policies Introduced Or Completed
@@ -106,11 +105,28 @@ Bottom now includes explicit behavior policy for:
   - `balanced_pair`
   - `balanced_triplet`
   - `dense_quad`
-  - `single_packshot_focus`
-  - `supporting_pair`
-  - `supporting_triplet`
+    - `single_packshot_focus`
+    - `supporting_pair`
+    - `supporting_triplet`
+- `content_priority_policy`
+  - `gallery_priority_without_title_band`
+  - `title_and_subtitle_priority_without_gallery`
+  - `title_and_subtitle_priority_over_gallery_density`
+  - `balanced_text_and_gallery_priority`
+  - `gallery_count_priority_with_text_compaction`
+  - `title_priority_with_gallery_support`
+  - `gallery_support_with_compact_title`
 
-The resolver now emits `gallery_item_layouts`, so both Pillow and Puppeteer consume the same bottom peer-layout result for `1 / 2 / 3 / 4` visible items.
+The resolver now emits:
+
+- `gallery_item_layouts`
+- dynamic `gallery_shell_top`
+- dynamic `gallery_shell_height`
+- dynamic `gallery_items_top`
+- dynamic `gallery_items_height`
+- derived title / subtitle slot bounds without fixed per-mode coordinate branches
+
+So both Pillow and Puppeteer consume the same bottom peer-layout result for `1 / 2 / 3 / 4` visible items.
 
 ## 7. Metadata / Evidence Additions
 
@@ -118,10 +134,12 @@ The resolver now emits `gallery_item_layouts`, so both Pillow and Puppeteer cons
 
 - `title_band_sizing_mode`
 - `subtitle_overflow_policy`
+- `content_priority_policy`
 - `peer_balance_policy`
 - `gallery_distribution_policy`
 - effective line clamps
 - effective budgets
+- dynamic shell / item geometry metrics
 - `gallery_item_layouts`
 
 `bottom_contract_review.gallery_slots` now exposes:
@@ -131,6 +149,8 @@ The resolver now emits `gallery_item_layouts`, so both Pillow and Puppeteer cons
 - `local_bounds`
 
 `geometry_evidence.slot_bounds.gallery_slot` now reflects resolved visible gallery-item geometry instead of only a fixed four-up slot assumption.
+
+`geometry_evidence.slot_bounds.title_slot` and `geometry_evidence.slot_bounds.subtitle_slot` now reflect resolver-derived slot bounds rather than hard-coded branch positions.
 
 This makes bottom output operator-reviewable under input variation.
 
@@ -144,13 +164,14 @@ Executed:
 
 Observed result:
 
-- `140 passed, 2 warnings in 11.91s`
+- `140 passed, 2 warnings in 10.93s`
 
 Validated coverage includes:
 
 - gallery distribution for `1 / 2 / 3 / 4`
 - dense subtitle with light gallery allowing title growth
 - dense subtitle with quad gallery constraining title growth
+- dynamic strip height / item height / peer gap response under varying gallery density
 - `gallery_only + supporting_packshots`
 - metadata / evidence exposing resolved gallery slot bounds
 - Stage2 diagnostics still surfacing:

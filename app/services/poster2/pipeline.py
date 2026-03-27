@@ -770,6 +770,7 @@ def _build_bottom_contract_review(
             "subtitle_overflow_policy": resolved_behavior.bottom_policy.subtitle_overflow_policy,
             "title_text_budget_policy": resolved_behavior.bottom_policy.title_text_budget_policy,
             "subtitle_text_budget_policy": resolved_behavior.bottom_policy.subtitle_text_budget_policy,
+            "content_priority_policy": resolved_behavior.bottom_policy.content_priority_policy,
             "peer_balance_policy": resolved_behavior.bottom_policy.peer_balance_policy,
             "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
             "title_line_clamp": resolved_behavior.bottom_policy.title_line_clamp,
