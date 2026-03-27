@@ -43,6 +43,8 @@ class GeneratePosterV2Request(BaseModel):
     logo: Optional[AssetRefInput] = None
     scenario_image: Optional[AssetRefInput] = None
     gallery_images: list[AssetRefInput] = Field(default_factory=list, max_length=4)
+    bottom_mode: Optional[Literal["title_gallery_split", "title_only", "gallery_only"]] = Field(default=None)
+    gallery_mode: Optional[Literal["strip_local_visible_only", "supporting_packshots"]] = Field(default=None)
 
     # Style (background only)
     style: StyleInput = Field(default_factory=StyleInput)
@@ -60,6 +62,8 @@ class GeneratePosterV2Request(BaseModel):
             "subtitle": "系列智能厨房解决方案",
             "features": ["智能温控", "语音操控", "节能环保", "极简设计"],
             "product_image": {"url": "https://example.com/product.png"},
+            "bottom_mode": "title_gallery_split",
+            "gallery_mode": "strip_local_visible_only",
             "style": {"prompt": "warm kitchen atmosphere, soft bokeh", "seed": 42},
             "template_id": "template_dual_v2",
             "renderer_mode": "pillow"
@@ -98,3 +102,15 @@ class GeneratePosterV2Response(BaseModel):
     fallback_reason_detail: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None
+    structure_complete: Optional[bool] = None
+    incomplete_structure: Optional[bool] = None
+    deliverable: Optional[bool] = None
+    structure_evidence_source: Optional[str] = None
+    structure_evidence_complete: Optional[bool] = None
+    missing_mandatory_regions: list[str] = Field(default_factory=list)
+    missing_required_slots: list[str] = Field(default_factory=list)
+    region_render_status: dict = Field(default_factory=dict)
+    slot_binding_status: dict = Field(default_factory=dict)
+    template_behavior: dict = Field(default_factory=dict)
+    geometry_evidence: dict = Field(default_factory=dict)
+    bottom_contract_review: dict = Field(default_factory=dict)

@@ -109,16 +109,78 @@ class TestTemplateSpecLoading:
         assert spec.contract_version == "poster2.template_dual_v2.v1"
         assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
-        assert spec.version == "2.1.2"
+        assert spec.version == "2.1.3"
         assert spec.gallery_slot.thumb_w == 196
-        # Agent name slot has CTA pill style
-        assert spec.agent_name_slot.bg_color == "#E8002A"
-        assert spec.agent_name_slot.bg_radius == 24
+        assert spec.agent_name_slot.bg_color == "transparent"
+        assert spec.agent_name_slot.bg_radius == 0
         assert spec.subtitle_slot.y + spec.subtitle_slot.h <= spec.canvas_h - spec.safe_margin
         assert spec.gallery_slot.y + spec.gallery_slot.h <= spec.canvas_h - spec.safe_margin
         assert spec.scenario_slot is not None
         assert spec.scenario_slot.x == 96
+        assert spec.scenario_slot.align_x == "center"
+        assert spec.scenario_slot.align_y == "center"
         assert spec.product_slot.w == 300
+        assert spec.product_slot.align_x == "center"
+        assert spec.product_slot.align_y == "end"
+        assert spec.product_slot.pad_top == 24
+        assert spec.product_slot.pad_bottom == 10
+        assert spec.behavior_modes.hero_mode == "scenario_cover_product_contain"
+        assert spec.behavior_modes.feature_mode == "count_driven_callout_stack"
+        assert spec.behavior_modes.bottom_mode == "title_gallery_split"
+        assert spec.behavior_modes.gallery_mode == "strip_local_visible_only"
+        assert spec.beauty_tokens.shell_surface == "glass_light"
+        assert spec.beauty_tokens.text_emphasis == "campaign_primary"
+
+    def test_template_behavior_modes_accept_second_hero_mode(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["behavior_modes"] = {
+            "hero_mode": "single_product_focus",
+            "feature_mode": "count_driven_callout_stack",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.behavior_modes.hero_mode == "single_product_focus"
+
+    def test_template_behavior_modes_accept_second_feature_mode(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["behavior_modes"] = {
+            "hero_mode": "scenario_cover_product_contain",
+            "feature_mode": "uniform_callout_stack",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.behavior_modes.feature_mode == "uniform_callout_stack"
+
+    def test_template_behavior_modes_accept_bottom_modes(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["behavior_modes"] = {
+            "hero_mode": "scenario_cover_product_contain",
+            "feature_mode": "count_driven_callout_stack",
+            "bottom_mode": "gallery_only",
+            "gallery_mode": "supporting_packshots",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.behavior_modes.bottom_mode == "gallery_only"
+        assert spec.behavior_modes.gallery_mode == "supporting_packshots"
+
+    def test_template_beauty_tokens_accept_expanded_presets(self):
+        d = {**MINIMAL_TEMPLATE_DICT}
+        d["beauty_tokens"] = {
+            "shell_surface": "panel_dark_soft",
+            "shell_border": "clean_frame",
+            "shell_shadow": "medium",
+            "accent_tone": "cool_blue",
+            "text_emphasis": "editorial_soft",
+        }
+
+        spec = TemplateSpec._from_dict(d)
+
+        assert spec.beauty_tokens.shell_surface == "panel_dark_soft"
+        assert spec.beauty_tokens.accent_tone == "cool_blue"
 
     def test_gallery_slot_position_math(self):
         """Verify gallery item positions match template_dual_spec.json exactly."""
@@ -212,9 +274,11 @@ class TestTemplateSpecLoading:
         assert "header_banner" in slot_spec["layers"]
         assert "background_base_layer" in slot_spec["layers"]
         assert "header_shell_layer" in slot_spec["layers"]
+        assert "header_identity_zone_layer" in slot_spec["layers"]
         assert "brand_logo_layer" in slot_spec["layers"]
+        assert "header_agent_zone_layer" in slot_spec["layers"]
         assert "brand_text_layer" in slot_spec["layers"]
-        assert "agent_pill_layer" in slot_spec["layers"]
+        assert "agent_name_text_layer" in slot_spec["layers"]
         assert "scenario_card_shell_layer" in slot_spec["layers"]
         assert "scenario_image_layer" in slot_spec["layers"]
         assert "product_card_shell_layer" in slot_spec["layers"]
@@ -230,6 +294,8 @@ class TestTemplateSpecLoading:
         assert "bottom_gallery_items_layer" in slot_spec["layers"]
         assert "bottom_tagline_layer" in slot_spec["layers"]
         assert "scenario" in slot_spec["layers"]
+        assert "header_identity_zone_slot" in slot_spec["layer_slots"]
+        assert "header_agent_zone_slot" in slot_spec["layer_slots"]
         assert "brand_logo_slot" in slot_spec["layer_slots"]
         assert "scenario" in slot_spec["layer_states"]
         assert "state-safe-fill" in slot_spec["layer_states"]["scenario"]
@@ -238,9 +304,11 @@ class TestTemplateSpecLoading:
         for layer_name in [
             "background_base_layer",
             "header_shell_layer",
+            "header_identity_zone_layer",
             "brand_logo_layer",
+            "header_agent_zone_layer",
             "brand_text_layer",
-            "agent_pill_layer",
+            "agent_name_text_layer",
             "scenario_card_shell_layer",
             "scenario_image_layer",
             "product_card_shell_layer",
@@ -262,24 +330,58 @@ class TestTemplateSpecLoading:
             assert "fallback_rule" in contract
             assert "collapse_rule" in contract
         brand_logo_contract = slot_spec["layer_contracts"]["brand_logo_layer"]
+        header_identity_zone_contract = slot_spec["layer_contracts"]["header_identity_zone_layer"]
+        header_agent_zone_contract = slot_spec["layer_contracts"]["header_agent_zone_layer"]
         scenario_image_contract = slot_spec["layer_contracts"]["scenario_image_layer"]
         bottom_gallery_items_contract = slot_spec["layer_contracts"]["bottom_gallery_items_layer"]
         assert brand_logo_contract["visible_when"] == "logo.url exists"
         assert brand_logo_contract["max_items"] == 1
         assert brand_logo_contract["max_lines"] == 0
+        assert header_identity_zone_contract["anchor"] == "start inside header_shell_layer"
+        assert header_identity_zone_contract["group_behavior"] == "horizontal_group"
+        assert header_identity_zone_contract["gap"] == 20
+        assert header_agent_zone_contract["anchor"] == "end inside header_shell_layer"
         assert scenario_image_contract["visible_when"] == "scenario_image.url exists or safe preset fill is resolved"
+        assert scenario_image_contract["fit_policy"] == "cover"
+        assert scenario_image_contract["anchor"] == "center inside scenario_card_shell_layer"
         assert scenario_image_contract["max_items"] == 1
         assert scenario_image_contract["max_lines"] == 0
         assert "background_base_layer must not substitute" in scenario_image_contract["fallback_rule"]
+        product_image_contract = slot_spec["layer_contracts"]["product_image_layer"]
+        assert product_image_contract["fit_policy"] == "contain"
+        assert product_image_contract["anchor"] == "bottom-center inside product_card_shell_layer"
+        assert product_image_contract["padding"] == {"top": 24, "right": 18, "bottom": 10, "left": 18}
+        assert "without distortion" in product_image_contract["overflow_rule"]
         assert bottom_gallery_items_contract["visible_when"] == "gallery_images.length > 0"
         assert bottom_gallery_items_contract["max_items"] == 4
         assert bottom_gallery_items_contract["max_lines"] == 0
         assert "ghost placeholders" in bottom_gallery_items_contract["fallback_rule"]
         assert "ghost connectors" in slot_spec["layer_contracts"]["feature_callout_layer"]["fallback_rule"]
+        assert slot_spec["layer_contracts"]["feature_callout_layer"]["layout_modes"] == [
+            "feature-mode-1",
+            "feature-mode-2",
+            "feature-mode-3",
+            "feature-mode-4",
+        ]
         assert slot_spec["layer_contracts"]["bottom_gallery_shell_layer"]["visible_when"] == "gallery_images.length > 0"
         assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["visible_when"] == "gallery_images.length > 0"
-        assert slot_spec["layers"]["brand_text_layer"]["w"] == 484
-        assert slot_spec["layers"]["agent_pill_layer"]["w"] == 164
+        assert slot_spec["layer_contracts"]["bottom_region_shell_layer"]["state_variants"] == [
+            "state-title-only",
+            "state-gallery-only",
+            "state-title-gallery",
+        ]
+        assert slot_spec["layer_contracts"]["title_band_region_shell_layer"]["layout_role"] == "independent_title_band"
+        assert slot_spec["layer_contracts"]["gallery_strip_region_shell_layer"]["layout_role"] == "independent_gallery_strip"
+        assert slot_spec["layers"]["header_identity_zone_layer"]["w"] == 556
+        assert slot_spec["layers"]["brand_text_layer"]["w"] == 416
+        assert slot_spec["layers"]["header_agent_zone_layer"]["w"] == 228
+        assert slot_spec["layers"]["agent_name_text_layer"]["w"] == 228
+        assert slot_spec["layer_slots"]["header_identity_zone_slot"]["w"] == 556
+        assert slot_spec["layer_slots"]["brand_name_slot"]["w"] == 416
+        assert slot_spec["layer_slots"]["header_agent_zone_slot"]["w"] == 228
+        assert slot_spec["slots"]["scenario"]["align_y"] == "center"
+        assert slot_spec["slots"]["product"]["align_y"] == "end"
+        assert slot_spec["slots"]["product"]["pad_bottom"] == 10
         assert slot_spec["slots"]["gallery"][0]["y"] == 896
         assert slot_spec["layer_contracts"]["bottom_tagline_layer"]["visible_when"] == "operator tagline binding exists"
         assert "protected_zones" in slot_spec

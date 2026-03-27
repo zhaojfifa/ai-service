@@ -1,164 +1,143 @@
-# poster2 文档索引与架构模式
+# poster2 Documentation Index
 
-## 1. 文档定位
+`docs/poster2/README.md` is the single official entry point for poster2 documentation on this branch.
 
-`docs/poster2/` 目录不再只是阶段性记录，而应作为 poster2 的正式架构文档域。
+Its job is not to replace the underlying documents. Its job is to keep the document system anchored, ordered, and readable so engineering work stays on one contract-first path.
 
-从当前版本开始，poster2 的文档结构按“架构模式 → 工程实施 → 后续扩展”的方式组织，避免把架构定义、业务目标、实施细节和调试内容混写在一份文档里。
+## What This Document System Is For
 
-poster2 的正式文档模式定义为：
+poster2 documentation is organized as a governed document system, not a loose collection of implementation notes.
 
-- **架构层文档**：定义确定性的架构目标、结构模型、业务目标、运行原则
-- **工程层文档**：定义当前工程基线、实施范围、迭代顺序、验收标准
-- **索引层文档**：负责建立阅读顺序、版本关系与文档职责边界
+This system exists to prevent four recurring failures:
 
-这意味着 poster2 进入了一个真正可持续维护的架构文档模式，而不再依赖单篇大文档承载全部内容。
+- readers skipping the product baseline and jumping straight into implementation detail
+- stage or rollout documents being read without architecture context
+- renderer behavior being mistaken for template truth
+- local engineering progress drifting away from the agreed contract-first path
 
----
+When there is ambiguity, start from the product baseline, then move downward into architecture, engineering baselines, and next-phase plans.
 
-## 2. 当前推荐阅读顺序
+## The Two Complementary Views
 
-### A. 先读：架构与业务定义
+poster2 uses two complementary views of the same system:
 
-文件：`template_dual_v2_architecture_business_definition.md`
+- Product governance view: `Structure -> Control -> Beautification`
+- Template execution view: `Background -> Shell -> Content`
 
-职责：
+These are not competing models.
 
-- 定义 poster2 / template_dual_v2 的项目定位
-- 定义确定性的业务目标
-- 定义三层架构模型
-- 定义 region / slot / shell / content 的边界
-- 定义双引擎原则
-- 定义标准业务流程与目标状态
+- `Structure / Control / Beautification` is the product-governance and rollout order.
+- `Background / Shell / Content` is the template execution-layer view.
 
-适用角色：
+The governance view explains what must be proven in sequence.
+The execution view explains how the template is actually organized at runtime.
 
-- 架构师
-- 产品负责人
-- 技术负责人
-- 需要理解系统长期方向的人
+## Non-Negotiable Architectural Position
 
-### B. 再读：工程实施与验收清单
+All poster2 documents in this directory should remain aligned to the following position:
 
-文件：`template_dual_v2_engineering_implementation_and_acceptance.md`
+- poster2 is not free collage
+- poster2 is contract-first
+- renderer is the execution layer, not the template truth-source
+- behavior should be lifted from CSS/Python branching into declarative template modes
+- beautification must not hide structure or control failures
 
-职责：
+If a stage or implementation document appears to weaken any of the above, read it as subordinate to the baseline documents below.
 
-- 定义当前工程基线
-- 记录当前主要结构问题
-- 定义冻结范围与实施原则
-- 给出迭代顺序与验收标准
-- 提供分支与提交建议
-- 提供新工程开场口径
+## Document Groups
 
-适用角色：
+Use the documentation in the following groups. The groups matter because they define how readers should descend from product intent into engineering execution.
 
-- 工程师
-- Codex / 自动化执行代理
-- 项目推进负责人
-- 需要按阶段推进的协同人员
+### 1. Product Baseline
 
-### C. 最后读：阶段索引与版本摘要
+Start here first. Do not skip this section.
 
-文件：`template_dual_v2_structural_rebuild_baseline_v1.md`
+- [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
+  The top-level poster2 anchor. Defines the product essence, the two template families, and the governance order `Structure -> Control -> Beautification`.
 
-职责：
+This baseline is the primary reference whenever later documents appear to diverge.
 
-- 说明当前阶段的版本定义
-- 建立当前阶段与正式文档之间的索引关系
-- 作为结构重建阶段的版本入口，而不再承担全部正文内容
+### 2. Architecture Guidance
 
----
+Read this section after the product baseline. It defines the stable architecture shape that engineering must preserve.
 
-## 3. poster2 的正式架构模式
+- [template_dual_v2_architecture_business_definition.md](template_dual_v2_architecture_business_definition.md)
+  Family A engineering definition under the product baseline.
+- [template_family_region_matrix_v1.md](template_family_region_matrix_v1.md)
+  Region-level framing for template-family structure.
+- [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
+  Slot contract baseline and SSOT expectations.
+- [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
+  Execution routing and fallback rules. This explains renderer responsibility; it does not redefine template truth.
+- [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
+  Quality and structure-completeness guardrails for contract-first generation.
 
-当前 poster2 的架构模式可以概括为：
+### 3. Engineering Baseline & Progress
 
-> **Architecture Definition → Engineering Implementation → Iterative Acceptance**
+Read this section only after the product baseline and architecture guidance. These documents describe implementation closure and stage progression, not a replacement architecture.
 
-也就是三层文档治理模式：
+- [template_dual_v2_structural_rebuild_baseline_v1.md](template_dual_v2_structural_rebuild_baseline_v1.md)
+  Structural rebuild baseline for the validated Family A template path.
+- [template_dual_v2_engineering_implementation_and_acceptance.md](template_dual_v2_engineering_implementation_and_acceptance.md)
+  Engineering implementation and acceptance framing for template_dual_v2.
+- [current_stage_assessment_and_engineering_path_update_v1.md](current_stage_assessment_and_engineering_path_update_v1.md)
+  Current stage judgment and engineering path update. Read this as stage assessment under the restored baseline, not as a new top-level definition.
+- [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
+  Transition/index helper for stage movement and reading continuity.
+- [poster_generation_project_restructure_checklist_v1.md](poster_generation_project_restructure_checklist_v1.md)
+  Supporting project-level restructuring checklist for keeping implementation aligned.
 
-### 3.1 Architecture Definition
+### 4. Next-Phase Plans
 
-解决的问题是：
+Read this section only after the validated baseline and current stage judgment are understood.
 
-- 这个系统到底是什么
-- 它的确定性目标是什么
-- 它为什么不是自由拼接海报
-- 它的结构模型是什么
-- 双引擎在其中分别承担什么职责
+- [template_behavior_layer_plan_v1.md](template_behavior_layer_plan_v1.md)
+  Control-layer rollout plan: behavior lifted into declarative template modes.
+- [beautification_layer_plan_v1.md](beautification_layer_plan_v1.md)
+  Beautification-layer rollout plan, downstream of contract and behavior stability.
 
-产物对应：
+## Recommended Reading Order
 
-- `template_dual_v2_architecture_business_definition.md`
+If you are new to poster2, use this order:
 
-### 3.2 Engineering Implementation
+1. [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
+2. [template_dual_v2_architecture_business_definition.md](template_dual_v2_architecture_business_definition.md)
+3. [template_family_region_matrix_v1.md](template_family_region_matrix_v1.md)
+4. [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
+5. [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
+6. [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
+7. [template_dual_v2_structural_rebuild_baseline_v1.md](template_dual_v2_structural_rebuild_baseline_v1.md)
+8. [template_dual_v2_engineering_implementation_and_acceptance.md](template_dual_v2_engineering_implementation_and_acceptance.md)
+9. [current_stage_assessment_and_engineering_path_update_v1.md](current_stage_assessment_and_engineering_path_update_v1.md)
+10. [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
+11. [template_behavior_layer_plan_v1.md](template_behavior_layer_plan_v1.md)
+12. [beautification_layer_plan_v1.md](beautification_layer_plan_v1.md)
 
-解决的问题是：
+If you are working on implementation and want to jump ahead, do not start from a phase-plan document. Re-anchor on the product baseline first, then re-enter through the architecture guidance set.
 
-- 当前工程处于哪个基线
-- 现在最应该解决什么问题
-- 哪些范围被冻结
-- 迭代顺序如何安排
-- 每一步怎样验收
+## Family Framing
 
-产物对应：
+The top-level baseline keeps two template families in scope:
 
-- `template_dual_v2_engineering_implementation_and_acceptance.md`
+- `Family A: Campaign Explainer Poster`
+- `Family B: Product Sheet / Product Story Poster`
 
-### 3.3 Iterative Acceptance
+`template_dual_v2` belongs to Family A. Current structure, behavior, and beautification work should continue to be interpreted inside that family framing rather than as a general free-form poster model.
 
-解决的问题是：
+## Usage Rules For Future Updates
 
-- 当前轮次做到哪里
-- 这一轮是否符合结构标准
-- 是否还能继续进入下一轮视觉优化或模板扩展
+When adding or updating poster2 docs:
 
-这一层目前由工程实施文档承载，后续可继续拆出独立的：
+- keep this README as the official entry point
+- anchor new stage documents back to the product baseline
+- do not present rollout plans as architecture replacements
+- do not present renderer behavior as template truth
+- do not describe local CSS tuning as architecture progress
 
-- contract 文档
-- 验收基线文档
-- 模板版本文档
+If a new document cannot be placed cleanly into one of the groups above, that is a signal to check for architecture drift before adding it.
 
----
+## Notes On Branch-Local Materials
 
-## 4. 当前阶段的架构结论
+This branch may still contain historical or grouped copies under subdirectories such as `01_architecture/`, `02_engineering/`, `03_stage_assessment/`, `04_external_reference/`, and `05_next_phase_plan/`.
 
-当前 poster2 / template_dual_v2 的正式方向已经明确：
-
-- 它不是创意型任意拼接工具
-- 它是以 region-shell architecture 为核心的可控动态模板系统
-- 它以统一 contract 为真相源
-- 它以双引擎执行为支撑
-- 它以结构稳定优先于视觉美化
-- 它以运营可审查、工程可复盘、模板可扩展为长期目标
-
-因此，当前所有工程推进都应服从这套架构模式，而不是回到“见问题就局部补视觉”的旧路径。
-
----
-
-## 5. 当前文档清单
-
-### 核心文档
-
-- `README.md`
-- `template_dual_v2_architecture_business_definition.md`
-- `template_dual_v2_engineering_implementation_and_acceptance.md`
-- `template_dual_v2_structural_rebuild_baseline_v1.md`
-
-### 后续建议扩展文档
-
-在结构重建阶段继续推进后，建议逐步补齐以下文档：
-
-- `template_dual_v2_contract_definition.md`
-- `template_dual_v2_region_slot_spec.md`
-- `template_dual_v2_acceptance_baseline.md`
-- `template_dual_v2_renderer_contract.md`
-
-这样 poster2 才会形成真正完整的架构文档体系，而不是只有架构总述与工程计划。
-
----
-
-## 6. 一句话定义
-
-> `docs/poster2/` 从当前版本开始，按“索引层 + 架构层 + 工程层”的方式组织，形成 poster2 的正式架构模式与持续演进文档域。
+Those materials may remain useful as branch-local history or organization aids, but the root-level documents listed in this README are the formal poster2 document system for this branch.

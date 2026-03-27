@@ -1,8 +1,21 @@
 {
   "_comment": "Poster 2.0 — template_dual mapped to deterministic TemplateSpec. Coordinates match template_dual_spec.json exactly. Version must be bumped on any geometry change.",
   "template_id": "template_dual_v2",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "contract_version": "poster2.template_dual_v2.v1",
+  "behavior_modes": {
+    "hero_mode": "scenario_cover_product_contain",
+    "feature_mode": "count_driven_callout_stack",
+    "bottom_mode": "title_gallery_split",
+    "gallery_mode": "strip_local_visible_only"
+  },
+  "beauty_tokens": {
+    "shell_surface": "glass_light",
+    "shell_border": "soft_line",
+    "shell_shadow": "soft",
+    "accent_tone": "warm_red",
+    "text_emphasis": "campaign_primary"
+  },
   "canvas_w": 1024,
   "canvas_h": 1024,
   "safe_margin": 48,
@@ -18,7 +31,7 @@
   },
 
   "brand_name_slot": {
-    "x": 244, "y": 72, "w": 432, "h": 68,
+    "x": 244, "y": 88, "w": 416, "h": 36,
     "font_key": "brand_bold",
     "font_size": 28,
     "color": "#1A1A1A",
@@ -29,16 +42,16 @@
   },
 
   "agent_name_slot": {
-    "x": 756, "y": 78, "w": 156, "h": 48,
+    "x": 684, "y": 96, "w": 228, "h": 18,
     "font_key": "brand_regular",
-    "font_size": 18,
-    "color": "#FFFFFF",
-    "align": "center",
+    "font_size": 15,
+    "color": "#6F5757",
+    "align": "right",
     "max_lines": 1,
     "line_height": 1.2,
     "auto_shrink": true,
-    "bg_color": "#E8002A",
-    "bg_radius": 24
+    "bg_color": "transparent",
+    "bg_radius": 0
   },
 
   "title_slot": {
@@ -66,6 +79,12 @@
   "product_slot": {
     "x": 456, "y": 188, "w": 300, "h": 520,
     "fit": "contain",
+    "align_x": "center",
+    "align_y": "end",
+    "pad_top": 24,
+    "pad_right": 18,
+    "pad_bottom": 10,
+    "pad_left": 18,
     "bg_color": "transparent",
     "shadow": true,
     "radius": 24
@@ -74,6 +93,8 @@
   "scenario_slot": {
     "x": 96, "y": 188, "w": 288, "h": 520,
     "fit": "cover",
+    "align_x": "center",
+    "align_y": "center",
     "bg_color": "transparent",
     "shadow": false,
     "radius": 24

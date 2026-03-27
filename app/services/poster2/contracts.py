@@ -51,6 +51,8 @@ class PosterSpec:
     logo: Optional[AssetRef] = None
     scenario_image: Optional[AssetRef] = None
     gallery_images: tuple[AssetRef, ...] = field(default_factory=tuple)
+    bottom_mode: Optional[str] = None
+    gallery_mode: Optional[str] = None
 
     # --- Style (only for background generation) ---
     style: StyleSpec = field(default_factory=StyleSpec)
@@ -92,6 +94,12 @@ class ImageSlotSpec:
     w: int
     h: int
     fit: Literal["contain", "cover", "fill"] = "contain"
+    align_x: Literal["start", "center", "end"] = "center"
+    align_y: Literal["start", "center", "end"] = "center"
+    pad_top: int = 0
+    pad_right: int = 0
+    pad_bottom: int = 0
+    pad_left: int = 0
     bg_color: str = "transparent"
     shadow: bool = False
     radius: int = 0
@@ -131,6 +139,24 @@ class FeatureCalloutSpec:
     leader_width: int = 2
 
 
+@dataclass(frozen=True)
+class TemplateBehaviorModesSpec:
+    hero_mode: str = "scenario_cover_product_contain"
+    feature_mode: str = "count_driven_callout_stack"
+    header_mode: Optional[str] = None
+    bottom_mode: str = "title_gallery_split"
+    gallery_mode: str = "strip_local_visible_only"
+
+
+@dataclass(frozen=True)
+class TemplateBeautyTokensSpec:
+    shell_surface: str = "glass_light"
+    shell_border: str = "soft_line"
+    shell_shadow: str = "soft"
+    accent_tone: str = "warm_red"
+    text_emphasis: str = "campaign_primary"
+
+
 @dataclass
 class TemplateSpec:
     template_id: str
@@ -157,6 +183,8 @@ class TemplateSpec:
 
     # Firefly background hint (never contains text/logo/UI words)
     background_prompt_hint: str = ""
+    behavior_modes: TemplateBehaviorModesSpec = field(default_factory=TemplateBehaviorModesSpec)
+    beauty_tokens: TemplateBeautyTokensSpec = field(default_factory=TemplateBeautyTokensSpec)
 
     # ---------- JSON loader ----------
 
@@ -192,6 +220,18 @@ class TemplateSpec:
                 leader_width=raw.get("leader_width", 2),
             )
 
+        def behavior_modes(raw: dict | None) -> TemplateBehaviorModesSpec:
+            if not raw:
+                return TemplateBehaviorModesSpec()
+            known = {f.name for f in TemplateBehaviorModesSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return TemplateBehaviorModesSpec(**{k: v for k, v in raw.items() if k in known})
+
+        def beauty_tokens(raw: dict | None) -> TemplateBeautyTokensSpec:
+            if not raw:
+                return TemplateBeautyTokensSpec()
+            known = {f.name for f in TemplateBeautyTokensSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return TemplateBeautyTokensSpec(**{k: v for k, v in raw.items() if k in known})
+
         # ── feature_callouts (preferred) vs legacy features_slot ──────────
         feature_callouts_raw = d.get("feature_callouts")
         if feature_callouts_raw:
@@ -221,6 +261,8 @@ class TemplateSpec:
             gallery_slot=gallery(d["gallery_slot"]),
             scenario_slot=img(scenario_raw) if scenario_raw else None,
             background_prompt_hint=d.get("background_prompt_hint", ""),
+            behavior_modes=behavior_modes(d.get("behavior_modes")),
+            beauty_tokens=beauty_tokens(d.get("beauty_tokens")),
         )
 
 
@@ -285,6 +327,18 @@ class RenderManifest:
     fallback_reason_detail: Optional[str] = None
     degraded: bool = False
     degraded_reason: Optional[str] = None
+    structure_complete: Optional[bool] = None
+    incomplete_structure: Optional[bool] = None
+    deliverable: Optional[bool] = None
+    structure_evidence_source: Optional[str] = None
+    structure_evidence_complete: Optional[bool] = None
+    missing_mandatory_regions: list[str] = field(default_factory=list)
+    missing_required_slots: list[str] = field(default_factory=list)
+    region_render_status: dict = field(default_factory=dict)
+    slot_binding_status: dict = field(default_factory=dict)
+    template_behavior: dict = field(default_factory=dict)
+    geometry_evidence: dict = field(default_factory=dict)
+    bottom_contract_review: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

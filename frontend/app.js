@@ -133,6 +133,14 @@ const stage2State = {
   poster2: {
     rendererMode: 'auto',
     history: [],
+    bottomContract: {
+      title: '',
+      subtitle: '',
+      bottomMode: 'title_gallery_split',
+      galleryMode: 'strip_local_visible_only',
+      galleryCount: 4,
+      autoFillGallery: false,
+    },
   },
   generated: {
     attempted: false,
@@ -166,6 +174,8 @@ const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
 const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
+const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
+const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
 const FRONTEND_BASELINE_STAMP = 'ee1cd4c';
 const BACKEND_BASELINE_EXPECTED = 'ee1cd4c';
 
@@ -299,6 +309,98 @@ function initStage2Poster2PilotControls(stage1Data, statusElement) {
       setStatus(statusElement, `Poster2 renderer set to ${select.value}.`, 'info');
     }
   });
+}
+
+function normalisePoster2BottomText(value, maxChars) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return '';
+  return text.slice(0, maxChars);
+}
+
+function updatePoster2BottomRequestPreview() {
+  const preview = document.getElementById('poster2-bottom-request-preview');
+  if (!preview) return;
+  const bottom = stage2State.poster2?.bottomContract || {};
+  preview.textContent = JSON.stringify(
+    {
+      title: bottom.title || '',
+      subtitle: bottom.subtitle || '',
+      bottom_mode: bottom.bottomMode || 'title_gallery_split',
+      gallery_mode: bottom.galleryMode || 'strip_local_visible_only',
+      requested_gallery_count: Number(bottom.galleryCount || 0),
+      auto_fill_gallery: Boolean(bottom.autoFillGallery),
+    },
+    null,
+    2
+  );
+}
+
+function initPoster2BottomContractControls(stage1Data, statusElement) {
+  const panel = document.getElementById('poster2-bottom-contract-panel');
+  const titleInput = document.getElementById('poster2-bottom-title');
+  const subtitleInput = document.getElementById('poster2-bottom-subtitle');
+  const bottomMode = document.getElementById('poster2-bottom-mode');
+  const galleryMode = document.getElementById('poster2-gallery-mode');
+  const galleryCount = document.getElementById('poster2-gallery-count');
+  const galleryAutofill = document.getElementById('poster2-gallery-autofill');
+  if (!panel || !titleInput || !subtitleInput || !bottomMode || !galleryMode || !galleryCount || !galleryAutofill) {
+    return;
+  }
+
+  const eligible = shouldUsePoster2Pilot(stage1Data);
+  panel.classList.toggle('hidden', !eligible);
+  if (!eligible) return;
+
+  const normaliseText = (value, fallback = '') => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text || fallback;
+  };
+  const defaultGalleryCount = Math.min(
+    Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries.length : 0,
+    4
+  );
+  stage2State.poster2.bottomContract = {
+    title: stage2State.poster2.bottomContract?.title || normaliseText(stage1Data?.title, 'Poster'),
+    subtitle:
+      stage2State.poster2.bottomContract?.subtitle ||
+      normaliseText(stage1Data?.subtitle || stage1Data?.tagline || stage1Data?.promo, ''),
+    bottomMode: stage2State.poster2.bottomContract?.bottomMode || 'title_gallery_split',
+    galleryMode: stage2State.poster2.bottomContract?.galleryMode || 'strip_local_visible_only',
+    galleryCount:
+      Number.isFinite(stage2State.poster2.bottomContract?.galleryCount)
+        ? stage2State.poster2.bottomContract.galleryCount
+        : defaultGalleryCount,
+    autoFillGallery: Boolean(stage2State.poster2.bottomContract?.autoFillGallery),
+  };
+  const sync = () => {
+    const nextTitle = normalisePoster2BottomText(titleInput.value, POSTER2_BOTTOM_TITLE_MAX_CHARS);
+    const nextSubtitle = normalisePoster2BottomText(subtitleInput.value, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
+    titleInput.value = nextTitle;
+    subtitleInput.value = nextSubtitle;
+    stage2State.poster2.bottomContract.title = nextTitle;
+    stage2State.poster2.bottomContract.subtitle = nextSubtitle;
+    stage2State.poster2.bottomContract.bottomMode = bottomMode.value;
+    stage2State.poster2.bottomContract.galleryMode = galleryMode.value;
+    stage2State.poster2.bottomContract.galleryCount = Number(galleryCount.value || 0);
+    stage2State.poster2.bottomContract.autoFillGallery = galleryAutofill.checked;
+    updatePoster2BottomRequestPreview();
+  };
+
+  titleInput.value = stage2State.poster2.bottomContract.title;
+  subtitleInput.value = stage2State.poster2.bottomContract.subtitle;
+  bottomMode.value = stage2State.poster2.bottomContract.bottomMode;
+  galleryMode.value = stage2State.poster2.bottomContract.galleryMode;
+  galleryCount.value = String(stage2State.poster2.bottomContract.galleryCount);
+  galleryAutofill.checked = stage2State.poster2.bottomContract.autoFillGallery;
+
+  for (const element of [titleInput, subtitleInput, bottomMode, galleryMode, galleryCount, galleryAutofill]) {
+    element.addEventListener('input', sync);
+    element.addEventListener('change', sync);
+  }
+  sync();
+  if (statusElement && eligible) {
+    setStatus(statusElement, 'Poster2 bottom contract controls ready for validation.', 'info');
+  }
 }
 
 function fingerprintAssets(assets) {
@@ -4880,15 +4982,24 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   };
 
   const brandName = safeText(stage1Data.brand_name, 'Brand');
-  const title = safeText(stage1Data.title, 'Poster');
+  const bottomContract = stage2State.poster2?.bottomContract || {};
+  const title = normalisePoster2BottomText(
+    safeText(bottomContract.title || stage1Data.title, 'Poster'),
+    POSTER2_BOTTOM_TITLE_MAX_CHARS
+  );
   const agentName = sanitizeAgentName(
     stage1Data.agent_name || stage1Data.channel || '',
     brandName
   );
-  const subtitle = safeText(
-    stage1Data.subtitle || stage1Data.tagline || stage1Data.promo || stage1Data.price,
-    title
+  const subtitle = normalisePoster2BottomText(
+    safeText(
+      bottomContract.subtitle || stage1Data.subtitle || stage1Data.tagline || stage1Data.promo || stage1Data.price,
+      title
+    ),
+    POSTER2_BOTTOM_SUBTITLE_MAX_CHARS
   );
+  const requestedGalleryCount = Math.max(0, Math.min(Number(bottomContract.galleryCount || 0), 4));
+  const autoFillGallery = Boolean(bottomContract.autoFillGallery);
   const featureSource = Array.isArray(stage1Data.features) && stage1Data.features.length
     ? stage1Data.features
     : Array.isArray(stage1Data.bullets)
@@ -4938,7 +5049,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   const galleryEntries = Array.isArray(stage1Data.gallery_entries)
     ? stage1Data.gallery_entries
     : [];
-  for (const entry of galleryEntries.slice(0, 4)) {
+  for (const entry of galleryEntries.slice(0, requestedGalleryCount)) {
     if (!entry?.asset) continue;
     // eslint-disable-next-line no-await-in-loop
     const ref = await normaliseAssetReference(
@@ -4952,6 +5063,12 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       null
     );
     if (ref?.url) galleryRefs.push(ref);
+  }
+  while (autoFillGallery && galleryRefs.length < requestedGalleryCount && productRef?.url) {
+    galleryRefs.push({
+      url: productRef.url,
+      key: productRef.key || null,
+    });
   }
 
   const payload = {
@@ -4982,6 +5099,8 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: ref.url,
       key: ref.key || null,
     })),
+    bottom_mode: bottomContract.bottomMode || 'title_gallery_split',
+    gallery_mode: bottomContract.galleryMode || 'strip_local_visible_only',
     style: {
       prompt: pickPoster2StylePrompt(),
     },
@@ -5846,6 +5965,7 @@ function initStage2() {
     }
 
     initStage2Poster2PilotControls(stage1Data, statusElement);
+    initPoster2BottomContractControls(stage1Data, statusElement);
 
     refreshStage2Wireframe();
 
@@ -6612,15 +6732,46 @@ function updatePoster2DiagnosticsPanel(data) {
     const el = document.getElementById(id);
     if (el) el.textContent = value == null || value === '' ? 'N/A' : String(value);
   };
+  const setJson = (id, value, fallback) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (value == null) {
+      el.textContent = fallback;
+      return;
+    }
+    if (Array.isArray(value) && value.length === 0) {
+      el.textContent = '[]';
+      return;
+    }
+    if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) {
+      el.textContent = '{}';
+      return;
+    }
+    try {
+      el.textContent = JSON.stringify(value, null, 2);
+    } catch (_err) {
+      el.textContent = fallback;
+    }
+  };
 
   setCode('poster2-template-id', data?.template_id || 'N/A');
   setCode('poster2-renderer-mode-requested', data?.renderer_mode || 'N/A');
   setCode('poster2-render-engine-used', data?.render_engine_used || 'N/A');
   setCode('poster2-degraded', typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A');
+  setCode('poster2-structure-complete', typeof data?.structure_complete === 'boolean' ? String(data.structure_complete) : 'N/A');
+  setCode('poster2-incomplete-structure', typeof data?.incomplete_structure === 'boolean' ? String(data.incomplete_structure) : 'N/A');
+  setCode('poster2-deliverable', typeof data?.deliverable === 'boolean' ? String(data.deliverable) : 'N/A');
   setCode('poster2-fallback-reason-code', data?.fallback_reason_code || 'N/A');
   setCode('poster2-foreground-renderer', data?.foreground_renderer || 'N/A');
   setCode('poster2-total-ms', data?.timings_ms?.total_ms ?? 'N/A');
   setCode('poster2-template-contract-version', data?.template_contract_version || 'N/A');
+  setJson('poster2-missing-mandatory-regions', data?.missing_mandatory_regions, '[]');
+  setJson('poster2-missing-required-slots', data?.missing_required_slots, '[]');
+  setJson('poster2-region-render-status', data?.region_render_status, '{}');
+  setJson('poster2-slot-binding-status', data?.slot_binding_status, '{}');
+  setJson('poster2-template-behavior', data?.template_behavior, '{}');
+  setJson('poster2-geometry-evidence', data?.geometry_evidence, '{}');
+  setJson('poster2-bottom-contract-review', data?.bottom_contract_review, '{}');
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
   setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');
@@ -6641,6 +6792,7 @@ function renderPoster2RunHistory() {
       <strong>Run ${history.length - index}</strong>
       <div>requested <code>${entry.requestedRenderer || 'N/A'}</code> -> effective <code>${entry.effectiveRenderer || 'N/A'}</code></div>
       <div>degraded <code>${entry.degraded}</code> fallback <code>${entry.fallbackReason || 'null'}</code></div>
+      <div>incomplete_structure <code>${entry.incompleteStructure}</code> deliverable <code>${entry.deliverable}</code></div>
     `;
     if (entry.finalUrl) {
       const link = document.createElement('a');
@@ -6661,6 +6813,8 @@ function recordPoster2PilotRun(data) {
     requestedRenderer: data?.renderer_mode || null,
     effectiveRenderer: data?.render_engine_used || null,
     degraded: typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A',
+    incompleteStructure: typeof data?.incomplete_structure === 'boolean' ? String(data.incomplete_structure) : 'N/A',
+    deliverable: typeof data?.deliverable === 'boolean' ? String(data.deliverable) : 'N/A',
     fallbackReason: data?.fallback_reason_code || null,
     finalUrl: extractVertexPosterUrl(data),
   });
@@ -7020,7 +7174,13 @@ function formatPosterGenerationError(error) {
 
   if (Array.isArray(rawDetail)) {
     const first = rawDetail.find((entry) => entry?.msg || entry?.message);
-    if (first?.msg) return first.msg;
+    if (first?.msg) {
+      const loc = Array.isArray(first.loc) ? first.loc[first.loc.length - 1] : null;
+      if (loc && first?.type === 'string_too_long' && first?.ctx?.max_length) {
+        return `${loc} exceeds max length ${first.ctx.max_length}`;
+      }
+      return loc ? `${loc}: ${first.msg}` : first.msg;
+    }
     if (first?.message) return first.message;
   }
 
@@ -7393,6 +7553,8 @@ async function triggerGeneration(opts) {
     console.info('[stage2][poster2] request summary', {
       template_id: payload?.template_id,
       renderer_mode: payload?.renderer_mode,
+      bottom_mode: payload?.bottom_mode,
+      gallery_mode: payload?.gallery_mode,
       has_logo: Boolean(payload?.logo),
       has_scenario_image: Boolean(payload?.scenario_image),
       gallery_count: Array.isArray(payload?.gallery_images) ? payload.gallery_images.length : 0,

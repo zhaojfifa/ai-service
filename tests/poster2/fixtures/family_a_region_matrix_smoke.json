@@ -1,0 +1,24 @@
+{
+  "template_id": "template_dual_v2",
+  "expected_family": "family_a_campaign_explainer",
+  "expected_region_order": [
+    "header_region",
+    "scenario_region",
+    "product_region",
+    "feature_region",
+    "bottom_region",
+    "title_band_region",
+    "gallery_strip_region"
+  ],
+  "expected_mandatory_regions": [
+    "header_region",
+    "product_region",
+    "title_band_region"
+  ],
+  "expected_collapsible_regions": [
+    "scenario_region",
+    "feature_region",
+    "bottom_region",
+    "gallery_strip_region"
+  ]
+}

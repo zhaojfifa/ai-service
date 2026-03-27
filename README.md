@@ -8,6 +8,23 @@
 
 前端推荐部署在 GitHub Pages，后端部署在 Render，二者通过 HTTP API 协作完成整个流程。
 
+## Frontend Publish Rule
+
+- `frontend/` 是静态页面源文件
+- `docs/` 是 GitHub Pages 发布镜像
+- 每次发布前都必须同步以下文件到 `docs/`
+  - `stage2.html`
+  - `app.js`
+  - `styles.css`
+
+推荐在发布前执行：
+
+```bash
+bash scripts/check_frontend_docs_sync.sh
+bash scripts/sync_frontend_to_docs.sh
+bash scripts/check_frontend_docs_sync.sh
+```
+
 ## 项目结构
 
 ```

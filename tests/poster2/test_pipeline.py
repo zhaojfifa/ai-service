@@ -34,7 +34,9 @@ from app.services.poster2.contracts import (
     TemplateSpec,
 )
 from app.services.poster2.pipeline import PosterPipeline
-from app.services.poster2.renderer import LayoutRenderer
+from app.services.poster2.quality_guard import QualityGuardError
+from app.services.poster2.renderer import ForegroundResult, LayoutRenderer
+from app.services.poster2.renderer_routing import RendererRoutingError
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -103,6 +105,115 @@ def _mock_r2_put(url: str = "https://r2.example.com/final.png"):
     return MagicMock(return_value=url)
 
 
+class _FakeDegradedRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="c" * 64,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            template_contract_version=spec.contract_version,
+            degraded=True,
+            degraded_reason="puppeteer_timeout",
+            fallback_reason_code="puppeteer_timeout",
+            fallback_reason_detail="puppeteer timed out",
+            fallback_stage="navigation",
+            layer_render_status={
+                "title_layer": {"count": 1},
+                "bottom_gallery_items_layer": {"count": 0},
+                "brand_logo_layer": {"rendered": False, "count": 0},
+                "brand_text_layer": {"rendered": True, "count": 1},
+                "agent_name_text_layer": {"rendered": True, "count": 1},
+                "scenario_image_layer": {"rendered": False, "count": 0},
+                "product_image_layer": {"rendered": True, "count": 1},
+                "feature_callout_layer": {"rendered": True, "count": 2},
+            },
+            region_render_status={
+                "header_region": {"rendered": True, "count": 2},
+                "scenario_region": {"rendered": False, "count": 0},
+                "product_region": {"rendered": True, "count": 1},
+                "feature_region": {"rendered": True, "count": 2},
+                "bottom_region": {"rendered": True, "count": 1},
+            },
+        )
+
+
+class _FakeDegradedIncompleteRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="e" * 64,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            template_contract_version=spec.contract_version,
+            degraded=True,
+            degraded_reason="puppeteer_timeout",
+            fallback_reason_code="puppeteer_timeout",
+            fallback_reason_detail="puppeteer timed out",
+            fallback_stage="navigation",
+            layer_render_status={
+                "title_layer": {"count": 0},
+                "bottom_gallery_items_layer": {"count": 0},
+            },
+            region_render_status={
+                "header_region": {"rendered": True, "count": 2},
+                "scenario_region": {"rendered": False, "count": 0},
+                "product_region": {"rendered": True, "count": 1},
+                "feature_region": {"rendered": True, "count": 2},
+                "bottom_region": {"rendered": False, "count": 0},
+            },
+        )
+
+
+class _FakeIncompleteRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="d" * 64,
+            render_engine_used="puppeteer",
+            foreground_renderer="poster2.puppeteer_structured",
+            template_contract_version=spec.contract_version,
+            layer_render_status={
+                "title_layer": {"count": 0},
+                "bottom_gallery_items_layer": {"count": 0},
+            },
+            region_render_status={
+                "header_region": {"rendered": True, "count": 2},
+                "scenario_region": {"rendered": False, "count": 0},
+                "product_region": {"rendered": True, "count": 1},
+                "feature_region": {"rendered": True, "count": 2},
+                "bottom_region": {"rendered": False, "count": 0},
+            },
+        )
+
+
+class _AsyncPillowRenderer:
+    def __init__(self):
+        self._renderer = LayoutRenderer()
+
+    async def render(self, spec, poster, assets):
+        return self._renderer.render(spec, poster, assets)
+
+
+class _FakeInferredRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="f" * 64,
+            render_engine_used="pillow",
+            foreground_renderer="poster2.pillow_layout",
+            template_contract_version=spec.contract_version,
+        )
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestPosterPipelineRun:
@@ -129,7 +240,7 @@ class TestPosterPipelineRun:
 
         pipeline = PosterPipeline(
             background_svc=_mock_bg_service(),
-            renderer=LayoutRenderer(),
+            renderer=_AsyncPillowRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
             put_bytes_fn=fake_put_bytes,
@@ -154,7 +265,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.2"
+        assert manifest.template_version == "2.1.3"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"
@@ -216,6 +327,24 @@ class TestPosterPipelineRun:
         assert manifest.degraded_reason is None
         assert manifest.fallback_reason_code is None
         assert manifest.fallback_reason_detail is None
+        assert manifest.structure_complete is True
+        assert manifest.incomplete_structure is False
+        assert manifest.deliverable is True
+        assert manifest.structure_evidence_source == "renderer_derived"
+        assert manifest.structure_evidence_complete is True
+
+    def test_preflight_failure_rejects_invalid_input_before_rendering(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        with pytest.raises(QualityGuardError) as excinfo:
+            asyncio.run(pipeline.run(_make_spec(title=""), template))
+        assert excinfo.value.reason_code == "missing_required_input"
 
     def test_resolved_inputs_in_manifest(self):
         manifest = self._run(_make_spec())
@@ -241,7 +370,7 @@ class TestPosterPipelineRun:
         )
         pipeline = PosterPipeline(
             background_svc=bg_service,
-            renderer=LayoutRenderer(),
+            renderer=_AsyncPillowRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
             put_bytes_fn=fake_put_bytes,
@@ -289,7 +418,7 @@ class TestPosterPipelineRun:
         )
         pipeline = PosterPipeline(
             background_svc=_mock_bg_service(),
-            renderer=LayoutRenderer(),
+            renderer=_AsyncPillowRenderer(),
             composer=Composer(),
             asset_loader=_mock_loader(assets),
             put_bytes_fn=fake_put_bytes,
@@ -300,24 +429,475 @@ class TestPosterPipelineRun:
         assert manifest.debug_artifacts.renderer_metadata_url == "https://r2.example.com/renderer-metadata.json"
         metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert metadata["template_behavior"]["behavior_modes"]["hero_mode"] == "scenario_cover_product_contain"
+        assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "count_driven_callout_stack"
+        assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
+        assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
+        assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
+        assert metadata["template_behavior"]["hero_policy"]["product_fit"] == "contain"
+        assert metadata["template_behavior"]["feature_policy"]["visible_item_count"] == 2
+        assert metadata["template_behavior"]["feature_policy"]["connector_policy"] == "balanced_pair"
+        assert metadata["template_behavior"]["bottom_policy"]["title_band_rendered"] is True
+        assert metadata["template_behavior"]["bottom_policy"]["gallery_strip_rendered"] is False
+        assert metadata["template_behavior"]["template_layout_policy"]["layout_density_mode"] == "balanced"
+        assert metadata["template_behavior"]["beauty_tokens"]["shell_surface"] == "glass_light"
         layer_status = metadata["layer_render_status"]
         assert layer_status["brand_logo_layer"]["rendered"] is False
         assert layer_status["brand_logo_layer"]["reason_code"] == "logo_missing"
-        assert layer_status["scenario_image_layer"]["rendered"] is True
-        assert layer_status["scenario_image_layer"]["reason_code"] == "safe_preset_fill"
-        assert layer_status["scenario_image_layer"]["source_binding"] == "safe_preset_image"
+        assert layer_status["scenario_image_layer"]["rendered"] is False
+        assert layer_status["scenario_image_layer"]["reason_code"] == "scenario_missing"
+        assert layer_status["scenario_image_layer"]["source_binding"] is None
         assert layer_status["bottom_gallery_items_layer"]["rendered"] is False
         assert layer_status["bottom_gallery_items_layer"]["reason_code"] == "gallery_empty"
         assert layer_status["bottom_gallery_items_layer"]["count"] == 0
+        assert layer_status["bottom_gallery_items_layer"]["count_visible"] == 0
         assert layer_status["bottom_gallery_items_layer"]["collapsed"] is True
         assert layer_status["bottom_tagline_layer"]["reason_code"] == "operator_tagline_unbound"
         region_status = metadata["region_render_status"]
         assert region_status["header_region"]["rendered"] is True
         assert region_status["header_region"]["count"] == 2
-        assert region_status["scenario_region"]["rendered"] is True
-        assert region_status["scenario_region"]["count"] == 1
+        assert region_status["scenario_region"]["rendered"] is False
+        assert region_status["scenario_region"]["count"] == 0
         assert region_status["product_region"]["rendered"] is True
         assert region_status["product_region"]["count"] == 1
         assert region_status["feature_region"]["rendered"] is True
         assert region_status["feature_region"]["count"] == 2
-        assert region_status["bottom_region"]["collapsed"] is True
+        assert region_status["title_band_region"]["rendered"] is True
+        assert region_status["gallery_strip_region"]["rendered"] is False
+        assert region_status["bottom_region"]["collapsed"] is False
+        completeness = metadata["region_completeness_status"]
+        assert completeness["family_minimum_region_complete"] is True
+        assert completeness["missing_mandatory_regions"] == []
+        assert "header_region" in completeness["rendered_regions"]
+        assert "gallery_strip_region" in completeness["collapsed_regions"]
+        assert metadata["structure_complete"] is True
+        assert metadata["incomplete_structure"] is False
+        assert metadata["deliverable"] is True
+        assert metadata["structure_evidence_source"] == "renderer_derived"
+        assert metadata["structure_evidence_complete"] is True
+        assert metadata["missing_required_slots"] == []
+        assert metadata["missing_mandatory_regions"] == []
+        geometry = metadata["geometry_evidence"]
+        assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
+        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 144}
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 826, "w": 720, "h": 28}
+        assert geometry["visible_item_count"]["header_region"] == 2
+        assert geometry["visible_item_count"]["title_band_region"] == 2
+        assert geometry["visible_item_count"]["product_region"] == 1
+        bottom_review = metadata["bottom_contract_review"]
+        assert bottom_review["bottom_mode"] == "title_gallery_split"
+        assert bottom_review["gallery_mode"] == "strip_local_visible_only"
+        assert bottom_review["subtitle_slot"]["rendered"] is True
+        assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is False
+        assert bottom_review["behavior_policy"]["title_band_sizing_mode"] == "standard"
+        assert bottom_review["behavior_policy"]["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
+        assert bottom_review["behavior_policy"]["content_priority_policy"] == "balanced_text_and_gallery_priority"
+        assert bottom_review["behavior_policy"]["layout_metrics"]["title_band_height"] == 144
+
+    def test_renderer_metadata_keeps_gallery_visibility_geometry(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255))],
+            gallery_status=[
+                {"index": 0, "url": "mock://gallery-0", "resolved": True, "error_code": None},
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(gallery_images=(AssetRef(url="mock://gallery-0"),)),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        gallery_status = metadata["gallery_items_status"]
+        assert gallery_status
+        assert gallery_status[0]["visible_in_strip"] is True
+        assert gallery_status[0]["local_bounds"]["x"] == 272
+        assert gallery_status[0]["local_bounds"]["y"] == 0
+        geometry = metadata["geometry_evidence"]
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 350, "y": 888, "w": 324, "h": 88}
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 368, "y": 898, "w": 288, "h": 68}
+        assert geometry["visible_item_count"]["gallery_strip_region"] == 1
+
+    def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255))],
+            gallery_status=[
+                {"index": 0, "url": "mock://gallery-0", "resolved": True, "error_code": None},
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    gallery_images=(AssetRef(url="mock://gallery-0"),),
+                    bottom_mode="gallery_only",
+                    gallery_mode="supporting_packshots",
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "gallery_only"
+        assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "supporting_packshots"
+        assert metadata["bottom_contract_review"]["title_band_region"]["rendered"] is False
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
+        assert metadata["bottom_contract_review"]["subtitle_slot"]["reason_code"] == "suppressed_by_bottom_mode"
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
+        assert metadata["bottom_contract_review"]["behavior_policy"]["title_band_growth_policy"] == "title_band_collapsed_without_title"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["content_priority_policy"] == "gallery_priority_without_title_band"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["peer_balance_policy"] == "gallery_strip_only"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_peer_balance_policy"] == "gallery_only_bottom_rebalance"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_shell_frame_policy"] == "single_showcase_frame"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "single_gallery_centered_shift"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_aspect_policy"] == "single_packshot_aspect"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_text_emphasis_policy"] == "gallery_only_neutral_text"
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
+            "x": 296,
+            "y": 10,
+            "w": 240,
+            "h": 64,
+        }
+
+    def test_renderer_metadata_exposes_dense_bottom_behavior_policy(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(4)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(4)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来验证 subtitle overflow、title band sizing 和 gallery peer balance 会不会进入 resolver 策略。",
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        behavior = metadata["bottom_contract_review"]["behavior_policy"]
+        geometry = metadata["geometry_evidence"]
+        assert behavior["title_band_sizing_mode"] == "standard"
+        assert behavior["title_band_growth_policy"] == "hold_growth_under_dense_quad_pressure"
+        assert behavior["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
+        assert behavior["content_priority_policy"] == "gallery_count_priority_with_text_compaction"
+        assert behavior["peer_balance_policy"] == "gallery_priority_under_dense_quad"
+        assert behavior["bottom_peer_balance_policy"] == "quad_gallery_priority_over_copy_growth"
+        assert behavior["gallery_distribution_policy"] == "dense_quad"
+        assert behavior["gallery_shell_frame_policy"] == "quad_strip_frame"
+        assert behavior["gallery_strip_shift_policy"] == "tight_quad_shift"
+        assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
+        assert behavior["bottom_text_emphasis_policy"] == "compact_quad_text_emphasis"
+        assert behavior["subtitle_line_clamp"] == 1
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
+
+    def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(2)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(2)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来验证 subtitle overflow、title band sizing 和 gallery peer balance 会不会进入 resolver 策略。",
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(2)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        behavior = metadata["bottom_contract_review"]["behavior_policy"]
+        assert behavior["title_band_sizing_mode"] == "expanded"
+        assert behavior["title_band_growth_policy"] == "grow_title_band_for_support_copy_priority"
+        assert behavior["content_priority_policy"] == "title_and_subtitle_priority_over_gallery_density"
+        assert behavior["peer_balance_policy"] == "title_growth_allowed_with_light_gallery"
+        assert behavior["bottom_peer_balance_policy"] == "copy_priority_with_spacious_gallery"
+        assert behavior["gallery_distribution_policy"] == "balanced_pair"
+        assert behavior["gallery_shell_frame_policy"] == "pair_showcase_frame"
+        assert behavior["gallery_strip_shift_policy"] == "downshift_for_spacious_pair"
+        assert behavior["gallery_aspect_policy"] == "spacious_pair_aspect"
+        assert behavior["bottom_text_emphasis_policy"] == "copy_priority_strong_title"
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 226, "y": 902, "w": 572, "h": 88}
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
+            "x": 146,
+            "y": 10,
+            "w": 260,
+            "h": 68,
+        }
+
+    def test_renderer_metadata_exposes_triplet_gallery_balancing_policy(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(3)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(3)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来明确触发 triplet gallery 的 mixed-content 行为。",
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(3)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        behavior = metadata["bottom_contract_review"]["behavior_policy"]
+        assert behavior["title_band_growth_policy"] == "temper_growth_for_triplet_gallery_balance"
+        assert behavior["bottom_peer_balance_policy"] == "triplet_gallery_and_copy_co_balance"
+        assert behavior["gallery_distribution_policy"] == "balanced_triplet"
+        assert behavior["gallery_shell_frame_policy"] == "triplet_balanced_frame"
+        assert behavior["gallery_strip_shift_policy"] == "balanced_triplet_shift"
+        assert behavior["gallery_aspect_policy"] == "balanced_triplet_aspect"
+        assert behavior["gallery_spacing_policy"] == "balanced_triplet_spacing"
+        assert behavior["bottom_text_emphasis_policy"] == "balanced_triplet_text_emphasis"
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 156, "y": 892, "w": 712, "h": 80}
+        assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
+            "x": 74,
+            "y": 10,
+            "w": 220,
+            "h": 60,
+        }
+
+    def test_renderer_metadata_exposes_template_level_layout_policy_when_feature_and_bottom_are_both_dense(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(4)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(4)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来验证 template-level priority 和 rebalance 是否已经从 bottom SOP 上升出来。",
+                    features=("特性A", "特性B", "特性C", "特性D"),
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        template_layout = metadata["template_behavior"]["template_layout_policy"]
+        layout_review = metadata["template_layout_review"]
+        feature_policy = metadata["template_behavior"]["feature_policy"]
+
+        assert template_layout["layout_density_mode"] == "multi_region_dense"
+        assert template_layout["region_priority_policy"] == "bottom_and_feature_dual_density"
+        assert template_layout["peer_rebalance_policy"] == "feature_compacts_before_template_reflow"
+        assert layout_review["feature_region_response"]["start_strategy"] == "top_weighted_compact_region"
+        assert feature_policy["box_h"] == 56
+        assert feature_policy["gap"] == 10
+
+    def test_renderer_metadata_includes_explicit_fallback_fields(self):
+        template = _load_template()
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            if key.endswith(".json"):
+                return "https://r2.example.com/renderer-metadata.json"
+            if "product-material" in key:
+                return "https://r2.example.com/product-material.png"
+            if "/fg/" in key:
+                return "https://r2.example.com/fg.png"
+            return "https://r2.example.com/final.png"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            scenario=None,
+            gallery=[],
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeDegradedRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert manifest.degraded is True
+        assert manifest.fallback_reason_code == "puppeteer_timeout"
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        assert metadata["requested_renderer_mode"] == "auto"
+        assert metadata["render_engine_used"] == "pillow"
+        assert metadata["effective_renderer_mode"] == "pillow"
+        assert metadata["degraded"] is True
+        assert metadata["fallback_reason_code"] == "puppeteer_timeout"
+        assert metadata["deliverable"] is True
+        assert metadata["structure_evidence_source"] == "renderer_derived"
+        assert metadata["structure_evidence_complete"] is True
+
+    def test_fallback_result_requires_structure_recheck(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeDegradedIncompleteRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+
+        with pytest.raises(RendererRoutingError) as excinfo:
+            asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert excinfo.value.reason_code == "fallback_incomplete_structure"
+
+    def test_incomplete_structure_is_not_deliverable_even_when_image_exists(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeIncompleteRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+        assert manifest.final_url == "https://r2.example.com/final.png"
+        assert manifest.structure_complete is False
+        assert manifest.incomplete_structure is True
+        assert manifest.deliverable is False
+        assert "title_band_region" in manifest.missing_mandatory_regions
+
+    def test_inferred_only_structure_path_does_not_overclaim_deliverable(self):
+        template = _load_template()
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeInferredRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(_make_assets()),
+            put_bytes_fn=_mock_r2_put(),
+        )
+
+        manifest = asyncio.run(pipeline.run(_make_spec(), template))
+
+        assert manifest.structure_evidence_source == "pipeline_inferred"
+        assert manifest.structure_evidence_complete is False
+        assert manifest.structure_complete is False
+        assert manifest.incomplete_structure is True
+        assert manifest.deliverable is False

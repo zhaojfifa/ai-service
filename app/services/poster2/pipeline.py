@@ -29,7 +29,11 @@ from .background import (
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
+from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
+from .renderer_routing import assert_quality_guard_deliverable
+from .template_behavior import resolve_template_behavior
+from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
 
@@ -46,7 +50,9 @@ def load_template(template_id: str) -> TemplateSpec:
             f"TemplateSpec not found: {path}. "
             f"Available specs: {[p.stem for p in _SPECS_DIR.glob('*.json')]}"
         )
-    return TemplateSpec.from_json(path)
+    template = TemplateSpec.from_json(path)
+    validate_template_registration(template)
+    return template
 
 
 class PosterPipeline:
@@ -92,6 +98,18 @@ class PosterPipeline:
 
         if template is None:
             template = load_template(spec.template_id)
+        else:
+            validate_template_registration(template)
+        resolved_behavior = resolve_template_behavior(
+            template,
+            feature_count=len([item for item in spec.features if item and item.strip()]),
+            title_text=spec.title,
+            subtitle_text=spec.subtitle,
+            gallery_requested_count=len(spec.gallery_images),
+            bottom_mode=spec.bottom_mode,
+            gallery_mode=spec.gallery_mode,
+        )
+        run_preflight_guard(template, spec)
 
         spec_hash = _hash_spec(spec)
 
@@ -131,6 +149,16 @@ class PosterPipeline:
             )
         timings["load_and_bg_ms"] = _elapsed(t0)
         timings["background_layer_ms"] = timings["load_and_bg_ms"]
+        resolved_behavior = resolve_template_behavior(
+            template,
+            feature_count=len([item for item in spec.features if item and item.strip()]),
+            title_text=spec.title,
+            subtitle_text=spec.subtitle,
+            gallery_requested_count=len(spec.gallery_images),
+            gallery_resolved_count=min(len(assets.gallery), template.gallery_slot.count),
+            bottom_mode=spec.bottom_mode,
+            gallery_mode=spec.gallery_mode,
+        )
         logger.info(
             "poster2: trace=%s bg=%.1fs assets=loaded",
             trace_id, timings["background_layer_ms"] / 1000,
@@ -150,6 +178,47 @@ class PosterPipeline:
             "poster2: trace=%s fg_hash=%s engine=%s renderer=%.0fms",
             trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
         )
+
+        layer_render_status = fg_result.layer_render_status or _build_layer_render_status(
+            template=template,
+            spec=spec,
+            assets=assets,
+            bg_result=bg_result,
+            behavior=resolved_behavior,
+        )
+        inferred_layer_render_status = _build_layer_render_status(
+            template=template,
+            spec=spec,
+            assets=assets,
+            bg_result=bg_result,
+            behavior=resolved_behavior,
+        )
+        inferred_region_render_status = _build_region_render_status(inferred_layer_render_status)
+        structure_evidence_complete = bool(fg_result.layer_render_status) and bool(fg_result.region_render_status)
+        structure_evidence_source = (
+            "renderer_derived" if structure_evidence_complete else "pipeline_inferred"
+        )
+        layer_render_status = _merge_status_maps(inferred_layer_render_status, fg_result.layer_render_status)
+        region_render_status = _merge_status_maps(inferred_region_render_status, fg_result.region_render_status)
+        quality_guard_report = evaluate_deliverability(
+            template=template,
+            spec=spec,
+            assets=assets,
+            layer_render_status=(
+                fg_result.layer_render_status if structure_evidence_complete else inferred_layer_render_status
+            ),
+            region_render_status=(
+                fg_result.region_render_status if structure_evidence_complete else inferred_region_render_status
+            ),
+            structure_evidence_source=structure_evidence_source,
+            structure_evidence_complete=structure_evidence_complete,
+        )
+        if fg_result.degraded:
+            assert_quality_guard_deliverable(
+                deliverable=quality_guard_report.deliverable,
+                missing_required_slots=quality_guard_report.missing_required_slots,
+                missing_mandatory_regions=quality_guard_report.missing_mandatory_regions,
+            )
 
         # ── Phase 3: load background bytes and compose ───────────────────────
         t2 = _now()
@@ -194,18 +263,12 @@ class PosterPipeline:
         if not final_url:
             raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
 
-        layer_render_status = fg_result.layer_render_status or _build_layer_render_status(
-            template=template,
-            spec=spec,
-            assets=assets,
-            bg_result=bg_result,
-        )
-        region_render_status = fg_result.region_render_status or _build_region_render_status(layer_render_status)
         renderer_metadata_payload = {
             "trace_id": trace_id,
             "template_id": template.template_id,
             "template_version": template.version,
             "template_contract_version": fg_result.template_contract_version,
+            "template_behavior": resolved_behavior.as_dict(),
             "requested_renderer_mode": spec.renderer_mode,
             "effective_renderer_mode": fg_result.render_engine_used,
             "render_engine_used": fg_result.render_engine_used,
@@ -224,7 +287,42 @@ class PosterPipeline:
             "degraded_reason": fg_result.degraded_reason,
             "timings_ms": timings,
             "layer_render_status": layer_render_status,
-            "region_render_status": region_render_status,
+            "region_render_status": quality_guard_report.region_render_status,
+            "region_completeness_status": quality_guard_report.region_completeness_status,
+            "slot_binding_status": quality_guard_report.slot_binding_status,
+            "structure_complete": quality_guard_report.structure_complete,
+            "incomplete_structure": quality_guard_report.incomplete_structure,
+            "deliverable": quality_guard_report.deliverable,
+            "structure_evidence_source": quality_guard_report.structure_evidence_source,
+            "structure_evidence_complete": quality_guard_report.structure_evidence_complete,
+            "missing_mandatory_regions": quality_guard_report.missing_mandatory_regions,
+            "missing_required_slots": quality_guard_report.missing_required_slots,
+            "geometry_evidence": _build_geometry_evidence(
+                template,
+                resolved_behavior=resolved_behavior,
+                layer_render_status=layer_render_status,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
+            "template_layout_review": {
+                "template_layout_policy": resolved_behavior.template_layout_policy.as_dict(),
+                "feature_region_response": {
+                    "visible_item_count": resolved_behavior.feature_policy.visible_item_count,
+                    "box_h": resolved_behavior.feature_policy.box_h,
+                    "gap": resolved_behavior.feature_policy.gap,
+                    "start_strategy": resolved_behavior.feature_policy.start_strategy,
+                },
+                "bottom_region_response": {
+                    "content_priority_policy": resolved_behavior.bottom_policy.content_priority_policy,
+                    "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
+                    "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
+                    "visible_item_count": resolved_behavior.bottom_policy.visible_item_count,
+                },
+            },
+            "bottom_contract_review": _build_bottom_contract_review(
+                template,
+                resolved_behavior=resolved_behavior,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -283,6 +381,18 @@ class PosterPipeline:
             fallback_reason_detail=fg_result.fallback_reason_detail,
             degraded=fg_result.degraded,
             degraded_reason=fg_result.degraded_reason,
+            structure_complete=quality_guard_report.structure_complete,
+            incomplete_structure=quality_guard_report.incomplete_structure,
+            deliverable=quality_guard_report.deliverable,
+            structure_evidence_source=quality_guard_report.structure_evidence_source,
+            structure_evidence_complete=quality_guard_report.structure_evidence_complete,
+            missing_mandatory_regions=quality_guard_report.missing_mandatory_regions,
+            missing_required_slots=quality_guard_report.missing_required_slots,
+            region_render_status=quality_guard_report.region_render_status,
+            slot_binding_status=quality_guard_report.slot_binding_status,
+            template_behavior=resolved_behavior.as_dict(),
+            geometry_evidence=renderer_metadata_payload["geometry_evidence"],
+            bottom_contract_review=renderer_metadata_payload["bottom_contract_review"],
         )
 
 
@@ -320,11 +430,12 @@ def _build_layer_render_status(
     spec: PosterSpec,
     assets,
     bg_result: BackgroundResult,
+    behavior,
 ) -> dict[str, dict[str, object]]:
     gallery_requested = min(len(spec.gallery_images), 4)
     gallery_valid = min(len(assets.gallery), 4)
-    gallery_rendered = gallery_valid > 0
-    feature_count = min(len(spec.features), len(template.feature_callouts))
+    gallery_rendered = behavior.bottom_policy.gallery_strip_rendered and gallery_valid > 0
+    feature_count = min(len([item for item in spec.features if item and item.strip()]), len(template.feature_callouts))
     layer_status = {
         "background_base_layer": {
             "rendered": True,
@@ -352,7 +463,7 @@ def _build_layer_render_status(
             "count": 1 if spec.brand_name else 0,
             "collapsed": not bool(spec.brand_name),
         },
-        "agent_pill_layer": {
+        "agent_name_text_layer": {
             "rendered": bool(spec.agent_name),
             "reason_code": None if spec.agent_name else "agent_name_empty",
             "source_binding": "agent_name",
@@ -391,33 +502,48 @@ def _build_layer_render_status(
             "collapsed": feature_count == 0,
         },
         "title_layer": {
-            "rendered": bool(spec.title),
-            "reason_code": None if spec.title else "title_empty",
+            "rendered": behavior.bottom_policy.title_slot_rendered,
+            "reason_code": None if behavior.bottom_policy.title_slot_rendered else ("title_empty" if not spec.title else "suppressed_by_bottom_mode"),
             "source_binding": "title",
-            "count": 1 if spec.title else 0,
+            "count": 1 if behavior.bottom_policy.title_slot_rendered else 0,
         },
         "subtitle_layer": {
-            "rendered": bool(spec.subtitle),
-            "reason_code": None if spec.subtitle else "subtitle_empty",
+            "rendered": behavior.bottom_policy.subtitle_slot_rendered,
+            "reason_code": behavior.bottom_policy.subtitle_slot_state["reason_code"],
             "source_binding": "subtitle",
-            "count": 1 if spec.subtitle else 0,
+            "count": 1 if behavior.bottom_policy.subtitle_slot_rendered else 0,
+        },
+        "title_band_region_shell_layer": {
+            "rendered": behavior.bottom_policy.title_band_rendered,
+            "reason_code": None if behavior.bottom_policy.title_band_rendered else "title_band_collapsed",
+            "source_binding": "bottom_mode",
+            "count": 1 if behavior.bottom_policy.title_band_rendered else 0,
+            "collapsed": not behavior.bottom_policy.title_band_rendered,
         },
         "bottom_gallery_shell_layer": {
-            "rendered": gallery_rendered,
-            "reason_code": None if gallery_rendered else "gallery_hidden",
+            "rendered": behavior.bottom_policy.gallery_strip_rendered,
+            "reason_code": None if behavior.bottom_policy.gallery_strip_rendered else ("gallery_hidden_by_bottom_mode" if gallery_requested > 0 else "gallery_hidden"),
             "source_binding": "gallery_images",
-            "count": gallery_valid,
+            "count": 1 if behavior.bottom_policy.gallery_strip_rendered else 0,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
-            "collapsed": not gallery_rendered,
+            "collapsed": not behavior.bottom_policy.gallery_strip_rendered,
+        },
+        "gallery_strip_region_shell_layer": {
+            "rendered": behavior.bottom_policy.gallery_strip_rendered,
+            "reason_code": None if behavior.bottom_policy.gallery_strip_rendered else ("gallery_hidden_by_bottom_mode" if gallery_requested > 0 else "gallery_empty"),
+            "source_binding": "gallery_mode",
+            "count": 1 if behavior.bottom_policy.gallery_strip_rendered else 0,
+            "collapsed": not behavior.bottom_policy.gallery_strip_rendered,
         },
         "bottom_gallery_items_layer": {
             "rendered": gallery_rendered,
-            "reason_code": None if gallery_rendered else "gallery_empty",
+            "reason_code": None if gallery_rendered else ("gallery_hidden_by_bottom_mode" if gallery_requested > 0 else "gallery_empty"),
             "source_binding": "gallery_images",
-            "count": gallery_valid,
+            "count": behavior.bottom_policy.visible_item_count,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
+            "count_visible": behavior.bottom_policy.visible_item_count,
             "collapsed": not gallery_rendered,
         },
         "bottom_tagline_layer": {
@@ -435,12 +561,17 @@ def _build_region_render_status(
 ) -> dict[str, dict[str, object]]:
     header_count = sum(
         int(layer_status[layer_name]["count"])
-        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_pill_layer")
+        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
     )
     scenario_count = int(layer_status["scenario_image_layer"]["count"])
     product_count = int(layer_status["product_image_layer"]["count"])
     feature_count = int(layer_status["feature_callout_layer"]["count"])
-    bottom_count = int(layer_status["bottom_gallery_items_layer"]["count"])
+    title_count = int(layer_status["title_layer"]["count"])
+    subtitle_count = int(layer_status["subtitle_layer"]["count"])
+    gallery_count = int(layer_status["bottom_gallery_items_layer"]["count"])
+    title_band_region_rendered = int(layer_status["title_band_region_shell_layer"]["count"]) > 0
+    gallery_strip_region_rendered = int(layer_status["gallery_strip_region_shell_layer"]["count"]) > 0
+    bottom_count = title_count + subtitle_count + gallery_count
     return {
         "header_region": {
             "rendered": header_count > 0,
@@ -462,9 +593,215 @@ def _build_region_render_status(
             "count": feature_count,
             "collapsed": feature_count == 0,
         },
+        "title_band_region": {
+            "rendered": title_band_region_rendered,
+            "count": title_count + subtitle_count,
+            "collapsed": not title_band_region_rendered,
+        },
+        "gallery_strip_region": {
+            "rendered": gallery_strip_region_rendered,
+            "count": gallery_count,
+            "collapsed": not gallery_strip_region_rendered,
+        },
         "bottom_region": {
             "rendered": bottom_count > 0,
             "count": bottom_count,
             "collapsed": bottom_count == 0,
         },
+    }
+
+
+def _merge_status_maps(
+    inferred: dict[str, dict[str, object]],
+    emitted: Optional[dict[str, dict[str, object]]],
+) -> dict[str, dict[str, object]]:
+    if not emitted:
+        return inferred
+    merged = {key: dict(value) for key, value in inferred.items()}
+    for key, value in emitted.items():
+        merged[key] = dict(value)
+    return merged
+
+
+def _build_geometry_evidence(
+    template: TemplateSpec,
+    *,
+    resolved_behavior,
+    layer_render_status: dict[str, dict[str, object]],
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "region_bounds": {
+            "header_region": _header_region_bounds(template),
+            "bottom_region": _bottom_region_bounds(template, resolved_behavior),
+            "title_band_region": _title_band_region_bounds(template, resolved_behavior),
+            "product_region": _slot_bounds(template.product_slot),
+            "gallery_strip_region": _gallery_strip_region_bounds(template, resolved_behavior),
+        },
+        "slot_bounds": {
+            "brand_logo_slot": _slot_bounds(template.logo_slot),
+            "brand_name_slot": _text_slot_bounds(template.brand_name_slot),
+            "agent_name_slot": _text_slot_bounds(template.agent_name_slot),
+            "title_slot": _title_slot_bounds(template, resolved_behavior),
+            "subtitle_slot": _subtitle_slot_bounds(template, resolved_behavior),
+            "product_slot": _slot_bounds(template.product_slot),
+            "gallery_slot": _gallery_item_slot_bounds(template, resolved_behavior),
+        },
+        "visible_item_count": {
+            "header_region": int(region_render_status.get("header_region", {}).get("count", 0)),
+            "title_band_region": int(region_render_status.get("title_band_region", {}).get("count", 0)),
+            "product_region": int(region_render_status.get("product_region", {}).get("count", 0)),
+            "gallery_strip_region": int(
+                layer_render_status.get("bottom_gallery_items_layer", {}).get("count_visible", 0)
+            ),
+            "bottom_region": int(region_render_status.get("bottom_region", {}).get("count", 0)),
+        },
+    }
+
+
+def _slot_bounds(slot) -> dict[str, int]:
+    return {"x": int(slot.x), "y": int(slot.y), "w": int(slot.w), "h": int(slot.h)}
+
+
+def _text_slot_bounds(slot) -> dict[str, int]:
+    return {"x": int(slot.x), "y": int(slot.y), "w": int(slot.w), "h": int(slot.h)}
+
+
+def _header_region_bounds(template: TemplateSpec) -> dict[str, int]:
+    left = min(template.logo_slot.x, template.brand_name_slot.x, template.agent_name_slot.x) - 32
+    top = min(template.logo_slot.y, template.brand_name_slot.y, template.agent_name_slot.y) - 18
+    right = max(
+        template.logo_slot.x + template.logo_slot.w,
+        template.brand_name_slot.x + template.brand_name_slot.w,
+        template.agent_name_slot.x + template.agent_name_slot.w,
+    ) + 40
+    bottom = max(
+        template.logo_slot.y + template.logo_slot.h,
+        template.brand_name_slot.y + template.brand_name_slot.h,
+        template.agent_name_slot.y + template.agent_name_slot.h,
+    ) + 22
+    return {"x": left, "y": top, "w": right - left, "h": bottom - top}
+
+
+def _bottom_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": 96,
+        "y": int(layout["bottom_shell_top"]),
+        "w": 832,
+        "h": int(layout["bottom_shell_height"]),
+    }
+
+
+def _title_band_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": 112,
+        "y": int(layout["title_band_top"]),
+        "w": 800,
+        "h": int(layout["title_band_height"]),
+    }
+
+
+def _gallery_strip_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": int(layout.get("gallery_shell_x", template.gallery_slot.x)),
+        "y": int(layout["gallery_shell_top"]),
+        "w": int(layout.get("gallery_shell_w", template.gallery_slot.w)),
+        "h": int(layout["gallery_shell_height"]),
+    }
+
+
+def _gallery_item_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    gallery_layouts = list(resolved_behavior.bottom_policy.layout_metrics.get("gallery_item_layouts", []))
+    if gallery_layouts:
+        first = gallery_layouts[0]
+        return {
+            "x": int(first["x"]),
+            "y": int(first["y"]),
+            "w": int(first["w"]),
+            "h": int(first["h"]),
+        }
+    return {
+        "x": int(template.gallery_slot.x),
+        "y": int(template.gallery_slot.y),
+        "w": int(template.gallery_slot.thumb_w),
+        "h": int(template.gallery_slot.h),
+    }
+
+
+def _title_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": int(template.title_slot.x),
+        "y": int(layout["title_slot_y"]),
+        "w": int(template.title_slot.w),
+        "h": int(layout["title_slot_height"]),
+    }
+
+
+def _subtitle_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    layout = resolved_behavior.bottom_policy.layout_metrics
+    return {
+        "x": int(template.subtitle_slot.x),
+        "y": int(layout["subtitle_slot_y"]),
+        "w": int(template.subtitle_slot.w),
+        "h": int(layout["subtitle_slot_height"]),
+    }
+
+
+def _build_bottom_contract_review(
+    template: TemplateSpec,
+    *,
+    resolved_behavior,
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    gallery_slots = {
+        slot_state["slot_id"]: {
+            "rendered": slot_state["rendered"],
+            "state": slot_state["state"],
+            "reason_code": slot_state["reason_code"],
+            "distribution_policy": slot_state.get("distribution_policy"),
+            "bounds": slot_state.get("bounds"),
+            "local_bounds": slot_state.get("local_bounds"),
+        }
+        for slot_state in resolved_behavior.bottom_policy.gallery_slot_states
+    }
+    return {
+        "bottom_mode": resolved_behavior.bottom_policy.mode,
+        "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
+        "title_band_region": {
+            "rendered": bool(region_render_status.get("title_band_region", {}).get("rendered", False)),
+            "bounds": _title_band_region_bounds(template, resolved_behavior),
+        },
+        "gallery_strip_region": {
+            "rendered": bool(region_render_status.get("gallery_strip_region", {}).get("rendered", False)),
+            "visible_item_count": resolved_behavior.bottom_policy.visible_item_count,
+            "bounds": _gallery_strip_region_bounds(template, resolved_behavior),
+        },
+        "behavior_policy": {
+            "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
+            "title_band_growth_policy": resolved_behavior.bottom_policy.title_band_growth_policy,
+            "subtitle_overflow_policy": resolved_behavior.bottom_policy.subtitle_overflow_policy,
+            "title_text_budget_policy": resolved_behavior.bottom_policy.title_text_budget_policy,
+            "subtitle_text_budget_policy": resolved_behavior.bottom_policy.subtitle_text_budget_policy,
+            "content_priority_policy": resolved_behavior.bottom_policy.content_priority_policy,
+            "peer_balance_policy": resolved_behavior.bottom_policy.peer_balance_policy,
+            "bottom_peer_balance_policy": resolved_behavior.bottom_policy.bottom_peer_balance_policy,
+            "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
+            "gallery_shell_frame_policy": resolved_behavior.bottom_policy.gallery_shell_frame_policy,
+            "gallery_strip_shift_policy": resolved_behavior.bottom_policy.gallery_strip_shift_policy,
+            "gallery_aspect_policy": resolved_behavior.bottom_policy.gallery_aspect_policy,
+            "gallery_spacing_policy": resolved_behavior.bottom_policy.gallery_spacing_policy,
+            "bottom_text_emphasis_policy": resolved_behavior.bottom_policy.bottom_text_emphasis_policy,
+            "title_line_clamp": resolved_behavior.bottom_policy.title_line_clamp,
+            "subtitle_line_clamp": resolved_behavior.bottom_policy.subtitle_line_clamp,
+            "title_char_budget": resolved_behavior.bottom_policy.title_char_budget,
+            "subtitle_char_budget": resolved_behavior.bottom_policy.subtitle_char_budget,
+            "layout_metrics": dict(resolved_behavior.bottom_policy.layout_metrics),
+        },
+        "collapsed_optional_slots": list(resolved_behavior.bottom_policy.collapsed_optional_slots),
+        "subtitle_slot": dict(resolved_behavior.bottom_policy.subtitle_slot_state),
+        "gallery_slots": gallery_slots,
     }
