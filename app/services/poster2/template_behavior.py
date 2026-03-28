@@ -180,10 +180,14 @@ class ResolvedHeroBehavior:
     mode: str
     scenario_enabled: bool
     scenario_uses_safe_fill: bool
+    scenario_render_policy: str
+    product_render_policy: str
+    peer_layout_policy: str
     scenario_fit: str
     scenario_anchor: str
     product_fit: str
     product_anchor: str
+    layout_metrics: dict[str, int]
     css_classes: tuple[str, ...]
 
     def as_dict(self) -> dict[str, object]:
@@ -191,10 +195,14 @@ class ResolvedHeroBehavior:
             "mode": self.mode,
             "scenario_enabled": self.scenario_enabled,
             "scenario_uses_safe_fill": self.scenario_uses_safe_fill,
+            "scenario_render_policy": self.scenario_render_policy,
+            "product_render_policy": self.product_render_policy,
+            "peer_layout_policy": self.peer_layout_policy,
             "scenario_fit": self.scenario_fit,
             "scenario_anchor": self.scenario_anchor,
             "product_fit": self.product_fit,
             "product_anchor": self.product_anchor,
+            "layout_metrics": dict(self.layout_metrics),
             "css_classes": list(self.css_classes),
         }
 
@@ -494,10 +502,27 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             mode=hero_mode,
             scenario_enabled=True,
             scenario_uses_safe_fill=True,
+            scenario_render_policy="scenario_optional_safe_fill_cover",
+            product_render_policy="product_contain_centered",
+            peer_layout_policy="fixed_dual_hero_peer_regions",
             scenario_fit="cover",
             scenario_anchor="center",
             product_fit="contain",
             product_anchor="center",
+            layout_metrics={
+                "scenario_region_x": 96,
+                "scenario_region_y": 188,
+                "scenario_region_w": 288,
+                "scenario_region_h": 520,
+                "product_region_x": 456,
+                "product_region_y": 188,
+                "product_region_w": 300,
+                "product_region_h": 520,
+                "product_pad_top": 24,
+                "product_pad_right": 18,
+                "product_pad_bottom": 10,
+                "product_pad_left": 18,
+            },
             css_classes=(_css_mode_class("hero-mode", hero_mode),),
         )
     if hero_mode == "single_product_focus":
@@ -505,10 +530,27 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             mode=hero_mode,
             scenario_enabled=False,
             scenario_uses_safe_fill=False,
+            scenario_render_policy="scenario_disabled",
+            product_render_policy="product_contain_bottom_weighted",
+            peer_layout_policy="single_product_without_scenario_peer",
             scenario_fit="cover",
             scenario_anchor="center",
             product_fit="contain",
             product_anchor="bottom",
+            layout_metrics={
+                "scenario_region_x": 96,
+                "scenario_region_y": 188,
+                "scenario_region_w": 288,
+                "scenario_region_h": 520,
+                "product_region_x": 456,
+                "product_region_y": 188,
+                "product_region_w": 300,
+                "product_region_h": 520,
+                "product_pad_top": 24,
+                "product_pad_right": 18,
+                "product_pad_bottom": 10,
+                "product_pad_left": 18,
+            },
             css_classes=(_css_mode_class("hero-mode", hero_mode), "hero-scenario-disabled"),
         )
     raise ValueError(f"Unsupported hero_mode: {hero_mode}")

@@ -1839,6 +1839,21 @@ class TestBottomSplitBehavior:
         assert "--header-banner-height: 120px" in html_payload
         assert "--header-inner-height: 72px" in html_payload
 
+    def test_single_product_focus_uses_resolved_product_anchor_and_hides_scenario(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(template.behavior_modes, hero_mode="single_product_focus")
+
+        resolved = resolve_template_behavior(
+            template,
+            brand_name="厨厨房",
+            agent_name="智能顾问",
+        )
+
+        assert resolved.hero_policy.scenario_enabled is False
+        assert resolved.hero_policy.product_anchor == "bottom"
+        assert resolved.hero_policy.product_render_policy == "product_contain_bottom_weighted"
+        assert resolved.hero_policy.peer_layout_policy == "single_product_without_scenario_peer"
+
 
 class _FakeLocator:
     def __init__(self):

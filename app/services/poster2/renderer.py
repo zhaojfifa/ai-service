@@ -145,8 +145,8 @@ class LayoutRenderer:
             has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
         )
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
-            self._draw_image(canvas, spec.scenario_slot, assets.scenario)
-        self._draw_product(canvas, spec.product_slot, assets.product)
+            self._draw_image(canvas, _scenario_image_slot(spec, behavior.hero_policy), assets.scenario)
+        self._draw_product(canvas, _product_image_slot(spec, behavior.hero_policy), assets.product)
         self._draw_gallery(
             canvas,
             spec.gallery_slot,
@@ -258,7 +258,7 @@ class LayoutRenderer:
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot:
             self._draw_shell_box(
                 canvas,
-                (spec.scenario_slot.x, spec.scenario_slot.y, spec.scenario_slot.w, spec.scenario_slot.h),
+                _scenario_shell_bounds(spec, behavior.hero_policy),
                 radius=24,
                 fill=_pillow_shell_fill(
                     "scenario_real" if has_scenario else "scenario_safe",
@@ -270,7 +270,7 @@ class LayoutRenderer:
             )
         self._draw_shell_box(
             canvas,
-            (spec.product_slot.x, spec.product_slot.y, spec.product_slot.w, spec.product_slot.h),
+            _product_shell_bounds(spec, behavior.hero_policy),
             radius=24,
             fill=_pillow_shell_fill("product", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
             border=_pillow_border("product", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -753,11 +753,11 @@ class PuppeteerStructuredRenderer:
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_CONTENT_CLASS__": scenario_content_class,
             "__AGENT_TEXT_CLASS__": agent_text_class,
-            "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
+            "__SCENARIO_STYLE__": _slot_style(_scenario_slot(slot_spec, behavior.hero_policy)),
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_LAYER_CLASS__": product_layer_class,
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
-            "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
+            "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy)),
             "__PRODUCT_URL__": asset_urls["product"],
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
             "__BOTTOM_REGION_CLASS__": bottom_region_class,
@@ -1560,6 +1560,61 @@ def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, 
     )
 
 
+def _scenario_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, int, int]:
+    metrics = hero_policy.layout_metrics
+    return (
+        int(metrics["scenario_region_x"]),
+        int(metrics["scenario_region_y"]),
+        int(metrics["scenario_region_w"]),
+        int(metrics["scenario_region_h"]),
+    )
+
+
+def _product_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, int, int]:
+    metrics = hero_policy.layout_metrics
+    return (
+        int(metrics["product_region_x"]),
+        int(metrics["product_region_y"]),
+        int(metrics["product_region_w"]),
+        int(metrics["product_region_h"]),
+    )
+
+
+def _scenario_image_slot(spec: TemplateSpec, hero_policy):
+    if spec.scenario_slot is None:
+        return None
+    metrics = hero_policy.layout_metrics
+    return replace(
+        spec.scenario_slot,
+        x=int(metrics["scenario_region_x"]),
+        y=int(metrics["scenario_region_y"]),
+        w=int(metrics["scenario_region_w"]),
+        h=int(metrics["scenario_region_h"]),
+        fit=hero_policy.scenario_fit,
+        align_x=hero_policy.scenario_anchor if hero_policy.scenario_anchor in {"start", "center", "end"} else "center",
+        align_y=hero_policy.scenario_anchor if hero_policy.scenario_anchor in {"start", "center", "end"} else "center",
+    )
+
+
+def _product_image_slot(spec: TemplateSpec, hero_policy):
+    metrics = hero_policy.layout_metrics
+    anchor = hero_policy.product_anchor if hero_policy.product_anchor in {"start", "center", "end"} else "center"
+    return replace(
+        spec.product_slot,
+        x=int(metrics["product_region_x"]),
+        y=int(metrics["product_region_y"]),
+        w=int(metrics["product_region_w"]),
+        h=int(metrics["product_region_h"]),
+        fit=hero_policy.product_fit,
+        align_x="center",
+        align_y=anchor,
+        pad_top=int(metrics["product_pad_top"]),
+        pad_right=int(metrics["product_pad_right"]),
+        pad_bottom=int(metrics["product_pad_bottom"]),
+        pad_left=int(metrics["product_pad_left"]),
+    )
+
+
 def _title_band_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
     layout = bottom_policy.layout_metrics
     return (
@@ -1742,6 +1797,40 @@ def _header_agent_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderB
             "y": int(metrics["agent_slot_y"]),
             "w": int(metrics["agent_slot_w"]),
             "h": int(metrics["agent_slot_h"]),
+        }
+    )
+    return slot
+
+
+def _scenario_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["scenario"])
+    metrics = hero_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["scenario_region_x"]),
+            "y": int(metrics["scenario_region_y"]),
+            "w": int(metrics["scenario_region_w"]),
+            "h": int(metrics["scenario_region_h"]),
+            "fit": hero_policy.scenario_fit,
+        }
+    )
+    return slot
+
+
+def _product_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["product"])
+    metrics = hero_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["product_region_x"]),
+            "y": int(metrics["product_region_y"]),
+            "w": int(metrics["product_region_w"]),
+            "h": int(metrics["product_region_h"]),
+            "fit": hero_policy.product_fit,
+            "pad_top": int(metrics["product_pad_top"]),
+            "pad_right": int(metrics["product_pad_right"]),
+            "pad_bottom": int(metrics["product_pad_bottom"]),
+            "pad_left": int(metrics["product_pad_left"]),
         }
     )
     return slot

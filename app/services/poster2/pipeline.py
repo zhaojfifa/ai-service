@@ -298,6 +298,14 @@ class PosterPipeline:
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "hero_contract_review": _build_hero_contract_review(
+                template,
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
+                resolved_behavior=resolved_behavior,
+                layer_render_status=layer_render_status,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "header_contract_review": _build_header_contract_review(
                 template,
                 requested_spec=requested_spec,
@@ -397,6 +405,7 @@ class PosterPipeline:
             slot_binding_status=quality_guard_report.slot_binding_status,
             template_behavior=resolved_behavior.as_dict(),
             geometry_evidence=renderer_metadata_payload["geometry_evidence"],
+            hero_contract_review=renderer_metadata_payload["hero_contract_review"],
             header_contract_review=renderer_metadata_payload["header_contract_review"],
             bottom_contract_review=renderer_metadata_payload["bottom_contract_review"],
         )
@@ -666,9 +675,10 @@ def _build_geometry_evidence(
     return {
         "region_bounds": {
             "header_region": _header_region_bounds(template, resolved_behavior),
+            "scenario_region": _scenario_region_bounds(template, resolved_behavior),
             "bottom_region": _bottom_region_bounds(template, resolved_behavior),
             "title_band_region": _title_band_region_bounds(template, resolved_behavior),
-            "product_region": _slot_bounds(template.product_slot),
+            "product_region": _product_region_bounds(template, resolved_behavior),
             "gallery_strip_region": _gallery_strip_region_bounds(template, resolved_behavior),
         },
         "slot_bounds": {
@@ -677,11 +687,13 @@ def _build_geometry_evidence(
             "agent_name_slot": _agent_name_slot_bounds(template, resolved_behavior),
             "title_slot": _title_slot_bounds(template, resolved_behavior),
             "subtitle_slot": _subtitle_slot_bounds(template, resolved_behavior),
-            "product_slot": _slot_bounds(template.product_slot),
+            "scenario_slot": _scenario_slot_bounds(template, resolved_behavior),
+            "product_slot": _product_slot_bounds(template, resolved_behavior),
             "gallery_slot": _gallery_item_slot_bounds(template, resolved_behavior),
         },
         "visible_item_count": {
             "header_region": int(region_render_status.get("header_region", {}).get("count", 0)),
+            "scenario_region": int(region_render_status.get("scenario_region", {}).get("count", 0)),
             "title_band_region": int(region_render_status.get("title_band_region", {}).get("count", 0)),
             "product_region": int(region_render_status.get("product_region", {}).get("count", 0)),
             "gallery_strip_region": int(
@@ -747,6 +759,43 @@ def _bottom_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str
         "y": int(layout["bottom_shell_top"]),
         "w": 832,
         "h": int(layout["bottom_shell_height"]),
+    }
+
+
+def _scenario_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    metrics = resolved_behavior.hero_policy.layout_metrics
+    return {
+        "x": int(metrics["scenario_region_x"]),
+        "y": int(metrics["scenario_region_y"]),
+        "w": int(metrics["scenario_region_w"]),
+        "h": int(metrics["scenario_region_h"]),
+    }
+
+
+def _product_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    metrics = resolved_behavior.hero_policy.layout_metrics
+    return {
+        "x": int(metrics["product_region_x"]),
+        "y": int(metrics["product_region_y"]),
+        "w": int(metrics["product_region_w"]),
+        "h": int(metrics["product_region_h"]),
+    }
+
+
+def _scenario_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    if template.scenario_slot is None:
+        return {"x": 0, "y": 0, "w": 0, "h": 0}
+    bounds = _scenario_region_bounds(template, resolved_behavior)
+    return bounds
+
+
+def _product_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
+    metrics = resolved_behavior.hero_policy.layout_metrics
+    return {
+        "x": int(metrics["product_region_x"]),
+        "y": int(metrics["product_region_y"]),
+        "w": int(metrics["product_region_w"]),
+        "h": int(metrics["product_region_h"]),
     }
 
 
@@ -955,5 +1004,60 @@ def _build_header_contract_review(
             "rendered": bool(layer_render_status.get("agent_name_text_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("agent_name_text_layer", {}).get("reason_code"),
             "bounds": _agent_name_slot_bounds(template, resolved_behavior),
+        },
+    }
+
+
+def _build_hero_contract_review(
+    template: TemplateSpec,
+    *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
+    resolved_behavior,
+    layer_render_status: dict[str, dict[str, object]],
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    scenario_source = requested_spec.scenario_image.url if requested_spec.scenario_image else None
+    product_source = requested_spec.product_image.url
+    return {
+        "hero_mode": resolved_behavior.hero_policy.mode,
+        "requested_scenario_source": scenario_source,
+        "requested_product_source": product_source,
+        "effective_scenario_source": scenario_source,
+        "effective_product_source": product_source,
+        "rendered_scenario_source": (
+            "safe_preset_image"
+            if layer_render_status.get("scenario_image_layer", {}).get("reason_code") == "safe_preset_fill"
+            else scenario_source
+        ),
+        "rendered_product_source": product_source,
+        "scenario_safe_fill_applied": layer_render_status.get("scenario_image_layer", {}).get("reason_code") == "safe_preset_fill",
+        "scenario_region": {
+            "rendered": bool(region_render_status.get("scenario_region", {}).get("rendered", False)),
+            "bounds": _scenario_region_bounds(template, resolved_behavior),
+        },
+        "product_region": {
+            "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
+            "bounds": _product_region_bounds(template, resolved_behavior),
+        },
+        "behavior_policy": {
+            "scenario_render_policy": resolved_behavior.hero_policy.scenario_render_policy,
+            "product_render_policy": resolved_behavior.hero_policy.product_render_policy,
+            "peer_layout_policy": resolved_behavior.hero_policy.peer_layout_policy,
+            "scenario_fit": resolved_behavior.hero_policy.scenario_fit,
+            "scenario_anchor": resolved_behavior.hero_policy.scenario_anchor,
+            "product_fit": resolved_behavior.hero_policy.product_fit,
+            "product_anchor": resolved_behavior.hero_policy.product_anchor,
+            "layout_metrics": dict(resolved_behavior.hero_policy.layout_metrics),
+        },
+        "scenario_slot": {
+            "rendered": bool(layer_render_status.get("scenario_image_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("scenario_image_layer", {}).get("reason_code"),
+            "bounds": _scenario_slot_bounds(template, resolved_behavior),
+        },
+        "product_slot": {
+            "rendered": bool(layer_render_status.get("product_image_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
+            "bounds": _product_slot_bounds(template, resolved_behavior),
         },
     }

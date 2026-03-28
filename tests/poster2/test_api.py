@@ -52,6 +52,11 @@ class _FakePoster2Pipeline:
                 }
             },
             geometry_evidence={"region_bounds": {"bottom_region": {"x": 96, "y": 728, "w": 832, "h": 232}}},
+            hero_contract_review={
+                "hero_mode": "scenario_cover_product_contain",
+                "requested_product_source": spec.product_image.url,
+                "rendered_product_source": spec.product_image.url,
+            },
             header_contract_review={
                 "header_mode": "identity_left_agent_right",
                 "requested_brand_text": spec.brand_name,
@@ -117,6 +122,11 @@ class _FakeDegradedPoster2Pipeline:
                 }
             },
             geometry_evidence={"region_bounds": {"bottom_region": {"x": 96, "y": 728, "w": 832, "h": 232}}},
+            hero_contract_review={
+                "hero_mode": "scenario_cover_product_contain",
+                "requested_product_source": spec.product_image.url,
+                "rendered_product_source": spec.product_image.url,
+            },
             header_contract_review={
                 "header_mode": "identity_left_agent_right",
                 "requested_brand_text": spec.brand_name,
@@ -173,6 +183,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["structure_evidence_complete"] is True
     assert body["missing_required_slots"] == []
     assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
+    assert body["hero_contract_review"]["hero_mode"] == "scenario_cover_product_contain"
     assert body["header_contract_review"]["header_mode"] == "identity_left_agent_right"
     assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
     assert body["geometry_evidence"]["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}

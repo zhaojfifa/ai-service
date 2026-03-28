@@ -73,7 +73,7 @@ Phase 3 must not:
 
 ## 6. Current Progress
 
-Current status after `PR-1`:
+Current status after `PR-2`:
 
 - PR-0 complete: bottom frozen as SOP baseline
 - tag created: `poster2-bottom-sop-baseline-v1`
@@ -83,16 +83,20 @@ Current status after `PR-1`:
   - `header_contract_review` is emitted in renderer metadata and API payload
   - requested / sanitized / rendered brand and agent values are visible
   - header geometry evidence is resolver-derived rather than fixed-slot-only
-- Phase 3 backend implementation is now in progress from `header_region`
+- PR-2 complete: `scenario_region` and `product_region` are now aligned to the backend contract loop
+  - `hero_contract_review` is emitted in renderer metadata and API payload
+  - requested / effective / rendered asset-source chain is visible for scenario/product
+  - scenario/product geometry evidence is resolver-derived rather than template-static-only
+  - renderer consumes resolver-derived scenario/product slot geometry and fit/anchor policy
+- Phase 3 backend implementation is now in progress from `header_region` through `scenario/product`
 - Stage2 live contract panel integration not started yet in this record
 
 ## 7. Next Recommended PR
 
-`PR-2: scenario/product resolver/evidence alignment`
+`PR-3: feature resolver/evidence alignment`
 
 Acceptance target:
 
-- eliminate remaining fixed-layout residue in `scenario_region` and `product_region`
-- keep geometry evidence resolver-derived
-- keep renderer consumption aligned to resolver output
-- preserve diagnostics compatibility while expanding region-level explainability
+- make feature request / normalize / resolver / renderer / evidence chain inspectable
+- expose requested / effective / rendered feature text and truncation state
+- preserve diagnostics compatibility while expanding feature-region explainability

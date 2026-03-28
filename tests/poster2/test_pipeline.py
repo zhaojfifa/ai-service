@@ -479,16 +479,28 @@ class TestPosterPipelineRun:
         assert metadata["missing_mandatory_regions"] == []
         geometry = metadata["geometry_evidence"]
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
+        assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 144}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
+        assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 826, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
+        assert geometry["visible_item_count"]["scenario_region"] == 0
         assert geometry["visible_item_count"]["title_band_region"] == 2
         assert geometry["visible_item_count"]["product_region"] == 1
+        hero_review = metadata["hero_contract_review"]
+        assert hero_review["hero_mode"] == "scenario_cover_product_contain"
+        assert hero_review["requested_product_source"] == "mock://product"
+        assert hero_review["rendered_product_source"] == "mock://product"
+        assert hero_review["scenario_safe_fill_applied"] is False
+        assert hero_review["scenario_region"]["rendered"] is False
+        assert hero_review["product_region"]["rendered"] is True
+        assert hero_review["behavior_policy"]["scenario_render_policy"] == "scenario_optional_safe_fill_cover"
+        assert hero_review["behavior_policy"]["product_render_policy"] == "product_contain_centered"
         header_review = metadata["header_contract_review"]
         assert header_review["requested_brand_text"] == "厨厨房"
         assert header_review["requested_agent_text"] == "智能顾问"
@@ -967,6 +979,41 @@ class TestPosterPipelineRun:
         assert header_review["behavior_policy"]["identity_zone_mode"] == "brand_only"
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 96}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 104, "y": 82, "w": 808, "h": 32}
+
+    def test_hero_contract_review_exposes_single_product_focus_without_scenario_region_render(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, hero_mode="single_product_focus")
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(scenario_image=None),
+                template,
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        hero_review = metadata["hero_contract_review"]
+
+        assert hero_review["hero_mode"] == "single_product_focus"
+        assert hero_review["scenario_safe_fill_applied"] is False
+        assert hero_review["scenario_slot"]["rendered"] is False
+        assert hero_review["product_slot"]["rendered"] is True
+        assert hero_review["behavior_policy"]["peer_layout_policy"] == "single_product_without_scenario_peer"
+        assert hero_review["behavior_policy"]["product_anchor"] == "bottom"
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()
