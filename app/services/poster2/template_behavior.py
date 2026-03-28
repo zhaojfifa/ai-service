@@ -29,10 +29,10 @@ _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
         "--shell-surface-scenario-safe": "linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(247, 238, 234, 0.26))",
         "--shell-surface-scenario-real": "linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02))",
         "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(250, 242, 240, 0.92))",
-        "--shell-surface-bottom": "linear-gradient(180deg, rgba(255, 255, 255, 0.70), rgba(255, 248, 246, 0.56))",
-        "--shell-surface-title-band": "linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 248, 245, 0.88))",
-        "--shell-surface-gallery-strip": "rgba(255, 255, 255, 0.68)",
-        "--feature-card-surface": "rgba(255, 255, 255, 0.95)",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 248, 246, 0.60))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 245, 0.90))",
+        "--shell-surface-gallery-strip": "rgba(255, 255, 255, 0.72)",
+        "--feature-card-surface": "rgba(255, 255, 255, 0.96)",
     },
     "panel_clean": {
         "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 248, 248, 0.96))",
@@ -67,10 +67,10 @@ _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
 }
 _SHELL_BORDER_PRESETS: dict[str, dict[str, str]] = {
     "soft_line": {
-        "--shell-border-accent-alpha": "14",
-        "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.44)",
+        "--shell-border-accent-alpha": "1a",
+        "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.50)",
         "--shell-border-hero": "1px solid rgba(255, 255, 255, 0.24)",
-        "--feature-card-border-alpha": "1f",
+        "--feature-card-border-alpha": "26",
     },
     "clean_frame": {
         "--shell-border-accent-alpha": "32",
@@ -93,10 +93,10 @@ _SHELL_SHADOW_PRESETS: dict[str, dict[str, str]] = {
         "--gallery-item-shadow": "0 0 0 rgba(0, 0, 0, 0)",
     },
     "soft": {
-        "--shell-shadow-main": "0 18px 36px rgba(34, 22, 22, 0.11)",
-        "--shell-shadow-secondary": "0 12px 26px rgba(31, 22, 22, 0.08)",
-        "--feature-card-shadow": "0 12px 24px rgba(24, 16, 16, 0.10)",
-        "--gallery-item-shadow": "0 10px 22px rgba(31, 22, 22, 0.10)",
+        "--shell-shadow-main": "0 20px 40px rgba(30, 18, 18, 0.13)",
+        "--shell-shadow-secondary": "0 14px 28px rgba(28, 18, 18, 0.10)",
+        "--feature-card-shadow": "0 12px 26px rgba(22, 14, 14, 0.11)",
+        "--gallery-item-shadow": "0 10px 24px rgba(29, 18, 18, 0.11)",
     },
     "medium": {
         "--shell-shadow-main": "0 22px 42px rgba(26, 18, 18, 0.16)",

@@ -92,6 +92,8 @@ Read this section only after the product baseline and architecture guidance. The
   Bottom region resolver SOP baseline: behavior policies, metadata, gallery distribution, text evidence chain. Frozen as Phase 2 baseline.
 - [feature_anchor_callouts_contract_status_v1.md](feature_anchor_callouts_contract_status_v1.md)
   Phase 0 contract drift repair + Phase 1 `product_anchor_callouts` feature mode contract. Records header_mode drift fix, Stage 2 modeLabel path fixes, and new mode resolver/evidence contract.
+- [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
+  Beautification Phase 1 closure: minimal beauty-token-driven improvements to `glass_light` shell surface, `soft_line` border, `soft` shadow, and feature connector/marker visual. No geometry or behavior change. 153/153 tests pass.
 
 ### 4. Next-Phase Plans
 

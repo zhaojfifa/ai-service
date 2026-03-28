@@ -18,24 +18,24 @@ body {
   overflow: hidden;
   background: linear-gradient(180deg, rgba(255, 249, 247, 0.18), rgba(255, 255, 255, 0));
   color: #1a1a1a;
-  --shell-surface-header: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(250, 243, 241, 0.9));
-  --shell-surface-scenario-safe: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(245, 236, 232, 0.22));
-  --shell-surface-scenario-real: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
-  --shell-surface-product: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 241, 239, 0.9));
-  --shell-surface-bottom: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 249, 246, 0.54));
-  --shell-surface-title-band: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 249, 246, 0.86));
-  --shell-surface-gallery-strip: rgba(255, 255, 255, 0.66);
-  --shell-border-header: 1px solid rgba(232, 0, 42, 0.08);
-  --shell-border-hero: 1px solid rgba(255, 255, 255, 0.22);
-  --shell-border-product: 1px solid rgba(232, 0, 42, 0.08);
-  --shell-border-bottom: 1px solid rgba(232, 0, 42, 0.08);
-  --shell-border-gallery: 1px solid rgba(255, 255, 255, 0.42);
-  --shell-shadow-main: 0 16px 36px rgba(34, 22, 22, 0.12);
-  --shell-shadow-secondary: 0 10px 24px rgba(28, 20, 20, 0.08);
-  --feature-card-surface: rgba(255, 255, 255, 0.94);
-  --feature-card-border: 1px solid rgba(232, 0, 42, 0.12);
-  --feature-card-shadow: 0 10px 22px rgba(24, 16, 16, 0.1);
-  --gallery-item-shadow: 0 10px 22px rgba(31, 22, 22, 0.1);
+  --shell-surface-header: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 243, 0.92));
+  --shell-surface-scenario-safe: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(247, 238, 234, 0.26));
+  --shell-surface-scenario-real: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  --shell-surface-product: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(250, 242, 240, 0.92));
+  --shell-surface-bottom: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 248, 246, 0.60));
+  --shell-surface-title-band: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 245, 0.90));
+  --shell-surface-gallery-strip: rgba(255, 255, 255, 0.72);
+  --shell-border-header: 1px solid rgba(232, 0, 42, 0.10);
+  --shell-border-hero: 1px solid rgba(255, 255, 255, 0.24);
+  --shell-border-product: 1px solid rgba(232, 0, 42, 0.10);
+  --shell-border-bottom: 1px solid rgba(232, 0, 42, 0.10);
+  --shell-border-gallery: 1px solid rgba(255, 255, 255, 0.50);
+  --shell-shadow-main: 0 20px 40px rgba(30, 18, 18, 0.13);
+  --shell-shadow-secondary: 0 14px 28px rgba(28, 18, 18, 0.10);
+  --feature-card-surface: rgba(255, 255, 255, 0.96);
+  --feature-card-border: 1px solid rgba(232, 0, 42, 0.15);
+  --feature-card-shadow: 0 12px 26px rgba(22, 14, 14, 0.11);
+  --gallery-item-shadow: 0 10px 24px rgba(29, 18, 18, 0.11);
   --accent-tone: #e8002a;
   --text-color-brand: #1a1a1a;
   --text-color-agent: #6f5757;
@@ -574,6 +574,8 @@ body {
   height: 2px;
   transform: translateY(-50%);
   background: var(--accent-tone);
+  border-radius: 1px;
+  opacity: 0.9;
 }
 
 .layer-feature-callouts.feature-mode-4 .feature-callout-connector {
@@ -587,6 +589,7 @@ body {
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: var(--accent-tone);
+  box-shadow: 0 0 0 2.5px rgba(255, 255, 255, 0.78);
 }
 
 .layer-bottom-region {
