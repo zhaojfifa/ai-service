@@ -246,3 +246,28 @@ Use this short version when in doubt:
 - Renderer executes, not defines.
 - Validate edited inputs, not just default samples.
 - Keep source and published copies aligned.
+
+---
+
+## 12. Current phase state (as of 2026-03-28)
+
+### Phase 2: bottom SOP baseline — ESTABLISHED
+
+The `bottom_region` resolver path is now the SOP baseline for the behavior layer.
+
+What is established:
+- `bottom_mode` / `gallery_mode` / `gallery_count` / title / subtitle controls are always wired in Stage 2, regardless of template eligibility
+- **bottom mode selection bug — FIXED** (`initPoster2BottomContractControls` no longer has an early return for non-eligible templates)
+- Stage 2 page refactored: two-column Resolver Layout; bottom controls in left panel; debug areas (Result Diagnostics, old Layout Preview) removed; Resolver Layout shows all region rows post-generation via `region_render_status`
+
+What this proves:
+- bottom behavior can be declared, resolved, and validated end-to-end through the contract → resolver → renderer → evidence path
+- the SOP baseline pattern is repeatable
+
+### Phase 3: replicate to other regions
+
+Apply the same resolver coverage pattern to:
+- `header_region` — complete `identity_zone_mode` resolver wiring
+- `scenario_region`, `product_region`, `feature_region` — resolver coverage
+- Preview-path / generation-path parity收口
+- Beautification layer (after behavior stability is confirmed across all regions)
