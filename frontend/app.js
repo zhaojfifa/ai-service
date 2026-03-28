@@ -349,7 +349,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
 
   const eligible = shouldUsePoster2Pilot(stage1Data);
   panel.classList.toggle('hidden', !eligible);
-  if (!eligible) return;
+  // Always wire bottom controls — bottom is SOP baseline regardless of template eligibility
 
   const normaliseText = (value, fallback = '') => {
     const text = typeof value === 'string' ? value.trim() : '';
