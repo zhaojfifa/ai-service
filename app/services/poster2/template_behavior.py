@@ -474,7 +474,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             scenario_fit="cover",
             scenario_anchor="center",
             product_fit="contain",
-            product_anchor="bottom",
+            product_anchor="center",
             css_classes=(_css_mode_class("hero-mode", hero_mode),),
         )
     if hero_mode == "single_product_focus":
@@ -648,7 +648,10 @@ def resolve_header_behavior(
         else agent_name_present
     )
 
-    css_classes: tuple[str, ...] = (_css_mode_class("header-mode", header_mode),)
+    css_classes: tuple[str, ...] = (
+        _css_mode_class("header-mode", header_mode),
+        _css_mode_class("header-identity", identity_zone_mode),
+    )
     if not agent_pill_visible:
         css_classes = (*css_classes, "header-agent-collapsed")
 

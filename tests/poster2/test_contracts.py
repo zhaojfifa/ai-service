@@ -121,7 +121,7 @@ class TestTemplateSpecLoading:
         assert spec.scenario_slot.align_y == "center"
         assert spec.product_slot.w == 300
         assert spec.product_slot.align_x == "center"
-        assert spec.product_slot.align_y == "end"
+        assert spec.product_slot.align_y == "center"
         assert spec.product_slot.pad_top == 24
         assert spec.product_slot.pad_bottom == 10
         assert spec.behavior_modes.hero_mode == "scenario_cover_product_contain"

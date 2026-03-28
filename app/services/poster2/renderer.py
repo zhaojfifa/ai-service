@@ -153,7 +153,7 @@ class LayoutRenderer:
             bottom_policy=behavior.bottom_policy,
             visible_count=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
         )
-        if spec.logo_slot and assets.logo:
+        if spec.logo_slot and assets.logo and behavior.header_policy.identity_zone_mode != "brand_only":
             self._draw_image(canvas, spec.logo_slot, assets.logo)
         layer_timings["product_material_layer_ms"] = _elapsed(t0)
 
@@ -187,14 +187,14 @@ class LayoutRenderer:
             self._draw_text(
                 canvas,
                 _title_text_slot(spec, behavior.bottom_policy, color=behavior.text_colors["title"]),
-                poster.title,
+                _apply_char_budget(poster.title, behavior.bottom_policy.title_char_budget),
                 draw_background=False,
             )
         if behavior.bottom_policy.subtitle_slot_rendered:
             self._draw_text(
                 canvas,
                 _subtitle_text_slot(spec, behavior.bottom_policy, color=behavior.text_colors["subtitle"]),
-                poster.subtitle,
+                _apply_char_budget(poster.subtitle, behavior.bottom_policy.subtitle_char_budget),
                 draw_background=False,
             )
         layer_timings["text_layer_ms"] = _elapsed(t2)
@@ -690,7 +690,8 @@ class PuppeteerStructuredRenderer:
             poster.features,
             feature_policy=behavior.feature_policy,
         )
-        header_logo_class = "state-logo-empty" if not asset_urls["logo"] else "state-logo-show"
+        logo_suppressed_by_mode = behavior.header_policy.identity_zone_mode == "brand_only"
+        header_logo_class = "state-logo-empty" if (not asset_urls["logo"] or logo_suppressed_by_mode) else "state-logo-show"
         header_layer_class = " ".join(filter(None, [header_logo_class, *behavior.header_policy.css_classes]))
         scenario_is_real = bool(asset_urls.get("scenario_is_real")) and behavior.hero_policy.scenario_enabled
         hero_mode_class = behavior.root_classes[0]
@@ -741,9 +742,9 @@ class PuppeteerStructuredRenderer:
             "__AGENT_STYLE__": _slot_style(slot_spec["slots"]["agent_name"]),
             "__AGENT_TEXT__": html.escape(poster.agent_name),
             "__TITLE_STYLE__": _slot_style(slot_spec["slots"]["title"]),
-            "__TITLE_TEXT__": html.escape(poster.title),
+            "__TITLE_TEXT__": html.escape(_apply_char_budget(poster.title, behavior.bottom_policy.title_char_budget)),
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
-            "__SUBTITLE_TEXT__": html.escape(poster.subtitle),
+            "__SUBTITLE_TEXT__": html.escape(_apply_char_budget(poster.subtitle, behavior.bottom_policy.subtitle_char_budget)),
             "__SUBTITLE_CLASS__": subtitle_class,
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
@@ -1330,13 +1331,18 @@ def _build_renderer_layer_render_status(
     # renderer-controlled asset preparation. It is not a post-render pixel check.
     gallery_rendered = bottom_policy.gallery_strip_rendered and gallery_visible > 0
     scenario_rendered = has_scenario or scenario_safe_fill
+    logo_suppressed_by_mode = header_policy.identity_zone_mode == "brand_only"
+    logo_rendered = has_logo and not logo_suppressed_by_mode
     return {
         "brand_logo_layer": {
-            "rendered": has_logo,
-            "reason_code": None if has_logo else "logo_missing",
+            "rendered": logo_rendered,
+            "reason_code": (
+                None if logo_rendered
+                else ("logo_suppressed_by_header_mode" if logo_suppressed_by_mode else "logo_missing")
+            ),
             "source_binding": logo_source,
-            "count": 1 if has_logo else 0,
-            "collapsed": not has_logo,
+            "count": 1 if logo_rendered else 0,
+            "collapsed": not logo_rendered,
         },
         "brand_text_layer": {
             "rendered": bool(poster.brand_name),
@@ -1856,6 +1862,15 @@ def _draw_lines(
             x = slot.x
         draw.text((x, y), line, font=font, fill=slot.color)
         y += line_h + spacing
+
+
+def _apply_char_budget(text: str, budget: int) -> str:
+    """Hard-truncate text to char budget. budget=0 means no text (caller should not render)."""
+    if not text or budget <= 0:
+        return text
+    if len(text) <= budget:
+        return text
+    return text[:budget]
 
 
 def _to_png(img: PILImage.Image) -> bytes:
