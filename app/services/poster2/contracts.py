@@ -338,6 +338,7 @@ class RenderManifest:
     slot_binding_status: dict = field(default_factory=dict)
     template_behavior: dict = field(default_factory=dict)
     geometry_evidence: dict = field(default_factory=dict)
+    header_contract_review: dict = field(default_factory=dict)
     bottom_contract_review: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

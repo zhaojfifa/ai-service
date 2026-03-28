@@ -1516,6 +1516,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             slot_binding_status=manifest.slot_binding_status,
             template_behavior=manifest.template_behavior,
             geometry_evidence=manifest.geometry_evidence,
+            header_contract_review=manifest.header_contract_review,
             bottom_contract_review=manifest.bottom_contract_review,
         )
 

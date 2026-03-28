@@ -1765,6 +1765,80 @@ class TestBottomSplitBehavior:
         assert "-webkit-line-clamp: var(--title-line-clamp);" in css_template
         assert "-webkit-line-clamp: var(--subtitle-line-clamp);" in css_template
 
+    def test_header_brand_only_mode_uses_resolved_header_behavior_vars(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(template.behavior_modes, header_mode="brand_only")
+
+        resolved = resolve_template_behavior(
+            template,
+            brand_name="厨厨房品牌馆",
+            agent_name="智能顾问",
+        )
+
+        assert resolved.header_policy.identity_zone_mode == "brand_only"
+        assert resolved.header_policy.agent_pill_visible is False
+        assert resolved.header_policy.layout_metrics["header_banner_height"] == 96
+        assert resolved.css_vars["--header-side-width"] == "0px"
+        assert resolved.css_vars["--header-logo-width"] == "0px"
+
+    def test_header_two_line_mode_emits_two_line_brand_class_and_vars_in_html(self):
+        template = _load_real_template()
+        template.behavior_modes = replace(template.behavior_modes, header_mode="brand_block_two_line")
+
+        renderer = PuppeteerStructuredRenderer()
+        poster = _minimal_spec(
+            brand_name="这是一个需要两行显示的品牌名称示例",
+            agent_name="智能顾问",
+        )
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        behavior = resolve_template_behavior(
+            template,
+            brand_name=poster.brand_name,
+            agent_name=poster.agent_name,
+        )
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=poster,
+            asset_urls={
+                "logo": "data:image/png;base64,abc",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "gallery": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+            behavior=behavior,
+        )
+
+        assert "header-mode-brand_block_two_line" in html_payload
+        assert "--header-banner-height: 120px" in html_payload
+        assert "--header-inner-height: 72px" in html_payload
+
 
 class _FakeLocator:
     def __init__(self):

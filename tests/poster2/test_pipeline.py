@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -481,11 +482,26 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 144}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
+        assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 826, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["title_band_region"] == 2
         assert geometry["visible_item_count"]["product_region"] == 1
+        header_review = metadata["header_contract_review"]
+        assert header_review["requested_brand_text"] == "厨厨房"
+        assert header_review["requested_agent_text"] == "智能顾问"
+        assert header_review["sanitized_brand_text"] == "厨厨房"
+        assert header_review["sanitized_agent_text"] == "智能顾问"
+        assert header_review["rendered_brand_excerpt"] == "厨厨房"
+        assert header_review["rendered_agent_excerpt"] == "智能顾问"
+        assert header_review["brand_truncation_applied"] is False
+        assert header_review["agent_truncation_applied"] is False
+        assert header_review["behavior_policy"]["lane_layout_mode"] == "single_line"
+        assert header_review["behavior_policy"]["brand_text_policy"] == "single_line_brand_lockup"
+        assert header_review["brand_name_slot"]["rendered"] is True
+        assert header_review["agent_name_slot"]["rendered"] is True
         bottom_review = metadata["bottom_contract_review"]
         assert bottom_review["bottom_mode"] == "title_gallery_split"
         assert bottom_review["gallery_mode"] == "strip_local_visible_only"
@@ -910,6 +926,47 @@ class TestPosterPipelineRun:
         assert layout_review["feature_region_response"]["start_strategy"] == "top_weighted_compact_region"
         assert feature_policy["box_h"] == 56
         assert feature_policy["gap"] == 10
+
+    def test_header_contract_review_exposes_brand_only_mode_and_sanitized_text_chain(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, header_mode="brand_only")
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(brand_name="  厨厨房品牌馆  ", agent_name="  智能顾问  "),
+                template,
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        header_review = metadata["header_contract_review"]
+        geometry = metadata["geometry_evidence"]
+
+        assert header_review["header_mode"] == "brand_only"
+        assert header_review["requested_brand_text"] == "  厨厨房品牌馆  "
+        assert header_review["sanitized_brand_text"] == "厨厨房品牌馆"
+        assert header_review["requested_agent_text"] == "  智能顾问  "
+        assert header_review["sanitized_agent_text"] == "智能顾问"
+        assert header_review["rendered_agent_excerpt"] == ""
+        assert header_review["agent_name_slot"]["rendered"] is False
+        assert header_review["agent_name_slot"]["reason_code"] == "suppressed_by_header_mode"
+        assert header_review["behavior_policy"]["identity_zone_mode"] == "brand_only"
+        assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 96}
+        assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 104, "y": 82, "w": 808, "h": 32}
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()

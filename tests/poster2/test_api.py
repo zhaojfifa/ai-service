@@ -52,6 +52,12 @@ class _FakePoster2Pipeline:
                 }
             },
             geometry_evidence={"region_bounds": {"bottom_region": {"x": 96, "y": 728, "w": 832, "h": 232}}},
+            header_contract_review={
+                "header_mode": "identity_left_agent_right",
+                "requested_brand_text": spec.brand_name,
+                "sanitized_brand_text": spec.brand_name,
+                "rendered_brand_excerpt": spec.brand_name,
+            },
             bottom_contract_review={
                 "bottom_mode": spec.bottom_mode or "title_gallery_split",
                 "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
@@ -111,6 +117,12 @@ class _FakeDegradedPoster2Pipeline:
                 }
             },
             geometry_evidence={"region_bounds": {"bottom_region": {"x": 96, "y": 728, "w": 832, "h": 232}}},
+            header_contract_review={
+                "header_mode": "identity_left_agent_right",
+                "requested_brand_text": spec.brand_name,
+                "sanitized_brand_text": spec.brand_name,
+                "rendered_brand_excerpt": spec.brand_name,
+            },
             bottom_contract_review={
                 "bottom_mode": spec.bottom_mode or "title_gallery_split",
                 "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
@@ -161,6 +173,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["structure_evidence_complete"] is True
     assert body["missing_required_slots"] == []
     assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
+    assert body["header_contract_review"]["header_mode"] == "identity_left_agent_right"
     assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
     assert body["geometry_evidence"]["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
 

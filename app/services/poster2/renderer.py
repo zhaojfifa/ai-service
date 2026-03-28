@@ -126,6 +126,7 @@ class LayoutRenderer:
             feature_count=feature_count,
             title_text=poster.title,
             subtitle_text=poster.subtitle,
+            brand_name=poster.brand_name,
             gallery_requested_count=len(poster.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
@@ -172,15 +173,15 @@ class LayoutRenderer:
         self._draw_feature_callout_labels(canvas, resolved_callouts)
         self._draw_text(
             canvas,
-            replace(spec.brand_name_slot, color=behavior.text_colors["brand"]),
-            poster.brand_name,
+            _brand_text_slot(spec, behavior.header_policy, color=behavior.text_colors["brand"]),
+            _apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget),
             draw_background=False,
         )
         if behavior.header_policy.agent_pill_visible:
             self._draw_text(
                 canvas,
-                replace(spec.agent_name_slot, color=behavior.text_colors["agent"]),
-                poster.agent_name,
+                _agent_text_slot(spec, behavior.header_policy, color=behavior.text_colors["agent"]),
+                _apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget),
                 draw_background=False,
             )
         if behavior.bottom_policy.title_slot_rendered:
@@ -245,7 +246,7 @@ class LayoutRenderer:
     ) -> None:
         has_title_band = behavior.bottom_policy.title_band_rendered
         has_gallery = behavior.bottom_policy.gallery_strip_rendered
-        header_box = _header_shell_bounds(spec)
+        header_box = _header_shell_bounds(spec, behavior.header_policy)
         self._draw_shell_box(
             canvas,
             header_box,
@@ -527,6 +528,7 @@ class PuppeteerStructuredRenderer:
             feature_count=feature_count,
             title_text=poster.title,
             subtitle_text=poster.subtitle,
+            brand_name=poster.brand_name,
             gallery_requested_count=len(poster.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
@@ -672,6 +674,7 @@ class PuppeteerStructuredRenderer:
             feature_count=len(_normalized_feature_texts(poster.features)),
             title_text=poster.title,
             subtitle_text=poster.subtitle,
+            brand_name=poster.brand_name,
             gallery_requested_count=len(poster.gallery_images),
             gallery_resolved_count=len(asset_urls.get("gallery") or []),
             bottom_mode=poster.bottom_mode,
@@ -735,12 +738,12 @@ class PuppeteerStructuredRenderer:
             "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
             "__SVG_OVERLAY__": "",
             "__HEADER_LAYER_CLASS__": header_layer_class,
-            "__LOGO_STYLE__": _slot_style(slot_spec["slots"]["logo"]),
+            "__LOGO_STYLE__": _slot_style(_header_logo_slot(slot_spec, behavior.header_policy)),
             "__LOGO_URL__": asset_urls["logo"],
-            "__BRAND_STYLE__": _slot_style(slot_spec["slots"]["brand_name"]),
-            "__BRAND_TEXT__": html.escape(poster.brand_name),
-            "__AGENT_STYLE__": _slot_style(slot_spec["slots"]["agent_name"]),
-            "__AGENT_TEXT__": html.escape(poster.agent_name),
+            "__BRAND_STYLE__": _slot_style(_header_brand_slot(slot_spec, behavior.header_policy)),
+            "__BRAND_TEXT__": html.escape(_apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget)),
+            "__AGENT_STYLE__": _slot_style(_header_agent_slot(slot_spec, behavior.header_policy)),
+            "__AGENT_TEXT__": html.escape(_apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget)),
             "__TITLE_STYLE__": _slot_style(slot_spec["slots"]["title"]),
             "__TITLE_TEXT__": html.escape(_apply_char_budget(poster.title, behavior.bottom_policy.title_char_budget)),
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
@@ -1347,7 +1350,7 @@ def _build_renderer_layer_render_status(
         "brand_text_layer": {
             "rendered": bool(poster.brand_name),
             "reason_code": None if poster.brand_name else "brand_name_empty",
-            "source_binding": "brand_name",
+            "source_binding": "request.brand_name",
             "count": 1 if poster.brand_name else 0,
             "collapsed": not bool(poster.brand_name),
         },
@@ -1357,7 +1360,7 @@ def _build_renderer_layer_render_status(
                 None if header_policy.agent_pill_visible
                 else ("agent_name_empty" if not poster.agent_name else "suppressed_by_header_mode")
             ),
-            "source_binding": "agent_name",
+            "source_binding": "request.agent_name",
             "count": 1 if header_policy.agent_pill_visible else 0,
             "collapsed": not header_policy.agent_pill_visible,
         },
@@ -1493,6 +1496,7 @@ def render_product_material_debug_layer(
     gallery_resolved = min(len(assets.gallery), spec.gallery_slot.count)
     behavior = resolve_template_behavior(
         spec,
+        brand_name=None,
         gallery_resolved_count=gallery_resolved,
         gallery_requested_count=gallery_resolved,
     )
@@ -1520,20 +1524,40 @@ def render_product_material_debug_layer(
     )
 
 
-def _header_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
-    left = min(spec.logo_slot.x, spec.brand_name_slot.x, spec.agent_name_slot.x) - 32
-    top = min(spec.logo_slot.y, spec.brand_name_slot.y, spec.agent_name_slot.y) - 18
-    right = max(
-        spec.logo_slot.x + spec.logo_slot.w,
-        spec.brand_name_slot.x + spec.brand_name_slot.w,
-        spec.agent_name_slot.x + spec.agent_name_slot.w,
-    ) + 40
-    bottom = max(
-        spec.logo_slot.y + spec.logo_slot.h,
-        spec.brand_name_slot.y + spec.brand_name_slot.h,
-        spec.agent_name_slot.y + spec.agent_name_slot.h,
-    ) + 22
-    return left, top, right - left, bottom - top
+def _header_shell_bounds(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior) -> tuple[int, int, int, int]:
+    metrics = header_policy.layout_metrics
+    return (
+        int(metrics["header_banner_left"]),
+        int(metrics["header_banner_top"]),
+        int(metrics["header_banner_width"]),
+        int(metrics["header_banner_height"]),
+    )
+
+
+def _brand_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, *, color: str) -> TextSlotSpec:
+    metrics = header_policy.layout_metrics
+    return replace(
+        spec.brand_name_slot,
+        x=int(metrics["brand_slot_x"]),
+        y=int(metrics["brand_slot_y"]),
+        w=int(metrics["brand_slot_w"]),
+        h=int(metrics["brand_slot_h"]),
+        color=color,
+        max_lines=max(header_policy.brand_line_clamp, 1),
+    )
+
+
+def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, *, color: str) -> TextSlotSpec:
+    metrics = header_policy.layout_metrics
+    return replace(
+        spec.agent_name_slot,
+        x=int(metrics["agent_slot_x"]),
+        y=int(metrics["agent_slot_y"]),
+        w=int(metrics["agent_slot_w"]),
+        h=int(metrics["agent_slot_h"]),
+        color=color,
+        max_lines=1,
+    )
 
 
 def _title_band_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
@@ -1685,6 +1709,42 @@ def _slot_style(slot: dict[str, Any]) -> str:
         f"left:{slot['x']}px;top:{slot['y']}px;width:{slot['w']}px;height:{slot['h']}px;"
         + "".join(extra)
     )
+
+
+def _header_logo_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["logo"])
+    metrics = header_policy.layout_metrics
+    slot["w"] = int(metrics["header_logo_width"])
+    slot["h"] = int(metrics["header_logo_height"])
+    return slot
+
+
+def _header_brand_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["brand_name"])
+    metrics = header_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["brand_slot_x"]),
+            "y": int(metrics["brand_slot_y"]),
+            "w": int(metrics["brand_slot_w"]),
+            "h": int(metrics["brand_slot_h"]),
+        }
+    )
+    return slot
+
+
+def _header_agent_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["agent_name"])
+    metrics = header_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["agent_slot_x"]),
+            "y": int(metrics["agent_slot_y"]),
+            "w": int(metrics["agent_slot_w"]),
+            "h": int(metrics["agent_slot_h"]),
+        }
+    )
+    return slot
 
 
 def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
