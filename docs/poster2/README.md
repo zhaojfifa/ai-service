@@ -86,6 +86,8 @@ Read this section only after the product baseline and architecture guidance. The
   Transition/index helper for stage movement and reading continuity.
 - [poster_generation_project_restructure_checklist_v1.md](poster_generation_project_restructure_checklist_v1.md)
   Supporting project-level restructuring checklist for keeping implementation aligned.
+- [poster2_product_flow_reviewable_v1.md](poster2_product_flow_reviewable_v1.md)
+  Phase 3 PR-4 closure record: minimum operator loop (Stage 1 → Stage 2 → Stage 3) reviewable under contract-first baseline. Records Stage 2 live contract panel integration and all-region Resolver Layout evidence.
 
 ### 4. Next-Phase Plans
 
@@ -112,6 +114,7 @@ If you are new to poster2, use this order:
 10. [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
 11. [template_behavior_layer_plan_v1.md](template_behavior_layer_plan_v1.md)
 12. [beautification_layer_plan_v1.md](beautification_layer_plan_v1.md)
+13. [poster2_product_flow_reviewable_v1.md](poster2_product_flow_reviewable_v1.md)
 
 If you are working on implementation and want to jump ahead, do not start from a phase-plan document. Re-anchor on the product baseline first, then re-enter through the architecture guidance set.
 
