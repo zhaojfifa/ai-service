@@ -80,7 +80,7 @@
     "x": 456, "y": 188, "w": 300, "h": 520,
     "fit": "contain",
     "align_x": "center",
-    "align_y": "end",
+    "align_y": "center",
     "pad_top": 24,
     "pad_right": 18,
     "pad_bottom": 10,
