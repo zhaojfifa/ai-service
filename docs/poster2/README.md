@@ -136,6 +136,36 @@ When adding or updating poster2 docs:
 
 If a new document cannot be placed cleanly into one of the groups above, that is a signal to check for architecture drift before adding it.
 
+## Current Engineering Phase (as of 2026-03-28)
+
+### Phase 2: bottom SOP baseline — ESTABLISHED
+
+The `bottom_region` resolver path is the agreed SOP baseline for the behavior layer rollout.
+
+**What is established:**
+- `bottom_mode`, `gallery_mode`, `gallery_count`, `title`, `subtitle` are the declared behavior contract for `bottom_region`
+- These controls are always wired in Stage 2 regardless of template eligibility (bottom mode selection bug fixed)
+- Stage 2 page refactored to Resolver Layout design: two-column layout, left panel holds copy + renderer + bottom controls, right panel shows Poster Preview and Resolver Layout with all region rows
+- `frontend/` and `docs/` are in sync
+
+**What this proves under the product baseline:**
+- The `Structure → Control → Beautification` governance order holds: bottom structure was proven in Phase 1, bottom control behavior is now the SOP baseline in Phase 2
+- The resolver path is repeatable: declare mode → resolve bounds → renderer consumes → evidence emitted
+
+**What is NOT yet done:**
+- Other regions (header, scenario, product, feature) do not yet have full resolver coverage
+- Beautification layer has not started; it remains downstream of behavior stability across all regions
+
+### Phase 3: next steps
+
+Apply the bottom resolver pattern to remaining regions:
+1. `header_region` — complete `identity_zone_mode` resolver wiring
+2. `scenario_region`, `product_region`, `feature_region` — resolver coverage
+3. Preview-path / generation-path parity收口 (Puppeteer vs Pillow)
+4. Beautification layer planning (after all-region behavior stability)
+
+---
+
 ## Notes On Branch-Local Materials
 
 This branch may still contain historical or grouped copies under subdirectories such as `01_architecture/`, `02_engineering/`, `03_stage_assessment/`, `04_external_reference/`, and `05_next_phase_plan/`.
