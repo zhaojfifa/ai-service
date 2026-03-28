@@ -1518,6 +1518,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             geometry_evidence=manifest.geometry_evidence,
             hero_contract_review=manifest.hero_contract_review,
             header_contract_review=manifest.header_contract_review,
+            feature_contract_review=manifest.feature_contract_review,
             bottom_contract_review=manifest.bottom_contract_review,
         )
 

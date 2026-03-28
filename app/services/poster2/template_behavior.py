@@ -218,7 +218,9 @@ class ResolvedFeatureBehavior:
     box_policy: str
     truncation_policy: str
     collapse_policy: str
+    text_budget_policy: str
     line_clamp: int
+    char_budget: int
     box_h: int
     gap: int
     start_strategy: str
@@ -234,7 +236,9 @@ class ResolvedFeatureBehavior:
             "box_policy": self.box_policy,
             "truncation_policy": self.truncation_policy,
             "collapse_policy": self.collapse_policy,
+            "text_budget_policy": self.text_budget_policy,
             "line_clamp": self.line_clamp,
+            "char_budget": self.char_budget,
             "box_h": self.box_h,
             "gap": self.gap,
             "start_strategy": self.start_strategy,
@@ -576,7 +580,9 @@ def resolve_feature_behavior(
             box_policy="count_scaled_stack",
             truncation_policy="two_line_clamp",
             collapse_policy="collapse_when_empty",
+            text_budget_policy="count_scaled_two_line_budget",
             line_clamp=2,
+            char_budget=_resolve_feature_char_budget(clamped_count, feature_mode),
             box_h=int(layout_spec["box_h"]),
             gap=int(layout_spec["gap"]),
             start_strategy="centered_in_region",
@@ -593,7 +599,9 @@ def resolve_feature_behavior(
             box_policy="uniform_compact_stack",
             truncation_policy="two_line_clamp",
             collapse_policy="collapse_when_empty",
+            text_budget_policy="uniform_two_line_budget",
             line_clamp=2,
+            char_budget=_resolve_feature_char_budget(clamped_count, feature_mode),
             box_h=int(layout_spec["box_h"]),
             gap=int(layout_spec["gap"]),
             start_strategy="centered_in_region",
@@ -679,9 +687,16 @@ def _apply_template_layout_policy_to_feature(
             feature_policy,
             box_h=max(feature_policy.box_h - 4, 56),
             gap=max(feature_policy.gap - 2, 8),
+            char_budget=max(feature_policy.char_budget - 6, 20),
             start_strategy="top_weighted_compact_region",
         )
     return feature_policy
+
+
+def _resolve_feature_char_budget(clamped_count: int, feature_mode: str) -> int:
+    if feature_mode == "uniform_callout_stack":
+        return {1: 36, 2: 32, 3: 28, 4: 24}[clamped_count]
+    return {1: 38, 2: 34, 3: 28, 4: 24}[clamped_count]
 
 
 def resolve_header_behavior(

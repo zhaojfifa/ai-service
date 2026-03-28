@@ -340,6 +340,7 @@ class RenderManifest:
     geometry_evidence: dict = field(default_factory=dict)
     hero_contract_review: dict = field(default_factory=dict)
     header_contract_review: dict = field(default_factory=dict)
+    feature_contract_review: dict = field(default_factory=dict)
     bottom_contract_review: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:

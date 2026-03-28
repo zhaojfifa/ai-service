@@ -314,6 +314,13 @@ class PosterPipeline:
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "feature_contract_review": _build_feature_contract_review(
+                template,
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
+                resolved_behavior=resolved_behavior,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "template_layout_review": {
                 "template_layout_policy": resolved_behavior.template_layout_policy.as_dict(),
                 "feature_region_response": {
@@ -407,6 +414,7 @@ class PosterPipeline:
             geometry_evidence=renderer_metadata_payload["geometry_evidence"],
             hero_contract_review=renderer_metadata_payload["hero_contract_review"],
             header_contract_review=renderer_metadata_payload["header_contract_review"],
+            feature_contract_review=renderer_metadata_payload["feature_contract_review"],
             bottom_contract_review=renderer_metadata_payload["bottom_contract_review"],
         )
 
@@ -448,11 +456,23 @@ def _normalize_contract_text_spec(spec: PosterSpec) -> PosterSpec:
     agent_name = _normalize_requested_text(spec.agent_name)
     title = _normalize_requested_text(spec.title)
     subtitle = _normalize_requested_text(spec.subtitle)
+    features = tuple(
+        normalized
+        for item in spec.features
+        if (normalized := _normalize_requested_text(item))
+    )
     if not brand_name:
         raise ValueError("brand_name must not be empty after normalization")
     if not title:
         raise ValueError("title must not be empty after normalization")
-    return replace(spec, brand_name=brand_name, agent_name=agent_name, title=title, subtitle=subtitle)
+    return replace(
+        spec,
+        brand_name=brand_name,
+        agent_name=agent_name,
+        title=title,
+        subtitle=subtitle,
+        features=features,
+    )
 
 
 def _apply_text_budget(text: str, budget: int) -> str:
@@ -1060,4 +1080,74 @@ def _build_hero_contract_review(
             "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
             "bounds": _product_slot_bounds(template, resolved_behavior),
         },
+    }
+
+
+def _build_feature_contract_review(
+    template: TemplateSpec,
+    *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
+    resolved_behavior,
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    feature_region_bounds = {
+        "x": int(template.feature_callouts[0].label_box.x) if template.feature_callouts else 0,
+        "y": int(template.feature_callouts[0].label_box.y) if template.feature_callouts else 0,
+        "w": 164,
+        "h": 392,
+    }
+    rendered_items = [
+        _apply_text_budget(text, resolved_behavior.feature_policy.char_budget)
+        for text in effective_spec.features[: resolved_behavior.feature_policy.visible_item_count]
+    ]
+    item_reviews = []
+    for index, requested_text in enumerate(requested_spec.features, start=1):
+        sanitized_text = effective_spec.features[index - 1] if index - 1 < len(effective_spec.features) else ""
+        rendered_excerpt = (
+            _apply_text_budget(sanitized_text, resolved_behavior.feature_policy.char_budget)
+            if index <= resolved_behavior.feature_policy.visible_item_count
+            else ""
+        )
+        if index <= len(template.feature_callouts):
+            label_box = template.feature_callouts[index - 1].label_box
+            bounds = {"x": int(label_box.x), "y": int(label_box.y), "w": int(label_box.w), "h": int(label_box.h)}
+        else:
+            bounds = None
+        item_reviews.append(
+            {
+                "slot_id": f"feature_item_slot_{index}",
+                "requested_text": requested_text,
+                "sanitized_text": sanitized_text,
+                "rendered_excerpt": rendered_excerpt,
+                "rendered": index <= resolved_behavior.feature_policy.visible_item_count and bool(sanitized_text),
+                "truncation_applied": rendered_excerpt != sanitized_text,
+                "reason_code": None if (index <= resolved_behavior.feature_policy.visible_item_count and bool(sanitized_text)) else "collapsed_when_empty_or_capped",
+                "bounds": bounds,
+            }
+        )
+    return {
+        "feature_mode": resolved_behavior.feature_policy.mode,
+        "requested_feature_items": list(requested_spec.features),
+        "sanitized_feature_items": list(effective_spec.features),
+        "rendered_feature_items": rendered_items,
+        "feature_region": {
+            "rendered": bool(region_render_status.get("feature_region", {}).get("rendered", False)),
+            "visible_item_count": resolved_behavior.feature_policy.visible_item_count,
+            "bounds": feature_region_bounds,
+        },
+        "behavior_policy": {
+            "visible_item_count_policy": resolved_behavior.feature_policy.visible_item_count_policy,
+            "connector_policy": resolved_behavior.feature_policy.connector_policy,
+            "box_policy": resolved_behavior.feature_policy.box_policy,
+            "truncation_policy": resolved_behavior.feature_policy.truncation_policy,
+            "collapse_policy": resolved_behavior.feature_policy.collapse_policy,
+            "text_budget_policy": resolved_behavior.feature_policy.text_budget_policy,
+            "line_clamp": resolved_behavior.feature_policy.line_clamp,
+            "char_budget": resolved_behavior.feature_policy.char_budget,
+            "box_h": resolved_behavior.feature_policy.box_h,
+            "gap": resolved_behavior.feature_policy.gap,
+            "start_strategy": resolved_behavior.feature_policy.start_strategy,
+        },
+        "feature_slots": item_reviews,
     }

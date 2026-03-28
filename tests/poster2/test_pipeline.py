@@ -492,6 +492,15 @@ class TestPosterPipelineRun:
         assert geometry["visible_item_count"]["scenario_region"] == 0
         assert geometry["visible_item_count"]["title_band_region"] == 2
         assert geometry["visible_item_count"]["product_region"] == 1
+        feature_review = metadata["feature_contract_review"]
+        assert feature_review["feature_mode"] == "count_driven_callout_stack"
+        assert feature_review["requested_feature_items"] == ["特性A", "特性B"]
+        assert feature_review["sanitized_feature_items"] == ["特性A", "特性B"]
+        assert feature_review["rendered_feature_items"] == ["特性A", "特性B"]
+        assert feature_review["behavior_policy"]["connector_policy"] == "balanced_pair"
+        assert feature_review["behavior_policy"]["text_budget_policy"] == "count_scaled_two_line_budget"
+        assert feature_review["feature_slots"][0]["rendered"] is True
+        assert feature_review["feature_slots"][0]["truncation_applied"] is False
         hero_review = metadata["hero_contract_review"]
         assert hero_review["hero_mode"] == "scenario_cover_product_contain"
         assert hero_review["requested_product_source"] == "mock://product"
@@ -1014,6 +1023,40 @@ class TestPosterPipelineRun:
         assert hero_review["product_slot"]["rendered"] is True
         assert hero_review["behavior_policy"]["peer_layout_policy"] == "single_product_without_scenario_peer"
         assert hero_review["behavior_policy"]["product_anchor"] == "bottom"
+
+    def test_feature_contract_review_exposes_requested_sanitized_rendered_chain_with_empty_and_capped_items(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(features=(" 特性A ", "   ", "超长特性文案超长特性文案超长特性文案超长特性文案超长特性文案", "特性D", "特性E")),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        feature_review = metadata["feature_contract_review"]
+
+        assert feature_review["requested_feature_items"] == [" 特性A ", "   ", "超长特性文案超长特性文案超长特性文案超长特性文案超长特性文案", "特性D", "特性E"]
+        assert feature_review["sanitized_feature_items"] == ["特性A", "超长特性文案超长特性文案超长特性文案超长特性文案超长特性文案", "特性D", "特性E"]
+        assert feature_review["feature_region"]["visible_item_count"] == 4
+        assert feature_review["behavior_policy"]["char_budget"] == 24
+        assert feature_review["feature_slots"][1]["sanitized_text"] == "超长特性文案超长特性文案超长特性文案超长特性文案超长特性文案"
+        assert feature_review["feature_slots"][1]["truncation_applied"] is True
+        assert feature_review["feature_slots"][4]["rendered"] is False
 
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()

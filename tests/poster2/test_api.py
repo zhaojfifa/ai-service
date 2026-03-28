@@ -63,6 +63,12 @@ class _FakePoster2Pipeline:
                 "sanitized_brand_text": spec.brand_name,
                 "rendered_brand_excerpt": spec.brand_name,
             },
+            feature_contract_review={
+                "feature_mode": "count_driven_callout_stack",
+                "requested_feature_items": list(spec.features),
+                "sanitized_feature_items": list(spec.features),
+                "rendered_feature_items": list(spec.features),
+            },
             bottom_contract_review={
                 "bottom_mode": spec.bottom_mode or "title_gallery_split",
                 "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
@@ -133,6 +139,12 @@ class _FakeDegradedPoster2Pipeline:
                 "sanitized_brand_text": spec.brand_name,
                 "rendered_brand_excerpt": spec.brand_name,
             },
+            feature_contract_review={
+                "feature_mode": "count_driven_callout_stack",
+                "requested_feature_items": list(spec.features),
+                "sanitized_feature_items": list(spec.features),
+                "rendered_feature_items": list(spec.features),
+            },
             bottom_contract_review={
                 "bottom_mode": spec.bottom_mode or "title_gallery_split",
                 "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
@@ -185,6 +197,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
     assert body["hero_contract_review"]["hero_mode"] == "scenario_cover_product_contain"
     assert body["header_contract_review"]["header_mode"] == "identity_left_agent_right"
+    assert body["feature_contract_review"]["feature_mode"] == "count_driven_callout_stack"
     assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
     assert body["geometry_evidence"]["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
 
