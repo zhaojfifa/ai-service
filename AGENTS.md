@@ -251,7 +251,7 @@ Use this short version when in doubt:
 
 ## 12. Current phase state (as of 2026-03-28)
 
-### Phase 2: bottom SOP baseline — ESTABLISHED
+### Phase 2: bottom SOP baseline — ESTABLISHED + gallery pair tuned
 
 The `bottom_region` resolver path is now the SOP baseline for the behavior layer.
 
@@ -259,10 +259,14 @@ What is established:
 - `bottom_mode` / `gallery_mode` / `gallery_count` / title / subtitle controls are always wired in Stage 2, regardless of template eligibility
 - **bottom mode selection bug — FIXED** (`initPoster2BottomContractControls` no longer has an early return for non-eligible templates)
 - Stage 2 page refactored: two-column Resolver Layout; bottom controls in left panel; debug areas (Result Diagnostics, old Layout Preview) removed; Resolver Layout shows all region rows post-generation via `region_render_status`
+- **Bottom contract gallery pair UI upgraded** (`strip_local_visible_only` count=2): `gallery_shell_height` 88→100, `gallery_items_height` 68→80, `item_width` 260→280, `gap` 20→16; pair renders as a proper pair showcase frame, not a compressed residual strip
+- **Title char budget relaxed** for 1-line clamp + light gallery + dense subtitle scenario: `title_char_budget` 22→36; Python-level pre-truncation no longer cuts titles at 22 chars — CSS `line-clamp: 1` + `text-overflow: ellipsis` handles visual overflow cleanly
+- 116 poster2 tests passing
 
 What this proves:
 - bottom behavior can be declared, resolved, and validated end-to-end through the contract → resolver → renderer → evidence path
 - the SOP baseline pattern is repeatable
+- gallery pair sizing is now a declared resolver output, not an implicit strip default
 
 ### Phase 3: replicate to other regions
 

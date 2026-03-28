@@ -138,7 +138,7 @@ If a new document cannot be placed cleanly into one of the groups above, that is
 
 ## Current Engineering Phase (as of 2026-03-28)
 
-### Phase 2: bottom SOP baseline — ESTABLISHED
+### Phase 2: bottom SOP baseline — ESTABLISHED + gallery pair tuned
 
 The `bottom_region` resolver path is the agreed SOP baseline for the behavior layer rollout.
 
@@ -147,10 +147,14 @@ The `bottom_region` resolver path is the agreed SOP baseline for the behavior la
 - These controls are always wired in Stage 2 regardless of template eligibility (bottom mode selection bug fixed)
 - Stage 2 page refactored to Resolver Layout design: two-column layout, left panel holds copy + renderer + bottom controls, right panel shows Poster Preview and Resolver Layout with all region rows
 - `frontend/` and `docs/` are in sync
+- **Gallery pair showcase upgraded** (`strip_local_visible_only` count=2): `gallery_shell_height` 88→100, `gallery_items_height` 68→80, `item_width` 260→280, gap 20→16; the pair now renders as a proper `pair_showcase_frame`, not a compressed residual strip
+- **Title char budget relaxed** for 1-line clamp + light gallery + dense subtitle: budget raised 22→36 so Python-level pre-truncation no longer cuts product titles mid-word; CSS `line-clamp` handles visual overflow
+- 116 poster2 tests passing
 
 **What this proves under the product baseline:**
 - The `Structure → Control → Beautification` governance order holds: bottom structure was proven in Phase 1, bottom control behavior is now the SOP baseline in Phase 2
 - The resolver path is repeatable: declare mode → resolve bounds → renderer consumes → evidence emitted
+- Gallery pair sizing is a declared resolver output driven by the behavior contract, not an implicit strip default
 
 **What is NOT yet done:**
 - Other regions (header, scenario, product, feature) do not yet have full resolver coverage

@@ -96,11 +96,14 @@ See `.env.example` for the full variable reference.
 
 ## poster2 phase state (as of 2026-03-28)
 
-### Phase 2: bottom SOP baseline — ESTABLISHED
+### Phase 2: bottom SOP baseline — ESTABLISHED + gallery pair tuned
 
 - `bottom_region` behavior (`bottom_mode`, `gallery_mode`, `gallery_count`, title/subtitle) is the agreed SOP baseline for behavior-layer rollout
 - **bottom mode selection bug — FIXED**: removed early-return eligibility gate from `initPoster2BottomContractControls` in `frontend/app.js`; controls now always wired regardless of `template_id`
 - Stage 2 page refactored to two-column Resolver Layout design: bottom controls in left panel; Result Diagnostics and old CSS layout preview removed; Resolver Layout section shows all region rows post-generation
+- **Bottom contract gallery pair UI upgraded** (`strip_local_visible_only` count=2): `gallery_shell_height` 88→100, `gallery_items_height` 68→80, `item_width` 260→280, `gap` 20→16; pair now shows as a proper showcase, not a compressed strip
+- **Title char budget relaxed** for 1-line clamp + light gallery + dense subtitle: `title_char_budget` 22→36; visual truncation now deferred to CSS `line-clamp` + `text-overflow: ellipsis` instead of early Python cut
+- 116 poster2 tests passing
 
 ### Phase 3: next
 
