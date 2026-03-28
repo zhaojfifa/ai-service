@@ -192,6 +192,14 @@ body {
   text-overflow: ellipsis;
 }
 
+.header-mode-brand_block_two_line .text-brand {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
 .slot-agent-name-text {
   display: flex;
   align-items: center;
@@ -288,6 +296,18 @@ body {
 
 .layer-agent-name-text.state-hidden {
   display: none;
+}
+
+.header-identity-brand_only .layer-header-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.header-identity-brand_only .layer-header-agent-zone {
+  display: none;
+}
+
+.header-identity-brand_only .layer-header-identity-zone {
+  max-width: 100%;
 }
 
 .region-shell-header {

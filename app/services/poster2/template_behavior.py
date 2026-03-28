@@ -141,6 +141,16 @@ class ResolvedHeaderBehavior:
     identity_zone_mode: str             # "logo_and_brand" | "brand_only"
     agent_pill_collapse_condition: str  # "always_collapse" | "collapse_when_empty"
     agent_pill_visible: bool
+    brand_text_policy: str
+    content_priority_policy: str
+    requested_brand_text_present: bool
+    requested_agent_text_present: bool
+    effective_brand_text_present: bool
+    effective_agent_text_present: bool
+    brand_line_clamp: int
+    brand_char_budget: int
+    agent_char_budget: int
+    layout_metrics: dict[str, int]
 
     css_classes: tuple[str, ...]
 
@@ -151,6 +161,16 @@ class ResolvedHeaderBehavior:
             "identity_zone_mode": self.identity_zone_mode,
             "agent_pill_collapse_condition": self.agent_pill_collapse_condition,
             "agent_pill_visible": self.agent_pill_visible,
+            "brand_text_policy": self.brand_text_policy,
+            "content_priority_policy": self.content_priority_policy,
+            "requested_brand_text_present": self.requested_brand_text_present,
+            "requested_agent_text_present": self.requested_agent_text_present,
+            "effective_brand_text_present": self.effective_brand_text_present,
+            "effective_agent_text_present": self.effective_agent_text_present,
+            "brand_line_clamp": self.brand_line_clamp,
+            "brand_char_budget": self.brand_char_budget,
+            "agent_char_budget": self.agent_char_budget,
+            "layout_metrics": dict(self.layout_metrics),
             "css_classes": list(self.css_classes),
         }
 
@@ -160,10 +180,14 @@ class ResolvedHeroBehavior:
     mode: str
     scenario_enabled: bool
     scenario_uses_safe_fill: bool
+    scenario_render_policy: str
+    product_render_policy: str
+    peer_layout_policy: str
     scenario_fit: str
     scenario_anchor: str
     product_fit: str
     product_anchor: str
+    layout_metrics: dict[str, int]
     css_classes: tuple[str, ...]
 
     def as_dict(self) -> dict[str, object]:
@@ -171,10 +195,14 @@ class ResolvedHeroBehavior:
             "mode": self.mode,
             "scenario_enabled": self.scenario_enabled,
             "scenario_uses_safe_fill": self.scenario_uses_safe_fill,
+            "scenario_render_policy": self.scenario_render_policy,
+            "product_render_policy": self.product_render_policy,
+            "peer_layout_policy": self.peer_layout_policy,
             "scenario_fit": self.scenario_fit,
             "scenario_anchor": self.scenario_anchor,
             "product_fit": self.product_fit,
             "product_anchor": self.product_anchor,
+            "layout_metrics": dict(self.layout_metrics),
             "css_classes": list(self.css_classes),
         }
 
@@ -190,7 +218,9 @@ class ResolvedFeatureBehavior:
     box_policy: str
     truncation_policy: str
     collapse_policy: str
+    text_budget_policy: str
     line_clamp: int
+    char_budget: int
     box_h: int
     gap: int
     start_strategy: str
@@ -206,7 +236,9 @@ class ResolvedFeatureBehavior:
             "box_policy": self.box_policy,
             "truncation_policy": self.truncation_policy,
             "collapse_policy": self.collapse_policy,
+            "text_budget_policy": self.text_budget_policy,
             "line_clamp": self.line_clamp,
+            "char_budget": self.char_budget,
             "box_h": self.box_h,
             "gap": self.gap,
             "start_strategy": self.start_strategy,
@@ -373,6 +405,7 @@ def resolve_template_behavior(
     feature_count: int | None = None,
     title_text: str | None = None,
     subtitle_text: str | None = None,
+    brand_name: str | None = None,
     gallery_requested_count: int | None = None,
     gallery_resolved_count: int | None = None,
     bottom_mode: str | None = None,
@@ -412,6 +445,7 @@ def resolve_template_behavior(
     feature_policy = _apply_template_layout_policy_to_feature(feature_policy, template_layout_policy)
     header_policy = resolve_header_behavior(
         modes.header_mode or "identity_left_agent_right",
+        brand_name=brand_name,
         agent_name=agent_name,
     )
 
@@ -432,6 +466,7 @@ def resolve_template_behavior(
         }
     )
     css_vars.update(_resolve_bottom_behavior_vars(bottom_policy))
+    css_vars.update(_resolve_header_behavior_vars(header_policy))
     return ResolvedTemplateBehavior(
         hero_mode=hero_mode,
         feature_mode=feature_mode,
@@ -471,10 +506,27 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             mode=hero_mode,
             scenario_enabled=True,
             scenario_uses_safe_fill=True,
+            scenario_render_policy="scenario_optional_safe_fill_cover",
+            product_render_policy="product_contain_centered",
+            peer_layout_policy="fixed_dual_hero_peer_regions",
             scenario_fit="cover",
             scenario_anchor="center",
             product_fit="contain",
             product_anchor="center",
+            layout_metrics={
+                "scenario_region_x": 96,
+                "scenario_region_y": 188,
+                "scenario_region_w": 288,
+                "scenario_region_h": 520,
+                "product_region_x": 456,
+                "product_region_y": 188,
+                "product_region_w": 300,
+                "product_region_h": 520,
+                "product_pad_top": 24,
+                "product_pad_right": 18,
+                "product_pad_bottom": 10,
+                "product_pad_left": 18,
+            },
             css_classes=(_css_mode_class("hero-mode", hero_mode),),
         )
     if hero_mode == "single_product_focus":
@@ -482,10 +534,27 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             mode=hero_mode,
             scenario_enabled=False,
             scenario_uses_safe_fill=False,
+            scenario_render_policy="scenario_disabled",
+            product_render_policy="product_contain_bottom_weighted",
+            peer_layout_policy="single_product_without_scenario_peer",
             scenario_fit="cover",
             scenario_anchor="center",
             product_fit="contain",
             product_anchor="bottom",
+            layout_metrics={
+                "scenario_region_x": 96,
+                "scenario_region_y": 188,
+                "scenario_region_w": 288,
+                "scenario_region_h": 520,
+                "product_region_x": 456,
+                "product_region_y": 188,
+                "product_region_w": 300,
+                "product_region_h": 520,
+                "product_pad_top": 24,
+                "product_pad_right": 18,
+                "product_pad_bottom": 10,
+                "product_pad_left": 18,
+            },
             css_classes=(_css_mode_class("hero-mode", hero_mode), "hero-scenario-disabled"),
         )
     raise ValueError(f"Unsupported hero_mode: {hero_mode}")
@@ -511,7 +580,9 @@ def resolve_feature_behavior(
             box_policy="count_scaled_stack",
             truncation_policy="two_line_clamp",
             collapse_policy="collapse_when_empty",
+            text_budget_policy="count_scaled_two_line_budget",
             line_clamp=2,
+            char_budget=_resolve_feature_char_budget(clamped_count, feature_mode),
             box_h=int(layout_spec["box_h"]),
             gap=int(layout_spec["gap"]),
             start_strategy="centered_in_region",
@@ -528,7 +599,9 @@ def resolve_feature_behavior(
             box_policy="uniform_compact_stack",
             truncation_policy="two_line_clamp",
             collapse_policy="collapse_when_empty",
+            text_budget_policy="uniform_two_line_budget",
             line_clamp=2,
+            char_budget=_resolve_feature_char_budget(clamped_count, feature_mode),
             box_h=int(layout_spec["box_h"]),
             gap=int(layout_spec["gap"]),
             start_strategy="centered_in_region",
@@ -614,38 +687,132 @@ def _apply_template_layout_policy_to_feature(
             feature_policy,
             box_h=max(feature_policy.box_h - 4, 56),
             gap=max(feature_policy.gap - 2, 8),
+            char_budget=max(feature_policy.char_budget - 6, 20),
             start_strategy="top_weighted_compact_region",
         )
     return feature_policy
 
 
+def _resolve_feature_char_budget(clamped_count: int, feature_mode: str) -> int:
+    if feature_mode == "uniform_callout_stack":
+        return {1: 36, 2: 32, 3: 28, 4: 24}[clamped_count]
+    return {1: 38, 2: 34, 3: 28, 4: 24}[clamped_count]
+
+
 def resolve_header_behavior(
     header_mode: str,
     *,
+    brand_name: str | None = None,
     agent_name: str | None = None,
 ) -> ResolvedHeaderBehavior:
     _validate_token(header_mode, _SUPPORTED_HEADER_MODES, "header_mode")
-    agent_name_present = bool((agent_name or "").strip())
+    requested_brand_text_present = bool(brand_name)
+    requested_agent_text_present = bool(agent_name)
+    effective_brand_name = (brand_name or "").strip()
+    effective_agent_name = (agent_name or "").strip()
+    effective_brand_text_present = bool(effective_brand_name)
+    effective_agent_text_present = bool(effective_agent_name)
 
     if header_mode == "identity_left_agent_right":
         lane_layout_mode = "single_line"
         identity_zone_mode = "logo_and_brand"
         agent_pill_collapse_condition = "collapse_when_empty"
+        brand_text_policy = "single_line_brand_lockup"
+        content_priority_policy = "brand_identity_priority_over_agent"
+        brand_line_clamp = 1
+        brand_char_budget = 40
+        agent_char_budget = 24
+        layout_metrics = {
+            "header_banner_left": 72,
+            "header_banner_top": 56,
+            "header_banner_width": 880,
+            "header_banner_height": 104,
+            "header_inner_left": 104,
+            "header_inner_right": 112,
+            "header_inner_top": 72,
+            "header_inner_height": 56,
+            "header_side_width": 228,
+            "header_logo_width": 120,
+            "header_logo_height": 64,
+            "header_logo_gap": 20,
+            "brand_slot_x": 244,
+            "brand_slot_y": 88,
+            "brand_slot_w": 416,
+            "brand_slot_h": 36,
+            "agent_slot_x": 684,
+            "agent_slot_y": 96,
+            "agent_slot_w": 228,
+            "agent_slot_h": 18,
+        }
     elif header_mode == "brand_block_two_line":
         lane_layout_mode = "two_line"
         identity_zone_mode = "logo_and_brand"
         agent_pill_collapse_condition = "collapse_when_empty"
+        brand_text_policy = "two_line_brand_lockup"
+        content_priority_policy = "brand_copy_priority_under_two_line_lockup"
+        brand_line_clamp = 2
+        brand_char_budget = 72
+        agent_char_budget = 24
+        layout_metrics = {
+            "header_banner_left": 72,
+            "header_banner_top": 56,
+            "header_banner_width": 880,
+            "header_banner_height": 120,
+            "header_inner_left": 104,
+            "header_inner_right": 112,
+            "header_inner_top": 68,
+            "header_inner_height": 72,
+            "header_side_width": 228,
+            "header_logo_width": 120,
+            "header_logo_height": 64,
+            "header_logo_gap": 18,
+            "brand_slot_x": 244,
+            "brand_slot_y": 76,
+            "brand_slot_w": 416,
+            "brand_slot_h": 52,
+            "agent_slot_x": 684,
+            "agent_slot_y": 96,
+            "agent_slot_w": 228,
+            "agent_slot_h": 18,
+        }
     elif header_mode == "brand_only":
         lane_layout_mode = "single_line"
         identity_zone_mode = "brand_only"
         agent_pill_collapse_condition = "always_collapse"
+        brand_text_policy = "brand_only_single_line_lockup"
+        content_priority_policy = "brand_only_priority"
+        brand_line_clamp = 1
+        brand_char_budget = 52
+        agent_char_budget = 0
+        layout_metrics = {
+            "header_banner_left": 72,
+            "header_banner_top": 56,
+            "header_banner_width": 880,
+            "header_banner_height": 96,
+            "header_inner_left": 104,
+            "header_inner_right": 104,
+            "header_inner_top": 74,
+            "header_inner_height": 48,
+            "header_side_width": 0,
+            "header_logo_width": 0,
+            "header_logo_height": 0,
+            "header_logo_gap": 0,
+            "brand_slot_x": 104,
+            "brand_slot_y": 82,
+            "brand_slot_w": 808,
+            "brand_slot_h": 32,
+            "agent_slot_x": 912,
+            "agent_slot_y": 96,
+            "agent_slot_w": 0,
+            "agent_slot_h": 0,
+        }
     else:
         raise ValueError(f"Unsupported header_mode: {header_mode}")
 
     agent_pill_visible = (
         False
         if agent_pill_collapse_condition == "always_collapse"
-        else agent_name_present
+        else effective_agent_text_present
     )
 
     css_classes: tuple[str, ...] = (
@@ -661,8 +828,36 @@ def resolve_header_behavior(
         identity_zone_mode=identity_zone_mode,
         agent_pill_collapse_condition=agent_pill_collapse_condition,
         agent_pill_visible=agent_pill_visible,
+        brand_text_policy=brand_text_policy,
+        content_priority_policy=content_priority_policy,
+        requested_brand_text_present=requested_brand_text_present,
+        requested_agent_text_present=requested_agent_text_present,
+        effective_brand_text_present=effective_brand_text_present,
+        effective_agent_text_present=effective_agent_text_present,
+        brand_line_clamp=brand_line_clamp,
+        brand_char_budget=brand_char_budget,
+        agent_char_budget=agent_char_budget,
+        layout_metrics=layout_metrics,
         css_classes=css_classes,
     )
+
+
+def _resolve_header_behavior_vars(header_policy: ResolvedHeaderBehavior) -> dict[str, str]:
+    metrics = header_policy.layout_metrics
+    return {
+        "--header-banner-left": f"{int(metrics['header_banner_left'])}px",
+        "--header-banner-top": f"{int(metrics['header_banner_top'])}px",
+        "--header-banner-width": f"{int(metrics['header_banner_width'])}px",
+        "--header-banner-height": f"{int(metrics['header_banner_height'])}px",
+        "--header-inner-left": f"{int(metrics['header_inner_left'])}px",
+        "--header-inner-right": f"{int(metrics['header_inner_right'])}px",
+        "--header-inner-top": f"{int(metrics['header_inner_top'])}px",
+        "--header-inner-height": f"{int(metrics['header_inner_height'])}px",
+        "--header-side-width": f"{int(metrics['header_side_width'])}px",
+        "--header-logo-width": f"{int(metrics['header_logo_width'])}px",
+        "--header-logo-height": f"{int(metrics['header_logo_height'])}px",
+        "--header-logo-gap": f"{int(metrics['header_logo_gap'])}px",
+    }
 
 
 def resolve_bottom_behavior(

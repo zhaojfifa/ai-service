@@ -126,6 +126,7 @@ class LayoutRenderer:
             feature_count=feature_count,
             title_text=poster.title,
             subtitle_text=poster.subtitle,
+            brand_name=poster.brand_name,
             gallery_requested_count=len(poster.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
@@ -144,8 +145,8 @@ class LayoutRenderer:
             has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
         )
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
-            self._draw_image(canvas, spec.scenario_slot, assets.scenario)
-        self._draw_product(canvas, spec.product_slot, assets.product)
+            self._draw_image(canvas, _scenario_image_slot(spec, behavior.hero_policy), assets.scenario)
+        self._draw_product(canvas, _product_image_slot(spec, behavior.hero_policy), assets.product)
         self._draw_gallery(
             canvas,
             spec.gallery_slot,
@@ -172,15 +173,15 @@ class LayoutRenderer:
         self._draw_feature_callout_labels(canvas, resolved_callouts)
         self._draw_text(
             canvas,
-            replace(spec.brand_name_slot, color=behavior.text_colors["brand"]),
-            poster.brand_name,
+            _brand_text_slot(spec, behavior.header_policy, color=behavior.text_colors["brand"]),
+            _apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget),
             draw_background=False,
         )
         if behavior.header_policy.agent_pill_visible:
             self._draw_text(
                 canvas,
-                replace(spec.agent_name_slot, color=behavior.text_colors["agent"]),
-                poster.agent_name,
+                _agent_text_slot(spec, behavior.header_policy, color=behavior.text_colors["agent"]),
+                _apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget),
                 draw_background=False,
             )
         if behavior.bottom_policy.title_slot_rendered:
@@ -245,7 +246,7 @@ class LayoutRenderer:
     ) -> None:
         has_title_band = behavior.bottom_policy.title_band_rendered
         has_gallery = behavior.bottom_policy.gallery_strip_rendered
-        header_box = _header_shell_bounds(spec)
+        header_box = _header_shell_bounds(spec, behavior.header_policy)
         self._draw_shell_box(
             canvas,
             header_box,
@@ -257,7 +258,7 @@ class LayoutRenderer:
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot:
             self._draw_shell_box(
                 canvas,
-                (spec.scenario_slot.x, spec.scenario_slot.y, spec.scenario_slot.w, spec.scenario_slot.h),
+                _scenario_shell_bounds(spec, behavior.hero_policy),
                 radius=24,
                 fill=_pillow_shell_fill(
                     "scenario_real" if has_scenario else "scenario_safe",
@@ -269,7 +270,7 @@ class LayoutRenderer:
             )
         self._draw_shell_box(
             canvas,
-            (spec.product_slot.x, spec.product_slot.y, spec.product_slot.w, spec.product_slot.h),
+            _product_shell_bounds(spec, behavior.hero_policy),
             radius=24,
             fill=_pillow_shell_fill("product", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
             border=_pillow_border("product", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -527,6 +528,7 @@ class PuppeteerStructuredRenderer:
             feature_count=feature_count,
             title_text=poster.title,
             subtitle_text=poster.subtitle,
+            brand_name=poster.brand_name,
             gallery_requested_count=len(poster.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
@@ -672,6 +674,7 @@ class PuppeteerStructuredRenderer:
             feature_count=len(_normalized_feature_texts(poster.features)),
             title_text=poster.title,
             subtitle_text=poster.subtitle,
+            brand_name=poster.brand_name,
             gallery_requested_count=len(poster.gallery_images),
             gallery_resolved_count=len(asset_urls.get("gallery") or []),
             bottom_mode=poster.bottom_mode,
@@ -735,12 +738,12 @@ class PuppeteerStructuredRenderer:
             "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
             "__SVG_OVERLAY__": "",
             "__HEADER_LAYER_CLASS__": header_layer_class,
-            "__LOGO_STYLE__": _slot_style(slot_spec["slots"]["logo"]),
+            "__LOGO_STYLE__": _slot_style(_header_logo_slot(slot_spec, behavior.header_policy)),
             "__LOGO_URL__": asset_urls["logo"],
-            "__BRAND_STYLE__": _slot_style(slot_spec["slots"]["brand_name"]),
-            "__BRAND_TEXT__": html.escape(poster.brand_name),
-            "__AGENT_STYLE__": _slot_style(slot_spec["slots"]["agent_name"]),
-            "__AGENT_TEXT__": html.escape(poster.agent_name),
+            "__BRAND_STYLE__": _slot_style(_header_brand_slot(slot_spec, behavior.header_policy)),
+            "__BRAND_TEXT__": html.escape(_apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget)),
+            "__AGENT_STYLE__": _slot_style(_header_agent_slot(slot_spec, behavior.header_policy)),
+            "__AGENT_TEXT__": html.escape(_apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget)),
             "__TITLE_STYLE__": _slot_style(slot_spec["slots"]["title"]),
             "__TITLE_TEXT__": html.escape(_apply_char_budget(poster.title, behavior.bottom_policy.title_char_budget)),
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
@@ -750,11 +753,11 @@ class PuppeteerStructuredRenderer:
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_CONTENT_CLASS__": scenario_content_class,
             "__AGENT_TEXT_CLASS__": agent_text_class,
-            "__SCENARIO_STYLE__": _slot_style(slot_spec["slots"]["scenario"]),
+            "__SCENARIO_STYLE__": _slot_style(_scenario_slot(slot_spec, behavior.hero_policy)),
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_LAYER_CLASS__": product_layer_class,
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
-            "__PRODUCT_STYLE__": _slot_style(slot_spec["slots"]["product"]),
+            "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy)),
             "__PRODUCT_URL__": asset_urls["product"],
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
             "__BOTTOM_REGION_CLASS__": bottom_region_class,
@@ -1347,7 +1350,7 @@ def _build_renderer_layer_render_status(
         "brand_text_layer": {
             "rendered": bool(poster.brand_name),
             "reason_code": None if poster.brand_name else "brand_name_empty",
-            "source_binding": "brand_name",
+            "source_binding": "request.brand_name",
             "count": 1 if poster.brand_name else 0,
             "collapsed": not bool(poster.brand_name),
         },
@@ -1357,7 +1360,7 @@ def _build_renderer_layer_render_status(
                 None if header_policy.agent_pill_visible
                 else ("agent_name_empty" if not poster.agent_name else "suppressed_by_header_mode")
             ),
-            "source_binding": "agent_name",
+            "source_binding": "request.agent_name",
             "count": 1 if header_policy.agent_pill_visible else 0,
             "collapsed": not header_policy.agent_pill_visible,
         },
@@ -1493,6 +1496,7 @@ def render_product_material_debug_layer(
     gallery_resolved = min(len(assets.gallery), spec.gallery_slot.count)
     behavior = resolve_template_behavior(
         spec,
+        brand_name=None,
         gallery_resolved_count=gallery_resolved,
         gallery_requested_count=gallery_resolved,
     )
@@ -1520,20 +1524,95 @@ def render_product_material_debug_layer(
     )
 
 
-def _header_shell_bounds(spec: TemplateSpec) -> tuple[int, int, int, int]:
-    left = min(spec.logo_slot.x, spec.brand_name_slot.x, spec.agent_name_slot.x) - 32
-    top = min(spec.logo_slot.y, spec.brand_name_slot.y, spec.agent_name_slot.y) - 18
-    right = max(
-        spec.logo_slot.x + spec.logo_slot.w,
-        spec.brand_name_slot.x + spec.brand_name_slot.w,
-        spec.agent_name_slot.x + spec.agent_name_slot.w,
-    ) + 40
-    bottom = max(
-        spec.logo_slot.y + spec.logo_slot.h,
-        spec.brand_name_slot.y + spec.brand_name_slot.h,
-        spec.agent_name_slot.y + spec.agent_name_slot.h,
-    ) + 22
-    return left, top, right - left, bottom - top
+def _header_shell_bounds(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior) -> tuple[int, int, int, int]:
+    metrics = header_policy.layout_metrics
+    return (
+        int(metrics["header_banner_left"]),
+        int(metrics["header_banner_top"]),
+        int(metrics["header_banner_width"]),
+        int(metrics["header_banner_height"]),
+    )
+
+
+def _brand_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, *, color: str) -> TextSlotSpec:
+    metrics = header_policy.layout_metrics
+    return replace(
+        spec.brand_name_slot,
+        x=int(metrics["brand_slot_x"]),
+        y=int(metrics["brand_slot_y"]),
+        w=int(metrics["brand_slot_w"]),
+        h=int(metrics["brand_slot_h"]),
+        color=color,
+        max_lines=max(header_policy.brand_line_clamp, 1),
+    )
+
+
+def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, *, color: str) -> TextSlotSpec:
+    metrics = header_policy.layout_metrics
+    return replace(
+        spec.agent_name_slot,
+        x=int(metrics["agent_slot_x"]),
+        y=int(metrics["agent_slot_y"]),
+        w=int(metrics["agent_slot_w"]),
+        h=int(metrics["agent_slot_h"]),
+        color=color,
+        max_lines=1,
+    )
+
+
+def _scenario_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, int, int]:
+    metrics = hero_policy.layout_metrics
+    return (
+        int(metrics["scenario_region_x"]),
+        int(metrics["scenario_region_y"]),
+        int(metrics["scenario_region_w"]),
+        int(metrics["scenario_region_h"]),
+    )
+
+
+def _product_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, int, int]:
+    metrics = hero_policy.layout_metrics
+    return (
+        int(metrics["product_region_x"]),
+        int(metrics["product_region_y"]),
+        int(metrics["product_region_w"]),
+        int(metrics["product_region_h"]),
+    )
+
+
+def _scenario_image_slot(spec: TemplateSpec, hero_policy):
+    if spec.scenario_slot is None:
+        return None
+    metrics = hero_policy.layout_metrics
+    return replace(
+        spec.scenario_slot,
+        x=int(metrics["scenario_region_x"]),
+        y=int(metrics["scenario_region_y"]),
+        w=int(metrics["scenario_region_w"]),
+        h=int(metrics["scenario_region_h"]),
+        fit=hero_policy.scenario_fit,
+        align_x=hero_policy.scenario_anchor if hero_policy.scenario_anchor in {"start", "center", "end"} else "center",
+        align_y=hero_policy.scenario_anchor if hero_policy.scenario_anchor in {"start", "center", "end"} else "center",
+    )
+
+
+def _product_image_slot(spec: TemplateSpec, hero_policy):
+    metrics = hero_policy.layout_metrics
+    anchor = hero_policy.product_anchor if hero_policy.product_anchor in {"start", "center", "end"} else "center"
+    return replace(
+        spec.product_slot,
+        x=int(metrics["product_region_x"]),
+        y=int(metrics["product_region_y"]),
+        w=int(metrics["product_region_w"]),
+        h=int(metrics["product_region_h"]),
+        fit=hero_policy.product_fit,
+        align_x="center",
+        align_y=anchor,
+        pad_top=int(metrics["product_pad_top"]),
+        pad_right=int(metrics["product_pad_right"]),
+        pad_bottom=int(metrics["product_pad_bottom"]),
+        pad_left=int(metrics["product_pad_left"]),
+    )
 
 
 def _title_band_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
@@ -1685,6 +1764,76 @@ def _slot_style(slot: dict[str, Any]) -> str:
         f"left:{slot['x']}px;top:{slot['y']}px;width:{slot['w']}px;height:{slot['h']}px;"
         + "".join(extra)
     )
+
+
+def _header_logo_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["logo"])
+    metrics = header_policy.layout_metrics
+    slot["w"] = int(metrics["header_logo_width"])
+    slot["h"] = int(metrics["header_logo_height"])
+    return slot
+
+
+def _header_brand_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["brand_name"])
+    metrics = header_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["brand_slot_x"]),
+            "y": int(metrics["brand_slot_y"]),
+            "w": int(metrics["brand_slot_w"]),
+            "h": int(metrics["brand_slot_h"]),
+        }
+    )
+    return slot
+
+
+def _header_agent_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["agent_name"])
+    metrics = header_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["agent_slot_x"]),
+            "y": int(metrics["agent_slot_y"]),
+            "w": int(metrics["agent_slot_w"]),
+            "h": int(metrics["agent_slot_h"]),
+        }
+    )
+    return slot
+
+
+def _scenario_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["scenario"])
+    metrics = hero_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["scenario_region_x"]),
+            "y": int(metrics["scenario_region_y"]),
+            "w": int(metrics["scenario_region_w"]),
+            "h": int(metrics["scenario_region_h"]),
+            "fit": hero_policy.scenario_fit,
+        }
+    )
+    return slot
+
+
+def _product_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
+    slot = dict(slot_spec["slots"]["product"])
+    metrics = hero_policy.layout_metrics
+    slot.update(
+        {
+            "x": int(metrics["product_region_x"]),
+            "y": int(metrics["product_region_y"]),
+            "w": int(metrics["product_region_w"]),
+            "h": int(metrics["product_region_h"]),
+            "fit": hero_policy.product_fit,
+            "pad_top": int(metrics["product_pad_top"]),
+            "pad_right": int(metrics["product_pad_right"]),
+            "pad_bottom": int(metrics["product_pad_bottom"]),
+            "pad_left": int(metrics["product_pad_left"]),
+        }
+    )
+    return slot
 
 
 def _image_to_data_url(img: Optional[PILImage.Image]) -> str:

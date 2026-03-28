@@ -386,6 +386,16 @@ Known failure patterns that should be treated as contract regressions:
 
 Bottom is now frozen as the first SOP baseline of poster2.
 
+Frozen milestone tag:
+
+- `poster2-bottom-sop-baseline-v1`
+
+Phase 3 status:
+
+- Phase 3 has started
+- bottom remains the frozen SOP baseline while new implementation work moves to region contract alignment
+- next execution order remains `header -> scenario/product -> feature -> Stage2 backend-driven contract panel integration`
+
 Frozen baseline means the following are fixed and should be treated as compatibility surfaces:
 
 - `bottom_region`
@@ -442,3 +452,14 @@ Phase 3 should reuse the bottom SOP pattern:
 - renderer must consume resolved behavior
 - evidence must explain requested / effective / rendered state
 - operator review must be possible before and after generation
+
+## 20. Freeze Handoff To Phase 3
+
+Bottom is no longer the active implementation surface for structural work.
+
+Phase 3 begins from the frozen bottom baseline with these rules:
+
+- bottom changes are limited to bug fixes and narrow policy tuning
+- bottom schema and diagnostics names stay stable while other regions align
+- backend region contract / evidence alignment happens before Stage2 live contract panel wiring
+- Stage2 remains a backend-driven review surface and must not become a second resolver

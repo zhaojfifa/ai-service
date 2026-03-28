@@ -113,4 +113,7 @@ class GeneratePosterV2Response(BaseModel):
     slot_binding_status: dict = Field(default_factory=dict)
     template_behavior: dict = Field(default_factory=dict)
     geometry_evidence: dict = Field(default_factory=dict)
+    hero_contract_review: dict = Field(default_factory=dict)
+    header_contract_review: dict = Field(default_factory=dict)
+    feature_contract_review: dict = Field(default_factory=dict)
     bottom_contract_review: dict = Field(default_factory=dict)
