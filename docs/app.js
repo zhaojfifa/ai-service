@@ -6816,6 +6816,9 @@ function updatePoster2DiagnosticsPanel(data) {
   setJson('poster2-template-behavior', data?.template_behavior, '{}');
   setJson('poster2-geometry-evidence', data?.geometry_evidence, '{}');
   setJson('poster2-bottom-contract-review', data?.bottom_contract_review, '{}');
+  setJson('poster2-header-contract-review', data?.header_contract_review, '{}');
+  setJson('poster2-hero-contract-review', data?.hero_contract_review, '{}');
+  setJson('poster2-feature-contract-review', data?.feature_contract_review, '{}');
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
   setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');
