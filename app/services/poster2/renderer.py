@@ -342,6 +342,7 @@ class LayoutRenderer:
                 continue
             r = callout.anchor_radius
             ax, ay = callout.anchor_x, callout.anchor_y
+            draw.ellipse([ax - r - 2, ay - r - 2, ax + r + 2, ay + r + 2], fill=(255, 255, 255, 200))
             draw.ellipse([ax - r, ay - r, ax + r, ay + r], fill=callout.anchor_color)
             lb = callout.label_box
             draw.line(
@@ -1675,9 +1676,9 @@ def _pillow_shell_fill(role: str, shell_surface: str, *, accent: str) -> tuple[i
             "scenario_safe": (247, 238, 234, 82),
             "scenario_real": (255, 255, 255, 18),
             "product": (255, 248, 246, 240),
-            "bottom": (255, 249, 247, 156),
-            "title_band": (255, 249, 247, 224),
-            "gallery_strip": (255, 249, 247, 168),
+            "bottom": (255, 249, 247, 178),
+            "title_band": (255, 249, 247, 238),
+            "gallery_strip": (255, 249, 247, 182),
         },
         "panel_clean": {
             "header": (255, 255, 255, 246),
@@ -1712,7 +1713,7 @@ def _pillow_shell_fill(role: str, shell_surface: str, *, accent: str) -> tuple[i
 
 def _pillow_border(role: str, shell_border: str, *, accent: str) -> tuple[int, int, int, int]:
     accent_rgb = _hex_to_rgb(accent)
-    alpha_by_preset = {"soft_line": 20, "clean_frame": 52, "none": 0}
+    alpha_by_preset = {"soft_line": 26, "clean_frame": 52, "none": 0}
     if role in {"hero", "gallery"} and shell_border != "none":
         white_alpha = {"soft_line": 60, "clean_frame": 88, "none": 0}[shell_border]
         return (255, 255, 255, white_alpha)
@@ -1723,9 +1724,9 @@ def _pillow_shadow(shell_shadow: str) -> tuple[int, int, int, int, int] | None:
     if shell_shadow == "none":
         return None
     if shell_shadow == "soft":
-        return (0, 10, 10, 0, 26)
+        return (0, 12, 12, 0, 32)
     if shell_shadow == "medium":
-        return (0, 12, 14, 0, 38)
+        return (0, 14, 16, 0, 44)
     raise ValueError(f"Unsupported shell_shadow: {shell_shadow}")
 
 
