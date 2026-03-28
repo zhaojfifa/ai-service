@@ -758,6 +758,13 @@
             }
             html += '</div>';
           }
+          if (mode === 'product_anchor_callouts' && featureReview.anchor_evidence) {
+            html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
+            for (const a of featureReview.anchor_evidence) {
+              html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">anchor${a.anchor_index + 1}:(${a.anchor_x},${a.anchor_y})</span>`;
+            }
+            html += '</div>';
+          }
           return html;
         }
 
@@ -857,19 +864,19 @@
             let modeLabel = '';
             let detailHtml = '';
             if (isBottom) {
-              modeLabel = templateBehavior?.bottom_mode || '';
+              modeLabel = templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || '';
               detailHtml = buildBottomDetail(bottomReview, templateBehavior);
             } else if (key === 'header_region') {
-              modeLabel = templateBehavior?.header_identity_zone_mode || headerReview?.header_mode || '';
+              modeLabel = templateBehavior?.behavior_modes?.header_mode || headerReview?.header_mode || '';
               detailHtml = buildHeaderDetail(headerReview);
             } else if (key === 'scenario_region') {
-              modeLabel = heroReview?.hero_mode || templateBehavior?.hero_mode || '';
+              modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
               detailHtml = buildHeroDetail(heroReview, 'scenario_region');
             } else if (key === 'product_region') {
-              modeLabel = heroReview?.hero_mode || templateBehavior?.hero_mode || '';
+              modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
               detailHtml = buildHeroDetail(heroReview, 'product_region');
             } else if (key === 'feature_region') {
-              modeLabel = templateBehavior?.feature_mode || featureReview?.feature_mode || '';
+              modeLabel = templateBehavior?.behavior_modes?.feature_mode || featureReview?.feature_mode || '';
               detailHtml = buildFeatureDetail(featureReview);
             }
 

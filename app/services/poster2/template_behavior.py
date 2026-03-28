@@ -18,7 +18,8 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 }
 
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
-_SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack"}
+_SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
+_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; no drag-and-drop, no dynamic count
 _SUPPORTED_BOTTOM_MODES = {"title_gallery_split", "title_only", "gallery_only"}
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
 _SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
@@ -470,7 +471,7 @@ def resolve_template_behavior(
     return ResolvedTemplateBehavior(
         hero_mode=hero_mode,
         feature_mode=feature_mode,
-        header_mode=modes.header_mode,
+        header_mode=header_policy.mode,
         bottom_mode=resolved_bottom_mode,
         gallery_mode=resolved_gallery_mode,
         beauty_tokens=TemplateBeautyTokensSpec(
@@ -605,6 +606,30 @@ def resolve_feature_behavior(
             box_h=int(layout_spec["box_h"]),
             gap=int(layout_spec["gap"]),
             start_strategy="centered_in_region",
+        )
+    if feature_mode == "product_anchor_callouts":
+        # Fixed 3 anchor points on the product image; positions are template-spec-defined.
+        # No drag-and-drop, no dynamic slot count beyond 3.
+        anchor_visible = min(max(requested_count, 0), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
+        anchor_clamped = min(max(anchor_visible, 1), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
+        anchor_char_budgets = {1: 36, 2: 30, 3: 24}
+        anchor_box_h = _FEATURE_MODE_LAYOUT_SPECS[anchor_clamped]["box_h"]
+        return ResolvedFeatureBehavior(
+            mode=feature_mode,
+            requested_item_count=requested_count,
+            visible_item_count=anchor_visible,
+            max_items=_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS,
+            visible_item_count_policy="fixed_3_anchor_points",
+            connector_policy="product_anchor_leader_line",
+            box_policy="anchor_fixed_position",
+            truncation_policy="two_line_clamp",
+            collapse_policy="collapse_when_empty",
+            text_budget_policy="anchor_fixed_budget",
+            line_clamp=2,
+            char_budget=anchor_char_budgets[anchor_clamped],
+            box_h=int(anchor_box_h),
+            gap=0,
+            start_strategy="template_anchor_fixed",
         )
     raise ValueError(f"Unsupported feature_mode: {feature_mode}")
 

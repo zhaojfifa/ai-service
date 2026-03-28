@@ -1126,6 +1126,18 @@ def _build_feature_contract_review(
                 "bounds": bounds,
             }
         )
+    anchor_evidence = None
+    if resolved_behavior.feature_policy.mode == "product_anchor_callouts":
+        anchor_evidence = [
+            {
+                "anchor_index": i,
+                "anchor_x": int(template.feature_callouts[i].anchor_x) if i < len(template.feature_callouts) else None,
+                "anchor_y": int(template.feature_callouts[i].anchor_y) if i < len(template.feature_callouts) else None,
+                "anchor_color": template.feature_callouts[i].anchor_color if i < len(template.feature_callouts) else None,
+                "positions_source": "template_spec_fixed",
+            }
+            for i in range(resolved_behavior.feature_policy.max_items)
+        ]
     return {
         "feature_mode": resolved_behavior.feature_policy.mode,
         "requested_feature_items": list(requested_spec.features),
@@ -1150,4 +1162,5 @@ def _build_feature_contract_review(
             "start_strategy": resolved_behavior.feature_policy.start_strategy,
         },
         "feature_slots": item_reviews,
+        "anchor_evidence": anchor_evidence,
     }

@@ -88,6 +88,10 @@ Read this section only after the product baseline and architecture guidance. The
   Supporting project-level restructuring checklist for keeping implementation aligned.
 - [poster2_product_flow_reviewable_v1.md](poster2_product_flow_reviewable_v1.md)
   Phase 3 PR-4 closure record: minimum operator loop (Stage 1 → Stage 2 → Stage 3) reviewable under contract-first baseline. Records Stage 2 live contract panel integration and all-region Resolver Layout evidence.
+- [bottom_behavior_contract_status_v1.md](bottom_behavior_contract_status_v1.md)
+  Bottom region resolver SOP baseline: behavior policies, metadata, gallery distribution, text evidence chain. Frozen as Phase 2 baseline.
+- [feature_anchor_callouts_contract_status_v1.md](feature_anchor_callouts_contract_status_v1.md)
+  Phase 0 contract drift repair + Phase 1 `product_anchor_callouts` feature mode contract. Records header_mode drift fix, Stage 2 modeLabel path fixes, and new mode resolver/evidence contract.
 
 ### 4. Next-Phase Plans
 
