@@ -700,12 +700,12 @@ class TestPosterPipelineRun:
         assert behavior["gallery_strip_shift_policy"] == "downshift_for_spacious_pair"
         assert behavior["gallery_aspect_policy"] == "spacious_pair_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "copy_priority_strong_title"
-        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 226, "y": 902, "w": 572, "h": 88}
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 208, "y": 902, "w": 608, "h": 100}
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
-            "x": 146,
+            "x": 128,
             "y": 10,
-            "w": 260,
-            "h": 68,
+            "w": 280,
+            "h": 80,
         }
 
     def test_renderer_metadata_exposes_triplet_gallery_balancing_policy(self):

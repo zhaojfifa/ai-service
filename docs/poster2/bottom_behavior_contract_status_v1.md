@@ -40,7 +40,7 @@ while completing:
 Blocked note:
 
 - `AGENTS.md` requires the top-level baseline `docs/poster2/poster_generation_product_design_baseline_v1.md`
-- this file is referenced by the local doc system but is not present as a tracked root-level file in the current worktree
+- this file is now present as a tracked root-level file in the current worktree
 - no additional doc was expanded in this run; the task proceeded against the required three startup anchors only
 
 ## 3. Exact Problem Reproduced
@@ -94,11 +94,9 @@ For the current round, the root cause was that some policy buckets were still to
 Current stable behavior is implemented in:
 
 - `app/services/poster2/template_behavior.py`
-- `app/services/poster2/pipeline.py`
 - `tests/poster2/test_renderer.py`
 - `tests/poster2/test_pipeline.py`
 - `docs/poster2/bottom_behavior_contract_status_v1.md`
-- `docs/poster2/template_layout_protocol_status_v1.md`
 
 ## 6. Behavior Policies Introduced Or Completed
 
@@ -197,7 +195,9 @@ In this round, pair / triplet gallery distribution was further tuned so that:
 
 - `2` items are no longer treated like a narrower strip remainder
 - `3` items get their own balanced triplet behavior instead of inheriting over-compressed quad logic
+- `balanced_pair` now resolves to `item_width = 280`, `item_height = 80`, `gap = 16`, `gallery_shell_height = 100`
 - title-band growth now explains whether copy priority, triplet co-balance, or quad restraint won the decision
+- copy-priority pair layouts now allow `title_char_budget = 36` when title is clamped to one line under dense subtitle pressure
 - pair / triplet gallery shell framing now narrows around the actual composition instead of always reading as a full-width strip
 - title / subtitle emphasis now varies minimally by resolved bottom text policy rather than staying visually identical across pressure states
 
@@ -255,15 +255,13 @@ Executed:
 
 Observed result:
 
-- `116 passed in 10.51s`
-- `116 passed in 10.77s`
-- `143 passed, 2 warnings`
+- `145 passed, 2 warnings in 12.33s`
 
 Validated coverage includes:
 
 - gallery distribution for `1 / 2 / 3 / 4`
 - dense subtitle with light gallery allowing title growth
-- pair gallery widening / height increase under copy-priority behavior
+- pair gallery widening / height increase under copy-priority behavior (`280x80`, shell height `100`)
 - triplet gallery balancing under dense mixed-content behavior
 - dense subtitle with quad gallery constraining title growth
 - dynamic strip height / item height / peer gap response under varying gallery density
@@ -280,7 +278,6 @@ Validated coverage includes:
 
 - gallery distribution is resolver-driven but still rule-based rather than measurement-optimized
 - `supporting_packshots` has minimum distribution semantics, not a richer primary/secondary hierarchy yet
-- the local doc system still references a top-level product baseline file that is not present as a tracked root-level file in this worktree
 - this round improves pair / triplet naturalness, but does not yet make bottom a measurement-driven art direction engine
 - minimal text emphasis is intentionally conservative and not a full typography system
 

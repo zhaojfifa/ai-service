@@ -967,7 +967,7 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "copy_priority_strong_title"
             title_line_clamp = 1 if subtitle_length > 58 and title_length > 20 else 2
             subtitle_line_clamp = 2
-            title_char_budget = 22 if title_line_clamp == 1 else 42
+            title_char_budget = 36 if title_line_clamp == 1 else 42
             subtitle_char_budget = 48
             title_band_height = 160
             title_content_pad_top = 16
@@ -1225,7 +1225,7 @@ def _resolve_gallery_distribution_layout(
     layout_table: dict[str, dict[int, tuple[str, str, str, int, int]]] = {
         "strip_local_visible_only": {
             1: ("single_center_focus", "single_showcase_frame", "single_gallery_focus_aspect", "centered_single_spacing", 288, 0),
-            2: ("balanced_pair", "pair_showcase_frame", "spacious_pair_aspect", "relaxed_pair_spacing", 260, 20),
+            2: ("balanced_pair", "pair_showcase_frame", "spacious_pair_aspect", "relaxed_pair_spacing", 280, 16),
             3: ("balanced_triplet", "triplet_balanced_frame", "balanced_triplet_aspect", "balanced_triplet_spacing", 220, 12),
             4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 196, 16),
         },
@@ -1296,7 +1296,7 @@ def _resolve_gallery_strip_vertical_metrics(
     vertical_table: dict[str, dict[int, tuple[str, int, int]]] = {
         "strip_local_visible_only": {
             1: ("single_gallery_centered_shift", 88, 68),
-            2: ("downshift_for_spacious_pair", 88, 68),
+            2: ("downshift_for_spacious_pair", 100, 80),
             3: ("balanced_triplet_shift", 80, 60),
             4: ("tight_quad_shift", 68, 52),
         },
