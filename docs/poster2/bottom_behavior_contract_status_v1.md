@@ -300,7 +300,19 @@ Validated coverage includes:
 
 ## 10. Next Recommended Step
 
-Keep bottom behavior stable and move the next increment to preview/evidence parity: surface frame and text-emphasis policy more directly in operator review so design tuning remains contract-led rather than screenshot-led.
+Freeze bottom as the first SOP baseline of poster2 and move new implementation work to Phase 3 region replication:
+
+1. `header_region`
+2. `scenario_region` / `product_region`
+3. `feature_region`
+
+Bottom stays in maintenance mode only:
+
+- contract bugs
+- request / normalization bugs
+- resolver / renderer parity bugs
+- evidence / diagnostics bugs
+- narrow policy tuning that preserves the frozen structure and schema
 
 ## 11. Strategy Sentence
 
@@ -369,3 +381,64 @@ Known failure patterns that should be treated as contract regressions:
 - `rendered_subtitle_excerpt` contains text while `subtitle_slot.rendered` is false
 - truncation flags disagree with rendered excerpts
 - `docs/app.js` drifts from `frontend/app.js`, causing Stage 2 preview and published operator review to diverge
+
+## 17. Baseline Freeze Confirmation
+
+Bottom is now frozen as the first SOP baseline of poster2.
+
+Frozen baseline means the following are fixed and should be treated as compatibility surfaces:
+
+- `bottom_region`
+- `title_band_region`
+- `gallery_strip_region`
+- `bottom_contract_review`
+- `geometry_evidence`
+- semantic text evidence fields
+- diagnostics panel field names and operator review path
+
+Allowed future changes:
+
+- policy tuning only
+- bug fixes that preserve structure
+- bug fixes that preserve evidence schema
+- bug fixes that preserve diagnostics field names
+- renderer parity fixes
+
+Disallowed future changes without a new architecture decision:
+
+- bottom structure changes
+- bottom evidence schema changes
+- diagnostics field-name changes
+- ad hoc CSS-only behavior fixes
+- using beautification to mask contract or control failures
+
+## 18. Remaining Bottom Bug List
+
+Bottom is baseline-frozen, but the following issues remain tracked as bugs rather than as architecture work:
+
+1. Pair / triplet / quad distribution is still rule-based rather than measurement-optimized.
+2. `supporting_packshots` still uses minimum viable semantics rather than richer primary/secondary hierarchy logic.
+3. Minimal text emphasis remains intentionally conservative and is not a full typography system.
+4. Preview/evidence presentation can still be improved, but only by exposing existing frozen fields more clearly, not by changing the contract.
+
+## 19. Phase 3 Implementation Order
+
+Phase 3 should replicate the bottom SOP pattern to the remaining regions in this order:
+
+1. `header_region`
+   - complete contract-first resolver coverage first
+   - preserve diagnostics / evidence parity from the start
+2. `scenario_region` and `product_region`
+   - treat them as the next peer-layout / mixed-asset control step
+   - preserve shell/content separation and renderer-as-execution-layer stance
+3. `feature_region`
+   - apply the same request -> normalize -> resolver -> renderer -> evidence -> operator review loop
+
+Phase 3 should reuse the bottom SOP pattern:
+
+- request state must be inspectable
+- normalization must be explicit
+- resolver output must be the template truth-source
+- renderer must consume resolved behavior
+- evidence must explain requested / effective / rendered state
+- operator review must be possible before and after generation
