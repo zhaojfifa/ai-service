@@ -34,7 +34,6 @@ from app.services.poster2.contracts import (
     TemplateSpec,
 )
 from app.services.poster2.pipeline import PosterPipeline
-from app.services.poster2.quality_guard import QualityGuardError
 from app.services.poster2.renderer import ForegroundResult, LayoutRenderer
 from app.services.poster2.renderer_routing import RendererRoutingError
 
@@ -342,9 +341,9 @@ class TestPosterPipelineRun:
             asset_loader=_mock_loader(_make_assets()),
             put_bytes_fn=_mock_r2_put(),
         )
-        with pytest.raises(QualityGuardError) as excinfo:
+        with pytest.raises(ValueError) as excinfo:
             asyncio.run(pipeline.run(_make_spec(title=""), template))
-        assert excinfo.value.reason_code == "missing_required_input"
+        assert "title must not be empty after normalization" in str(excinfo.value)
 
     def test_resolved_inputs_in_manifest(self):
         manifest = self._run(_make_spec())
@@ -490,12 +489,113 @@ class TestPosterPipelineRun:
         bottom_review = metadata["bottom_contract_review"]
         assert bottom_review["bottom_mode"] == "title_gallery_split"
         assert bottom_review["gallery_mode"] == "strip_local_visible_only"
+        assert bottom_review["requested_title_text"] == "测试标题"
+        assert bottom_review["requested_subtitle_text"] == "测试副标题"
+        assert bottom_review["sanitized_title_text"] == "测试标题"
+        assert bottom_review["sanitized_subtitle_text"] == "测试副标题"
+        assert bottom_review["rendered_title_excerpt"] == "测试标题"
+        assert bottom_review["rendered_subtitle_excerpt"] == "测试副标题"
+        assert bottom_review["title_truncation_applied"] is False
+        assert bottom_review["subtitle_truncation_applied"] is False
+        assert bottom_review["title_source"] == "request.title"
+        assert bottom_review["subtitle_source"] == "request.subtitle"
         assert bottom_review["subtitle_slot"]["rendered"] is True
         assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is False
         assert bottom_review["behavior_policy"]["title_band_sizing_mode"] == "standard"
         assert bottom_review["behavior_policy"]["subtitle_overflow_policy"] == "single_line_ellipsis_inside_split_title_band"
         assert bottom_review["behavior_policy"]["content_priority_policy"] == "balanced_text_and_gallery_priority"
         assert bottom_review["behavior_policy"]["layout_metrics"]["title_band_height"] == 144
+
+    def test_bottom_contract_review_preserves_empty_subtitle_without_fallback_contamination(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(subtitle="   "),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        bottom_review = metadata["bottom_contract_review"]
+
+        assert bottom_review["requested_subtitle_text"] == "   "
+        assert bottom_review["sanitized_subtitle_text"] == ""
+        assert bottom_review["rendered_subtitle_excerpt"] == ""
+        assert bottom_review["subtitle_truncation_applied"] is False
+        assert bottom_review["subtitle_source"] == "request.subtitle"
+        assert bottom_review["subtitle_slot"]["rendered"] is False
+        assert bottom_review["subtitle_slot"]["reason_code"] == "subtitle_empty"
+
+    def test_bottom_contract_review_exposes_text_truncation_chain_for_dense_pair_layout(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(2)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(2)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        requested_title = "超长标题" * 12
+        requested_subtitle = "这是一段更长的底部说明文案，用来验证请求值、规范化值和最终渲染摘录是否可以完整串起来供运营核对。"
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title=requested_title,
+                    subtitle=requested_subtitle,
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(2)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        bottom_review = metadata["bottom_contract_review"]
+        title_budget = bottom_review["behavior_policy"]["title_char_budget"]
+        subtitle_budget = bottom_review["behavior_policy"]["subtitle_char_budget"]
+
+        assert bottom_review["requested_title_text"] == requested_title
+        assert bottom_review["requested_subtitle_text"] == requested_subtitle
+        assert bottom_review["sanitized_title_text"] == requested_title
+        assert bottom_review["sanitized_subtitle_text"] == requested_subtitle
+        assert bottom_review["rendered_title_excerpt"] == requested_title[:title_budget]
+        assert bottom_review["rendered_subtitle_excerpt"] == requested_subtitle[:subtitle_budget]
+        assert bottom_review["title_truncation_applied"] is (
+            bottom_review["rendered_title_excerpt"] != bottom_review["sanitized_title_text"]
+        )
+        assert bottom_review["subtitle_truncation_applied"] is (
+            bottom_review["rendered_subtitle_excerpt"] != bottom_review["sanitized_subtitle_text"]
+        )
 
     def test_renderer_metadata_keeps_gallery_visibility_geometry(self):
         stored_payloads: dict[str, bytes] = {}

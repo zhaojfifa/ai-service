@@ -93,9 +93,13 @@ For the current round, the root cause was that some policy buckets were still to
 
 Current stable behavior is implemented in:
 
+- `frontend/app.js`
+- `docs/app.js`
 - `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
 - `tests/poster2/test_renderer.py`
 - `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
 - `docs/poster2/bottom_behavior_contract_status_v1.md`
 
 ## 6. Behavior Policies Introduced Or Completed
@@ -236,6 +240,19 @@ So both Pillow and Puppeteer consume the same bottom peer-layout result for `1 /
 
 This makes bottom output operator-reviewable under input variation.
 
+Current text evidence now also exposes:
+
+- `requested_title_text`
+- `requested_subtitle_text`
+- `sanitized_title_text`
+- `sanitized_subtitle_text`
+- `rendered_title_excerpt`
+- `rendered_subtitle_excerpt`
+- `title_truncation_applied`
+- `subtitle_truncation_applied`
+- `title_source`
+- `subtitle_source`
+
 This round also introduced the smallest design optimization layer that still stays inside the behavior contract:
 
 - pair gallery cards are allowed to become wider / taller
@@ -288,3 +305,67 @@ Keep bottom behavior stable and move the next increment to preview/evidence pari
 ## 11. Strategy Sentence
 
 Strategy: make bottom behavior explicit and verifiable first; allow beautification only after behavior is stable under input variation.
+
+## 12. Required Inputs
+
+Bottom SOP is executed from these required operator inputs:
+
+- `title`
+- `subtitle`
+- `bottom_mode`
+- `gallery_mode`
+- `gallery_count`
+- `gallery_images`
+- `auto_fill_gallery`
+
+Stage 2 preview and backend request must resolve from the same bottom request state. Empty optional subtitle is allowed and must stay empty through request build and backend normalization.
+
+## 13. Effective Policies
+
+Bottom execution is considered SOP-complete only when the following are resolver-derived and visible in metadata:
+
+- `title_band_sizing_mode`
+- `title_band_growth_policy`
+- `subtitle_overflow_policy`
+- `content_priority_policy`
+- `peer_balance_policy`
+- `bottom_peer_balance_policy`
+- `gallery_distribution_policy`
+- `gallery_shell_frame_policy`
+- `gallery_strip_shift_policy`
+- `gallery_aspect_policy`
+- `gallery_spacing_policy`
+- `bottom_text_emphasis_policy`
+
+## 14. Operator Review Checklist
+
+For each bottom validation run, operator review must confirm:
+
+- request preview shows the exact requested title / subtitle, not a fallback-contaminated value
+- `bottom_contract_review` exposes requested / sanitized / rendered text chain
+- `title_source` and `subtitle_source` identify request-field provenance
+- `title_truncation_applied` and `subtitle_truncation_applied` match the rendered excerpts
+- `subtitle_slot` state matches the effective subtitle text
+- gallery slot states and `visible_item_count` match the chosen `gallery_mode` and input count
+- `geometry_evidence` remains resolver-derived for `title_slot`, `subtitle_slot`, and `gallery_strip_region`
+
+## 15. Acceptance Criteria
+
+A bottom run is accepted only if:
+
+- requested / effective / rendered text values are all inspectable
+- subtitle is not polluted by title or any Stage 1 fallback field once operator input exists
+- title / subtitle slot state is consistent with sanitized text and bottom mode
+- renderer consumes the same sanitized text that evidence reports
+- Stage 2 preview path and final generation path agree on request values
+- no CSS-only workaround is needed to explain the final result
+
+## 16. Failure Patterns
+
+Known failure patterns that should be treated as contract regressions:
+
+- empty subtitle in Stage 2 preview becomes non-empty in request payload
+- `requested_subtitle_text` differs from operator-cleared subtitle without explicit operator action
+- `rendered_subtitle_excerpt` contains text while `subtitle_slot.rendered` is false
+- truncation flags disagree with rendered excerpts
+- `docs/app.js` drifts from `frontend/app.js`, causing Stage 2 preview and published operator review to diverge

@@ -43,9 +43,17 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "bottom_mode",
         "gallery_mode",
         "normalisePoster2BottomText",
+        "requested_title_text",
+        "requested_subtitle_text",
+        "sanitized_title_text",
+        "sanitized_subtitle_text",
+        "title_source",
+        "subtitle_source",
         "exceeds max length",
     ):
         assert field in js
+
+    assert "bottomContract.subtitle || stage1Data.subtitle" not in js
 
 
 def test_docs_publish_mirror_contains_same_guard_diagnostics():

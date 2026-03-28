@@ -14,7 +14,7 @@ import json
 import logging
 import time
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Optional
 
@@ -95,45 +95,47 @@ class PosterPipeline:
         """
         trace_id = str(uuid.uuid4())
         timings: dict[str, int] = {}
+        requested_spec = spec
+        effective_spec = _normalize_bottom_text_spec(spec)
 
         if template is None:
-            template = load_template(spec.template_id)
+            template = load_template(effective_spec.template_id)
         else:
             validate_template_registration(template)
-        run_preflight_guard(template, spec)
+        run_preflight_guard(template, effective_spec)
 
-        spec_hash = _hash_spec(spec)
+        spec_hash = _hash_spec(effective_spec)
 
         # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
-        if spec.template_id == "template_dual_v2":
-            assets = await self._loader.load(spec)
+        if effective_spec.template_id == "template_dual_v2":
+            assets = await self._loader.load(effective_spec)
             if assets.scenario is not None:
                 bg_result = await build_template_dual_v2_background(
                     assets.scenario,
-                    width=spec.size[0],
-                    height=spec.size[1],
+                    width=effective_spec.size[0],
+                    height=effective_spec.size[1],
                     trace_id=trace_id,
                 )
             else:
                 bg_result = await self._bg.generate(
                     style_prompt="",
-                    negative_prompt=spec.style.negative_prompt,
-                    width=spec.size[0],
-                    height=spec.size[1],
-                    seed=spec.style.seed,
+                    negative_prompt=effective_spec.style.negative_prompt,
+                    width=effective_spec.size[0],
+                    height=effective_spec.size[1],
+                    seed=effective_spec.style.seed,
                     template_hint=template.background_prompt_hint,
                     trace_id=trace_id,
                 )
         else:
             assets, bg_result = await asyncio.gather(
-                self._loader.load(spec),
+                self._loader.load(effective_spec),
                 self._bg.generate(
-                    style_prompt=spec.style.prompt,
-                    negative_prompt=spec.style.negative_prompt,
-                    width=spec.size[0],
-                    height=spec.size[1],
-                    seed=spec.style.seed,
+                    style_prompt=effective_spec.style.prompt,
+                    negative_prompt=effective_spec.style.negative_prompt,
+                    width=effective_spec.size[0],
+                    height=effective_spec.size[1],
+                    seed=effective_spec.style.seed,
                     template_hint=template.background_prompt_hint,
                     trace_id=trace_id,
                 ),
@@ -142,14 +144,14 @@ class PosterPipeline:
         timings["background_layer_ms"] = timings["load_and_bg_ms"]
         resolved_behavior = resolve_template_behavior(
             template,
-            feature_count=len([item for item in spec.features if item and item.strip()]),
-            title_text=spec.title,
-            subtitle_text=spec.subtitle,
-            gallery_requested_count=len(spec.gallery_images),
+            feature_count=len([item for item in effective_spec.features if item and item.strip()]),
+            title_text=effective_spec.title,
+            subtitle_text=effective_spec.subtitle,
+            gallery_requested_count=len(effective_spec.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), template.gallery_slot.count),
-            bottom_mode=spec.bottom_mode,
-            gallery_mode=spec.gallery_mode,
-            agent_name=spec.agent_name,
+            bottom_mode=effective_spec.bottom_mode,
+            gallery_mode=effective_spec.gallery_mode,
+            agent_name=effective_spec.agent_name,
         )
         logger.info(
             "poster2: trace=%s bg=%.1fs assets=loaded",
@@ -157,13 +159,13 @@ class PosterPipeline:
         )
         logger.info(
             "poster2.gallery_presence_done requested=%d resolved=%d",
-            min(len(spec.gallery_images), 4),
+            min(len(effective_spec.gallery_images), 4),
             min(len(assets.gallery), 4),
         )
 
         # ── Phase 2: deterministic foreground/text render ────────────────────
         t1 = _now()
-        fg_result = await self._renderer.render(template, spec, assets)
+        fg_result = await self._renderer.render(template, effective_spec, assets)
         timings["renderer_ms"] = _elapsed(t1)
         timings.update(fg_result.layer_timings_ms)
         logger.info(
@@ -173,14 +175,14 @@ class PosterPipeline:
 
         layer_render_status = fg_result.layer_render_status or _build_layer_render_status(
             template=template,
-            spec=spec,
+            spec=effective_spec,
             assets=assets,
             bg_result=bg_result,
             behavior=resolved_behavior,
         )
         inferred_layer_render_status = _build_layer_render_status(
             template=template,
-            spec=spec,
+            spec=effective_spec,
             assets=assets,
             bg_result=bg_result,
             behavior=resolved_behavior,
@@ -194,7 +196,7 @@ class PosterPipeline:
         region_render_status = _merge_status_maps(inferred_region_render_status, fg_result.region_render_status)
         quality_guard_report = evaluate_deliverability(
             template=template,
-            spec=spec,
+            spec=effective_spec,
             assets=assets,
             layer_render_status=(
                 fg_result.layer_render_status if structure_evidence_complete else inferred_layer_render_status
@@ -216,7 +218,7 @@ class PosterPipeline:
         t2 = _now()
         bg_image = await self._loader.load_url(bg_result.url)
         compose_result = self._composer.compose(
-            bg_image, fg_result.image, spec.export_format
+            bg_image, fg_result.image, effective_spec.export_format
         )
         timings["compose_ms"] = _elapsed(t2)
 
@@ -249,7 +251,7 @@ class PosterPipeline:
             logger.warning("poster2: R2 upload failed for product/material key=%s", product_material_key)
             product_material_url = ""
 
-        ext = spec.export_format
+        ext = effective_spec.export_format
         final_key = f"poster2/final/{trace_id}.{ext}"
         final_url = _put(final_key, compose_result.png_bytes, content_type=f"image/{ext}")
         if not final_url:
@@ -312,6 +314,8 @@ class PosterPipeline:
             },
             "bottom_contract_review": _build_bottom_contract_review(
                 template,
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
                 resolved_behavior=resolved_behavior,
                 region_render_status=quality_guard_report.region_render_status,
             ),
@@ -347,12 +351,12 @@ class PosterPipeline:
             template_version=template.version,
             template_contract_version=fg_result.template_contract_version,
             engine_version=ENGINE_VERSION,
-            renderer_mode=spec.renderer_mode,
+            renderer_mode=effective_spec.renderer_mode,
             render_engine_used=fg_result.render_engine_used,
             foreground_renderer=fg_result.foreground_renderer,
             background_renderer=bg_result.model,
             poster_spec_hash=spec_hash,
-            resolved_inputs=_summarise_inputs(spec),
+            resolved_inputs=_summarise_inputs(effective_spec),
             background_url=bg_result.url,
             background_prompt=bg_result.prompt_used,
             background_seed=bg_result.seed_used,
@@ -414,6 +418,26 @@ def _summarise_inputs(spec: PosterSpec) -> dict:
         "gallery_count": len(spec.gallery_images),
         "seed": spec.style.seed,
     }
+
+
+def _normalize_requested_text(value: str) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _normalize_bottom_text_spec(spec: PosterSpec) -> PosterSpec:
+    title = _normalize_requested_text(spec.title)
+    subtitle = _normalize_requested_text(spec.subtitle)
+    if not title:
+        raise ValueError("title must not be empty after normalization")
+    return replace(spec, title=title, subtitle=subtitle)
+
+
+def _apply_text_budget(text: str, budget: int) -> str:
+    if not text or budget <= 0:
+        return text
+    if len(text) <= budget:
+        return text
+    return text[:budget]
 
 
 def _build_layer_render_status(
@@ -746,6 +770,8 @@ def _subtitle_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str
 def _build_bottom_contract_review(
     template: TemplateSpec,
     *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
     resolved_behavior,
     region_render_status: dict[str, dict[str, object]],
 ) -> dict[str, object]:
@@ -760,9 +786,29 @@ def _build_bottom_contract_review(
         }
         for slot_state in resolved_behavior.bottom_policy.gallery_slot_states
     }
+    rendered_title_excerpt = (
+        _apply_text_budget(effective_spec.title, resolved_behavior.bottom_policy.title_char_budget)
+        if resolved_behavior.bottom_policy.title_slot_rendered
+        else ""
+    )
+    rendered_subtitle_excerpt = (
+        _apply_text_budget(effective_spec.subtitle, resolved_behavior.bottom_policy.subtitle_char_budget)
+        if resolved_behavior.bottom_policy.subtitle_slot_rendered
+        else ""
+    )
     return {
         "bottom_mode": resolved_behavior.bottom_policy.mode,
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
+        "requested_title_text": requested_spec.title,
+        "requested_subtitle_text": requested_spec.subtitle,
+        "sanitized_title_text": effective_spec.title,
+        "sanitized_subtitle_text": effective_spec.subtitle,
+        "rendered_title_excerpt": rendered_title_excerpt,
+        "rendered_subtitle_excerpt": rendered_subtitle_excerpt,
+        "title_truncation_applied": rendered_title_excerpt != effective_spec.title,
+        "subtitle_truncation_applied": rendered_subtitle_excerpt != effective_spec.subtitle,
+        "title_source": "request.title",
+        "subtitle_source": "request.subtitle",
         "title_band_region": {
             "rendered": bool(region_render_status.get("title_band_region", {}).get("rendered", False)),
             "bounds": _title_band_region_bounds(template, resolved_behavior),

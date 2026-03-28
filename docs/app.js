@@ -317,22 +317,93 @@ function normalisePoster2BottomText(value, maxChars) {
   return text.slice(0, maxChars);
 }
 
-function updatePoster2BottomRequestPreview() {
+function hasPoster2BottomField(bottom, key) {
+  return Boolean(bottom) && Object.prototype.hasOwnProperty.call(bottom, key);
+}
+
+function resolvePoster2BottomFallbackText(stage1Data, field) {
+  const candidates = field === 'title'
+    ? [
+        [stage1Data?.title, 'stage1.title'],
+        ['Poster', 'literal.default_title'],
+      ]
+    : [
+        [stage1Data?.subtitle, 'stage1.subtitle'],
+        [stage1Data?.tagline, 'stage1.tagline'],
+        [stage1Data?.promo, 'stage1.promo'],
+        [stage1Data?.price, 'stage1.price'],
+        ['', 'literal.empty'],
+      ];
+
+  for (const [value, source] of candidates) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (!text && source !== 'literal.empty') continue;
+    return { text, source };
+  }
+
+  return {
+    text: field === 'title' ? 'Poster' : '',
+    source: field === 'title' ? 'literal.default_title' : 'literal.empty',
+  };
+}
+
+function ensurePoster2BottomContractState(stage1Data) {
+  const bottom = stage2State.poster2?.bottomContract || {};
+  const defaultTitle = resolvePoster2BottomFallbackText(stage1Data, 'title');
+  const defaultSubtitle = resolvePoster2BottomFallbackText(stage1Data, 'subtitle');
+  const defaultGalleryCount = Math.min(
+    Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries.length : 0,
+    4
+  );
+
+  stage2State.poster2.bottomContract = {
+    title: hasPoster2BottomField(bottom, 'title')
+      ? normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS)
+      : normalisePoster2BottomText(defaultTitle.text, POSTER2_BOTTOM_TITLE_MAX_CHARS),
+    subtitle: hasPoster2BottomField(bottom, 'subtitle')
+      ? normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS)
+      : normalisePoster2BottomText(defaultSubtitle.text, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS),
+    titleSource: hasPoster2BottomField(bottom, 'titleSource')
+      ? bottom.titleSource
+      : defaultTitle.source,
+    subtitleSource: hasPoster2BottomField(bottom, 'subtitleSource')
+      ? bottom.subtitleSource
+      : defaultSubtitle.source,
+    bottomMode: bottom.bottomMode || 'title_gallery_split',
+    galleryMode: bottom.galleryMode || 'strip_local_visible_only',
+    galleryCount:
+      Number.isFinite(bottom.galleryCount)
+        ? bottom.galleryCount
+        : defaultGalleryCount,
+    autoFillGallery: Boolean(bottom.autoFillGallery),
+  };
+
+  return stage2State.poster2.bottomContract;
+}
+
+function buildPoster2BottomRequestState(stage1Data) {
+  const bottom = ensurePoster2BottomContractState(stage1Data);
+  const requestedTitleText = normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS);
+  const requestedSubtitleText = normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
+
+  return {
+    requested_title_text: requestedTitleText,
+    requested_subtitle_text: requestedSubtitleText,
+    sanitized_title_text: requestedTitleText,
+    sanitized_subtitle_text: requestedSubtitleText,
+    title_source: bottom.titleSource || 'stage2.bottom_contract.title',
+    subtitle_source: bottom.subtitleSource || 'stage2.bottom_contract.subtitle',
+    bottom_mode: bottom.bottomMode || 'title_gallery_split',
+    gallery_mode: bottom.galleryMode || 'strip_local_visible_only',
+    requested_gallery_count: Math.max(0, Math.min(Number(bottom.galleryCount || 0), 4)),
+    auto_fill_gallery: Boolean(bottom.autoFillGallery),
+  };
+}
+
+function updatePoster2BottomRequestPreview(stage1Data) {
   const preview = document.getElementById('poster2-bottom-request-preview');
   if (!preview) return;
-  const bottom = stage2State.poster2?.bottomContract || {};
-  preview.textContent = JSON.stringify(
-    {
-      title: bottom.title || '',
-      subtitle: bottom.subtitle || '',
-      bottom_mode: bottom.bottomMode || 'title_gallery_split',
-      gallery_mode: bottom.galleryMode || 'strip_local_visible_only',
-      requested_gallery_count: Number(bottom.galleryCount || 0),
-      auto_fill_gallery: Boolean(bottom.autoFillGallery),
-    },
-    null,
-    2
-  );
+  preview.textContent = JSON.stringify(buildPoster2BottomRequestState(stage1Data), null, 2);
 }
 
 function initPoster2BottomContractControls(stage1Data, statusElement) {
@@ -351,27 +422,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
   panel.classList.toggle('hidden', !eligible);
   // Always wire bottom controls — bottom is SOP baseline regardless of template eligibility
 
-  const normaliseText = (value, fallback = '') => {
-    const text = typeof value === 'string' ? value.trim() : '';
-    return text || fallback;
-  };
-  const defaultGalleryCount = Math.min(
-    Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries.length : 0,
-    4
-  );
-  stage2State.poster2.bottomContract = {
-    title: stage2State.poster2.bottomContract?.title || normaliseText(stage1Data?.title, 'Poster'),
-    subtitle:
-      stage2State.poster2.bottomContract?.subtitle ||
-      normaliseText(stage1Data?.subtitle || stage1Data?.tagline || stage1Data?.promo, ''),
-    bottomMode: stage2State.poster2.bottomContract?.bottomMode || 'title_gallery_split',
-    galleryMode: stage2State.poster2.bottomContract?.galleryMode || 'strip_local_visible_only',
-    galleryCount:
-      Number.isFinite(stage2State.poster2.bottomContract?.galleryCount)
-        ? stage2State.poster2.bottomContract.galleryCount
-        : defaultGalleryCount,
-    autoFillGallery: Boolean(stage2State.poster2.bottomContract?.autoFillGallery),
-  };
+  ensurePoster2BottomContractState(stage1Data);
   const sync = () => {
     const nextTitle = normalisePoster2BottomText(titleInput.value, POSTER2_BOTTOM_TITLE_MAX_CHARS);
     const nextSubtitle = normalisePoster2BottomText(subtitleInput.value, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
@@ -379,11 +430,13 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
     subtitleInput.value = nextSubtitle;
     stage2State.poster2.bottomContract.title = nextTitle;
     stage2State.poster2.bottomContract.subtitle = nextSubtitle;
+    stage2State.poster2.bottomContract.titleSource = 'stage2.bottom_contract.title';
+    stage2State.poster2.bottomContract.subtitleSource = 'stage2.bottom_contract.subtitle';
     stage2State.poster2.bottomContract.bottomMode = bottomMode.value;
     stage2State.poster2.bottomContract.galleryMode = galleryMode.value;
     stage2State.poster2.bottomContract.galleryCount = Number(galleryCount.value || 0);
     stage2State.poster2.bottomContract.autoFillGallery = galleryAutofill.checked;
-    updatePoster2BottomRequestPreview();
+    updatePoster2BottomRequestPreview(stage1Data);
   };
 
   titleInput.value = stage2State.poster2.bottomContract.title;
@@ -4982,24 +5035,15 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   };
 
   const brandName = safeText(stage1Data.brand_name, 'Brand');
-  const bottomContract = stage2State.poster2?.bottomContract || {};
-  const title = normalisePoster2BottomText(
-    safeText(bottomContract.title || stage1Data.title, 'Poster'),
-    POSTER2_BOTTOM_TITLE_MAX_CHARS
-  );
+  const bottomRequestState = buildPoster2BottomRequestState(stage1Data);
+  const title = bottomRequestState.sanitized_title_text;
   const agentName = sanitizeAgentName(
     stage1Data.agent_name || stage1Data.channel || '',
     brandName
   );
-  const subtitle = normalisePoster2BottomText(
-    safeText(
-      bottomContract.subtitle || stage1Data.subtitle || stage1Data.tagline || stage1Data.promo || stage1Data.price,
-      title
-    ),
-    POSTER2_BOTTOM_SUBTITLE_MAX_CHARS
-  );
-  const requestedGalleryCount = Math.max(0, Math.min(Number(bottomContract.galleryCount || 0), 4));
-  const autoFillGallery = Boolean(bottomContract.autoFillGallery);
+  const subtitle = bottomRequestState.sanitized_subtitle_text;
+  const requestedGalleryCount = bottomRequestState.requested_gallery_count;
+  const autoFillGallery = bottomRequestState.auto_fill_gallery;
   const featureSource = Array.isArray(stage1Data.features) && stage1Data.features.length
     ? stage1Data.features
     : Array.isArray(stage1Data.bullets)
@@ -5099,8 +5143,8 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: ref.url,
       key: ref.key || null,
     })),
-    bottom_mode: bottomContract.bottomMode || 'title_gallery_split',
-    gallery_mode: bottomContract.galleryMode || 'strip_local_visible_only',
+    bottom_mode: bottomRequestState.bottom_mode,
+    gallery_mode: bottomRequestState.gallery_mode,
     style: {
       prompt: pickPoster2StylePrompt(),
     },
