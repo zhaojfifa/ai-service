@@ -1,13 +1,225 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
-    <base href="./">
+    <base href="./" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stage 2 - Generate Poster</title>
     <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
+    <style>
+      /* === Stage 2 two-column layout === */
+      .s2-main { padding: 24px 32px; }
+      .s2-layout {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 20px;
+        align-items: start;
+        max-width: 1280px;
+        margin: 0 auto;
+      }
+      .s2-sidebar { display: flex; flex-direction: column; gap: 12px; }
+      .s2-right { display: flex; flex-direction: column; gap: 16px; }
+
+      /* Panel */
+      .s2-panel {
+        background: #fff;
+        border: 1px solid #E4E2DE;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .s2-panel-hd {
+        padding: 11px 16px;
+        border-bottom: 1px solid #E4E2DE;
+        display: flex; align-items: center; justify-content: space-between;
+        font-size: 11px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.06em; color: #6B6762;
+      }
+      .s2-panel-bd { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+      /* Fields */
+      .s2-field { display: flex; flex-direction: column; gap: 4px; }
+      .s2-field > span {
+        font-size: 11.5px; font-weight: 500; color: #6B6762;
+      }
+      .s2-field input[type=text],
+      .s2-field input[type=url],
+      .s2-field select,
+      .s2-field textarea {
+        width: 100%;
+        background: #F9F8F6; border: 1px solid #E4E2DE;
+        border-radius: 6px; padding: 7px 9px;
+        font-family: inherit; font-size: 13px; color: #1A1917;
+        outline: none; box-sizing: border-box;
+      }
+      .s2-field input:focus, .s2-field select:focus, .s2-field textarea:focus {
+        border-color: #CCCAC5; background: #fff;
+      }
+      .s2-field textarea { resize: vertical; min-height: 52px; }
+      .s2-field-inline { display: flex; flex-direction: row; align-items: center; gap: 7px; }
+      .s2-field-inline span { font-size: 12px; color: #6B6762; }
+
+      /* Generate button */
+      .s2-btn-generate {
+        width: 100%; padding: 11px 16px;
+        background: #1A1917; color: #fff;
+        border: none; border-radius: 9px;
+        font-family: inherit; font-size: 13.5px; font-weight: 500;
+        cursor: pointer; transition: background 0.15s;
+      }
+      .s2-btn-generate:hover { background: #2d2c2a; }
+
+      /* Copy row in output panel */
+      .s2-copy-row { display: flex; gap: 6px; align-items: center; }
+      .s2-copy-row input { flex: 1; font-family: monospace; font-size: 11px; }
+
+      /* Nav actions */
+      .s2-actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+
+      /* Preview panel */
+      .s2-preview-wrap {
+        background: #EDECEA;
+        min-height: 300px;
+        display: flex; align-items: center; justify-content: center;
+        padding: 20px; position: relative;
+      }
+      .s2-preview-wrap img {
+        max-width: 100%; max-height: 560px;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+        display: block;
+      }
+      .s2-preview-empty {
+        display: flex; flex-direction: column; align-items: center; gap: 8px;
+        color: #9E9A95; font-size: 13px;
+      }
+      .s2-preview-empty-icon {
+        font-size: 24px;
+        width: 52px; height: 52px;
+        border: 2px dashed #CCCAC5; border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .s2-preview-footer {
+        padding: 10px 16px; border-top: 1px solid #E4E2DE;
+        display: flex; gap: 8px; align-items: center;
+      }
+      .s2-poster-key {
+        flex: 1; text-align: right;
+        font-size: 11px; font-family: monospace; color: #9E9A95;
+      }
+
+      /* Badges in headers */
+      .s2-badge-row { display: flex; gap: 6px; align-items: center; }
+      .s2-badge {
+        font-size: 10.5px; font-family: monospace;
+        padding: 2px 7px; border-radius: 4px;
+        background: #F9F8F6; border: 1px solid #E4E2DE;
+        color: #6B6762; font-weight: normal;
+      }
+      .s2-badge.ok { background: #F0FAF5; color: #1A7A4A; border-color: #B6E8CE; }
+      .s2-badge.warn { background: #FFF8EC; color: #92650A; border-color: #F5D99A; }
+
+      /* Resolver Layout */
+      .s2-modes-strip {
+        display: flex; gap: 6px; flex-wrap: wrap;
+        padding: 10px 14px;
+        border-bottom: 1px solid #E4E2DE;
+        background: #FAFAF9;
+      }
+      .s2-mode-chip {
+        display: flex; align-items: center; gap: 4px;
+        font-size: 11px; font-family: monospace;
+        padding: 3px 8px; border-radius: 20px;
+        background: #fff; border: 1px solid #E4E2DE;
+        color: #6B6762;
+      }
+      .s2-mode-key { color: #9E9A95; }
+      .s2-mode-val { color: #1A1917; }
+
+      .s2-copy-info {
+        padding: 8px 14px;
+        border-bottom: 1px solid #E4E2DE;
+        background: #FAFAF9;
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .s2-copy-info .s2-info-row { display: flex; align-items: center; gap: 8px; }
+      .s2-copy-label { font-size: 11px; font-family: monospace; color: #9E9A95; min-width: 64px; }
+      .s2-copy-val { font-size: 12px; font-family: monospace; color: #1A1917; }
+
+      .s2-resolver-regions { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+      .s2-resolver-empty { color: #9E9A95; font-size: 12.5px; text-align: center; padding: 24px 0; }
+
+      /* Region rows */
+      .s2-region-row { border: 1px solid #E4E2DE; border-radius: 8px; overflow: hidden; }
+      .s2-region-head {
+        display: flex; align-items: center; gap: 9px;
+        padding: 9px 12px; background: #F9F8F6;
+        cursor: pointer; user-select: none; transition: background 0.12s;
+      }
+      .s2-region-head:hover { background: #F2F1EF; }
+      .s2-region-icon {
+        width: 22px; height: 22px; border-radius: 5px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 700; flex-shrink: 0;
+      }
+      .icon-header  { background: #E8F4FF; color: #0066CC; }
+      .icon-scenario { background: #F0F8EE; color: #2A7A1A; }
+      .icon-product  { background: #FFF3E8; color: #CC5500; }
+      .icon-feature  { background: #F5F0FF; color: #6600CC; }
+      .icon-bottom   { background: #FFF0F2; color: #E8002A; }
+      .icon-title    { background: #FFF8E8; color: #CC8800; }
+      .icon-gallery  { background: #E8FFF5; color: #00836B; }
+
+      .s2-region-name { font-size: 12.5px; font-weight: 500; flex: 1; color: #1A1917; }
+      .s2-region-mode {
+        font-size: 10.5px; font-family: monospace; color: #6B6762;
+        background: #fff; border: 1px solid #E4E2DE;
+        padding: 2px 6px; border-radius: 4px;
+      }
+      .s2-region-status { font-size: 10.5px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+      .s2-status-ok       { background: #F0FAF5; color: #1A7A4A; }
+      .s2-status-collapsed { background: #F3F3F1; color: #9E9A95; }
+      .s2-status-warn     { background: #FFF8EC; color: #92650A; }
+      .s2-region-chevron { color: #9E9A95; font-size: 10px; transition: transform 0.15s; }
+      .s2-region-row.s2-open .s2-region-chevron { transform: rotate(180deg); }
+
+      .s2-region-detail {
+        display: none; padding: 10px 12px;
+        border-top: 1px solid #E4E2DE; background: #fff;
+      }
+      .s2-region-row.s2-open .s2-region-detail { display: block; }
+
+      .s2-sub-region { margin-top: 8px; border: 1px solid #E4E2DE; border-radius: 6px; overflow: hidden; }
+      .s2-sub-head { background: #fff !important; padding: 8px 10px !important; }
+      .s2-sub-head .s2-region-name { font-size: 12px; }
+
+      .s2-slot-note { font-size: 11px; font-family: monospace; color: #9E9A95; margin-bottom: 6px; }
+
+      .s2-timing-row {
+        display: flex; gap: 12px;
+        padding: 9px 16px; border-top: 1px solid #E4E2DE;
+        background: #F9F8F6; flex-wrap: wrap;
+      }
+      .s2-timing-chip { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+      .s2-timing-label { color: #9E9A95; }
+      .s2-timing-val { font-family: monospace; font-weight: 500; }
+
+      /* Feature list display in left panel */
+      .s2-feature-list { display: flex; flex-direction: column; gap: 5px; }
+      .s2-feature-item {
+        display: flex; align-items: flex-start; gap: 7px;
+        background: #F9F8F6; border: 1px solid #E4E2DE;
+        border-radius: 6px; padding: 6px 9px; font-size: 12.5px; color: #1A1917;
+      }
+      .s2-feature-num { font-family: monospace; font-size: 10px; color: #9E9A95; min-width: 12px; margin-top: 1px; }
+
+      @media (max-width: 900px) {
+        .s2-layout { grid-template-columns: 1fr; }
+        .s2-main { padding: 16px; }
+      }
+    </style>
   </head>
   <body data-stage="stage2">
+
     <header>
       <div class="header-content">
         <div>
@@ -17,11 +229,7 @@
         </div>
         <label class="api-config">
           <span>Backend API Base</span>
-          <input
-            type="url"
-            id="api-base"
-            placeholder="https://ai-service-x758.onrender.com"
-          />
+          <input type="url" id="api-base" placeholder="https://ai-service-x758.onrender.com" />
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
@@ -33,127 +241,75 @@
       </nav>
     </header>
 
-    <main>
-      <section class="card stage-card">
-        <h2>Stage 2 - Final Poster</h2>
-        <p class="hint">
-          Generate the final poster. Mode S returns a single final_poster only.
-        </p>
-        <p class="hint">
-          Baseline stamps:
-          FE <code id="frontend-baseline-stamp">N/A</code>
-          · BE <code id="backend-baseline-stamp">N/A</code>
-        </p>
+    <main class="s2-main">
+      <div class="s2-layout">
 
-        <section class="stage2-preview" id="poster-output">
-          <h3>Final Poster</h3>
-          <div class="ai-result-box">
-            <img id="final-poster-img" class="poster-preview-image hidden" alt="Final poster" decoding="async" />
-            <div id="final-poster-placeholder" class="poster-preview-placeholder">Waiting for final_poster</div>
-          </div>
-          <div class="poster-meta">
-            <div>poster_key <code id="final-poster-key">N/A</code></div>
-            <div class="poster-actions">
-              <button id="final-poster-copy" type="button" class="secondary subtle">Copy URL</button>
-              <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Open URL</a>
-            </div>
-          </div>
-        </section>
+        <!-- ═══ LEFT: Controls ═══ -->
+        <aside class="s2-sidebar">
 
-        <section id="poster2-pilot-panel" class="card stage-card poster2-pilot-panel">
-          <h3>Poster2 Internal Pilot</h3>
-          <p id="poster2-pilot-copy" class="hint">
-            template_dual_v2 is in internal-only Puppeteer pilot. Other templates stay on safe/default renderer.
-          </p>
-          <div class="control-grid">
-            <label class="field">
-              <span>Renderer mode</span>
-              <select id="poster2-renderer-mode">
-                <option value="auto">auto/default</option>
-                <option value="pillow">pillow</option>
-                <option value="puppeteer">puppeteer (pilot)</option>
-              </select>
-            </label>
-            <div class="pilot-note">
-              <strong id="poster2-pilot-badge">Safe default</strong>
-              <p id="poster2-pilot-hint" class="hint"></p>
-            </div>
-          </div>
-
-          <div id="poster2-diagnostics" class="poster2-diagnostics">
-            <h4>Result Diagnostics</h4>
-            <div class="poster2-diagnostics-grid">
-              <div><span>template_id</span><code id="poster2-template-id">N/A</code></div>
-              <div><span>renderer_mode</span><code id="poster2-renderer-mode-requested">N/A</code></div>
-              <div><span>render_engine_used</span><code id="poster2-render-engine-used">N/A</code></div>
-              <div><span>degraded</span><code id="poster2-degraded">N/A</code></div>
-              <div><span>structure_complete</span><code id="poster2-structure-complete">N/A</code></div>
-              <div><span>incomplete_structure</span><code id="poster2-incomplete-structure">N/A</code></div>
-              <div><span>deliverable</span><code id="poster2-deliverable">N/A</code></div>
-              <div><span>fallback_reason_code</span><code id="poster2-fallback-reason-code">N/A</code></div>
-              <div><span>foreground_renderer</span><code id="poster2-foreground-renderer">N/A</code></div>
-              <div><span>total_ms</span><code id="poster2-total-ms">N/A</code></div>
-              <div><span>template_contract_version</span><code id="poster2-template-contract-version">N/A</code></div>
-            </div>
-            <div class="poster2-diagnostics-detail">
-              <div>
-                <span>missing_mandatory_regions</span>
-                <pre id="poster2-missing-mandatory-regions">[]</pre>
-              </div>
-              <div>
-                <span>missing_required_slots</span>
-                <pre id="poster2-missing-required-slots">[]</pre>
-              </div>
-              <div>
-                <span>region_render_status</span>
-                <pre id="poster2-region-render-status">{}</pre>
-              </div>
-              <div>
-                <span>slot_binding_status</span>
-                <pre id="poster2-slot-binding-status">{}</pre>
-              </div>
-              <div>
-                <span>template_behavior</span>
-                <pre id="poster2-template-behavior">{}</pre>
-              </div>
-              <div>
-                <span>geometry_evidence</span>
-                <pre id="poster2-geometry-evidence">{}</pre>
-              </div>
-              <div>
-                <span>bottom_contract_review</span>
-                <pre id="poster2-bottom-contract-review">{}</pre>
+          <!-- Copy -->
+          <div class="s2-panel">
+            <div class="s2-panel-hd"><span>Copy</span></div>
+            <div class="s2-panel-bd">
+              <label class="s2-field">
+                <span>Title</span>
+                <input type="text" id="poster2-bottom-title" maxlength="120" placeholder="Poster title" />
+              </label>
+              <label class="s2-field">
+                <span>Subtitle</span>
+                <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Support copy"></textarea>
+              </label>
+              <div class="s2-field" id="s2-features-section" style="display:none">
+                <span>Features</span>
+                <div id="s2-feature-list-display" class="s2-feature-list"></div>
               </div>
             </div>
           </div>
 
-          <div id="poster2-bottom-contract-panel" class="poster2-diagnostics">
-            <h4>Bottom Contract Validation</h4>
-            <p class="hint">
-              Validate bottom contract inputs before generation. This is contract testing for
-              <code>title_band_region</code> and <code>gallery_strip_region</code>, not visual tuning.
-            </p>
-            <p class="hint">
-              Contract limits: bottom title <= 120 chars, subtitle / support copy <= 120 chars.
-            </p>
-            <div class="control-grid">
-              <label class="field">
-                <span>Bottom mode</span>
+          <!-- Renderer -->
+          <div class="s2-panel">
+            <div class="s2-panel-hd">
+              <span>Renderer</span>
+              <span id="poster2-pilot-badge" class="s2-badge"></span>
+            </div>
+            <div class="s2-panel-bd">
+              <label class="s2-field">
+                <span>Renderer Mode</span>
+                <select id="poster2-renderer-mode">
+                  <option value="auto">auto/default</option>
+                  <option value="pillow">pillow (stable)</option>
+                  <option value="puppeteer">puppeteer (pilot)</option>
+                </select>
+              </label>
+              <div class="s2-field">
+                <span>Template</span>
+                <input type="text" value="template_dual_v2 · Family A" readonly
+                  style="font-family:monospace;font-size:12px;color:#6B6762;" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Region -->
+          <div class="s2-panel">
+            <div class="s2-panel-hd"><span>Bottom Region</span></div>
+            <div class="s2-panel-bd">
+              <label class="s2-field">
+                <span>Mode</span>
                 <select id="poster2-bottom-mode">
                   <option value="title_gallery_split">title_gallery_split</option>
                   <option value="title_only">title_only</option>
                   <option value="gallery_only">gallery_only</option>
                 </select>
               </label>
-              <label class="field">
+              <label class="s2-field">
                 <span>Gallery mode</span>
                 <select id="poster2-gallery-mode">
                   <option value="strip_local_visible_only">strip_local_visible_only</option>
                   <option value="supporting_packshots">supporting_packshots</option>
                 </select>
               </label>
-              <label class="field">
-                <span>Bottom thumbnails</span>
+              <label class="s2-field">
+                <span>Thumbnails</span>
                 <select id="poster2-gallery-count">
                   <option value="0">0</option>
                   <option value="1">1</option>
@@ -162,258 +318,596 @@
                   <option value="4" selected>4</option>
                 </select>
               </label>
-              <label class="field inline">
+              <label class="s2-field-inline">
                 <input type="checkbox" id="poster2-gallery-autofill" />
-                <span>Auto-fill missing thumbnails from product image</span>
+                <span>Auto-fill from product image</span>
               </label>
             </div>
-            <div class="control-grid">
-              <label class="field">
-                <span>Bottom title</span>
-                <input id="poster2-bottom-title" type="text" maxlength="120" placeholder="Bottom title" />
+          </div>
+
+          <!-- Generate -->
+          <button id="generate-poster" class="s2-btn-generate" type="button">Generate Poster</button>
+
+          <!-- Loading state -->
+          <div id="ai-preview" class="hidden">
+            <div id="ai-spinner" class="hidden"></div>
+            <p id="ai-preview-message" class="hint"></p>
+          </div>
+          <p id="asset-fallback-warning" class="hint hidden"></p>
+
+          <!-- Output -->
+          <div class="s2-panel">
+            <div class="s2-panel-hd"><span>Output</span></div>
+            <div class="s2-panel-bd">
+              <label class="s2-field">
+                <span>Poster URL</span>
+                <div class="s2-copy-row">
+                  <input type="text" id="s2-out-url" readonly placeholder="—" />
+                  <button id="final-poster-copy" type="button" class="secondary subtle">Copy</button>
+                  <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Open ↗</a>
+                </div>
               </label>
-              <label class="field">
-                <span>Subtitle / bottom support copy</span>
-                <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Bottom subtitle"></textarea>
-              </label>
-            </div>
-            <div class="poster2-diagnostics-detail">
-              <div>
-                <span>bottom_request_preview</span>
-                <pre id="poster2-bottom-request-preview">{}</pre>
+              <div class="s2-field">
+                <span>poster_key</span>
+                <code id="final-poster-key" style="font-size:11px;word-break:break-all;">N/A</code>
               </div>
             </div>
           </div>
 
-          <div class="poster2-debug-links">
-            <h4>Debug Artifacts</h4>
-            <div class="poster2-debug-links-grid">
-              <a id="poster2-link-background" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Background layer</a>
-              <a id="poster2-link-product-material" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Product/material layer</a>
-              <a id="poster2-link-foreground" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Foreground layer</a>
-              <a id="poster2-link-final" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Final composited poster</a>
-              <a id="poster2-link-metadata" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Renderer metadata</a>
+          <!-- Navigation -->
+          <div class="s2-actions">
+            <a class="secondary" href="index.html">← Back to Stage 1</a>
+            <button id="to-stage3" class="primary" type="button" disabled>Continue to Stage 3</button>
+          </div>
+
+        </aside>
+
+        <!-- ═══ RIGHT: Preview + Resolver Layout ═══ -->
+        <div class="s2-right">
+
+          <!-- Poster Preview -->
+          <div class="s2-panel">
+            <div class="s2-panel-hd">
+              <span>Preview</span>
+              <div class="s2-badge-row">
+                <code id="poster2-structure-complete" class="s2-badge">—</code>
+                <code id="poster2-degraded" class="s2-badge">—</code>
+              </div>
+            </div>
+            <div class="s2-preview-wrap" id="poster-output">
+              <img id="final-poster-img" class="hidden" alt="Final poster" decoding="async" />
+              <div id="final-poster-placeholder" class="s2-preview-empty">
+                <div class="s2-preview-empty-icon">🖼</div>
+                <span>Generate a poster to preview</span>
+              </div>
+            </div>
+            <div class="s2-preview-footer">
+              <button class="secondary" type="button" id="s2-btn-open-full">Open Full Size ↗</button>
+              <button class="secondary" type="button" id="s2-btn-copy-url">Copy URL</button>
+              <code id="s2-img-size" class="s2-poster-key">1024 × 1024</code>
             </div>
           </div>
 
-          <div class="poster2-run-history">
-            <h4>Recent Pilot Runs</h4>
-            <p class="hint">Generate sequentially with pillow and puppeteer to compare outputs.</p>
-            <div id="poster2-run-history-list" class="poster2-run-history-list"></div>
-          </div>
-        </section>
+          <!-- Resolver Layout -->
+          <div class="s2-panel" id="poster2-resolver-layout-preview">
+            <div class="s2-panel-hd">
+              <span>Resolver Layout</span>
+              <div class="s2-badge-row">
+                <code class="s2-badge">template_dual_v2</code>
+                <code id="poster2-render-engine-used" class="s2-badge">—</code>
+              </div>
+            </div>
 
-        <div class="actions">
-          <button id="generate-poster" class="primary" type="button">Generate</button>
+            <!-- Modes strip -->
+            <div id="s2-modes-strip" class="s2-modes-strip" style="display:none"></div>
+
+            <!-- Engine / contract info -->
+            <div id="s2-copy-info" class="s2-copy-info" style="display:none">
+              <div class="s2-info-row">
+                <span class="s2-copy-label">engine</span>
+                <span id="s2-engine-val" class="s2-copy-val">—</span>
+              </div>
+              <div class="s2-info-row">
+                <span class="s2-copy-label">contract</span>
+                <span id="s2-contract-val" class="s2-copy-val">—</span>
+              </div>
+            </div>
+
+            <!-- Region rows -->
+            <div id="s2-resolver-regions" class="s2-resolver-regions">
+              <div class="s2-resolver-empty">Generate a poster to see resolver layout</div>
+            </div>
+
+            <!-- Timing -->
+            <div id="s2-timing-row" class="s2-timing-row" style="display:none">
+              <div class="s2-timing-chip">
+                <span class="s2-timing-label">total</span>
+                <span id="s2-timing-total" class="s2-timing-val">—</span>
+              </div>
+            </div>
+
+            <!-- Legacy hidden elements: app.js writes resolver canvas here -->
+            <div id="poster2-resolver-canvas-wrap" aria-hidden="true" style="display:none"></div>
+            <dl id="poster2-resolver-slot-table" aria-hidden="true" style="display:none"></dl>
+          </div>
+
+        </div><!-- /s2-right -->
+
+      </div><!-- /s2-layout -->
+
+      <!-- ═══════════════════════════════════════════════════════════
+           COMPAT SECTION — hidden elements kept for app.js bindings
+           ═══════════════════════════════════════════════════════════ -->
+
+      <!-- Pilot panel: JS calls classList.remove('hidden') — kept hidden via inline style -->
+      <div id="poster2-pilot-panel" style="display:none" aria-hidden="true">
+        <p id="poster2-pilot-copy"></p>
+        <p id="poster2-pilot-hint"></p>
+        <!-- Bottom contract panel: JS toggles hidden class on this element -->
+        <div id="poster2-bottom-contract-panel" style="display:none"></div>
+      </div>
+
+      <!-- Diagnostics: app.js writes diagnostic values here; MutationObserver reads them -->
+      <div id="poster2-diagnostics" style="display:none" aria-hidden="true">
+        <code id="poster2-template-id"></code>
+        <code id="poster2-renderer-mode-requested"></code>
+        <code id="poster2-incomplete-structure"></code>
+        <code id="poster2-deliverable"></code>
+        <code id="poster2-fallback-reason-code"></code>
+        <code id="poster2-foreground-renderer"></code>
+        <code id="poster2-total-ms"></code>
+        <code id="poster2-template-contract-version"></code>
+        <pre id="poster2-missing-mandatory-regions">[]</pre>
+        <pre id="poster2-missing-required-slots">[]</pre>
+        <pre id="poster2-region-render-status">{}</pre>
+        <pre id="poster2-slot-binding-status">{}</pre>
+        <pre id="poster2-template-behavior">{}</pre>
+        <pre id="poster2-geometry-evidence">{}</pre>
+        <pre id="poster2-bottom-contract-review">{}</pre>
+        <pre id="poster2-bottom-request-preview">{}</pre>
+      </div>
+
+      <!-- Debug artifact links: app.js sets href / removes hidden -->
+      <div style="display:none" aria-hidden="true">
+        <a id="poster2-link-background" class="poster-preview-link hidden" target="_blank" rel="noreferrer"></a>
+        <a id="poster2-link-product-material" class="poster-preview-link hidden" target="_blank" rel="noreferrer"></a>
+        <a id="poster2-link-foreground" class="poster-preview-link hidden" target="_blank" rel="noreferrer"></a>
+        <a id="poster2-link-final" class="poster-preview-link hidden" target="_blank" rel="noreferrer"></a>
+        <a id="poster2-link-metadata" class="poster-preview-link hidden" target="_blank" rel="noreferrer"></a>
+      </div>
+
+      <!-- Run history: app.js appends cards here -->
+      <div style="display:none" aria-hidden="true">
+        <div id="poster2-run-history-list"></div>
+      </div>
+
+      <!-- Micro-controls: app.js reads toggle-bullets, title-size-preset, fallback-stable -->
+      <div id="stage2-controls" style="display:none" aria-hidden="true">
+        <input type="checkbox" id="toggle-bullets" checked />
+        <select id="title-size-preset">
+          <option value="M" selected>M</option>
+          <option value="S">S</option>
+          <option value="L">L</option>
+        </select>
+        <button id="fallback-stable" type="button">Fallback to Stable</button>
+      </div>
+
+      <!-- Prompt inspector: preset selects are required by app.js for asset references -->
+      <section id="prompt-inspector" class="prompt-inspector" style="display:none" aria-hidden="true">
+        <header>
+          <div><h3>Prompt Presets</h3></div>
+          <div class="seed-controls">
+            <label><span>Seed</span><input type="number" id="prompt-seed" placeholder="auto" /></label>
+            <label class="toggle"><input type="checkbox" id="prompt-lock-seed" /><span>Lock seed</span></label>
+            <label><span>Variants</span><input type="number" id="prompt-variants" min="1" max="3" value="2" /></label>
+          </div>
+        </header>
+        <div class="prompt-preview-grid">
+          <section class="prompt-slot">
+            <div class="slot-header">
+              <h4>Scene Background</h4>
+              <select data-preset-select="scenario"></select>
+            </div>
+            <p class="hint" data-preset-summary="scenario">Preset applied</p>
+          </section>
+          <section class="prompt-slot">
+            <div class="slot-header">
+              <h4>Core Product</h4>
+              <select data-preset-select="product"></select>
+            </div>
+            <p class="hint" data-preset-summary="product">Preset applied</p>
+          </section>
+          <section class="prompt-slot">
+            <div class="slot-header">
+              <h4>Bottom Series Thumbnails</h4>
+              <select data-preset-select="gallery"></select>
+            </div>
+            <p class="hint" data-preset-summary="gallery">Preset applied</p>
+          </section>
         </div>
-        <div id="ai-preview" class="hidden">
-          <div id="ai-spinner" class="hidden"></div>
-          <p id="ai-preview-message" class="hint"></p>
+        <div class="prompt-editor">
+          <textarea data-positive="scenario" placeholder="Positive prompt"></textarea>
+          <textarea data-negative="scenario" placeholder="Negative prompt"></textarea>
+          <p data-aspect="scenario"></p>
+          <button type="button" class="secondary subtle" data-reset-slot="scenario">Reset to preset</button>
+          <textarea data-positive="product" placeholder="Positive prompt"></textarea>
+          <textarea data-negative="product" placeholder="Negative prompt"></textarea>
+          <p data-aspect="product"></p>
+          <button type="button" class="secondary subtle" data-reset-slot="product">Reset to preset</button>
+          <textarea data-positive="gallery" placeholder="Positive prompt"></textarea>
+          <textarea data-negative="gallery" placeholder="Negative prompt"></textarea>
+          <p data-aspect="gallery"></p>
+          <button type="button" class="secondary subtle" data-reset-slot="gallery">Reset to preset</button>
         </div>
-        <p id="asset-fallback-warning" class="hint hidden"></p>
-
-        <section class="micro-controls" id="stage2-controls">
-          <h3>Stage 2 Adjustments</h3>
-          <div class="control-grid">
-            <label class="field inline">
-              <input type="checkbox" id="toggle-bullets" checked />
-              <span>Show bullets</span>
-            </label>
-            <label class="field">
-              <span>Title size</span>
-              <select id="title-size-preset">
-                <option value="M" selected>Medium</option>
-                <option value="S">Small</option>
-                <option value="L">Large</option>
-              </select>
-            </label>
-            <button id="fallback-stable" class="secondary" type="button">Fallback to Stable</button>
-          </div>
-        </section>
-
-        <section id="prompt-inspector" class="prompt-inspector">
-          <header>
-            <div>
-              <h3>Prompt Presets (Operator Controls)</h3>
-              <p class="hint">Scene background, core product, and bottom thumbnails presets.</p>
-            </div>
-            <div class="seed-controls">
-              <label>
-                <span>Seed</span>
-                <input type="number" id="prompt-seed" placeholder="auto" />
-              </label>
-              <label class="toggle">
-                <input type="checkbox" id="prompt-lock-seed" />
-                <span>Lock seed</span>
-              </label>
-              <label>
-                <span>Variants</span>
-                <input type="number" id="prompt-variants" min="1" max="3" value="2" />
-              </label>
-            </div>
-          </header>
-          <div class="prompt-preview-grid">
-            <section class="prompt-slot">
-              <div class="slot-header">
-                <h4>Scene Background</h4>
-                <select data-preset-select="scenario"></select>
-              </div>
-              <p class="hint" data-preset-summary="scenario">Preset applied</p>
-            </section>
-            <section class="prompt-slot">
-              <div class="slot-header">
-                <h4>Core Product</h4>
-                <select data-preset-select="product"></select>
-              </div>
-              <p class="hint" data-preset-summary="product">Preset applied</p>
-            </section>
-            <section class="prompt-slot">
-              <div class="slot-header">
-                <h4>Bottom Series Thumbnails</h4>
-                <select data-preset-select="gallery"></select>
-              </div>
-              <p class="hint" data-preset-summary="gallery">Preset applied</p>
-            </section>
-          </div>
-
-          <details>
-            <summary>Advanced (Prompt Editing)</summary>
-            <div class="prompt-editor">
-              <label>
-                <span>Scene background positive</span>
-                <textarea data-positive="scenario" placeholder="Positive prompt"></textarea>
-              </label>
-              <label>
-                <span>Scene background negative</span>
-                <textarea data-negative="scenario" placeholder="Negative prompt"></textarea>
-              </label>
-              <p class="hint" data-aspect="scenario"></p>
-              <button type="button" class="secondary subtle" data-reset-slot="scenario">Reset to preset</button>
-
-              <label>
-                <span>Core product positive</span>
-                <textarea data-positive="product" placeholder="Positive prompt"></textarea>
-              </label>
-              <label>
-                <span>Core product negative</span>
-                <textarea data-negative="product" placeholder="Negative prompt"></textarea>
-              </label>
-              <p class="hint" data-aspect="product"></p>
-              <button type="button" class="secondary subtle" data-reset-slot="product">Reset to preset</button>
-
-              <label>
-                <span>Bottom thumbnails positive</span>
-                <textarea data-positive="gallery" placeholder="Positive prompt"></textarea>
-              </label>
-              <label>
-                <span>Bottom thumbnails negative</span>
-                <textarea data-negative="gallery" placeholder="Negative prompt"></textarea>
-              </label>
-              <p class="hint" data-aspect="gallery"></p>
-              <button type="button" class="secondary subtle" data-reset-slot="gallery">Reset to preset</button>
-            </div>
-            <div class="prompt-meta">
-              <button id="preview-prompts" type="button" class="secondary">Refresh Prompt Preview</button>
-            </div>
-            <div id="prompt-group" class="prompt-preview-card hidden">
-              <h4>Prompt Preview</h4>
-              <textarea id="openai-request-prompt" readonly></textarea>
-            </div>
-            <div id="prompt-default-group" class="prompt-preview-card hidden">
-              <h4>Template Default Prompt</h4>
-              <textarea id="template-default-prompt" readonly></textarea>
-            </div>
-            <div id="prompt-bundle-group" class="prompt-preview-card hidden">
-              <h4>Prompt Bundle (JSON)</h4>
-              <textarea id="prompt-bundle-json" readonly></textarea>
-            </div>
-          </details>
-        </section>
-
-        <section id="stage2-poster-preview-section" class="card stage-card">
-          <h3>Layout Preview</h3>
-          <div id="poster-result" class="poster-preview poster-preview--result">
-            <div class="poster-header">
-              <div class="poster-logo">
-                <div class="poster-logo-image">
-                  <img id="poster-result-brand-logo" alt="Brand logo" />
-                </div>
-                <div class="poster-brand-name" id="poster-result-brand-name">Brand</div>
-              </div>
-              <div class="poster-agent" id="poster-result-agent-name">Channel</div>
-            </div>
-            <div class="poster-body">
-              <div class="poster-left">
-                <img id="poster-result-scenario-image" alt="Scenario" />
-              </div>
-              <div class="poster-right">
-                <div class="poster-product-wrapper">
-                  <img id="poster-result-product-image" alt="Product" />
-                  <ul id="poster-result-feature-list" class="feature-tags">
-                    <li class="feature-tag feature-tag--top"><span></span></li>
-                    <li class="feature-tag feature-tag--middle"><span></span></li>
-                    <li class="feature-tag feature-tag--bottom"><span></span></li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-            <div id="poster-result-title" class="poster-title">Title</div>
-            <div id="poster-result-gallery-subtitle" class="poster-gallery-subtitle">Series</div>
-            <div class="poster-gallery-row">
-              <div class="poster-gallery-slot" data-index="0">
-                <img alt="Series 1" />
-                <div class="gallery-caption">
-                  <span class="gallery-caption-title" data-gallery-caption-title></span>
-                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
-                </div>
-              </div>
-              <div class="poster-gallery-slot" data-index="1">
-                <img alt="Series 2" />
-                <div class="gallery-caption">
-                  <span class="gallery-caption-title" data-gallery-caption-title></span>
-                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
-                </div>
-              </div>
-              <div class="poster-gallery-slot" data-index="2">
-                <img alt="Series 3" />
-                <div class="gallery-caption">
-                  <span class="gallery-caption-title" data-gallery-caption-title></span>
-                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
-                </div>
-              </div>
-              <div class="poster-gallery-slot" data-index="3">
-                <img alt="Series 4" />
-                <div class="gallery-caption">
-                  <span class="gallery-caption-title" data-gallery-caption-title></span>
-                  <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
-                </div>
-              </div>
-            </div>
-            <div id="poster-result-tagline" class="poster-tagline">Tagline</div>
-          </div>
-
-          <div id="poster2-resolver-layout-preview" class="poster2-resolver-layout-preview hidden">
-            <h4>Resolver Layout — Bottom Region</h4>
-            <p class="hint">Slot boundaries as resolved by the layout engine. Coordinates match the renderer exactly.</p>
-            <div id="poster2-resolver-canvas-wrap" class="poster2-resolver-canvas-wrap"></div>
-            <dl id="poster2-resolver-slot-table" class="poster2-resolver-slot-table"></dl>
-          </div>
-        </section>
-
-
-        <div class="actions">
-          <a class="secondary" href="index.html">Back to Stage 1</a>
-          <button id="to-stage3" class="primary" type="button" disabled>
-            Save and Continue to Stage 3
-          </button>
+        <button id="preview-prompts" type="button" class="secondary">Refresh Prompt Preview</button>
+        <div id="prompt-group" class="prompt-preview-card hidden">
+          <h4>Prompt Preview</h4>
+          <textarea id="openai-request-prompt" readonly></textarea>
+        </div>
+        <div id="prompt-default-group" class="prompt-preview-card hidden">
+          <h4>Template Default Prompt</h4>
+          <textarea id="template-default-prompt" readonly></textarea>
+        </div>
+        <div id="prompt-bundle-group" class="prompt-preview-card hidden">
+          <h4>Prompt Bundle (JSON)</h4>
+          <textarea id="prompt-bundle-json" readonly></textarea>
         </div>
       </section>
+
+      <!-- Baseline stamps: app.js sets textContent -->
+      <div style="display:none" aria-hidden="true">
+        <code id="frontend-baseline-stamp">N/A</code>
+        <code id="backend-baseline-stamp">N/A</code>
+      </div>
+
+      <!-- Old layout preview: app.js populates images into these for CSS wireframe mode -->
+      <section id="stage2-poster-preview-section" style="display:none" aria-hidden="true">
+        <div id="poster-result" class="poster-preview poster-preview--result">
+          <div class="poster-header">
+            <div class="poster-logo">
+              <div class="poster-logo-image">
+                <img id="poster-result-brand-logo" alt="" />
+              </div>
+              <div class="poster-brand-name" id="poster-result-brand-name"></div>
+            </div>
+            <div class="poster-agent" id="poster-result-agent-name"></div>
+          </div>
+          <div class="poster-body">
+            <div class="poster-left">
+              <img id="poster-result-scenario-image" alt="" />
+            </div>
+            <div class="poster-right">
+              <div class="poster-product-wrapper">
+                <img id="poster-result-product-image" alt="" />
+                <ul id="poster-result-feature-list" class="feature-tags">
+                  <li class="feature-tag feature-tag--top"><span></span></li>
+                  <li class="feature-tag feature-tag--middle"><span></span></li>
+                  <li class="feature-tag feature-tag--bottom"><span></span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div id="poster-result-title" class="poster-title"></div>
+          <div id="poster-result-gallery-subtitle" class="poster-gallery-subtitle"></div>
+          <div class="poster-gallery-row">
+            <div class="poster-gallery-slot" data-index="0">
+              <img alt="" />
+              <div class="gallery-caption">
+                <span class="gallery-caption-title" data-gallery-caption-title></span>
+                <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+              </div>
+            </div>
+            <div class="poster-gallery-slot" data-index="1">
+              <img alt="" />
+              <div class="gallery-caption">
+                <span class="gallery-caption-title" data-gallery-caption-title></span>
+                <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+              </div>
+            </div>
+            <div class="poster-gallery-slot" data-index="2">
+              <img alt="" />
+              <div class="gallery-caption">
+                <span class="gallery-caption-title" data-gallery-caption-title></span>
+                <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+              </div>
+            </div>
+            <div class="poster-gallery-slot" data-index="3">
+              <img alt="" />
+              <div class="gallery-caption">
+                <span class="gallery-caption-title" data-gallery-caption-title></span>
+                <span class="gallery-caption-subtitle" data-gallery-caption-subtitle></span>
+              </div>
+            </div>
+          </div>
+          <div id="poster-result-tagline" class="poster-tagline"></div>
+        </div>
+      </section>
+
     </main>
 
     <footer>
       <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
+
     <script defer src="./placeholder.js?v=3"></script>
     <script defer src="./app.js?v=0cbaf65"></script>
+
+    <script>
+      /* ── Stage 2: Resolver Layout population ───────────────────── */
+      (function () {
+        'use strict';
+
+        const REGION_ORDER = [
+          'header_region',
+          'scenario_region',
+          'product_region',
+          'feature_region',
+          'bottom_region',
+        ];
+        const REGION_META = {
+          header_region:   { icon: 'H', cls: 'icon-header' },
+          scenario_region: { icon: 'S', cls: 'icon-scenario' },
+          product_region:  { icon: 'P', cls: 'icon-product' },
+          feature_region:  { icon: 'F', cls: 'icon-feature' },
+          bottom_region:   { icon: 'B', cls: 'icon-bottom' },
+        };
+
+        function statusCls(rendered, collapsed) {
+          if (collapsed) return 's2-status-collapsed';
+          if (rendered)  return 's2-status-ok';
+          return 's2-status-warn';
+        }
+        function statusText(rendered, collapsed, count) {
+          if (collapsed) return 'collapsed';
+          if (rendered)  return count ? `rendered · ${count}` : 'rendered';
+          return 'not rendered';
+        }
+
+        window.toggleS2Region = function (id) {
+          const el = document.getElementById(id);
+          if (el) el.classList.toggle('s2-open');
+        };
+
+        function buildBottomDetail(bottomReview, templateBehavior) {
+          let html = '';
+          const metrics = bottomReview?.behavior_policy?.layout_metrics || {};
+          if (metrics.bottom_shell_height) {
+            html += `<div class="s2-slot-note">height: ${metrics.bottom_shell_height}px</div>`;
+          }
+
+          const titleBand = bottomReview?.title_band_region;
+          if (titleBand) {
+            html += `
+              <div class="s2-sub-region">
+                <div class="s2-region-head s2-sub-head">
+                  <div class="s2-region-icon icon-title" style="width:20px;height:20px;font-size:10px;">T</div>
+                  <span class="s2-region-name">title_band_region</span>
+                  <span class="s2-region-mode">standard</span>
+                  <span class="s2-region-status s2-status-ok">rendered · 2</span>
+                </div>
+              </div>`;
+          }
+
+          const galleryStrip = bottomReview?.gallery_strip_region;
+          if (galleryStrip) {
+            const gMode = templateBehavior?.gallery_mode || 'strip';
+            const gCount = Object.values(bottomReview?.gallery_slots || {})
+              .filter(s => s?.state !== 'collapsed').length;
+            html += `
+              <div class="s2-sub-region">
+                <div class="s2-region-head s2-sub-head">
+                  <div class="s2-region-icon icon-gallery" style="width:20px;height:20px;font-size:10px;">G</div>
+                  <span class="s2-region-name">gallery_strip_region</span>
+                  <span class="s2-region-mode">${gMode}</span>
+                  <span class="s2-region-status s2-status-ok">rendered · ${gCount}</span>
+                </div>
+              </div>`;
+          }
+          return html;
+        }
+
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta) {
+          // Modes strip
+          const modesStrip = document.getElementById('s2-modes-strip');
+          if (modesStrip && templateBehavior) {
+            const chips = [];
+            const tb = templateBehavior;
+            if (tb.bottom_mode) chips.push(['bottom', tb.bottom_mode]);
+            if (tb.gallery_mode) chips.push(['gallery', tb.gallery_mode]);
+            if (tb.hero_mode || tb.hero) chips.push(['hero', tb.hero_mode || tb.hero]);
+            if (tb.feature_mode) chips.push(['feature', tb.feature_mode]);
+            if (tb.header_identity_zone_mode) chips.push(['header', tb.header_identity_zone_mode]);
+            if (chips.length) {
+              modesStrip.innerHTML = chips.map(([k, v]) =>
+                `<div class="s2-mode-chip"><span class="s2-mode-key">${k}</span>&nbsp;<span class="s2-mode-val">${v}</span></div>`
+              ).join('');
+              modesStrip.style.display = '';
+            }
+          }
+
+          // Engine / contract info strip
+          const copyInfo = document.getElementById('s2-copy-info');
+          if (copyInfo && meta) {
+            const ev = document.getElementById('s2-engine-val');
+            const cv = document.getElementById('s2-contract-val');
+            if (ev) ev.textContent = meta.foreground_renderer || meta.render_engine_used || '—';
+            if (cv) cv.textContent = meta.template_contract_version || '—';
+            copyInfo.style.display = '';
+          }
+
+          // Timing
+          const timingRow = document.getElementById('s2-timing-row');
+          const timingTotal = document.getElementById('s2-timing-total');
+          if (timingRow && timingTotal && meta?.total_ms) {
+            timingTotal.textContent = `${meta.total_ms}ms`;
+            timingRow.style.display = '';
+          }
+
+          // Region rows
+          const container = document.getElementById('s2-resolver-regions');
+          if (!container) return;
+
+          if (!regionStatus || Object.keys(regionStatus).length === 0) {
+            container.innerHTML = '<div class="s2-resolver-empty">No resolver data available</div>';
+            return;
+          }
+
+          const rows = [];
+          for (const key of REGION_ORDER) {
+            const rs = regionStatus[key];
+            if (!rs) continue;
+            const m = REGION_META[key] || { icon: '?', cls: '' };
+            const rendered  = Boolean(rs.rendered);
+            const collapsed = Boolean(rs.collapsed);
+            const count     = rs.count || 0;
+            const isBottom  = key === 'bottom_region';
+            const modeLabel = isBottom ? (templateBehavior?.bottom_mode || '') : '';
+            const detailHtml = isBottom
+              ? buildBottomDetail(bottomReview, templateBehavior)
+              : '';
+
+            rows.push(`
+              <div class="s2-region-row${detailHtml ? ' s2-open' : ''}" id="s2-rr-${key}">
+                <div class="s2-region-head" onclick="toggleS2Region('s2-rr-${key}')">
+                  <div class="s2-region-icon ${m.cls}">${m.icon}</div>
+                  <span class="s2-region-name">${key}</span>
+                  ${modeLabel ? `<span class="s2-region-mode">${modeLabel}</span>` : ''}
+                  <span class="s2-region-status ${statusCls(rendered, collapsed)}">${statusText(rendered, collapsed, count)}</span>
+                  ${detailHtml ? '<span class="s2-region-chevron">▾</span>' : ''}
+                </div>
+                ${detailHtml ? `<div class="s2-region-detail">${detailHtml}</div>` : ''}
+              </div>`);
+          }
+          container.innerHTML = rows.join('');
+        }
+
+        function tryRebuild() {
+          const regionEl   = document.getElementById('poster2-region-render-status');
+          const behaviorEl = document.getElementById('poster2-template-behavior');
+          const bottomEl   = document.getElementById('poster2-bottom-contract-review');
+          const fgEl       = document.getElementById('poster2-foreground-renderer');
+          const engEl      = document.getElementById('poster2-render-engine-used');
+          const contractEl = document.getElementById('poster2-template-contract-version');
+          const totalMsEl  = document.getElementById('poster2-total-ms');
+
+          let regionStatus = {};
+          let templateBehavior = {};
+          let bottomReview = null;
+          try { regionStatus = JSON.parse(regionEl?.textContent || '{}'); } catch (_) {}
+          try { templateBehavior = JSON.parse(behaviorEl?.textContent || '{}'); } catch (_) {}
+          try { bottomReview = JSON.parse(bottomEl?.textContent || 'null'); } catch (_) {}
+
+          if (!Object.keys(regionStatus).length) return;
+
+          const meta = {
+            foreground_renderer: fgEl?.textContent || '',
+            render_engine_used: engEl?.textContent || '',
+            template_contract_version: contractEl?.textContent || '',
+            total_ms: totalMsEl?.textContent ? Number(totalMsEl.textContent) : null,
+          };
+
+          // Update structure_complete badge appearance
+          const scEl = document.getElementById('poster2-structure-complete');
+          if (scEl) {
+            const val = scEl.textContent;
+            scEl.className = `s2-badge${val === 'true' ? ' ok' : val === 'false' ? ' warn' : ''}`;
+          }
+          const degEl = document.getElementById('poster2-degraded');
+          if (degEl) {
+            const val = degEl.textContent;
+            degEl.className = `s2-badge${val === 'false' ? ' ok' : val === 'true' ? ' warn' : ''}`;
+          }
+          // Update render engine badge
+          if (engEl) engEl.className = 's2-badge ok';
+
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta);
+        }
+
+        /* Sync s2-out-url from final-poster-link.href */
+        function syncOutputUrl() {
+          const link = document.getElementById('final-poster-link');
+          const urlInput = document.getElementById('s2-out-url');
+          if (link && urlInput) {
+            new MutationObserver(() => {
+              urlInput.value = link.href && link.href !== location.href ? link.href : '';
+            }).observe(link, { attributes: true, attributeFilter: ['href', 'class'] });
+          }
+        }
+
+        /* Preview footer buttons */
+        function wirePreviewButtons() {
+          const openBtn = document.getElementById('s2-btn-open-full');
+          const copyBtn = document.getElementById('s2-btn-copy-url');
+          if (openBtn) {
+            openBtn.onclick = () => {
+              const link = document.getElementById('final-poster-link');
+              if (link && !link.classList.contains('hidden')) window.open(link.href, '_blank');
+            };
+          }
+          if (copyBtn) {
+            copyBtn.onclick = async () => {
+              const link = document.getElementById('final-poster-link');
+              const url = (link && !link.classList.contains('hidden')) ? link.href : '';
+              if (!url) return;
+              try {
+                await navigator.clipboard.writeText(url);
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy URL'; }, 1500);
+              } catch (_) {}
+            };
+          }
+        }
+
+        /* Mirror feature tags from hidden poster-result into visible left panel */
+        function wireFeatureDisplay() {
+          const featureList = document.getElementById('poster-result-feature-list');
+          const displayEl   = document.getElementById('s2-feature-list-display');
+          const section     = document.getElementById('s2-features-section');
+          if (!featureList || !displayEl || !section) return;
+
+          function mirror() {
+            const spans = featureList.querySelectorAll('li span');
+            const items = Array.from(spans)
+              .map((sp, i) => ({ num: i + 1, text: (sp.textContent || '').trim() }))
+              .filter(it => it.text);
+            if (items.length) {
+              displayEl.innerHTML = items.map(it =>
+                `<div class="s2-feature-item"><span class="s2-feature-num">${it.num}</span>${it.text}</div>`
+              ).join('');
+              section.style.display = '';
+            }
+          }
+          new MutationObserver(mirror).observe(featureList, { childList: true, subtree: true, characterData: true });
+          mirror();
+        }
+
+        function init() {
+          /* Watch hidden diagnostic pre for changes → rebuild resolver layout */
+          const regionEl = document.getElementById('poster2-region-render-status');
+          if (regionEl) {
+            new MutationObserver(tryRebuild).observe(regionEl, {
+              characterData: true, childList: true, subtree: true,
+            });
+          }
+          /* Also trigger on poster img src change (backup) */
+          const posterImg = document.getElementById('final-poster-img');
+          if (posterImg) {
+            new MutationObserver(tryRebuild).observe(posterImg, {
+              attributes: true, attributeFilter: ['src'],
+            });
+          }
+          syncOutputUrl();
+          wirePreviewButtons();
+          wireFeatureDisplay();
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init);
+        } else {
+          init();
+        }
+      })();
+    </script>
+
   </body>
 </html>
