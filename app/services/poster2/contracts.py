@@ -51,6 +51,10 @@ class PosterSpec:
     logo: Optional[AssetRef] = None
     scenario_image: Optional[AssetRef] = None
     gallery_images: tuple[AssetRef, ...] = field(default_factory=tuple)
+    gallery_input_count_raw: Optional[int] = None
+    gallery_input_count_normalized: Optional[int] = None
+    gallery_requested_count: Optional[int] = None
+    gallery_autofill_applied: bool = False
     bottom_mode: Optional[str] = None
     gallery_mode: Optional[str] = None
 
@@ -143,6 +147,7 @@ class FeatureCalloutSpec:
 class TemplateBehaviorModesSpec:
     hero_mode: str = "scenario_cover_product_contain"
     feature_mode: str = "count_driven_callout_stack"
+    product_annotation_mode: str = "none"
     header_mode: Optional[str] = None
     bottom_mode: str = "title_gallery_split"
     gallery_mode: str = "strip_local_visible_only"
@@ -339,6 +344,7 @@ class RenderManifest:
     template_behavior: dict = field(default_factory=dict)
     geometry_evidence: dict = field(default_factory=dict)
     hero_contract_review: dict = field(default_factory=dict)
+    product_contract_review: dict = field(default_factory=dict)
     header_contract_review: dict = field(default_factory=dict)
     feature_contract_review: dict = field(default_factory=dict)
     bottom_contract_review: dict = field(default_factory=dict)

@@ -899,6 +899,121 @@ class TestPosterPipelineRun:
             "h": 60,
         }
 
+    @pytest.mark.parametrize(
+        ("requested_count", "normalized_count", "resolved_count", "expected_policy"),
+        [
+            (1, 1, 1, "single_center_focus"),
+            (2, 2, 2, "balanced_pair"),
+            (3, 3, 3, "balanced_triplet"),
+            (4, 4, 4, "dense_quad"),
+        ],
+    )
+    def test_bottom_gallery_count_matrix_1_2_3_4_is_reviewable_end_to_end(
+        self,
+        requested_count,
+        normalized_count,
+        resolved_count,
+        expected_policy,
+    ):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        gallery_assets = [PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(resolved_count)]
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=gallery_assets,
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(resolved_count)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        manifest = asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(normalized_count)),
+                    gallery_input_count_raw=requested_count,
+                    gallery_input_count_normalized=normalized_count,
+                    gallery_requested_count=requested_count,
+                    gallery_autofill_applied=False,
+                ),
+                _load_template(),
+            )
+        )
+
+        assert manifest.structure_complete is True
+        assert manifest.deliverable is True
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        bottom_review = metadata["bottom_contract_review"]
+
+        assert bottom_review["gallery_input_count_raw"] == requested_count
+        assert bottom_review["gallery_input_count_normalized"] == normalized_count
+        assert bottom_review["gallery_requested_count"] == requested_count
+        assert bottom_review["gallery_visible_count"] == resolved_count
+        assert bottom_review["gallery_autofill_applied"] is False
+        assert bottom_review["behavior_policy"]["gallery_distribution_policy"] == expected_policy
+
+    def test_bottom_gallery_count_chain_preserves_requested_pair_with_single_real_input(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255))],
+            gallery_status=[
+                {"index": 0, "url": "mock://gallery-0", "resolved": True, "error_code": None},
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    gallery_images=(AssetRef(url="mock://gallery-0"),),
+                    gallery_input_count_raw=2,
+                    gallery_input_count_normalized=1,
+                    gallery_requested_count=2,
+                    gallery_autofill_applied=False,
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        bottom_review = metadata["bottom_contract_review"]
+
+        assert bottom_review["gallery_input_count_raw"] == 2
+        assert bottom_review["gallery_input_count_normalized"] == 1
+        assert bottom_review["gallery_requested_count"] == 2
+        assert bottom_review["gallery_visible_count"] == 1
+        assert bottom_review["behavior_policy"]["gallery_distribution_policy"] == "single_center_focus"
+        assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
+        assert bottom_review["gallery_slots"]["gallery_item_slot_2"]["reason_code"] == "gallery_input_missing"
+
     def test_renderer_metadata_exposes_template_level_layout_policy_when_feature_and_bottom_are_both_dense(self):
         stored_payloads: dict[str, bytes] = {}
 
@@ -1023,6 +1138,49 @@ class TestPosterPipelineRun:
         assert hero_review["product_slot"]["rendered"] is True
         assert hero_review["behavior_policy"]["peer_layout_policy"] == "single_product_without_scenario_peer"
         assert hero_review["behavior_policy"]["product_anchor"] == "bottom"
+
+    def test_product_contract_review_exposes_independent_annotation_contract(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        template = _load_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            feature_mode="product_anchor_callouts",
+            product_annotation_mode="product_anchor_callouts",
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(features=(" 特性A ", " 特性B ", " 特性C ")),
+                template,
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        product_review = metadata["product_contract_review"]
+
+        assert product_review["product_annotation_mode"] == "product_anchor_callouts"
+        assert product_review["requested_product_source"] == "mock://product"
+        assert product_review["product_canvas_shell_layer"]["rendered"] is True
+        assert product_review["product_annotation_shell_layer"]["rendered"] is True
+        assert product_review["product_annotation_items_layer"]["visible_item_count"] == 3
+        assert product_review["behavior_policy"]["annotation_count_policy"] == "fixed_3_product_anchor_annotations"
+        assert product_review["behavior_policy"]["annotation_connector_policy"] == "product_anchor_leader_line"
+        assert product_review["annotation_slots"][0]["anchor_x"] == 764
+        assert product_review["annotation_slots"][0]["rendered_excerpt"] == "特性A"
+        assert metadata["template_behavior"]["behavior_modes"]["product_annotation_mode"] == "product_anchor_callouts"
 
     def test_feature_contract_review_exposes_requested_sanitized_rendered_chain_with_empty_and_capped_items(self):
         stored_payloads: dict[str, bytes] = {}

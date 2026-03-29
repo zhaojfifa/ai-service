@@ -89,11 +89,13 @@ Read this section only after the product baseline and architecture guidance. The
 - [poster2_product_flow_reviewable_v1.md](poster2_product_flow_reviewable_v1.md)
   Phase 3 PR-4 closure record: minimum operator loop (Stage 1 → Stage 2 → Stage 3) reviewable under contract-first baseline. Records Stage 2 live contract panel integration and all-region Resolver Layout evidence.
 - [bottom_behavior_contract_status_v1.md](bottom_behavior_contract_status_v1.md)
-  Bottom region resolver SOP baseline: behavior policies, metadata, gallery distribution, text evidence chain. Frozen as Phase 2 baseline.
+  Bottom region resolver SOP baseline: behavior policies, metadata, gallery distribution, text evidence chain, and `gallery_input_count_raw -> gallery_input_count_normalized -> gallery_requested_count -> gallery_visible_count` closure. Frozen as Phase 2 baseline.
 - [feature_anchor_callouts_contract_status_v1.md](feature_anchor_callouts_contract_status_v1.md)
   Phase 0 contract drift repair + Phase 1 `product_anchor_callouts` feature mode contract. Records header_mode drift fix, Stage 2 modeLabel path fixes, and new mode resolver/evidence contract.
 - [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
   Beautification Phase 1 closure: minimal beauty-token-driven improvements to `glass_light` shell surface, `soft_line` border, `soft` shadow, and feature connector/marker visual. No geometry or behavior change. 153/153 tests pass.
+- [product_region_annotation_contract_status_v1.md](product_region_annotation_contract_status_v1.md)
+  Product region independent contract status: `product_canvas_shell_layer`, `product_image_layer`, `product_annotation_shell_layer`, `product_annotation_items_layer`, and `product_annotation_mode` evidence path.
 
 ### 4. Next-Phase Plans
 

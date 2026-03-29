@@ -105,6 +105,7 @@ class PosterPipeline:
         run_preflight_guard(template, effective_spec)
 
         spec_hash = _hash_spec(effective_spec)
+        gallery_counts = _gallery_contract_counts(effective_spec)
 
         # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
@@ -148,7 +149,8 @@ class PosterPipeline:
             title_text=effective_spec.title,
             subtitle_text=effective_spec.subtitle,
             brand_name=effective_spec.brand_name,
-            gallery_requested_count=len(effective_spec.gallery_images),
+            gallery_requested_count=int(gallery_counts["requested"]),
+            gallery_input_count_normalized=int(gallery_counts["normalized"]),
             gallery_resolved_count=min(len(assets.gallery), template.gallery_slot.count),
             bottom_mode=effective_spec.bottom_mode,
             gallery_mode=effective_spec.gallery_mode,
@@ -160,7 +162,7 @@ class PosterPipeline:
         )
         logger.info(
             "poster2.gallery_presence_done requested=%d resolved=%d",
-            min(len(effective_spec.gallery_images), 4),
+            int(gallery_counts["requested"]),
             min(len(assets.gallery), 4),
         )
 
@@ -306,6 +308,13 @@ class PosterPipeline:
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "product_contract_review": _build_product_contract_review(
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
+                resolved_behavior=resolved_behavior,
+                layer_render_status=layer_render_status,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "header_contract_review": _build_header_contract_review(
                 template,
                 requested_spec=requested_spec,
@@ -413,6 +422,7 @@ class PosterPipeline:
             template_behavior=resolved_behavior.as_dict(),
             geometry_evidence=renderer_metadata_payload["geometry_evidence"],
             hero_contract_review=renderer_metadata_payload["hero_contract_review"],
+            product_contract_review=renderer_metadata_payload["product_contract_review"],
             header_contract_review=renderer_metadata_payload["header_contract_review"],
             feature_contract_review=renderer_metadata_payload["feature_contract_review"],
             bottom_contract_review=renderer_metadata_payload["bottom_contract_review"],
@@ -435,6 +445,7 @@ def _hash_spec(spec: PosterSpec) -> str:
 
 
 def _summarise_inputs(spec: PosterSpec) -> dict:
+    gallery_counts = _gallery_contract_counts(spec)
     return {
         "brand_name": spec.brand_name,
         "agent_name": spec.agent_name,
@@ -443,12 +454,43 @@ def _summarise_inputs(spec: PosterSpec) -> dict:
         "renderer_mode": spec.renderer_mode,
         "product_url": spec.product_image.url,
         "gallery_count": len(spec.gallery_images),
+        "gallery_requested_count": int(gallery_counts["requested"]),
+        "gallery_input_count_raw": int(gallery_counts["raw"]),
+        "gallery_input_count_normalized": int(gallery_counts["normalized"]),
+        "gallery_autofill_applied": bool(gallery_counts["autofill_applied"]),
         "seed": spec.style.seed,
     }
 
 
 def _normalize_requested_text(value: str) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _clamp_gallery_count(value: int | None) -> int:
+    if value is None:
+        return 0
+    return max(0, min(int(value), 4))
+
+
+def _gallery_contract_counts(spec: PosterSpec) -> dict[str, object]:
+    actual_count = min(len(spec.gallery_images), 4)
+    requested_count = _clamp_gallery_count(
+        spec.gallery_requested_count if spec.gallery_requested_count is not None else actual_count
+    )
+    raw_count = _clamp_gallery_count(
+        spec.gallery_input_count_raw if spec.gallery_input_count_raw is not None else requested_count
+    )
+    normalized_count = _clamp_gallery_count(
+        spec.gallery_input_count_normalized if spec.gallery_input_count_normalized is not None else actual_count
+    )
+    normalized_count = min(normalized_count, requested_count if requested_count else 4)
+    return {
+        "raw": raw_count,
+        "normalized": normalized_count,
+        "requested": requested_count,
+        "actual": actual_count,
+        "autofill_applied": bool(spec.gallery_autofill_applied),
+    }
 
 
 def _normalize_contract_text_spec(spec: PosterSpec) -> PosterSpec:
@@ -465,6 +507,7 @@ def _normalize_contract_text_spec(spec: PosterSpec) -> PosterSpec:
         raise ValueError("brand_name must not be empty after normalization")
     if not title:
         raise ValueError("title must not be empty after normalization")
+    gallery_counts = _gallery_contract_counts(spec)
     return replace(
         spec,
         brand_name=brand_name,
@@ -472,6 +515,11 @@ def _normalize_contract_text_spec(spec: PosterSpec) -> PosterSpec:
         title=title,
         subtitle=subtitle,
         features=features,
+        gallery_images=tuple(spec.gallery_images[: gallery_counts["requested"] or gallery_counts["actual"]]),
+        gallery_input_count_raw=gallery_counts["raw"],
+        gallery_input_count_normalized=gallery_counts["normalized"],
+        gallery_requested_count=gallery_counts["requested"],
+        gallery_autofill_applied=bool(gallery_counts["autofill_applied"]),
     )
 
 
@@ -491,10 +539,23 @@ def _build_layer_render_status(
     bg_result: BackgroundResult,
     behavior,
 ) -> dict[str, dict[str, object]]:
-    gallery_requested = min(len(spec.gallery_images), 4)
+    gallery_counts = _gallery_contract_counts(spec)
+    gallery_requested = int(gallery_counts["requested"])
+    gallery_input_raw = int(gallery_counts["raw"])
+    gallery_input_normalized = int(gallery_counts["normalized"])
+    gallery_autofill_applied = bool(gallery_counts["autofill_applied"])
     gallery_valid = min(len(assets.gallery), 4)
     gallery_rendered = behavior.bottom_policy.gallery_strip_rendered and gallery_valid > 0
     feature_count = min(len([item for item in spec.features if item and item.strip()]), len(template.feature_callouts))
+    product_annotation_visible = min(
+        behavior.product_policy.visible_annotation_count,
+        len([item for item in spec.features if item and item.strip()]),
+    )
+    product_annotation_rendered = (
+        behavior.product_policy.annotation_mode == "product_anchor_callouts"
+        and behavior.feature_policy.mode == "product_anchor_callouts"
+        and product_annotation_visible > 0
+    )
     layer_status = {
         "background_base_layer": {
             "rendered": True,
@@ -550,11 +611,55 @@ def _build_layer_render_status(
             "source_binding": "template_dual_v2.product_card_shell",
             "count": 1,
         },
+        "product_canvas_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_dual_v2.product_canvas_shell",
+            "count": 1,
+        },
         "product_image_layer": {
             "rendered": assets.product is not None,
             "reason_code": None if assets.product is not None else "product_image_missing",
             "source_binding": spec.product_image.url,
             "count": 1 if assets.product is not None else 0,
+        },
+        "product_annotation_shell_layer": {
+            "rendered": product_annotation_rendered,
+            "reason_code": (
+                None
+                if product_annotation_rendered
+                else (
+                    "annotation_mode_none"
+                    if behavior.product_policy.annotation_mode == "none"
+                    else (
+                        "annotation_items_empty"
+                        if product_annotation_visible == 0
+                        else "annotation_renderer_pending"
+                    )
+                )
+            ),
+            "source_binding": behavior.product_policy.annotation_mode,
+            "count": 1 if product_annotation_rendered else 0,
+            "collapsed": not product_annotation_rendered,
+        },
+        "product_annotation_items_layer": {
+            "rendered": product_annotation_rendered,
+            "reason_code": (
+                None
+                if product_annotation_rendered
+                else (
+                    "annotation_mode_none"
+                    if behavior.product_policy.annotation_mode == "none"
+                    else (
+                        "annotation_items_empty"
+                        if product_annotation_visible == 0
+                        else "annotation_renderer_pending"
+                    )
+                )
+            ),
+            "source_binding": "features",
+            "count": product_annotation_visible if product_annotation_rendered else 0,
+            "collapsed": not product_annotation_rendered,
         },
         "feature_callout_layer": {
             "rendered": feature_count > 0,
@@ -587,8 +692,11 @@ def _build_layer_render_status(
             "reason_code": None if behavior.bottom_policy.gallery_strip_rendered else ("gallery_hidden_by_bottom_mode" if gallery_requested > 0 else "gallery_hidden"),
             "source_binding": "gallery_images",
             "count": 1 if behavior.bottom_policy.gallery_strip_rendered else 0,
+            "gallery_input_count_raw": gallery_input_raw,
+            "gallery_input_count_normalized": gallery_input_normalized,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
+            "gallery_autofill_applied": gallery_autofill_applied,
             "collapsed": not behavior.bottom_policy.gallery_strip_rendered,
         },
         "gallery_strip_region_shell_layer": {
@@ -603,9 +711,12 @@ def _build_layer_render_status(
             "reason_code": None if gallery_rendered else ("gallery_hidden_by_bottom_mode" if gallery_requested > 0 else "gallery_empty"),
             "source_binding": "gallery_images",
             "count": behavior.bottom_policy.visible_item_count,
+            "gallery_input_count_raw": gallery_input_raw,
+            "gallery_input_count_normalized": gallery_input_normalized,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
             "count_visible": behavior.bottom_policy.visible_item_count,
+            "gallery_autofill_applied": gallery_autofill_applied,
             "collapsed": not gallery_rendered,
         },
         "bottom_tagline_layer": {
@@ -885,6 +996,7 @@ def _build_bottom_contract_review(
     resolved_behavior,
     region_render_status: dict[str, dict[str, object]],
 ) -> dict[str, object]:
+    gallery_counts = _gallery_contract_counts(effective_spec)
     gallery_slots = {
         slot_state["slot_id"]: {
             "rendered": slot_state["rendered"],
@@ -909,6 +1021,11 @@ def _build_bottom_contract_review(
     return {
         "bottom_mode": resolved_behavior.bottom_policy.mode,
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
+        "gallery_input_count_raw": int(gallery_counts["raw"]),
+        "gallery_input_count_normalized": int(gallery_counts["normalized"]),
+        "gallery_requested_count": int(gallery_counts["requested"]),
+        "gallery_visible_count": resolved_behavior.bottom_policy.visible_item_count,
+        "gallery_autofill_applied": bool(gallery_counts["autofill_applied"]),
         "requested_title_text": requested_spec.title,
         "requested_subtitle_text": requested_spec.subtitle,
         "sanitized_title_text": effective_spec.title,
@@ -1080,6 +1197,136 @@ def _build_hero_contract_review(
             "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
             "bounds": _product_slot_bounds(template, resolved_behavior),
         },
+    }
+
+
+def _build_product_contract_review(
+    *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
+    resolved_behavior,
+    layer_render_status: dict[str, dict[str, object]],
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    product_policy = resolved_behavior.product_policy
+    rendered_items = []
+    annotation_slots = []
+    requested_items = list(requested_spec.features[: product_policy.max_annotation_items])
+    sanitized_items = list(effective_spec.features[: product_policy.max_annotation_items])
+    for index in range(product_policy.max_annotation_items):
+        requested_text = requested_items[index] if index < len(requested_items) else ""
+        sanitized_text = sanitized_items[index] if index < len(sanitized_items) else ""
+        rendered = (
+            product_policy.annotation_mode != "none"
+            and index < product_policy.visible_annotation_count
+            and bool(sanitized_text)
+        )
+        rendered_excerpt = (
+            _apply_text_budget(sanitized_text, product_policy.char_budget)
+            if rendered
+            else ""
+        )
+        annotation_meta = (
+            product_policy.annotation_items[index]
+            if index < len(product_policy.annotation_items)
+            else {}
+        )
+        annotation_slots.append(
+            {
+                "slot_id": f"product_annotation_slot_{index + 1}",
+                "requested_text": requested_text,
+                "sanitized_text": sanitized_text,
+                "rendered_excerpt": rendered_excerpt,
+                "rendered": rendered,
+                "truncation_applied": rendered_excerpt != sanitized_text,
+                "reason_code": (
+                    None
+                    if rendered
+                    else (
+                        "annotation_mode_none"
+                        if product_policy.annotation_mode == "none"
+                        else "collapsed_when_empty_or_capped"
+                    )
+                ),
+                "anchor_index": annotation_meta.get("anchor_index"),
+                "anchor_x": annotation_meta.get("anchor_x"),
+                "anchor_y": annotation_meta.get("anchor_y"),
+                "anchor_color": annotation_meta.get("anchor_color"),
+                "label_bounds": annotation_meta.get("label_bounds"),
+                "connector_policy": annotation_meta.get("connector_policy"),
+                "marker_policy": annotation_meta.get("marker_policy"),
+                "positions_source": annotation_meta.get("positions_source"),
+            }
+        )
+        if rendered:
+            rendered_items.append(rendered_excerpt)
+
+    layout_metrics = dict(product_policy.layout_metrics)
+    return {
+        "product_annotation_mode": product_policy.annotation_mode,
+        "requested_product_source": requested_spec.product_image.url,
+        "effective_product_source": effective_spec.product_image.url,
+        "rendered_product_source": effective_spec.product_image.url,
+        "product_source": "request.product_image",
+        "requested_annotation_items": requested_items,
+        "sanitized_annotation_items": sanitized_items,
+        "rendered_annotation_items": rendered_items,
+        "product_region": {
+            "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
+            "bounds": {
+                "x": int(layout_metrics["product_region_x"]),
+                "y": int(layout_metrics["product_region_y"]),
+                "w": int(layout_metrics["product_region_w"]),
+                "h": int(layout_metrics["product_region_h"]),
+            },
+        },
+        "product_canvas_shell_layer": {
+            "rendered": bool(layer_render_status.get("product_canvas_shell_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_canvas_shell_layer", {}).get("reason_code"),
+            "bounds": {
+                "x": int(layout_metrics["product_region_x"]),
+                "y": int(layout_metrics["product_region_y"]),
+                "w": int(layout_metrics["product_region_w"]),
+                "h": int(layout_metrics["product_region_h"]),
+            },
+        },
+        "product_image_layer": {
+            "rendered": bool(layer_render_status.get("product_image_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
+            "bounds": {
+                "x": int(layout_metrics["product_region_x"]),
+                "y": int(layout_metrics["product_region_y"]),
+                "w": int(layout_metrics["product_region_w"]),
+                "h": int(layout_metrics["product_region_h"]),
+            },
+        },
+        "product_annotation_shell_layer": {
+            "rendered": bool(layer_render_status.get("product_annotation_shell_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_annotation_shell_layer", {}).get("reason_code"),
+            "bounds": {
+                "x": int(layout_metrics["annotation_shell_x"]),
+                "y": int(layout_metrics["annotation_shell_y"]),
+                "w": int(layout_metrics["annotation_shell_w"]),
+                "h": int(layout_metrics["annotation_shell_h"]),
+            },
+        },
+        "product_annotation_items_layer": {
+            "rendered": bool(layer_render_status.get("product_annotation_items_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_annotation_items_layer", {}).get("reason_code"),
+            "visible_item_count": product_policy.visible_annotation_count,
+        },
+        "behavior_policy": {
+            "annotation_count_policy": product_policy.annotation_count_policy,
+            "annotation_connector_policy": product_policy.annotation_connector_policy,
+            "annotation_marker_policy": product_policy.annotation_marker_policy,
+            "annotation_shell_policy": product_policy.annotation_shell_policy,
+            "annotation_bounds_policy": product_policy.annotation_bounds_policy,
+            "text_budget_policy": product_policy.text_budget_policy,
+            "line_clamp": product_policy.line_clamp,
+            "char_budget": product_policy.char_budget,
+            "layout_metrics": layout_metrics,
+        },
+        "annotation_slots": annotation_slots,
     }
 
 

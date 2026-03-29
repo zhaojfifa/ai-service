@@ -385,6 +385,13 @@ function buildPoster2BottomRequestState(stage1Data) {
   const bottom = ensurePoster2BottomContractState(stage1Data);
   const requestedTitleText = normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS);
   const requestedSubtitleText = normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
+  const requestedGalleryCount = Math.max(0, Math.min(Number(bottom.galleryCount || 0), 4));
+  const galleryEntries = Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries : [];
+  const galleryInputCountNormalized = galleryEntries
+    .slice(0, requestedGalleryCount)
+    .filter((entry) => entry?.asset)
+    .length;
+  const galleryAutofillApplied = Boolean(bottom.autoFillGallery) && galleryInputCountNormalized < requestedGalleryCount;
 
   return {
     requested_title_text: requestedTitleText,
@@ -395,7 +402,10 @@ function buildPoster2BottomRequestState(stage1Data) {
     subtitle_source: bottom.subtitleSource || 'stage2.bottom_contract.subtitle',
     bottom_mode: bottom.bottomMode || 'title_gallery_split',
     gallery_mode: bottom.galleryMode || 'strip_local_visible_only',
-    requested_gallery_count: Math.max(0, Math.min(Number(bottom.galleryCount || 0), 4)),
+    gallery_input_count_raw: requestedGalleryCount,
+    gallery_input_count_normalized: galleryInputCountNormalized,
+    requested_gallery_count: requestedGalleryCount,
+    gallery_autofill_applied: galleryAutofillApplied,
     auto_fill_gallery: Boolean(bottom.autoFillGallery),
   };
 }
@@ -5143,6 +5153,10 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: ref.url,
       key: ref.key || null,
     })),
+    gallery_input_count_raw: bottomRequestState.gallery_input_count_raw,
+    gallery_input_count_normalized: bottomRequestState.gallery_input_count_normalized,
+    gallery_requested_count: bottomRequestState.requested_gallery_count,
+    gallery_autofill_applied: bottomRequestState.gallery_autofill_applied,
     bottom_mode: bottomRequestState.bottom_mode,
     gallery_mode: bottomRequestState.gallery_mode,
     style: {
@@ -6818,6 +6832,7 @@ function updatePoster2DiagnosticsPanel(data) {
   setJson('poster2-bottom-contract-review', data?.bottom_contract_review, '{}');
   setJson('poster2-header-contract-review', data?.header_contract_review, '{}');
   setJson('poster2-hero-contract-review', data?.hero_contract_review, '{}');
+  setJson('poster2-product-contract-review', data?.product_contract_review, '{}');
   setJson('poster2-feature-contract-review', data?.feature_contract_review, '{}');
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
