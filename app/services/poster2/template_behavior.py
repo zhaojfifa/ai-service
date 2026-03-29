@@ -926,7 +926,7 @@ def resolve_header_behavior(
         content_priority_policy = "brand_identity_priority_over_agent"
         brand_line_clamp = 1
         brand_char_budget = 40
-        agent_char_budget = 32
+        agent_char_budget = 24
         layout_metrics = {
             "header_banner_left": 72,
             "header_banner_top": 56,
@@ -1404,10 +1404,10 @@ def _resolve_bottom_layout_policies(
             peer_balance_policy = "gallery_priority_under_dense_quad"
             bottom_peer_balance_policy = "quad_gallery_priority_over_copy_growth"
             bottom_text_emphasis_policy = "compact_quad_text_emphasis"
-            title_line_clamp = 2
+            title_line_clamp = 1 if subtitle_length > 48 else 2
             subtitle_line_clamp = 1
-            title_char_budget = 40
-            subtitle_char_budget = 32
+            title_char_budget = 20 if title_line_clamp == 1 else 36
+            subtitle_char_budget = 24
             title_band_height = 144
             title_content_pad_top = 22
             title_content_pad_bottom = 18
