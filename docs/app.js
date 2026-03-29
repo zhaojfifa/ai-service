@@ -14,6 +14,15 @@ const VERTEX_IMAGE_TAG_CLASSNAMES = {
   gallery: 'slot-gallery',
 };
 let apiBaseInput;
+const STAGE2_PROD_API_BASE = 'https://ai-service-leob.onrender.com';
+const DEPRECATED_STAGE2_API_BASES = new Set([
+  'https://ai-service-x758.onrender.com',
+]);
+
+function isDeprecatedApiBase(value) {
+  const normalised = normaliseBase(value);
+  return Boolean(normalised && DEPRECATED_STAGE2_API_BASES.has(normalised));
+}
 
 // 统一从后端图片对象里拿 src，兼容 vertex/url 和旧的 asset/dataUrl
 function pickImageSrc(img) {
@@ -1299,6 +1308,7 @@ function getApiCandidates(extra) {
   add(window.APP_WORKER_BASE);
   add(window.APP_RENDER_BASE);
   add(window.APP_DEFAULT_API_BASE);
+  add(STAGE2_PROD_API_BASE);
 
   if (extra) ensureArray(extra).forEach(add);
 
@@ -2275,14 +2285,24 @@ async function loadBaselineStamps() {
 function loadApiBase() {
   if (!apiBaseInput) return;
   const stored = localStorage.getItem(STORAGE_KEYS.apiBase);
-  if (stored) {
+  if (stored && !isDeprecatedApiBase(stored)) {
     apiBaseInput.value = stored;
+    return;
   }
+  if (stored && isDeprecatedApiBase(stored)) {
+    localStorage.removeItem(STORAGE_KEYS.apiBase);
+  }
+  apiBaseInput.value = STAGE2_PROD_API_BASE;
 }
 
 function saveApiBase() {
   if (!apiBaseInput) return;
   const value = apiBaseInput.value.trim();
+  if (isDeprecatedApiBase(value)) {
+    localStorage.removeItem(STORAGE_KEYS.apiBase);
+    apiBaseInput.value = STAGE2_PROD_API_BASE;
+    return;
+  }
   if (value) {
     localStorage.setItem(STORAGE_KEYS.apiBase, value);
   } else {
@@ -6820,6 +6840,7 @@ function updatePoster2DiagnosticsPanel(data) {
   setJson('poster2-hero-contract-review', data?.hero_contract_review, '{}');
   setJson('poster2-feature-contract-review', data?.feature_contract_review, '{}');
   setJson('poster2-product-annotation-contract-review', data?.product_annotation_contract_review, '{}');
+  setJson('poster2-scenario-contract-review', data?.scenario_contract_review, '{}');
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
   setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');

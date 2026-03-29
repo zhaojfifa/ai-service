@@ -343,6 +343,7 @@ class RenderManifest:
     feature_contract_review: dict = field(default_factory=dict)
     bottom_contract_review: dict = field(default_factory=dict)
     product_annotation_contract_review: dict = field(default_factory=dict)
+    scenario_contract_review: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

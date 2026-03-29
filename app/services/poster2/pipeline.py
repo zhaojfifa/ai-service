@@ -350,6 +350,14 @@ class PosterPipeline:
                 resolved_behavior=resolved_behavior,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "scenario_contract_review": _build_scenario_contract_review(
+                template,
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
+                resolved_behavior=resolved_behavior,
+                layer_render_status=layer_render_status,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -424,6 +432,7 @@ class PosterPipeline:
             feature_contract_review=renderer_metadata_payload["feature_contract_review"],
             bottom_contract_review=renderer_metadata_payload["bottom_contract_review"],
             product_annotation_contract_review=renderer_metadata_payload["product_annotation_contract_review"],
+            scenario_contract_review=renderer_metadata_payload["scenario_contract_review"],
         )
 
 
@@ -1292,4 +1301,61 @@ def _build_product_annotation_contract_review(
             "feature_right_stack_suppressed": True,
             "suppression_reason": "product_annotation_mode_active",
         },
+    }
+
+
+def _build_scenario_contract_review(
+    template: TemplateSpec,
+    *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
+    resolved_behavior,
+    layer_render_status: dict[str, dict[str, object]],
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    hero = resolved_behavior.hero_policy
+    scenario_source = requested_spec.scenario_image.url if requested_spec.scenario_image else None
+    safe_fill = layer_render_status.get("scenario_image_layer", {}).get("reason_code") == "safe_preset_fill"
+    rendered_source = "safe_preset_image" if safe_fill else scenario_source
+    scenario_metrics = {
+        k: v for k, v in hero.layout_metrics.items() if k.startswith("scenario_")
+    }
+    return {
+        "hero_mode": hero.mode,
+        "scenario_enabled": hero.scenario_enabled,
+        "scenario_render_policy": hero.scenario_render_policy,
+        "requested_source": scenario_source,
+        "sanitized_source": scenario_source,
+        "rendered_source": rendered_source,
+        "safe_fill_applied": safe_fill,
+        "source_binding": "request.scenario_image.url",
+        "scenario_region": {
+            "rendered": bool(region_render_status.get("scenario_region", {}).get("rendered", False)),
+            "bounds": _scenario_region_bounds(template, resolved_behavior),
+        },
+        "scenario_slot": {
+            "rendered": bool(layer_render_status.get("scenario_image_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("scenario_image_layer", {}).get("reason_code"),
+            "source_binding": layer_render_status.get("scenario_image_layer", {}).get("source_binding"),
+            "bounds": _scenario_slot_bounds(template, resolved_behavior),
+        },
+        "behavior_policy": {
+            "scenario_render_policy": hero.scenario_render_policy,
+            "scenario_fit": hero.scenario_fit,
+            "scenario_anchor": hero.scenario_anchor,
+            "peer_layout_policy": hero.peer_layout_policy,
+            "layout_metrics": scenario_metrics,
+        },
+        # Renderer-path parity note (narrowed scope):
+        # Both Puppeteer and Pillow call the same _build_renderer_layer_render_status()
+        # builder so the evidence *shape* is identical. However, there is one known
+        # value divergence: Pillow always passes scenario_safe_fill=False, while
+        # Puppeteer sets it conditionally (True when scenario is absent but
+        # scenario_enabled=True). As a result:
+        #   - Pillow path: absent scenario → reason_code="scenario_missing", safe_fill_applied=False
+        #   - Puppeteer path: absent scenario → reason_code="safe_preset_fill", safe_fill_applied=True
+        # This gap is documented in docs/poster2/scenario_region_resolver_and_renderer_parity_status_v1.md
+        # and tracked as an open follow-up, not resolved in this PR.
+        "renderer_path_parity": "shape_aligned_safe_fill_pillow_always_false_puppeteer_conditional",
+        "evidence_source": "resolver_layer_status",
     }
