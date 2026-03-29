@@ -470,6 +470,7 @@
         <pre id="poster2-product-contract-review">{}</pre>
         <pre id="poster2-feature-contract-review">{}</pre>
         <pre id="poster2-product-annotation-contract-review">{}</pre>
+        <pre id="poster2-scenario-contract-review">{}</pre>
       </div>
 
       <!-- Debug artifact links: app.js sets href / removes hidden -->
@@ -824,6 +825,25 @@
           return html;
         }
 
+        function buildScenarioDetail(scenarioReview) {
+          if (!scenarioReview) return '';
+          let html = '';
+          const mode = scenarioReview.hero_mode || '';
+          const policy = scenarioReview.scenario_render_policy || '';
+          if (mode) html += `<div class="s2-slot-note">mode: ${mode}${policy ? ' · ' + policy : ''}</div>`;
+          const src = scenarioReview.requested_source;
+          const slot = scenarioReview.scenario_slot;
+          const safeFill = scenarioReview.safe_fill_applied;
+          if (src || slot) {
+            html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
+            if (src) html += textRow('source', src.length > 48 ? src.slice(-48) : src, null, false);
+            html += '</div>';
+            if (safeFill) html += `<div style="padding:2px 0;"><span class="s2-region-status s2-status-warn" style="font-size:10px;padding:1px 5px;">safe_preset_fill</span></div>`;
+            if (slot) html += `<div style="padding-top:4px;">${slotStatusHtml(slot.rendered, slot.reason_code)}</div>`;
+          }
+          return html;
+        }
+
         function buildBottomDetail(bottomReview, templateBehavior) {
           let html = '';
           const metrics = bottomReview?.behavior_policy?.layout_metrics || {};
@@ -870,7 +890,7 @@
           return html;
         }
 
-        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview) {
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview, scenarioReview) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
           if (modesStrip && templateBehavior) {
@@ -935,8 +955,8 @@
               modeLabel = templateBehavior?.behavior_modes?.header_mode || headerReview?.header_mode || '';
               detailHtml = buildHeaderDetail(headerReview);
             } else if (key === 'scenario_region') {
-              modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
-              detailHtml = buildHeroDetail(heroReview, 'scenario_region');
+              modeLabel = scenarioReview?.hero_mode || heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
+              detailHtml = scenarioReview ? buildScenarioDetail(scenarioReview) : buildHeroDetail(heroReview, 'scenario_region');
             } else if (key === 'product_region') {
               const annotMode = templateBehavior?.behavior_modes?.product_annotation_mode;
               modeLabel = (annotMode && annotMode !== 'none')
@@ -990,6 +1010,8 @@
           try { featureReview = JSON.parse(document.getElementById('poster2-feature-contract-review')?.textContent || 'null'); } catch (_) {}
           let annotationReview = null;
           try { annotationReview = JSON.parse(document.getElementById('poster2-product-annotation-contract-review')?.textContent || 'null'); } catch (_) {}
+          let scenarioReview = null;
+          try { scenarioReview = JSON.parse(document.getElementById('poster2-scenario-contract-review')?.textContent || 'null'); } catch (_) {}
 
           if (!Object.keys(regionStatus).length) return;
 
@@ -1014,7 +1036,7 @@
           // Update render engine badge
           if (engEl) engEl.className = 's2-badge ok';
 
-          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview);
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview, scenarioReview);
         }
 
         /* Sync s2-out-url from final-poster-link.href */

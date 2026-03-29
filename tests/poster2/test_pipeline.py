@@ -1313,3 +1313,128 @@ class TestPosterPipelineRun:
         assert manifest.structure_complete is False
         assert manifest.incomplete_structure is True
         assert manifest.deliverable is False
+
+    def test_scenario_contract_review_exposes_full_evidence_for_scenario_cover_mode(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            scenario=PILImage.new("RGBA", (800, 600), (50, 100, 200, 255)),
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        bg_result = BackgroundResult(
+            url="mock://bg", key="bg.png", prompt_used="scenario_image_preferred",
+            seed_used=0, model="scenario_blurred", width=1024, height=1024,
+        )
+        with patch(
+            "app.services.poster2.pipeline.build_template_dual_v2_background",
+            new=AsyncMock(return_value=bg_result),
+        ):
+            asyncio.run(
+                pipeline.run(
+                    _make_spec(scenario_image=AssetRef(url="mock://scenario")),
+                    _load_template(),
+                )
+            )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        review = metadata["scenario_contract_review"]
+
+        # mode + policy
+        assert review["hero_mode"] == "scenario_cover_product_contain"
+        assert review["scenario_enabled"] is True
+        assert review["scenario_render_policy"] == "scenario_optional_safe_fill_cover"
+
+        # source chain
+        assert review["requested_source"] == "mock://scenario"
+        assert review["sanitized_source"] == "mock://scenario"
+        assert review["rendered_source"] == "mock://scenario"
+        assert review["safe_fill_applied"] is False
+        assert review["source_binding"] == "request.scenario_image.url"
+
+        # scenario_region bounds
+        assert review["scenario_region"]["rendered"] is True
+        assert review["scenario_region"]["bounds"] == {"x": 96, "y": 188, "w": 288, "h": 520}
+
+        # scenario_slot
+        assert review["scenario_slot"]["rendered"] is True
+        assert review["scenario_slot"]["reason_code"] is None
+        assert review["scenario_slot"]["bounds"] == {"x": 96, "y": 188, "w": 288, "h": 520}
+
+        # behavior_policy
+        bp = review["behavior_policy"]
+        assert bp["scenario_render_policy"] == "scenario_optional_safe_fill_cover"
+        assert bp["scenario_fit"] == "cover"
+        assert bp["scenario_anchor"] == "center"
+        assert bp["peer_layout_policy"] == "fixed_dual_hero_peer_regions"
+        assert bp["layout_metrics"]["scenario_region_x"] == 96
+        assert bp["layout_metrics"]["scenario_region_y"] == 188
+        assert bp["layout_metrics"]["scenario_region_w"] == 288
+        assert bp["layout_metrics"]["scenario_region_h"] == 520
+
+        # parity note is present
+        assert "evidence_source" in review
+        assert "renderer_path_parity" in review
+
+    def test_scenario_contract_review_exposes_disabled_policy_for_single_product_focus(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, hero_mode="single_product_focus")
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(scenario_image=None),
+                template,
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        review = metadata["scenario_contract_review"]
+
+        # mode + policy
+        assert review["hero_mode"] == "single_product_focus"
+        assert review["scenario_enabled"] is False
+        assert review["scenario_render_policy"] == "scenario_disabled"
+
+        # source chain: no scenario image was supplied
+        assert review["requested_source"] is None
+        assert review["sanitized_source"] is None
+        assert review["safe_fill_applied"] is False
+
+        # scenario_region not rendered
+        assert review["scenario_region"]["rendered"] is False
+        assert review["scenario_region"]["bounds"]["x"] == 96  # bounds still present from layout_metrics
+
+        # scenario_slot not rendered; Pillow emits reason_code="scenario_missing" for disabled+absent
+        assert review["scenario_slot"]["rendered"] is False
+        assert review["scenario_slot"]["reason_code"] == "scenario_missing"
+
+        # behavior_policy
+        bp = review["behavior_policy"]
+        assert bp["scenario_render_policy"] == "scenario_disabled"
+        assert bp["peer_layout_policy"] == "single_product_without_scenario_peer"

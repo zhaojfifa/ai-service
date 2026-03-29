@@ -96,6 +96,14 @@ See `.env.example` for the full variable reference.
 
 ## poster2 phase state (as of 2026-03-29)
 
+### Scenario region — resolver evidence COMPLETE
+
+- `scenario_contract_review` emitted per generation: hero_mode, scenario_enabled, render_policy, source chain (requested/sanitized/rendered), safe_fill_applied, scenario_region bounds, scenario_slot (rendered + reason_code + bounds), behavior_policy
+- `RenderManifest.scenario_contract_review` field added to contracts
+- Stage 2 Resolver Layout: `buildScenarioDetail(scenarioReview)` reads from backend payload; fallback to `buildHeroDetail` when payload absent
+- Renderer-path parity: evidence shape aligned; known value gap is safe_fill (Pillow always False, Puppeteer conditional) — documented in `docs/poster2/scenario_region_resolver_and_renderer_parity_status_v1.md`, tracked as open follow-up
+- 187/187 tests pass
+
 ### Product annotation layer — ACTIVATED
 
 - `feature_mode` in `template_dual_v2.json` is now `product_anchor_callouts` (production default)
@@ -104,7 +112,6 @@ See `.env.example` for the full variable reference.
 - `product_annotation_contract_review` emitted per generation: per-slot anchor coords, label bounds, text chain, feature suppression flag
 - `product_annotation_mode` exposed as distinct key in `behavior_modes`
 - Stage 2 Resolver Layout: annotation chip + annotation detail panel for `product_region`
-- 179/179 tests pass
 
 ### Prior phases still established
 
@@ -114,8 +121,8 @@ See `.env.example` for the full variable reference.
 ### Next
 
 - `header_region`: complete `identity_zone_mode` resolver wiring
-- `scenario_region`: resolver coverage
-- Preview-path / generation-path parity収口 (Puppeteer vs Pillow)
+- `scenario_region`: fix Pillow `scenario_safe_fill` to match Puppeteer conditional logic (evidence accuracy follow-up)
+- Preview-path / generation-path parity (Puppeteer vs Pillow)
 - Beautification layer planning (after all-region behavior stability)
 
 ---
