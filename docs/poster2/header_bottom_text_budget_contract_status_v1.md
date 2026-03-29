@@ -79,3 +79,24 @@ Interpretation:
 - GitHub Pages origin can reach backend
 - current live host still reflects stable `main`, not this guarded branch
 - therefore live runtime confirms frozen geometry and stability, but does **not** yet confirm the guarded budget improvements
+
+## Branch-Local API Path Validation
+
+An additional guarded test now validates the same budget tuning through the real
+`/api/v2/generate-poster` request path with mocked backend I/O.
+
+Confirmed in that branch-local API-path validation:
+
+- `header agent_char_budget = 32`
+- `bottom dense-quad title_char_budget = 28`
+- `bottom dense-quad subtitle_char_budget = 28`
+- `title_line_clamp` unchanged
+- `subtitle_line_clamp` unchanged
+- `title_band_region` bounds unchanged
+- `subtitle_slot` bounds unchanged
+- `gallery_strip_region` bounds unchanged
+
+Interpretation:
+
+- guarded branch contract behavior is now covered both at resolver/pipeline level and API-path level
+- the remaining re-merge blocker is external runtime visibility of this branch, not missing local contract evidence

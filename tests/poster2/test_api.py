@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 from fastapi.testclient import TestClient
+from PIL import Image as PILImage
 
 from app.main import DEFAULT_CORS_ORIGINS, app
-from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
+from app.services.poster2.asset_loader import AssetLoader
+from app.services.poster2.background import BackgroundResult, FireflyBackgroundService
+from app.services.poster2.composer import Composer
+from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest, ResolvedAssets
+from app.services.poster2.pipeline import PosterPipeline
+from app.services.poster2.renderer import LayoutRenderer
 
 
 class _FakePoster2Pipeline:
@@ -169,6 +177,60 @@ class _BoomPoster2Pipeline:
         raise RuntimeError("simulated poster2 failure")
 
 
+class _AsyncPillowRenderer:
+    def __init__(self):
+        self._renderer = LayoutRenderer()
+
+    async def render(self, spec, poster, assets):
+        return self._renderer.render(spec, poster, assets)
+
+
+def _mock_bg_service(seed: int = 42) -> FireflyBackgroundService:
+    svc = MagicMock(spec=FireflyBackgroundService)
+    svc.generate = AsyncMock(return_value=BackgroundResult(
+        url="https://r2.example.com/bg.png",
+        key="poster2/bg/test_42.png",
+        prompt_used="studio background, no text, no logo",
+        seed_used=seed,
+        model="firefly-v3",
+        width=1024,
+        height=1024,
+    ))
+    return svc
+
+
+def _mock_loader(assets: ResolvedAssets) -> AssetLoader:
+    loader = MagicMock(spec=AssetLoader)
+    loader.load = AsyncMock(return_value=assets)
+    loader.load_url = AsyncMock(return_value=PILImage.new("RGB", (1024, 1024), (80, 80, 80)))
+    return loader
+
+
+def _real_guarded_branch_pipeline() -> PosterPipeline:
+    assets = ResolvedAssets(
+        product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+        gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(4)],
+        gallery_status=[
+            {"index": index, "url": f"https://example.com/gallery-{index}.png", "resolved": True, "error_code": None}
+            for index in range(4)
+        ],
+    )
+    r2_urls = iter([
+        "https://r2.example.com/fg.png",
+        "https://r2.example.com/product-material.png",
+        "https://r2.example.com/final.png",
+        "https://r2.example.com/renderer-metadata.json",
+    ])
+    fake_put_bytes = MagicMock(side_effect=lambda key, data, **kw: next(r2_urls))
+    return PosterPipeline(
+        background_svc=_mock_bg_service(),
+        renderer=_AsyncPillowRenderer(),
+        composer=Composer(),
+        asset_loader=_mock_loader(assets),
+        put_bytes_fn=fake_put_bytes,
+    )
+
+
 def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
     client = TestClient(app)
@@ -316,6 +378,59 @@ def test_generate_poster_v2_accepts_three_gallery_items_with_edited_subtitle(mon
     body = response.json()
     assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
     assert body["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
+
+
+def test_generate_poster_v2_guarded_branch_budget_tuning_keeps_frozen_bottom_geometry(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", _real_guarded_branch_pipeline)
+    client = TestClient(app)
+
+    requested_agent = "Official Distributor CN Team"
+    requested_title = "超长标题超长标题超长标题超长标题"
+    requested_subtitle = "这是一段更长的底部说明文案，用来验证 subtitle overflow、title band sizing 和 gallery peer balance 会不会进入 resolver 策略。"
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefKitchen",
+            "agent_name": requested_agent,
+            "title": requested_title,
+            "subtitle": requested_subtitle,
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "gallery_images": [
+                {"url": f"https://example.com/gallery-{index}.png"}
+                for index in range(4)
+            ],
+            "template_id": "template_dual_v2",
+            "bottom_mode": "title_gallery_split",
+            "gallery_mode": "strip_local_visible_only",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["degraded"] is False
+    assert body["structure_complete"] is True
+    assert body["deliverable"] is True
+
+    header_review = body["header_contract_review"]
+    assert header_review["behavior_policy"]["agent_char_budget"] == 32
+    assert header_review["rendered_agent_excerpt"] == requested_agent
+    assert header_review["agent_truncation_applied"] is False
+
+    bottom_review = body["bottom_contract_review"]
+    behavior = bottom_review["behavior_policy"]
+    assert behavior["title_line_clamp"] == 1
+    assert behavior["subtitle_line_clamp"] == 1
+    assert behavior["title_char_budget"] == 28
+    assert behavior["subtitle_char_budget"] == 28
+    assert bottom_review["rendered_title_excerpt"] == requested_title[:28]
+    assert bottom_review["rendered_subtitle_excerpt"] == requested_subtitle[:28]
+
+    geometry = body["geometry_evidence"]
+    assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
+    assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
+    assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
 
 
 def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch):

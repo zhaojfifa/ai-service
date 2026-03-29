@@ -66,3 +66,21 @@ Interpretation:
 - deployment path is recovered and healthy
 - current live host still serves stable `main`
 - guarded branch budget improvements are not yet observable on live runtime until a review deployment exists
+
+### 2026-03-29 — branch-runtime API guard added
+
+Added a backend-only API-path validation on this guarded branch.
+
+What this guard proves:
+
+- the `/api/v2/generate-poster` route can exercise the guarded branch budgets end-to-end
+- `header_contract_review.behavior_policy.agent_char_budget = 32`
+- `bottom_contract_review.behavior_policy.title_char_budget = 28`
+- `bottom_contract_review.behavior_policy.subtitle_char_budget = 28`
+- frozen bottom geometry evidence remains unchanged
+- Stage 2 can continue to consume backend evidence only
+
+Interpretation:
+
+- branch-local runtime behavior is now covered without relying on live deployment state
+- the remaining blocker before re-merge review is a review deployment or equivalent runtime that exposes this branch outside local test execution
