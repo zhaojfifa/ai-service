@@ -40,6 +40,7 @@ class GeneratePosterV2Request(BaseModel):
 
     # Assets
     product_image: AssetRefInput
+    product_secondary_image: Optional[AssetRefInput] = None
     logo: Optional[AssetRefInput] = None
     scenario_image: Optional[AssetRefInput] = None
     gallery_images: list[AssetRefInput] = Field(default_factory=list, max_length=4)
@@ -47,7 +48,7 @@ class GeneratePosterV2Request(BaseModel):
     gallery_input_count_normalized: Optional[int] = Field(default=None, ge=0, le=4)
     gallery_requested_count: Optional[int] = Field(default=None, ge=0, le=4)
     gallery_autofill_applied: bool = False
-    bottom_mode: Optional[Literal["title_gallery_split", "title_only", "gallery_only"]] = Field(default=None)
+    bottom_mode: Optional[Literal["title_gallery_split", "title_only", "gallery_only", "text_only_expanded", "text_gallery_expanded"]] = Field(default=None)
     gallery_mode: Optional[Literal["strip_local_visible_only", "supporting_packshots"]] = Field(default=None)
 
     # Style (background only)
@@ -122,3 +123,8 @@ class GeneratePosterV2Response(BaseModel):
     header_contract_review: dict = Field(default_factory=dict)
     feature_contract_review: dict = Field(default_factory=dict)
     bottom_contract_review: dict = Field(default_factory=dict)
+    product_annotation_contract_review: dict = Field(default_factory=dict)
+    scenario_contract_review: dict = Field(default_factory=dict)
+    title_text_layer: dict = Field(default_factory=dict)
+    subtitle_text_layer: dict = Field(default_factory=dict)
+    header_text_layer: dict = Field(default_factory=dict)

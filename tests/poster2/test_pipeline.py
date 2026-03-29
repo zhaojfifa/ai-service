@@ -1438,3 +1438,248 @@ class TestPosterPipelineRun:
         bp = review["behavior_policy"]
         assert bp["scenario_render_policy"] == "scenario_disabled"
         assert bp["peer_layout_policy"] == "single_product_without_scenario_peer"
+
+
+# ── Family A Structural Closeout Tests ───────────────────────────────────────
+
+def _run_pipeline_with_stored_metadata(template, spec):
+    """Run the pipeline and return the parsed renderer metadata payload."""
+    stored_payloads: dict[str, bytes] = {}
+
+    def fake_put_bytes(key, data, **kwargs):
+        stored_payloads[key] = data
+        return f"mock://{key}"
+
+    pipeline = PosterPipeline(
+        background_svc=_mock_bg_service(),
+        renderer=_AsyncPillowRenderer(),
+        composer=Composer(),
+        asset_loader=_mock_loader(ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+        )),
+        put_bytes_fn=fake_put_bytes,
+    )
+    manifest = asyncio.run(pipeline.run(spec, template))
+    metadata_key = next(k for k in stored_payloads if "metadata" in k)
+    metadata = json.loads(stored_payloads[metadata_key])
+    return manifest, metadata
+
+
+class TestBottomStructuralExpansion:
+    """Scope A: text_only_expanded and text_gallery_expanded resolve with materially larger capacity."""
+
+    def test_text_only_expanded_resolves_with_larger_text_capacity_than_frozen_baseline(self):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="text_only_expanded")
+        spec = _make_spec(
+            title="Upgrade your kitchen with ChefCraft",
+            subtitle="April 24 we'll start using GitHub Copilot interaction",
+        )
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["bottom_contract_review"]
+
+        # Shell starts higher than frozen baseline
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 656
+        # Title budget materially larger than frozen baseline max (36–44 chars)
+        assert review["behavior_policy"]["title_char_budget"] >= 52
+        # Subtitle budget materially larger than frozen baseline max (28 chars)
+        assert review["behavior_policy"]["subtitle_char_budget"] >= 44
+        # No gallery strip in text_only_expanded mode
+        assert review["behavior_policy"]["layout_metrics"]["gallery_shell_height"] == 0
+
+    def test_text_gallery_expanded_shell_top_is_640(self):
+        """Shell geometry is the structural guarantee — test it via pipeline."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="text_gallery_expanded")
+        spec = _make_spec(
+            title="Upgrade your kitchen with ChefCraft",
+            subtitle="April 24 we'll start using GitHub Copilot interaction",
+        )
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["bottom_contract_review"]
+
+        # Shell starts higher than frozen baseline
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 640
+        # title budget is materially larger than the frozen baseline dense-quad minimum (20)
+        assert review["behavior_policy"]["title_char_budget"] >= 44
+
+    def test_text_gallery_expanded_resolver_dense_quad_title_budget_not_twenty(self):
+        """Resolver-level test: dense-quad text_gallery_expanded must not revert to title_char_budget=20."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "text_gallery_expanded",
+            gallery_mode="strip_local_visible_only",
+            title_text="Upgrade your kitchen with ChefCraft",
+            subtitle_text="April 24 we'll start using GitHub Copilot interaction",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+        )
+        # Dense-quad in expanded mode must never assign title_char_budget=20
+        assert policy.title_char_budget >= 44
+        # Full title (35 chars) must survive the budget
+        from app.services.poster2.pipeline import _apply_text_budget
+        rendered = _apply_text_budget("Upgrade your kitchen with ChefCraft", policy.title_char_budget)
+        assert rendered == "Upgrade your kitchen with ChefCraft"
+
+    def test_frozen_baseline_modes_still_resolve_unchanged(self):
+        """Existing modes must not be affected by the expanded mode additions."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="title_gallery_split")
+        spec = _make_spec(title="Short title", subtitle="Short sub")
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["bottom_contract_review"]
+
+        # Frozen baseline shell top
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 728
+        assert review["bottom_mode"] == "title_gallery_split"
+
+
+class TestProductLayoutContract:
+    """Scope B: product_layout_mode exposes named slot contract surfaces."""
+
+    def test_single_primary_mode_is_backward_compatible_default(self):
+        template = _load_template()
+        # Default mode from template spec — single_primary
+        spec = _make_spec()
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["product_layout_mode"] == "single_primary"
+        primary = review["product_primary_slot"]
+        assert primary["x"] == 456
+        assert primary["y"] == 188
+        assert primary["w"] == 300
+        assert primary["h"] == 520
+        assert review["product_secondary_slot"] is None
+        assert review["product_secondary_slot_rendered"] is False
+        assert review["product_secondary_asset_policy"] == "secondary_absent_collapsed"
+
+    def test_primary_secondary_dual_exposes_named_slots(self):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, product_layout_mode="primary_secondary_dual")
+        spec = _make_spec()
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["product_layout_mode"] == "primary_secondary_dual"
+
+        primary = review["product_primary_slot"]
+        assert primary["x"] == 456
+        assert primary["y"] == 188
+        assert primary["w"] == 300
+        assert primary["h"] == 310
+
+        secondary = review["product_secondary_slot"]
+        assert secondary is not None
+        assert secondary["x"] == 456
+        assert secondary["y"] == 506
+        assert secondary["w"] == 300
+        assert secondary["h"] == 202
+
+        assert review["product_secondary_slot_rendered"] is True
+        assert review["product_secondary_asset_policy"] == "secondary_present"
+
+    def test_annotation_mode_unaffected_by_dual_product_layout(self):
+        """product_annotation_mode must remain live regardless of product_layout_mode."""
+        template = _load_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            product_layout_mode="primary_secondary_dual",
+        )
+        spec = _make_spec(features=("Feat A", "Feat B", "Feat C"))
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        # annotation_mode field must be present and valid
+        assert review["product_annotation_mode"] in ("product_anchor_callouts", "none", "right_stack_mirror")
+        # product_layout_mode is still dual
+        assert review["product_layout_mode"] == "primary_secondary_dual"
+
+
+class TestTextLayerEvidence:
+    """Scope C: title_text_layer, subtitle_text_layer, header_text_layer are emitted per generation."""
+
+    def test_title_text_layer_emitted_with_correct_structure(self):
+        template = _load_template()
+        spec = _make_spec(title="Full title text here", subtitle="Supporting subtitle copy")
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["title_text_layer"]
+
+        assert layer["layer_id"] == "title_text_layer"
+        assert "rendered" in layer
+        assert "slot_bounds" in layer
+        bounds = layer["slot_bounds"]
+        assert "x" in bounds and "y" in bounds and "w" in bounds and "h" in bounds
+        assert "requested_text" in layer
+        assert "sanitized_text" in layer
+        assert "rendered_excerpt" in layer
+        assert "truncation_applied" in layer
+        assert "line_clamp" in layer
+        assert "char_budget" in layer
+        assert layer["owner_region"] == "title_band_region"
+        # Manifest also exposes these
+        assert manifest.title_text_layer["layer_id"] == "title_text_layer"
+
+    def test_subtitle_text_layer_emitted_with_correct_structure(self):
+        template = _load_template()
+        spec = _make_spec(title="Title", subtitle="Subtitle text here")
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["subtitle_text_layer"]
+
+        assert layer["layer_id"] == "subtitle_text_layer"
+        assert "rendered" in layer
+        assert "slot_bounds" in layer
+        assert "requested_text" in layer
+        assert "sanitized_text" in layer
+        assert "rendered_excerpt" in layer
+        assert "truncation_applied" in layer
+        assert layer["owner_region"] == "title_band_region"
+        assert manifest.subtitle_text_layer["layer_id"] == "subtitle_text_layer"
+
+    def test_header_text_layer_emitted_with_brand_and_agent_slots(self):
+        template = _load_template()
+        spec = _make_spec(brand_name="ChefCraft", agent_name="SmartKitchen Advisor")
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["header_text_layer"]
+
+        assert layer["layer_id"] == "header_text_layer"
+        assert "rendered" in layer
+        assert layer["owner_region"] == "header_region"
+
+        brand_slot = layer["brand_text_slot"]
+        assert brand_slot["requested_text"] == "ChefCraft"
+        assert "truncation_applied" in brand_slot
+        assert "slot_bounds" in brand_slot
+        assert brand_slot["slot_bounds"]["x"] == 244
+
+        agent_slot = layer["agent_text_slot"]
+        assert agent_slot["requested_text"] == "SmartKitchen Advisor"
+        assert "truncation_applied" in agent_slot
+        assert manifest.header_text_layer["layer_id"] == "header_text_layer"
+
+    def test_title_text_layer_truncation_applied_flag_reflects_actual_truncation(self):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="title_gallery_split")
+        # Very long title that will be truncated under dense-quad budget
+        long_title = "A" * 50
+        spec = _make_spec(
+            title=long_title,
+            subtitle="B" * 50,
+            gallery_images=(
+                AssetRef(url="mock://g1"),
+                AssetRef(url="mock://g2"),
+                AssetRef(url="mock://g3"),
+                AssetRef(url="mock://g4"),
+            ),
+            gallery_requested_count=4,
+            gallery_input_count_normalized=4,
+        )
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["title_text_layer"]
+
+        if layer["rendered"]:
+            # If rendered, truncation_applied must be True since title (50 chars) > any budget
+            assert layer["truncation_applied"] is True
+            assert len(layer["rendered_excerpt"]) < len(long_title)

@@ -101,6 +101,7 @@ class AssetLoader:
             return img
 
         product_task = asyncio.create_task(maybe(spec.product_image))
+        product_secondary_task = asyncio.create_task(maybe(spec.product_secondary_image))
         logo_task = asyncio.create_task(maybe(spec.logo))
         scenario_task = asyncio.create_task(maybe(spec.scenario_image))
         gallery_refs = list(spec.gallery_images)[:4]
@@ -120,6 +121,7 @@ class AssetLoader:
         if product is None:
             raise ValueError("product_image is required and could not be loaded")
 
+        product_secondary = await product_secondary_task
         logo = await logo_task
         scenario = await scenario_task
         gallery_results = await asyncio.gather(*gallery_tasks)
@@ -140,6 +142,7 @@ class AssetLoader:
             product=product,
             logo=logo,
             scenario=scenario,
+            product_secondary=product_secondary,
             gallery=gallery,
             gallery_status=gallery_status,
         )

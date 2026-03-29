@@ -48,6 +48,7 @@ class PosterSpec:
 
     # --- Assets ---
     product_image: AssetRef
+    product_secondary_image: Optional[AssetRef] = None
     logo: Optional[AssetRef] = None
     scenario_image: Optional[AssetRef] = None
     gallery_images: tuple[AssetRef, ...] = field(default_factory=tuple)
@@ -148,6 +149,7 @@ class TemplateBehaviorModesSpec:
     hero_mode: str = "scenario_cover_product_contain"
     feature_mode: str = "count_driven_callout_stack"
     product_annotation_mode: str = "none"
+    product_layout_mode: str = "single_primary"
     header_mode: Optional[str] = None
     bottom_mode: str = "title_gallery_split"
     gallery_mode: str = "strip_local_visible_only"
@@ -280,6 +282,7 @@ class ResolvedAssets:
     product: PILImage.Image
     logo: Optional[PILImage.Image] = None
     scenario: Optional[PILImage.Image] = None
+    product_secondary: Optional[PILImage.Image] = None
     gallery: list[PILImage.Image] = field(default_factory=list)
     gallery_status: list[dict] = field(default_factory=list)
 
@@ -350,6 +353,10 @@ class RenderManifest:
     bottom_contract_review: dict = field(default_factory=dict)
     product_annotation_contract_review: dict = field(default_factory=dict)
     scenario_contract_review: dict = field(default_factory=dict)
+    # Text layer evidence — promoted to first-class layer evidence in structural closeout
+    title_text_layer: dict = field(default_factory=dict)
+    subtitle_text_layer: dict = field(default_factory=dict)
+    header_text_layer: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

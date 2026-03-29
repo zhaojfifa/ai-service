@@ -1450,6 +1450,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                 url=payload.product_image.url,
                 key=payload.product_image.key,
             ),
+            product_secondary_image=_to_asset_ref(payload.product_secondary_image),
             logo=_to_asset_ref(payload.logo),
             scenario_image=_to_asset_ref(payload.scenario_image),
             gallery_images=tuple(
@@ -1530,6 +1531,11 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             header_contract_review=manifest.header_contract_review,
             feature_contract_review=manifest.feature_contract_review,
             bottom_contract_review=manifest.bottom_contract_review,
+            product_annotation_contract_review=manifest.product_annotation_contract_review,
+            scenario_contract_review=manifest.scenario_contract_review,
+            title_text_layer=manifest.title_text_layer,
+            subtitle_text_layer=manifest.subtitle_text_layer,
+            header_text_layer=manifest.header_text_layer,
         )
 
     except FileNotFoundError as exc:

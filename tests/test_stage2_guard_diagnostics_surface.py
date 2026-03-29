@@ -95,6 +95,11 @@ def test_frontend_stage2_surfaces_scenario_contract_review():
     assert "poster2-scenario-contract-review" in js
     assert "scenario_contract_review" in js
 
+    # 6. renderResolverLayout receives scenarioReview as a parameter (not relying on
+    #    outer-scope access which would be undefined)
+    assert "renderResolverLayout(" in html
+    assert "annotationReview, scenarioReview)" in html
+
 
 def test_docs_publish_mirror_contains_same_guard_diagnostics():
     frontend_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
@@ -104,3 +109,23 @@ def test_docs_publish_mirror_contains_same_guard_diagnostics():
 
     assert docs_html == frontend_html
     assert docs_js == frontend_js
+
+
+def test_api_response_schema_exposes_scenario_and_annotation_contract_review():
+    """Prove that GeneratePosterV2Response schema and main.py both surface
+    scenario_contract_review and product_annotation_contract_review.
+
+    Checks:
+    1. Pydantic schema (app/schemas/poster2.py) declares both fields.
+    2. main.py response constructor forwards both fields from the manifest.
+    """
+    schema_src = (ROOT / "app" / "schemas" / "poster2.py").read_text(encoding="utf-8")
+    main_src = (ROOT / "app" / "main.py").read_text(encoding="utf-8")
+
+    # Schema must declare both fields
+    assert "scenario_contract_review" in schema_src
+    assert "product_annotation_contract_review" in schema_src
+
+    # main.py must forward both fields in the response constructor
+    assert "scenario_contract_review=manifest.scenario_contract_review" in main_src
+    assert "product_annotation_contract_review=manifest.product_annotation_contract_review" in main_src

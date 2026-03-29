@@ -21,7 +21,29 @@ _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
 _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; no drag-and-drop, no dynamic count
 _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
-_SUPPORTED_BOTTOM_MODES = {"title_gallery_split", "title_only", "gallery_only"}
+_SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
+
+# Geometry for primary_secondary_dual product layout mode.
+# Primary slot: upper ~60% of the product region; receives all annotation callouts.
+# Secondary slot: lower ~40% of the product region; no callouts.
+# These are within the existing scenario_cover_product_contain hero region (x=456, y=188, w=300, h=520).
+_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 310}
+_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 506, "w": 300, "h": 202}
+_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 520}
+_SUPPORTED_BOTTOM_MODES = {
+    "title_gallery_split",
+    "title_only",
+    "gallery_only",
+    "text_only_expanded",
+    "text_gallery_expanded",
+}
+
+# Structural expansion: new modes start the bottom shell higher than the frozen baseline (y=728).
+# These are not patches to the baseline — they are new first-class structural modes.
+_EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
+    "text_only_expanded": 656,      # 368px capacity vs 296px in frozen baseline
+    "text_gallery_expanded": 640,   # 384px capacity vs 296px in frozen baseline
+}
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
 _SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
 _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
@@ -212,6 +234,11 @@ class ResolvedHeroBehavior:
 @dataclass(frozen=True)
 class ResolvedProductBehavior:
     annotation_mode: str
+    product_layout_mode: str                          # "single_primary" | "primary_secondary_dual"
+    product_primary_slot: dict[str, int]              # {x, y, w, h} of primary product image region
+    product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
+    product_secondary_slot_rendered: bool
+    product_secondary_asset_policy: str
     visible_annotation_count: int
     max_annotation_items: int
     annotation_count_policy: str
@@ -229,6 +256,11 @@ class ResolvedProductBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "annotation_mode": self.annotation_mode,
+            "product_layout_mode": self.product_layout_mode,
+            "product_primary_slot": dict(self.product_primary_slot),
+            "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
+            "product_secondary_slot_rendered": self.product_secondary_slot_rendered,
+            "product_secondary_asset_policy": self.product_secondary_asset_policy,
             "visible_annotation_count": self.visible_annotation_count,
             "max_annotation_items": self.max_annotation_items,
             "annotation_count_policy": self.annotation_count_policy,
@@ -286,6 +318,8 @@ class ResolvedFeatureBehavior:
 @dataclass(frozen=True)
 class ResolvedBottomBehavior:
     mode: str
+    bottom_layout_mode: str          # structural expansion mode; "none" for frozen baseline modes
+    bottom_shell_top: int            # actual y-start of the bottom shell
     gallery_mode: str
     requested_gallery_count: int
     normalized_gallery_count: int
@@ -329,6 +363,8 @@ class ResolvedBottomBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
+            "bottom_layout_mode": self.bottom_layout_mode,
+            "bottom_shell_top": self.bottom_shell_top,
             "gallery_mode": self.gallery_mode,
             "requested_gallery_count": self.requested_gallery_count,
             "normalized_gallery_count": self.normalized_gallery_count,
@@ -427,6 +463,7 @@ class ResolvedTemplateBehavior:
                 "hero_mode": self.hero_mode,
                 "feature_mode": self.feature_mode,
                 "product_annotation_mode": self.product_annotation_mode,
+                "product_layout_mode": self.product_policy.product_layout_mode,
                 "header_mode": self.header_mode,
                 "bottom_mode": self.bottom_mode,
                 "gallery_mode": self.gallery_mode,
@@ -471,6 +508,11 @@ def resolve_template_behavior(
         _SUPPORTED_PRODUCT_ANNOTATION_MODES,
         "product_annotation_mode",
     )
+    product_layout_mode = _validate_token(
+        modes.product_layout_mode,
+        _SUPPORTED_PRODUCT_LAYOUT_MODES,
+        "product_layout_mode",
+    )
     resolved_bottom_mode = _validate_token(bottom_mode or modes.bottom_mode, _SUPPORTED_BOTTOM_MODES, "bottom_mode")
     resolved_gallery_mode = _validate_token(gallery_mode or modes.gallery_mode, _SUPPORTED_GALLERY_MODES, "gallery_mode")
     shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
@@ -497,6 +539,7 @@ def resolve_template_behavior(
     product_policy = resolve_product_behavior(
         spec,
         annotation_mode=product_annotation_mode,
+        product_layout_mode=product_layout_mode,
         requested_feature_count=feature_count or 0,
         hero_policy=hero_policy,
     )
@@ -629,9 +672,11 @@ def resolve_product_behavior(
     spec: TemplateSpec,
     *,
     annotation_mode: str,
+    product_layout_mode: str = "single_primary",
     requested_feature_count: int,
     hero_policy: ResolvedHeroBehavior,
 ) -> ResolvedProductBehavior:
+    _validate_token(product_layout_mode, _SUPPORTED_PRODUCT_LAYOUT_MODES, "product_layout_mode")
     max_items = min(len(spec.feature_callouts), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
     visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
     hero_metrics = hero_policy.layout_metrics
@@ -641,6 +686,18 @@ def resolve_product_behavior(
         "w": int(hero_metrics["product_region_w"]),
         "h": int(hero_metrics["product_region_h"]),
     }
+
+    # Resolve product slot geometry from layout mode.
+    if product_layout_mode == "primary_secondary_dual":
+        product_primary_slot: dict[str, int] = dict(_PRODUCT_DUAL_PRIMARY_SLOT)
+        product_secondary_slot: dict[str, int] | None = dict(_PRODUCT_DUAL_SECONDARY_SLOT)
+        product_secondary_slot_rendered = True
+        product_secondary_asset_policy = "secondary_present"
+    else:
+        product_primary_slot = dict(_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT)
+        product_secondary_slot = None
+        product_secondary_slot_rendered = False
+        product_secondary_asset_policy = "secondary_absent_collapsed"
 
     if annotation_mode == "none":
         annotation_count_policy = "annotations_disabled"
@@ -714,6 +771,14 @@ def resolve_product_behavior(
         "product_region_y": product_region["y"],
         "product_region_w": product_region["w"],
         "product_region_h": product_region["h"],
+        "product_primary_slot_x": product_primary_slot["x"],
+        "product_primary_slot_y": product_primary_slot["y"],
+        "product_primary_slot_w": product_primary_slot["w"],
+        "product_primary_slot_h": product_primary_slot["h"],
+        "product_secondary_slot_x": product_secondary_slot["x"] if product_secondary_slot else None,
+        "product_secondary_slot_y": product_secondary_slot["y"] if product_secondary_slot else None,
+        "product_secondary_slot_w": product_secondary_slot["w"] if product_secondary_slot else None,
+        "product_secondary_slot_h": product_secondary_slot["h"] if product_secondary_slot else None,
         "annotation_shell_x": int(annotation_shell["x"]),
         "annotation_shell_y": int(annotation_shell["y"]),
         "annotation_shell_w": int(annotation_shell["w"]),
@@ -722,6 +787,11 @@ def resolve_product_behavior(
 
     return ResolvedProductBehavior(
         annotation_mode=annotation_mode,
+        product_layout_mode=product_layout_mode,
+        product_primary_slot=product_primary_slot,
+        product_secondary_slot=product_secondary_slot,
+        product_secondary_slot_rendered=product_secondary_slot_rendered,
+        product_secondary_asset_policy=product_secondary_asset_policy,
         visible_annotation_count=visible_annotation_count,
         max_annotation_items=max_items,
         annotation_count_policy=annotation_count_policy,
@@ -1083,6 +1153,12 @@ def resolve_bottom_behavior(
     requested_gallery_count = min(max(requested_gallery_count, 0), max_items)
     normalized_gallery_count = min(max(normalized_gallery_count, 0), max_items)
     visible_item_count = min(max(resolved_gallery_count, 0), max_items)
+    # Structural expansion modes introduce a higher bottom_shell_top than the frozen baseline (728).
+    bottom_layout_mode = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, None)
+    is_expanded_mode = bottom_layout_mode is not None
+    actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, 728)
+    resolved_bottom_layout_mode = bottom_mode if is_expanded_mode else "none"
+
     title_slot_rendered = title_present and bottom_mode != "gallery_only"
     subtitle_slot_rendered = subtitle_present and bottom_mode != "gallery_only" and title_present
 
@@ -1098,6 +1174,14 @@ def resolve_bottom_behavior(
         title_band_rendered = False
         gallery_strip_rendered = visible_item_count > 0
         gallery_content_policy = "render_gallery_strip_without_title_band"
+    elif bottom_mode == "text_only_expanded":
+        title_band_rendered = title_slot_rendered
+        gallery_strip_rendered = False
+        gallery_content_policy = "collapse_gallery_strip_expanded_text_only_mode"
+    elif bottom_mode == "text_gallery_expanded":
+        title_band_rendered = title_slot_rendered
+        gallery_strip_rendered = visible_item_count > 0
+        gallery_content_policy = "render_gallery_strip_in_expanded_text_gallery_mode"
     else:
         raise ValueError(f"Unsupported bottom_mode: {bottom_mode}")
 
@@ -1130,6 +1214,7 @@ def resolve_bottom_behavior(
         title_length=title_length,
         subtitle_length=subtitle_length,
         visible_item_count=visible_item_count,
+        bottom_shell_top=actual_bottom_shell_top,
     )
 
     bottom_region_rendered = title_band_rendered or gallery_strip_rendered
@@ -1222,6 +1307,8 @@ def resolve_bottom_behavior(
 
     return ResolvedBottomBehavior(
         mode=bottom_mode,
+        bottom_layout_mode=resolved_bottom_layout_mode,
+        bottom_shell_top=actual_bottom_shell_top,
         gallery_mode=gallery_mode,
         requested_gallery_count=requested_gallery_count,
         normalized_gallery_count=normalized_gallery_count,
@@ -1281,9 +1368,10 @@ def _resolve_bottom_layout_policies(
     title_length: int,
     subtitle_length: int,
     visible_item_count: int,
+    bottom_shell_top: int = 728,
 ) -> tuple[str, str, str, str, str, str, str, str, str, str, str, str, int, int, int, int, dict[str, object]]:
-    bottom_shell_top = 728
-    title_band_top = 728
+    # bottom_shell_top is injected from the caller; frozen baseline = 728, expanded modes override.
+    title_band_top = bottom_shell_top
     title_content_pad_left = 40
     title_content_pad_right = 40
 
@@ -1353,6 +1441,186 @@ def _resolve_bottom_layout_policies(
             title_band_height = 120
             title_content_pad_top = 24
             title_content_pad_bottom = 20
+            title_stack_gap = 0
+        title_content_top = title_band_top
+        title_content_height = title_band_height
+    elif bottom_mode == "text_only_expanded":
+        # Structural expansion: shell starts at y=656 (368px capacity). No gallery.
+        # Materially larger title+subtitle capacity than frozen baseline max.
+        content_priority_policy = "expanded_text_only_full_copy_priority"
+        peer_balance_policy = "expanded_title_band_only"
+        bottom_peer_balance_policy = "expanded_text_only_rebalance"
+        bottom_text_emphasis_policy = "expanded_text_strong_emphasis"
+        if subtitle_slot_rendered and subtitle_length > 48:
+            title_band_sizing_mode = "expanded"
+            title_band_growth_policy = "grow_for_expanded_text_only_dense_copy"
+            subtitle_overflow_policy = "three_line_clamp_inside_expanded_title_band"
+            title_text_budget_policy = "three_line_title_budget_expanded_text_only"
+            subtitle_text_budget_policy = "three_line_support_copy_budget_expanded"
+            title_line_clamp = 3
+            subtitle_line_clamp = 3
+            title_char_budget = 72
+            subtitle_char_budget = 80
+            title_band_height = 220
+            title_content_pad_top = 20
+            title_content_pad_bottom = 16
+            title_stack_gap = 8
+        elif subtitle_slot_rendered and subtitle_length > 28:
+            title_band_sizing_mode = "expanded"
+            title_band_growth_policy = "grow_for_expanded_text_only_moderate_copy"
+            subtitle_overflow_policy = "two_line_clamp_inside_expanded_title_band"
+            title_text_budget_policy = "two_line_title_budget_expanded_text_only"
+            subtitle_text_budget_policy = "two_line_support_copy_budget_expanded"
+            title_line_clamp = 2
+            subtitle_line_clamp = 2
+            title_char_budget = 64
+            subtitle_char_budget = 64
+            title_band_height = 196
+            title_content_pad_top = 22
+            title_content_pad_bottom = 18
+            title_stack_gap = 8
+        elif subtitle_slot_rendered:
+            title_band_sizing_mode = "standard"
+            title_band_growth_policy = "standard_expanded_text_only_with_subtitle"
+            subtitle_overflow_policy = "single_line_ellipsis_inside_expanded_title_band"
+            title_text_budget_policy = "two_line_title_budget_with_subtitle_expanded"
+            subtitle_text_budget_policy = "single_line_support_copy_budget_expanded"
+            title_line_clamp = 2
+            subtitle_line_clamp = 1
+            title_char_budget = 56
+            subtitle_char_budget = 44
+            title_band_height = 180
+            title_content_pad_top = 24
+            title_content_pad_bottom = 20
+            title_stack_gap = 8
+        else:
+            title_band_sizing_mode = "compact"
+            title_band_growth_policy = "compact_expanded_text_only_without_subtitle"
+            subtitle_overflow_policy = "subtitle_collapsed"
+            title_text_budget_policy = "title_priority_budget_expanded_text_only"
+            subtitle_text_budget_policy = "subtitle_collapsed_budget"
+            title_line_clamp = 2
+            subtitle_line_clamp = 0
+            title_char_budget = 52
+            subtitle_char_budget = 0
+            title_band_height = 164
+            title_content_pad_top = 28
+            title_content_pad_bottom = 24
+            title_stack_gap = 0
+        title_content_top = title_band_top
+        title_content_height = title_band_height
+    elif bottom_mode == "text_gallery_expanded":
+        # Structural expansion: shell starts at y=640 (384px capacity). Has gallery.
+        # Materially larger title+subtitle capacity than frozen baseline while keeping gallery strip.
+        dense_copy = subtitle_length > 28 or title_length > 20
+        if subtitle_slot_rendered and dense_copy and visible_item_count <= 2:
+            title_band_sizing_mode = "expanded"
+            title_band_growth_policy = "grow_title_band_expanded_text_gallery_light_gallery"
+            subtitle_overflow_policy = "two_line_clamp_inside_expanded_split_title_band"
+            title_text_budget_policy = "expanded_title_budget_light_gallery_peer"
+            subtitle_text_budget_policy = "two_line_support_copy_budget_expanded"
+            content_priority_policy = "expanded_text_priority_with_light_gallery"
+            peer_balance_policy = "expanded_title_growth_with_light_gallery"
+            bottom_peer_balance_policy = "expanded_copy_priority_spacious_gallery"
+            bottom_text_emphasis_policy = "expanded_copy_priority_strong_title"
+            title_line_clamp = 2
+            subtitle_line_clamp = 2
+            title_char_budget = 60
+            subtitle_char_budget = 56
+            title_band_height = 192
+            title_content_pad_top = 18
+            title_content_pad_bottom = 14
+            title_stack_gap = 8
+        elif subtitle_slot_rendered and dense_copy and visible_item_count == 3:
+            title_band_sizing_mode = "standard"
+            title_band_growth_policy = "temper_growth_expanded_text_gallery_triplet"
+            subtitle_overflow_policy = "two_line_clamp_inside_expanded_split_title_band"
+            title_text_budget_policy = "expanded_title_budget_triplet_gallery_peer"
+            subtitle_text_budget_policy = "two_line_support_copy_budget_expanded"
+            content_priority_policy = "expanded_balanced_text_and_gallery_priority"
+            peer_balance_policy = "expanded_dense_copy_with_triplet_gallery"
+            bottom_peer_balance_policy = "expanded_triplet_gallery_and_copy_co_balance"
+            bottom_text_emphasis_policy = "expanded_balanced_triplet_text_emphasis"
+            title_line_clamp = 2
+            subtitle_line_clamp = 2
+            title_char_budget = 52
+            subtitle_char_budget = 52
+            title_band_height = 176
+            title_content_pad_top = 20
+            title_content_pad_bottom = 16
+            title_stack_gap = 8
+        elif subtitle_slot_rendered and dense_copy and visible_item_count >= 4:
+            # Dense quad in expanded mode: still 2-line title + 1-line subtitle minimum
+            title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_growth_expanded_text_gallery_quad"
+            subtitle_overflow_policy = "single_line_ellipsis_inside_expanded_split_title_band"
+            title_text_budget_policy = "expanded_title_budget_quad_gallery_peer"
+            subtitle_text_budget_policy = "single_line_support_copy_budget_expanded"
+            content_priority_policy = "expanded_gallery_count_priority_with_text_preserved"
+            peer_balance_policy = "expanded_gallery_preserved_with_full_title"
+            bottom_peer_balance_policy = "expanded_quad_gallery_with_full_title"
+            bottom_text_emphasis_policy = "expanded_quad_text_emphasis"
+            title_line_clamp = 2
+            subtitle_line_clamp = 1
+            title_char_budget = 44
+            subtitle_char_budget = 44
+            title_band_height = 168
+            title_content_pad_top = 22
+            title_content_pad_bottom = 18
+            title_stack_gap = 6
+        elif subtitle_slot_rendered:
+            title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_standard_expanded_text_gallery_with_subtitle"
+            subtitle_overflow_policy = "single_line_ellipsis_inside_expanded_split_title_band"
+            title_text_budget_policy = "expanded_two_line_title_budget_with_gallery_peer"
+            subtitle_text_budget_policy = "single_line_support_copy_budget_expanded"
+            content_priority_policy = "expanded_balanced_text_and_gallery_priority"
+            peer_balance_policy = "expanded_balanced_title_band_and_gallery_strip"
+            bottom_peer_balance_policy = "expanded_balanced_bottom_regions"
+            bottom_text_emphasis_policy = "expanded_balanced_bottom_text_emphasis"
+            title_line_clamp = 2
+            subtitle_line_clamp = 1
+            title_char_budget = 52
+            subtitle_char_budget = 36
+            title_band_height = 168
+            title_content_pad_top = 24
+            title_content_pad_bottom = 20
+            title_stack_gap = 8
+        elif title_length > 20:
+            title_band_sizing_mode = "standard"
+            title_band_growth_policy = "hold_standard_expanded_text_gallery_long_title"
+            subtitle_overflow_policy = "subtitle_collapsed"
+            title_text_budget_policy = "expanded_two_line_title_budget_with_gallery_peer"
+            subtitle_text_budget_policy = "subtitle_collapsed_budget"
+            content_priority_policy = "expanded_title_priority_with_gallery_support"
+            peer_balance_policy = "expanded_balanced_title_band_and_gallery_strip"
+            bottom_peer_balance_policy = "expanded_title_priority_gallery_support"
+            bottom_text_emphasis_policy = "expanded_title_priority_text_emphasis"
+            title_line_clamp = 2
+            subtitle_line_clamp = 0
+            title_char_budget = 52
+            subtitle_char_budget = 0
+            title_band_height = 160
+            title_content_pad_top = 26
+            title_content_pad_bottom = 22
+            title_stack_gap = 0
+        else:
+            title_band_sizing_mode = "compact"
+            title_band_growth_policy = "keep_compact_expanded_text_gallery_light_copy"
+            subtitle_overflow_policy = "subtitle_collapsed"
+            title_text_budget_policy = "expanded_title_priority_budget_light_copy"
+            subtitle_text_budget_policy = "subtitle_collapsed_budget"
+            content_priority_policy = "expanded_gallery_support_with_compact_title"
+            peer_balance_policy = "expanded_title_compact_with_light_gallery"
+            bottom_peer_balance_policy = "expanded_compact_title_with_gallery_support"
+            bottom_text_emphasis_policy = "expanded_compact_light_text_emphasis"
+            title_line_clamp = 2
+            subtitle_line_clamp = 0
+            title_char_budget = 44
+            subtitle_char_budget = 0
+            title_band_height = 148
+            title_content_pad_top = 28
+            title_content_pad_bottom = 24
             title_stack_gap = 0
         title_content_top = title_band_top
         title_content_height = title_band_height
@@ -1767,7 +2035,7 @@ def _resolve_bottom_shell_height(
 ) -> int:
     if bottom_mode == "gallery_only":
         return gallery_shell_height
-    if bottom_mode == "title_only":
+    if bottom_mode in ("title_only", "text_only_expanded"):
         return title_band_height
     bottom_edges: list[int] = []
     if title_slot_rendered:
@@ -1820,6 +2088,14 @@ def _resolve_bottom_title_letter_spacing(policy: str) -> str:
         "title_priority_text_emphasis": "0.01em",
         "compact_light_text_emphasis": "0.004em",
         "gallery_only_neutral_text": "0em",
+        # Expanded mode text emphasis policies
+        "expanded_text_strong_emphasis": "0.014em",
+        "expanded_copy_priority_strong_title": "0.012em",
+        "expanded_balanced_triplet_text_emphasis": "0.01em",
+        "expanded_quad_text_emphasis": "0.008em",
+        "expanded_balanced_bottom_text_emphasis": "0.008em",
+        "expanded_title_priority_text_emphasis": "0.012em",
+        "expanded_compact_light_text_emphasis": "0.006em",
     }
     return table.get(policy, "0.006em")
 
@@ -1834,6 +2110,14 @@ def _resolve_bottom_subtitle_opacity(policy: str) -> str:
         "title_priority_text_emphasis": "0.9",
         "compact_light_text_emphasis": "0.88",
         "gallery_only_neutral_text": "0.86",
+        # Expanded mode text emphasis policies
+        "expanded_text_strong_emphasis": "0.94",
+        "expanded_copy_priority_strong_title": "0.94",
+        "expanded_balanced_triplet_text_emphasis": "0.94",
+        "expanded_quad_text_emphasis": "0.92",
+        "expanded_balanced_bottom_text_emphasis": "0.92",
+        "expanded_title_priority_text_emphasis": "0.92",
+        "expanded_compact_light_text_emphasis": "0.9",
     }
     return table.get(policy, "0.9")
 

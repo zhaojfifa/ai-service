@@ -585,6 +585,7 @@ class PuppeteerStructuredRenderer:
                 "scenario": scenario_url,
                 "scenario_is_real": has_real_scenario,
                 "product": _image_to_data_url(assets.product),
+                "product_secondary": _image_to_data_url(assets.product_secondary) if assets.product_secondary else "",
                 "gallery": gallery_urls,
             }
             logger.info(
@@ -765,8 +766,15 @@ class PuppeteerStructuredRenderer:
             "__SCENARIO_URL__": asset_urls["scenario"],
             "__PRODUCT_LAYER_CLASS__": product_layer_class,
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
-            "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy)),
+            "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy, behavior.product_policy)),
             "__PRODUCT_URL__": asset_urls["product"],
+            "__PRODUCT_SECONDARY_CLASS__": (
+                "state-show"
+                if behavior.product_policy.product_secondary_slot_rendered and asset_urls.get("product_secondary")
+                else "state-hidden"
+            ),
+            "__PRODUCT_SECONDARY_STYLE__": _slot_style(_product_secondary_slot(slot_spec, behavior.product_policy)),
+            "__PRODUCT_SECONDARY_URL__": asset_urls.get("product_secondary", ""),
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
             "__BOTTOM_REGION_CLASS__": bottom_region_class,
             "__TITLE_BAND_CLASS__": title_band_class,
@@ -1923,20 +1931,61 @@ def _scenario_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
     return slot
 
 
-def _product_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
+def _product_slot(slot_spec: dict[str, Any], hero_policy, product_policy=None) -> dict[str, Any]:
     slot = dict(slot_spec["slots"]["product"])
-    metrics = hero_policy.layout_metrics
+    # Use product_primary_slot geometry when product_policy is available.
+    # For single_primary: primary_slot == full product_region — backward compatible.
+    # For primary_secondary_dual: primary_slot is upper portion (h:310 not h:520).
+    if product_policy is not None:
+        primary = product_policy.product_primary_slot
+        slot.update(
+            {
+                "x": int(primary["x"]),
+                "y": int(primary["y"]),
+                "w": int(primary["w"]),
+                "h": int(primary["h"]),
+                "fit": hero_policy.product_fit,
+                "pad_top": 16,
+                "pad_right": 12,
+                "pad_bottom": 8,
+                "pad_left": 12,
+            }
+        )
+    else:
+        metrics = hero_policy.layout_metrics
+        slot.update(
+            {
+                "x": int(metrics["product_region_x"]),
+                "y": int(metrics["product_region_y"]),
+                "w": int(metrics["product_region_w"]),
+                "h": int(metrics["product_region_h"]),
+                "fit": hero_policy.product_fit,
+                "pad_top": int(metrics["product_pad_top"]),
+                "pad_right": int(metrics["product_pad_right"]),
+                "pad_bottom": int(metrics["product_pad_bottom"]),
+                "pad_left": int(metrics["product_pad_left"]),
+            }
+        )
+    return slot
+
+
+def _product_secondary_slot(slot_spec: dict[str, Any], product_policy) -> dict[str, Any]:
+    """Build style dict for the secondary product slot from contract geometry."""
+    secondary = product_policy.product_secondary_slot
+    if secondary is None:
+        return {"x": 0, "y": 0, "w": 0, "h": 0}
+    slot = dict(slot_spec["slots"]["product"])
     slot.update(
         {
-            "x": int(metrics["product_region_x"]),
-            "y": int(metrics["product_region_y"]),
-            "w": int(metrics["product_region_w"]),
-            "h": int(metrics["product_region_h"]),
-            "fit": hero_policy.product_fit,
-            "pad_top": int(metrics["product_pad_top"]),
-            "pad_right": int(metrics["product_pad_right"]),
-            "pad_bottom": int(metrics["product_pad_bottom"]),
-            "pad_left": int(metrics["product_pad_left"]),
+            "x": int(secondary["x"]),
+            "y": int(secondary["y"]),
+            "w": int(secondary["w"]),
+            "h": int(secondary["h"]),
+            "fit": "contain",
+            "pad_top": 8,
+            "pad_right": 12,
+            "pad_bottom": 10,
+            "pad_left": 12,
         }
     )
     return slot
