@@ -56,10 +56,14 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "gallery_requested_count",
         "gallery_autofill_applied",
         "exceeds max length",
+        "STAGE2_PROD_API_BASE",
+        "isDeprecatedApiBase",
+        "https://ai-service-leob.onrender.com",
     ):
         assert field in js
 
     assert "bottomContract.subtitle || stage1Data.subtitle" not in js
+    assert "https://ai-service-leob.onrender.com" in html
 
 
 def test_docs_publish_mirror_contains_same_guard_diagnostics():

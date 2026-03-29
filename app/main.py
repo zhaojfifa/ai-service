@@ -309,6 +309,7 @@ allow_origins = _normalise_allowed_origins(raw_origins)
 
 DEFAULT_CORS_ORIGINS = {
     "https://zhaojfifa.github.io",
+    "https://ai-service-leob.onrender.com",
     "https://ai-service-x758.onrender.com",
 }
 # GitHub Pages 访问时请在 Render 环境变量 `CORS_ALLOW_ORIGINS` 中包含浏览器地址栏的完整 origin，

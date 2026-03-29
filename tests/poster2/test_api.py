@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import DEFAULT_CORS_ORIGINS, app
 from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
 
 
@@ -385,6 +385,11 @@ def test_generate_poster_v2_preflight_allows_content_type_and_x_request_id():
     allow_headers = response.headers.get("access-control-allow-headers", "").lower()
     assert "content-type" in allow_headers
     assert "x-request-id" in allow_headers
+
+
+def test_default_cors_origins_include_pages_origin_and_current_render_host():
+    assert "https://zhaojfifa.github.io" in DEFAULT_CORS_ORIGINS
+    assert "https://ai-service-leob.onrender.com" in DEFAULT_CORS_ORIGINS
 
 
 def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
