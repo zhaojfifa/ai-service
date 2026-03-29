@@ -57,6 +57,11 @@ class _FakePoster2Pipeline:
                 "requested_product_source": spec.product_image.url,
                 "rendered_product_source": spec.product_image.url,
             },
+            product_contract_review={
+                "product_annotation_mode": "none",
+                "requested_product_source": spec.product_image.url,
+                "rendered_product_source": spec.product_image.url,
+            },
             header_contract_review={
                 "header_mode": "identity_left_agent_right",
                 "requested_brand_text": spec.brand_name,
@@ -133,6 +138,11 @@ class _FakeDegradedPoster2Pipeline:
                 "requested_product_source": spec.product_image.url,
                 "rendered_product_source": spec.product_image.url,
             },
+            product_contract_review={
+                "product_annotation_mode": "none",
+                "requested_product_source": spec.product_image.url,
+                "rendered_product_source": spec.product_image.url,
+            },
             header_contract_review={
                 "header_mode": "identity_left_agent_right",
                 "requested_brand_text": spec.brand_name,
@@ -196,6 +206,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["missing_required_slots"] == []
     assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
     assert body["hero_contract_review"]["hero_mode"] == "scenario_cover_product_contain"
+    assert body["product_contract_review"]["product_annotation_mode"] == "none"
     assert body["header_contract_review"]["header_mode"] == "identity_left_agent_right"
     assert body["feature_contract_review"]["feature_mode"] == "count_driven_callout_stack"
     assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
@@ -250,6 +261,31 @@ def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
     assert body["template_behavior"]["behavior_modes"]["gallery_mode"] == "supporting_packshots"
     assert body["bottom_contract_review"]["bottom_mode"] == "gallery_only"
     assert body["bottom_contract_review"]["gallery_mode"] == "supporting_packshots"
+
+
+def test_generate_poster_v2_accepts_bottom_gallery_count_trace_fields(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "gallery_images": [{"url": "https://example.com/gallery-1.png"}],
+            "gallery_input_count_raw": 2,
+            "gallery_input_count_normalized": 1,
+            "gallery_requested_count": 2,
+            "gallery_autofill_applied": False,
+            "template_id": "template_dual_v2",
+        },
+    )
+
+    assert response.status_code == 200
 
 
 def test_generate_poster_v2_accepts_three_gallery_items_with_edited_subtitle(monkeypatch):

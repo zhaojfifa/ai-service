@@ -463,3 +463,47 @@ Phase 3 begins from the frozen bottom baseline with these rules:
 - bottom schema and diagnostics names stay stable while other regions align
 - backend region contract / evidence alignment happens before Stage2 live contract panel wiring
 - Stage2 remains a backend-driven review surface and must not become a second resolver
+
+## 21. Count Loop Closure Addendum
+
+Bottom count handling is now explicitly closed for `1 / 2 / 3 / 4` across one full operator loop:
+
+- Stage 2 dropdown request
+- request payload
+- backend normalization
+- resolver count path
+- renderer-visible count
+- evidence / operator review
+
+The bottom evidence chain now exposes:
+
+- `gallery_input_count_raw`
+- `gallery_input_count_normalized`
+- `gallery_requested_count`
+- `gallery_visible_count`
+- `gallery_autofill_applied`
+- `gallery_distribution_policy`
+
+This closes the prior ambiguity where Stage 2 could ask for a pair/triplet state but backend evidence only saw `len(gallery_images)`.
+
+## 22. Current Bottom Acceptance Snapshot
+
+Current accepted matrix:
+
+- `1` gallery item → succeeds end-to-end, `single_center_focus`
+- `2` gallery items → succeeds end-to-end, `balanced_pair`
+- `3` gallery items → succeeds end-to-end, `balanced_triplet`
+- `4` gallery items → succeeds end-to-end, `dense_quad`
+
+Current gap-repair case also covered:
+
+- requested pair + only `1` real non-empty gallery input keeps `gallery_requested_count = 2` while resolving `gallery_visible_count = 1`, with slot evidence showing the missing second gallery slot explicitly
+
+## 23. Remaining Bugs After Count Closure
+
+Bottom is still frozen. The remaining open items stay in bug tracking only:
+
+1. Pair / triplet / quad remain rule-based rather than measurement-optimized.
+2. `supporting_packshots` remains minimum viable semantics.
+3. Minimal text emphasis remains intentionally conservative.
+4. Operator presentation can become clearer only by reusing existing frozen fields, not by renaming or restructuring the contract.

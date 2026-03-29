@@ -1409,6 +1409,10 @@ def _poster2_request_log_fields(request: Request, payload: GeneratePosterV2Reque
         "renderer_mode": payload.renderer_mode,
         "feature_count": len(payload.features),
         "gallery_count": len(payload.gallery_images),
+        "gallery_input_count_raw": payload.gallery_input_count_raw,
+        "gallery_input_count_normalized": payload.gallery_input_count_normalized,
+        "gallery_requested_count": payload.gallery_requested_count,
+        "gallery_autofill_applied": payload.gallery_autofill_applied,
         "has_logo": payload.logo is not None,
         "has_scenario_image": payload.scenario_image is not None,
         "has_product_key": bool(payload.product_image.key),
@@ -1450,6 +1454,10 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             gallery_images=tuple(
                 P2AssetRef(url=g.url, key=g.key) for g in payload.gallery_images
             ),
+            gallery_input_count_raw=payload.gallery_input_count_raw,
+            gallery_input_count_normalized=payload.gallery_input_count_normalized,
+            gallery_requested_count=payload.gallery_requested_count,
+            gallery_autofill_applied=payload.gallery_autofill_applied,
             bottom_mode=payload.bottom_mode,
             gallery_mode=payload.gallery_mode,
             style=P2StyleSpec(
@@ -1517,6 +1525,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             template_behavior=manifest.template_behavior,
             geometry_evidence=manifest.geometry_evidence,
             hero_contract_review=manifest.hero_contract_review,
+            product_contract_review=manifest.product_contract_review,
             header_contract_review=manifest.header_contract_review,
             feature_contract_review=manifest.feature_contract_review,
             bottom_contract_review=manifest.bottom_contract_review,

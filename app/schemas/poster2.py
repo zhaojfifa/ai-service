@@ -43,6 +43,10 @@ class GeneratePosterV2Request(BaseModel):
     logo: Optional[AssetRefInput] = None
     scenario_image: Optional[AssetRefInput] = None
     gallery_images: list[AssetRefInput] = Field(default_factory=list, max_length=4)
+    gallery_input_count_raw: Optional[int] = Field(default=None, ge=0, le=4)
+    gallery_input_count_normalized: Optional[int] = Field(default=None, ge=0, le=4)
+    gallery_requested_count: Optional[int] = Field(default=None, ge=0, le=4)
+    gallery_autofill_applied: bool = False
     bottom_mode: Optional[Literal["title_gallery_split", "title_only", "gallery_only"]] = Field(default=None)
     gallery_mode: Optional[Literal["strip_local_visible_only", "supporting_packshots"]] = Field(default=None)
 
@@ -114,6 +118,7 @@ class GeneratePosterV2Response(BaseModel):
     template_behavior: dict = Field(default_factory=dict)
     geometry_evidence: dict = Field(default_factory=dict)
     hero_contract_review: dict = Field(default_factory=dict)
+    product_contract_review: dict = Field(default_factory=dict)
     header_contract_review: dict = Field(default_factory=dict)
     feature_contract_review: dict = Field(default_factory=dict)
     bottom_contract_review: dict = Field(default_factory=dict)

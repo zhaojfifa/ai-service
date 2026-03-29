@@ -127,7 +127,8 @@ class LayoutRenderer:
             title_text=poster.title,
             subtitle_text=poster.subtitle,
             brand_name=poster.brand_name,
-            gallery_requested_count=len(poster.gallery_images),
+            gallery_requested_count=poster.gallery_requested_count if poster.gallery_requested_count is not None else len(poster.gallery_images),
+            gallery_input_count_normalized=poster.gallery_input_count_normalized if poster.gallery_input_count_normalized is not None else len(poster.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
@@ -221,6 +222,8 @@ class LayoutRenderer:
             scenario_safe_fill=False,
             bottom_policy=behavior.bottom_policy,
             header_policy=behavior.header_policy,
+            feature_mode=behavior.feature_policy.mode,
+            product_policy=behavior.product_policy,
         )
         return ForegroundResult(
             image=canvas,
@@ -529,7 +532,8 @@ class PuppeteerStructuredRenderer:
             title_text=poster.title,
             subtitle_text=poster.subtitle,
             brand_name=poster.brand_name,
-            gallery_requested_count=len(poster.gallery_images),
+            gallery_requested_count=poster.gallery_requested_count if poster.gallery_requested_count is not None else len(poster.gallery_images),
+            gallery_input_count_normalized=poster.gallery_input_count_normalized if poster.gallery_input_count_normalized is not None else len(poster.gallery_images),
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
@@ -631,6 +635,8 @@ class PuppeteerStructuredRenderer:
             scenario_safe_fill=behavior.hero_policy.scenario_enabled and not bool(asset_urls.get("scenario_is_real")),
             bottom_policy=behavior.bottom_policy,
             header_policy=behavior.header_policy,
+            feature_mode=behavior.feature_policy.mode,
+            product_policy=behavior.product_policy,
         )
         return ForegroundResult(
             image=image,
@@ -675,7 +681,8 @@ class PuppeteerStructuredRenderer:
             title_text=poster.title,
             subtitle_text=poster.subtitle,
             brand_name=poster.brand_name,
-            gallery_requested_count=len(poster.gallery_images),
+            gallery_requested_count=poster.gallery_requested_count if poster.gallery_requested_count is not None else len(poster.gallery_images),
+            gallery_input_count_normalized=poster.gallery_input_count_normalized if poster.gallery_input_count_normalized is not None else len(poster.gallery_images),
             gallery_resolved_count=len(asset_urls.get("gallery") or []),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
@@ -1329,13 +1336,38 @@ def _build_renderer_layer_render_status(
     scenario_safe_fill: bool,
     bottom_policy: ResolvedBottomBehavior,
     header_policy: ResolvedHeaderBehavior,
+    feature_mode: str,
+    product_policy=None,
 ) -> dict[str, dict[str, Any]]:
     # This is renderer-side structural status derivation from bound inputs and
     # renderer-controlled asset preparation. It is not a post-render pixel check.
+    gallery_requested = max(0, min(int(poster.gallery_requested_count or gallery_requested), 4))
+    gallery_input_raw = max(0, min(int(poster.gallery_input_count_raw or gallery_requested), 4))
+    gallery_input_normalized = max(
+        0,
+        min(
+            int(
+                poster.gallery_input_count_normalized
+                if poster.gallery_input_count_normalized is not None
+                else gallery_valid
+            ),
+            4,
+        ),
+    )
+    gallery_autofill_applied = bool(poster.gallery_autofill_applied)
     gallery_rendered = bottom_policy.gallery_strip_rendered and gallery_visible > 0
     scenario_rendered = has_scenario or scenario_safe_fill
     logo_suppressed_by_mode = header_policy.identity_zone_mode == "brand_only"
     logo_rendered = has_logo and not logo_suppressed_by_mode
+    product_annotation_visible = min(
+        getattr(product_policy, "visible_annotation_count", 0),
+        len([item for item in poster.features if item and item.strip()]),
+    )
+    product_annotation_rendered = (
+        getattr(product_policy, "annotation_mode", "none") == "product_anchor_callouts"
+        and feature_mode == "product_anchor_callouts"
+        and product_annotation_visible > 0
+    )
     return {
         "brand_logo_layer": {
             "rendered": logo_rendered,
@@ -1378,6 +1410,51 @@ def _build_renderer_layer_render_status(
             "count": 1 if has_product else 0,
             "collapsed": not has_product,
         },
+        "product_canvas_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_dual_v2.product_canvas_shell",
+            "count": 1,
+            "collapsed": False,
+        },
+        "product_annotation_shell_layer": {
+            "rendered": product_annotation_rendered,
+            "reason_code": (
+                None
+                if product_annotation_rendered
+                else (
+                    "annotation_mode_none"
+                    if getattr(product_policy, "annotation_mode", "none") == "none"
+                    else (
+                        "annotation_items_empty"
+                        if product_annotation_visible == 0
+                        else "annotation_renderer_pending"
+                    )
+                )
+            ),
+            "source_binding": getattr(product_policy, "annotation_mode", "none"),
+            "count": 1 if product_annotation_rendered else 0,
+            "collapsed": not product_annotation_rendered,
+        },
+        "product_annotation_items_layer": {
+            "rendered": product_annotation_rendered,
+            "reason_code": (
+                None
+                if product_annotation_rendered
+                else (
+                    "annotation_mode_none"
+                    if getattr(product_policy, "annotation_mode", "none") == "none"
+                    else (
+                        "annotation_items_empty"
+                        if product_annotation_visible == 0
+                        else "annotation_renderer_pending"
+                    )
+                )
+            ),
+            "source_binding": "features",
+            "count": product_annotation_visible if product_annotation_rendered else 0,
+            "collapsed": not product_annotation_rendered,
+        },
         "feature_callout_layer": {
             "rendered": feature_count > 0,
             "reason_code": None if feature_count > 0 else "features_empty",
@@ -1418,9 +1495,12 @@ def _build_renderer_layer_render_status(
             "reason_code": None if gallery_rendered else ("gallery_not_visible" if gallery_valid > 0 else "gallery_empty"),
             "source_binding": "gallery_images",
             "count": bottom_policy.visible_item_count,
+            "gallery_input_count_raw": gallery_input_raw,
+            "gallery_input_count_normalized": gallery_input_normalized,
             "count_requested": gallery_requested,
             "count_valid": gallery_valid,
             "count_visible": bottom_policy.visible_item_count,
+            "gallery_autofill_applied": gallery_autofill_applied,
             "collapsed": not gallery_rendered,
         },
     }
@@ -1499,6 +1579,7 @@ def render_product_material_debug_layer(
         brand_name=None,
         gallery_resolved_count=gallery_resolved,
         gallery_requested_count=gallery_resolved,
+        gallery_input_count_normalized=gallery_resolved,
     )
     canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
     if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:

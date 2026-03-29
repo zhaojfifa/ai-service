@@ -467,6 +467,7 @@
         <pre id="poster2-bottom-request-preview">{}</pre>
         <pre id="poster2-header-contract-review">{}</pre>
         <pre id="poster2-hero-contract-review">{}</pre>
+        <pre id="poster2-product-contract-review">{}</pre>
         <pre id="poster2-feature-contract-review">{}</pre>
       </div>
 
@@ -744,6 +745,32 @@
           return html;
         }
 
+        function buildProductDetail(productReview) {
+          if (!productReview) return '';
+          let html = '';
+          const mode = productReview.product_annotation_mode || '';
+          const visibleCount = productReview.product_annotation_items_layer?.visible_item_count;
+          if (mode) html += `<div class="s2-slot-note">annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}</div>`;
+          if (productReview.requested_product_source) {
+            html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
+            html += textRow('source', productReview.requested_product_source.length > 48 ? productReview.requested_product_source.slice(-48) : productReview.requested_product_source, null, false);
+            html += '</div>';
+          }
+          html += `<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:4px;">`;
+          html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">image ${slotStatusHtml(productReview.product_image_layer?.rendered, productReview.product_image_layer?.reason_code)}</span>`;
+          html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">annotation ${slotStatusHtml(productReview.product_annotation_items_layer?.rendered, productReview.product_annotation_items_layer?.reason_code)}</span>`;
+          html += `</div>`;
+          const slots = productReview.annotation_slots || [];
+          if (slots.length) {
+            html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
+            for (const item of slots) {
+              html += textRow(item.slot_id?.replace('product_annotation_slot_', 'anno ') || '?', item.requested_text || '—', item.rendered_excerpt, item.truncation_applied);
+            }
+            html += '</div>';
+          }
+          return html;
+        }
+
         function buildFeatureDetail(featureReview) {
           if (!featureReview) return '';
           let html = '';
@@ -774,23 +801,31 @@
           if (metrics.bottom_shell_height) {
             html += `<div class="s2-slot-note">height: ${metrics.bottom_shell_height}px</div>`;
           }
+          if (bottomReview) {
+            html += `<div class="s2-slot-note">gallery raw/normalized/requested/visible: ${bottomReview.gallery_input_count_raw ?? 0} / ${bottomReview.gallery_input_count_normalized ?? 0} / ${bottomReview.gallery_requested_count ?? 0} / ${bottomReview.gallery_visible_count ?? 0}</div>`;
+            html += `<div class="s2-slot-note">autofill: ${bottomReview.gallery_autofill_applied ? 'applied' : 'not-applied'} · distribution: ${bottomReview.behavior_policy?.gallery_distribution_policy || 'n/a'}</div>`;
+          }
 
           const titleBand = bottomReview?.title_band_region;
           if (titleBand) {
+            const titleMode = bottomReview?.behavior_policy?.title_band_sizing_mode || 'n/a';
+            const titleCount = titleBand.rendered
+              ? (bottomReview?.subtitle_slot?.rendered ? 2 : 1)
+              : 0;
             html += `
               <div class="s2-sub-region">
                 <div class="s2-region-head s2-sub-head">
                   <div class="s2-region-icon icon-title" style="width:20px;height:20px;font-size:10px;">T</div>
                   <span class="s2-region-name">title_band_region</span>
-                  <span class="s2-region-mode">standard</span>
-                  <span class="s2-region-status s2-status-ok">rendered · 2</span>
+                  <span class="s2-region-mode">${titleMode}</span>
+                  <span class="s2-region-status ${titleBand.rendered ? 's2-status-ok' : 's2-status-collapsed'}">${titleBand.rendered ? `rendered · ${titleCount}` : 'collapsed'}</span>
                 </div>
               </div>`;
           }
 
           const galleryStrip = bottomReview?.gallery_strip_region;
           if (galleryStrip) {
-            const gMode = templateBehavior?.gallery_mode || 'strip';
+            const gMode = templateBehavior?.behavior_modes?.gallery_mode || bottomReview?.gallery_mode || 'strip';
             const gCount = Object.values(bottomReview?.gallery_slots || {})
               .filter(s => s?.state !== 'collapsed').length;
             html += `
@@ -799,24 +834,25 @@
                   <div class="s2-region-icon icon-gallery" style="width:20px;height:20px;font-size:10px;">G</div>
                   <span class="s2-region-name">gallery_strip_region</span>
                   <span class="s2-region-mode">${gMode}</span>
-                  <span class="s2-region-status s2-status-ok">rendered · ${gCount}</span>
+                  <span class="s2-region-status ${galleryStrip.rendered ? 's2-status-ok' : 's2-status-collapsed'}">${galleryStrip.rendered ? `rendered · ${gCount}` : 'collapsed'}</span>
                 </div>
               </div>`;
           }
           return html;
         }
 
-        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview) {
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
           if (modesStrip && templateBehavior) {
             const chips = [];
-            const tb = templateBehavior;
+            const tb = templateBehavior?.behavior_modes || {};
             if (tb.bottom_mode) chips.push(['bottom', tb.bottom_mode]);
             if (tb.gallery_mode) chips.push(['gallery', tb.gallery_mode]);
-            if (tb.hero_mode || tb.hero) chips.push(['hero', tb.hero_mode || tb.hero]);
+            if (tb.hero_mode) chips.push(['hero', tb.hero_mode]);
+            if (tb.product_annotation_mode) chips.push(['product', tb.product_annotation_mode]);
             if (tb.feature_mode) chips.push(['feature', tb.feature_mode]);
-            if (tb.header_identity_zone_mode) chips.push(['header', tb.header_identity_zone_mode]);
+            if (tb.header_mode) chips.push(['header', tb.header_mode]);
             if (chips.length) {
               modesStrip.innerHTML = chips.map(([k, v]) =>
                 `<div class="s2-mode-chip"><span class="s2-mode-key">${k}</span>&nbsp;<span class="s2-mode-val">${v}</span></div>`
@@ -873,8 +909,8 @@
               modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
               detailHtml = buildHeroDetail(heroReview, 'scenario_region');
             } else if (key === 'product_region') {
-              modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
-              detailHtml = buildHeroDetail(heroReview, 'product_region');
+              modeLabel = productReview?.product_annotation_mode || templateBehavior?.behavior_modes?.product_annotation_mode || '';
+              detailHtml = buildProductDetail(productReview);
             } else if (key === 'feature_region') {
               modeLabel = templateBehavior?.behavior_modes?.feature_mode || featureReview?.feature_mode || '';
               detailHtml = buildFeatureDetail(featureReview);
@@ -909,12 +945,14 @@
           let bottomReview = null;
           let headerReview = null;
           let heroReview = null;
+          let productReview = null;
           let featureReview = null;
           try { regionStatus = JSON.parse(regionEl?.textContent || '{}'); } catch (_) {}
           try { templateBehavior = JSON.parse(behaviorEl?.textContent || '{}'); } catch (_) {}
           try { bottomReview = JSON.parse(bottomEl?.textContent || 'null'); } catch (_) {}
           try { headerReview = JSON.parse(document.getElementById('poster2-header-contract-review')?.textContent || 'null'); } catch (_) {}
           try { heroReview = JSON.parse(document.getElementById('poster2-hero-contract-review')?.textContent || 'null'); } catch (_) {}
+          try { productReview = JSON.parse(document.getElementById('poster2-product-contract-review')?.textContent || 'null'); } catch (_) {}
           try { featureReview = JSON.parse(document.getElementById('poster2-feature-contract-review')?.textContent || 'null'); } catch (_) {}
 
           if (!Object.keys(regionStatus).length) return;
@@ -940,7 +978,7 @@
           // Update render engine badge
           if (engEl) engEl.className = 's2-badge ok';
 
-          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview);
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview);
         }
 
         /* Sync s2-out-url from final-poster-link.href */

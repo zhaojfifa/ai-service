@@ -20,6 +20,7 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
 _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; no drag-and-drop, no dynamic count
+_SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
 _SUPPORTED_BOTTOM_MODES = {"title_gallery_split", "title_only", "gallery_only"}
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
 _SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
@@ -209,6 +210,42 @@ class ResolvedHeroBehavior:
 
 
 @dataclass(frozen=True)
+class ResolvedProductBehavior:
+    annotation_mode: str
+    visible_annotation_count: int
+    max_annotation_items: int
+    annotation_count_policy: str
+    annotation_connector_policy: str
+    annotation_marker_policy: str
+    annotation_shell_policy: str
+    annotation_bounds_policy: str
+    text_budget_policy: str
+    line_clamp: int
+    char_budget: int
+    layout_metrics: dict[str, object]
+    annotation_items: tuple[dict[str, object], ...]
+    css_classes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "annotation_mode": self.annotation_mode,
+            "visible_annotation_count": self.visible_annotation_count,
+            "max_annotation_items": self.max_annotation_items,
+            "annotation_count_policy": self.annotation_count_policy,
+            "annotation_connector_policy": self.annotation_connector_policy,
+            "annotation_marker_policy": self.annotation_marker_policy,
+            "annotation_shell_policy": self.annotation_shell_policy,
+            "annotation_bounds_policy": self.annotation_bounds_policy,
+            "text_budget_policy": self.text_budget_policy,
+            "line_clamp": self.line_clamp,
+            "char_budget": self.char_budget,
+            "layout_metrics": dict(self.layout_metrics),
+            "annotation_items": [dict(item) for item in self.annotation_items],
+            "css_classes": list(self.css_classes),
+        }
+
+
+@dataclass(frozen=True)
 class ResolvedFeatureBehavior:
     mode: str
     requested_item_count: int
@@ -251,6 +288,7 @@ class ResolvedBottomBehavior:
     mode: str
     gallery_mode: str
     requested_gallery_count: int
+    normalized_gallery_count: int
     visible_item_count: int
     max_gallery_items: int
     title_present: bool
@@ -293,6 +331,7 @@ class ResolvedBottomBehavior:
             "mode": self.mode,
             "gallery_mode": self.gallery_mode,
             "requested_gallery_count": self.requested_gallery_count,
+            "normalized_gallery_count": self.normalized_gallery_count,
             "visible_item_count": self.visible_item_count,
             "max_gallery_items": self.max_gallery_items,
             "title_present": self.title_present,
@@ -355,11 +394,13 @@ class ResolvedTemplateLayoutPolicy:
 class ResolvedTemplateBehavior:
     hero_mode: str
     feature_mode: str
+    product_annotation_mode: str
     header_mode: str | None
     bottom_mode: str | None
     gallery_mode: str | None
     beauty_tokens: TemplateBeautyTokensSpec
     hero_policy: ResolvedHeroBehavior
+    product_policy: ResolvedProductBehavior
     feature_policy: ResolvedFeatureBehavior
     bottom_policy: ResolvedBottomBehavior
     template_layout_policy: ResolvedTemplateLayoutPolicy
@@ -380,11 +421,13 @@ class ResolvedTemplateBehavior:
             "behavior_modes": {
                 "hero_mode": self.hero_mode,
                 "feature_mode": self.feature_mode,
+                "product_annotation_mode": self.product_annotation_mode,
                 "header_mode": self.header_mode,
                 "bottom_mode": self.bottom_mode,
                 "gallery_mode": self.gallery_mode,
             },
             "hero_policy": self.hero_policy.as_dict(),
+            "product_policy": self.product_policy.as_dict(),
             "feature_policy": self.feature_policy.as_dict(),
             "bottom_policy": self.bottom_policy.as_dict(),
             "template_layout_policy": self.template_layout_policy.as_dict(),
@@ -408,6 +451,7 @@ def resolve_template_behavior(
     subtitle_text: str | None = None,
     brand_name: str | None = None,
     gallery_requested_count: int | None = None,
+    gallery_input_count_normalized: int | None = None,
     gallery_resolved_count: int | None = None,
     bottom_mode: str | None = None,
     gallery_mode: str | None = None,
@@ -417,6 +461,11 @@ def resolve_template_behavior(
     beauty = spec.beauty_tokens
     hero_mode = _validate_token(modes.hero_mode, _SUPPORTED_HERO_MODES, "hero_mode")
     feature_mode = _validate_token(modes.feature_mode, _SUPPORTED_FEATURE_MODES, "feature_mode")
+    product_annotation_mode = _validate_token(
+        modes.product_annotation_mode,
+        _SUPPORTED_PRODUCT_ANNOTATION_MODES,
+        "product_annotation_mode",
+    )
     resolved_bottom_mode = _validate_token(bottom_mode or modes.bottom_mode, _SUPPORTED_BOTTOM_MODES, "bottom_mode")
     resolved_gallery_mode = _validate_token(gallery_mode or modes.gallery_mode, _SUPPORTED_GALLERY_MODES, "gallery_mode")
     shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
@@ -436,8 +485,15 @@ def resolve_template_behavior(
         title_text=title_text,
         subtitle_text=subtitle_text,
         requested_gallery_count=gallery_requested_count or 0,
+        normalized_gallery_count=gallery_input_count_normalized if gallery_input_count_normalized is not None else gallery_requested_count or 0,
         resolved_gallery_count=gallery_resolved_count or 0,
         max_items=spec.gallery_slot.count,
+    )
+    product_policy = resolve_product_behavior(
+        spec,
+        annotation_mode=product_annotation_mode,
+        requested_feature_count=feature_count or 0,
+        hero_policy=hero_policy,
     )
     template_layout_policy = resolve_template_layout_policy(
         feature_policy=feature_policy,
@@ -471,6 +527,7 @@ def resolve_template_behavior(
     return ResolvedTemplateBehavior(
         hero_mode=hero_mode,
         feature_mode=feature_mode,
+        product_annotation_mode=product_annotation_mode,
         header_mode=header_policy.mode,
         bottom_mode=resolved_bottom_mode,
         gallery_mode=resolved_gallery_mode,
@@ -482,6 +539,7 @@ def resolve_template_behavior(
             text_emphasis=text_emphasis,
         ),
         hero_policy=hero_policy,
+        product_policy=product_policy,
         feature_policy=feature_policy,
         bottom_policy=bottom_policy,
         template_layout_policy=template_layout_policy,
@@ -495,6 +553,7 @@ def resolve_template_behavior(
             _css_mode_class("layout-density", template_layout_policy.layout_density_mode),
             _css_mode_class("region-priority", template_layout_policy.region_priority_policy),
             _css_mode_class("template-peer-rebalance", template_layout_policy.peer_rebalance_policy),
+            *product_policy.css_classes,
             *bottom_policy.css_classes,
             *header_policy.css_classes,
         ),
@@ -559,6 +618,122 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             css_classes=(_css_mode_class("hero-mode", hero_mode), "hero-scenario-disabled"),
         )
     raise ValueError(f"Unsupported hero_mode: {hero_mode}")
+
+
+def resolve_product_behavior(
+    spec: TemplateSpec,
+    *,
+    annotation_mode: str,
+    requested_feature_count: int,
+    hero_policy: ResolvedHeroBehavior,
+) -> ResolvedProductBehavior:
+    max_items = min(len(spec.feature_callouts), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
+    visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
+    hero_metrics = hero_policy.layout_metrics
+    product_region = {
+        "x": int(hero_metrics["product_region_x"]),
+        "y": int(hero_metrics["product_region_y"]),
+        "w": int(hero_metrics["product_region_w"]),
+        "h": int(hero_metrics["product_region_h"]),
+    }
+
+    if annotation_mode == "none":
+        annotation_count_policy = "annotations_disabled"
+        annotation_connector_policy = "annotation_connectors_disabled"
+        annotation_marker_policy = "annotation_markers_disabled"
+        annotation_shell_policy = "annotation_shell_collapsed"
+        annotation_bounds_policy = "no_annotation_bounds"
+        text_budget_policy = "annotation_budget_disabled"
+        line_clamp = 0
+        char_budget = 0
+        annotation_items: list[dict[str, object]] = []
+        annotation_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
+    else:
+        char_budget = {1: 36, 2: 30, 3: 24}.get(max(visible_annotation_count, 1), 24)
+        line_clamp = 2
+        if annotation_mode == "right_stack_mirror":
+            annotation_count_policy = "fixed_3_right_stack_annotations"
+            annotation_connector_policy = "annotation_connectors_suppressed"
+            annotation_marker_policy = "annotation_markers_suppressed"
+            annotation_shell_policy = "right_stack_annotation_shell"
+            annotation_bounds_policy = "template_label_box_fixed"
+            text_budget_policy = "fixed_3_right_stack_two_line_budget"
+        elif annotation_mode == "product_anchor_callouts":
+            annotation_count_policy = "fixed_3_product_anchor_annotations"
+            annotation_connector_policy = "product_anchor_leader_line"
+            annotation_marker_policy = "product_anchor_marker"
+            annotation_shell_policy = "product_anchor_annotation_shell"
+            annotation_bounds_policy = "template_anchor_fixed"
+            text_budget_policy = "fixed_3_anchor_two_line_budget"
+        else:
+            raise ValueError(f"Unsupported product_annotation_mode: {annotation_mode}")
+
+        annotation_items = []
+        left = None
+        top = None
+        right = None
+        bottom = None
+        for index, callout in enumerate(spec.feature_callouts[:max_items], start=1):
+            label_box = callout.label_box
+            annotation_items.append(
+                {
+                    "slot_id": f"product_annotation_slot_{index}",
+                    "anchor_index": index - 1,
+                    "anchor_x": int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None,
+                    "anchor_y": int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None,
+                    "anchor_color": callout.anchor_color if annotation_mode == "product_anchor_callouts" else None,
+                    "label_bounds": {
+                        "x": int(label_box.x),
+                        "y": int(label_box.y),
+                        "w": int(label_box.w),
+                        "h": int(label_box.h),
+                    },
+                    "connector_policy": annotation_connector_policy,
+                    "marker_policy": annotation_marker_policy,
+                    "positions_source": "template_spec_fixed",
+                }
+            )
+            left = int(label_box.x) if left is None else min(left, int(label_box.x))
+            top = int(label_box.y) if top is None else min(top, int(label_box.y))
+            right = int(label_box.x + label_box.w) if right is None else max(right, int(label_box.x + label_box.w))
+            bottom = int(label_box.y + label_box.h) if bottom is None else max(bottom, int(label_box.y + label_box.h))
+        annotation_shell = {
+            "x": int(left or product_region["x"]),
+            "y": int(top or product_region["y"]),
+            "w": int((right - left) if left is not None and right is not None else 0),
+            "h": int((bottom - top) if top is not None and bottom is not None else 0),
+        }
+
+    layout_metrics = {
+        "product_region_x": product_region["x"],
+        "product_region_y": product_region["y"],
+        "product_region_w": product_region["w"],
+        "product_region_h": product_region["h"],
+        "annotation_shell_x": int(annotation_shell["x"]),
+        "annotation_shell_y": int(annotation_shell["y"]),
+        "annotation_shell_w": int(annotation_shell["w"]),
+        "annotation_shell_h": int(annotation_shell["h"]),
+    }
+
+    return ResolvedProductBehavior(
+        annotation_mode=annotation_mode,
+        visible_annotation_count=visible_annotation_count,
+        max_annotation_items=max_items,
+        annotation_count_policy=annotation_count_policy,
+        annotation_connector_policy=annotation_connector_policy,
+        annotation_marker_policy=annotation_marker_policy,
+        annotation_shell_policy=annotation_shell_policy,
+        annotation_bounds_policy=annotation_bounds_policy,
+        text_budget_policy=text_budget_policy,
+        line_clamp=line_clamp,
+        char_budget=char_budget,
+        layout_metrics=layout_metrics,
+        annotation_items=tuple(annotation_items),
+        css_classes=(
+            _css_mode_class("product-annotation", annotation_mode),
+            _css_mode_class("product-annotation-count", str(visible_annotation_count)),
+        ),
+    )
 
 
 def resolve_feature_behavior(
@@ -892,6 +1067,7 @@ def resolve_bottom_behavior(
     title_text: str | None,
     subtitle_text: str | None,
     requested_gallery_count: int,
+    normalized_gallery_count: int,
     resolved_gallery_count: int,
     max_items: int,
 ) -> ResolvedBottomBehavior:
@@ -900,6 +1076,7 @@ def resolve_bottom_behavior(
     title_length = len((title_text or "").strip())
     subtitle_length = len((subtitle_text or "").strip())
     requested_gallery_count = min(max(requested_gallery_count, 0), max_items)
+    normalized_gallery_count = min(max(normalized_gallery_count, 0), max_items)
     visible_item_count = min(max(resolved_gallery_count, 0), max_items)
     title_slot_rendered = title_present and bottom_mode != "gallery_only"
     subtitle_slot_rendered = subtitle_present and bottom_mode != "gallery_only" and title_present
@@ -994,7 +1171,7 @@ def resolve_bottom_behavior(
         elif bottom_mode == "title_only":
             reason_code = "suppressed_by_bottom_mode"
             state = "collapsed"
-        elif index >= requested_gallery_count:
+        elif index >= normalized_gallery_count:
             reason_code = "gallery_input_missing"
             state = "collapsed"
         elif index >= visible_item_count:
@@ -1042,6 +1219,7 @@ def resolve_bottom_behavior(
         mode=bottom_mode,
         gallery_mode=gallery_mode,
         requested_gallery_count=requested_gallery_count,
+        normalized_gallery_count=normalized_gallery_count,
         visible_item_count=visible_item_count,
         max_gallery_items=max_items,
         title_present=title_present,
