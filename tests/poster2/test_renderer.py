@@ -1176,10 +1176,24 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.gallery_strip_shift_policy == "tight_quad_shift"
         assert resolved.bottom_policy.gallery_aspect_policy == "compact_quad_aspect"
         assert resolved.bottom_policy.bottom_text_emphasis_policy == "compact_quad_text_emphasis"
+        assert resolved.bottom_policy.title_char_budget == 28
         assert resolved.bottom_policy.subtitle_line_clamp == 1
+        assert resolved.bottom_policy.subtitle_char_budget == 28
         assert resolved.bottom_policy.layout_metrics["title_band_height"] == 144
         assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 882
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
+
+    def test_template_behavior_resolver_relaxes_header_agent_budget_with_identity_layout(self):
+        template = _load_real_template()
+
+        resolved = resolve_template_behavior(
+            template,
+            brand_name="ChefKitchen",
+            agent_name="Official Distributor CN Team",
+        )
+
+        assert resolved.header_policy.mode == "identity_left_agent_right"
+        assert resolved.header_policy.agent_char_budget == 32
 
     def test_template_behavior_resolver_promotes_dense_feature_and_bottom_into_template_policy(self):
         template = _load_real_template()

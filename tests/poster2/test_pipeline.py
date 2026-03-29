@@ -791,7 +791,9 @@ class TestPosterPipelineRun:
         assert behavior["gallery_strip_shift_policy"] == "tight_quad_shift"
         assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "compact_quad_text_emphasis"
+        assert behavior["title_char_budget"] == 28
         assert behavior["subtitle_line_clamp"] == 1
+        assert behavior["subtitle_char_budget"] == 28
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
@@ -838,9 +840,45 @@ class TestPosterPipelineRun:
 
         assert behavior["title_line_clamp"] == 1
         assert behavior["subtitle_line_clamp"] == 1
+        assert behavior["title_char_budget"] == 28
+        assert behavior["subtitle_char_budget"] == 28
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
+
+    def test_header_contract_review_keeps_identity_lane_geometry_while_relaxing_agent_budget(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        requested_agent = "Official Distributor CN Team"
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(brand_name="ChefKitchen", agent_name=requested_agent),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        header_review = metadata["header_contract_review"]
+        geometry = metadata["geometry_evidence"]
+
+        assert header_review["behavior_policy"]["agent_char_budget"] == 32
+        assert header_review["rendered_agent_excerpt"] == requested_agent
+        assert header_review["agent_truncation_applied"] is False
+        assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
 
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
         stored_payloads: dict[str, bytes] = {}
