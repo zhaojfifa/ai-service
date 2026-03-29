@@ -284,12 +284,19 @@ Validated coverage includes:
 - dynamic strip height / item height / peer gap response under varying gallery density
 - dynamic gallery shell framing / radius response
 - minimal bottom text emphasis response
+- dense-quad text-budget closure under `title_gallery_split` without geometry change
 - `gallery_only + supporting_packshots`
 - metadata / evidence exposing resolved gallery slot bounds
 - Stage2 diagnostics still surfacing:
   - `template_behavior`
   - `geometry_evidence`
   - `bottom_contract_review`
+
+Latest policy-tuning closure inside the frozen baseline:
+
+- `dense_quad` now keeps `title_line_clamp = 2` under split mode instead of degrading early to one line
+- `dense_quad` now resolves `title_char_budget = 40` and `subtitle_char_budget = 32`
+- this is policy tuning only; `bottom_region`, `bottom_contract_review`, `geometry_evidence`, and diagnostics field names remain unchanged
 
 ## 9. Remaining Risks
 
