@@ -84,3 +84,30 @@ Interpretation:
 
 - branch-local runtime behavior is now covered without relying on live deployment state
 - the remaining blocker before re-merge review is a review deployment or equivalent runtime that exposes this branch outside local test execution
+
+### 2026-03-29 — temporary branch runtime smoke
+
+A temporary local runtime was launched from `fix/poster2-header-bottom-budget-guarded`
+and exercised through a real HTTP `POST /api/v2/generate-poster`.
+
+Runtime result:
+
+- host: `http://127.0.0.1:8015`
+- request id: `p2-guarded-runtime`
+- trace id: `5dee96fb-f964-4e69-8111-26e126b3c77c`
+- `degraded = false`
+- `structure_complete = true`
+- `deliverable = true`
+- `header agent_char_budget = 32`
+- `bottom dense-quad title_char_budget = 28`
+- `bottom dense-quad subtitle_char_budget = 28`
+- frozen bottom geometry evidence unchanged:
+  - `title_band_region = {x:112,y:728,w:800,h:144}`
+  - `subtitle_slot = {x:152,y:818,w:720,h:28}`
+  - `gallery_strip_region = {x:96,y:882,w:832,h:64}`
+
+Interpretation:
+
+- guarded tuning is now validated on a real branch runtime path
+- re-merge wording must stay `guarded tuning`
+- this branch is not a phase upgrade, not beautification, and not a baseline rewrite

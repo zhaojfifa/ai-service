@@ -100,3 +100,34 @@ Interpretation:
 
 - guarded branch contract behavior is now covered both at resolver/pipeline level and API-path level
 - the remaining re-merge blocker is external runtime visibility of this branch, not missing local contract evidence
+
+## Temporary Branch Runtime Smoke
+
+A temporary local runtime was started from this guarded branch and exercised with a
+real HTTP `POST /api/v2/generate-poster`.
+
+Runtime snapshot:
+
+- host: `http://127.0.0.1:8015`
+- request id: `p2-guarded-runtime`
+- trace id: `5dee96fb-f964-4e69-8111-26e126b3c77c`
+
+Observed runtime status:
+
+- `degraded = false`
+- `structure_complete = true`
+- `deliverable = true`
+- `header agent_char_budget = 32`
+- `bottom dense-quad title_char_budget = 28`
+- `bottom dense-quad subtitle_char_budget = 28`
+- `title_line_clamp` unchanged
+- `subtitle_line_clamp` unchanged
+- `title_band_region` bounds unchanged
+- `subtitle_slot` bounds unchanged
+- `gallery_strip_region` bounds unchanged
+
+Interpretation:
+
+- the guarded budget tuning is now verified on a real branch runtime path
+- merge wording should remain `guarded tuning`, not phase upgrade
+- beautification remains downstream and must not be used to hide control failures
