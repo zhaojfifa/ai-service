@@ -94,20 +94,29 @@ Do not jump directly into renderer or CSS without re-anchoring on the docs first
 
 See `.env.example` for the full variable reference.
 
-## poster2 phase state (as of 2026-03-28)
+## poster2 phase state (as of 2026-03-29)
 
-### Phase 2: bottom SOP baseline — ESTABLISHED
+### Product annotation layer — ACTIVATED
 
-- `bottom_region` behavior (`bottom_mode`, `gallery_mode`, `gallery_count`, title/subtitle) is the agreed SOP baseline for behavior-layer rollout
-- **bottom mode selection bug — FIXED**: removed early-return eligibility gate from `initPoster2BottomContractControls` in `frontend/app.js`; controls now always wired regardless of `template_id`
-- Stage 2 page refactored to two-column Resolver Layout design: bottom controls in left panel; Result Diagnostics and old CSS layout preview removed; Resolver Layout section shows all region rows post-generation
+- `feature_mode` in `template_dual_v2.json` is now `product_anchor_callouts` (production default)
+- Renderer uses fixed template-spec anchor positions when this mode is active; old stacking algorithm bypassed
+- `product_annotation_shell_layer` and `product_annotation_items_layer` emitted in layer render status
+- `product_annotation_contract_review` emitted per generation: per-slot anchor coords, label bounds, text chain, feature suppression flag
+- `product_annotation_mode` exposed as distinct key in `behavior_modes`
+- Stage 2 Resolver Layout: annotation chip + annotation detail panel for `product_region`
+- 179/179 tests pass
 
-### Phase 3: next
+### Prior phases still established
 
-- Replicate bottom resolver pattern to remaining regions: header, scenario, product, feature
-- Complete `header_identity_zone_mode` resolver wiring
-- Preview-path / generation-path parity收口 (Puppeteer vs Pillow)
-- Beautification layer planning (downstream of behavior stability)
+- **Phase 2 (bottom SOP)**: `bottom_region` resolver baseline; bottom mode selection bug fixed; Stage 2 Resolver Layout design
+- **Beautification Phase 1**: `glass_light` shell, `soft_line` border, `soft` shadow, feature connector/marker visual
+
+### Next
+
+- `header_region`: complete `identity_zone_mode` resolver wiring
+- `scenario_region`: resolver coverage
+- Preview-path / generation-path parity収口 (Puppeteer vs Pillow)
+- Beautification layer planning (after all-region behavior stability)
 
 ---
 

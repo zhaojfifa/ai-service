@@ -417,6 +417,11 @@ class ResolvedTemplateBehavior:
         return " ".join(self.root_classes)
 
     def as_dict(self) -> dict[str, object]:
+        product_annotation_mode = (
+            self.feature_mode
+            if self.feature_mode == "product_anchor_callouts"
+            else "none"
+        )
         return {
             "behavior_modes": {
                 "hero_mode": self.hero_mode,

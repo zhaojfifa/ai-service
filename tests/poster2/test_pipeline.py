@@ -75,6 +75,12 @@ def _load_template() -> TemplateSpec:
     return TemplateSpec.from_json(p)
 
 
+def _load_template_with_feature_mode(feature_mode: str) -> TemplateSpec:
+    t = _load_template()
+    t.behavior_modes = replace(t.behavior_modes, feature_mode=feature_mode)
+    return t
+
+
 # ── Mock factories ─────────────────────────────────────────────────────────────
 
 def _mock_bg_service(seed: int = 42) -> FireflyBackgroundService:
@@ -430,13 +436,14 @@ class TestPosterPipelineRun:
         metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         assert metadata["template_behavior"]["behavior_modes"]["hero_mode"] == "scenario_cover_product_contain"
-        assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "count_driven_callout_stack"
+        assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "product_anchor_callouts"
+        assert metadata["template_behavior"]["behavior_modes"]["product_annotation_mode"] == "product_anchor_callouts"
         assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
         assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
         assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
         assert metadata["template_behavior"]["hero_policy"]["product_fit"] == "contain"
         assert metadata["template_behavior"]["feature_policy"]["visible_item_count"] == 2
-        assert metadata["template_behavior"]["feature_policy"]["connector_policy"] == "balanced_pair"
+        assert metadata["template_behavior"]["feature_policy"]["connector_policy"] == "product_anchor_leader_line"
         assert metadata["template_behavior"]["bottom_policy"]["title_band_rendered"] is True
         assert metadata["template_behavior"]["bottom_policy"]["gallery_strip_rendered"] is False
         assert metadata["template_behavior"]["template_layout_policy"]["layout_density_mode"] == "balanced"
@@ -493,12 +500,12 @@ class TestPosterPipelineRun:
         assert geometry["visible_item_count"]["title_band_region"] == 2
         assert geometry["visible_item_count"]["product_region"] == 1
         feature_review = metadata["feature_contract_review"]
-        assert feature_review["feature_mode"] == "count_driven_callout_stack"
+        assert feature_review["feature_mode"] == "product_anchor_callouts"
         assert feature_review["requested_feature_items"] == ["特性A", "特性B"]
         assert feature_review["sanitized_feature_items"] == ["特性A", "特性B"]
         assert feature_review["rendered_feature_items"] == ["特性A", "特性B"]
-        assert feature_review["behavior_policy"]["connector_policy"] == "balanced_pair"
-        assert feature_review["behavior_policy"]["text_budget_policy"] == "count_scaled_two_line_budget"
+        assert feature_review["behavior_policy"]["connector_policy"] == "product_anchor_leader_line"
+        assert feature_review["behavior_policy"]["text_budget_policy"] == "anchor_fixed_budget"
         assert feature_review["feature_slots"][0]["rendered"] is True
         assert feature_review["feature_slots"][0]["truncation_applied"] is False
         hero_review = metadata["hero_contract_review"]
@@ -1046,7 +1053,7 @@ class TestPosterPipelineRun:
                     features=("特性A", "特性B", "特性C", "特性D"),
                     gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
                 ),
-                _load_template(),
+                _load_template_with_feature_mode("count_driven_callout_stack"),
             )
         )
 
@@ -1200,7 +1207,7 @@ class TestPosterPipelineRun:
         asyncio.run(
             pipeline.run(
                 _make_spec(features=(" 特性A ", "   ", "超长特性文案超长特性文案超长特性文案超长特性文案超长特性文案", "特性D", "特性E")),
-                _load_template(),
+                _load_template_with_feature_mode("count_driven_callout_stack"),
             )
         )
 

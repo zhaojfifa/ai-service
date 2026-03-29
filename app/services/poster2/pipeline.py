@@ -352,6 +352,13 @@ class PosterPipeline:
                 resolved_behavior=resolved_behavior,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "product_annotation_contract_review": _build_product_annotation_contract_review(
+                template,
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
+                resolved_behavior=resolved_behavior,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -426,6 +433,7 @@ class PosterPipeline:
             header_contract_review=renderer_metadata_payload["header_contract_review"],
             feature_contract_review=renderer_metadata_payload["feature_contract_review"],
             bottom_contract_review=renderer_metadata_payload["bottom_contract_review"],
+            product_annotation_contract_review=renderer_metadata_payload["product_annotation_contract_review"],
         )
 
 
@@ -725,6 +733,24 @@ def _build_layer_render_status(
             "source_binding": None,
             "count": 0,
         },
+    }
+    annotation_active = behavior.feature_policy.mode == "product_anchor_callouts"
+    annotation_item_count = behavior.feature_policy.visible_item_count if annotation_active else 0
+    layer_status["product_annotation_shell_layer"] = {
+        "rendered": annotation_active,
+        "reason_code": None if annotation_active else "product_annotation_mode_none",
+        "source_binding": "template_dual_v2.product_annotation_shell",
+        "count": 1 if annotation_active else 0,
+        "collapsed": not annotation_active,
+    }
+    layer_status["product_annotation_items_layer"] = {
+        "rendered": annotation_active and annotation_item_count > 0,
+        "reason_code": None if (annotation_active and annotation_item_count > 0) else (
+            "product_annotation_mode_none" if not annotation_active else "features_empty"
+        ),
+        "source_binding": "features",
+        "count": annotation_item_count,
+        "collapsed": not annotation_active or annotation_item_count == 0,
     }
     return layer_status
 
@@ -1410,4 +1436,107 @@ def _build_feature_contract_review(
         },
         "feature_slots": item_reviews,
         "anchor_evidence": anchor_evidence,
+    }
+
+
+def _build_product_annotation_contract_review(
+    template: TemplateSpec,
+    *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
+    resolved_behavior,
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    feature_policy = resolved_behavior.feature_policy
+    annotation_mode = (
+        feature_policy.mode
+        if feature_policy.mode == "product_anchor_callouts"
+        else "none"
+    )
+    if annotation_mode == "none":
+        return {
+            "product_annotation_mode": "none",
+            "annotation_active": False,
+            "annotation_slots": [],
+            "product_region": {
+                "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
+            },
+        }
+
+    max_slots = feature_policy.max_items  # fixed 3
+    slot_reviews = []
+    for i in range(max_slots):
+        requested_text = (
+            requested_spec.features[i]
+            if i < len(requested_spec.features)
+            else ""
+        )
+        sanitized_text = (
+            effective_spec.features[i]
+            if i < len(effective_spec.features)
+            else ""
+        )
+        is_visible = i < feature_policy.visible_item_count and bool(sanitized_text)
+        rendered_excerpt = (
+            _apply_text_budget(sanitized_text, feature_policy.char_budget)
+            if is_visible
+            else ""
+        )
+        if i < len(template.feature_callouts):
+            fc = template.feature_callouts[i]
+            lb = fc.label_box
+            anchor_x = int(fc.anchor_x)
+            anchor_y = int(fc.anchor_y)
+            label_bounds = {"x": int(lb.x), "y": int(lb.y), "w": int(lb.w), "h": int(lb.h)}
+            anchor_color = fc.anchor_color
+        else:
+            anchor_x = None
+            anchor_y = None
+            label_bounds = None
+            anchor_color = None
+        slot_reviews.append({
+            "slot_index": i,
+            "slot_id": f"annotation_slot_{i + 1}",
+            "rendered": is_visible,
+            "requested_text": requested_text,
+            "sanitized_text": sanitized_text,
+            "rendered_excerpt": rendered_excerpt,
+            "truncation_applied": rendered_excerpt != sanitized_text,
+            "anchor_x": anchor_x,
+            "anchor_y": anchor_y,
+            "label_bounds": label_bounds,
+            "connector_policy": feature_policy.connector_policy,
+            "marker_policy": "dot_marker_accent_color",
+            "positions_source": "template_spec_fixed",
+            "anchor_color": anchor_color,
+        })
+
+    return {
+        "product_annotation_mode": annotation_mode,
+        "annotation_active": True,
+        "max_slots": max_slots,
+        "visible_slot_count": feature_policy.visible_item_count,
+        "annotation_slots": slot_reviews,
+        "product_region": {
+            "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
+            "bounds": {
+                "x": int(resolved_behavior.hero_policy.layout_metrics["product_region_x"]),
+                "y": int(resolved_behavior.hero_policy.layout_metrics["product_region_y"]),
+                "w": int(resolved_behavior.hero_policy.layout_metrics["product_region_w"]),
+                "h": int(resolved_behavior.hero_policy.layout_metrics["product_region_h"]),
+            },
+        },
+        "behavior_policy": {
+            "visible_item_count_policy": feature_policy.visible_item_count_policy,
+            "connector_policy": feature_policy.connector_policy,
+            "marker_policy": "dot_marker_accent_color",
+            "box_policy": feature_policy.box_policy,
+            "start_strategy": feature_policy.start_strategy,
+            "char_budget": feature_policy.char_budget,
+            "line_clamp": feature_policy.line_clamp,
+        },
+        "feature_suppression": {
+            "feature_right_stack_suppressed": True,
+            "suppression_reason": "product_annotation_mode_active",
+        },
     }

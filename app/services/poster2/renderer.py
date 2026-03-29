@@ -1103,6 +1103,31 @@ def _resolve_feature_callout_layout(
     normalized_features = _normalized_feature_texts(features)
     if not callouts or not normalized_features:
         return []
+
+    # product_anchor_callouts: use template-spec fixed positions directly.
+    # No centering / stacking algorithm. Anchor dots and label boxes are
+    # placed exactly where the template spec declares them.
+    # The feature right-stack algorithm is suppressed for this mode.
+    if feature_policy is not None and feature_policy.mode == "product_anchor_callouts":
+        from .template_behavior import _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS
+        max_visible = feature_policy.visible_item_count
+        limited_features = normalized_features[:max_visible]
+        source = callouts[:max_visible]
+        resolved: list[tuple[FeatureCalloutSpec, str]] = []
+        for base, feature_text in zip(source, limited_features):
+            resolved_callout = replace(
+                base,
+                anchor_color=accent_color or base.anchor_color,
+                leader_color=accent_color or base.leader_color,
+                label_box=replace(
+                    base.label_box,
+                    color=text_color or base.label_box.color,
+                    max_lines=2,
+                ),
+            )
+            resolved.append((resolved_callout, feature_text))
+        return resolved
+
     limited_features = normalized_features[: min(len(normalized_features), len(callouts))]
     count = len(limited_features)
     if feature_policy is None:
@@ -1114,14 +1139,13 @@ def _resolve_feature_callout_layout(
             "connector_policy": feature_policy.connector_policy,
         }
     source = callouts[:count]
-    first = source[0]
     region_top = min(item.label_box.y for item in callouts)
     region_bottom = max(item.label_box.y + item.label_box.h for item in callouts)
     box_h = int(mode_spec["box_h"])
     gap = int(mode_spec["gap"])
     total_height = box_h * count + gap * max(count - 1, 0)
     start_y = region_top + max((region_bottom - region_top - total_height) // 2, 0)
-    resolved: list[tuple[FeatureCalloutSpec, str]] = []
+    resolved = []
     for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
         label_y = start_y + idx * (box_h + gap)
         label_box = replace(

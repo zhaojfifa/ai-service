@@ -1017,11 +1017,11 @@ class TestStructuredScenarioLayer:
         resolved = resolve_template_behavior(template)
 
         assert resolved.hero_mode == "scenario_cover_product_contain"
-        assert resolved.feature_mode == "count_driven_callout_stack"
+        assert resolved.feature_mode == "product_anchor_callouts"
         assert resolved.beauty_tokens.shell_surface == "glass_light"
         assert resolved.css_vars["--accent-tone"] == "#E8002A"
         assert resolved.hero_policy.scenario_enabled is True
-        assert resolved.feature_policy.mode == "count_driven_callout_stack"
+        assert resolved.feature_policy.mode == "product_anchor_callouts"
         assert resolved.bottom_policy.mode == "title_gallery_split"
         assert resolved.bottom_policy.gallery_mode == "strip_local_visible_only"
 
@@ -1183,6 +1183,7 @@ class TestStructuredScenarioLayer:
 
     def test_template_behavior_resolver_promotes_dense_feature_and_bottom_into_template_policy(self):
         template = _load_real_template()
+        template.behavior_modes = replace(template.behavior_modes, feature_mode="count_driven_callout_stack")
 
         resolved = resolve_template_behavior(
             template,
@@ -1203,6 +1204,7 @@ class TestStructuredScenarioLayer:
 
     def test_template_behavior_resolver_keeps_bottom_dense_case_local_when_feature_is_light(self):
         template = _load_real_template()
+        template.behavior_modes = replace(template.behavior_modes, feature_mode="count_driven_callout_stack")
 
         resolved = resolve_template_behavior(
             template,
