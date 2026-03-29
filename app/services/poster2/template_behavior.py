@@ -235,6 +235,7 @@ class ResolvedHeroBehavior:
 class ResolvedProductBehavior:
     annotation_mode: str
     product_layout_mode: str                          # "single_primary" | "primary_secondary_dual"
+    product_layout_mode_reason: str
     product_primary_slot: dict[str, int]              # {x, y, w, h} of primary product image region
     product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
     product_secondary_slot_rendered: bool
@@ -257,6 +258,7 @@ class ResolvedProductBehavior:
         return {
             "annotation_mode": self.annotation_mode,
             "product_layout_mode": self.product_layout_mode,
+            "product_layout_mode_reason": self.product_layout_mode_reason,
             "product_primary_slot": dict(self.product_primary_slot),
             "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
             "product_secondary_slot_rendered": self.product_secondary_slot_rendered,
@@ -318,6 +320,9 @@ class ResolvedFeatureBehavior:
 @dataclass(frozen=True)
 class ResolvedBottomBehavior:
     mode: str
+    requested_mode: str | None
+    effective_mode: str
+    mode_override_reason: str
     bottom_layout_mode: str          # structural expansion mode; "none" for frozen baseline modes
     bottom_shell_top: int            # actual y-start of the bottom shell
     gallery_mode: str
@@ -363,6 +368,9 @@ class ResolvedBottomBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
+            "requested_mode": self.requested_mode,
+            "effective_mode": self.effective_mode,
+            "mode_override_reason": self.mode_override_reason,
             "bottom_layout_mode": self.bottom_layout_mode,
             "bottom_shell_top": self.bottom_shell_top,
             "gallery_mode": self.gallery_mode,
@@ -498,6 +506,7 @@ def resolve_template_behavior(
     bottom_mode: str | None = None,
     gallery_mode: str | None = None,
     agent_name: str | None = None,
+    has_product_secondary_asset: bool = False,
 ) -> ResolvedTemplateBehavior:
     modes = spec.behavior_modes
     beauty = spec.beauty_tokens
@@ -528,6 +537,8 @@ def resolve_template_behavior(
     )
     bottom_policy = resolve_bottom_behavior(
         resolved_bottom_mode,
+        requested_bottom_mode=bottom_mode,
+        template_bottom_mode=modes.bottom_mode,
         gallery_mode=resolved_gallery_mode,
         title_text=title_text,
         subtitle_text=subtitle_text,
@@ -540,6 +551,7 @@ def resolve_template_behavior(
         spec,
         annotation_mode=product_annotation_mode,
         product_layout_mode=product_layout_mode,
+        has_product_secondary_asset=has_product_secondary_asset,
         requested_feature_count=feature_count or 0,
         hero_policy=hero_policy,
     )
@@ -673,10 +685,19 @@ def resolve_product_behavior(
     *,
     annotation_mode: str,
     product_layout_mode: str = "single_primary",
+    has_product_secondary_asset: bool = False,
     requested_feature_count: int,
     hero_policy: ResolvedHeroBehavior,
 ) -> ResolvedProductBehavior:
     _validate_token(product_layout_mode, _SUPPORTED_PRODUCT_LAYOUT_MODES, "product_layout_mode")
+    effective_product_layout_mode = product_layout_mode
+    if product_layout_mode == "single_primary" and has_product_secondary_asset:
+        effective_product_layout_mode = "primary_secondary_dual"
+        product_layout_mode_reason = "auto_promoted_by_secondary_asset"
+    elif product_layout_mode == "primary_secondary_dual":
+        product_layout_mode_reason = "template_mode_primary_secondary_dual"
+    else:
+        product_layout_mode_reason = "single_primary_without_secondary_asset"
     max_items = min(len(spec.feature_callouts), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
     visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
     hero_metrics = hero_policy.layout_metrics
@@ -688,7 +709,7 @@ def resolve_product_behavior(
     }
 
     # Resolve product slot geometry from layout mode.
-    if product_layout_mode == "primary_secondary_dual":
+    if effective_product_layout_mode == "primary_secondary_dual":
         product_primary_slot: dict[str, int] = dict(_PRODUCT_DUAL_PRIMARY_SLOT)
         product_secondary_slot: dict[str, int] | None = dict(_PRODUCT_DUAL_SECONDARY_SLOT)
         product_secondary_slot_rendered = True
@@ -787,7 +808,8 @@ def resolve_product_behavior(
 
     return ResolvedProductBehavior(
         annotation_mode=annotation_mode,
-        product_layout_mode=product_layout_mode,
+        product_layout_mode=effective_product_layout_mode,
+        product_layout_mode_reason=product_layout_mode_reason,
         product_primary_slot=product_primary_slot,
         product_secondary_slot=product_secondary_slot,
         product_secondary_slot_rendered=product_secondary_slot_rendered,
@@ -1138,6 +1160,8 @@ def _resolve_header_behavior_vars(header_policy: ResolvedHeaderBehavior) -> dict
 def resolve_bottom_behavior(
     bottom_mode: str,
     *,
+    requested_bottom_mode: str | None = None,
+    template_bottom_mode: str | None = None,
     gallery_mode: str,
     title_text: str | None,
     subtitle_text: str | None,
@@ -1158,6 +1182,12 @@ def resolve_bottom_behavior(
     is_expanded_mode = bottom_layout_mode is not None
     actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, 728)
     resolved_bottom_layout_mode = bottom_mode if is_expanded_mode else "none"
+    if requested_bottom_mode is None:
+        mode_override_reason = "template_default_applied"
+    elif template_bottom_mode is not None and requested_bottom_mode == template_bottom_mode:
+        mode_override_reason = "requested_matches_template_default"
+    else:
+        mode_override_reason = "request_override_applied"
 
     title_slot_rendered = title_present and bottom_mode != "gallery_only"
     subtitle_slot_rendered = subtitle_present and bottom_mode != "gallery_only" and title_present
@@ -1307,6 +1337,9 @@ def resolve_bottom_behavior(
 
     return ResolvedBottomBehavior(
         mode=bottom_mode,
+        requested_mode=requested_bottom_mode,
+        effective_mode=bottom_mode,
+        mode_override_reason=mode_override_reason,
         bottom_layout_mode=resolved_bottom_layout_mode,
         bottom_shell_top=actual_bottom_shell_top,
         gallery_mode=gallery_mode,

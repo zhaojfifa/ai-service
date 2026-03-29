@@ -101,6 +101,16 @@ def test_frontend_stage2_surfaces_scenario_contract_review():
     assert "annotationReview, scenarioReview)" in html
 
 
+def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
+    html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+
+    assert "requested/effective:" in html
+    assert "bottom_mode_override_reason" in html
+    assert "buildProductDetail(productReview, annotationReview)" in html
+    assert "product_secondary_image_layer" in html
+    assert "product_secondary_slot" in html
+
+
 def test_docs_publish_mirror_contains_same_guard_diagnostics():
     frontend_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
     frontend_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")

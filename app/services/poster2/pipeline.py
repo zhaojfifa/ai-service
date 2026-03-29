@@ -155,6 +155,7 @@ class PosterPipeline:
             bottom_mode=effective_spec.bottom_mode,
             gallery_mode=effective_spec.gallery_mode,
             agent_name=effective_spec.agent_name,
+            has_product_secondary_asset=assets.product_secondary is not None,
         )
         logger.info(
             "poster2: trace=%s bg=%.1fs assets=loaded",
@@ -891,6 +892,8 @@ def _build_geometry_evidence(
             "subtitle_slot": _subtitle_slot_bounds(template, resolved_behavior),
             "scenario_slot": _scenario_slot_bounds(template, resolved_behavior),
             "product_slot": _product_slot_bounds(template, resolved_behavior),
+            "product_primary_slot": _product_primary_slot_bounds(resolved_behavior),
+            "product_secondary_slot": _product_secondary_slot_bounds(resolved_behavior),
             "gallery_slot": _gallery_item_slot_bounds(template, resolved_behavior),
         },
         "visible_item_count": {
@@ -992,12 +995,28 @@ def _scenario_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str
 
 
 def _product_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
-    metrics = resolved_behavior.hero_policy.layout_metrics
+    return _product_primary_slot_bounds(resolved_behavior)
+
+
+def _product_primary_slot_bounds(resolved_behavior) -> dict[str, int]:
+    primary = resolved_behavior.product_policy.product_primary_slot
     return {
-        "x": int(metrics["product_region_x"]),
-        "y": int(metrics["product_region_y"]),
-        "w": int(metrics["product_region_w"]),
-        "h": int(metrics["product_region_h"]),
+        "x": int(primary["x"]),
+        "y": int(primary["y"]),
+        "w": int(primary["w"]),
+        "h": int(primary["h"]),
+    }
+
+
+def _product_secondary_slot_bounds(resolved_behavior) -> dict[str, int]:
+    secondary = resolved_behavior.product_policy.product_secondary_slot
+    if secondary is None:
+        return {"x": 0, "y": 0, "w": 0, "h": 0}
+    return {
+        "x": int(secondary["x"]),
+        "y": int(secondary["y"]),
+        "w": int(secondary["w"]),
+        "h": int(secondary["h"]),
     }
 
 
@@ -1091,6 +1110,9 @@ def _build_bottom_contract_review(
     )
     return {
         "bottom_mode": resolved_behavior.bottom_policy.mode,
+        "requested_bottom_mode": resolved_behavior.bottom_policy.requested_mode,
+        "effective_bottom_mode": resolved_behavior.bottom_policy.effective_mode,
+        "bottom_mode_override_reason": resolved_behavior.bottom_policy.mode_override_reason,
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
         "gallery_input_count_raw": int(gallery_counts["raw"]),
         "gallery_input_count_normalized": int(gallery_counts["normalized"]),
@@ -1447,6 +1469,12 @@ def _build_product_contract_review(
             rendered_items.append(rendered_excerpt)
 
     layout_metrics = dict(product_policy.layout_metrics)
+    primary_bounds = _product_primary_slot_bounds(resolved_behavior)
+    secondary_bounds = (
+        _product_secondary_slot_bounds(resolved_behavior)
+        if product_policy.product_secondary_slot is not None
+        else None
+    )
     return {
         "product_annotation_mode": product_policy.annotation_mode,
         "requested_product_source": requested_spec.product_image.url,
@@ -1478,12 +1506,13 @@ def _build_product_contract_review(
         "product_image_layer": {
             "rendered": bool(layer_render_status.get("product_image_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
-            "bounds": {
-                "x": int(layout_metrics["product_region_x"]),
-                "y": int(layout_metrics["product_region_y"]),
-                "w": int(layout_metrics["product_region_w"]),
-                "h": int(layout_metrics["product_region_h"]),
-            },
+            "bounds": primary_bounds,
+        },
+        "product_secondary_image_layer": {
+            "rendered": bool(layer_render_status.get("product_secondary_image_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_secondary_image_layer", {}).get("reason_code"),
+            "source_binding": layer_render_status.get("product_secondary_image_layer", {}).get("source_binding"),
+            "bounds": secondary_bounds,
         },
         "product_annotation_shell_layer": {
             "rendered": bool(layer_render_status.get("product_annotation_shell_layer", {}).get("rendered", False)),
@@ -1501,6 +1530,7 @@ def _build_product_contract_review(
             "visible_item_count": product_policy.visible_annotation_count,
         },
         "product_layout_mode": product_policy.product_layout_mode,
+        "product_layout_mode_reason": product_policy.product_layout_mode_reason,
         "product_primary_slot": dict(product_policy.product_primary_slot),
         "product_secondary_slot": dict(product_policy.product_secondary_slot) if product_policy.product_secondary_slot else None,
         "product_secondary_slot_rendered": product_policy.product_secondary_slot_rendered,
