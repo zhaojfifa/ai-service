@@ -1,5 +1,7 @@
 # bottom behavior contract status v1
 
+This file is the frozen bottom SOP baseline record. It must not be reused as a branch-local tuning log; future bottom tuning belongs in bug records or branch-local artifacts unless a new baseline decision is made.
+
 ## 1. Task Objective
 
 Promote bottom from early behavior into stable behavior so that bottom peer rebalance, count-driven gallery distribution, and mixed text-image layout response are contract-driven rather than fixed-layout driven.

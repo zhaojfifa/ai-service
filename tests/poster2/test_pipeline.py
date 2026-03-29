@@ -796,6 +796,52 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
 
+    def test_bottom_split_mode_frozen_evidence_guard_keeps_dense_quad_baseline(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (400, 200), (50, 100, 200, 255)) for _ in range(4)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(4)
+            ],
+        )
+
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    title="超长标题超长标题超长标题超长标题",
+                    subtitle="这是一段更长的底部说明文案，用来验证 frozen baseline guard 会不会拦住未批准的 split-mode evidence 漂移。",
+                    gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+                ),
+                _load_template(),
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        behavior = metadata["bottom_contract_review"]["behavior_policy"]
+        geometry = metadata["geometry_evidence"]
+
+        assert behavior["title_line_clamp"] == 1
+        assert behavior["subtitle_line_clamp"] == 1
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 144}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 818, "w": 720, "h": 28}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 882, "w": 832, "h": 64}
+
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
         stored_payloads: dict[str, bytes] = {}
 
