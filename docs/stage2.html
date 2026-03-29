@@ -468,6 +468,7 @@
         <pre id="poster2-header-contract-review">{}</pre>
         <pre id="poster2-hero-contract-review">{}</pre>
         <pre id="poster2-feature-contract-review">{}</pre>
+        <pre id="poster2-product-annotation-contract-review">{}</pre>
       </div>
 
       <!-- Debug artifact links: app.js sets href / removes hidden -->
@@ -768,6 +769,34 @@
           return html;
         }
 
+        function buildProductAnnotationDetail(annotationReview) {
+          if (!annotationReview || !annotationReview.annotation_active) return '';
+          let html = '';
+          const mode = annotationReview.product_annotation_mode || '';
+          const visibleCount = annotationReview.visible_slot_count;
+          if (mode) html += `<div class="s2-slot-note">mode: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' slots' : ''}</div>`;
+          const slots = annotationReview.annotation_slots || [];
+          if (slots.length) {
+            html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
+            for (const slot of slots) {
+              html += textRow(slot.slot_id?.replace('annotation_slot_', '') || '?', slot.requested_text || '—', slot.rendered_excerpt, slot.truncation_applied);
+            }
+            html += '</div>';
+            html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
+            for (const slot of slots) {
+              if (slot.anchor_x != null) {
+                html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${slot.slot_id}:(${slot.anchor_x},${slot.anchor_y})</span>`;
+              }
+            }
+            html += '</div>';
+          }
+          const suppression = annotationReview.feature_suppression;
+          if (suppression?.feature_right_stack_suppressed) {
+            html += `<div style="padding-top:4px;"><span class="s2-region-status s2-status-ok" style="font-size:10px;padding:1px 5px;">feature_right_stack suppressed</span></div>`;
+          }
+          return html;
+        }
+
         function buildBottomDetail(bottomReview, templateBehavior) {
           let html = '';
           const metrics = bottomReview?.behavior_policy?.layout_metrics || {};
@@ -806,7 +835,7 @@
           return html;
         }
 
-        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview) {
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
           if (modesStrip && templateBehavior) {
@@ -815,6 +844,7 @@
             if (tb.bottom_mode) chips.push(['bottom', tb.bottom_mode]);
             if (tb.gallery_mode) chips.push(['gallery', tb.gallery_mode]);
             if (tb.hero_mode || tb.hero) chips.push(['hero', tb.hero_mode || tb.hero]);
+            if (tb.product_annotation_mode && tb.product_annotation_mode !== 'none') chips.push(['annotation', tb.product_annotation_mode]);
             if (tb.feature_mode) chips.push(['feature', tb.feature_mode]);
             if (tb.header_identity_zone_mode) chips.push(['header', tb.header_identity_zone_mode]);
             if (chips.length) {
@@ -873,8 +903,13 @@
               modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
               detailHtml = buildHeroDetail(heroReview, 'scenario_region');
             } else if (key === 'product_region') {
-              modeLabel = heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
-              detailHtml = buildHeroDetail(heroReview, 'product_region');
+              const annotMode = templateBehavior?.behavior_modes?.product_annotation_mode;
+              modeLabel = (annotMode && annotMode !== 'none')
+                ? annotMode
+                : (heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '');
+              detailHtml = (annotationReview?.annotation_active)
+                ? buildProductAnnotationDetail(annotationReview)
+                : buildHeroDetail(heroReview, 'product_region');
             } else if (key === 'feature_region') {
               modeLabel = templateBehavior?.behavior_modes?.feature_mode || featureReview?.feature_mode || '';
               detailHtml = buildFeatureDetail(featureReview);
@@ -916,6 +951,8 @@
           try { headerReview = JSON.parse(document.getElementById('poster2-header-contract-review')?.textContent || 'null'); } catch (_) {}
           try { heroReview = JSON.parse(document.getElementById('poster2-hero-contract-review')?.textContent || 'null'); } catch (_) {}
           try { featureReview = JSON.parse(document.getElementById('poster2-feature-contract-review')?.textContent || 'null'); } catch (_) {}
+          let annotationReview = null;
+          try { annotationReview = JSON.parse(document.getElementById('poster2-product-annotation-contract-review')?.textContent || 'null'); } catch (_) {}
 
           if (!Object.keys(regionStatus).length) return;
 
@@ -940,7 +977,7 @@
           // Update render engine badge
           if (engEl) engEl.className = 's2-badge ok';
 
-          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview);
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview);
         }
 
         /* Sync s2-out-url from final-poster-link.href */

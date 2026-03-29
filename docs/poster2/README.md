@@ -94,6 +94,8 @@ Read this section only after the product baseline and architecture guidance. The
   Phase 0 contract drift repair + Phase 1 `product_anchor_callouts` feature mode contract. Records header_mode drift fix, Stage 2 modeLabel path fixes, and new mode resolver/evidence contract.
 - [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
   Beautification Phase 1 closure: minimal beauty-token-driven improvements to `glass_light` shell surface, `soft_line` border, `soft` shadow, and feature connector/marker visual. No geometry or behavior change. 153/153 tests pass.
+- [product_region_annotation_contract_status_v1.md](product_region_annotation_contract_status_v1.md)
+  Product annotation layer activation: `product_anchor_callouts` switched to live production mode for `template_dual_v2`. Records renderer algorithm fix (fixed-anchor path), new pipeline layers (`product_annotation_shell_layer`, `product_annotation_items_layer`), `_build_product_annotation_contract_review()` per-slot evidence, `product_annotation_mode` in behavior_modes, frontend Stage 2 evidence display. 179/179 tests pass.
 
 ### 4. Next-Phase Plans
 
@@ -145,31 +147,35 @@ When adding or updating poster2 docs:
 
 If a new document cannot be placed cleanly into one of the groups above, that is a signal to check for architecture drift before adding it.
 
-## Current Engineering Phase (as of 2026-03-28)
+## Current Engineering Phase (as of 2026-03-29)
 
-### Phase 2: bottom SOP baseline — ESTABLISHED
+### Product annotation layer — ACTIVATED
 
-The `bottom_region` resolver path is the agreed SOP baseline for the behavior layer rollout.
+`product_anchor_callouts` is now the live production mode for `template_dual_v2`. Feature text is rendered through fixed template-spec anchor positions rather than the old centering/stacking algorithm. Full contract evidence is emitted per slot. Stage 2 displays annotation chip and per-slot text chain.
 
 **What is established:**
-- `bottom_mode`, `gallery_mode`, `gallery_count`, `title`, `subtitle` are the declared behavior contract for `bottom_region`
-- These controls are always wired in Stage 2 regardless of template eligibility (bottom mode selection bug fixed)
-- Stage 2 page refactored to Resolver Layout design: two-column layout, left panel holds copy + renderer + bottom controls, right panel shows Poster Preview and Resolver Layout with all region rows
+- `template_dual_v2.json` `feature_mode` is `product_anchor_callouts` (production default)
+- Renderer uses fixed-anchor positions when this mode is active; stacking algorithm completely bypassed
+- `product_annotation_shell_layer` and `product_annotation_items_layer` emitted in layer render status
+- `product_annotation_contract_review` emitted in renderer metadata: per-slot anchor coords, label bounds, text chain, connector/marker policy, feature suppression flag
+- `product_annotation_mode` exposed as a distinct key in `behavior_modes`
+- Stage 2 Resolver Layout: annotation chip in modes strip + `product_region` row dispatches to annotation detail panel when active
 - `frontend/` and `docs/` are in sync
+- 179/179 tests pass
 
-**What this proves under the product baseline:**
-- The `Structure → Control → Beautification` governance order holds: bottom structure was proven in Phase 1, bottom control behavior is now the SOP baseline in Phase 2
-- The resolver path is repeatable: declare mode → resolve bounds → renderer consumes → evidence emitted
+**Prior phases still established:**
+- Bottom SOP resolver baseline (Phase 2)
+- Beautification Phase 1: shell/shadow/connector visual refinement
 
 **What is NOT yet done:**
-- Other regions (header, scenario, product, feature) do not yet have full resolver coverage
-- Beautification layer has not started; it remains downstream of behavior stability across all regions
+- Remaining regions (header, scenario) do not yet have full resolver coverage
+- Puppeteer renderer does not yet produce `product_annotation_contract_review` (parity future task)
+- Beautification layer remains downstream of all-region behavior stability
 
-### Phase 3: next steps
+### Next steps
 
-Apply the bottom resolver pattern to remaining regions:
 1. `header_region` — complete `identity_zone_mode` resolver wiring
-2. `scenario_region`, `product_region`, `feature_region` — resolver coverage
+2. `scenario_region` resolver coverage
 3. Preview-path / generation-path parity收口 (Puppeteer vs Pillow)
 4. Beautification layer planning (after all-region behavior stability)
 

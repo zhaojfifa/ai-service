@@ -125,7 +125,7 @@ class TestTemplateSpecLoading:
         assert spec.product_slot.pad_top == 24
         assert spec.product_slot.pad_bottom == 10
         assert spec.behavior_modes.hero_mode == "scenario_cover_product_contain"
-        assert spec.behavior_modes.feature_mode == "count_driven_callout_stack"
+        assert spec.behavior_modes.feature_mode == "product_anchor_callouts"
         assert spec.behavior_modes.bottom_mode == "title_gallery_split"
         assert spec.behavior_modes.gallery_mode == "strip_local_visible_only"
         assert spec.beauty_tokens.shell_surface == "glass_light"
