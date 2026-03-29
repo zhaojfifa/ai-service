@@ -36,3 +36,33 @@ Validation target for this milestone:
 - backend-evidence-only Stage 2 guard green
 - frontend/docs sync guard green
 - deployment smoke already green from stable `main`
+
+### 2026-03-29 — live backend validation snapshot
+
+Real request executed against current live host:
+
+- host: `https://ai-service-leob.onrender.com`
+- request id: `p2-header-bottom-guard`
+- trace id: `ae115f79-7d3c-43ba-a0a5-3875fcc27d86`
+
+Observed:
+
+- `degraded = false`
+- `structure_complete = true`
+- `deliverable = true`
+- frozen bottom geometry evidence unchanged:
+  - `title_band_region = {x:112,y:728,w:800,h:144}`
+  - `subtitle_slot = {x:152,y:818,w:720,h:28}`
+  - `gallery_strip_region = {x:96,y:882,w:832,h:64}`
+
+Observed live budget values:
+
+- `header agent_char_budget = 24`
+- `bottom dense-quad title_char_budget = 20`
+- `bottom dense-quad subtitle_char_budget = 24`
+
+Interpretation:
+
+- deployment path is recovered and healthy
+- current live host still serves stable `main`
+- guarded branch budget improvements are not yet observable on live runtime until a review deployment exists
