@@ -96,6 +96,8 @@ Read this section only after the product baseline and architecture guidance. The
   Beautification Phase 1 closure: minimal beauty-token-driven improvements to `glass_light` shell surface, `soft_line` border, `soft` shadow, and feature connector/marker visual. No geometry or behavior change. 153/153 tests pass.
 - [product_region_annotation_contract_status_v1.md](product_region_annotation_contract_status_v1.md)
   Product annotation layer activation: `product_anchor_callouts` switched to live production mode for `template_dual_v2`. Records renderer algorithm fix (fixed-anchor path), new pipeline layers (`product_annotation_shell_layer`, `product_annotation_items_layer`), `_build_product_annotation_contract_review()` per-slot evidence, `product_annotation_mode` in behavior_modes, frontend Stage 2 evidence display. 179/179 tests pass.
+- [product_region_contract_closure_status_v1.md](product_region_contract_closure_status_v1.md)
+  PR-3 product region contract closure: 7 owner surfaces frozen, annotation ownership enforced (primary slot only, secondary never owner), `primary_secondary_dual_v2` geometry declared final, `geometry_frozen` / `annotation_owner_slot` / `secondary_slot_annotation_ownership` / `owner_surfaces` emitted in contract evidence. 242/242 tests pass.
 
 ### 4. Next-Phase Plans
 

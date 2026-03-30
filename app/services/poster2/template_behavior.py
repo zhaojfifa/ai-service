@@ -19,17 +19,35 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
-_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; no drag-and-drop, no dynamic count
+_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; enforces annotation items within primary slot y-range
+                                         # (callouts 0-2 have anchor_y 250/350/450, within primary [188,498];
+                                         #  callout 3 has anchor_y 550, which falls in secondary territory)
 _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
-# Geometry for primary_secondary_dual product layout mode.
+# Frozen geometry for primary_secondary_dual product layout mode (geometry_mode = primary_secondary_dual_v2).
 # Primary slot: upper ~60% of the product region; receives all annotation callouts.
-# Secondary slot: lower ~40% of the product region; no callouts.
-# These are within the existing scenario_cover_product_contain hero region (x=456, y=188, w=300, h=520).
+# Secondary slot: lower ~40% of the product region; no callouts, no annotation ownership.
+# Parent region (scenario_cover_product_contain): x=456, y=188, w=300, h=520.
+# Gap between primary bottom and secondary top: 506-(188+310)=8px.
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 310}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 506, "w": 300, "h": 202}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 520}
+
+# Frozen owner surfaces for product_region.
+# These are the only surfaces that carry product ownership.
+# Annotation shell anchors exclusively to product_primary_slot.
+# Secondary slot never becomes an annotation owner.
+_FROZEN_PRODUCT_OWNER_SURFACES: frozenset[str] = frozenset({
+    "product_canvas_shell_layer",
+    "product_primary_slot",
+    "product_secondary_slot",
+    "product_image_layer",
+    "product_secondary_image_layer",
+    "product_annotation_shell_layer",
+    "product_annotation_items_layer",
+})
+_PRODUCT_ANNOTATION_OWNER_SLOT = "product_primary_slot"
 _SUPPORTED_BOTTOM_MODES = {
     "title_gallery_split",
     "gallery_only",

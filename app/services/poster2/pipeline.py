@@ -33,7 +33,11 @@ from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .region_matrix import _BOTTOM_MODE_COLLAPSED_BY_DESIGN
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
 from .renderer_routing import assert_quality_guard_deliverable
-from .template_behavior import resolve_template_behavior
+from .template_behavior import (
+    _FROZEN_PRODUCT_OWNER_SURFACES,
+    _PRODUCT_ANNOTATION_OWNER_SLOT,
+    resolve_template_behavior,
+)
 from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
@@ -1546,10 +1550,14 @@ def _build_product_contract_review(
         "product_layout_mode_reason": product_policy.product_layout_mode_reason,
         "product_geometry_mode": product_policy.product_geometry_mode,
         "product_geometry_mode_reason": product_policy.product_geometry_mode_reason,
+        "geometry_frozen": True,
         "product_primary_slot": dict(product_policy.product_primary_slot),
         "product_secondary_slot": dict(product_policy.product_secondary_slot) if product_policy.product_secondary_slot else None,
         "product_secondary_slot_rendered": product_policy.product_secondary_slot_rendered,
         "product_secondary_asset_policy": product_policy.product_secondary_asset_policy,
+        "owner_surfaces": sorted(_FROZEN_PRODUCT_OWNER_SURFACES),
+        "annotation_owner_slot": _PRODUCT_ANNOTATION_OWNER_SLOT,
+        "secondary_slot_annotation_ownership": False,
         "behavior_policy": {
             "annotation_count_policy": product_policy.annotation_count_policy,
             "annotation_connector_policy": product_policy.annotation_connector_policy,

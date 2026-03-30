@@ -442,3 +442,73 @@ mode-aware, and diagnostics are fully explicit.
 - `evaluate_deliverability` uses resolved effective mode (not raw spec field) ✓
 - `requested_bottom_mode` / `effective_bottom_mode` / `bottom_layout_mode` / override reason always present ✓
 - 213/213 tests pass ✓
+
+---
+
+## PR-3 — Freeze product owner surfaces and dual-image geometry (2026-03-30)
+
+### Goal
+Formally freeze the 7 product owner surfaces, enforce annotation ownership rules in contract evidence,
+and declare `primary_secondary_dual_v2` geometry as the final frozen geometry for dual-image mode.
+
+### Changes
+
+#### `app/services/poster2/template_behavior.py`
+- `_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3` comment updated: explains it enforces annotation items
+  within primary slot y-range (callouts 0-2 at y=250/350/450 are inside primary [188,498];
+  callout 3 at y=550 would enter secondary territory and is never activated)
+- `_PRODUCT_DUAL_PRIMARY_SLOT` / `_PRODUCT_DUAL_SECONDARY_SLOT` / `_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT`
+  comments updated to reflect frozen v2 status and gap measurement
+- `_FROZEN_PRODUCT_OWNER_SURFACES: frozenset[str]` added — the 7 canonical product region owner surfaces
+- `_PRODUCT_ANNOTATION_OWNER_SLOT = "product_primary_slot"` added — explicit constant for annotation ownership
+
+#### `app/services/poster2/pipeline.py`
+- Import expanded: `_FROZEN_PRODUCT_OWNER_SURFACES`, `_PRODUCT_ANNOTATION_OWNER_SLOT`
+  from `template_behavior`
+- `_build_product_annotation_contract_review()` adds 4 new fields:
+  - `owner_surfaces` — sorted list of all 7 frozen owner surfaces
+  - `annotation_owner_slot` — always `"product_primary_slot"`
+  - `secondary_slot_annotation_ownership` — always `False`
+  - `geometry_frozen` — always `True`
+
+#### Tests (`tests/poster2/test_pipeline.py`)
+- `TestProductOwnerSurfaceFreeze` (9 tests):
+  - `test_owner_surfaces_constant_is_frozen`: frozenset type + exactly 7 surfaces
+  - `test_annotation_owner_slot_constant`: `_PRODUCT_ANNOTATION_OWNER_SLOT == "product_primary_slot"`
+  - `test_product_contract_review_lists_all_owner_surfaces`: `owner_surfaces` field covers all 7
+  - `test_annotation_owner_slot_in_contract_review`: `annotation_owner_slot` in evidence
+  - `test_secondary_slot_annotation_ownership_is_false`: `secondary_slot_annotation_ownership = False` in dual mode
+  - `test_geometry_frozen_flag_in_contract_review`: `geometry_frozen = True`
+  - `test_v2_geometry_constants_are_final`: all slot bounds match expected values; no primary/secondary overlap
+  - `test_single_primary_activates_when_no_secondary_asset`: runtime freeze rule verified
+  - `test_primary_secondary_dual_activates_when_secondary_asset_present`: auto-promotion + v2 geometry
+
+#### Docs
+- `docs/poster2/product_region_contract_closure_status_v1.md` — formal closure record
+- `docs/poster2/README.md` — entry added pointing to closure doc
+
+### Frozen product geometry (primary_secondary_dual_v2)
+
+| Slot | x | y | w | h |
+|---|---|---|---|---|
+| `product_primary_slot` | 456 | 188 | 300 | 310 |
+| `product_secondary_slot` | 456 | 506 | 300 | 202 |
+| `single_primary` fallback | 456 | 188 | 300 | 520 |
+
+Gap between primary bottom (498) and secondary top (506): 8px. No geometry adjustment required.
+
+### Acceptance
+- `_FROZEN_PRODUCT_OWNER_SURFACES` frozenset contains exactly the 7 expected surfaces ✓
+- `annotation_owner_slot = "product_primary_slot"` in all contract reviews ✓
+- `secondary_slot_annotation_ownership = False` even in dual mode ✓
+- `geometry_frozen = True` in all contract reviews ✓
+- `primary_secondary_dual_v2` geometry constants match frozen values ✓
+- Single-primary / dual auto-promotion runtime behavior unchanged ✓
+- 242/242 tests pass ✓
+
+### Open follow-ups from this entry
+- Pillow renderer secondary slot parity (contract-only for now; rendering exists but not fully
+  contract-driven from `ResolvedProductBehavior.product_secondary_slot` bounds)
+- Stage 2 frontend: `owner_surfaces` / `annotation_owner_slot` / `secondary_slot_annotation_ownership`
+  / `geometry_frozen` not yet surfaced in diagnostics panel (low priority)
+- `header_region` `identity_zone_mode` resolver wiring still pending

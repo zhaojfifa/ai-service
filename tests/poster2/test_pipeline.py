@@ -1884,3 +1884,116 @@ class TestBottomModeBoundaryAndCompleteness:
         assert review["bottom_mode_remapped"] is True
         assert review["bottom_mode_alias"] == "title_only → text_only_expanded"
         assert review["bottom_mode_override_reason"] == "legacy_alias_canonicalized"
+
+
+class TestProductOwnerSurfaceFreeze:
+    """PR-3: product owner surfaces and dual-image geometry are frozen contracts."""
+
+    EXPECTED_OWNER_SURFACES = {
+        "product_canvas_shell_layer",
+        "product_primary_slot",
+        "product_secondary_slot",
+        "product_image_layer",
+        "product_secondary_image_layer",
+        "product_annotation_shell_layer",
+        "product_annotation_items_layer",
+    }
+
+    def test_owner_surfaces_constant_is_frozen(self):
+        """_FROZEN_PRODUCT_OWNER_SURFACES must be a frozenset with exactly the 7 surfaces."""
+        from app.services.poster2.template_behavior import _FROZEN_PRODUCT_OWNER_SURFACES
+        assert isinstance(_FROZEN_PRODUCT_OWNER_SURFACES, frozenset)
+        assert _FROZEN_PRODUCT_OWNER_SURFACES == self.EXPECTED_OWNER_SURFACES
+
+    def test_annotation_owner_slot_constant(self):
+        """_PRODUCT_ANNOTATION_OWNER_SLOT must always be product_primary_slot."""
+        from app.services.poster2.template_behavior import _PRODUCT_ANNOTATION_OWNER_SLOT
+        assert _PRODUCT_ANNOTATION_OWNER_SLOT == "product_primary_slot"
+
+    def test_product_contract_review_lists_all_owner_surfaces(self):
+        """product_contract_review must expose owner_surfaces with all 7 frozen surfaces."""
+        template = _load_template()
+        spec = _make_spec()
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert "owner_surfaces" in review
+        assert set(review["owner_surfaces"]) == self.EXPECTED_OWNER_SURFACES
+
+    def test_annotation_owner_slot_in_contract_review(self):
+        """product_contract_review must expose annotation_owner_slot = product_primary_slot."""
+        template = _load_template()
+        spec = _make_spec()
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["annotation_owner_slot"] == "product_primary_slot"
+
+    def test_secondary_slot_annotation_ownership_is_false(self):
+        """product_contract_review must assert secondary_slot_annotation_ownership = False."""
+        template = _load_template()
+        spec = _make_spec(product_secondary_image=AssetRef(url="mock://product-secondary"))
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec, assets=assets)
+        review = metadata["product_contract_review"]
+
+        assert review["secondary_slot_annotation_ownership"] is False
+        # Even in dual mode, annotation owner is still primary slot
+        assert review["annotation_owner_slot"] == "product_primary_slot"
+
+    def test_geometry_frozen_flag_in_contract_review(self):
+        """product_contract_review must expose geometry_frozen = True."""
+        template = _load_template()
+        spec = _make_spec()
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["geometry_frozen"] is True
+
+    def test_v2_geometry_constants_are_final(self):
+        """Dual-mode slot bounds must match the frozen primary_secondary_dual_v2 values."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        # Primary slot: upper 310px of product region
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
+        # Secondary slot: lower 202px, 8px below primary
+        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 506, "w": 300, "h": 202}
+        # Single-primary fallback: full 520px product region
+        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 300, "h": 520}
+        # Verify no vertical overlap: primary bottom (188+310=498) < secondary top (506)
+        assert _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"] < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
+
+    def test_single_primary_activates_when_no_secondary_asset(self):
+        """single_primary mode when secondary asset is absent (runtime freeze rule)."""
+        template = _load_template()
+        spec = _make_spec()  # no product_secondary_image
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["product_layout_mode"] == "single_primary"
+        assert review["product_secondary_slot"] is None
+        assert review["product_secondary_slot_rendered"] is False
+        assert review["geometry_frozen"] is True
+
+    def test_primary_secondary_dual_activates_when_secondary_asset_present(self):
+        """primary_secondary_dual activates automatically when secondary asset exists (runtime freeze rule)."""
+        template = _load_template()
+        spec = _make_spec(product_secondary_image=AssetRef(url="mock://product-secondary"))
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec, assets=assets)
+        review = metadata["product_contract_review"]
+
+        assert review["product_layout_mode"] == "primary_secondary_dual"
+        assert review["product_geometry_mode"] == "primary_secondary_dual_v2"
+        assert review["geometry_frozen"] is True
+        assert review["product_secondary_slot_rendered"] is True
+        assert review["secondary_slot_annotation_ownership"] is False
