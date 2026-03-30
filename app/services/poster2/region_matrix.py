@@ -371,7 +371,11 @@ def _resolve_region_presence(
     binding_inputs: dict[str, Any],
 ) -> dict[str, dict[str, object]]:
     if matrix.template_family == FAMILY_A_CAMPAIGN_EXPLAINER:
-        return _resolve_family_a_presence(layer_status=layer_status, region_status=region_status)
+        return _resolve_family_a_presence(
+            layer_status=layer_status,
+            region_status=region_status,
+            binding_inputs=binding_inputs,
+        )
     if matrix.template_family == FAMILY_B_PRODUCT_SHEET_STORY:
         return _resolve_family_b_presence(binding_inputs=binding_inputs)
     raise RegionMatrixResolverError(
@@ -379,10 +383,18 @@ def _resolve_region_presence(
     )
 
 
+_GALLERY_ONLY_BOTTOM_MODES = {"gallery_only"}
+
+# Modes in which title_band_region is intentionally absent by contract design.
+# For these modes, title_band_region absence is not a structure failure.
+_TITLE_BAND_ABSENT_BY_MODE = {"gallery_only"}
+
+
 def _resolve_family_a_presence(
     *,
     layer_status: dict[str, dict[str, object]],
     region_status: dict[str, dict[str, object]],
+    binding_inputs: dict[str, Any],
 ) -> dict[str, dict[str, object]]:
     def count(layer_name: str) -> int:
         return int(layer_status.get(layer_name, {}).get("count", 0))
@@ -390,9 +402,15 @@ def _resolve_family_a_presence(
     def region_rendered(region_name: str) -> bool:
         return bool(region_status.get(region_name, {}).get("rendered", False))
 
+    bottom_mode = binding_inputs.get("bottom_mode") or ""
     title_rendered = count("title_layer") > 0
     gallery_rendered = count("bottom_gallery_items_layer") > 0
     bottom_rendered = region_rendered("bottom_region") or title_rendered or gallery_rendered
+
+    # title_band_region is intentionally absent in gallery_only mode by contract design.
+    # In that case treat it as structurally correct (collapsed_by_mode, not missing).
+    title_band_region_ok = title_rendered or (bottom_mode in _TITLE_BAND_ABSENT_BY_MODE)
+
     return {
         "header_region": {
             "rendered": region_rendered("header_region"),
@@ -415,9 +433,18 @@ def _resolve_family_a_presence(
             "reasons": [] if region_rendered("feature_region") else ["feature callouts collapsed or empty"],
         },
         "title_band_region": {
-            "rendered": title_rendered,
-            "collapsed": not title_rendered,
-            "reasons": [] if title_rendered else ["title missing from title band"],
+            "rendered": title_band_region_ok,
+            "collapsed": not title_band_region_ok,
+            "reasons": (
+                []
+                if title_band_region_ok
+                else ["title missing from title band"]
+            ),
+            "collapse_reason_code": (
+                "collapsed_by_gallery_only_mode"
+                if not title_rendered and bottom_mode in _TITLE_BAND_ABSENT_BY_MODE
+                else None
+            ),
         },
         "gallery_strip_region": {
             "rendered": gallery_rendered,

@@ -210,6 +210,7 @@ class PosterPipeline:
             ),
             structure_evidence_source=structure_evidence_source,
             structure_evidence_complete=structure_evidence_complete,
+            binding_inputs={"bottom_mode": effective_spec.bottom_mode},
         )
         if fg_result.degraded:
             assert_quality_guard_deliverable(
@@ -1108,11 +1109,17 @@ def _build_bottom_contract_review(
         if resolved_behavior.bottom_policy.subtitle_slot_rendered
         else ""
     )
+    requested_bottom_mode = requested_spec.bottom_mode
+    effective_bottom_mode = resolved_behavior.bottom_policy.mode
+    bottom_mode_override_reason = (
+        "request_override_applied" if requested_bottom_mode is not None else None
+    )
     return {
-        "bottom_mode": resolved_behavior.bottom_policy.mode,
-        "requested_bottom_mode": resolved_behavior.bottom_policy.requested_mode,
-        "effective_bottom_mode": resolved_behavior.bottom_policy.effective_mode,
-        "bottom_mode_override_reason": resolved_behavior.bottom_policy.mode_override_reason,
+        "requested_bottom_mode": requested_bottom_mode,
+        "effective_bottom_mode": effective_bottom_mode,
+        "bottom_mode": effective_bottom_mode,
+        "bottom_mode_remapped": requested_bottom_mode != effective_bottom_mode,
+        "bottom_mode_override_reason": bottom_mode_override_reason,
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
         "gallery_input_count_raw": int(gallery_counts["raw"]),
         "gallery_input_count_normalized": int(gallery_counts["normalized"]),
