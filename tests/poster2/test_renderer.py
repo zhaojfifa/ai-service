@@ -1123,7 +1123,7 @@ class TestStructuredScenarioLayer:
             gallery_mode="supporting_packshots",
         )
 
-        assert resolved.bottom_policy.mode == "title_only"
+        assert resolved.bottom_policy.mode == "text_only_expanded"  # title_only alias
         assert resolved.bottom_policy.gallery_mode == "supporting_packshots"
         assert resolved.bottom_policy.title_band_rendered is True
         assert resolved.bottom_policy.gallery_strip_rendered is False
@@ -1146,7 +1146,7 @@ class TestStructuredScenarioLayer:
         )
 
         assert resolved.bottom_policy.title_band_sizing_mode == "expanded"
-        assert resolved.bottom_policy.bottom_layout_mode == "text_gallery_expanded"
+        assert resolved.bottom_policy.bottom_layout_mode == "title_gallery_split"
         assert resolved.bottom_policy.title_band_growth_policy == "grow_title_band_expanded_text_gallery_light_gallery"
         assert resolved.bottom_policy.subtitle_overflow_policy == "two_line_clamp_inside_expanded_split_title_band"
         assert resolved.bottom_policy.content_priority_policy == "expanded_text_priority_with_light_gallery"
@@ -1185,7 +1185,7 @@ class TestStructuredScenarioLayer:
         )
 
         assert resolved.bottom_policy.title_band_sizing_mode == "standard"
-        assert resolved.bottom_policy.bottom_layout_mode == "text_gallery_expanded"
+        assert resolved.bottom_policy.bottom_layout_mode == "title_gallery_split"
         assert resolved.bottom_policy.title_band_growth_policy == "hold_growth_expanded_text_gallery_quad"
         assert resolved.bottom_policy.content_priority_policy == "expanded_gallery_count_priority_with_text_preserved"
         assert resolved.bottom_policy.peer_balance_policy == "expanded_gallery_preserved_with_full_title"

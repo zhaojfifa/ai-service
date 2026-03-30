@@ -323,3 +323,48 @@ This log records what has been completed on this branch in chronological order. 
 - Family A bottom runtime tells the truth in two layers: semantic bottom mode and actual layout mode
 - Family A dual-image product runtime uses dedicated v2 geometry instead of piggybacking on single-image geometry
 - Product annotation ownership and feature delegation are now explicit in backend evidence and visible in Stage 2 diagnostics
+
+---
+
+## PR-1 — Canonical bottom mode runtime truth unification (2026-03-30)
+
+### Goal
+Eliminate `title_only` as a first-class runtime mode and unify `requested_bottom_mode` / `effective_bottom_mode` / `bottom_layout_mode` so they are coherent (bottom_layout_mode always mirrors .mode).
+
+### Changes
+
+#### `app/services/poster2/template_behavior.py`
+- Removed `"title_only"` from `_SUPPORTED_BOTTOM_MODES`
+- Removed `_LEGACY_BOTTOM_MODE_CANONICAL` (new→old semantic mapping) and `_BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE` (effective→layout mapping)
+- Added `_BOTTOM_MODE_ALIASES = {"title_only": "text_only_expanded"}` — applied before `_validate_token`; `title_only` never enters the resolver
+- Added `"title_gallery_split": 640` to `_EXPANDED_BOTTOM_SHELL_TOPS` — makes `title_gallery_split` a first-class entry (y=640) instead of deriving it from the old layout mapping
+- `resolved_bottom_layout_mode = bottom_mode` — always mirrors `.mode`; no separate layout-mode concept
+- Added `text_only_expanded` + `text_gallery_expanded` branches to content-policy switch (replacing `title_only`)
+- Added `title_gallery_split` normalization at top of `_resolve_bottom_layout_policies()` (still delegates to `text_gallery_expanded` policy — no geometry change)
+- Removed dead `title_only` branch from `_resolve_bottom_layout_policies()`
+- Removed `effective_bottom_mode == "title_only"` gallery-slot check
+- `mode_override_reason = "legacy_alias_canonicalized"` when alias is applied
+
+#### `app/services/poster2/pipeline.py`
+- Added `bottom_mode_alias` field to `_build_bottom_contract_review()`: shows `"title_only → text_only_expanded"` when alias is applied
+
+#### Tests
+- `test_template_behavior_resolver_supports_bottom_mode_overrides`: `.mode` and assertions updated for `text_only_expanded` alias
+- `test_template_behavior_resolver_promotes_bottom_into_behavior_policy` + `test_template_behavior_resolver_limits_title_growth_when_gallery_is_dense`: `bottom_layout_mode` updated to `"title_gallery_split"` (mirrors .mode)
+- `test_renderer_metadata_includes_layer_render_status`: same
+- `test_frozen_baseline_modes_still_resolve_unchanged`: same
+- `test_bottom_contract_review_exposes_requested_effective_and_override_reason`: effective_mode and reason_code updated for alias path
+- `test_legacy_expanded_request_is_canonicalized_into_semantic_bottom_mode`: `text_gallery_expanded` is now canonical (not canonicalized into `title_gallery_split`)
+
+### Canonical bottom mode names (frozen)
+- `title_gallery_split` — default split layout (y=640)
+- `text_only_expanded` — expanded text, no gallery (y=656; absorbs `title_only` alias)
+- `text_gallery_expanded` — explicit expanded text with gallery (y=640)
+- `gallery_only` — gallery strip only (y=728)
+
+### Acceptance
+- `title_only` accepted in API; canonicalized to `text_only_expanded` via `_BOTTOM_MODE_ALIASES` ✓
+- `bottom_layout_mode` always mirrors `.mode` ✓
+- `bottom_mode_alias` field shows mapping when alias is applied ✓
+- `bottom_mode_override_reason = "legacy_alias_canonicalized"` for alias requests ✓
+- 204/204 tests pass ✓

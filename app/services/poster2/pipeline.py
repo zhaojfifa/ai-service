@@ -1106,6 +1106,11 @@ def _build_bottom_contract_review(
         "effective_bottom_mode": effective_bottom_mode,
         "bottom_mode": effective_bottom_mode,
         "bottom_mode_remapped": requested_bottom_mode != effective_bottom_mode,
+        "bottom_mode_alias": (
+            f"{requested_bottom_mode} → {effective_bottom_mode}"
+            if requested_bottom_mode != effective_bottom_mode
+            else None
+        ),
         "bottom_mode_override_reason": bottom_mode_override_reason,
         "bottom_layout_mode": resolved_behavior.bottom_policy.bottom_layout_mode,
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,

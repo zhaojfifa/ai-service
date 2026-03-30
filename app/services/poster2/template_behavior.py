@@ -32,27 +32,21 @@ _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 506, "w": 300, "h
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 520}
 _SUPPORTED_BOTTOM_MODES = {
     "title_gallery_split",
-    "title_only",
     "gallery_only",
     "text_only_expanded",
     "text_gallery_expanded",
 }
-
-_LEGACY_BOTTOM_MODE_CANONICAL: dict[str, str] = {
-    "text_only_expanded": "title_only",
-    "text_gallery_expanded": "title_gallery_split",
-}
-_BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE: dict[str, str] = {
-    "title_only": "text_only_expanded",
-    "title_gallery_split": "text_gallery_expanded",
-    "gallery_only": "gallery_only",
+# Legacy request aliases: applied before validation; never reach the resolver.
+_BOTTOM_MODE_ALIASES: dict[str, str] = {
+    "title_only": "text_only_expanded",  # title_only superseded by text_only_expanded
 }
 
 # Structural expansion: new modes start the bottom shell higher than the frozen baseline (y=728).
-# These are not patches to the baseline — they are new first-class structural modes.
+# title_gallery_split and text_gallery_expanded both use y=640; text_only_expanded uses y=656.
 _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
-    "text_only_expanded": 656,      # 368px capacity vs 296px in frozen baseline
-    "text_gallery_expanded": 640,   # 384px capacity vs 296px in frozen baseline
+    "title_gallery_split": 640,   # upgraded from frozen baseline; matches text_gallery_expanded
+    "text_only_expanded": 656,    # 368px capacity
+    "text_gallery_expanded": 640, # 384px capacity
 }
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
 _SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
@@ -543,7 +537,12 @@ def resolve_template_behavior(
         _SUPPORTED_PRODUCT_LAYOUT_MODES,
         "product_layout_mode",
     )
-    resolved_bottom_mode = _validate_token(bottom_mode or modes.bottom_mode, _SUPPORTED_BOTTOM_MODES, "bottom_mode")
+    _raw_bottom_mode = bottom_mode or modes.bottom_mode
+    resolved_bottom_mode = _validate_token(
+        _BOTTOM_MODE_ALIASES.get(_raw_bottom_mode, _raw_bottom_mode),
+        _SUPPORTED_BOTTOM_MODES,
+        "bottom_mode",
+    )
     resolved_gallery_mode = _validate_token(gallery_mode or modes.gallery_mode, _SUPPORTED_GALLERY_MODES, "gallery_mode")
     shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
     shell_border = _validate_token(beauty.shell_border, set(_SHELL_BORDER_PRESETS), "shell_border")
@@ -1207,38 +1206,39 @@ def resolve_bottom_behavior(
     normalized_gallery_count = min(max(normalized_gallery_count, 0), max_items)
     visible_item_count = min(max(resolved_gallery_count, 0), max_items)
     requested_runtime_mode = requested_bottom_mode or bottom_mode
-    effective_bottom_mode = _LEGACY_BOTTOM_MODE_CANONICAL.get(bottom_mode, bottom_mode)
-    resolved_bottom_layout_mode = _BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE.get(
-        effective_bottom_mode,
-        effective_bottom_mode,
-    )
-    actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(resolved_bottom_layout_mode, 728)
+    # bottom_mode is already canonical (alias applied by caller via _BOTTOM_MODE_ALIASES)
+    resolved_bottom_layout_mode = bottom_mode  # always mirrors .mode
+    actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, 728)
     if requested_bottom_mode is None:
         mode_override_reason = "template_default_applied"
-    elif requested_runtime_mode in _LEGACY_BOTTOM_MODE_CANONICAL:
-        mode_override_reason = "legacy_layout_mode_canonicalized"
+    elif requested_runtime_mode != bottom_mode:
+        mode_override_reason = "legacy_alias_canonicalized"
     elif template_bottom_mode is not None and requested_runtime_mode == template_bottom_mode:
         mode_override_reason = "requested_matches_template_default"
     else:
         mode_override_reason = "request_override_applied"
 
-    title_slot_rendered = title_present and effective_bottom_mode != "gallery_only"
-    subtitle_slot_rendered = subtitle_present and effective_bottom_mode != "gallery_only" and title_present
+    title_slot_rendered = title_present and bottom_mode != "gallery_only"
+    subtitle_slot_rendered = subtitle_present and bottom_mode != "gallery_only" and title_present
 
-    if effective_bottom_mode == "title_gallery_split":
+    if bottom_mode == "title_gallery_split":
         title_band_rendered = title_slot_rendered
         gallery_strip_rendered = visible_item_count > 0
         gallery_content_policy = "render_real_gallery_items_in_local_strip_only"
-    elif effective_bottom_mode == "title_only":
+    elif bottom_mode == "text_only_expanded":
         title_band_rendered = title_slot_rendered
         gallery_strip_rendered = False
-        gallery_content_policy = "collapse_gallery_strip_even_when_gallery_inputs_exist"
-    elif effective_bottom_mode == "gallery_only":
+        gallery_content_policy = "collapse_gallery_strip_expanded_text_only_mode"
+    elif bottom_mode == "text_gallery_expanded":
+        title_band_rendered = title_slot_rendered
+        gallery_strip_rendered = visible_item_count > 0
+        gallery_content_policy = "render_gallery_strip_in_expanded_text_gallery_mode"
+    elif bottom_mode == "gallery_only":
         title_band_rendered = False
         gallery_strip_rendered = visible_item_count > 0
         gallery_content_policy = "render_gallery_strip_without_title_band"
     else:
-        raise ValueError(f"Unsupported bottom_mode: {effective_bottom_mode}")
+        raise ValueError(f"Unsupported bottom_mode: {bottom_mode}")
 
     (
         title_band_sizing_mode,
@@ -1313,9 +1313,6 @@ def resolve_bottom_behavior(
         if slot_rendered:
             reason_code = None
             state = "rendered"
-        elif effective_bottom_mode == "title_only":
-            reason_code = "suppressed_by_bottom_mode"
-            state = "collapsed"
         elif index >= normalized_gallery_count:
             reason_code = "gallery_input_missing"
             state = "collapsed"
@@ -1361,9 +1358,9 @@ def resolve_bottom_behavior(
             collapsed_optional_slots.append(slot_id)
 
     return ResolvedBottomBehavior(
-        mode=effective_bottom_mode,
+        mode=bottom_mode,
         requested_mode=requested_bottom_mode,
-        effective_mode=effective_bottom_mode,
+        effective_mode=bottom_mode,
         mode_override_reason=mode_override_reason,
         bottom_layout_mode=resolved_bottom_layout_mode,
         bottom_shell_top=actual_bottom_shell_top,
@@ -1406,7 +1403,7 @@ def resolve_bottom_behavior(
         subtitle_slot_state=subtitle_slot_state,
         gallery_slot_states=tuple(gallery_slot_states),
         css_classes=(
-            _css_mode_class("bottom-mode", effective_bottom_mode),
+            _css_mode_class("bottom-mode", bottom_mode),
             _css_mode_class("bottom-layout-mode", resolved_bottom_layout_mode),
             _css_mode_class("gallery-mode", gallery_mode),
             _css_mode_class("title-band-size", title_band_sizing_mode),
@@ -1429,7 +1426,10 @@ def _resolve_bottom_layout_policies(
     visible_item_count: int,
     bottom_shell_top: int = 728,
 ) -> tuple[str, str, str, str, str, str, str, str, str, str, str, str, int, int, int, int, dict[str, object]]:
-    # bottom_shell_top is injected from the caller; frozen baseline = 728, expanded modes override.
+    # bottom_shell_top is injected from the caller; expanded modes override frozen baseline (y=728).
+    # title_gallery_split and text_gallery_expanded share identical layout policies.
+    if bottom_mode == "title_gallery_split":
+        bottom_mode = "text_gallery_expanded"
     title_band_top = bottom_shell_top
     title_content_pad_left = 40
     title_content_pad_right = 40
@@ -1454,55 +1454,6 @@ def _resolve_bottom_layout_policies(
         title_content_pad_top = 0
         title_content_pad_bottom = 0
         title_stack_gap = 0
-    elif bottom_mode == "title_only":
-        content_priority_policy = "title_and_subtitle_priority_without_gallery"
-        peer_balance_policy = "title_band_only"
-        bottom_peer_balance_policy = "title_only_bottom_rebalance"
-        bottom_text_emphasis_policy = "title_only_strong_emphasis"
-        if subtitle_slot_rendered and subtitle_length > 42:
-            title_band_sizing_mode = "expanded"
-            title_band_growth_policy = "grow_for_title_only_support_copy"
-            subtitle_overflow_policy = "two_line_clamp_inside_title_band"
-            title_text_budget_policy = "two_line_title_budget_in_title_only_shell"
-            subtitle_text_budget_policy = "two_line_support_copy_budget"
-            title_line_clamp = 2
-            subtitle_line_clamp = 2
-            title_char_budget = 44
-            subtitle_char_budget = 52
-            title_band_height = 144
-            title_content_pad_top = 16
-            title_content_pad_bottom = 12
-            title_stack_gap = 6
-        elif subtitle_slot_rendered:
-            title_band_sizing_mode = "standard"
-            title_band_growth_policy = "hold_standard_title_band_with_subtitle"
-            subtitle_overflow_policy = "single_line_ellipsis_inside_title_band"
-            title_text_budget_policy = "two_line_title_budget_with_subtitle"
-            subtitle_text_budget_policy = "single_line_support_copy_budget"
-            title_line_clamp = 2
-            subtitle_line_clamp = 1
-            title_char_budget = 40
-            subtitle_char_budget = 28
-            title_band_height = 136
-            title_content_pad_top = 20
-            title_content_pad_bottom = 16
-            title_stack_gap = 8
-        else:
-            title_band_sizing_mode = "compact"
-            title_band_growth_policy = "compact_title_band_without_subtitle"
-            subtitle_overflow_policy = "subtitle_collapsed"
-            title_text_budget_policy = "title_priority_budget_without_subtitle"
-            subtitle_text_budget_policy = "subtitle_collapsed_budget"
-            title_line_clamp = 2
-            subtitle_line_clamp = 0
-            title_char_budget = 36
-            subtitle_char_budget = 0
-            title_band_height = 120
-            title_content_pad_top = 24
-            title_content_pad_bottom = 20
-            title_stack_gap = 0
-        title_content_top = title_band_top
-        title_content_height = title_band_height
     elif bottom_mode == "text_only_expanded":
         # Structural expansion: shell starts at y=656 (368px capacity). No gallery.
         # Materially larger title+subtitle capacity than frozen baseline max.
@@ -2094,7 +2045,7 @@ def _resolve_bottom_shell_height(
 ) -> int:
     if bottom_mode == "gallery_only":
         return gallery_shell_height
-    if bottom_mode in ("title_only", "text_only_expanded"):
+    if bottom_mode == "text_only_expanded":
         return title_band_height
     bottom_edges: list[int] = []
     if title_slot_rendered:

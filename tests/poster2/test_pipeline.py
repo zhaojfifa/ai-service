@@ -439,7 +439,7 @@ class TestPosterPipelineRun:
         assert metadata["template_behavior"]["behavior_modes"]["feature_mode"] == "product_anchor_callouts"
         assert metadata["template_behavior"]["behavior_modes"]["product_annotation_mode"] == "product_anchor_callouts"
         assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
-        assert metadata["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "text_gallery_expanded"
+        assert metadata["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "title_gallery_split"
         assert metadata["template_behavior"]["behavior_modes"]["product_geometry_mode"] == "single_primary_v1"
         assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
         assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
@@ -1544,9 +1544,9 @@ class TestBottomStructuralExpansion:
         manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["bottom_contract_review"]
 
-        # Frozen baseline shell top
+        # Frozen baseline shell top (title_gallery_split now uses y=640 via expanded geometry)
         assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 640
-        assert review["bottom_layout_mode"] == "text_gallery_expanded"
+        assert review["bottom_layout_mode"] == "title_gallery_split"
         assert review["bottom_mode"] == "title_gallery_split"
 
     def test_bottom_contract_review_exposes_requested_effective_and_override_reason(self):
@@ -1556,9 +1556,9 @@ class TestBottomStructuralExpansion:
         review = metadata["bottom_contract_review"]
 
         assert review["requested_bottom_mode"] == "title_only"
-        assert review["effective_bottom_mode"] == "title_only"
-        assert review["bottom_mode_override_reason"] == "request_override_applied"
-        assert review["bottom_mode"] == "title_only"
+        assert review["effective_bottom_mode"] == "text_only_expanded"  # alias applied
+        assert review["bottom_mode_override_reason"] == "legacy_alias_canonicalized"
+        assert review["bottom_mode"] == "text_only_expanded"
         assert review["bottom_layout_mode"] == "text_only_expanded"
         assert review["gallery_strip_region"]["rendered"] is False
 
@@ -1569,9 +1569,9 @@ class TestBottomStructuralExpansion:
         review = metadata["bottom_contract_review"]
 
         assert review["requested_bottom_mode"] == "text_gallery_expanded"
-        assert review["effective_bottom_mode"] == "title_gallery_split"
+        assert review["effective_bottom_mode"] == "text_gallery_expanded"  # now a canonical mode
         assert review["bottom_layout_mode"] == "text_gallery_expanded"
-        assert review["bottom_mode_override_reason"] == "legacy_layout_mode_canonicalized"
+        assert review["bottom_mode_override_reason"] == "request_override_applied"
 
 
 class TestProductLayoutContract:

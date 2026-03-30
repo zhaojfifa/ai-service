@@ -298,6 +298,27 @@ Validated coverage includes:
 - this round improves pair / triplet naturalness, but does not yet make bottom a measurement-driven art direction engine
 - minimal text emphasis is intentionally conservative and not a full typography system
 
+## 11. PR-1 Canonical Mode Unification (2026-03-30)
+
+### Status: COMPLETE
+
+Canonical bottom mode names (frozen):
+- `title_gallery_split` — default split layout (y=640, added to `_EXPANDED_BOTTOM_SHELL_TOPS`)
+- `text_only_expanded` — expanded text, no gallery (y=656; absorbs `title_only` alias)
+- `text_gallery_expanded` — explicit expanded text with gallery (y=640)
+- `gallery_only` — gallery strip only (y=728)
+
+Legacy aliases (accepted in requests, canonicalized before runtime):
+- `title_only` → `text_only_expanded` (via `_BOTTOM_MODE_ALIASES`)
+
+Runtime invariants after PR-1:
+- `_BOTTOM_MODE_ALIASES` applied before `_validate_token`; `title_only` never enters resolver
+- `_LEGACY_BOTTOM_MODE_CANONICAL` and `_BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE` removed
+- `bottom_layout_mode` always equals `bottom_policy.mode` (was a separately-derived layout mode)
+- `bottom_mode_alias` field in `bottom_contract_review` shows alias mapping when applied
+- `mode_override_reason = "legacy_alias_canonicalized"` for alias requests
+- Geometry unchanged: `title_gallery_split` and `text_gallery_expanded` both y=640; `text_only_expanded` y=656
+
 ## 10. Next Recommended Step
 
 Freeze bottom as the first SOP baseline of poster2 and move new implementation work to Phase 3 region replication:
