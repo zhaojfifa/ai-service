@@ -568,3 +568,31 @@ Bottom is still frozen. The remaining open items stay in bug tracking only:
 2. `supporting_packshots` remains minimum viable semantics.
 3. Minimal text emphasis remains intentionally conservative.
 4. Operator presentation can become clearer only by reusing existing frozen fields, not by renaming or restructuring the contract.
+
+## 24. Task-1 Runtime Stabilization Snapshot
+
+Task-1 closes the remaining runtime verification gap for the two bottom modes that were not yet explicitly guarded as live:
+
+- `text_gallery_expanded`
+- `gallery_only`
+
+This snapshot is intentionally narrow:
+
+- no bottom schema changes
+- no geometry redesign
+- no beautification
+- no frontend layout inference
+
+What is now explicitly guarded:
+
+- request payload accepts both modes
+- runtime returns `requested_bottom_mode`
+- runtime returns `effective_bottom_mode`
+- runtime returns `bottom_layout_mode`
+- runtime returns `bottom_mode_override_reason`
+- Stage 2 diagnostics continues to display backend-provided requested/effective/layout truth
+
+Fresh runtime traces recorded for this stabilization:
+
+- `text_gallery_expanded` -> `42e9d639-d625-476e-8056-3c7b0f05aca0`
+- `gallery_only` -> `e5f116e5-6f0c-4ff0-a3da-271cecd23b5c`
