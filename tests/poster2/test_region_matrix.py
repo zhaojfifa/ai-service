@@ -10,6 +10,7 @@ from app.services.poster2.region_matrix import (
     RegionMatrixResolverError,
     resolve_region_matrix,
     resolve_region_matrix_for_template,
+    _BOTTOM_MODE_COLLAPSED_BY_DESIGN,
 )
 from app.services.poster2.template_registry import (
     FAMILY_A_CAMPAIGN_EXPLAINER,
@@ -181,3 +182,144 @@ def test_family_b_region_completeness_fails_when_hero_product_missing():
     )
     assert report.family_minimum_region_complete is False
     assert "hero_product_region" in report.missing_mandatory_regions
+
+
+# ---------------------------------------------------------------------------
+# PR-2: Frozen per-mode bottom region completeness rules
+# ---------------------------------------------------------------------------
+
+_STANDARD_LAYER_STATUS = {
+    "title_layer": {"count": 1},
+    "bottom_gallery_items_layer": {"count": 0},
+}
+_STANDARD_REGION_STATUS = {
+    "header_region": {"rendered": True},
+    "scenario_region": {"rendered": False},
+    "product_region": {"rendered": True},
+    "feature_region": {"rendered": False},
+    "bottom_region": {"rendered": False},
+}
+
+
+class TestBottomModeCollapsedByDesignContract:
+    """Freeze per-mode collapsed-by-design region rules (PR-2)."""
+
+    def test_frozen_contract_covers_all_canonical_bottom_modes(self):
+        expected_modes = {"title_gallery_split", "text_gallery_expanded", "text_only_expanded", "gallery_only"}
+        assert set(_BOTTOM_MODE_COLLAPSED_BY_DESIGN.keys()) == expected_modes
+
+    def test_title_gallery_split_nothing_collapsed_by_design(self):
+        assert _BOTTOM_MODE_COLLAPSED_BY_DESIGN["title_gallery_split"] == frozenset()
+
+    def test_text_gallery_expanded_nothing_collapsed_by_design(self):
+        assert _BOTTOM_MODE_COLLAPSED_BY_DESIGN["text_gallery_expanded"] == frozenset()
+
+    def test_text_only_expanded_gallery_strip_collapsed_by_design(self):
+        assert "gallery_strip_region" in _BOTTOM_MODE_COLLAPSED_BY_DESIGN["text_only_expanded"]
+        assert "title_band_region" not in _BOTTOM_MODE_COLLAPSED_BY_DESIGN["text_only_expanded"]
+
+    def test_gallery_only_title_band_collapsed_by_design(self):
+        assert "title_band_region" in _BOTTOM_MODE_COLLAPSED_BY_DESIGN["gallery_only"]
+        assert "gallery_strip_region" not in _BOTTOM_MODE_COLLAPSED_BY_DESIGN["gallery_only"]
+
+
+class TestModeAwareRegionCompleteness:
+    """Mode-aware completeness: collapsed-by-design regions must not be missing_mandatory (PR-2)."""
+
+    def _metadata(self):
+        from app.services.poster2.template_registry import resolve_template_metadata
+        return resolve_template_metadata("template_dual_v2")
+
+    def test_gallery_only_title_band_absent_not_a_missing_mandatory_region(self):
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status={"title_layer": {"count": 0}, "bottom_gallery_items_layer": {"count": 2}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "gallery_only"},
+        )
+        assert "title_band_region" not in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is True
+
+    def test_gallery_only_title_band_presence_reports_collapsed_by_design(self):
+        from app.services.poster2.region_matrix import _resolve_family_a_presence
+        from app.services.poster2.template_registry import resolve_template_metadata
+        presence = _resolve_family_a_presence(
+            layer_status={"title_layer": {"count": 0}, "bottom_gallery_items_layer": {"count": 2}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "gallery_only"},
+        )
+        assert presence["title_band_region"]["collapsed_by_design"] is True
+        assert presence["title_band_region"]["collapse_reason_code"] == "collapsed_by_gallery_only_mode"
+
+    def test_text_only_expanded_gallery_strip_absent_not_counted_as_missing(self):
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status=_STANDARD_LAYER_STATUS,
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "text_only_expanded"},
+        )
+        # gallery_strip_region is never mandatory; absence must not fail completeness
+        assert "gallery_strip_region" not in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is True
+
+    def test_text_only_expanded_gallery_strip_presence_reports_collapsed_by_design(self):
+        from app.services.poster2.region_matrix import _resolve_family_a_presence
+        presence = _resolve_family_a_presence(
+            layer_status=_STANDARD_LAYER_STATUS,
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "text_only_expanded"},
+        )
+        assert presence["gallery_strip_region"]["collapsed_by_design"] is True
+        assert presence["gallery_strip_region"]["collapse_reason_code"] == "collapsed_by_text_only_expanded_mode"
+
+    def test_title_gallery_split_title_band_required_fails_when_absent(self):
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status={"title_layer": {"count": 0}, "bottom_gallery_items_layer": {"count": 1}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "title_gallery_split"},
+        )
+        assert "title_band_region" in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is False
+
+    def test_text_gallery_expanded_title_band_required_fails_when_absent(self):
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status={"title_layer": {"count": 0}, "bottom_gallery_items_layer": {"count": 1}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "text_gallery_expanded"},
+        )
+        assert "title_band_region" in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is False
+
+    def test_text_only_expanded_title_band_required_fails_when_absent(self):
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status={"title_layer": {"count": 0}, "bottom_gallery_items_layer": {"count": 0}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "text_only_expanded"},
+        )
+        assert "title_band_region" in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is False
+
+    def test_unknown_bottom_mode_falls_back_conservatively_requires_title_band(self):
+        # Unknown modes must not silently excuse missing title_band_region.
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status={"title_layer": {"count": 0}, "bottom_gallery_items_layer": {"count": 0}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "nonexistent_mode"},
+        )
+        assert "title_band_region" in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is False
+
+    def test_gallery_only_with_present_title_still_reports_title_band_normally(self):
+        # If title somehow renders in gallery_only mode, presence is OK (no regression).
+        report = evaluate_region_completeness(
+            self._metadata(),
+            layer_status={"title_layer": {"count": 1}, "bottom_gallery_items_layer": {"count": 2}},
+            region_status=_STANDARD_REGION_STATUS,
+            binding_inputs={"bottom_mode": "gallery_only"},
+        )
+        assert "title_band_region" not in report.missing_mandatory_regions
+        assert report.family_minimum_region_complete is True

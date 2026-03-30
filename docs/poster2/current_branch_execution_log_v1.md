@@ -368,3 +368,77 @@ Eliminate `title_only` as a first-class runtime mode and unify `requested_bottom
 - `bottom_mode_alias` field shows mapping when alias is applied ✓
 - `bottom_mode_override_reason = "legacy_alias_canonicalized"` for alias requests ✓
 - 204/204 tests pass ✓
+
+---
+
+## PR-2 — Bottom mode boundary freeze and completeness rules (2026-03-30)
+
+### Goal
+Freeze per-mode required/collapsed region rules for all four canonical bottom modes so that
+collapsed-by-design regions never count as missing mandatory regions, completeness evaluation is
+mode-aware, and diagnostics are fully explicit.
+
+### Changes
+
+#### `app/services/poster2/region_matrix.py`
+- Removed unused `_GALLERY_ONLY_BOTTOM_MODES` constant
+- Replaced `_TITLE_BAND_ABSENT_BY_MODE = {"gallery_only"}` with a comprehensive frozen contract map:
+  - `_BOTTOM_MODE_COLLAPSED_BY_DESIGN: dict[str, frozenset[str]]` — one entry per canonical mode
+  - `_BOTTOM_MODE_COLLAPSE_REASON_CODES` — reason codes emitted per mode per region
+- Updated `_resolve_family_a_presence()`:
+  - Uses `_BOTTOM_MODE_COLLAPSED_BY_DESIGN.get(bottom_mode, frozenset())` for all mode logic
+  - Unknown modes fall back conservatively (no regions excused); no silent fallback
+  - Adds `collapsed_by_design: bool` and `collapse_reason_code: str | None` to each presence state
+  - `gallery_strip_region` presence now carries `collapsed_by_design` + reason code for `text_only_expanded`
+
+#### `app/services/poster2/pipeline.py`
+- Import `_BOTTOM_MODE_COLLAPSED_BY_DESIGN` from `region_matrix`
+- `evaluate_deliverability` `binding_inputs` now uses `resolved_behavior.bottom_policy.effective_mode`
+  instead of `effective_spec.bottom_mode` (which may be `None` when the spec omits `bottom_mode`)
+- `_build_bottom_contract_review()` adds `bottom_mode_region_contract` field:
+  - `effective_bottom_mode` — echoes the effective canonical mode
+  - `title_band_region_required` — True for all modes except `gallery_only`
+  - `gallery_strip_region_required` — always False (gallery_strip is never mandatory)
+  - `title_band_region_collapsed_by_mode` — True only for `gallery_only`
+  - `gallery_strip_region_collapsed_by_mode` — True only for `text_only_expanded`
+  - `collapsed_by_design_regions` — sorted list of regions collapsed by this mode
+
+#### Tests (`tests/poster2/test_region_matrix.py`)
+- Added import of `_BOTTOM_MODE_COLLAPSED_BY_DESIGN`
+- `TestBottomModeCollapsedByDesignContract` (5 tests):
+  - Contract covers all four canonical modes
+  - Each mode has the correct frozen collapsed-by-design set
+- `TestModeAwareRegionCompleteness` (8 tests):
+  - `gallery_only`: title_band absent → not missing_mandatory, collapsed_by_design=True
+  - `text_only_expanded`: gallery_strip absent → not missing_mandatory, collapsed_by_design=True
+  - `title_gallery_split` + `text_gallery_expanded`: title_band absent → structure failure
+  - `text_only_expanded`: title_band absent → structure failure
+  - Unknown mode: conservatively requires title_band (no silent fallback)
+  - `gallery_only` with title present: no regression
+
+#### Tests (`tests/poster2/test_pipeline.py`)
+- `TestBottomModeBoundaryAndCompleteness` (8 tests):
+  - End-to-end verification for `gallery_only` and `text_only_expanded` collapse-by-design
+  - `bottom_mode_region_contract` field verified for all four modes
+  - Diagnostics completeness test: all four modes expose `requested_bottom_mode`,
+    `effective_bottom_mode`, `bottom_layout_mode`, `bottom_mode_override_reason`
+  - `title_only` alias path verified end-to-end with explicit diagnostic fields
+
+### Canonical bottom mode boundary rules (frozen)
+
+| mode | title_band_region | gallery_strip_region |
+|------|-------------------|----------------------|
+| `title_gallery_split` | required | optional (absent when no gallery items) |
+| `text_gallery_expanded` | required | optional (absent when no gallery items) |
+| `text_only_expanded` | required | **collapsed_by_design** (always absent) |
+| `gallery_only` | **collapsed_by_design** (always absent) | optional (renders when items present) |
+
+### Acceptance
+- Frozen per-mode contract covers all four canonical bottom modes ✓
+- `gallery_only`: `title_band_region` absence → `missing_mandatory_regions = []` ✓
+- `text_only_expanded`: `gallery_strip_region` absence marked `collapsed_by_design=True` ✓
+- Unknown mode: no silent fallback; conservatively requires title_band ✓
+- `bottom_mode_region_contract` emitted in every `bottom_contract_review` ✓
+- `evaluate_deliverability` uses resolved effective mode (not raw spec field) ✓
+- `requested_bottom_mode` / `effective_bottom_mode` / `bottom_layout_mode` / override reason always present ✓
+- 213/213 tests pass ✓

@@ -383,11 +383,36 @@ def _resolve_region_presence(
     )
 
 
-_GALLERY_ONLY_BOTTOM_MODES = {"gallery_only"}
+# Frozen per-mode bottom region contracts for Family A.
+# For each canonical bottom_mode, lists the regions that are intentionally absent (collapsed by
+# design). A collapsed-by-design region must NOT count as a missing mandatory region.
+#
+# Rules:
+#   title_gallery_split   — both title_band_region and gallery_strip_region may render;
+#                           neither is collapsed by design
+#   text_gallery_expanded — same as title_gallery_split; gallery_strip may still be empty
+#                           when no gallery items are provided, but is not absent by mode
+#   text_only_expanded    — gallery_strip_region is always absent; no gallery in this mode
+#   gallery_only          — title_band_region is always absent; no title band in this mode
+#
+# Any bottom_mode not present here is treated as unknown. Unknown modes fall back
+# conservatively: no regions are excused from the mandatory check (structure may fail).
+_BOTTOM_MODE_COLLAPSED_BY_DESIGN: dict[str, frozenset[str]] = {
+    "title_gallery_split":   frozenset(),
+    "text_gallery_expanded": frozenset(),
+    "text_only_expanded":    frozenset({"gallery_strip_region"}),
+    "gallery_only":          frozenset({"title_band_region"}),
+}
 
-# Modes in which title_band_region is intentionally absent by contract design.
-# For these modes, title_band_region absence is not a structure failure.
-_TITLE_BAND_ABSENT_BY_MODE = {"gallery_only"}
+# Reason codes emitted in presence state when a region is collapsed by design for a given mode.
+_BOTTOM_MODE_COLLAPSE_REASON_CODES: dict[str, dict[str, str]] = {
+    "text_only_expanded": {
+        "gallery_strip_region": "collapsed_by_text_only_expanded_mode",
+    },
+    "gallery_only": {
+        "title_band_region": "collapsed_by_gallery_only_mode",
+    },
+}
 
 
 def _resolve_family_a_presence(
@@ -407,9 +432,21 @@ def _resolve_family_a_presence(
     gallery_rendered = count("bottom_gallery_items_layer") > 0
     bottom_rendered = region_rendered("bottom_region") or title_rendered or gallery_rendered
 
-    # title_band_region is intentionally absent in gallery_only mode by contract design.
-    # In that case treat it as structurally correct (collapsed_by_mode, not missing).
-    title_band_region_ok = title_rendered or (bottom_mode in _TITLE_BAND_ABSENT_BY_MODE)
+    # Look up frozen per-mode region collapse rules. Unknown modes fall back
+    # conservatively (no regions excused) so unknown modes can never silently
+    # bypass mandatory-region checks.
+    mode_collapsed_by_design = _BOTTOM_MODE_COLLAPSED_BY_DESIGN.get(bottom_mode, frozenset())
+    mode_collapse_reasons = _BOTTOM_MODE_COLLAPSE_REASON_CODES.get(bottom_mode, {})
+
+    # title_band_region is intentionally absent only for modes that declare it
+    # collapsed by design in the frozen contract above.
+    title_band_collapsed_by_design = "title_band_region" in mode_collapsed_by_design
+    title_band_region_ok = title_rendered or title_band_collapsed_by_design
+
+    # gallery_strip_region is intentionally absent only for modes that declare it
+    # collapsed by design (e.g. text_only_expanded). Its absence in other modes
+    # is simply "no gallery items", not a structural failure (it is not mandatory).
+    gallery_strip_collapsed_by_design = "gallery_strip_region" in mode_collapsed_by_design
 
     return {
         "header_region": {
@@ -435,21 +472,28 @@ def _resolve_family_a_presence(
         "title_band_region": {
             "rendered": title_band_region_ok,
             "collapsed": not title_band_region_ok,
+            "collapsed_by_design": title_band_collapsed_by_design and not title_rendered,
             "reasons": (
                 []
                 if title_band_region_ok
                 else ["title missing from title band"]
             ),
             "collapse_reason_code": (
-                "collapsed_by_gallery_only_mode"
-                if not title_rendered and bottom_mode in _TITLE_BAND_ABSENT_BY_MODE
+                mode_collapse_reasons.get("title_band_region")
+                if not title_rendered and title_band_collapsed_by_design
                 else None
             ),
         },
         "gallery_strip_region": {
             "rendered": gallery_rendered,
             "collapsed": not gallery_rendered,
+            "collapsed_by_design": gallery_strip_collapsed_by_design and not gallery_rendered,
             "reasons": [] if gallery_rendered else ["gallery strip collapsed or empty"],
+            "collapse_reason_code": (
+                mode_collapse_reasons.get("gallery_strip_region")
+                if not gallery_rendered and gallery_strip_collapsed_by_design
+                else None
+            ),
         },
         "bottom_region": {
             "rendered": bottom_rendered,

@@ -30,6 +30,7 @@ from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
 from .font_registry import FontRegistry
 from .quality_guard import evaluate_deliverability, run_preflight_guard
+from .region_matrix import _BOTTOM_MODE_COLLAPSED_BY_DESIGN
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
 from .renderer_routing import assert_quality_guard_deliverable
 from .template_behavior import resolve_template_behavior
@@ -210,7 +211,7 @@ class PosterPipeline:
             ),
             structure_evidence_source=structure_evidence_source,
             structure_evidence_complete=structure_evidence_complete,
-            binding_inputs={"bottom_mode": effective_spec.bottom_mode},
+            binding_inputs={"bottom_mode": resolved_behavior.bottom_policy.effective_mode},
         )
         if fg_result.degraded:
             assert_quality_guard_deliverable(
@@ -1101,6 +1102,16 @@ def _build_bottom_contract_review(
     requested_bottom_mode = requested_spec.bottom_mode
     effective_bottom_mode = resolved_behavior.bottom_policy.effective_mode
     bottom_mode_override_reason = resolved_behavior.bottom_policy.mode_override_reason
+    # Frozen per-mode region contract: which regions are collapsed by design for this mode.
+    _cbd = _BOTTOM_MODE_COLLAPSED_BY_DESIGN.get(effective_bottom_mode, frozenset())
+    bottom_mode_region_contract = {
+        "effective_bottom_mode": effective_bottom_mode,
+        "title_band_region_required": "title_band_region" not in _cbd,
+        "gallery_strip_region_required": False,  # gallery_strip_region is never required
+        "title_band_region_collapsed_by_mode": "title_band_region" in _cbd,
+        "gallery_strip_region_collapsed_by_mode": "gallery_strip_region" in _cbd,
+        "collapsed_by_design_regions": sorted(_cbd),
+    }
     return {
         "requested_bottom_mode": requested_bottom_mode,
         "effective_bottom_mode": effective_bottom_mode,
@@ -1162,6 +1173,7 @@ def _build_bottom_contract_review(
         "collapsed_optional_slots": list(resolved_behavior.bottom_policy.collapsed_optional_slots),
         "subtitle_slot": dict(resolved_behavior.bottom_policy.subtitle_slot_state),
         "gallery_slots": gallery_slots,
+        "bottom_mode_region_contract": bottom_mode_region_contract,
     }
 
 

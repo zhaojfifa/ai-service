@@ -319,7 +319,47 @@ Runtime invariants after PR-1:
 - `mode_override_reason = "legacy_alias_canonicalized"` for alias requests
 - Geometry unchanged: `title_gallery_split` and `text_gallery_expanded` both y=640; `text_only_expanded` y=656
 
-## 10. Next Recommended Step
+## 24. PR-2 Bottom Mode Boundary Freeze and Completeness Rules (2026-03-30)
+
+### Status: COMPLETE
+
+### Per-mode frozen region boundary rules
+
+| mode | title_band_region | gallery_strip_region |
+|------|-------------------|----------------------|
+| `title_gallery_split` | required | optional |
+| `text_gallery_expanded` | required | optional |
+| `text_only_expanded` | required | **collapsed_by_design** |
+| `gallery_only` | **collapsed_by_design** | optional |
+
+"Required" means absence is a structure failure (`missing_mandatory_regions` non-empty).
+"Collapsed_by_design" means absence is contractually expected; must not appear in `missing_mandatory_regions`.
+"Optional" means the region may render or not depending on content (never mandatory).
+
+### Implementation
+
+**`region_matrix.py`**:
+- `_BOTTOM_MODE_COLLAPSED_BY_DESIGN: dict[str, frozenset[str]]` — one frozen entry per canonical mode
+- `_BOTTOM_MODE_COLLAPSE_REASON_CODES` — per-mode, per-region reason codes for diagnostics
+- `_resolve_family_a_presence()` uses frozen contract; unknown modes fall back conservatively (no silent fallback)
+- Presence states now carry `collapsed_by_design: bool` and `collapse_reason_code: str | None`
+
+**`pipeline.py`**:
+- `evaluate_deliverability` `binding_inputs` now uses `resolved_behavior.bottom_policy.effective_mode`
+  (was `effective_spec.bottom_mode`, which may be `None`)
+- `bottom_contract_review` gains `bottom_mode_region_contract` field exposing per-mode rules
+
+### Runtime invariants added by PR-2
+
+- `missing_mandatory_regions` never includes `title_band_region` in `gallery_only` mode ✓
+- `missing_mandatory_regions` never includes `gallery_strip_region` in any mode (not mandatory) ✓
+- `gallery_strip_region` presence state carries `collapsed_by_design=True` in `text_only_expanded` ✓
+- Unknown modes conservatively fail structure if title_band absent (no silent excuse) ✓
+- `bottom_mode_region_contract` emitted with complete per-mode rules in all `bottom_contract_review` responses ✓
+
+### Test count: 213/213 pass (205 prior + 8 new pipeline + 14 new region_matrix)
+
+
 
 Freeze bottom as the first SOP baseline of poster2 and move new implementation work to Phase 3 region replication:
 

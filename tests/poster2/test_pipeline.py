@@ -1755,3 +1755,132 @@ class TestTextLayerEvidence:
             expected_excerpt = _apply_text_budget(long_title, layer["char_budget"])
             assert layer["rendered_excerpt"] == expected_excerpt
             assert layer["truncation_applied"] is (len(expected_excerpt) < len(long_title))
+
+
+# ---------------------------------------------------------------------------
+# PR-2: Bottom mode boundary freeze and mode-aware completeness diagnostics
+# ---------------------------------------------------------------------------
+
+class TestBottomModeBoundaryAndCompleteness:
+    """PR-2: Freeze bottom mode boundaries and completeness rules.
+
+    Validates:
+    - per-mode collapsed-by-design regions do not appear in missing_mandatory_regions
+    - bottom_mode_region_contract is emitted with correct frozen rules per mode
+    - no silent fallback: unknown modes conservatively require title_band_region
+    - diagnostics (requested_bottom_mode / effective_bottom_mode / bottom_layout_mode /
+      override reason) are always present
+    """
+
+    def _run(self, bottom_mode: str, **spec_overrides):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode=bottom_mode)
+        spec = _make_spec(**spec_overrides)
+        return _run_pipeline_with_stored_metadata(template, spec)
+
+    # --- gallery_only: title_band collapsed_by_design ---------------------------
+
+    def test_gallery_only_title_band_absent_is_not_missing_mandatory(self):
+        """gallery_only mode: title_band_region absence must not be a structure failure."""
+        _, metadata = self._run(
+            "gallery_only",
+            title="Test Title",
+            gallery_images=(AssetRef(url="mock://g1"),),
+            gallery_requested_count=1,
+            gallery_input_count_normalized=1,
+        )
+        assert "title_band_region" not in metadata["missing_mandatory_regions"]
+        assert metadata["structure_complete"] is True
+        assert metadata["deliverable"] is True
+
+    def test_gallery_only_bottom_mode_region_contract_marks_title_band_collapsed(self):
+        _, metadata = self._run(
+            "gallery_only",
+            title="Test Title",
+            gallery_images=(AssetRef(url="mock://g1"),),
+            gallery_requested_count=1,
+            gallery_input_count_normalized=1,
+        )
+        contract = metadata["bottom_contract_review"]["bottom_mode_region_contract"]
+        assert contract["title_band_region_collapsed_by_mode"] is True
+        assert contract["gallery_strip_region_collapsed_by_mode"] is False
+        assert contract["title_band_region_required"] is False
+        assert "title_band_region" in contract["collapsed_by_design_regions"]
+
+    # --- text_only_expanded: gallery_strip collapsed_by_design ------------------
+
+    def test_text_only_expanded_gallery_strip_absent_is_not_missing_mandatory(self):
+        """text_only_expanded mode: gallery_strip_region absence must not fail structure."""
+        _, metadata = self._run("text_only_expanded", title="Test Title")
+        assert "gallery_strip_region" not in metadata["missing_mandatory_regions"]
+        assert metadata["structure_complete"] is True
+        assert metadata["deliverable"] is True
+
+    def test_text_only_expanded_bottom_mode_region_contract_marks_gallery_strip_collapsed(self):
+        _, metadata = self._run("text_only_expanded", title="Test Title")
+        contract = metadata["bottom_contract_review"]["bottom_mode_region_contract"]
+        assert contract["gallery_strip_region_collapsed_by_mode"] is True
+        assert contract["title_band_region_collapsed_by_mode"] is False
+        assert contract["title_band_region_required"] is True
+        assert "gallery_strip_region" in contract["collapsed_by_design_regions"]
+
+    # --- title_gallery_split: title_band required --------------------------------
+
+    def test_title_gallery_split_bottom_mode_region_contract_requires_title_band(self):
+        _, metadata = self._run("title_gallery_split", title="Test Title")
+        contract = metadata["bottom_contract_review"]["bottom_mode_region_contract"]
+        assert contract["title_band_region_required"] is True
+        assert contract["title_band_region_collapsed_by_mode"] is False
+        assert contract["gallery_strip_region_collapsed_by_mode"] is False
+        assert contract["collapsed_by_design_regions"] == []
+
+    # --- text_gallery_expanded: title_band required ------------------------------
+
+    def test_text_gallery_expanded_bottom_mode_region_contract_requires_title_band(self):
+        _, metadata = self._run("text_gallery_expanded", title="Test Title")
+        contract = metadata["bottom_contract_review"]["bottom_mode_region_contract"]
+        assert contract["title_band_region_required"] is True
+        assert contract["title_band_region_collapsed_by_mode"] is False
+        assert contract["gallery_strip_region_collapsed_by_mode"] is False
+        assert contract["collapsed_by_design_regions"] == []
+
+    # --- diagnostics always present -----------------------------------------------
+
+    def test_bottom_contract_review_always_exposes_full_diagnostic_fields(self):
+        """requested_bottom_mode / effective_bottom_mode / bottom_layout_mode / reason always present."""
+        mode_kwargs = {
+            "title_gallery_split":   {"title": "Test Title"},
+            "text_gallery_expanded": {"title": "Test Title"},
+            "text_only_expanded":    {"title": "Test Title"},
+            "gallery_only":          {
+                "title": "Ignored Title",  # title required by pipeline preflight; band is absent by mode
+                "gallery_images": (AssetRef(url="mock://g1"),),
+                "gallery_requested_count": 1,
+                "gallery_input_count_normalized": 1,
+            },
+        }
+        for mode, kwargs in mode_kwargs.items():
+            _, metadata = self._run(mode, **kwargs)
+            review = metadata["bottom_contract_review"]
+            assert "requested_bottom_mode" in review, f"missing requested_bottom_mode for mode={mode}"
+            assert "effective_bottom_mode" in review, f"missing effective_bottom_mode for mode={mode}"
+            assert "bottom_layout_mode" in review, f"missing bottom_layout_mode for mode={mode}"
+            assert "bottom_mode_override_reason" in review, f"missing bottom_mode_override_reason for mode={mode}"
+            assert review["effective_bottom_mode"] == mode, f"effective mode mismatch for mode={mode}"
+            assert review["bottom_layout_mode"] == mode, f"layout mode must mirror effective mode for mode={mode}"
+            assert review["bottom_mode_region_contract"]["effective_bottom_mode"] == mode
+
+    def test_title_only_alias_canonicalized_to_text_only_expanded_with_explicit_diagnostics(self):
+        """title_only is a known alias; must be canonicalized explicitly with diagnostics, no silent drop."""
+        _, metadata = self._run("title_gallery_split")  # use title_gallery_split as base
+        # Now use title_only as an override in the spec directly
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="title_gallery_split")
+        spec = _make_spec(bottom_mode="title_only", title="Test Title")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["bottom_contract_review"]
+        assert review["requested_bottom_mode"] == "title_only"
+        assert review["effective_bottom_mode"] == "text_only_expanded"
+        assert review["bottom_mode_remapped"] is True
+        assert review["bottom_mode_alias"] == "title_only → text_only_expanded"
+        assert review["bottom_mode_override_reason"] == "legacy_alias_canonicalized"
