@@ -108,7 +108,7 @@ def evaluate_deliverability(
         metadata,
         layer_status=layer_render_status,
         region_status=region_render_status,
-        binding_inputs=binding_inputs,
+        binding_inputs=binding_inputs or {},
     ).to_dict()
 
     missing_required_slots = sorted(slot_binding_status.get("missing_required_slots") or [])

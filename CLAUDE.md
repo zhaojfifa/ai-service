@@ -94,7 +94,32 @@ Do not jump directly into renderer or CSS without re-anchoring on the docs first
 
 See `.env.example` for the full variable reference.
 
-## poster2 phase state (as of 2026-03-29)
+## poster2 phase state (as of 2026-03-30)
+
+### Family A structural closeout — COMPLETE (2026-03-30)
+
+Three contract-level scopes closed. Ends the budget-tuning loop; places Family A on structurally sound path.
+
+**Scope A — Bottom structural expansion**
+- `text_only_expanded` (shell y=656, 368px capacity) and `text_gallery_expanded` (shell y=640, 384px capacity) added as first-class `bottom_layout_mode` values
+- Dense-quad no longer forces `title_char_budget=20`; expanded mode allows `title_char_budget=44` minimum alongside 4 gallery items
+- `bottom_layout_mode` + `bottom_shell_top` emitted in `ResolvedBottomBehavior` evidence
+- Frozen baseline (`title_gallery_split` / `title_only` / `gallery_only`, y=728) untouched
+
+**Scope B — Product layout contract + renderer parity**
+- `product_layout_mode = single_primary | primary_secondary_dual` in `TemplateBehaviorModesSpec`
+- `ResolvedProductBehavior` exposes `product_primary_slot`, `product_secondary_slot`, `product_secondary_slot_rendered`, `product_secondary_asset_policy`
+- Annotation shell stays on `product_primary_slot` only; secondary slot is independent
+- Puppeteer renderer wired end-to-end: `product_secondary_image` field in API → `PosterSpec` → `asset_loader` → `asset_urls["product_secondary"]` → `__PRODUCT_SECONDARY_*__` replacements → `template_dual_v2.html`
+- Primary slot switches to `product_primary_slot` geometry for `primary_secondary_dual`; `single_primary` is backward-compatible (full region unchanged)
+- `product_secondary_image_layer` layer evidence emitted per generation
+
+**Scope C — Text layer evidence**
+- `title_text_layer`, `subtitle_text_layer`, `header_text_layer` promoted to first-class `RenderManifest` fields
+- Each field: `requested_text → sanitized_text → rendered_excerpt`, `truncation_applied`, `slot_bounds`, `line_clamp`, `char_budget`, `owner_region`
+- Builders in `pipeline.py`: `_build_title_text_layer_evidence()`, `_build_subtitle_text_layer_evidence()`, `_build_header_text_layer_evidence()`
+
+205/205 tests pass.
 
 ### Scenario region — resolver evidence COMPLETE
 
@@ -102,7 +127,6 @@ See `.env.example` for the full variable reference.
 - `RenderManifest.scenario_contract_review` field added to contracts
 - Stage 2 Resolver Layout: `buildScenarioDetail(scenarioReview)` reads from backend payload; fallback to `buildHeroDetail` when payload absent
 - Renderer-path parity: evidence shape aligned; known value gap is safe_fill (Pillow always False, Puppeteer conditional) — documented in `docs/poster2/scenario_region_resolver_and_renderer_parity_status_v1.md`, tracked as open follow-up
-- 187/187 tests pass
 
 ### Product annotation layer — ACTIVATED
 
@@ -122,6 +146,7 @@ See `.env.example` for the full variable reference.
 
 - `header_region`: complete `identity_zone_mode` resolver wiring
 - `scenario_region`: fix Pillow `scenario_safe_fill` to match Puppeteer conditional logic (evidence accuracy follow-up)
+- `product_secondary_slot`: Pillow renderer parity (currently Puppeteer-only)
 - Preview-path / generation-path parity (Puppeteer vs Pillow)
 - Beautification layer planning (after all-region behavior stability)
 

@@ -7019,8 +7019,15 @@ function renderResolverLayoutPreview(data) {
   // Summary table
   const table = document.getElementById('poster2-resolver-slot-table');
   if (table) {
+    const requestedMode = review.requested_bottom_mode ?? 'N/A';
+    const effectiveMode = review.bottom_mode ?? 'N/A';
+    const modeRemapped = review.bottom_mode_remapped;
+    const modeDisplay = modeRemapped
+      ? `${requestedMode} → ${effectiveMode} ⚠`
+      : effectiveMode;
     const rows = [
-      ['bottom_mode', review.bottom_mode],
+      ['requested_mode', requestedMode],
+      ['effective_mode', modeDisplay],
       ['gallery_mode', review.gallery_mode],
       ['bottom_shell_top', bottomShellTop],
       ['bottom_shell_height', bottomShellHeight],

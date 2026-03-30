@@ -297,7 +297,9 @@
                 <span>Mode</span>
                 <select id="poster2-bottom-mode">
                   <option value="title_gallery_split">title_gallery_split</option>
+                  <option value="text_gallery_expanded">text_gallery_expanded</option>
                   <option value="title_only">title_only</option>
+                  <option value="text_only_expanded">text_only_expanded</option>
                   <option value="gallery_only">gallery_only</option>
                 </select>
               </label>
@@ -945,7 +947,12 @@
           if (modesStrip && templateBehavior) {
             const chips = [];
             const tb = templateBehavior?.behavior_modes || {};
-            if (tb.bottom_mode) chips.push(['bottom', tb.bottom_mode]);
+            if (tb.bottom_mode) {
+              const reqMode = bottomReview?.requested_bottom_mode;
+              const effMode = tb.bottom_mode;
+              const remapped = bottomReview?.bottom_mode_remapped;
+              chips.push(['bottom', remapped ? `${reqMode} → ${effMode}` : effMode]);
+            }
             if (tb.gallery_mode) chips.push(['gallery', tb.gallery_mode]);
             if (tb.hero_mode || tb.hero) chips.push(['hero', tb.hero_mode || tb.hero]);
             if (tb.product_annotation_mode && tb.product_annotation_mode !== 'none') chips.push(['annotation', tb.product_annotation_mode]);
