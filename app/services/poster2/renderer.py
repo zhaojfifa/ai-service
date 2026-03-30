@@ -1407,15 +1407,14 @@ def _build_renderer_layer_render_status(
     scenario_rendered = has_scenario or scenario_safe_fill
     logo_suppressed_by_mode = header_policy.identity_zone_mode == "brand_only"
     logo_rendered = has_logo and not logo_suppressed_by_mode
+    annotation_active = getattr(product_policy, "annotation_mode", "none") == "product_anchor_callouts"
     product_annotation_visible = min(
         getattr(product_policy, "visible_annotation_count", 0),
         len([item for item in poster.features if item and item.strip()]),
     )
-    product_annotation_rendered = (
-        getattr(product_policy, "annotation_mode", "none") == "product_anchor_callouts"
-        and feature_mode == "product_anchor_callouts"
-        and product_annotation_visible > 0
-    )
+    product_annotation_rendered = annotation_active and product_annotation_visible > 0
+    delegated_feature_rendering = annotation_active and feature_mode == "product_anchor_callouts"
+    visible_feature_count = 0 if delegated_feature_rendering else feature_count
     return {
         "brand_logo_layer": {
             "rendered": logo_rendered,
@@ -1519,11 +1518,15 @@ def _build_renderer_layer_render_status(
             "collapsed": not product_annotation_rendered,
         },
         "feature_callout_layer": {
-            "rendered": feature_count > 0,
-            "reason_code": None if feature_count > 0 else "features_empty",
+            "rendered": visible_feature_count > 0,
+            "reason_code": (
+                "delegated_to_product_annotation_region"
+                if delegated_feature_rendering
+                else (None if visible_feature_count > 0 else "features_empty")
+            ),
             "source_binding": "features",
-            "count": feature_count,
-            "collapsed": feature_count == 0,
+            "count": visible_feature_count,
+            "collapsed": visible_feature_count == 0,
         },
         "title_layer": {
             "rendered": bottom_policy.title_slot_rendered,
@@ -1577,7 +1580,11 @@ def _build_renderer_region_render_status(
         for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
     )
     scenario_count = int(layer_status["scenario_image_layer"]["count"])
-    product_count = int(layer_status["product_image_layer"]["count"]) + int(layer_status["product_secondary_image_layer"]["count"])
+    product_count = (
+        int(layer_status["product_image_layer"]["count"])
+        + int(layer_status["product_secondary_image_layer"]["count"])
+        + int(layer_status["product_annotation_items_layer"]["count"])
+    )
     feature_count = int(layer_status["feature_callout_layer"]["count"])
     title_count = int(layer_status["title_layer"]["count"])
     subtitle_count = int(layer_status["subtitle_layer"]["count"])

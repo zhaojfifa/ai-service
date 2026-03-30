@@ -223,7 +223,8 @@ class TestOptionalAssets:
         assert result.image.getpixel((606, 300))[:3] == (220, 80, 40)
         assert result.image.getpixel((606, 600))[:3] == (40, 120, 220)
         assert result.layer_render_status["product_secondary_image_layer"]["rendered"] is True
-        assert result.region_render_status["product_region"]["count"] == 2
+        assert result.region_render_status["product_region"]["count"] == 5
+        assert result.region_render_status["feature_region"]["count"] == 0
 
 
 # ── Feature slots ─────────────────────────────────────────────────────────────
@@ -524,7 +525,7 @@ class TestGalleryPositions:
         gallery_layouts = resolved.bottom_policy.layout_metrics["gallery_item_layouts"]
 
         assert resolved.bottom_policy.gallery_distribution_policy == "dense_quad"
-        assert resolved.bottom_policy.content_priority_policy == "balanced_text_and_gallery_priority"
+        assert resolved.bottom_policy.content_priority_policy == "expanded_balanced_text_and_gallery_priority"
         assert [item["x"] for item in gallery_layouts] == [96, 308, 520, 732]
         assert [item["w"] for item in gallery_layouts] == [196, 196, 196, 196]
         assert [item["h"] for item in gallery_layouts] == [52, 52, 52, 52]
@@ -542,17 +543,17 @@ class TestGalleryPositions:
         gallery_layouts = resolved.bottom_policy.layout_metrics["gallery_item_layouts"]
 
         assert resolved.bottom_policy.gallery_distribution_policy == "balanced_pair"
-        assert resolved.bottom_policy.content_priority_policy == "title_and_subtitle_priority_over_gallery_density"
-        assert resolved.bottom_policy.peer_balance_policy == "title_growth_allowed_with_light_gallery"
-        assert resolved.bottom_policy.title_band_growth_policy == "grow_title_band_for_support_copy_priority"
+        assert resolved.bottom_policy.content_priority_policy == "expanded_text_priority_with_light_gallery"
+        assert resolved.bottom_policy.peer_balance_policy == "expanded_title_growth_with_light_gallery"
+        assert resolved.bottom_policy.title_band_growth_policy == "grow_title_band_expanded_text_gallery_light_gallery"
         assert resolved.bottom_policy.gallery_strip_shift_policy == "downshift_for_spacious_pair"
         assert resolved.bottom_policy.gallery_aspect_policy == "spacious_pair_aspect"
         assert resolved.bottom_policy.gallery_spacing_policy == "relaxed_pair_spacing"
         assert resolved.bottom_policy.gallery_shell_frame_policy == "pair_showcase_frame"
-        assert resolved.bottom_policy.bottom_text_emphasis_policy == "copy_priority_strong_title"
+        assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_copy_priority_strong_title"
         assert [item["x"] for item in gallery_layouts] == [224, 520]
         assert [item["w"] for item in gallery_layouts] == [280, 280]
-        assert [item["y"] for item in gallery_layouts] == [912, 912]
+        assert [item["y"] for item in gallery_layouts] == [842, 842]
         assert [item["h"] for item in gallery_layouts] == [80, 80]
 
     def test_three_item_distribution_uses_balanced_triplet_layout(self):
@@ -568,12 +569,12 @@ class TestGalleryPositions:
         gallery_layouts = resolved.bottom_policy.layout_metrics["gallery_item_layouts"]
 
         assert resolved.bottom_policy.gallery_distribution_policy == "balanced_triplet"
-        assert resolved.bottom_policy.title_band_growth_policy == "temper_growth_for_triplet_gallery_balance"
+        assert resolved.bottom_policy.title_band_growth_policy == "temper_growth_expanded_text_gallery_triplet"
         assert resolved.bottom_policy.gallery_strip_shift_policy == "balanced_triplet_shift"
         assert resolved.bottom_policy.gallery_aspect_policy == "balanced_triplet_aspect"
         assert resolved.bottom_policy.gallery_spacing_policy == "balanced_triplet_spacing"
         assert resolved.bottom_policy.gallery_shell_frame_policy == "triplet_balanced_frame"
-        assert resolved.bottom_policy.bottom_text_emphasis_policy == "balanced_triplet_text_emphasis"
+        assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_balanced_triplet_text_emphasis"
         assert [item["x"] for item in gallery_layouts] == [170, 402, 634]
         assert [item["w"] for item in gallery_layouts] == [220, 220, 220]
         assert [item["h"] for item in gallery_layouts] == [60, 60, 60]
@@ -1128,7 +1129,8 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.gallery_strip_rendered is False
         assert resolved.bottom_policy.subtitle_slot_rendered is True
         assert resolved.bottom_policy.title_band_sizing_mode == "standard"
-        assert resolved.bottom_policy.subtitle_overflow_policy == "single_line_ellipsis_inside_title_band"
+        assert resolved.bottom_policy.bottom_layout_mode == "text_only_expanded"
+        assert resolved.bottom_policy.subtitle_overflow_policy == "single_line_ellipsis_inside_expanded_title_band"
 
     def test_template_behavior_resolver_promotes_bottom_into_behavior_policy(self):
         template = _load_real_template()
@@ -1144,28 +1146,29 @@ class TestStructuredScenarioLayer:
         )
 
         assert resolved.bottom_policy.title_band_sizing_mode == "expanded"
-        assert resolved.bottom_policy.title_band_growth_policy == "grow_title_band_for_support_copy_priority"
-        assert resolved.bottom_policy.subtitle_overflow_policy == "two_line_clamp_inside_split_title_band"
-        assert resolved.bottom_policy.content_priority_policy == "title_and_subtitle_priority_over_gallery_density"
-        assert resolved.bottom_policy.peer_balance_policy == "title_growth_allowed_with_light_gallery"
-        assert resolved.bottom_policy.bottom_peer_balance_policy == "copy_priority_with_spacious_gallery"
+        assert resolved.bottom_policy.bottom_layout_mode == "text_gallery_expanded"
+        assert resolved.bottom_policy.title_band_growth_policy == "grow_title_band_expanded_text_gallery_light_gallery"
+        assert resolved.bottom_policy.subtitle_overflow_policy == "two_line_clamp_inside_expanded_split_title_band"
+        assert resolved.bottom_policy.content_priority_policy == "expanded_text_priority_with_light_gallery"
+        assert resolved.bottom_policy.peer_balance_policy == "expanded_title_growth_with_light_gallery"
+        assert resolved.bottom_policy.bottom_peer_balance_policy == "expanded_copy_priority_spacious_gallery"
         assert resolved.bottom_policy.gallery_distribution_policy == "balanced_pair"
         assert resolved.bottom_policy.gallery_shell_frame_policy == "pair_showcase_frame"
         assert resolved.bottom_policy.gallery_strip_shift_policy == "downshift_for_spacious_pair"
         assert resolved.bottom_policy.gallery_aspect_policy == "spacious_pair_aspect"
-        assert resolved.bottom_policy.bottom_text_emphasis_policy == "copy_priority_strong_title"
-        assert resolved.bottom_policy.title_line_clamp in {1, 2}
+        assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_copy_priority_strong_title"
+        assert resolved.bottom_policy.title_line_clamp == 2
         assert resolved.bottom_policy.subtitle_line_clamp == 2
-        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 160
-        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 902
+        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 192
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 832
         assert resolved.bottom_policy.layout_metrics["gallery_shell_x"] == 208
         assert resolved.bottom_policy.layout_metrics["gallery_shell_w"] == 608
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 80
         assert resolved.css_vars["--gallery-shell-left"] == "208px"
         assert resolved.css_vars["--gallery-shell-width"] == "608px"
         assert resolved.css_vars["--gallery-shell-radius"] == "24px"
-        assert resolved.css_vars["--bottom-title-letter-spacing"] == "0.01em"
-        assert resolved.css_vars["--title-band-height"] == "160px"
+        assert resolved.css_vars["--bottom-title-letter-spacing"] == "0.012em"
+        assert resolved.css_vars["--title-band-height"] == "192px"
         assert resolved.css_vars["--subtitle-line-clamp"] == "2"
 
     def test_template_behavior_resolver_limits_title_growth_when_gallery_is_dense(self):
@@ -1182,18 +1185,20 @@ class TestStructuredScenarioLayer:
         )
 
         assert resolved.bottom_policy.title_band_sizing_mode == "standard"
-        assert resolved.bottom_policy.title_band_growth_policy == "hold_growth_under_dense_quad_pressure"
-        assert resolved.bottom_policy.content_priority_policy == "gallery_count_priority_with_text_compaction"
-        assert resolved.bottom_policy.peer_balance_policy == "gallery_priority_under_dense_quad"
-        assert resolved.bottom_policy.bottom_peer_balance_policy == "quad_gallery_priority_over_copy_growth"
+        assert resolved.bottom_policy.bottom_layout_mode == "text_gallery_expanded"
+        assert resolved.bottom_policy.title_band_growth_policy == "hold_growth_expanded_text_gallery_quad"
+        assert resolved.bottom_policy.content_priority_policy == "expanded_gallery_count_priority_with_text_preserved"
+        assert resolved.bottom_policy.peer_balance_policy == "expanded_gallery_preserved_with_full_title"
+        assert resolved.bottom_policy.bottom_peer_balance_policy == "expanded_quad_gallery_with_full_title"
         assert resolved.bottom_policy.gallery_distribution_policy == "dense_quad"
         assert resolved.bottom_policy.gallery_shell_frame_policy == "quad_strip_frame"
         assert resolved.bottom_policy.gallery_strip_shift_policy == "tight_quad_shift"
         assert resolved.bottom_policy.gallery_aspect_policy == "compact_quad_aspect"
-        assert resolved.bottom_policy.bottom_text_emphasis_policy == "compact_quad_text_emphasis"
+        assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_quad_text_emphasis"
+        assert resolved.bottom_policy.title_line_clamp == 2
         assert resolved.bottom_policy.subtitle_line_clamp == 1
-        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 144
-        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 882
+        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 168
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 808
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
 
     def test_template_behavior_resolver_promotes_dense_feature_and_bottom_into_template_policy(self):
@@ -1752,13 +1757,12 @@ class TestBottomSplitBehavior:
             ],
         )
 
-        assert "--title-band-height: 160px" in html_payload
+        assert "--title-band-height: 144px" in html_payload
         assert "--title-line-clamp:" in html_payload
-        assert "--subtitle-line-clamp: 2" in html_payload
-        assert "--title-stack-gap: 6px" in html_payload
-        assert "--gallery-shell-left: 208px" in html_payload
-        assert "--gallery-shell-width: 608px" in html_payload
-        assert "left:128px;top:10px;width:280px;height:80px;" in html_payload
+        assert "--subtitle-line-clamp: 1" in html_payload
+        assert "--title-stack-gap: 8px" in html_payload
+        assert "--gallery-shell-left: 96px" in html_payload
+        assert "--gallery-shell-width: 832px" in html_payload
 
     def test_bottom_split_dense_quad_limits_title_growth_and_keeps_quad_distribution(self):
         html_payload = self._render_html_payload(
@@ -1776,8 +1780,8 @@ class TestBottomSplitBehavior:
         assert "--subtitle-line-clamp: 1" in html_payload
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
-        assert "left:0px;top:6px;width:196px;height:52px;" in html_payload
-        assert "left:636px;top:6px;width:196px;height:52px;" in html_payload
+        assert "left:0px;top:8px;width:196px;height:52px;" in html_payload
+        assert "left:636px;top:8px;width:196px;height:52px;" in html_payload
 
     def test_template_css_exposes_independent_bottom_split_state_tokens(self):
         css_template = (

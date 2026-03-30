@@ -247,3 +247,79 @@ This log records what has been completed on this branch in chronological order. 
 ### What is now truly live
 - Bottom mode selection is not just accepted by the request schema; it is now inspectable as requested/effective runtime routing
 - Product secondary assets no longer stop at evidence-only contract surfaces; they activate dual layout and render into a real secondary slot
+
+---
+
+## Entry 7 — Family A Final Alignment: Canonical Bottom/Product Truth
+
+**Status:** Complete
+
+### What changed
+
+#### A. Canonical bottom layout mode alignment
+- `bottom_contract_review` now carries both semantic routing truth and layout truth:
+  - `requested_bottom_mode`
+  - `effective_bottom_mode`
+  - `bottom_layout_mode`
+  - `bottom_mode_override_reason`
+- Canonical semantic modes are now stable:
+  - `title_only`
+  - `title_gallery_split`
+  - `gallery_only`
+- Expanded bottom variants are now treated as layout aliases instead of separate semantic runtime truth:
+  - `text_only_expanded` -> semantic `title_only`
+  - `text_gallery_expanded` -> semantic `title_gallery_split`
+
+#### B. Bottom v2 geometry closeout
+- Expanded bottom geometry is now the actual runtime geometry for Family A split/text-only paths
+- Runtime no longer reports semantic `title_gallery_split` while silently staying on older split-shell geometry
+- Stage 2 now shows both semantic mode and backend-provided layout mode without inventing any frontend routing
+
+#### C. Product dual-image v2 geometry closeout
+- `product_layout_mode = primary_secondary_dual` now activates a real `product_geometry_mode = primary_secondary_dual_v2`
+- `product_secondary_slot` is emitted with real bounds in `geometry_evidence.slot_bounds`
+- `product_secondary_image_layer` is now a live rendered layer, not only contract-only evidence
+
+#### D. Feature vs product-annotation responsibility cleanup
+- When `product_annotation_mode = product_anchor_callouts`, ownership now cleanly shifts to `product_region`
+- `feature_contract_review` explicitly marks:
+  - `responsibility_owner = product_region`
+  - `delegated_to_product_annotation = true`
+- `feature_region` no longer pretends it still rendered independent callouts in the same runtime
+
+### Acceptance
+- Canonical bottom routing and bottom layout mode are both inspectable in runtime ✓
+- Expanded bottom runtime no longer silently hides behind old split geometry ✓
+- Dual-image product runtime uses real secondary-slot geometry ✓
+- Feature/product-annotation responsibility is no longer ambiguous in runtime evidence ✓
+- Stage 2 remains backend-evidence-driven ✓
+
+### Fresh runtime verification
+- Temporary local runtime wrapper used only to provide fake assets and storage while hitting real `/api/v2/generate-poster`
+- Request id: `p2-family-a-final`
+- Trace: `64445219-4329-469c-85a4-1c521a0499ad`
+- Result:
+  - `degraded = false`
+  - `structure_complete = true`
+  - `deliverable = true`
+  - `requested_bottom_mode = title_gallery_split`
+  - `effective_bottom_mode = title_gallery_split`
+  - `bottom_layout_mode = text_gallery_expanded`
+  - `bottom_mode_override_reason = requested_matches_template_default`
+  - `product_layout_mode = primary_secondary_dual`
+  - `product_geometry_mode = primary_secondary_dual_v2`
+  - `product_layout_mode_reason = auto_promoted_by_secondary_asset`
+  - `product_geometry_mode_reason = dual_image_geometry_v2_selected`
+  - `geometry_evidence.slot_bounds.product_secondary_slot = {x:456,y:506,w:300,h:202}`
+  - `feature_contract_review.responsibility_owner = product_region`
+  - `feature_contract_review.delegated_to_product_annotation = true`
+
+### Tests
+- `181 passed, 2 warnings`
+- Command:
+  - `python -m pytest tests/poster2/test_api.py tests/poster2/test_contracts.py tests/poster2/test_renderer.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py`
+
+### What is now truly live
+- Family A bottom runtime tells the truth in two layers: semantic bottom mode and actual layout mode
+- Family A dual-image product runtime uses dedicated v2 geometry instead of piggybacking on single-image geometry
+- Product annotation ownership and feature delegation are now explicit in backend evidence and visible in Stage 2 diagnostics

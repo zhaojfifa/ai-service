@@ -762,11 +762,13 @@
           if (!productReview) return '';
           let html = '';
           const layoutMode = productReview.product_layout_mode || '';
+          const geometryMode = productReview.product_geometry_mode || '';
           const mode = productReview.product_annotation_mode || '';
           const visibleCount = productReview.product_annotation_items_layer?.visible_item_count;
           const layoutReason = productReview.product_layout_mode_reason || '';
+          const geometryReason = productReview.product_geometry_mode_reason || '';
           if (layoutMode || mode) {
-            html += `<div class="s2-slot-note">layout: ${layoutMode || 'single_primary'}${layoutReason ? ' · ' + layoutReason : ''}${mode ? ` · annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}` : ''}</div>`;
+            html += `<div class="s2-slot-note">layout: ${layoutMode || 'single_primary'}${layoutReason ? ' · ' + layoutReason : ''}${geometryMode ? ` · geometry: ${geometryMode}${geometryReason ? ' · ' + geometryReason : ''}` : ''}${mode ? ` · annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}` : ''}</div>`;
           }
           if (productReview.requested_product_source) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
@@ -807,6 +809,9 @@
           const mode = featureReview.feature_mode || '';
           const visibleCount = featureReview.feature_region?.visible_item_count;
           if (mode) html += `<div class="s2-slot-note">mode: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}</div>`;
+          if (featureReview.delegated_to_product_annotation) {
+            html += `<div style="padding-top:2px;"><span class="s2-region-status s2-status-ok" style="font-size:10px;padding:1px 5px;">delegated to product_annotation</span></div>`;
+          }
           const slots = featureReview.feature_slots || [];
           if (slots.length) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
@@ -882,6 +887,9 @@
             if (bottomReview.requested_bottom_mode || bottomReview.effective_bottom_mode) {
               html += `<div class="s2-slot-note">requested/effective: ${bottomReview.requested_bottom_mode || 'template-default'} → ${bottomReview.effective_bottom_mode || bottomReview.bottom_mode || 'n/a'} (${bottomReview.bottom_mode_override_reason || 'n/a'})</div>`;
             }
+            if (bottomReview.bottom_layout_mode) {
+              html += `<div class="s2-slot-note">layout mode: ${bottomReview.bottom_layout_mode}</div>`;
+            }
             html += `<div class="s2-slot-note">gallery raw/normalized/requested/visible: ${bottomReview.gallery_input_count_raw ?? 0} / ${bottomReview.gallery_input_count_normalized ?? 0} / ${bottomReview.gallery_requested_count ?? 0} / ${bottomReview.gallery_visible_count ?? 0}</div>`;
             html += `<div class="s2-slot-note">autofill: ${bottomReview.gallery_autofill_applied ? 'applied' : 'not-applied'} · distribution: ${bottomReview.behavior_policy?.gallery_distribution_policy || 'n/a'}</div>`;
             const hasTextEvidence = (
@@ -951,11 +959,13 @@
               const reqMode = bottomReview?.requested_bottom_mode;
               const effMode = tb.bottom_mode;
               const remapped = bottomReview?.bottom_mode_remapped;
-              chips.push(['bottom', remapped ? `${reqMode} → ${effMode}` : effMode]);
+              const layoutMode = tb.bottom_layout_mode;
+              chips.push(['bottom', `${remapped ? `${reqMode} → ${effMode}` : effMode}${layoutMode ? ` · ${layoutMode}` : ''}`]);
             }
             if (tb.gallery_mode) chips.push(['gallery', tb.gallery_mode]);
             if (tb.hero_mode || tb.hero) chips.push(['hero', tb.hero_mode || tb.hero]);
             if (tb.product_annotation_mode && tb.product_annotation_mode !== 'none') chips.push(['annotation', tb.product_annotation_mode]);
+            if (tb.product_geometry_mode) chips.push(['product-geometry', tb.product_geometry_mode]);
             if (tb.feature_mode) chips.push(['feature', tb.feature_mode]);
             if (tb.header_mode) chips.push(['header', tb.header_mode]);
             if (chips.length) {
