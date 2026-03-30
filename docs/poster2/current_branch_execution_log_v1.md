@@ -104,7 +104,7 @@ This log records what has been completed on this branch in chronological order. 
 - `scenario_region`: Pillow safe_fill parity fix + parity test
 - Product secondary slot: Pillow renderer to consume `product_secondary_slot` for actual rendering
 - Text layer evidence: Puppeteer parity (currently Pillow-only)
-- Beautification layer planning (after structural closeout is confirmed stable in live generation)
+- Beautification layer planning (after all-region behavior stability confirmed)
 
 ---
 

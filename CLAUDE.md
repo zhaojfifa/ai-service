@@ -96,56 +96,72 @@ See `.env.example` for the full variable reference.
 
 ## poster2 phase state (as of 2026-03-30)
 
+### PR-5 — Post-freeze text capacity optimization — COMPLETE (2026-03-30)
+
+char_budget floors raised across three target areas. No contract changes, no mode changes, no geometry changes.
+
+**title_gallery_split (text_gallery_expanded) — all six tiers raised:**
+- Dense-quad: `title_char_budget` 44→52, `subtitle_char_budget` 44→48
+- Triplet: `title_char_budget` 52→60, `subtitle_char_budget` 52→56
+- Light gallery (1–2): `title_char_budget` 60→72, `subtitle_char_budget` 56→60
+- Subtitle only (not dense): `title_char_budget` 52→60, `subtitle_char_budget` 36→40
+- Long title, no subtitle: `title_char_budget` 52→60
+- Compact: `title_char_budget` 44→52
+
+**Product annotation char_budget:** `{1:36, 2:30, 3:24}` → `{1:40, 2:34, 3:28}`
+
+**Header agent_char_budget:** 24→28 (`identity_left_agent_right` + `brand_block_two_line`)
+
+`TestPostFreezeTextCapacity`: 10 new floor-assertion tests. 262/262 tests pass.
+
+### PR-4 — Text ownership freeze and feature delegation — COMPLETE (2026-03-30)
+
+- `_TEXT_LAYER_OWNER_MAP` / `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` / `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION` declared as constants
+- All three text layers emit `ownership_frozen = True`
+- `feature_view_mode = delegated_diagnostic` enforces no dual ownership when annotation active
+- 252/252 tests pass
+
 ### Family A structural closeout — COMPLETE (2026-03-30)
 
 Three contract-level scopes closed. Ends the budget-tuning loop; places Family A on structurally sound path.
 
 **Scope A — Bottom structural expansion**
 - `text_only_expanded` (shell y=656, 368px capacity) and `text_gallery_expanded` (shell y=640, 384px capacity) added as first-class `bottom_layout_mode` values
-- Dense-quad no longer forces `title_char_budget=20`; expanded mode allows `title_char_budget=44` minimum alongside 4 gallery items
+- Dense-quad no longer forces `title_char_budget=20`; expanded mode allows `title_char_budget=44` minimum alongside 4 gallery items (raised to 52 in PR-5)
 - `bottom_layout_mode` + `bottom_shell_top` emitted in `ResolvedBottomBehavior` evidence
-- Frozen baseline (`title_gallery_split` / `title_only` / `gallery_only`, y=728) untouched
 
 **Scope B — Product layout contract + renderer parity**
 - `product_layout_mode = single_primary | primary_secondary_dual` in `TemplateBehaviorModesSpec`
 - `ResolvedProductBehavior` exposes `product_primary_slot`, `product_secondary_slot`, `product_secondary_slot_rendered`, `product_secondary_asset_policy`
 - Annotation shell stays on `product_primary_slot` only; secondary slot is independent
-- Puppeteer renderer wired end-to-end: `product_secondary_image` field in API → `PosterSpec` → `asset_loader` → `asset_urls["product_secondary"]` → `__PRODUCT_SECONDARY_*__` replacements → `template_dual_v2.html`
-- Primary slot switches to `product_primary_slot` geometry for `primary_secondary_dual`; `single_primary` is backward-compatible (full region unchanged)
-- `product_secondary_image_layer` layer evidence emitted per generation
+- Puppeteer renderer wired end-to-end for dual-image path
 
 **Scope C — Text layer evidence**
 - `title_text_layer`, `subtitle_text_layer`, `header_text_layer` promoted to first-class `RenderManifest` fields
 - Each field: `requested_text → sanitized_text → rendered_excerpt`, `truncation_applied`, `slot_bounds`, `line_clamp`, `char_budget`, `owner_region`
-- Builders in `pipeline.py`: `_build_title_text_layer_evidence()`, `_build_subtitle_text_layer_evidence()`, `_build_header_text_layer_evidence()`
-
-205/205 tests pass.
 
 ### Scenario region — resolver evidence COMPLETE
 
-- `scenario_contract_review` emitted per generation: hero_mode, scenario_enabled, render_policy, source chain (requested/sanitized/rendered), safe_fill_applied, scenario_region bounds, scenario_slot (rendered + reason_code + bounds), behavior_policy
-- `RenderManifest.scenario_contract_review` field added to contracts
-- Stage 2 Resolver Layout: `buildScenarioDetail(scenarioReview)` reads from backend payload; fallback to `buildHeroDetail` when payload absent
-- Renderer-path parity: evidence shape aligned; known value gap is safe_fill (Pillow always False, Puppeteer conditional) — documented in `docs/poster2/scenario_region_resolver_and_renderer_parity_status_v1.md`, tracked as open follow-up
+- `scenario_contract_review` emitted per generation: hero_mode, scenario_enabled, render_policy, source chain, safe_fill_applied, scenario_region bounds, scenario_slot, behavior_policy
+- Stage 2 Resolver Layout: `buildScenarioDetail(scenarioReview)` reads from backend payload
+- Known open gap: Pillow `safe_fill` always False vs Puppeteer conditional — documented, tracked
 
 ### Product annotation layer — ACTIVATED
 
-- `feature_mode` in `template_dual_v2.json` is now `product_anchor_callouts` (production default)
-- Renderer uses fixed template-spec anchor positions when this mode is active; old stacking algorithm bypassed
-- `product_annotation_shell_layer` and `product_annotation_items_layer` emitted in layer render status
-- `product_annotation_contract_review` emitted per generation: per-slot anchor coords, label bounds, text chain, feature suppression flag
-- `product_annotation_mode` exposed as distinct key in `behavior_modes`
-- Stage 2 Resolver Layout: annotation chip + annotation detail panel for `product_region`
+- `feature_mode` in `template_dual_v2.json` is `product_anchor_callouts` (production default)
+- `product_annotation_contract_review` emitted per generation
+- Stage 2: annotation chip + detail panel for `product_region`
 
 ### Prior phases still established
 
-- **Phase 2 (bottom SOP)**: `bottom_region` resolver baseline; bottom mode selection bug fixed; Stage 2 Resolver Layout design
+- **PR-1 through PR-3**: bottom mode unification, boundary freeze, product owner surfaces freeze
+- **Phase 2 (bottom SOP)**: `bottom_region` resolver baseline
 - **Beautification Phase 1**: `glass_light` shell, `soft_line` border, `soft` shadow, feature connector/marker visual
 
 ### Next
 
 - `header_region`: complete `identity_zone_mode` resolver wiring
-- `scenario_region`: fix Pillow `scenario_safe_fill` to match Puppeteer conditional logic (evidence accuracy follow-up)
+- `scenario_region`: fix Pillow `scenario_safe_fill` to match Puppeteer conditional logic
 - `product_secondary_slot`: Pillow renderer parity (currently Puppeteer-only)
 - Preview-path / generation-path parity (Puppeteer vs Pillow)
 - Beautification layer planning (after all-region behavior stability)
