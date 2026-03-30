@@ -21,6 +21,9 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "poster2-template-behavior",
         "poster2-geometry-evidence",
         "poster2-bottom-contract-review",
+        "poster2-title-text-layer",
+        "poster2-subtitle-text-layer",
+        "poster2-header-text-layer",
         "poster2-bottom-mode",
         "poster2-gallery-mode",
         "poster2-gallery-count",
@@ -41,6 +44,9 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "template_behavior",
         "geometry_evidence",
         "bottom_contract_review",
+        "title_text_layer",
+        "subtitle_text_layer",
+        "header_text_layer",
         "product_contract_review",
         "bottom_mode",
         "gallery_mode",
@@ -95,22 +101,30 @@ def test_frontend_stage2_surfaces_scenario_contract_review():
     assert "poster2-scenario-contract-review" in js
     assert "scenario_contract_review" in js
 
-    # 6. renderResolverLayout receives scenarioReview as a parameter (not relying on
-    #    outer-scope access which would be undefined)
+    # 6. renderResolverLayout receives scenarioReview and product/text-layer payloads
+    #    as parameters (not relying on outer-scope access which would be undefined)
     assert "renderResolverLayout(" in html
-    assert "annotationReview, scenarioReview)" in html
+    assert "annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer)" in html
 
 
 def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
 
     assert "requested/effective:" in html
     assert "bottom_mode_override_reason" in html
-    assert "textRow('title', bottomReview.requested_title_text" in html
-    assert "textRow('subtitle', bottomReview.requested_subtitle_text" in html
+    assert "textRow('title', titleTextLayer.requested_text" in html
+    assert "textRow('subtitle', subtitleTextLayer.requested_text" in html
+    assert "buildHeaderDetail(headerReview, headerTextLayer)" in html
+    assert "poster2-title-text-layer" in html
+    assert "poster2-subtitle-text-layer" in html
+    assert "poster2-header-text-layer" in html
     assert "buildProductDetail(productReview, annotationReview)" in html
     assert "product_secondary_image_layer" in html
     assert "product_secondary_slot" in html
+    assert "syncPoster2BottomContractFromControls(stage1Data)" in js
+    assert "bottom_mode: bottomRequestState.bottom_mode" in js
+    assert "product_secondary_image:" in js
 
 
 def test_docs_publish_mirror_contains_same_guard_diagnostics():

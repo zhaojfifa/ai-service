@@ -419,6 +419,38 @@ function buildPoster2BottomRequestState(stage1Data) {
   };
 }
 
+function syncPoster2BottomContractFromControls(stage1Data) {
+  const bottom = ensurePoster2BottomContractState(stage1Data);
+  const titleInput = document.getElementById('poster2-bottom-title');
+  const subtitleInput = document.getElementById('poster2-bottom-subtitle');
+  const bottomMode = document.getElementById('poster2-bottom-mode');
+  const galleryMode = document.getElementById('poster2-gallery-mode');
+  const galleryCount = document.getElementById('poster2-gallery-count');
+  const galleryAutofill = document.getElementById('poster2-gallery-autofill');
+
+  if (titleInput) {
+    bottom.title = normalisePoster2BottomText(titleInput.value, POSTER2_BOTTOM_TITLE_MAX_CHARS);
+    bottom.titleSource = 'stage2.bottom_contract.title';
+  }
+  if (subtitleInput) {
+    bottom.subtitle = normalisePoster2BottomText(subtitleInput.value, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
+    bottom.subtitleSource = 'stage2.bottom_contract.subtitle';
+  }
+  if (bottomMode) {
+    bottom.bottomMode = bottomMode.value || 'title_gallery_split';
+  }
+  if (galleryMode) {
+    bottom.galleryMode = galleryMode.value || 'strip_local_visible_only';
+  }
+  if (galleryCount) {
+    bottom.galleryCount = Number(galleryCount.value || 0);
+  }
+  if (galleryAutofill) {
+    bottom.autoFillGallery = galleryAutofill.checked;
+  }
+  return bottom;
+}
+
 function updatePoster2BottomRequestPreview(stage1Data) {
   const preview = document.getElementById('poster2-bottom-request-preview');
   if (!preview) return;
@@ -5042,6 +5074,7 @@ function buildGeneratePosterPayload(draft) {
 }
 
 async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
+  syncPoster2BottomContractFromControls(stage1Data);
   const safeText = (value, fallback = '') => {
     const text = typeof value === 'string' ? value.trim() : '';
     return text || fallback;
@@ -5091,6 +5124,17 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     {
       field: 'poster2.product_image',
       required: true,
+      apiCandidates,
+      folder: 'product',
+    },
+    null
+  );
+
+  const productSecondaryRef = await normaliseAssetReference(
+    stage1Data.product_image_2,
+    {
+      field: 'poster2.product_secondary_image',
+      required: false,
       apiCandidates,
       folder: 'product',
     },
@@ -5157,6 +5201,12 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       url: productRef?.url || '',
       key: productRef?.key || null,
     },
+    product_secondary_image: productSecondaryRef?.url
+      ? {
+          url: productSecondaryRef.url,
+          key: productSecondaryRef.key || null,
+        }
+      : null,
     logo: logoRef?.url
       ? {
           url: logoRef.url,
@@ -5188,6 +5238,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     payload,
     refs: {
       productRef,
+      productSecondaryRef,
       logoRef,
       scenarioRef,
       galleryRefs,
@@ -6850,6 +6901,9 @@ function updatePoster2DiagnosticsPanel(data) {
   setJson('poster2-template-behavior', data?.template_behavior, '{}');
   setJson('poster2-geometry-evidence', data?.geometry_evidence, '{}');
   setJson('poster2-bottom-contract-review', data?.bottom_contract_review, '{}');
+  setJson('poster2-title-text-layer', data?.title_text_layer, 'null');
+  setJson('poster2-subtitle-text-layer', data?.subtitle_text_layer, 'null');
+  setJson('poster2-header-text-layer', data?.header_text_layer, 'null');
   setJson('poster2-header-contract-review', data?.header_contract_review, '{}');
   setJson('poster2-hero-contract-review', data?.hero_contract_review, '{}');
   setJson('poster2-product-contract-review', data?.product_contract_review, '{}');

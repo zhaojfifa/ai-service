@@ -464,6 +464,9 @@
         <pre id="poster2-template-behavior">{}</pre>
         <pre id="poster2-geometry-evidence">{}</pre>
         <pre id="poster2-bottom-contract-review">{}</pre>
+        <pre id="poster2-title-text-layer">null</pre>
+        <pre id="poster2-subtitle-text-layer">null</pre>
+        <pre id="poster2-header-text-layer">null</pre>
         <pre id="poster2-bottom-request-preview">{}</pre>
         <pre id="poster2-header-contract-review">{}</pre>
         <pre id="poster2-hero-contract-review">{}</pre>
@@ -690,23 +693,29 @@
           </div>`;
         }
 
-        function buildHeaderDetail(headerReview) {
-          if (!headerReview) return '';
+        function buildHeaderDetail(headerReview, headerTextLayer) {
+          if (!headerReview && !headerTextLayer) return '';
           let html = '';
-          const mode = headerReview.header_mode || headerReview.behavior_policy?.identity_zone_mode || '';
+          const mode = headerReview?.header_mode || headerReview?.behavior_policy?.identity_zone_mode || '';
           if (mode) html += `<div class="s2-slot-note">mode: ${mode}</div>`;
           html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
-          if (headerReview.requested_brand_text != null) {
+          const brandText = headerTextLayer?.brand_text_slot;
+          const agentText = headerTextLayer?.agent_text_slot;
+          if (brandText?.requested_text != null) {
+            html += textRow('brand', brandText.requested_text, brandText.rendered_excerpt, brandText.truncation_applied);
+          } else if (headerReview?.requested_brand_text != null) {
             html += textRow('brand', headerReview.requested_brand_text, headerReview.rendered_brand_excerpt, headerReview.brand_truncation_applied);
           }
-          if (headerReview.requested_agent_text != null) {
+          if (agentText?.requested_text != null) {
+            html += textRow('agent', agentText.requested_text, agentText.rendered_excerpt, agentText.truncation_applied);
+          } else if (headerReview?.requested_agent_text != null) {
             html += textRow('agent', headerReview.requested_agent_text, headerReview.rendered_agent_excerpt, headerReview.agent_truncation_applied);
           }
           html += '</div>';
           const slots = [
-            ['logo', headerReview.brand_logo_slot],
-            ['brand', headerReview.brand_name_slot],
-            ['agent', headerReview.agent_name_slot],
+            ['logo', headerReview?.brand_logo_slot],
+            ['brand', headerReview?.brand_name_slot],
+            ['agent', headerReview?.agent_name_slot],
           ].filter(([, s]) => s != null);
           if (slots.length) {
             html += `<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:4px;">`;
@@ -861,7 +870,7 @@
           return html;
         }
 
-        function buildBottomDetail(bottomReview, templateBehavior) {
+        function buildBottomDetail(bottomReview, templateBehavior, titleTextLayer, subtitleTextLayer) {
           let html = '';
           const metrics = bottomReview?.behavior_policy?.layout_metrics || {};
           if (metrics.bottom_shell_height) {
@@ -874,15 +883,21 @@
             html += `<div class="s2-slot-note">gallery raw/normalized/requested/visible: ${bottomReview.gallery_input_count_raw ?? 0} / ${bottomReview.gallery_input_count_normalized ?? 0} / ${bottomReview.gallery_requested_count ?? 0} / ${bottomReview.gallery_visible_count ?? 0}</div>`;
             html += `<div class="s2-slot-note">autofill: ${bottomReview.gallery_autofill_applied ? 'applied' : 'not-applied'} · distribution: ${bottomReview.behavior_policy?.gallery_distribution_policy || 'n/a'}</div>`;
             const hasTextEvidence = (
+              titleTextLayer?.requested_text != null ||
+              subtitleTextLayer?.requested_text != null ||
               bottomReview.requested_title_text != null ||
               bottomReview.requested_subtitle_text != null
             );
             if (hasTextEvidence) {
               html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
-              if (bottomReview.requested_title_text != null) {
+              if (titleTextLayer?.requested_text != null) {
+                html += textRow('title', titleTextLayer.requested_text, titleTextLayer.rendered_excerpt, titleTextLayer.truncation_applied);
+              } else if (bottomReview.requested_title_text != null) {
                 html += textRow('title', bottomReview.requested_title_text, bottomReview.rendered_title_excerpt, bottomReview.title_truncation_applied);
               }
-              if (bottomReview.requested_subtitle_text != null) {
+              if (subtitleTextLayer?.requested_text != null) {
+                html += textRow('subtitle', subtitleTextLayer.requested_text, subtitleTextLayer.rendered_excerpt, subtitleTextLayer.truncation_applied);
+              } else if (bottomReview.requested_subtitle_text != null) {
                 html += textRow('subtitle', bottomReview.requested_subtitle_text, bottomReview.rendered_subtitle_excerpt, bottomReview.subtitle_truncation_applied);
               }
               html += `</div>`;
@@ -924,7 +939,7 @@
           return html;
         }
 
-        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview, scenarioReview) {
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
           if (modesStrip && templateBehavior) {
@@ -984,10 +999,10 @@
             let detailHtml = '';
             if (isBottom) {
               modeLabel = templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || '';
-              detailHtml = buildBottomDetail(bottomReview, templateBehavior);
+              detailHtml = buildBottomDetail(bottomReview, templateBehavior, titleTextLayer, subtitleTextLayer);
             } else if (key === 'header_region') {
               modeLabel = templateBehavior?.behavior_modes?.header_mode || headerReview?.header_mode || '';
-              detailHtml = buildHeaderDetail(headerReview);
+              detailHtml = buildHeaderDetail(headerReview, headerTextLayer);
             } else if (key === 'scenario_region') {
               modeLabel = scenarioReview?.hero_mode || heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '';
               detailHtml = scenarioReview ? buildScenarioDetail(scenarioReview) : buildHeroDetail(heroReview, 'scenario_region');
@@ -1037,9 +1052,15 @@
           let heroReview = null;
           let productReview = null;
           let featureReview = null;
+          let titleTextLayer = null;
+          let subtitleTextLayer = null;
+          let headerTextLayer = null;
           try { regionStatus = JSON.parse(regionEl?.textContent || '{}'); } catch (_) {}
           try { templateBehavior = JSON.parse(behaviorEl?.textContent || '{}'); } catch (_) {}
           try { bottomReview = JSON.parse(bottomEl?.textContent || 'null'); } catch (_) {}
+          try { titleTextLayer = JSON.parse(document.getElementById('poster2-title-text-layer')?.textContent || 'null'); } catch (_) {}
+          try { subtitleTextLayer = JSON.parse(document.getElementById('poster2-subtitle-text-layer')?.textContent || 'null'); } catch (_) {}
+          try { headerTextLayer = JSON.parse(document.getElementById('poster2-header-text-layer')?.textContent || 'null'); } catch (_) {}
           try { headerReview = JSON.parse(document.getElementById('poster2-header-contract-review')?.textContent || 'null'); } catch (_) {}
           try { heroReview = JSON.parse(document.getElementById('poster2-hero-contract-review')?.textContent || 'null'); } catch (_) {}
           try { productReview = JSON.parse(document.getElementById('poster2-product-contract-review')?.textContent || 'null'); } catch (_) {}
@@ -1072,7 +1093,7 @@
           // Update render engine badge
           if (engEl) engEl.className = 's2-badge ok';
 
-          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, featureReview, annotationReview, scenarioReview);
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer);
         }
 
         /* Sync s2-out-url from final-poster-link.href */
