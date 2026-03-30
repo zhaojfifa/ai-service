@@ -98,6 +98,8 @@ Read this section only after the product baseline and architecture guidance. The
   Product annotation layer activation: `product_anchor_callouts` switched to live production mode for `template_dual_v2`. Records renderer algorithm fix (fixed-anchor path), new pipeline layers (`product_annotation_shell_layer`, `product_annotation_items_layer`), `_build_product_annotation_contract_review()` per-slot evidence, `product_annotation_mode` in behavior_modes, frontend Stage 2 evidence display. 179/179 tests pass.
 - [product_region_contract_closure_status_v1.md](product_region_contract_closure_status_v1.md)
   PR-3 product region contract closure: 7 owner surfaces frozen, annotation ownership enforced (primary slot only, secondary never owner), `primary_secondary_dual_v2` geometry declared final, `geometry_frozen` / `annotation_owner_slot` / `secondary_slot_annotation_ownership` / `owner_surfaces` emitted in contract evidence. 242/242 tests pass.
+- [text_layer_contract_closure_status_v1.md](text_layer_contract_closure_status_v1.md)
+  PR-4 text ownership freeze and feature delegation: `_TEXT_LAYER_OWNER_MAP` / `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` / `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION` declared as constants; all three text layers emit `ownership_frozen = True`; `feature_view_mode = delegated_diagnostic` enforces no dual ownership when annotation active. 252/252 tests pass.
 
 ### 4. Next-Phase Plans
 
@@ -149,36 +151,40 @@ When adding or updating poster2 docs:
 
 If a new document cannot be placed cleanly into one of the groups above, that is a signal to check for architecture drift before adding it.
 
-## Current Engineering Phase (as of 2026-03-29)
+## Current Engineering Phase (as of 2026-03-30)
 
-### Product annotation layer — ACTIVATED
+### PR-4 — Text ownership freeze and feature delegation — COMPLETE
 
-`product_anchor_callouts` is now the live production mode for `template_dual_v2`. Feature text is rendered through fixed template-spec anchor positions rather than the old centering/stacking algorithm. Full contract evidence is emitted per slot. Stage 2 displays annotation chip and per-slot text chain.
+Text layer owner surfaces are now frozen as constants. Feature delegation is explicit and no-dual-ownership is enforced in contract evidence.
 
 **What is established:**
-- `template_dual_v2.json` `feature_mode` is `product_anchor_callouts` (production default)
-- Renderer uses fixed-anchor positions when this mode is active; stacking algorithm completely bypassed
-- `product_annotation_shell_layer` and `product_annotation_items_layer` emitted in layer render status
-- `product_annotation_contract_review` emitted in renderer metadata: per-slot anchor coords, label bounds, text chain, connector/marker policy, feature suppression flag
-- `product_annotation_mode` exposed as a distinct key in `behavior_modes`
-- Stage 2 Resolver Layout: annotation chip in modes strip + `product_region` row dispatches to annotation detail panel when active
-- `frontend/` and `docs/` are in sync
-- 179/179 tests pass
+- `_TEXT_LAYER_OWNER_MAP` declares `header_text_layer → header_region`, `title_text_layer → title_band_region`, `subtitle_text_layer → title_band_region`
+- `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` names exactly `product_annotation_slot_1/2/3` as `product_region` surfaces
+- All three text layers emit `ownership_frozen = True` in pipeline evidence
+- `feature_contract_review.feature_view_mode = "delegated_diagnostic"` when annotation active; `"owner"` otherwise
+- No dual ownership: when annotation active, `feature_region.visible_item_count = 0` and `rendered_feature_items = []`
+- `product_annotation_contract_review` emits `annotation_text_owner_region`, `annotation_slot_ids`, `ownership_frozen`
+- Dead code (no-`template` builder copies) removed from `pipeline.py`
+- 252/252 tests pass
 
 **Prior phases still established:**
+- PR-3: product owner surfaces frozen, dual-image geometry frozen
+- PR-2: bottom mode boundary freeze and completeness rules
+- PR-1: canonical bottom mode runtime truth unification
 - Bottom SOP resolver baseline (Phase 2)
 - Beautification Phase 1: shell/shadow/connector visual refinement
 
 **What is NOT yet done:**
-- Remaining regions (header, scenario) do not yet have full resolver coverage
-- Puppeteer renderer does not yet produce `product_annotation_contract_review` (parity future task)
+- `header_region` `identity_zone_mode` resolver wiring
+- Pillow secondary slot rendering parity (contract-only)
+- Puppeteer text layer evidence parity (Pillow-only)
 - Beautification layer remains downstream of all-region behavior stability
 
 ### Next steps
 
 1. `header_region` — complete `identity_zone_mode` resolver wiring
-2. `scenario_region` resolver coverage
-3. Preview-path / generation-path parity收口 (Puppeteer vs Pillow)
+2. `scenario_region` Pillow safe_fill parity fix
+3. Preview-path / generation-path parity (Puppeteer vs Pillow)
 4. Beautification layer planning (after all-region behavior stability)
 
 ---

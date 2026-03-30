@@ -512,3 +512,56 @@ Gap between primary bottom (498) and secondary top (506): 8px. No geometry adjus
 - Stage 2 frontend: `owner_surfaces` / `annotation_owner_slot` / `secondary_slot_annotation_ownership`
   / `geometry_frozen` not yet surfaced in diagnostics panel (low priority)
 - `header_region` `identity_zone_mode` resolver wiring still pending
+
+---
+
+## PR-4 — Text ownership freeze and feature delegation (2026-03-30)
+
+### Goal
+Freeze text layer owner surfaces and feature delegation as declarative constants.
+Eliminate inlined `owner_region` string literals. Enforce no-dual-ownership when annotation active.
+
+### Changes
+
+#### `app/services/poster2/template_behavior.py`
+- `_TEXT_LAYER_OWNER_MAP` — maps `header_text_layer / title_text_layer / subtitle_text_layer` to their canonical `owner_region`
+- `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` — tuple of exactly 3 slot IDs (`product_annotation_slot_1/2/3`)
+- `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION = "product_region"` — owner for all annotation slot text
+
+#### `app/services/poster2/pipeline.py`
+- Imports expanded: `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS`, `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION`, `_TEXT_LAYER_OWNER_MAP`
+- Dead code removed: older no-`template` copies of `_build_title/subtitle/header_text_layer_evidence`
+- `_build_title_text_layer_evidence()`: `owner_region` from constant; `ownership_frozen = True` added
+- `_build_subtitle_text_layer_evidence()`: same
+- `_build_header_text_layer_evidence()`: same
+- `_build_feature_contract_review()`: `feature_view_mode = "delegated_diagnostic"` when annotation active, `"owner"` otherwise
+- `_build_product_annotation_contract_review()`: `annotation_text_owner_region`, `annotation_slot_ids`, `ownership_frozen = True` added
+
+#### Tests (`tests/poster2/test_pipeline.py`)
+- `TestTextOwnershipFreeze` (10 tests):
+  - `test_text_layer_owner_map_constant_shape`
+  - `test_frozen_annotation_slot_ids_constant`
+  - `test_product_annotation_text_owner_region_constant`
+  - `test_title_text_layer_ownership_frozen`
+  - `test_subtitle_text_layer_ownership_frozen`
+  - `test_header_text_layer_ownership_frozen`
+  - `test_feature_view_mode_is_delegated_diagnostic_when_annotation_active`
+  - `test_feature_view_mode_is_owner_when_annotation_not_active`
+  - `test_no_dual_ownership_when_annotation_active`
+  - `test_annotation_contract_review_emits_frozen_slot_ids`
+
+#### Docs
+- `docs/poster2/text_layer_contract_closure_status_v1.md` — formal closure record
+- `docs/poster2/README.md` — entry added pointing to closure doc; current phase updated
+
+### Acceptance
+- `_TEXT_LAYER_OWNER_MAP` declared with 3 entries ✓
+- `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` is tuple of 3 IDs ✓
+- `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION = "product_region"` ✓
+- All three text layers emit `ownership_frozen = True` ✓
+- `feature_view_mode = "delegated_diagnostic"` when annotation active ✓
+- `feature_region.visible_item_count = 0` when annotation active (no dual ownership) ✓
+- `product_annotation_contract_review` emits `annotation_text_owner_region`, `annotation_slot_ids`, `ownership_frozen` ✓
+- Dead code removed ✓
+- 252/252 tests pass ✓
+

@@ -34,8 +34,11 @@ from .region_matrix import _BOTTOM_MODE_COLLAPSED_BY_DESIGN
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
 from .renderer_routing import assert_quality_guard_deliverable
 from .template_behavior import (
+    _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS,
     _FROZEN_PRODUCT_OWNER_SURFACES,
     _PRODUCT_ANNOTATION_OWNER_SLOT,
+    _PRODUCT_ANNOTATION_TEXT_OWNER_REGION,
+    _TEXT_LAYER_OWNER_MAP,
     resolve_template_behavior,
 )
 from .template_registry import validate_template_registration
@@ -1254,120 +1257,6 @@ def _build_header_contract_review(
     }
 
 
-def _build_title_text_layer_evidence(
-    *,
-    requested_spec: PosterSpec,
-    effective_spec: PosterSpec,
-    resolved_behavior,
-) -> dict[str, object]:
-    bottom_policy = resolved_behavior.bottom_policy
-    rendered = bottom_policy.title_slot_rendered
-    sanitized_text = effective_spec.title
-    rendered_excerpt = (
-        _apply_text_budget(sanitized_text, bottom_policy.title_char_budget)
-        if rendered
-        else ""
-    )
-    layout_metrics = dict(bottom_policy.layout_metrics)
-    slot_y = int(layout_metrics.get("title_slot_y", layout_metrics.get("title_band_top", 0)))
-    slot_h = int(layout_metrics.get("title_slot_height", 0))
-    return {
-        "layer_id": "title_text_layer",
-        "rendered": rendered,
-        "slot_bounds": {"x": 112, "y": slot_y, "w": 800, "h": slot_h},
-        "requested_text": requested_spec.title,
-        "sanitized_text": sanitized_text,
-        "rendered_excerpt": rendered_excerpt,
-        "truncation_applied": rendered and rendered_excerpt != sanitized_text,
-        "line_clamp": bottom_policy.title_line_clamp,
-        "char_budget": bottom_policy.title_char_budget,
-        "owner_region": "title_band_region",
-    }
-
-
-def _build_subtitle_text_layer_evidence(
-    *,
-    requested_spec: PosterSpec,
-    effective_spec: PosterSpec,
-    resolved_behavior,
-) -> dict[str, object]:
-    bottom_policy = resolved_behavior.bottom_policy
-    rendered = bottom_policy.subtitle_slot_rendered
-    sanitized_text = effective_spec.subtitle
-    rendered_excerpt = (
-        _apply_text_budget(sanitized_text, bottom_policy.subtitle_char_budget)
-        if rendered
-        else ""
-    )
-    layout_metrics = dict(bottom_policy.layout_metrics)
-    slot_y = int(layout_metrics.get("subtitle_slot_y", layout_metrics.get("title_band_top", 0)))
-    slot_h = int(layout_metrics.get("subtitle_slot_height", 0))
-    return {
-        "layer_id": "subtitle_text_layer",
-        "rendered": rendered,
-        "slot_bounds": {"x": 152, "y": slot_y, "w": 720, "h": slot_h},
-        "requested_text": requested_spec.subtitle,
-        "sanitized_text": sanitized_text,
-        "rendered_excerpt": rendered_excerpt,
-        "truncation_applied": rendered and rendered_excerpt != sanitized_text,
-        "line_clamp": bottom_policy.subtitle_line_clamp,
-        "char_budget": bottom_policy.subtitle_char_budget,
-        "owner_region": "title_band_region",
-    }
-
-
-def _build_header_text_layer_evidence(
-    *,
-    requested_spec: PosterSpec,
-    effective_spec: PosterSpec,
-    resolved_behavior,
-) -> dict[str, object]:
-    header_policy = resolved_behavior.header_policy
-    brand_excerpt = _apply_text_budget(effective_spec.brand_name, header_policy.brand_char_budget)
-    agent_rendered = header_policy.agent_pill_visible
-    agent_excerpt = (
-        _apply_text_budget(effective_spec.agent_name, header_policy.agent_char_budget)
-        if agent_rendered
-        else ""
-    )
-    metrics = header_policy.layout_metrics
-    return {
-        "layer_id": "header_text_layer",
-        "rendered": bool(effective_spec.brand_name),
-        "brand_text_slot": {
-            "rendered": bool(effective_spec.brand_name),
-            "requested_text": requested_spec.brand_name,
-            "sanitized_text": effective_spec.brand_name,
-            "rendered_excerpt": brand_excerpt,
-            "truncation_applied": brand_excerpt != effective_spec.brand_name,
-            "line_clamp": header_policy.brand_line_clamp,
-            "char_budget": header_policy.brand_char_budget,
-            "slot_bounds": {
-                "x": int(metrics.get("brand_slot_x", 244)),
-                "y": int(metrics.get("brand_slot_y", 88)),
-                "w": int(metrics.get("brand_slot_w", 416)),
-                "h": int(metrics.get("brand_slot_h", 36)),
-            },
-        },
-        "agent_text_slot": {
-            "rendered": agent_rendered,
-            "requested_text": requested_spec.agent_name,
-            "sanitized_text": effective_spec.agent_name,
-            "rendered_excerpt": agent_excerpt,
-            "truncation_applied": agent_rendered and agent_excerpt != effective_spec.agent_name,
-            "line_clamp": 1,
-            "char_budget": header_policy.agent_char_budget,
-            "slot_bounds": {
-                "x": int(metrics.get("agent_slot_x", 684)),
-                "y": int(metrics.get("agent_slot_y", 96)),
-                "w": int(metrics.get("agent_slot_w", 228)),
-                "h": int(metrics.get("agent_slot_h", 18)),
-            },
-        },
-        "owner_region": "header_region",
-    }
-
-
 def _build_hero_contract_review(
     template: TemplateSpec,
     *,
@@ -1640,6 +1529,7 @@ def _build_feature_contract_review(
         ]
     return {
         "feature_mode": resolved_behavior.feature_policy.mode,
+        "feature_view_mode": "delegated_diagnostic" if delegated_to_product_annotation else "owner",
         "responsibility_owner": "product_region" if delegated_to_product_annotation else "feature_region",
         "delegated_to_product_annotation": delegated_to_product_annotation,
         "requested_feature_items": list(requested_spec.features),
@@ -1751,6 +1641,9 @@ def _build_product_annotation_contract_review(
     return {
         "product_annotation_mode": annotation_mode,
         "annotation_active": True,
+        "annotation_text_owner_region": _PRODUCT_ANNOTATION_TEXT_OWNER_REGION,
+        "annotation_slot_ids": list(_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS),
+        "ownership_frozen": True,
         "max_slots": max_slots,
         "visible_slot_count": product_policy.visible_annotation_count,
         "annotation_slots": slot_reviews,
@@ -1867,7 +1760,8 @@ def _build_title_text_layer_evidence(
         "truncation_applied": truncation_applied,
         "line_clamp": line_clamp,
         "char_budget": char_budget,
-        "owner_region": "title_band_region",
+        "owner_region": _TEXT_LAYER_OWNER_MAP["title_text_layer"],
+        "ownership_frozen": True,
         "bottom_layout_mode": bottom.bottom_layout_mode,
         "bottom_shell_top": bottom.bottom_shell_top,
     }
@@ -1904,7 +1798,8 @@ def _build_subtitle_text_layer_evidence(
         "truncation_applied": truncation_applied,
         "line_clamp": line_clamp,
         "char_budget": char_budget,
-        "owner_region": "title_band_region",
+        "owner_region": _TEXT_LAYER_OWNER_MAP["subtitle_text_layer"],
+        "ownership_frozen": True,
         "subtitle_slot_state": dict(bottom.subtitle_slot_state),
         "bottom_layout_mode": bottom.bottom_layout_mode,
         "bottom_shell_top": bottom.bottom_shell_top,
@@ -1960,7 +1855,8 @@ def _build_header_text_layer_evidence(
                 "h": int(metrics["agent_slot_h"]),
             },
         },
-        "owner_region": "header_region",
+        "owner_region": _TEXT_LAYER_OWNER_MAP["header_text_layer"],
+        "ownership_frozen": True,
         "header_mode": header.mode,
         "identity_zone_mode": header.identity_zone_mode,
         "agent_pill_visible": header.agent_pill_visible,

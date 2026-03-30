@@ -1997,3 +1997,126 @@ class TestProductOwnerSurfaceFreeze:
         assert review["geometry_frozen"] is True
         assert review["product_secondary_slot_rendered"] is True
         assert review["secondary_slot_annotation_ownership"] is False
+
+
+# ---------------------------------------------------------------------------
+# PR-4: Text ownership freeze and feature delegation
+# ---------------------------------------------------------------------------
+
+class TestTextOwnershipFreeze:
+    """PR-4: text layer owner surfaces and feature delegation are frozen contracts.
+
+    Validates:
+    - _TEXT_LAYER_OWNER_MAP declares canonical owner_region for each text layer
+    - _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS names exactly the 3 annotation slots
+    - _PRODUCT_ANNOTATION_TEXT_OWNER_REGION is product_region
+    - each text layer emits owner_region from the frozen constant (not inlined)
+    - each text layer emits ownership_frozen = True
+    - when annotation active: feature_view_mode = delegated_diagnostic
+    - when annotation active: no dual ownership; feature_region visible_item_count = 0
+    - product_annotation_contract_review emits annotation_text_owner_region + slot IDs
+    """
+
+    def test_text_layer_owner_map_constant_shape(self):
+        """_TEXT_LAYER_OWNER_MAP must declare all three text layers with correct owners."""
+        from app.services.poster2.template_behavior import _TEXT_LAYER_OWNER_MAP
+        assert isinstance(_TEXT_LAYER_OWNER_MAP, dict)
+        assert _TEXT_LAYER_OWNER_MAP["header_text_layer"] == "header_region"
+        assert _TEXT_LAYER_OWNER_MAP["title_text_layer"] == "title_band_region"
+        assert _TEXT_LAYER_OWNER_MAP["subtitle_text_layer"] == "title_band_region"
+
+    def test_frozen_annotation_slot_ids_constant(self):
+        """_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS must be a tuple of exactly 3 slot IDs."""
+        from app.services.poster2.template_behavior import _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS
+        assert isinstance(_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS, tuple)
+        assert len(_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS) == 3
+        assert _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS == (
+            "product_annotation_slot_1",
+            "product_annotation_slot_2",
+            "product_annotation_slot_3",
+        )
+
+    def test_product_annotation_text_owner_region_constant(self):
+        """_PRODUCT_ANNOTATION_TEXT_OWNER_REGION must be product_region."""
+        from app.services.poster2.template_behavior import _PRODUCT_ANNOTATION_TEXT_OWNER_REGION
+        assert _PRODUCT_ANNOTATION_TEXT_OWNER_REGION == "product_region"
+
+    def test_title_text_layer_ownership_frozen(self):
+        """title_text_layer must emit owner_region from frozen map and ownership_frozen = True."""
+        template = _load_template()
+        spec = _make_spec(title="Test title", subtitle="Test subtitle")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["title_text_layer"]
+        assert layer["owner_region"] == "title_band_region"
+        assert layer["ownership_frozen"] is True
+
+    def test_subtitle_text_layer_ownership_frozen(self):
+        """subtitle_text_layer must emit owner_region from frozen map and ownership_frozen = True."""
+        template = _load_template()
+        spec = _make_spec(title="Test title", subtitle="Test subtitle")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["subtitle_text_layer"]
+        assert layer["owner_region"] == "title_band_region"
+        assert layer["ownership_frozen"] is True
+
+    def test_header_text_layer_ownership_frozen(self):
+        """header_text_layer must emit owner_region from frozen map and ownership_frozen = True."""
+        template = _load_template()
+        spec = _make_spec(brand_name="TestBrand", agent_name="TestAgent")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["header_text_layer"]
+        assert layer["owner_region"] == "header_region"
+        assert layer["ownership_frozen"] is True
+
+    def test_feature_view_mode_is_delegated_diagnostic_when_annotation_active(self):
+        """When product_annotation_mode is active, feature_contract_review must have
+        feature_view_mode = delegated_diagnostic and feature_region visible_item_count = 0."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        feature_review = metadata["feature_contract_review"]
+        # Template default is product_anchor_callouts → annotation active
+        assert feature_review["delegated_to_product_annotation"] is True
+        assert feature_review["feature_view_mode"] == "delegated_diagnostic"
+        assert feature_review["feature_region"]["visible_item_count"] == 0
+
+    def test_feature_view_mode_is_owner_when_annotation_not_active(self):
+        """When annotation is not active, feature_view_mode must be owner."""
+        template = _load_template()
+        template.behavior_modes = replace(
+            template.behavior_modes, feature_mode="count_driven_callout_stack"
+        )
+        spec = _make_spec(features=("Feature 1", "Feature 2"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        feature_review = metadata["feature_contract_review"]
+        assert feature_review["delegated_to_product_annotation"] is False
+        assert feature_review["feature_view_mode"] == "owner"
+
+    def test_no_dual_ownership_when_annotation_active(self):
+        """When annotation is active, feature_region must not claim rendered ownership."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        feature_review = metadata["feature_contract_review"]
+        annotation_review = metadata["product_annotation_contract_review"]
+        # feature_region does not render; product_region is sole owner
+        assert feature_review["feature_region"]["visible_item_count"] == 0
+        assert annotation_review["annotation_active"] is True
+        assert annotation_review["annotation_text_owner_region"] == "product_region"
+        # No duplicate rendered evidence: feature_contract_review has empty rendered_feature_items
+        assert feature_review["rendered_feature_items"] == []
+
+    def test_annotation_contract_review_emits_frozen_slot_ids(self):
+        """product_annotation_contract_review must expose annotation_slot_ids from frozen constant."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_annotation_contract_review"]
+        assert review["annotation_active"] is True
+        assert review["annotation_slot_ids"] == [
+            "product_annotation_slot_1",
+            "product_annotation_slot_2",
+            "product_annotation_slot_3",
+        ]
+        assert review["annotation_text_owner_region"] == "product_region"
+        assert review["ownership_frozen"] is True

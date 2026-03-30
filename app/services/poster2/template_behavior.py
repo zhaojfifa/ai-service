@@ -48,6 +48,24 @@ _FROZEN_PRODUCT_OWNER_SURFACES: frozenset[str] = frozenset({
     "product_annotation_items_layer",
 })
 _PRODUCT_ANNOTATION_OWNER_SLOT = "product_primary_slot"
+
+# Frozen text layer ownership map: each text layer_id maps to its canonical owner_region.
+# These are immutable; no renderer branch or CSS may reassign ownership.
+_TEXT_LAYER_OWNER_MAP: dict[str, str] = {
+    "header_text_layer": "header_region",
+    "title_text_layer": "title_band_region",
+    "subtitle_text_layer": "title_band_region",
+}
+
+# Frozen annotation slot IDs for product_region text (product_annotation_slot_1/2/3).
+# All three slots are owned exclusively by product_region.
+_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS: tuple[str, ...] = (
+    "product_annotation_slot_1",
+    "product_annotation_slot_2",
+    "product_annotation_slot_3",
+)
+_PRODUCT_ANNOTATION_TEXT_OWNER_REGION = "product_region"
+
 _SUPPORTED_BOTTOM_MODES = {
     "title_gallery_split",
     "gallery_only",
