@@ -125,6 +125,11 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "syncPoster2BottomContractFromControls(stage1Data)" in js
     assert "bottom_mode: bottomRequestState.bottom_mode" in js
     assert "product_secondary_image:" in js
+    assert "layout mode:" in html
+    assert "bottom_layout_mode" in html
+    assert "requested/effective:" in html
+    assert "text_gallery_expanded" in html
+    assert "gallery_only" in html
 
 
 def test_docs_publish_mirror_contains_same_guard_diagnostics():
