@@ -873,6 +873,20 @@
             }
             html += `<div class="s2-slot-note">gallery raw/normalized/requested/visible: ${bottomReview.gallery_input_count_raw ?? 0} / ${bottomReview.gallery_input_count_normalized ?? 0} / ${bottomReview.gallery_requested_count ?? 0} / ${bottomReview.gallery_visible_count ?? 0}</div>`;
             html += `<div class="s2-slot-note">autofill: ${bottomReview.gallery_autofill_applied ? 'applied' : 'not-applied'} · distribution: ${bottomReview.behavior_policy?.gallery_distribution_policy || 'n/a'}</div>`;
+            const hasTextEvidence = (
+              bottomReview.requested_title_text != null ||
+              bottomReview.requested_subtitle_text != null
+            );
+            if (hasTextEvidence) {
+              html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
+              if (bottomReview.requested_title_text != null) {
+                html += textRow('title', bottomReview.requested_title_text, bottomReview.rendered_title_excerpt, bottomReview.title_truncation_applied);
+              }
+              if (bottomReview.requested_subtitle_text != null) {
+                html += textRow('subtitle', bottomReview.requested_subtitle_text, bottomReview.rendered_subtitle_excerpt, bottomReview.subtitle_truncation_applied);
+              }
+              html += `</div>`;
+            }
           }
 
           const titleBand = bottomReview?.title_band_region;

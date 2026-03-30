@@ -106,6 +106,8 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
 
     assert "requested/effective:" in html
     assert "bottom_mode_override_reason" in html
+    assert "textRow('title', bottomReview.requested_title_text" in html
+    assert "textRow('subtitle', bottomReview.requested_subtitle_text" in html
     assert "buildProductDetail(productReview, annotationReview)" in html
     assert "product_secondary_image_layer" in html
     assert "product_secondary_slot" in html
