@@ -515,7 +515,79 @@ Gap between primary bottom (498) and secondary top (506): 8px. No geometry adjus
 
 ---
 
-## PR-4 — Text ownership freeze and feature delegation (2026-03-30)
+## PR-5 — Post-freeze text capacity optimization (2026-03-30)
+
+### Goal
+Raise char_budget floors across three target areas — title_gallery_split bottom text,
+product annotation callouts, and header agent pill — to match the expanded shell
+geometry and slot dimensions that were established in PRs 1–4.
+
+### Changes
+
+#### `app/services/poster2/template_behavior.py`
+
+**A. `text_gallery_expanded` branch (used by `title_gallery_split` default)**
+
+All six capacity tiers raised by 8–12 chars each:
+
+| Case | title (before) | title (after) | subtitle (before) | subtitle (after) |
+|---|---|---|---|---|
+| Dense copy, subtitle, 1–2 items | 60 | 72 | 56 | 60 |
+| Dense copy, subtitle, 3 items | 52 | 60 | 52 | 56 |
+| Dense copy, subtitle, 4 items | 44 | 52 | 44 | 48 |
+| Subtitle only (not dense) | 52 | 60 | 36 | 40 |
+| Long title (>20), no subtitle | 52 | 60 | — | — |
+| Compact (short title, no subtitle) | 44 | 52 | — | — |
+
+Rationale: expanded shell starts at y=640 (384px capacity vs old y=728 = 296px).
+Title slot effective width ≈ 752px at 40px bold → ~33 chars/line × 2 = 66 chars cap.
+Previous 44–60 range was conservative relative to available geometry.
+
+**B. Product annotation `char_budget`**
+
+`{1: 36, 2: 30, 3: 24}` → `{1: 40, 2: 34, 3: 28}` in both `resolve_product_behavior`
+and `resolve_feature_behavior` (`product_anchor_callouts` branch).
+
+Rationale: label box w=144, font_size=15, max_lines=2, auto_shrink=true → ~16 chars/line
+× 2 = 32 chars fits without shrink. Previous 3-item cap of 24 was significantly
+under-utilizing the available label area.
+
+**C. Header agent `agent_char_budget`**
+
+`24` → `28` for `identity_left_agent_right` and `brand_block_two_line`.
+
+Rationale: agent_slot w=228, font_size=15, max_lines=1, auto_shrink=true →
+228/9 ≈ 25 chars without shrink. Previous cap of 24 was at the bare minimum.
+28 gives modest additional capacity with a comfortable auto_shrink margin.
+
+#### Tests (`tests/poster2/test_pipeline.py`)
+
+New class `TestPostFreezeTextCapacity` (10 tests):
+
+| Test | What it verifies |
+|---|---|
+| `test_title_gallery_split_dense_quad_title_budget_raised` | dense-quad title_gallery_split title ≥ 52, subtitle ≥ 44 |
+| `test_title_gallery_split_triplet_title_budget_raised` | triplet title_gallery_split title ≥ 60, subtitle ≥ 52 |
+| `test_title_gallery_split_light_gallery_title_budget_raised` | light-gallery title_gallery_split title ≥ 72, subtitle ≥ 56 |
+| `test_title_gallery_split_compact_title_budget_raised` | compact title_gallery_split title ≥ 52 |
+| `test_product_annotation_char_budget_raised_three_items` | 3-item annotation char_budget ≥ 28 |
+| `test_product_annotation_char_budget_raised_two_items` | 2-item annotation char_budget ≥ 34 |
+| `test_product_annotation_char_budget_raised_one_item` | 1-item annotation char_budget ≥ 40 |
+| `test_header_agent_char_budget_raised_identity_left_agent_right` | agent_char_budget ≥ 28 for identity_left_agent_right |
+| `test_header_agent_char_budget_raised_brand_block_two_line` | agent_char_budget ≥ 28 for brand_block_two_line |
+| `test_header_agent_budget_truncates_longer_name_at_new_floor` | 40-char name truncated at budget floor |
+
+### Acceptance
+- `title_gallery_split` dense-quad title_char_budget ≥ 52 (was 44) ✓
+- `title_gallery_split` light-gallery title_char_budget ≥ 72 (was 60) ✓
+- Product annotation 3-item char_budget ≥ 28 (was 24) ✓
+- Header agent char_budget ≥ 28 (was 24) ✓
+- No contract changes; no mode changes; no geometry changes ✓
+- 262/262 tests pass (252 prior + 10 new) ✓
+
+---
+
+
 
 ### Goal
 Freeze text layer owner surfaces and feature delegation as declarative constants.

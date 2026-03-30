@@ -2120,3 +2120,160 @@ class TestTextOwnershipFreeze:
         ]
         assert review["annotation_text_owner_region"] == "product_region"
         assert review["ownership_frozen"] is True
+
+
+class TestPostFreezeTextCapacity:
+    """PR-5: post-freeze text capacity optimizations.
+
+    Validates that char_budget floors are raised to match the expanded shell
+    geometry (title_gallery_split at y=640 = 384px; product annotation label
+    box w=144; header agent slot w=228).  All assertions are floor checks so
+    future upward tuning does not break them.
+    """
+
+    # --- title_gallery_split (text_gallery_expanded) capacity ---
+
+    def test_title_gallery_split_dense_quad_title_budget_raised(self):
+        """Dense-quad title_gallery_split must reach title_char_budget >= 52."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Upgrade your kitchen with ChefCraft Pro",
+            subtitle_text="Available in stores from April 24th",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+        )
+        assert policy.title_char_budget >= 52
+        assert policy.subtitle_char_budget >= 44
+
+    def test_title_gallery_split_triplet_title_budget_raised(self):
+        """Triplet title_gallery_split must reach title_char_budget >= 60."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Upgrade your kitchen with ChefCraft Pro",
+            subtitle_text="Available in stores from April 24th",
+            requested_gallery_count=3,
+            normalized_gallery_count=3,
+            resolved_gallery_count=3,
+            max_items=4,
+        )
+        assert policy.title_char_budget >= 60
+        assert policy.subtitle_char_budget >= 52
+
+    def test_title_gallery_split_light_gallery_title_budget_raised(self):
+        """Light-gallery (1-2 items) title_gallery_split must reach title_char_budget >= 72."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Upgrade your kitchen with ChefCraft Pro",
+            subtitle_text="Available in stores from April 24th",
+            requested_gallery_count=2,
+            normalized_gallery_count=2,
+            resolved_gallery_count=2,
+            max_items=4,
+        )
+        assert policy.title_char_budget >= 72
+        assert policy.subtitle_char_budget >= 56
+
+    def test_title_gallery_split_compact_title_budget_raised(self):
+        """Compact title_gallery_split (short title, no subtitle) must reach title_char_budget >= 52."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Short",
+            subtitle_text=None,
+            requested_gallery_count=2,
+            normalized_gallery_count=2,
+            resolved_gallery_count=2,
+            max_items=4,
+        )
+        assert policy.title_char_budget >= 52
+
+    # --- product annotation capacity ---
+
+    def test_product_annotation_char_budget_raised_three_items(self):
+        """product_anchor_callouts with 3 items must reach char_budget >= 28."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        from app.services.poster2.contracts import TemplateSpec
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=3,
+            hero_policy=hero,
+        )
+        assert policy.char_budget >= 28
+
+    def test_product_annotation_char_budget_raised_two_items(self):
+        """product_anchor_callouts with 2 items must reach char_budget >= 34."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=2,
+            hero_policy=hero,
+        )
+        assert policy.char_budget >= 34
+
+    def test_product_annotation_char_budget_raised_one_item(self):
+        """product_anchor_callouts with 1 item must reach char_budget >= 40."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=1,
+            hero_policy=hero,
+        )
+        assert policy.char_budget >= 40
+
+    # --- header agent capacity ---
+
+    def test_header_agent_char_budget_raised_identity_left_agent_right(self):
+        """identity_left_agent_right agent_char_budget must reach >= 28."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="Agent Name That Is Longer",
+        )
+        assert policy.agent_char_budget >= 28
+
+    def test_header_agent_char_budget_raised_brand_block_two_line(self):
+        """brand_block_two_line agent_char_budget must reach >= 28."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="TestBrand",
+            agent_name="Agent Name That Is Longer",
+        )
+        assert policy.agent_char_budget >= 28
+
+    def test_header_agent_budget_truncates_longer_name_at_new_floor(self):
+        """Agent name longer than 28 chars must be truncated at the new budget floor."""
+        from app.services.poster2.pipeline import _apply_text_budget
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="A" * 40,
+        )
+        excerpt = _apply_text_budget("A" * 40, policy.agent_char_budget)
+        assert len(excerpt) == policy.agent_char_budget

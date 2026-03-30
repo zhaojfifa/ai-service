@@ -794,7 +794,7 @@ def resolve_product_behavior(
         annotation_items: list[dict[str, object]] = []
         annotation_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
     else:
-        char_budget = {1: 36, 2: 30, 3: 24}.get(max(visible_annotation_count, 1), 24)
+        char_budget = {1: 40, 2: 34, 3: 28}.get(max(visible_annotation_count, 1), 28)
         line_clamp = 2
         if annotation_mode == "right_stack_mirror":
             annotation_count_policy = "fixed_3_right_stack_annotations"
@@ -948,7 +948,7 @@ def resolve_feature_behavior(
         # No drag-and-drop, no dynamic slot count beyond 3.
         anchor_visible = min(max(requested_count, 0), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
         anchor_clamped = min(max(anchor_visible, 1), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
-        anchor_char_budgets = {1: 36, 2: 30, 3: 24}
+        anchor_char_budgets = {1: 40, 2: 34, 3: 28}
         anchor_box_h = _FEATURE_MODE_LAYOUT_SPECS[anchor_clamped]["box_h"]
         return ResolvedFeatureBehavior(
             mode=feature_mode,
@@ -1082,7 +1082,7 @@ def resolve_header_behavior(
         content_priority_policy = "brand_identity_priority_over_agent"
         brand_line_clamp = 1
         brand_char_budget = 40
-        agent_char_budget = 24
+        agent_char_budget = 28
         layout_metrics = {
             "header_banner_left": 72,
             "header_banner_top": 56,
@@ -1113,7 +1113,7 @@ def resolve_header_behavior(
         content_priority_policy = "brand_copy_priority_under_two_line_lockup"
         brand_line_clamp = 2
         brand_char_budget = 72
-        agent_char_budget = 24
+        agent_char_budget = 28
         layout_metrics = {
             "header_banner_left": 72,
             "header_banner_top": 56,
@@ -1571,8 +1571,8 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "expanded_copy_priority_strong_title"
             title_line_clamp = 2
             subtitle_line_clamp = 2
-            title_char_budget = 60
-            subtitle_char_budget = 56
+            title_char_budget = 72
+            subtitle_char_budget = 60
             title_band_height = 192
             title_content_pad_top = 18
             title_content_pad_bottom = 14
@@ -1589,14 +1589,14 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "expanded_balanced_triplet_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 2
-            title_char_budget = 52
-            subtitle_char_budget = 52
+            title_char_budget = 60
+            subtitle_char_budget = 56
             title_band_height = 176
             title_content_pad_top = 20
             title_content_pad_bottom = 16
             title_stack_gap = 8
         elif subtitle_slot_rendered and dense_copy and visible_item_count >= 4:
-            # Dense quad in expanded mode: still 2-line title + 1-line subtitle minimum
+            # Dense quad in expanded mode: 2-line title + 1-line subtitle minimum
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "hold_growth_expanded_text_gallery_quad"
             subtitle_overflow_policy = "single_line_ellipsis_inside_expanded_split_title_band"
@@ -1608,8 +1608,8 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "expanded_quad_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 1
-            title_char_budget = 44
-            subtitle_char_budget = 44
+            title_char_budget = 52
+            subtitle_char_budget = 48
             title_band_height = 168
             title_content_pad_top = 22
             title_content_pad_bottom = 18
@@ -1626,8 +1626,8 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "expanded_balanced_bottom_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 1
-            title_char_budget = 52
-            subtitle_char_budget = 36
+            title_char_budget = 60
+            subtitle_char_budget = 40
             title_band_height = 168
             title_content_pad_top = 24
             title_content_pad_bottom = 20
@@ -1644,7 +1644,7 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "expanded_title_priority_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 0
-            title_char_budget = 52
+            title_char_budget = 60
             subtitle_char_budget = 0
             title_band_height = 160
             title_content_pad_top = 26
@@ -1662,7 +1662,7 @@ def _resolve_bottom_layout_policies(
             bottom_text_emphasis_policy = "expanded_compact_light_text_emphasis"
             title_line_clamp = 2
             subtitle_line_clamp = 0
-            title_char_budget = 44
+            title_char_budget = 52
             subtitle_char_budget = 0
             title_band_height = 148
             title_content_pad_top = 28
