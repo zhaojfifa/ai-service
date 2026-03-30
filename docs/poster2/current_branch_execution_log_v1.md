@@ -1,7 +1,7 @@
 # Current Branch Execution Log v1
 
 **Branch:** `PosterSop06-beautification-phase1`
-**Last updated:** 2026-03-29
+**Last updated:** 2026-03-30
 
 This log records what has been completed on this branch in chronological order. Each entry names the commit scope, what changed, and what the acceptance evidence is.
 
@@ -185,3 +185,65 @@ This log records what has been completed on this branch in chronological order. 
 - `header_region` `identity_zone_mode` resolver wiring still pending
 - Beautification may start once this structural slice is confirmed stable in live generation
 
+---
+
+## Entry 6 — Family A Structural Closeout: Runtime Routing Takeover
+
+**Status:** Complete
+
+### What changed
+
+#### A. Bottom mode routing closeout
+- `bottom_contract_review` now exposes:
+  - `requested_bottom_mode`
+  - `effective_bottom_mode`
+  - `bottom_mode_override_reason`
+- Runtime request overrides no longer disappear into template defaults:
+  - `title_only` remains `title_only`
+  - `text_only_expanded` remains `text_only_expanded`
+  - `text_gallery_expanded` remains `text_gallery_expanded`
+- Stage 2 product/bottom region cards now display backend-provided bottom routing evidence; no frontend mode inference was added
+
+#### B. Product dual-image runtime closeout
+- `resolve_product_behavior()` now auto-promotes `single_primary` to `primary_secondary_dual` when a real secondary product asset is present
+- `product_layout_mode_reason` is emitted so runtime can explain why dual mode became active
+- Pillow now draws `product_secondary_image` into `product_secondary_slot`; dual-image is no longer HTML-contract-only
+- `product_secondary_image_layer` is now explicit in `product_contract_review`
+
+#### C. Product geometry closeout
+- `geometry_evidence.slot_bounds.product_slot` now reflects the real primary product slot in dual mode, not the old single-image region box
+- `geometry_evidence.slot_bounds.product_primary_slot` and `geometry_evidence.slot_bounds.product_secondary_slot` are both emitted
+- `product_region` count now reflects both product image layers when dual mode is active
+
+### Acceptance
+- Bottom runtime reports requested/effective/override chain ✓
+- `title_only` no longer silently resolves to `title_gallery_split` ✓
+- `text_only_expanded` / `text_gallery_expanded` are selectable and verifiable in runtime ✓
+- `product_secondary_image` is rendered by Pillow when present ✓
+- `primary_secondary_dual` is activated in runtime when a secondary asset exists ✓
+- `product_secondary_slot` carries real bounds in contract review and geometry evidence ✓
+- Stage 2 remains backend-evidence-driven ✓
+
+### Fresh runtime verification
+- Local temporary runtime wrapper used only to bypass missing storage on the dev machine; request still hit real `/api/v2/generate-poster`
+- Trace: `53b39768-7d18-46fe-bfd5-2d563584127a`
+- Result:
+  - `degraded = false`
+  - `structure_complete = true`
+  - `deliverable = true`
+  - `requested_bottom_mode = text_gallery_expanded`
+  - `effective_bottom_mode = text_gallery_expanded`
+  - `bottom_mode_override_reason = request_override_applied`
+  - `product_layout_mode = primary_secondary_dual`
+  - `product_layout_mode_reason = auto_promoted_by_secondary_asset`
+  - `geometry_evidence.slot_bounds.product_slot = {x:456,y:188,w:300,h:310}`
+  - `geometry_evidence.slot_bounds.product_secondary_slot = {x:456,y:506,w:300,h:202}`
+
+### Tests
+- `180 passed, 2 warnings`
+- Command:
+  - `python -m pytest tests/poster2/test_api.py tests/poster2/test_contracts.py tests/poster2/test_renderer.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py`
+
+### What is now truly live
+- Bottom mode selection is not just accepted by the request schema; it is now inspectable as requested/effective runtime routing
+- Product secondary assets no longer stop at evidence-only contract surfaces; they activate dual layout and render into a real secondary slot

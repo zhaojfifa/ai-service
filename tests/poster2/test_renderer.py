@@ -210,6 +210,21 @@ class TestOptionalAssets:
         assert result.region_render_status["scenario_region"]["rendered"] is False
         assert result.region_render_status["product_region"]["rendered"] is True
 
+    def test_primary_secondary_dual_renders_secondary_product_slot_in_pillow(self):
+        template = _load_real_template()
+        spec = _minimal_spec(product_secondary_image=AssetRef(url="mock://product-secondary"))
+        assets = _minimal_assets(
+            product=solid_image(400, 600, (220, 80, 40, 255)),
+            product_secondary=solid_image(320, 320, (40, 120, 220, 255)),
+        )
+
+        result = LayoutRenderer().render(template, spec, assets)
+
+        assert result.image.getpixel((606, 300))[:3] == (220, 80, 40)
+        assert result.image.getpixel((606, 600))[:3] == (40, 120, 220)
+        assert result.layer_render_status["product_secondary_image_layer"]["rendered"] is True
+        assert result.region_render_status["product_region"]["count"] == 2
+
 
 # ── Feature slots ─────────────────────────────────────────────────────────────
 

@@ -133,6 +133,7 @@ class LayoutRenderer:
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
             agent_name=poster.agent_name,
+            has_product_secondary_asset=assets.product_secondary is not None,
         )
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
         layer_timings: dict[str, int] = {}
@@ -147,7 +148,17 @@ class LayoutRenderer:
         )
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, _scenario_image_slot(spec, behavior.hero_policy), assets.scenario)
-        self._draw_product(canvas, _product_image_slot(spec, behavior.hero_policy), assets.product)
+        self._draw_product(
+            canvas,
+            _product_image_slot(spec, behavior.hero_policy, behavior.product_policy),
+            assets.product,
+        )
+        if behavior.product_policy.product_secondary_slot_rendered and assets.product_secondary is not None:
+            self._draw_product(
+                canvas,
+                _product_secondary_image_slot(spec, behavior.product_policy),
+                assets.product_secondary,
+            )
         self._draw_gallery(
             canvas,
             spec.gallery_slot,
@@ -208,6 +219,7 @@ class LayoutRenderer:
             has_logo=assets.logo is not None,
             has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
             has_product=assets.product is not None,
+            has_product_secondary=assets.product_secondary is not None,
             feature_count=behavior.feature_policy.visible_item_count,
             gallery_valid=min(len(assets.gallery), spec.gallery_slot.count),
             gallery_visible=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
@@ -539,6 +551,7 @@ class PuppeteerStructuredRenderer:
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
             agent_name=poster.agent_name,
+            has_product_secondary_asset=assets.product_secondary is not None,
         )
         t0 = _now()
         logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
@@ -623,6 +636,7 @@ class PuppeteerStructuredRenderer:
             has_logo=bool(asset_urls["logo"]),
             has_scenario=behavior.hero_policy.scenario_enabled and bool(asset_urls.get("scenario_is_real")),
             has_product=True,
+            has_product_secondary=bool(asset_urls.get("product_secondary")),
             feature_count=behavior.feature_policy.visible_item_count,
             gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
             gallery_visible=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
@@ -1359,6 +1373,7 @@ def _build_renderer_layer_render_status(
     has_logo: bool,
     has_scenario: bool,
     has_product: bool,
+    has_product_secondary: bool,
     feature_count: int,
     gallery_valid: int,
     gallery_visible: int,
@@ -1442,6 +1457,21 @@ def _build_renderer_layer_render_status(
             "source_binding": product_source,
             "count": 1 if has_product else 0,
             "collapsed": not has_product,
+        },
+        "product_secondary_image_layer": {
+            "rendered": has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False),
+            "reason_code": (
+                None
+                if has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False)
+                else (
+                    "secondary_slot_not_active"
+                    if not getattr(product_policy, "product_secondary_slot_rendered", False)
+                    else "secondary_image_missing"
+                )
+            ),
+            "source_binding": poster.product_secondary_image.url if poster.product_secondary_image else None,
+            "count": 1 if (has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False)) else 0,
+            "collapsed": not (has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False)),
         },
         "product_canvas_shell_layer": {
             "rendered": True,
@@ -1547,7 +1577,7 @@ def _build_renderer_region_render_status(
         for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
     )
     scenario_count = int(layer_status["scenario_image_layer"]["count"])
-    product_count = int(layer_status["product_image_layer"]["count"])
+    product_count = int(layer_status["product_image_layer"]["count"]) + int(layer_status["product_secondary_image_layer"]["count"])
     feature_count = int(layer_status["feature_callout_layer"]["count"])
     title_count = int(layer_status["title_layer"]["count"])
     subtitle_count = int(layer_status["subtitle_layer"]["count"])
@@ -1613,11 +1643,14 @@ def render_product_material_debug_layer(
         gallery_resolved_count=gallery_resolved,
         gallery_requested_count=gallery_resolved,
         gallery_input_count_normalized=gallery_resolved,
+        has_product_secondary_asset=assets.product_secondary is not None,
     )
     canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
     if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
         renderer._draw_image(canvas, spec.scenario_slot, assets.scenario)
-    renderer._draw_product(canvas, spec.product_slot, assets.product)
+    renderer._draw_product(canvas, _product_image_slot(spec, behavior.hero_policy, behavior.product_policy), assets.product)
+    if assets.product_secondary is not None:
+        renderer._draw_product(canvas, _product_secondary_image_slot(spec, behavior.product_policy), assets.product_secondary)
     renderer._draw_gallery(
         canvas,
         spec.gallery_slot,
@@ -1710,7 +1743,23 @@ def _scenario_image_slot(spec: TemplateSpec, hero_policy):
     )
 
 
-def _product_image_slot(spec: TemplateSpec, hero_policy):
+def _product_image_slot(spec: TemplateSpec, hero_policy, product_policy=None):
+    if product_policy is not None and getattr(product_policy, "product_layout_mode", "single_primary") == "primary_secondary_dual":
+        primary = product_policy.product_primary_slot
+        return replace(
+            spec.product_slot,
+            x=int(primary["x"]),
+            y=int(primary["y"]),
+            w=int(primary["w"]),
+            h=int(primary["h"]),
+            fit=hero_policy.product_fit,
+            align_x="center",
+            align_y="center",
+            pad_top=16,
+            pad_right=12,
+            pad_bottom=8,
+            pad_left=12,
+        )
     metrics = hero_policy.layout_metrics
     anchor = hero_policy.product_anchor if hero_policy.product_anchor in {"start", "center", "end"} else "center"
     return replace(
@@ -1726,6 +1775,26 @@ def _product_image_slot(spec: TemplateSpec, hero_policy):
         pad_right=int(metrics["product_pad_right"]),
         pad_bottom=int(metrics["product_pad_bottom"]),
         pad_left=int(metrics["product_pad_left"]),
+    )
+
+
+def _product_secondary_image_slot(spec: TemplateSpec, product_policy):
+    secondary = product_policy.product_secondary_slot
+    if secondary is None:
+        return replace(spec.product_slot, x=0, y=0, w=0, h=0)
+    return replace(
+        spec.product_slot,
+        x=int(secondary["x"]),
+        y=int(secondary["y"]),
+        w=int(secondary["w"]),
+        h=int(secondary["h"]),
+        fit="contain",
+        align_x="center",
+        align_y="center",
+        pad_top=8,
+        pad_right=12,
+        pad_bottom=10,
+        pad_left=12,
     )
 
 

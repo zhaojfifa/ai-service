@@ -747,21 +747,35 @@
           return html;
         }
 
-        function buildProductDetail(productReview) {
+        function buildProductDetail(productReview, annotationReview) {
           if (!productReview) return '';
           let html = '';
+          const layoutMode = productReview.product_layout_mode || '';
           const mode = productReview.product_annotation_mode || '';
           const visibleCount = productReview.product_annotation_items_layer?.visible_item_count;
-          if (mode) html += `<div class="s2-slot-note">annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}</div>`;
+          const layoutReason = productReview.product_layout_mode_reason || '';
+          if (layoutMode || mode) {
+            html += `<div class="s2-slot-note">layout: ${layoutMode || 'single_primary'}${layoutReason ? ' · ' + layoutReason : ''}${mode ? ` · annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}` : ''}</div>`;
+          }
           if (productReview.requested_product_source) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
             html += textRow('source', productReview.requested_product_source.length > 48 ? productReview.requested_product_source.slice(-48) : productReview.requested_product_source, null, false);
+            if (productReview.product_secondary_image_layer?.source_binding) {
+              html += textRow('secondary', productReview.product_secondary_image_layer.source_binding.length > 48 ? productReview.product_secondary_image_layer.source_binding.slice(-48) : productReview.product_secondary_image_layer.source_binding, null, false);
+            }
             html += '</div>';
           }
           html += `<div style="display:flex;gap:6px;flex-wrap:wrap;padding-top:4px;">`;
           html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">image ${slotStatusHtml(productReview.product_image_layer?.rendered, productReview.product_image_layer?.reason_code)}</span>`;
+          html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">secondary ${slotStatusHtml(productReview.product_secondary_image_layer?.rendered, productReview.product_secondary_image_layer?.reason_code)}</span>`;
           html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">annotation ${slotStatusHtml(productReview.product_annotation_items_layer?.rendered, productReview.product_annotation_items_layer?.reason_code)}</span>`;
           html += `</div>`;
+          const slotChips = [];
+          if (productReview.product_primary_slot) slotChips.push(`primary (${productReview.product_primary_slot.x},${productReview.product_primary_slot.y},${productReview.product_primary_slot.w},${productReview.product_primary_slot.h})`);
+          if (productReview.product_secondary_slot) slotChips.push(`secondary (${productReview.product_secondary_slot.x},${productReview.product_secondary_slot.y},${productReview.product_secondary_slot.w},${productReview.product_secondary_slot.h})`);
+          if (slotChips.length) {
+            html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">${slotChips.map((text) => `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${text}</span>`).join('')}</div>`;
+          }
           const slots = productReview.annotation_slots || [];
           if (slots.length) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
@@ -769,6 +783,9 @@
               html += textRow(item.slot_id?.replace('product_annotation_slot_', 'anno ') || '?', item.requested_text || '—', item.rendered_excerpt, item.truncation_applied);
             }
             html += '</div>';
+          }
+          if (annotationReview?.annotation_active && annotationReview?.feature_suppression?.feature_right_stack_suppressed) {
+            html += `<div style="padding-top:4px;"><span class="s2-region-status s2-status-ok" style="font-size:10px;padding:1px 5px;">feature_right_stack suppressed</span></div>`;
           }
           return html;
         }
@@ -851,6 +868,9 @@
             html += `<div class="s2-slot-note">height: ${metrics.bottom_shell_height}px</div>`;
           }
           if (bottomReview) {
+            if (bottomReview.requested_bottom_mode || bottomReview.effective_bottom_mode) {
+              html += `<div class="s2-slot-note">requested/effective: ${bottomReview.requested_bottom_mode || 'template-default'} → ${bottomReview.effective_bottom_mode || bottomReview.bottom_mode || 'n/a'} (${bottomReview.bottom_mode_override_reason || 'n/a'})</div>`;
+            }
             html += `<div class="s2-slot-note">gallery raw/normalized/requested/visible: ${bottomReview.gallery_input_count_raw ?? 0} / ${bottomReview.gallery_input_count_normalized ?? 0} / ${bottomReview.gallery_requested_count ?? 0} / ${bottomReview.gallery_visible_count ?? 0}</div>`;
             html += `<div class="s2-slot-note">autofill: ${bottomReview.gallery_autofill_applied ? 'applied' : 'not-applied'} · distribution: ${bottomReview.behavior_policy?.gallery_distribution_policy || 'n/a'}</div>`;
           }
@@ -961,10 +981,12 @@
               const annotMode = templateBehavior?.behavior_modes?.product_annotation_mode;
               modeLabel = (annotMode && annotMode !== 'none')
                 ? annotMode
-                : (heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '');
-              detailHtml = (annotationReview?.annotation_active)
-                ? buildProductAnnotationDetail(annotationReview)
-                : buildHeroDetail(heroReview, 'product_region');
+                : (productReview?.product_layout_mode || heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '');
+              detailHtml = productReview
+                ? buildProductDetail(productReview, annotationReview)
+                : ((annotationReview?.annotation_active)
+                  ? buildProductAnnotationDetail(annotationReview)
+                  : buildHeroDetail(heroReview, 'product_region'));
             } else if (key === 'feature_region') {
               modeLabel = templateBehavior?.behavior_modes?.feature_mode || featureReview?.feature_mode || '';
               detailHtml = buildFeatureDetail(featureReview);

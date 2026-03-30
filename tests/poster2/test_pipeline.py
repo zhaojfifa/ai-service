@@ -1442,7 +1442,7 @@ class TestPosterPipelineRun:
 
 # ── Family A Structural Closeout Tests ───────────────────────────────────────
 
-def _run_pipeline_with_stored_metadata(template, spec):
+def _run_pipeline_with_stored_metadata(template, spec, assets: ResolvedAssets | None = None):
     """Run the pipeline and return the parsed renderer metadata payload."""
     stored_payloads: dict[str, bytes] = {}
 
@@ -1454,7 +1454,7 @@ def _run_pipeline_with_stored_metadata(template, spec):
         background_svc=_mock_bg_service(),
         renderer=_AsyncPillowRenderer(),
         composer=Composer(),
-        asset_loader=_mock_loader(ResolvedAssets(
+        asset_loader=_mock_loader(assets or ResolvedAssets(
             product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
         )),
         put_bytes_fn=fake_put_bytes,
@@ -1535,6 +1535,18 @@ class TestBottomStructuralExpansion:
         assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 728
         assert review["bottom_mode"] == "title_gallery_split"
 
+    def test_bottom_contract_review_exposes_requested_effective_and_override_reason(self):
+        template = _load_template()
+        spec = _make_spec(bottom_mode="title_only")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["bottom_contract_review"]
+
+        assert review["requested_bottom_mode"] == "title_only"
+        assert review["effective_bottom_mode"] == "title_only"
+        assert review["bottom_mode_override_reason"] == "request_override_applied"
+        assert review["bottom_mode"] == "title_only"
+        assert review["gallery_strip_region"]["rendered"] is False
+
 
 class TestProductLayoutContract:
     """Scope B: product_layout_mode exposes named slot contract surfaces."""
@@ -1558,12 +1570,16 @@ class TestProductLayoutContract:
 
     def test_primary_secondary_dual_exposes_named_slots(self):
         template = _load_template()
-        template.behavior_modes = replace(template.behavior_modes, product_layout_mode="primary_secondary_dual")
-        spec = _make_spec()
-        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        spec = _make_spec(product_secondary_image=AssetRef(url="mock://product-secondary"))
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec, assets=assets)
         review = metadata["product_contract_review"]
 
         assert review["product_layout_mode"] == "primary_secondary_dual"
+        assert review["product_layout_mode_reason"] == "auto_promoted_by_secondary_asset"
 
         primary = review["product_primary_slot"]
         assert primary["x"] == 456
@@ -1580,16 +1596,44 @@ class TestProductLayoutContract:
 
         assert review["product_secondary_slot_rendered"] is True
         assert review["product_secondary_asset_policy"] == "secondary_present"
+        assert review["product_secondary_image_layer"]["rendered"] is True
+        assert review["product_secondary_image_layer"]["bounds"] == {
+            "x": 456,
+            "y": 506,
+            "w": 300,
+            "h": 202,
+        }
+        assert metadata["geometry_evidence"]["slot_bounds"]["product_slot"] == {
+            "x": 456,
+            "y": 188,
+            "w": 300,
+            "h": 310,
+        }
+        assert metadata["geometry_evidence"]["slot_bounds"]["product_primary_slot"] == {
+            "x": 456,
+            "y": 188,
+            "w": 300,
+            "h": 310,
+        }
+        assert metadata["geometry_evidence"]["slot_bounds"]["product_secondary_slot"] == {
+            "x": 456,
+            "y": 506,
+            "w": 300,
+            "h": 202,
+        }
 
     def test_annotation_mode_unaffected_by_dual_product_layout(self):
         """product_annotation_mode must remain live regardless of product_layout_mode."""
         template = _load_template()
-        template.behavior_modes = replace(
-            template.behavior_modes,
-            product_layout_mode="primary_secondary_dual",
+        spec = _make_spec(
+            features=("Feat A", "Feat B", "Feat C"),
+            product_secondary_image=AssetRef(url="mock://product-secondary"),
         )
-        spec = _make_spec(features=("Feat A", "Feat B", "Feat C"))
-        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        manifest, metadata = _run_pipeline_with_stored_metadata(template, spec, assets=assets)
         review = metadata["product_contract_review"]
 
         # annotation_mode field must be present and valid
