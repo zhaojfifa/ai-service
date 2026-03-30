@@ -1,6 +1,6 @@
 # Current Branch Execution Log v1
 
-**Branch:** `fix/poster2-task1-bottom-runtime-stabilization`
+**Branch:** `PosterSop06-beautification-phase1`
 **Last updated:** 2026-03-30
 
 This log records what has been completed on this branch in chronological order. Each entry names the commit scope, what changed, and what the acceptance evidence is.
@@ -326,73 +326,6 @@ This log records what has been completed on this branch in chronological order. 
 
 ---
 
-## Entry 8 — Task-1: text_gallery_expanded and gallery_only runtime stabilization
-
-**Status:** Complete
-
-### Scope
-- Task-1 only
-- no beautification
-- no geometry rewrite
-- no product-region finalization
-- no delivery/capacity tuning
-
-### What changed
-- Added API-path guards so `text_gallery_expanded` and `gallery_only` must preserve:
-  - `requested_bottom_mode`
-  - `effective_bottom_mode`
-  - `bottom_layout_mode`
-  - `bottom_mode_override_reason`
-- Added Stage 2 diagnostics guards so the backend-driven panel must continue to surface:
-  - requested/effective bottom runtime line
-  - layout mode line
-  - `text_gallery_expanded` / `gallery_only` controls
-- Re-ran fresh local HTTP runtime verification for both modes without introducing any frontend layout inference
-
-### Fresh runtime verification
-- Temporary local runtime wrapper used only to provide fake assets/storage while hitting real `/api/v2/generate-poster`
-
-#### `text_gallery_expanded`
-- Request id: `p2-task1-text-gallery`
-- Trace: `42e9d639-d625-476e-8056-3c7b0f05aca0`
-- Result:
-  - `degraded = false`
-  - `structure_complete = true`
-  - `deliverable = true`
-  - `requested_bottom_mode = text_gallery_expanded`
-  - `effective_bottom_mode = text_gallery_expanded`
-  - `bottom_layout_mode = text_gallery_expanded`
-  - `bottom_mode_override_reason = request_override_applied`
-  - `title_band_region.rendered = true`
-  - `gallery_strip_region.rendered = true`
-
-#### `gallery_only`
-- Request id: `p2-task1-gallery-only`
-- Trace: `e5f116e5-6f0c-4ff0-a3da-271cecd23b5c`
-- Result:
-  - `degraded = false`
-  - `structure_complete = true`
-  - `deliverable = true`
-  - `requested_bottom_mode = gallery_only`
-  - `effective_bottom_mode = gallery_only`
-  - `bottom_layout_mode = gallery_only`
-  - `bottom_mode_override_reason = request_override_applied`
-  - `title_band_region.rendered = false`
-  - `gallery_strip_region.rendered = true`
-
-### Acceptance
-- `text_gallery_expanded` is verifiable end-to-end in runtime ✓
-- `gallery_only` is verifiable end-to-end in runtime ✓
-- Stage 2 remains backend-evidence-driven ✓
-- No geometry or beauty drift introduced ✓
-
-### Tests
-- `103 passed, 2 warnings`
-- Command:
-  - `python -m pytest tests/poster2/test_api.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py`
-
----
-
 ## PR-1 — Canonical bottom mode runtime truth unification (2026-03-30)
 
 ### Goal
@@ -703,3 +636,4 @@ Eliminate inlined `owner_region` string literals. Enforce no-dual-ownership when
 - `product_annotation_contract_review` emits `annotation_text_owner_region`, `annotation_slot_ids`, `ownership_frozen` ✓
 - Dead code removed ✓
 - 252/252 tests pass ✓
+
