@@ -588,15 +588,14 @@ def _build_layer_render_status(
     gallery_valid = min(len(assets.gallery), 4)
     gallery_rendered = behavior.bottom_policy.gallery_strip_rendered and gallery_valid > 0
     feature_count = min(len([item for item in spec.features if item and item.strip()]), len(template.feature_callouts))
+    annotation_active = behavior.product_policy.annotation_mode == "product_anchor_callouts"
     product_annotation_visible = min(
         behavior.product_policy.visible_annotation_count,
         len([item for item in spec.features if item and item.strip()]),
     )
-    product_annotation_rendered = (
-        behavior.product_policy.annotation_mode == "product_anchor_callouts"
-        and behavior.feature_policy.mode == "product_anchor_callouts"
-        and product_annotation_visible > 0
-    )
+    product_annotation_rendered = annotation_active and product_annotation_visible > 0
+    delegated_feature_rendering = annotation_active
+    visible_feature_count = 0 if delegated_feature_rendering else feature_count
     layer_status = {
         "background_base_layer": {
             "rendered": True,
@@ -717,11 +716,15 @@ def _build_layer_render_status(
             "collapsed": not product_annotation_rendered,
         },
         "feature_callout_layer": {
-            "rendered": feature_count > 0,
-            "reason_code": None if feature_count > 0 else "features_empty",
+            "rendered": visible_feature_count > 0,
+            "reason_code": (
+                "delegated_to_product_annotation_region"
+                if delegated_feature_rendering
+                else (None if visible_feature_count > 0 else "features_empty")
+            ),
             "source_binding": "features",
-            "count": feature_count,
-            "collapsed": feature_count == 0,
+            "count": visible_feature_count,
+            "collapsed": visible_feature_count == 0,
         },
         "title_layer": {
             "rendered": behavior.bottom_policy.title_slot_rendered,
@@ -781,24 +784,6 @@ def _build_layer_render_status(
             "count": 0,
         },
     }
-    annotation_active = behavior.feature_policy.mode == "product_anchor_callouts"
-    annotation_item_count = behavior.feature_policy.visible_item_count if annotation_active else 0
-    layer_status["product_annotation_shell_layer"] = {
-        "rendered": annotation_active,
-        "reason_code": None if annotation_active else "product_annotation_mode_none",
-        "source_binding": "template_dual_v2.product_annotation_shell",
-        "count": 1 if annotation_active else 0,
-        "collapsed": not annotation_active,
-    }
-    layer_status["product_annotation_items_layer"] = {
-        "rendered": annotation_active and annotation_item_count > 0,
-        "reason_code": None if (annotation_active and annotation_item_count > 0) else (
-            "product_annotation_mode_none" if not annotation_active else "features_empty"
-        ),
-        "source_binding": "features",
-        "count": annotation_item_count,
-        "collapsed": not annotation_active or annotation_item_count == 0,
-    }
     return layer_status
 
 
@@ -810,7 +795,11 @@ def _build_region_render_status(
         for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
     )
     scenario_count = int(layer_status["scenario_image_layer"]["count"])
-    product_count = int(layer_status["product_image_layer"]["count"])
+    product_count = (
+        int(layer_status["product_image_layer"]["count"])
+        + int(layer_status["product_secondary_image_layer"]["count"])
+        + int(layer_status["product_annotation_items_layer"]["count"])
+    )
     feature_count = int(layer_status["feature_callout_layer"]["count"])
     title_count = int(layer_status["title_layer"]["count"])
     subtitle_count = int(layer_status["subtitle_layer"]["count"])
@@ -1110,16 +1099,15 @@ def _build_bottom_contract_review(
         else ""
     )
     requested_bottom_mode = requested_spec.bottom_mode
-    effective_bottom_mode = resolved_behavior.bottom_policy.mode
-    bottom_mode_override_reason = (
-        "request_override_applied" if requested_bottom_mode is not None else None
-    )
+    effective_bottom_mode = resolved_behavior.bottom_policy.effective_mode
+    bottom_mode_override_reason = resolved_behavior.bottom_policy.mode_override_reason
     return {
         "requested_bottom_mode": requested_bottom_mode,
         "effective_bottom_mode": effective_bottom_mode,
         "bottom_mode": effective_bottom_mode,
         "bottom_mode_remapped": requested_bottom_mode != effective_bottom_mode,
         "bottom_mode_override_reason": bottom_mode_override_reason,
+        "bottom_layout_mode": resolved_behavior.bottom_policy.bottom_layout_mode,
         "gallery_mode": resolved_behavior.bottom_policy.gallery_mode,
         "gallery_input_count_raw": int(gallery_counts["raw"]),
         "gallery_input_count_normalized": int(gallery_counts["normalized"]),
@@ -1484,6 +1472,7 @@ def _build_product_contract_review(
     )
     return {
         "product_annotation_mode": product_policy.annotation_mode,
+        "product_annotation_owner": "product_region" if product_policy.annotation_mode == "product_anchor_callouts" else "feature_region",
         "requested_product_source": requested_spec.product_image.url,
         "effective_product_source": effective_spec.product_image.url,
         "rendered_product_source": effective_spec.product_image.url,
@@ -1538,6 +1527,8 @@ def _build_product_contract_review(
         },
         "product_layout_mode": product_policy.product_layout_mode,
         "product_layout_mode_reason": product_policy.product_layout_mode_reason,
+        "product_geometry_mode": product_policy.product_geometry_mode,
+        "product_geometry_mode_reason": product_policy.product_geometry_mode_reason,
         "product_primary_slot": dict(product_policy.product_primary_slot),
         "product_secondary_slot": dict(product_policy.product_secondary_slot) if product_policy.product_secondary_slot else None,
         "product_secondary_slot_rendered": product_policy.product_secondary_slot_rendered,
@@ -1571,18 +1562,24 @@ def _build_feature_contract_review(
         "w": 164,
         "h": 392,
     }
-    rendered_items = [
-        _apply_text_budget(text, resolved_behavior.feature_policy.char_budget)
-        for text in effective_spec.features[: resolved_behavior.feature_policy.visible_item_count]
-    ]
+    delegated_to_product_annotation = resolved_behavior.product_policy.annotation_mode == "product_anchor_callouts"
+    rendered_items = (
+        []
+        if delegated_to_product_annotation
+        else [
+            _apply_text_budget(text, resolved_behavior.feature_policy.char_budget)
+            for text in effective_spec.features[: resolved_behavior.feature_policy.visible_item_count]
+        ]
+    )
     item_reviews = []
     for index, requested_text in enumerate(requested_spec.features, start=1):
         sanitized_text = effective_spec.features[index - 1] if index - 1 < len(effective_spec.features) else ""
-        rendered_excerpt = (
-            _apply_text_budget(sanitized_text, resolved_behavior.feature_policy.char_budget)
-            if index <= resolved_behavior.feature_policy.visible_item_count
-            else ""
+        slot_rendered = (
+            not delegated_to_product_annotation
+            and index <= resolved_behavior.feature_policy.visible_item_count
+            and bool(sanitized_text)
         )
+        rendered_excerpt = _apply_text_budget(sanitized_text, resolved_behavior.feature_policy.char_budget) if slot_rendered else ""
         if index <= len(template.feature_callouts):
             label_box = template.feature_callouts[index - 1].label_box
             bounds = {"x": int(label_box.x), "y": int(label_box.y), "w": int(label_box.w), "h": int(label_box.h)}
@@ -1594,14 +1591,18 @@ def _build_feature_contract_review(
                 "requested_text": requested_text,
                 "sanitized_text": sanitized_text,
                 "rendered_excerpt": rendered_excerpt,
-                "rendered": index <= resolved_behavior.feature_policy.visible_item_count and bool(sanitized_text),
-                "truncation_applied": rendered_excerpt != sanitized_text,
-                "reason_code": None if (index <= resolved_behavior.feature_policy.visible_item_count and bool(sanitized_text)) else "collapsed_when_empty_or_capped",
+                "rendered": slot_rendered,
+                "truncation_applied": False if delegated_to_product_annotation else (rendered_excerpt != sanitized_text),
+                "reason_code": (
+                    "delegated_to_product_annotation_region"
+                    if delegated_to_product_annotation
+                    else (None if slot_rendered else "collapsed_when_empty_or_capped")
+                ),
                 "bounds": bounds,
             }
         )
     anchor_evidence = None
-    if resolved_behavior.feature_policy.mode == "product_anchor_callouts":
+    if resolved_behavior.feature_policy.mode == "product_anchor_callouts" and not delegated_to_product_annotation:
         anchor_evidence = [
             {
                 "anchor_index": i,
@@ -1614,13 +1615,20 @@ def _build_feature_contract_review(
         ]
     return {
         "feature_mode": resolved_behavior.feature_policy.mode,
+        "responsibility_owner": "product_region" if delegated_to_product_annotation else "feature_region",
+        "delegated_to_product_annotation": delegated_to_product_annotation,
         "requested_feature_items": list(requested_spec.features),
         "sanitized_feature_items": list(effective_spec.features),
         "rendered_feature_items": rendered_items,
         "feature_region": {
             "rendered": bool(region_render_status.get("feature_region", {}).get("rendered", False)),
-            "visible_item_count": resolved_behavior.feature_policy.visible_item_count,
+            "visible_item_count": 0 if delegated_to_product_annotation else resolved_behavior.feature_policy.visible_item_count,
             "bounds": feature_region_bounds,
+            "reason_code": (
+                "delegated_to_product_annotation_region"
+                if delegated_to_product_annotation
+                else None
+            ),
         },
         "behavior_policy": {
             "visible_item_count_policy": resolved_behavior.feature_policy.visible_item_count_policy,
@@ -1634,6 +1642,11 @@ def _build_feature_contract_review(
             "box_h": resolved_behavior.feature_policy.box_h,
             "gap": resolved_behavior.feature_policy.gap,
             "start_strategy": resolved_behavior.feature_policy.start_strategy,
+            "responsibility_policy": (
+                "delegated_to_product_annotation_region"
+                if delegated_to_product_annotation
+                else "feature_region_owns_feature_callouts"
+            ),
         },
         "feature_slots": item_reviews,
         "anchor_evidence": anchor_evidence,
@@ -1649,11 +1662,8 @@ def _build_product_annotation_contract_review(
     region_render_status: dict[str, dict[str, object]],
 ) -> dict[str, object]:
     feature_policy = resolved_behavior.feature_policy
-    annotation_mode = (
-        feature_policy.mode
-        if feature_policy.mode == "product_anchor_callouts"
-        else "none"
-    )
+    product_policy = resolved_behavior.product_policy
+    annotation_mode = product_policy.annotation_mode
     if annotation_mode == "none":
         return {
             "product_annotation_mode": "none",
@@ -1664,7 +1674,7 @@ def _build_product_annotation_contract_review(
             },
         }
 
-    max_slots = feature_policy.max_items  # fixed 3
+    max_slots = product_policy.max_annotation_items  # fixed 3
     slot_reviews = []
     for i in range(max_slots):
         requested_text = (
@@ -1677,9 +1687,9 @@ def _build_product_annotation_contract_review(
             if i < len(effective_spec.features)
             else ""
         )
-        is_visible = i < feature_policy.visible_item_count and bool(sanitized_text)
+        is_visible = i < product_policy.visible_annotation_count and bool(sanitized_text)
         rendered_excerpt = (
-            _apply_text_budget(sanitized_text, feature_policy.char_budget)
+            _apply_text_budget(sanitized_text, product_policy.char_budget)
             if is_visible
             else ""
         )
@@ -1707,6 +1717,7 @@ def _build_product_annotation_contract_review(
             "anchor_y": anchor_y,
             "label_bounds": label_bounds,
             "connector_policy": feature_policy.connector_policy,
+            "annotation_owner": "product_region",
             "marker_policy": "dot_marker_accent_color",
             "positions_source": "template_spec_fixed",
             "anchor_color": anchor_color,
@@ -1716,7 +1727,7 @@ def _build_product_annotation_contract_review(
         "product_annotation_mode": annotation_mode,
         "annotation_active": True,
         "max_slots": max_slots,
-        "visible_slot_count": feature_policy.visible_item_count,
+        "visible_slot_count": product_policy.visible_annotation_count,
         "annotation_slots": slot_reviews,
         "product_region": {
             "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
@@ -1729,12 +1740,12 @@ def _build_product_annotation_contract_review(
         },
         "behavior_policy": {
             "visible_item_count_policy": feature_policy.visible_item_count_policy,
-            "connector_policy": feature_policy.connector_policy,
+            "connector_policy": product_policy.annotation_connector_policy,
             "marker_policy": "dot_marker_accent_color",
             "box_policy": feature_policy.box_policy,
             "start_strategy": feature_policy.start_strategy,
-            "char_budget": feature_policy.char_budget,
-            "line_clamp": feature_policy.line_clamp,
+            "char_budget": product_policy.char_budget,
+            "line_clamp": product_policy.line_clamp,
         },
         "feature_suppression": {
             "feature_right_stack_suppressed": True,

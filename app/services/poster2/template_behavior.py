@@ -38,6 +38,16 @@ _SUPPORTED_BOTTOM_MODES = {
     "text_gallery_expanded",
 }
 
+_LEGACY_BOTTOM_MODE_CANONICAL: dict[str, str] = {
+    "text_only_expanded": "title_only",
+    "text_gallery_expanded": "title_gallery_split",
+}
+_BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE: dict[str, str] = {
+    "title_only": "text_only_expanded",
+    "title_gallery_split": "text_gallery_expanded",
+    "gallery_only": "gallery_only",
+}
+
 # Structural expansion: new modes start the bottom shell higher than the frozen baseline (y=728).
 # These are not patches to the baseline — they are new first-class structural modes.
 _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
@@ -236,6 +246,8 @@ class ResolvedProductBehavior:
     annotation_mode: str
     product_layout_mode: str                          # "single_primary" | "primary_secondary_dual"
     product_layout_mode_reason: str
+    product_geometry_mode: str
+    product_geometry_mode_reason: str
     product_primary_slot: dict[str, int]              # {x, y, w, h} of primary product image region
     product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
     product_secondary_slot_rendered: bool
@@ -259,6 +271,8 @@ class ResolvedProductBehavior:
             "annotation_mode": self.annotation_mode,
             "product_layout_mode": self.product_layout_mode,
             "product_layout_mode_reason": self.product_layout_mode_reason,
+            "product_geometry_mode": self.product_geometry_mode,
+            "product_geometry_mode_reason": self.product_geometry_mode_reason,
             "product_primary_slot": dict(self.product_primary_slot),
             "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
             "product_secondary_slot_rendered": self.product_secondary_slot_rendered,
@@ -472,8 +486,10 @@ class ResolvedTemplateBehavior:
                 "feature_mode": self.feature_mode,
                 "product_annotation_mode": self.product_annotation_mode,
                 "product_layout_mode": self.product_policy.product_layout_mode,
+                "product_geometry_mode": self.product_policy.product_geometry_mode,
                 "header_mode": self.header_mode,
                 "bottom_mode": self.bottom_mode,
+                "bottom_layout_mode": self.bottom_policy.bottom_layout_mode,
                 "gallery_mode": self.gallery_mode,
             },
             "hero_policy": self.hero_policy.as_dict(),
@@ -512,10 +528,15 @@ def resolve_template_behavior(
     beauty = spec.beauty_tokens
     hero_mode = _validate_token(modes.hero_mode, _SUPPORTED_HERO_MODES, "hero_mode")
     feature_mode = _validate_token(modes.feature_mode, _SUPPORTED_FEATURE_MODES, "feature_mode")
-    product_annotation_mode = _validate_token(
+    requested_product_annotation_mode = _validate_token(
         modes.product_annotation_mode,
         _SUPPORTED_PRODUCT_ANNOTATION_MODES,
         "product_annotation_mode",
+    )
+    product_annotation_mode = (
+        requested_product_annotation_mode
+        if feature_mode == "product_anchor_callouts"
+        else "none"
     )
     product_layout_mode = _validate_token(
         modes.product_layout_mode,
@@ -698,6 +719,12 @@ def resolve_product_behavior(
         product_layout_mode_reason = "template_mode_primary_secondary_dual"
     else:
         product_layout_mode_reason = "single_primary_without_secondary_asset"
+    if effective_product_layout_mode == "primary_secondary_dual":
+        product_geometry_mode = "primary_secondary_dual_v2"
+        product_geometry_mode_reason = "dual_image_geometry_v2_selected"
+    else:
+        product_geometry_mode = "single_primary_v1"
+        product_geometry_mode_reason = "single_image_geometry_baseline"
     max_items = min(len(spec.feature_callouts), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
     visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
     hero_metrics = hero_policy.layout_metrics
@@ -810,6 +837,8 @@ def resolve_product_behavior(
         annotation_mode=annotation_mode,
         product_layout_mode=effective_product_layout_mode,
         product_layout_mode_reason=product_layout_mode_reason,
+        product_geometry_mode=product_geometry_mode,
+        product_geometry_mode_reason=product_geometry_mode_reason,
         product_primary_slot=product_primary_slot,
         product_secondary_slot=product_secondary_slot,
         product_secondary_slot_rendered=product_secondary_slot_rendered,
@@ -1177,43 +1206,39 @@ def resolve_bottom_behavior(
     requested_gallery_count = min(max(requested_gallery_count, 0), max_items)
     normalized_gallery_count = min(max(normalized_gallery_count, 0), max_items)
     visible_item_count = min(max(resolved_gallery_count, 0), max_items)
-    # Structural expansion modes introduce a higher bottom_shell_top than the frozen baseline (728).
-    bottom_layout_mode = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, None)
-    is_expanded_mode = bottom_layout_mode is not None
-    actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, 728)
-    resolved_bottom_layout_mode = bottom_mode if is_expanded_mode else "none"
+    requested_runtime_mode = requested_bottom_mode or bottom_mode
+    effective_bottom_mode = _LEGACY_BOTTOM_MODE_CANONICAL.get(bottom_mode, bottom_mode)
+    resolved_bottom_layout_mode = _BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE.get(
+        effective_bottom_mode,
+        effective_bottom_mode,
+    )
+    actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(resolved_bottom_layout_mode, 728)
     if requested_bottom_mode is None:
         mode_override_reason = "template_default_applied"
-    elif template_bottom_mode is not None and requested_bottom_mode == template_bottom_mode:
+    elif requested_runtime_mode in _LEGACY_BOTTOM_MODE_CANONICAL:
+        mode_override_reason = "legacy_layout_mode_canonicalized"
+    elif template_bottom_mode is not None and requested_runtime_mode == template_bottom_mode:
         mode_override_reason = "requested_matches_template_default"
     else:
         mode_override_reason = "request_override_applied"
 
-    title_slot_rendered = title_present and bottom_mode != "gallery_only"
-    subtitle_slot_rendered = subtitle_present and bottom_mode != "gallery_only" and title_present
+    title_slot_rendered = title_present and effective_bottom_mode != "gallery_only"
+    subtitle_slot_rendered = subtitle_present and effective_bottom_mode != "gallery_only" and title_present
 
-    if bottom_mode == "title_gallery_split":
+    if effective_bottom_mode == "title_gallery_split":
         title_band_rendered = title_slot_rendered
         gallery_strip_rendered = visible_item_count > 0
         gallery_content_policy = "render_real_gallery_items_in_local_strip_only"
-    elif bottom_mode == "title_only":
+    elif effective_bottom_mode == "title_only":
         title_band_rendered = title_slot_rendered
         gallery_strip_rendered = False
         gallery_content_policy = "collapse_gallery_strip_even_when_gallery_inputs_exist"
-    elif bottom_mode == "gallery_only":
+    elif effective_bottom_mode == "gallery_only":
         title_band_rendered = False
         gallery_strip_rendered = visible_item_count > 0
         gallery_content_policy = "render_gallery_strip_without_title_band"
-    elif bottom_mode == "text_only_expanded":
-        title_band_rendered = title_slot_rendered
-        gallery_strip_rendered = False
-        gallery_content_policy = "collapse_gallery_strip_expanded_text_only_mode"
-    elif bottom_mode == "text_gallery_expanded":
-        title_band_rendered = title_slot_rendered
-        gallery_strip_rendered = visible_item_count > 0
-        gallery_content_policy = "render_gallery_strip_in_expanded_text_gallery_mode"
     else:
-        raise ValueError(f"Unsupported bottom_mode: {bottom_mode}")
+        raise ValueError(f"Unsupported bottom_mode: {effective_bottom_mode}")
 
     (
         title_band_sizing_mode,
@@ -1236,7 +1261,7 @@ def resolve_bottom_behavior(
         subtitle_char_budget,
         layout_metrics,
     ) = _resolve_bottom_layout_policies(
-        bottom_mode=bottom_mode,
+        bottom_mode=resolved_bottom_layout_mode,
         gallery_mode=gallery_mode,
         title_slot_rendered=title_slot_rendered,
         subtitle_slot_rendered=subtitle_slot_rendered,
@@ -1288,7 +1313,7 @@ def resolve_bottom_behavior(
         if slot_rendered:
             reason_code = None
             state = "rendered"
-        elif bottom_mode == "title_only":
+        elif effective_bottom_mode == "title_only":
             reason_code = "suppressed_by_bottom_mode"
             state = "collapsed"
         elif index >= normalized_gallery_count:
@@ -1336,9 +1361,9 @@ def resolve_bottom_behavior(
             collapsed_optional_slots.append(slot_id)
 
     return ResolvedBottomBehavior(
-        mode=bottom_mode,
+        mode=effective_bottom_mode,
         requested_mode=requested_bottom_mode,
-        effective_mode=bottom_mode,
+        effective_mode=effective_bottom_mode,
         mode_override_reason=mode_override_reason,
         bottom_layout_mode=resolved_bottom_layout_mode,
         bottom_shell_top=actual_bottom_shell_top,
@@ -1381,7 +1406,8 @@ def resolve_bottom_behavior(
         subtitle_slot_state=subtitle_slot_state,
         gallery_slot_states=tuple(gallery_slot_states),
         css_classes=(
-            _css_mode_class("bottom-mode", bottom_mode),
+            _css_mode_class("bottom-mode", effective_bottom_mode),
+            _css_mode_class("bottom-layout-mode", resolved_bottom_layout_mode),
             _css_mode_class("gallery-mode", gallery_mode),
             _css_mode_class("title-band-size", title_band_sizing_mode),
             _css_mode_class("subtitle-overflow", subtitle_overflow_policy),
