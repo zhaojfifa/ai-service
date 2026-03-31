@@ -21,18 +21,20 @@ _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
 _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; enforces annotation items within primary slot y-range
                                          # (callouts 0-2 have anchor_y 250/350/450, within primary [188,498];
-                                         #  callout 3 has anchor_y 550, which falls in secondary territory)
+                                         #  callout 3 has anchor_y 550, which falls in secondary territory [518,728])
 _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
 # Frozen geometry for primary_secondary_dual product layout mode (geometry_mode = primary_secondary_dual_v2).
-# Primary slot: upper ~60% of the product region; receives all annotation callouts.
-# Secondary slot: lower ~40% of the product region; no callouts, no annotation ownership.
-# Parent region (scenario_cover_product_contain): x=456, y=188, w=300, h=520.
-# Gap between primary bottom and secondary top: 506-(188+310)=8px.
+# Lane model: external right lane — annotation labels (x=784+) are outside the product region right
+# boundary (x=756); image-slot sizing is fully independent of label_bounds.
+# Primary slot: upper ~57% of the product region; receives all annotation callouts.
+# Secondary slot: lower ~39% of the product region; no callouts, no annotation ownership.
+# Parent region (scenario_cover_product_contain): x=456, y=188, w=300, h=540.
+# Gap between primary bottom and secondary top: 518-(188+310)=20px.
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 310}
-_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 506, "w": 300, "h": 202}
-_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 520}
+_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 300, "h": 210}
+_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -697,7 +699,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "product_region_x": 456,
                 "product_region_y": 188,
                 "product_region_w": 300,
-                "product_region_h": 520,
+                "product_region_h": 540,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
                 "product_pad_bottom": 10,
@@ -725,7 +727,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "product_region_x": 456,
                 "product_region_y": 188,
                 "product_region_w": 300,
-                "product_region_h": 520,
+                "product_region_h": 540,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
                 "product_pad_bottom": 10,
@@ -1789,10 +1791,13 @@ def _resolve_bottom_layout_policies(
         title_band_sizing_mode=title_band_sizing_mode,
         peer_balance_policy=peer_balance_policy,
     )
+    # When gallery strip renders without a title band (gallery_only mode), position the
+    # gallery shell at the bottom shell top so items render inside the shell region.
+    # The old hardcoded 888 was a legacy placeholder that placed items outside the shell.
     gallery_shell_top = (
         title_band_top + title_band_height + peer_gap
         if gallery_strip_rendered and title_slot_rendered
-        else (888 if gallery_strip_rendered else title_band_top + title_band_height)
+        else (title_band_top if gallery_strip_rendered else title_band_top + title_band_height)
     )
     (
         gallery_strip_shift_policy,

@@ -271,7 +271,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.3"
+        assert manifest.template_version == "2.1.4"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"
@@ -491,11 +491,11 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
-        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 540}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 752, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["scenario_region"] == 0
@@ -1589,7 +1589,7 @@ class TestProductLayoutContract:
         assert primary["x"] == 456
         assert primary["y"] == 188
         assert primary["w"] == 300
-        assert primary["h"] == 520
+        assert primary["h"] == 540
         assert review["product_secondary_slot"] is None
         assert review["product_secondary_slot_rendered"] is False
         assert review["product_secondary_asset_policy"] == "secondary_absent_collapsed"
@@ -1616,18 +1616,18 @@ class TestProductLayoutContract:
         secondary = review["product_secondary_slot"]
         assert secondary is not None
         assert secondary["x"] == 456
-        assert secondary["y"] == 506
+        assert secondary["y"] == 518
         assert secondary["w"] == 300
-        assert secondary["h"] == 202
+        assert secondary["h"] == 210
 
         assert review["product_secondary_slot_rendered"] is True
         assert review["product_secondary_asset_policy"] == "secondary_present"
         assert review["product_secondary_image_layer"]["rendered"] is True
         assert review["product_secondary_image_layer"]["bounds"] == {
             "x": 456,
-            "y": 506,
+            "y": 518,
             "w": 300,
-            "h": 202,
+            "h": 210,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_slot"] == {
             "x": 456,
@@ -1643,9 +1643,9 @@ class TestProductLayoutContract:
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_secondary_slot"] == {
             "x": 456,
-            "y": 506,
+            "y": 518,
             "w": 300,
-            "h": 202,
+            "h": 210,
         }
 
     def test_annotation_mode_unaffected_by_dual_product_layout(self):
@@ -1853,7 +1853,7 @@ class TestBottomModeBoundaryAndCompleteness:
             "text_gallery_expanded": {"title": "Test Title"},
             "text_only_expanded":    {"title": "Test Title"},
             "gallery_only":          {
-                "title": "Ignored Title",  # title required by pipeline preflight; band is absent by mode
+                "title": "",  # gallery_only: title band collapsed by design; title not required
                 "gallery_images": (AssetRef(url="mock://g1"),),
                 "gallery_requested_count": 1,
                 "gallery_input_count_normalized": 1,
@@ -1884,6 +1884,155 @@ class TestBottomModeBoundaryAndCompleteness:
         assert review["bottom_mode_remapped"] is True
         assert review["bottom_mode_alias"] == "title_only → text_only_expanded"
         assert review["bottom_mode_override_reason"] == "legacy_alias_canonicalized"
+
+
+class TestBottomModeStabilization:
+    """Task-1: text_gallery_expanded and gallery_only reach the same health bar as text_only_expanded.
+
+    Health bar: degraded=False, structure_complete=True, deliverable=True,
+    all four diagnostic fields present, no silent fallback.
+    """
+
+    def _run_gallery_only(self, *, with_title: bool, gallery_count: int = 1):
+        """Run gallery_only with or without a title; always provides gallery assets."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="gallery_only")
+        gallery_images = tuple(AssetRef(url=f"mock://g{i}") for i in range(gallery_count))
+        spec = _make_spec(
+            title="Title" if with_title else "",
+            subtitle="",
+            bottom_mode="gallery_only",
+            gallery_images=gallery_images,
+        )
+        gallery_assets = [PILImage.new("RGBA", (200, 200), (100, 100, 200, 255)) for _ in range(gallery_count)]
+        gallery_status = [
+            {"index": i, "url": f"mock://g{i}", "resolved": True, "error_code": None}
+            for i in range(gallery_count)
+        ]
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=gallery_assets,
+            gallery_status=gallery_status,
+        )
+        return _run_pipeline_with_stored_metadata(template, spec, assets)
+
+    def _run_text_gallery_expanded(self, *, gallery_count: int):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="text_gallery_expanded")
+        gallery_images = tuple(AssetRef(url=f"mock://g{i}") for i in range(gallery_count))
+        spec = _make_spec(
+            title="Upgrade your kitchen with ChefCraft",
+            subtitle="Fresh ingredients, great results",
+            bottom_mode="text_gallery_expanded",
+            gallery_images=gallery_images,
+        )
+        gallery_assets = [PILImage.new("RGBA", (200, 200), (100, 100, 200, 255)) for _ in range(gallery_count)]
+        gallery_status = [
+            {"index": i, "url": f"mock://g{i}", "resolved": True, "error_code": None}
+            for i in range(gallery_count)
+        ]
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=gallery_assets,
+            gallery_status=gallery_status,
+        ) if gallery_count > 0 else None
+        return _run_pipeline_with_stored_metadata(template, spec, assets)
+
+    # --- gallery_only without title: full health ---
+
+    def test_gallery_only_deliverable_without_title(self):
+        """gallery_only with no title must still be deliverable (title band is collapsed by design)."""
+        _, metadata = self._run_gallery_only(with_title=False)
+        assert metadata["degraded"] is False
+        assert metadata["structure_complete"] is True
+        assert metadata["deliverable"] is True
+        assert "title_slot" not in metadata["missing_required_slots"]
+
+    def test_gallery_only_title_slot_not_in_missing_required_when_absent(self):
+        """title_slot must be excused for gallery_only even when spec.title is empty."""
+        _, metadata = self._run_gallery_only(with_title=False)
+        slot_status = metadata["slot_binding_status"]
+        assert "title_slot" not in slot_status.get("missing_required_slots", [])
+
+    def test_gallery_only_diagnostics_all_present_without_title(self):
+        """All four bottom diagnostic fields must be present in gallery_only with no title."""
+        _, metadata = self._run_gallery_only(with_title=False)
+        review = metadata["bottom_contract_review"]
+        assert review["requested_bottom_mode"] == "gallery_only"
+        assert review["effective_bottom_mode"] == "gallery_only"
+        assert review["bottom_layout_mode"] == "gallery_only"
+        assert "bottom_mode_override_reason" in review
+
+    # --- gallery_only geometry fix ---
+
+    def test_gallery_only_gallery_shell_top_equals_bottom_shell_top(self):
+        """gallery_shell_top must equal bottom_shell_top for gallery_only (not hardcoded 888)."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "gallery_only",
+            gallery_mode="strip_local_visible_only",
+            title_text="",
+            subtitle_text="",
+            requested_gallery_count=1,
+            normalized_gallery_count=1,
+            resolved_gallery_count=1,
+            max_items=4,
+        )
+        bottom_shell_top = policy.layout_metrics["bottom_shell_top"]
+        gallery_shell_top = policy.layout_metrics["gallery_shell_top"]
+        assert gallery_shell_top == bottom_shell_top, (
+            f"gallery_shell_top ({gallery_shell_top}) must equal bottom_shell_top ({bottom_shell_top})"
+        )
+
+    def test_gallery_only_gallery_items_render_inside_bottom_shell(self):
+        """Gallery items must have absolute y within the bottom shell bounds."""
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "gallery_only",
+            gallery_mode="strip_local_visible_only",
+            title_text="",
+            subtitle_text="",
+            requested_gallery_count=2,
+            normalized_gallery_count=2,
+            resolved_gallery_count=2,
+            max_items=4,
+        )
+        shell_top = policy.layout_metrics["bottom_shell_top"]
+        shell_height = policy.layout_metrics["bottom_shell_height"]
+        shell_bottom = shell_top + shell_height
+        for slot in policy.gallery_slot_states:
+            if slot["rendered"] and slot.get("bounds"):
+                item_y = slot["bounds"]["y"]
+                item_bottom = item_y + slot["bounds"]["h"]
+                assert item_y >= shell_top, f"gallery item y={item_y} is above shell_top={shell_top}"
+                assert item_bottom <= shell_bottom + 4, (
+                    f"gallery item bottom={item_bottom} exceeds shell_bottom={shell_bottom}"
+                )
+
+    # --- text_gallery_expanded: full health ---
+
+    def test_text_gallery_expanded_deliverable_with_title_and_no_gallery(self):
+        """text_gallery_expanded with title but no gallery items must be deliverable."""
+        _, metadata = self._run_text_gallery_expanded(gallery_count=0)
+        assert metadata["degraded"] is False
+        assert metadata["structure_complete"] is True
+        assert metadata["deliverable"] is True
+
+    def test_text_gallery_expanded_deliverable_with_title_and_gallery(self):
+        """text_gallery_expanded with title and 4 gallery items must be deliverable."""
+        _, metadata = self._run_text_gallery_expanded(gallery_count=4)
+        assert metadata["degraded"] is False
+        assert metadata["structure_complete"] is True
+        assert metadata["deliverable"] is True
+
+    def test_text_gallery_expanded_diagnostics_all_present(self):
+        """All four bottom diagnostic fields must be present in text_gallery_expanded."""
+        _, metadata = self._run_text_gallery_expanded(gallery_count=2)
+        review = metadata["bottom_contract_review"]
+        assert review["requested_bottom_mode"] == "text_gallery_expanded"
+        assert review["effective_bottom_mode"] == "text_gallery_expanded"
+        assert review["bottom_layout_mode"] == "text_gallery_expanded"
+        assert "bottom_mode_override_reason" in review
 
 
 class TestProductOwnerSurfaceFreeze:
@@ -1962,11 +2111,11 @@ class TestProductOwnerSurfaceFreeze:
         )
         # Primary slot: upper 310px of product region
         assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
-        # Secondary slot: lower 202px, 8px below primary
-        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 506, "w": 300, "h": 202}
-        # Single-primary fallback: full 520px product region
-        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 300, "h": 520}
-        # Verify no vertical overlap: primary bottom (188+310=498) < secondary top (506)
+        # Secondary slot: 210px, 20px gap below primary (y=518)
+        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 518, "w": 300, "h": 210}
+        # Single-primary fallback: full 540px product region
+        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 300, "h": 540}
+        # Verify no vertical overlap: primary bottom (188+310=498) < secondary top (518)
         assert _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"] < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
 
     def test_single_primary_activates_when_no_secondary_asset(self):
@@ -1997,6 +2146,82 @@ class TestProductOwnerSurfaceFreeze:
         assert review["geometry_frozen"] is True
         assert review["product_secondary_slot_rendered"] is True
         assert review["secondary_slot_annotation_ownership"] is False
+
+
+# ---------------------------------------------------------------------------
+# Task-2: Final product region geometry from v2 healthy baseline
+# ---------------------------------------------------------------------------
+
+class TestTask2FinalProductGeometry:
+    """Task-2: product region geometry finalized from primary_secondary_dual_v2 healthy baseline.
+
+    Lane model: external right lane — annotation labels (x=784+) sit outside the
+    product region right boundary (x=756). Image-slot sizing is fully independent
+    of label_bounds.
+
+    Frozen geometry:
+    - product_region outer shell: {x:456, y:188, w:300, h:540}
+    - product_primary_slot:       {x:456, y:188, w:300, h:310}  (unchanged)
+    - product_secondary_slot:     {x:456, y:518, w:300, h:210}  (gap: 20px)
+    - single_primary fallback:    {x:456, y:188, w:300, h:540}
+    """
+
+    def test_product_region_outer_shell_enlarged_to_540(self):
+        """product_region h must be 540 (up from 520)."""
+        from app.services.poster2.template_behavior import _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT
+        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"] == 540
+
+    def test_primary_secondary_gap_is_20px(self):
+        """Gap between primary bottom and secondary top must be 20px."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+        )
+        primary_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
+        secondary_top = _PRODUCT_DUAL_SECONDARY_SLOT["y"]
+        assert secondary_top - primary_bottom == 20
+
+    def test_secondary_slot_h_enlarged_to_210(self):
+        """product_secondary_slot h must be 210 (up from 202)."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
+        assert _PRODUCT_DUAL_SECONDARY_SLOT["h"] == 210
+
+    def test_secondary_slot_y_updated(self):
+        """product_secondary_slot y must be 518 (updated for 20px gap)."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
+        assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 518
+
+    def test_annotation_lane_is_external_label_bounds_outside_product_region(self):
+        """Annotation label x=784 must be outside product_region right boundary (x+w=756)."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
+        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 756
+        label_x = 784  # frozen in template spec
+        assert label_x > product_right, (
+            f"label_x ({label_x}) must be outside product right boundary ({product_right})"
+        )
+
+    def test_annotation_ownership_unchanged(self):
+        """annotation_owner_slot must remain product_primary_slot after geometry change."""
+        from app.services.poster2.template_behavior import _PRODUCT_ANNOTATION_OWNER_SLOT
+        assert _PRODUCT_ANNOTATION_OWNER_SLOT == "product_primary_slot"
+
+    def test_primary_slot_unchanged(self):
+        """primary slot dimensions must be unchanged by Task-2 geometry decision."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
+
+    def test_geometry_is_internally_consistent(self):
+        """primary h + gap + secondary h must equal product_region h."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        gap = _PRODUCT_DUAL_SECONDARY_SLOT["y"] - (
+            _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
+        )
+        total = _PRODUCT_DUAL_PRIMARY_SLOT["h"] + gap + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
+        assert total == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
 
 
 # ---------------------------------------------------------------------------

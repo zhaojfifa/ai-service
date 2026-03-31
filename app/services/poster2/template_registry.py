@@ -73,7 +73,7 @@ _FAMILY_REGISTRY: dict[str, TemplateFamilyDefinition] = {
 _TEMPLATE_REGISTRY: dict[str, TemplateMetadata] = {
     "template_dual_v2": TemplateMetadata(
         template_id="template_dual_v2",
-        template_version="2.1.3",
+        template_version="2.1.4",
         template_family=FAMILY_A_CAMPAIGN_EXPLAINER,
         family_mode="campaign_explainer_core",
         preferred_renderer="puppeteer",

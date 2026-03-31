@@ -42,7 +42,7 @@ def test_family_a_region_matrix_uses_slot_spec_bounds():
     resolved = resolve_region_matrix_for_template("template_dual_v2")
     assert resolved.regions["header_region"].x == 72
     assert resolved.regions["scenario_region"].w == 288
-    assert resolved.regions["product_region"].h == 520
+    assert resolved.regions["product_region"].h == 540
     assert resolved.regions["title_band_region"].y == 728
     assert resolved.regions["gallery_strip_region"].h == 72
 

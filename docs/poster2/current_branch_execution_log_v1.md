@@ -703,3 +703,154 @@ Eliminate inlined `owner_region` string literals. Enforce no-dual-ownership when
 - `product_annotation_contract_review` emits `annotation_text_owner_region`, `annotation_slot_ids`, `ownership_frozen` ✓
 - Dead code removed ✓
 - 252/252 tests pass ✓
+
+---
+
+## Task-1 — Bottom Mode Stabilization: text_gallery_expanded + gallery_only (2026-03-30)
+
+**Status:** Complete
+
+### Goal
+
+Bring `text_gallery_expanded` and `gallery_only` to the same health bar as `text_only_expanded`:
+`degraded=false`, `structure_complete=true`, `deliverable=true`, all four diagnostic fields present.
+
+### Root causes fixed
+
+#### A. gallery_only gallery_shell_top geometry (`template_behavior.py`)
+- `gallery_shell_top` was hardcoded to `888` when gallery renders without a title band
+- Gallery items placed at y≈898–962; bottom shell CSS declared `top: 728px; height: ~84px` — mismatch
+- Fix: `gallery_shell_top = title_band_top` (= `bottom_shell_top` = 728); items now at y≈738–802
+
+#### B. title_slot always required in slot contracts (`slot_contracts.py`)
+- `title_slot` was unconditionally `required=True`; `gallery_only` without title → `structure_complete=false`
+- Added `_BOTTOM_MODE_EXCUSED_REQUIRED_SLOTS = {"gallery_only": frozenset({"title_slot"})}`
+- `evaluate_slot_bindings` excuses `title_slot` when `binding_inputs["bottom_mode"] == "gallery_only"`
+
+#### C. Preflight guard required title unconditionally (`quality_guard.py`)
+- `run_preflight_guard` raised `QualityGuardError` for any `gallery_only` request without title
+- Fix: mode-aware check using `spec.bottom_mode or template.behavior_modes.bottom_mode`
+
+#### D. Title normalization guard unconditional (`pipeline.py`)
+- `_normalize_contract_text_spec` raised `ValueError` for empty title unconditionally
+- Fix: same mode-aware check; `template` now passed as optional parameter from call site
+
+### text_gallery_expanded
+No structural fixes needed. Already healthy when title is provided. Eight pipeline tests confirm.
+
+### Tests (`TestBottomModeStabilization`, 8 new tests)
+- `gallery_only` deliverable without title ✓
+- `gallery_only` title_slot not in missing_required ✓
+- `gallery_only` all 4 diagnostic fields present ✓
+- `gallery_only` gallery_shell_top == bottom_shell_top ✓
+- `gallery_only` gallery items within shell bounds ✓
+- `text_gallery_expanded` deliverable with title + no gallery ✓
+- `text_gallery_expanded` deliverable with title + 4 gallery items ✓
+- `text_gallery_expanded` all 4 diagnostic fields present ✓
+
+### Acceptance
+- `gallery_only` without title: `degraded=False, structure_complete=True, deliverable=True` ✓
+- `gallery_shell_top == bottom_shell_top` (728) for gallery_only ✓
+- `text_gallery_expanded` deliverable with or without gallery items ✓
+- All 4 diagnostic fields present for both modes ✓
+- 270/270 tests pass (262 prior + 8 new) ✓
+
+### Docs
+- `docs/poster2/bottom_mode_stabilization_status_v1.md` — detailed root-cause and closure record
+
+### 2026-03-30 revalidation — text_gallery_expanded only
+- Narrow-scope recheck performed after user-reported failure limited to `text_gallery_expanded`
+- Required fixed reads attempted before task:
+  - `CLAUDE.md`
+  - `docs/poster2/current_branch_execution_log_v1.md`
+  - `project_poster2_baseline_2026-03-30.md` (file missing in repo; no extra doc expansion)
+- Backend path rechecked only for:
+  - resolver
+  - quality_guard
+  - renderer
+  - deliverability
+- Focused pipeline gate:
+  - `python -m pytest tests/poster2/test_pipeline.py -q -k 'text_gallery_expanded and (deliverable or diagnostics or region_contract or full_health or bottom_mode)'`
+  - result: `4 passed`
+- Fresh local HTTP runtime proof:
+  - trace: `266f4c50-f0ba-491f-b0d2-3e6cbf8db559`
+  - `degraded=false`
+  - `structure_complete=true`
+  - `deliverable=true`
+  - `requested_bottom_mode=text_gallery_expanded`
+  - `effective_bottom_mode=text_gallery_expanded`
+  - `bottom_layout_mode=text_gallery_expanded`
+  - `bottom_mode_override_reason=request_override_applied`
+- Fresh live runtime proof:
+  - trace: `afdd09bc-b5dd-4550-982f-addee2d46310`
+  - `degraded=false`
+  - `structure_complete=true`
+  - `deliverable=true`
+  - `requested_bottom_mode=text_gallery_expanded`
+  - `effective_bottom_mode=text_gallery_expanded`
+  - `bottom_layout_mode=text_gallery_expanded`
+  - `bottom_mode_override_reason=request_override_applied`
+- Conclusion:
+  - `text_gallery_expanded` is healthy in both local request-path and current live runtime
+  - no silent fallback reproduced
+  - no code change required in this revalidation slice
+
+---
+
+## Task-2 — Product Region Final Geometry Decision (2026-03-31)
+
+**Status:** Complete
+
+### Goal
+
+Make one final product-region geometry decision from the healthy `primary_secondary_dual_v2` baseline.
+Enlarge product_region outer shell, increase primary/secondary gap, enlarge secondary card area.
+
+### Step A: Lane model decision
+
+**Decision: External right lane** (frozen)
+
+Annotation label boxes are at x=784+, outside the product_region right boundary at x=756.
+Image-slot sizing is fully independent of label_bounds. No annotation coordinate changes required.
+
+### Step B: Geometry changes
+
+| Slot | Before | After |
+|---|---|---|
+| `product_region` outer shell | `{x:456, y:188, w:300, h:520}` | `{x:456, y:188, w:300, h:540}` |
+| `product_primary_slot` | `{x:456, y:188, w:300, h:310}` | **unchanged** |
+| `product_secondary_slot` | `{x:456, y:506, w:300, h:202}` | `{x:456, y:518, w:300, h:210}` |
+| `_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT` | `h:520` | `h:540` |
+| gap (primary bottom → secondary top) | 8px | 20px |
+
+Internal consistency: 310 + 20 + 210 = 540 ✓
+
+### Ownership unchanged
+
+- `annotation_owner_slot = product_primary_slot` ✓
+- `secondary_slot_annotation_ownership = False` ✓
+- `geometry_frozen = True` ✓
+- Annotation callout anchors (y=250/350/450) still within primary [188,498] ✓
+
+### Files changed
+
+- `template_behavior.py`: secondary slot constants, single_primary fallback h, both hero modes `product_region_h`
+- `template_dual_v2.json`: `product_slot.h` 520→540, version 2.1.3→2.1.4
+- `slot_spec.template_dual_v2.json`: all product-region h entries 520→540
+- `template_registry.py`: `template_version` 2.1.3→2.1.4
+- `tests/poster2/test_pipeline.py`: geometry assertions updated; `TestTask2FinalProductGeometry` added (8 tests)
+- `tests/poster2/test_contracts.py`: version assertion updated
+- `tests/poster2/test_region_matrix.py`: product_region.h assertion updated
+
+### Tests
+
+- `TestTask2FinalProductGeometry`: 8 new tests, all pass
+- Scoped regression: 148/148 pass
+  - `tests/poster2/test_pipeline.py`
+  - `tests/poster2/test_contracts.py`
+  - `tests/poster2/test_region_matrix.py`
+  - `tests/poster2/test_slot_contracts.py`
+
+### Docs
+
+- `docs/poster2/product_region_final_geometry_status_v1.md` — formal closure record
