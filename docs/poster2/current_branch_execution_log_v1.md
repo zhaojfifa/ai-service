@@ -974,6 +974,70 @@ Anchor derivation:
 
 ---
 
+## PR-8B — Annotation/text contract under product_policy (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+### Goal
+
+Close the remaining annotation/text contract drift by making annotation shell, anchors,
+connectors, markers, label bounds, and text placement mode product-policy-owned truth.
+
+### Contract truth changed
+
+- `ResolvedProductBehavior.annotation_text_placement_mode` added as a declared contract field
+- `product_policy.annotation_items` now carry:
+  - `anchor_radius`
+  - `leader_color`
+  - `leader_width`
+  - `label_bounds`
+  - `text_placement_mode`
+- `_build_product_contract_review()` now exposes those per-slot fields from `product_policy.annotation_items`
+- `_build_product_annotation_contract_review()` no longer rebuilds slot truth from raw `template.feature_callouts` or `feature_policy`
+- `product_annotation_contract_review.annotation_shell.bounds` now exposes product-owned shell bounds
+- `product_annotation_contract_review.behavior_policy` is now product-owned:
+  - `connector_policy`
+  - `marker_policy`
+  - `shell_policy`
+  - `bounds_policy`
+  - `text_placement_mode`
+  - `char_budget`
+  - `line_clamp`
+
+### What remained frozen
+
+- no product geometry changes beyond accepted PR-8A baseline
+- no bottom changes
+- no header/scenario changes
+- no beautification
+- no broad tuning
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `frontend/stage2.html`
+- `docs/stage2.html`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestTextOwnershipFreeze or product_annotation or TestProductImageContract'` → `19 passed`
+- `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or feature_callout'` → `12 passed`
+
+### Next
+
+- `product_secondary_slot`: Pillow renderer parity
+- `scenario_region`: Pillow safe_fill parity fix
+
+---
+
 ## Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)
 
 ### State read before coding

@@ -200,11 +200,36 @@ Focused tests run:
 - `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product and not header and not scenario and not bottom'` → `1 passed`
 - `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TestTemplateSpecLoading'` → `12 passed`
 
+### PR-8B — Annotation/text contract under product_policy — COMPLETE (2026-03-31)
+
+State read before coding:
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+Contract truth changed:
+- `product_annotation_contract_review.annotation_shell` now exposes product-owned shell bounds
+- per-slot annotation truth now reads from `product_policy.annotation_items`, not raw template reads rebuilt in `pipeline.py`
+- per-slot contract now includes `anchor_radius`, `leader_color`, `leader_width`, `label_bounds`, and `text_placement_mode`
+- annotation `behavior_policy` is now product-owned: connector, marker, shell, bounds, text placement, char budget, line clamp
+- Stage 2 annotation diagnostics now surface shell bounds, connector policy, marker policy, and text placement mode
+
+What remained frozen:
+- product geometry from PR-8A stayed frozen
+- bottom stayed frozen
+- no header/scenario changes
+- no beautification
+- no broad tuning
+
+Focused tests run:
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestTextOwnershipFreeze or product_annotation or TestProductImageContract'` → `19 passed`
+- `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or feature_callout'` → `12 passed`
+
 ### Next
 
-- **PR-8B only**: Annotation/text contract — annotation shell, anchors, connectors, markers, label bounds, and text placement mode
 - `product_secondary_slot`: Pillow renderer parity (contract-only for now)
-- `scenario_region`: Pillow safe_fill parity fix (after annotation contract)
+- `scenario_region`: Pillow safe_fill parity fix
 - Beautification layer planning (after all-region behavior stability)
 
 ### Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)

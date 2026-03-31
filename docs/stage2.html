@@ -835,18 +835,27 @@
           let html = '';
           const mode = annotationReview.product_annotation_mode || '';
           const visibleCount = annotationReview.visible_slot_count;
-          if (mode) html += `<div class="s2-slot-note">mode: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' slots' : ''}</div>`;
+          const policy = annotationReview.behavior_policy || {};
+          if (mode) html += `<div class="s2-slot-note">mode: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' slots' : ''}${policy.text_placement_mode ? ' · text: ' + policy.text_placement_mode : ''}</div>`;
+          const shell = annotationReview.annotation_shell?.bounds;
+          if (shell) {
+            html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
+            html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">shell (${shell.x},${shell.y},${shell.w},${shell.h})</span>`;
+            if (policy.connector_policy) html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">connector:${policy.connector_policy}</span>`;
+            if (policy.marker_policy) html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">marker:${policy.marker_policy}</span>`;
+            html += `</div>`;
+          }
           const slots = annotationReview.annotation_slots || [];
           if (slots.length) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
             for (const slot of slots) {
-              html += textRow(slot.slot_id?.replace('annotation_slot_', '') || '?', slot.requested_text || '—', slot.rendered_excerpt, slot.truncation_applied);
+              html += textRow(slot.slot_id?.replace('product_annotation_slot_', 'anno ') || '?', slot.requested_text || '—', slot.rendered_excerpt, slot.truncation_applied);
             }
             html += '</div>';
             html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
             for (const slot of slots) {
               if (slot.anchor_x != null) {
-                html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${slot.slot_id}:(${slot.anchor_x},${slot.anchor_y})</span>`;
+                html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${slot.slot_id}:(${slot.anchor_x},${slot.anchor_y}) r=${slot.anchor_radius ?? 0}</span>`;
               }
             }
             html += '</div>';

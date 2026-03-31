@@ -294,6 +294,7 @@ class ResolvedProductBehavior:
     annotation_marker_policy: str
     annotation_shell_policy: str
     annotation_bounds_policy: str
+    annotation_text_placement_mode: str
     text_budget_policy: str
     line_clamp: int
     char_budget: int
@@ -320,6 +321,7 @@ class ResolvedProductBehavior:
             "annotation_marker_policy": self.annotation_marker_policy,
             "annotation_shell_policy": self.annotation_shell_policy,
             "annotation_bounds_policy": self.annotation_bounds_policy,
+            "annotation_text_placement_mode": self.annotation_text_placement_mode,
             "text_budget_policy": self.text_budget_policy,
             "line_clamp": self.line_clamp,
             "char_budget": self.char_budget,
@@ -794,6 +796,7 @@ def resolve_product_behavior(
         annotation_marker_policy = "annotation_markers_disabled"
         annotation_shell_policy = "annotation_shell_collapsed"
         annotation_bounds_policy = "no_annotation_bounds"
+        annotation_text_placement_mode = "annotation_text_disabled"
         text_budget_policy = "annotation_budget_disabled"
         line_clamp = 0
         char_budget = 0
@@ -808,6 +811,7 @@ def resolve_product_behavior(
             annotation_marker_policy = "annotation_markers_suppressed"
             annotation_shell_policy = "right_stack_annotation_shell"
             annotation_bounds_policy = "template_label_box_fixed"
+            annotation_text_placement_mode = "template_label_box_fixed"
             text_budget_policy = "fixed_3_right_stack_two_line_budget"
         elif annotation_mode == "product_anchor_callouts":
             annotation_count_policy = "fixed_3_product_anchor_annotations"
@@ -815,6 +819,7 @@ def resolve_product_behavior(
             annotation_marker_policy = "product_anchor_marker"
             annotation_shell_policy = "product_anchor_annotation_shell"
             annotation_bounds_policy = "template_anchor_fixed"
+            annotation_text_placement_mode = "template_label_box_fixed"
             text_budget_policy = "fixed_3_anchor_two_line_budget"
         else:
             raise ValueError(f"Unsupported product_annotation_mode: {annotation_mode}")
@@ -832,7 +837,10 @@ def resolve_product_behavior(
                     "anchor_index": index - 1,
                     "anchor_x": int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None,
                     "anchor_y": int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None,
+                    "anchor_radius": int(callout.anchor_radius) if annotation_mode == "product_anchor_callouts" else 0,
                     "anchor_color": callout.anchor_color if annotation_mode == "product_anchor_callouts" else None,
+                    "leader_color": callout.leader_color if annotation_mode == "product_anchor_callouts" else None,
+                    "leader_width": int(callout.leader_width) if annotation_mode == "product_anchor_callouts" else 0,
                     "label_bounds": {
                         "x": int(label_box.x),
                         "y": int(label_box.y),
@@ -842,6 +850,7 @@ def resolve_product_behavior(
                     "connector_policy": annotation_connector_policy,
                     "marker_policy": annotation_marker_policy,
                     "positions_source": "template_spec_fixed",
+                    "text_placement_mode": annotation_text_placement_mode,
                 }
             )
             left = int(label_box.x) if left is None else min(left, int(label_box.x))
@@ -892,6 +901,7 @@ def resolve_product_behavior(
         annotation_marker_policy=annotation_marker_policy,
         annotation_shell_policy=annotation_shell_policy,
         annotation_bounds_policy=annotation_bounds_policy,
+        annotation_text_placement_mode=annotation_text_placement_mode,
         text_budget_policy=text_budget_policy,
         line_clamp=line_clamp,
         char_budget=char_budget,

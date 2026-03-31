@@ -2375,6 +2375,32 @@ class TestTextOwnershipFreeze:
         assert review["annotation_text_owner_region"] == "product_region"
         assert review["ownership_frozen"] is True
 
+    def test_annotation_contract_review_uses_product_policy_owned_annotation_contract(self):
+        """PR-8B: annotation shell, anchors, markers, bounds, and text placement are product-policy-owned."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_annotation_contract_review"]
+
+        assert review["annotation_shell"]["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 260}
+        assert review["behavior_policy"]["connector_policy"] == "product_anchor_leader_line"
+        assert review["behavior_policy"]["marker_policy"] == "product_anchor_marker"
+        assert review["behavior_policy"]["shell_policy"] == "product_anchor_annotation_shell"
+        assert review["behavior_policy"]["bounds_policy"] == "template_anchor_fixed"
+        assert review["behavior_policy"]["text_placement_mode"] == "template_label_box_fixed"
+
+        slot = review["annotation_slots"][0]
+        assert slot["slot_id"] == "product_annotation_slot_1"
+        assert slot["anchor_index"] == 0
+        assert slot["anchor_x"] == 764
+        assert slot["anchor_y"] == 250
+        assert slot["anchor_radius"] == 7
+        assert slot["label_bounds"] == {"x": 784, "y": 216, "w": 144, "h": 60}
+        assert slot["connector_policy"] == "product_anchor_leader_line"
+        assert slot["marker_policy"] == "product_anchor_marker"
+        assert slot["positions_source"] == "template_spec_fixed"
+        assert slot["text_placement_mode"] == "template_label_box_fixed"
+
 
 class TestPostFreezeTextCapacity:
     """PR-5: post-freeze text capacity optimizations.

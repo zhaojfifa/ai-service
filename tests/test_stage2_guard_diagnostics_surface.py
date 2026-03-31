@@ -142,6 +142,16 @@ def test_docs_publish_mirror_contains_same_guard_diagnostics():
     assert docs_js == frontend_js
 
 
+def test_stage2_annotation_detail_surfaces_shell_and_text_placement_mode():
+    frontend_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+
+    assert "buildProductAnnotationDetail" in frontend_html
+    assert "annotation_shell?.bounds" in frontend_html
+    assert "text_placement_mode" in frontend_html
+    assert "connector:" in frontend_html
+    assert "marker:" in frontend_html
+
+
 def test_api_response_schema_exposes_scenario_and_annotation_contract_review():
     """Prove that GeneratePosterV2Response schema and main.py both surface
     scenario_contract_review and product_annotation_contract_review.
