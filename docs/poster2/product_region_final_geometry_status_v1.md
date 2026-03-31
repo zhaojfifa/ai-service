@@ -26,13 +26,13 @@ This task does not change:
 
 ## Final Decision
 
-The previous product shell was too conservative. The final decision is to replace it with a wider and slightly taller frozen geometry that gives the secondary card enough room and no longer lets annotation label bounds constrain image-slot sizing.
+The previous product shell was too conservative. The final decision is to replace it with a wider and taller frozen geometry that gives the secondary card enough room, increases the primary/secondary separation, and no longer lets annotation label bounds constrain image-slot sizing.
 
 Final frozen geometry:
 
-- `product_region = {x:456, y:188, w:344, h:544}`
-- `product_primary_slot = {x:456, y:188, w:344, h:320}`
-- `product_secondary_slot = {x:456, y:524, w:344, h:208}`
+- `product_region = {x:456, y:188, w:376, h:576}`
+- `product_primary_slot = {x:456, y:188, w:376, h:324}`
+- `product_secondary_slot = {x:456, y:536, w:376, h:228}`
 
 Geometry mode versions after this decision:
 
@@ -45,7 +45,7 @@ Geometry mode versions after this decision:
 
 - It improves alignment with the header/banner envelope by letting the product mass extend further right.
 - It enlarges the pink product shell area without changing ownership truth.
-- It increases the vertical separation between the primary and secondary cards.
+- It increases the vertical separation between the primary and secondary cards to `24px`.
 - It enlarges the white secondary card area so it no longer feels cramped.
 - Annotation label bounds are explicitly excluded from image-slot sizing logic.
 
@@ -63,6 +63,7 @@ These stay frozen:
 
 Secondary product imagery remains a display-only surface, not an annotation owner.
 Annotation label bounds remain evidence surfaces only, not sizing inputs for the product image slots.
+`product_annotation_shell_layer.bounds` is now recomputed directly from `product_primary_slot`, not from aggregated label boxes.
 
 ---
 
@@ -70,16 +71,17 @@ Annotation label bounds remain evidence surfaces only, not sizing inputs for the
 
 Fresh local HTTP runtime verification:
 
-- trace: `79d40822-1cf6-4c3b-a880-efa33d9d25bf`
+- trace: `9abf6308-f7b5-44af-8abd-dc6a1a0c7f57`
 - `degraded = false`
 - `structure_complete = true`
 - `deliverable = true`
 - `product_layout_mode = primary_secondary_dual`
 - `product_geometry_mode = primary_secondary_dual_v3`
 - `product_geometry_mode_reason = dual_image_geometry_v3_frozen_final_bounds`
-- `product_region = {x:456, y:188, w:344, h:544}`
-- `product_primary_slot = {x:456, y:188, w:344, h:320}`
-- `product_secondary_slot = {x:456, y:524, w:344, h:208}`
+- `product_region = {x:456, y:188, w:376, h:576}`
+- `product_primary_slot = {x:456, y:188, w:376, h:324}`
+- `product_secondary_slot = {x:456, y:536, w:376, h:228}`
+- `product_annotation_shell_layer.bounds = {x:456, y:188, w:376, h:324}`
 - `annotation_owner_slot = product_primary_slot`
 - `secondary_slot_annotation_ownership = false`
 

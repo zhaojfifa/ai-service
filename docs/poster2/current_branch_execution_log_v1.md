@@ -755,9 +755,9 @@ The previous geometry was too conservative for the now-independent text ownershi
 
 The final frozen geometry replaces that conservative box with:
 
-- `product_region = {x:456, y:188, w:344, h:544}`
-- `product_primary_slot = {x:456, y:188, w:344, h:320}`
-- `product_secondary_slot = {x:456, y:524, w:344, h:208}`
+- `product_region = {x:456, y:188, w:376, h:576}`
+- `product_primary_slot = {x:456, y:188, w:376, h:324}`
+- `product_secondary_slot = {x:456, y:536, w:376, h:228}`
 
 The geometry contract stays on the existing mode names:
 - dual-image: `primary_secondary_dual_v3`
@@ -774,16 +774,17 @@ The geometry contract stays on the existing mode names:
 ### Runtime verification
 
 Fresh local HTTP runtime proof:
-- trace: `79d40822-1cf6-4c3b-a880-efa33d9d25bf`
+- trace: `9abf6308-f7b5-44af-8abd-dc6a1a0c7f57`
 - `degraded = false`
 - `structure_complete = true`
 - `deliverable = true`
 - `product_layout_mode = primary_secondary_dual`
 - `product_geometry_mode = primary_secondary_dual_v3`
 - `product_geometry_mode_reason = dual_image_geometry_v3_frozen_final_bounds`
-- `product_region = {x:456, y:188, w:344, h:544}`
-- `product_primary_slot = {x:456, y:188, w:344, h:320}`
-- `product_secondary_slot = {x:456, y:524, w:344, h:208}`
+- `product_region = {x:456, y:188, w:376, h:576}`
+- `product_primary_slot = {x:456, y:188, w:376, h:324}`
+- `product_secondary_slot = {x:456, y:536, w:376, h:228}`
+- `product_annotation_shell_layer.bounds = {x:456, y:188, w:376, h:324}`
 - `annotation_owner_slot = product_primary_slot`
 - `secondary_slot_annotation_ownership = false`
 
