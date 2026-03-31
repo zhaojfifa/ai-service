@@ -86,6 +86,14 @@ def resolve_slot_contracts(
     )
 
 
+# Slots that are excused from the required check when a given bottom_mode is active.
+# In gallery_only mode, title_slot is collapsed by design (no title band is shown),
+# so it must not count as missing_required even when the request omits a title.
+_BOTTOM_MODE_EXCUSED_REQUIRED_SLOTS: dict[str, frozenset[str]] = {
+    "gallery_only": frozenset({"title_slot"}),
+}
+
+
 def evaluate_slot_bindings(
     metadata: TemplateMetadata,
     template: TemplateSpec,
@@ -97,9 +105,12 @@ def evaluate_slot_bindings(
     contracts = resolve_slot_contracts(metadata, template=template)
     report = SlotBindingReport()
     binding_inputs = binding_inputs or {}
+    bottom_mode = binding_inputs.get("bottom_mode") or ""
+    mode_excused = _BOTTOM_MODE_EXCUSED_REQUIRED_SLOTS.get(bottom_mode, frozenset())
     for slot_id, contract in contracts.slots.items():
         rendered_count = _resolve_rendered_count(contract, spec, assets, binding_inputs)
-        if contract.required:
+        effective_required = contract.required and slot_id not in mode_excused
+        if effective_required:
             if rendered_count >= contract.count_min:
                 report.rendered_required_slots.append(slot_id)
             else:

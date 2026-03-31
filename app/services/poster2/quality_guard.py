@@ -71,10 +71,14 @@ def run_preflight_guard(template: TemplateSpec, spec: PosterSpec) -> None:
         )
 
     slot_inputs = _build_preflight_slot_inputs(spec)
+    # Resolve the effective bottom mode so mode-specific rules apply correctly.
+    # gallery_only mode has no title band by design; title is not required.
+    requested_mode = spec.bottom_mode or (template.behavior_modes.bottom_mode if template else None)
+    title_required = requested_mode != "gallery_only"
     required_issues = []
     if not slot_inputs["product_image"]:
         required_issues.append("product_image_slot")
-    if not slot_inputs["title"]:
+    if title_required and not slot_inputs["title"]:
         required_issues.append("title_slot")
 
     if required_issues:

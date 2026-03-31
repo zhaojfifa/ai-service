@@ -104,7 +104,7 @@ class PosterPipeline:
         trace_id = str(uuid.uuid4())
         timings: dict[str, int] = {}
         requested_spec = spec
-        effective_spec = _normalize_contract_text_spec(spec)
+        effective_spec = _normalize_contract_text_spec(spec, template)
 
         if template is None:
             template = load_template(effective_spec.template_id)
@@ -542,7 +542,7 @@ def _gallery_contract_counts(spec: PosterSpec) -> dict[str, object]:
     }
 
 
-def _normalize_contract_text_spec(spec: PosterSpec) -> PosterSpec:
+def _normalize_contract_text_spec(spec: PosterSpec, template=None) -> PosterSpec:
     brand_name = _normalize_requested_text(spec.brand_name)
     agent_name = _normalize_requested_text(spec.agent_name)
     title = _normalize_requested_text(spec.title)
@@ -554,7 +554,10 @@ def _normalize_contract_text_spec(spec: PosterSpec) -> PosterSpec:
     )
     if not brand_name:
         raise ValueError("brand_name must not be empty after normalization")
-    if not title:
+    # gallery_only collapses the title band by design; title is not required for this mode.
+    requested_mode = spec.bottom_mode or (template.behavior_modes.bottom_mode if template else None)
+    title_required = requested_mode != "gallery_only"
+    if not title and title_required:
         raise ValueError("title must not be empty after normalization")
     gallery_counts = _gallery_contract_counts(spec)
     return replace(
