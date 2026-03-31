@@ -41,6 +41,7 @@ from .template_behavior import (
     ResolvedBottomBehavior,
     ResolvedFeatureBehavior,
     ResolvedHeaderBehavior,
+    ResolvedProductBehavior,
     resolve_feature_layout_mode,
     resolve_template_behavior,
 )
@@ -175,6 +176,7 @@ class LayoutRenderer:
             spec.feature_callouts,
             poster.features,
             feature_policy=behavior.feature_policy,
+            product_policy=behavior.product_policy,
             accent_color=behavior.accent_color,
             text_color=behavior.text_colors["feature"],
         )
@@ -715,6 +717,7 @@ class PuppeteerStructuredRenderer:
             anchor_map,
             poster.features,
             feature_policy=behavior.feature_policy,
+            product_policy=behavior.product_policy,
         )
         logo_suppressed_by_mode = behavior.header_policy.identity_zone_mode == "brand_only"
         header_logo_class = "state-logo-empty" if (not asset_urls["logo"] or logo_suppressed_by_mode) else "state-logo-show"
@@ -848,8 +851,14 @@ class PuppeteerStructuredRenderer:
         features: tuple[str, ...],
         *,
         feature_policy: ResolvedFeatureBehavior,
+        product_policy: ResolvedProductBehavior | None = None,
     ) -> tuple[str, str]:
-        callouts = _resolve_feature_callout_map(anchor_map, features, feature_policy=feature_policy)
+        callouts = _resolve_feature_callout_map(
+            anchor_map,
+            features,
+            feature_policy=feature_policy,
+            product_policy=product_policy,
+        )
         if not callouts:
             return "", "state-hidden feature-mode-0"
         mode, mode_spec = resolve_feature_layout_mode(feature_policy.visible_item_count, feature_policy.mode)
@@ -861,8 +870,9 @@ class PuppeteerStructuredRenderer:
             label_x = int(label_box["x"])
             connector_left = min(anchor_x, label_x)
             connector_width = max(label_x - anchor_x, 0)
+            connector_policy = html.escape(str(callout.get("mode_connector_policy", mode_spec["connector_policy"])))
             items.append(
-                f'<div class="feature-callout-connector connector-policy-{html.escape(str(mode_spec["connector_policy"]))}" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
+                f'<div class="feature-callout-connector connector-policy-{connector_policy}" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
             )
             items.append(
                 f'<div class="feature-callout-marker" style="left:{anchor_x}px;top:{anchor_y}px;"></div>'
@@ -1119,6 +1129,7 @@ def _resolve_feature_callout_layout(
     features: tuple[str, ...] | list[str],
     *,
     feature_policy: ResolvedFeatureBehavior | None = None,
+    product_policy: ResolvedProductBehavior | None = None,
     accent_color: str | None = None,
     text_color: str | None = None,
 ) -> list[tuple[FeatureCalloutSpec, str]]:
@@ -1126,29 +1137,15 @@ def _resolve_feature_callout_layout(
     if not callouts or not normalized_features:
         return []
 
-    # product_anchor_callouts: use template-spec fixed positions directly.
-    # No centering / stacking algorithm. Anchor dots and label boxes are
-    # placed exactly where the template spec declares them.
-    # The feature right-stack algorithm is suppressed for this mode.
-    if feature_policy is not None and feature_policy.mode == "product_anchor_callouts":
-        from .template_behavior import _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS
-        max_visible = feature_policy.visible_item_count
-        limited_features = normalized_features[:max_visible]
-        source = callouts[:max_visible]
-        resolved: list[tuple[FeatureCalloutSpec, str]] = []
-        for base, feature_text in zip(source, limited_features):
-            resolved_callout = replace(
-                base,
-                anchor_color=accent_color or base.anchor_color,
-                leader_color=accent_color or base.leader_color,
-                label_box=replace(
-                    base.label_box,
-                    color=text_color or base.label_box.color,
-                    max_lines=2,
-                ),
-            )
-            resolved.append((resolved_callout, feature_text))
-        return resolved
+    product_runtime_callouts = _resolve_product_annotation_callout_layout(
+        callouts,
+        normalized_features,
+        product_policy=product_policy,
+        accent_color=accent_color,
+        text_color=text_color,
+    )
+    if product_runtime_callouts is not None:
+        return product_runtime_callouts
 
     limited_features = normalized_features[: min(len(normalized_features), len(callouts))]
     count = len(limited_features)
@@ -1197,12 +1194,19 @@ def _resolve_feature_callout_map(
     features: tuple[str, ...] | list[str],
     *,
     feature_policy: ResolvedFeatureBehavior | None = None,
+    product_policy: ResolvedProductBehavior | None = None,
 ) -> list[tuple[dict[str, Any], str]]:
-    raw_callouts = anchor_map.get("feature_callouts", [])
-    if not raw_callouts:
-        return []
     normalized_features = _normalized_feature_texts(features)
     if not normalized_features:
+        return []
+    product_runtime_callouts = _resolve_product_annotation_callout_map(
+        normalized_features,
+        product_policy=product_policy,
+    )
+    if product_runtime_callouts is not None:
+        return product_runtime_callouts
+    raw_callouts = anchor_map.get("feature_callouts", [])
+    if not raw_callouts:
         return []
     limited_features = normalized_features[: min(len(normalized_features), len(raw_callouts))]
     count = len(limited_features)
@@ -1232,6 +1236,94 @@ def _resolve_feature_callout_map(
         callout["mode_connector_policy"] = str(mode_spec["connector_policy"])
         callout["label_box"] = label_box
         resolved.append((callout, feature_text))
+    return resolved
+
+
+def _resolve_product_annotation_callout_layout(
+    callouts: list[FeatureCalloutSpec],
+    normalized_features: list[str],
+    *,
+    product_policy: ResolvedProductBehavior | None,
+    accent_color: str | None = None,
+    text_color: str | None = None,
+) -> list[tuple[FeatureCalloutSpec, str]] | None:
+    if product_policy is None or product_policy.annotation_mode != "product_anchor_callouts":
+        return None
+    if product_policy.annotation_text_placement_mode != "template_label_box_fixed":
+        return None
+    if not product_policy.annotation_items:
+        return []
+    max_visible = min(product_policy.visible_annotation_count, len(product_policy.annotation_items))
+    limited_features = normalized_features[:max_visible]
+    resolved: list[tuple[FeatureCalloutSpec, str]] = []
+    for base, item, feature_text in zip(callouts[:max_visible], product_policy.annotation_items[:max_visible], limited_features):
+        label_bounds = item.get("label_bounds") or {}
+        label_box = TextSlotSpec(
+            x=int(label_bounds.get("x", 0)),
+            y=int(label_bounds.get("y", 0)),
+            w=int(label_bounds.get("w", 0)),
+            h=int(label_bounds.get("h", 0)),
+            font_key=base.label_box.font_key,
+            font_size=base.label_box.font_size,
+            color=text_color or "#101010",
+            align=base.label_box.align,
+            max_lines=int(product_policy.line_clamp),
+            line_height=base.label_box.line_height,
+            auto_shrink=base.label_box.auto_shrink,
+            bg_color=base.label_box.bg_color,
+            bg_radius=base.label_box.bg_radius,
+        )
+        resolved_callout = FeatureCalloutSpec(
+            label_box=label_box,
+            anchor_x=int(item.get("anchor_x", 0)),
+            anchor_y=int(item.get("anchor_y", 0)),
+            anchor_radius=int(item.get("anchor_radius", 0)),
+            anchor_color=str(accent_color or item.get("anchor_color") or "#E8002A"),
+            leader_color=str(accent_color or item.get("leader_color") or "#E8002A"),
+            leader_width=int(item.get("leader_width", 2)),
+        )
+        resolved.append((resolved_callout, feature_text))
+    return resolved
+
+
+def _resolve_product_annotation_callout_map(
+    normalized_features: list[str],
+    *,
+    product_policy: ResolvedProductBehavior | None,
+) -> list[tuple[dict[str, Any], str]] | None:
+    if product_policy is None or product_policy.annotation_mode != "product_anchor_callouts":
+        return None
+    if product_policy.annotation_text_placement_mode != "template_label_box_fixed":
+        return None
+    if not product_policy.annotation_items:
+        return []
+    max_visible = min(product_policy.visible_annotation_count, len(product_policy.annotation_items))
+    limited_features = normalized_features[:max_visible]
+    resolved: list[tuple[dict[str, Any], str]] = []
+    for item, feature_text in zip(product_policy.annotation_items[:max_visible], limited_features):
+        label_bounds = item.get("label_bounds") or {}
+        resolved.append(
+            (
+                {
+                    "anchor_x": int(item.get("anchor_x", 0)),
+                    "anchor_y": int(item.get("anchor_y", 0)),
+                    "anchor_radius": int(item.get("anchor_radius", 0)),
+                    "anchor_color": str(item.get("anchor_color") or "#E8002A"),
+                    "leader_color": str(item.get("leader_color") or "#E8002A"),
+                    "leader_width": int(item.get("leader_width", 2)),
+                    "mode_connector_policy": str(item.get("connector_policy") or product_policy.annotation_connector_policy),
+                    "label_box": {
+                        "x": int(label_bounds.get("x", 0)),
+                        "y": int(label_bounds.get("y", 0)),
+                        "w": int(label_bounds.get("w", 0)),
+                        "h": int(label_bounds.get("h", 0)),
+                    },
+                    "marker_policy": str(item.get("marker_policy") or product_policy.annotation_marker_policy),
+                    "text_placement_mode": str(item.get("text_placement_mode") or product_policy.annotation_text_placement_mode),
+                },
+                feature_text,
+            )
+        )
     return resolved
 
 

@@ -974,6 +974,81 @@ Anchor derivation:
 
 ---
 
+## PR-8B redo — Annotation/text runtime contract under product_policy (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+### Goal
+
+Redo PR-8B so annotation/text behavior is actual product-owned runtime contract, not
+evidence surfacing only.
+
+### Old path removed
+
+- active annotation runtime no longer uses the old `feature_policy` / template `feature_callouts`
+  path as placement truth when `product_annotation_mode == product_anchor_callouts`
+- structured HTML annotation markup no longer defaults connector behavior to
+  `feature_policy.connector_policy` for the active product-annotation path
+
+### Contract fields that became runtime truth
+
+- `product_policy.annotation_items[*].anchor_x`
+- `product_policy.annotation_items[*].anchor_y`
+- `product_policy.annotation_items[*].anchor_radius`
+- `product_policy.annotation_items[*].leader_color`
+- `product_policy.annotation_items[*].leader_width`
+- `product_policy.annotation_items[*].label_bounds`
+- `product_policy.annotation_items[*].connector_policy`
+- `product_policy.annotation_items[*].marker_policy`
+- `product_policy.annotation_items[*].text_placement_mode`
+- `product_policy.annotation_text_placement_mode`
+- `product_annotation_contract_review.annotation_shell.bounds`
+- `product_annotation_contract_review.behavior_policy.{connector_policy, marker_policy, shell_policy, bounds_policy, text_placement_mode, char_budget, line_clamp}`
+
+### Runtime behavior now aligned
+
+- Pillow annotation rendering reads anchors and label bounds from `product_policy.annotation_items`
+- structured HTML annotation rendering reads anchors and label bounds from `product_policy.annotation_items`
+- active connector markup follows per-slot contract policy
+- Stage2 diagnostics continue to reflect backend truth only
+
+### Explicit verification
+
+- no active annotation text placement path still reads placement inputs from `feature_policy`
+- no active annotation placement path depends on `template_spec_fixed` except for the explicit
+  active mode `template_label_box_fixed`
+- product image sizing path remains isolated from annotation text bounds
+
+### What remained frozen
+
+- no product geometry changes beyond accepted PR-8A baseline
+- no bottom changes
+- no header/scenario changes
+- no beautification
+- no broad tuning
+
+### Files changed
+
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_renderer.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or feature_markup_prefers_product_annotation_runtime_truth or template_behavior_resolver_supports_product_annotation_mode'` → `4 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestTextOwnershipFreeze or product_annotation or TestProductImageContract'` → `19 passed`
+- `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
+
+### Next
+
+- merge gate only: broader validation before merge
+- do not reopen product geometry, bottom, header/scenario, or beautification from PR-8B
+
+---
+
 ## Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)
 
 ### State read before coding
@@ -1054,3 +1129,29 @@ without touching poster2 or reopening PR-8B.
 
 - merge this full-suite gate-unblock PR first
 - then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite still passes
+
+---
+
+## PR-8B merge gate final rerun — PASSED (2026-03-31)
+
+### State read before merge gate
+
+- `README.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the gate
+
+### Gate run
+
+- `.venv/bin/python -m pytest -q`
+
+### Result
+
+- `324 passed, 10 warnings, 3 subtests passed`
+
+### Scope assessment
+
+- PR-8B code path remained limited to product annotation contract work
+- gate now passes after the separate non-PR-8B gate-unblock merges landed on `main`
+- PR-8B is eligible to merge

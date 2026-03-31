@@ -1366,11 +1366,15 @@ def _build_product_contract_review(
                 "anchor_index": annotation_meta.get("anchor_index"),
                 "anchor_x": annotation_meta.get("anchor_x"),
                 "anchor_y": annotation_meta.get("anchor_y"),
+                "anchor_radius": annotation_meta.get("anchor_radius"),
                 "anchor_color": annotation_meta.get("anchor_color"),
+                "leader_color": annotation_meta.get("leader_color"),
+                "leader_width": annotation_meta.get("leader_width"),
                 "label_bounds": annotation_meta.get("label_bounds"),
                 "connector_policy": annotation_meta.get("connector_policy"),
                 "marker_policy": annotation_meta.get("marker_policy"),
                 "positions_source": annotation_meta.get("positions_source"),
+                "text_placement_mode": annotation_meta.get("text_placement_mode"),
             }
         )
         if rendered:
@@ -1457,6 +1461,7 @@ def _build_product_contract_review(
             "annotation_marker_policy": product_policy.annotation_marker_policy,
             "annotation_shell_policy": product_policy.annotation_shell_policy,
             "annotation_bounds_policy": product_policy.annotation_bounds_policy,
+            "annotation_text_placement_mode": product_policy.annotation_text_placement_mode,
             "text_budget_policy": product_policy.text_budget_policy,
             "line_clamp": product_policy.line_clamp,
             "char_budget": product_policy.char_budget,
@@ -1580,13 +1585,16 @@ def _build_product_annotation_contract_review(
     resolved_behavior,
     region_render_status: dict[str, dict[str, object]],
 ) -> dict[str, object]:
-    feature_policy = resolved_behavior.feature_policy
     product_policy = resolved_behavior.product_policy
     annotation_mode = product_policy.annotation_mode
     if annotation_mode == "none":
         return {
             "product_annotation_mode": "none",
             "annotation_active": False,
+            "annotation_shell": {
+                "rendered": False,
+                "bounds": {"x": 0, "y": 0, "w": 0, "h": 0},
+            },
             "annotation_slots": [],
             "product_region": {
                 "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
@@ -1612,34 +1620,32 @@ def _build_product_annotation_contract_review(
             if is_visible
             else ""
         )
-        if i < len(template.feature_callouts):
-            fc = template.feature_callouts[i]
-            lb = fc.label_box
-            anchor_x = int(fc.anchor_x)
-            anchor_y = int(fc.anchor_y)
-            label_bounds = {"x": int(lb.x), "y": int(lb.y), "w": int(lb.w), "h": int(lb.h)}
-            anchor_color = fc.anchor_color
-        else:
-            anchor_x = None
-            anchor_y = None
-            label_bounds = None
-            anchor_color = None
+        annotation_meta = (
+            product_policy.annotation_items[i]
+            if i < len(product_policy.annotation_items)
+            else {}
+        )
         slot_reviews.append({
             "slot_index": i,
-            "slot_id": f"annotation_slot_{i + 1}",
+            "slot_id": _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS[i] if i < len(_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS) else f"product_annotation_slot_{i + 1}",
             "rendered": is_visible,
             "requested_text": requested_text,
             "sanitized_text": sanitized_text,
             "rendered_excerpt": rendered_excerpt,
             "truncation_applied": rendered_excerpt != sanitized_text,
-            "anchor_x": anchor_x,
-            "anchor_y": anchor_y,
-            "label_bounds": label_bounds,
-            "connector_policy": feature_policy.connector_policy,
+            "anchor_index": annotation_meta.get("anchor_index"),
+            "anchor_x": annotation_meta.get("anchor_x"),
+            "anchor_y": annotation_meta.get("anchor_y"),
+            "anchor_radius": annotation_meta.get("anchor_radius"),
+            "anchor_color": annotation_meta.get("anchor_color"),
+            "leader_color": annotation_meta.get("leader_color"),
+            "leader_width": annotation_meta.get("leader_width"),
+            "label_bounds": annotation_meta.get("label_bounds"),
+            "connector_policy": product_policy.annotation_connector_policy,
             "annotation_owner": "product_region",
-            "marker_policy": "dot_marker_accent_color",
-            "positions_source": "template_spec_fixed",
-            "anchor_color": anchor_color,
+            "marker_policy": product_policy.annotation_marker_policy,
+            "positions_source": annotation_meta.get("positions_source"),
+            "text_placement_mode": product_policy.annotation_text_placement_mode,
         })
 
     return {
@@ -1650,6 +1656,15 @@ def _build_product_annotation_contract_review(
         "ownership_frozen": True,
         "max_slots": max_slots,
         "visible_slot_count": product_policy.visible_annotation_count,
+        "annotation_shell": {
+            "rendered": bool(product_policy.visible_annotation_count),
+            "bounds": {
+                "x": int(product_policy.layout_metrics["annotation_shell_x"]),
+                "y": int(product_policy.layout_metrics["annotation_shell_y"]),
+                "w": int(product_policy.layout_metrics["annotation_shell_w"]),
+                "h": int(product_policy.layout_metrics["annotation_shell_h"]),
+            },
+        },
         "annotation_slots": slot_reviews,
         "product_region": {
             "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
@@ -1661,11 +1676,11 @@ def _build_product_annotation_contract_review(
             },
         },
         "behavior_policy": {
-            "visible_item_count_policy": feature_policy.visible_item_count_policy,
             "connector_policy": product_policy.annotation_connector_policy,
-            "marker_policy": "dot_marker_accent_color",
-            "box_policy": feature_policy.box_policy,
-            "start_strategy": feature_policy.start_strategy,
+            "marker_policy": product_policy.annotation_marker_policy,
+            "shell_policy": product_policy.annotation_shell_policy,
+            "bounds_policy": product_policy.annotation_bounds_policy,
+            "text_placement_mode": product_policy.annotation_text_placement_mode,
             "char_budget": product_policy.char_budget,
             "line_clamp": product_policy.line_clamp,
         },
