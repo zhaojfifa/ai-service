@@ -19,9 +19,7 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
-_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; enforces annotation items within primary slot y-range
-                                         # (callouts 0-2 have anchor_y 250/350/450, within primary [188,498];
-                                         #  callout 3 has anchor_y 550, which falls in secondary territory)
+_PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; external right-lane annotation contract.
 _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
@@ -36,6 +34,11 @@ _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 376, "h": 324}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 536, "w": 376, "h": 228}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 376, "h": 576}
+_PRODUCT_ANNOTATION_LANE_GAP = 16
+_PRODUCT_ANNOTATION_LANE_WIDTH = 128
+_PRODUCT_ANNOTATION_LABEL_HEIGHT = 72
+_PRODUCT_ANNOTATION_LABEL_GAP = 18
+_PRODUCT_ANNOTATION_ANCHOR_INSET = 20
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -804,44 +807,51 @@ def resolve_product_behavior(
             annotation_connector_policy = "annotation_connectors_suppressed"
             annotation_marker_policy = "annotation_markers_suppressed"
             annotation_shell_policy = "right_stack_annotation_shell"
-            annotation_bounds_policy = "template_label_box_fixed"
+            annotation_bounds_policy = "product_region_external_lane_fixed3"
             text_budget_policy = "fixed_3_right_stack_two_line_budget"
         elif annotation_mode == "product_anchor_callouts":
             annotation_count_policy = "fixed_3_product_anchor_annotations"
             annotation_connector_policy = "product_anchor_leader_line"
             annotation_marker_policy = "product_anchor_marker"
             annotation_shell_policy = "product_anchor_annotation_shell"
-            annotation_bounds_policy = "template_anchor_fixed"
+            annotation_bounds_policy = "product_region_external_lane_fixed3"
             text_budget_policy = "fixed_3_anchor_two_line_budget"
         else:
             raise ValueError(f"Unsupported product_annotation_mode: {annotation_mode}")
 
+        lane_x = int(product_primary_slot["x"] + product_primary_slot["w"] + _PRODUCT_ANNOTATION_LANE_GAP)
+        lane_w = int(_PRODUCT_ANNOTATION_LANE_WIDTH)
+        label_h = int(_PRODUCT_ANNOTATION_LABEL_HEIGHT)
+        label_gap = int(_PRODUCT_ANNOTATION_LABEL_GAP)
+        shell_h = label_h * max_items + label_gap * max(max_items - 1, 0)
+        shell_y = int(product_primary_slot["y"] + max((product_primary_slot["h"] - shell_h) // 2, 0))
+        anchor_x = int(product_primary_slot["x"] + product_primary_slot["w"] - _PRODUCT_ANNOTATION_ANCHOR_INSET)
         annotation_items = []
         for index, callout in enumerate(spec.feature_callouts[:max_items], start=1):
-            label_box = callout.label_box
+            label_y = int(shell_y + (index - 1) * (label_h + label_gap))
             annotation_items.append(
                 {
                     "slot_id": f"product_annotation_slot_{index}",
                     "anchor_index": index - 1,
-                    "anchor_x": int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None,
-                    "anchor_y": int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None,
+                    "anchor_x": anchor_x if annotation_mode == "product_anchor_callouts" else None,
+                    "anchor_y": int(label_y + label_h // 2) if annotation_mode == "product_anchor_callouts" else None,
                     "anchor_color": callout.anchor_color if annotation_mode == "product_anchor_callouts" else None,
                     "label_bounds": {
-                        "x": int(label_box.x),
-                        "y": int(label_box.y),
-                        "w": int(label_box.w),
-                        "h": int(label_box.h),
+                        "x": lane_x,
+                        "y": label_y,
+                        "w": lane_w,
+                        "h": label_h,
                     },
                     "connector_policy": annotation_connector_policy,
                     "marker_policy": annotation_marker_policy,
-                    "positions_source": "template_spec_fixed",
+                    "positions_source": "product_region_external_right_lane",
                 }
             )
         annotation_shell = {
-            "x": int(product_primary_slot["x"]),
-            "y": int(product_primary_slot["y"]),
-            "w": int(product_primary_slot["w"]),
-            "h": int(product_primary_slot["h"]),
+            "x": lane_x,
+            "y": shell_y,
+            "w": lane_w,
+            "h": shell_h,
         }
 
     layout_metrics = {

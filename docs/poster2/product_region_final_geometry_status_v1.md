@@ -33,6 +33,10 @@ Final frozen geometry:
 - `product_region = {x:456, y:188, w:376, h:576}`
 - `product_primary_slot = {x:456, y:188, w:376, h:324}`
 - `product_secondary_slot = {x:456, y:536, w:376, h:228}`
+- `product_annotation_shell_layer.bounds = {x:848, y:224, w:128, h:252}`
+- `product_annotation_slot_1.label_bounds = {x:848, y:224, w:128, h:72}`
+- `product_annotation_slot_2.label_bounds = {x:848, y:314, w:128, h:72}`
+- `product_annotation_slot_3.label_bounds = {x:848, y:404, w:128, h:72}`
 
 Geometry mode versions after this decision:
 
@@ -48,6 +52,7 @@ Geometry mode versions after this decision:
 - It increases the vertical separation between the primary and secondary cards to `24px`.
 - It enlarges the white secondary card area so it no longer feels cramped.
 - Annotation label bounds are explicitly excluded from image-slot sizing logic.
+- Annotation lane truth is now explicit: runtime uses an external right-side lane derived from the frozen product geometry, not old template-fixed label positions.
 
 This preserves the current product-annotation responsibility split.
 
@@ -63,7 +68,7 @@ These stay frozen:
 
 Secondary product imagery remains a display-only surface, not an annotation owner.
 Annotation label bounds remain evidence surfaces only, not sizing inputs for the product image slots.
-`product_annotation_shell_layer.bounds` is now recomputed directly from `product_primary_slot`, not from aggregated label boxes.
+`product_annotation_shell_layer.bounds` is now recomputed from the frozen product geometry as an explicit external right-side lane.
 
 ---
 
@@ -81,7 +86,10 @@ Fresh local HTTP runtime verification:
 - `product_region = {x:456, y:188, w:376, h:576}`
 - `product_primary_slot = {x:456, y:188, w:376, h:324}`
 - `product_secondary_slot = {x:456, y:536, w:376, h:228}`
-- `product_annotation_shell_layer.bounds = {x:456, y:188, w:376, h:324}`
+- `product_annotation_shell_layer.bounds = {x:848, y:224, w:128, h:252}`
+- `annotation_slots[0].anchor_x = 812`
+- `annotation_slots[0].anchor_y = 260`
+- `annotation_slots[0].label_bounds = {x:848, y:224, w:128, h:72}`
 - `annotation_owner_slot = product_primary_slot`
 - `secondary_slot_annotation_ownership = false`
 
@@ -99,7 +107,7 @@ python -m pytest tests/poster2/test_renderer.py -q -k 'product_secondary or prod
 Result:
 
 - `3 passed`
-- `1 passed`
+- `3 passed`
 
 ---
 
@@ -111,6 +119,8 @@ The following are now re-frozen:
 - `product_primary_slot` bounds
 - `product_secondary_slot` bounds
 - `product_geometry_mode`
+- `product_annotation_shell_layer.bounds`
+- `product_annotation_slot_* label_bounds`
 - `annotation_owner_slot`
 - `secondary_slot_annotation_ownership`
 
