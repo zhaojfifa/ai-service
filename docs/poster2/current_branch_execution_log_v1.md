@@ -883,3 +883,43 @@ Focused Task-2 gate:
 
 **Next task**
 - after Task-2b only, and not before, text-capacity tuning can start
+
+## 2026-03-31 — Task-2b evidence source unification
+
+**Scope**
+- Task-2b only
+- no geometry redesign
+- no bottom work
+- no capacity tuning yet
+
+**Problem**
+- visual lane migration was already real
+- but contract truth was still split across duplicated evidence builders
+- `product_annotation_contract_review` and delegated feature diagnostics could still emit stale template-fixed annotation evidence
+
+**Decision**
+- use one canonical annotation evidence source only:
+  - `resolved_behavior.product_policy.annotation_items`
+
+**What changed**
+- `product_annotation_contract_review` now reads anchor and label bounds from canonical annotation items
+- delegated `feature_contract_review` now reads annotation `bounds` and `anchor_evidence` from the same canonical source when ownership is delegated to `product_region`
+- stale old fixed annotation bounds are removed from both evidence paths
+
+**Canonical truth now**
+- dual-image runtime annotation shell:
+  - `{x:848, y:224, w:128, h:252}`
+- dual-image annotation slot 1:
+  - `anchor_x = 812`
+  - `anchor_y = 260`
+  - `label_bounds = {x:848, y:224, w:128, h:72}`
+- single-primary delegated annotation slot 1:
+  - `label_bounds = {x:848, y:350, w:128, h:72}`
+- `positions_source = product_region_external_right_lane`
+
+**Focused validation**
+- `python -m pytest tests/poster2/test_pipeline.py -q -k 'product_layout_contract or product_owner_surface_freeze or product_region or annotation_owner_slot or secondary_slot_annotation_ownership or product_geometry_mode'`
+- `python -m pytest tests/poster2/test_renderer.py -q -k 'product_secondary or product_slot or product_region or dual or product_annotation_callouts_follow_external_lane_geometry or template_behavior_resolver_supports_product_annotation_mode'`
+- result:
+  - pipeline: `3 passed, 83 deselected`
+  - renderer: `3 passed, 97 deselected`
