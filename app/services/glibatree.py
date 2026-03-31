@@ -23,6 +23,16 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 
+try:  # pragma: no cover - optional dependency
+    import httpx
+except ModuleNotFoundError:  # pragma: no cover - exercised in dependency-light envs
+    httpx = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - optional dependency
+    from openai import OpenAI
+except ModuleNotFoundError:  # pragma: no cover - exercised in dependency-light envs
+    OpenAI = None  # type: ignore[assignment]
+
 from app.config import GlibatreeConfig, get_settings
 from app.schemas import PosterGalleryItem, PosterImage, PosterInput, StoredImage
 from app.schemas.kitposter import KitPosterDraft
@@ -2575,6 +2585,73 @@ def _request_glibatree_http(
         width=width,
         height=height,
     )
+
+
+def _request_glibatree_openai_edit(
+    config: GlibatreeConfig,
+    prompt: str,
+    locked_frame: Image.Image,
+    template: TemplateResources,
+) -> PosterImage:
+    """
+    Backward-compatible OpenAI edit shim kept for legacy tests and callers.
+
+    The current generation path no longer routes through this helper directly,
+    but the import surface remains part of the test gate contract.
+    """
+
+    if OpenAI is None:
+        raise ModuleNotFoundError("openai")
+    if httpx is None:
+        raise ModuleNotFoundError("httpx")
+
+    client_kwargs: dict[str, Any] = {"api_key": config.api_key}
+    if config.api_url:
+        client_kwargs["base_url"] = config.api_url
+
+    http_client = None
+    if config.proxy:
+        http_client = httpx.Client(proxies=config.proxy)
+        client_kwargs["http_client"] = http_client
+
+    try:
+        client = OpenAI(**client_kwargs)
+        image_bytes = _image_to_png_bytes(locked_frame.convert("RGBA"))
+        edit_mask = _build_edit_mask_for_template(template)
+        mask_image = edit_mask if edit_mask is not None else Image.new("L", locked_frame.size, 255)
+        mask_bytes = _image_to_png_bytes(mask_image.convert("L"))
+        response = client.images.edit(
+            model=config.model,
+            prompt=prompt,
+            size=OPENAI_IMAGE_SIZE,
+            response_format="b64_json",
+            image=("poster.png", image_bytes, "image/png"),
+            mask=("mask.png", mask_bytes, "image/png"),
+        )
+    finally:
+        if http_client is not None:
+            http_client.close()
+
+    data = list(getattr(response, "data", []) or [])
+    if not data:
+        raise RuntimeError("OpenAI edit returned no image data")
+
+    payload = data[0]
+    b64_json = getattr(payload, "b64_json", None)
+    if b64_json:
+        result = _compose_and_upload_from_b64(template, locked_frame, b64_json)
+    else:
+        result = PosterImage(
+            filename=getattr(payload, "filename", None) or "poster.png",
+            media_type=getattr(payload, "mime_type", None) or "image/png",
+            url=getattr(payload, "url", None),
+            width=int((getattr(payload, "size", None) or OPENAI_IMAGE_SIZE).split("x")[0]),
+            height=int((getattr(payload, "size", None) or OPENAI_IMAGE_SIZE).split("x")[1]),
+        )
+
+    result.filename = getattr(payload, "filename", None) or result.filename or "poster.png"
+    result.media_type = getattr(payload, "mime_type", None) or result.media_type or "image/png"
+    return result
 
 
 def _compose_and_upload_from_b64(template: TemplateResources, locked_frame: Image.Image, b64_data: str) -> PosterImage:
