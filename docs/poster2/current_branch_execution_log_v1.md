@@ -971,3 +971,45 @@ Anchor derivation:
 - scope: annotation shell, anchors, connectors, markers, label bounds, text placement mode
 - keep bottom frozen
 - keep the widened product geometry as the new baseline
+
+---
+
+## Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the task
+
+### Goal
+
+Unblock the non-PR-8B merge gate failure in `tests/test_glibatree_openai.py` without
+touching poster2 or reopening PR-8B.
+
+### Investigation result
+
+- `_request_glibatree_openai_edit` had been removed from `app/services/glibatree.py`
+- `tests/test_glibatree_openai.py` still imports that symbol directly
+- after restoring the symbol, the same test file still used an obsolete `GlibatreeConfig(client=...)`
+  constructor that no longer matches the current config dataclass
+
+### Smallest backward-compatible fix chosen
+
+- restore `_request_glibatree_openai_edit` as a compatibility shim
+- update the test to use the current `GlibatreeConfig` public shape instead of restoring the removed `client` config field
+
+### Files changed
+
+- `app/services/glibatree.py`
+- `tests/test_glibatree_openai.py`
+
+### Validation
+
+- `.venv/bin/python -m pytest -q tests/test_glibatree_openai.py` → `2 passed`
+- `.venv/bin/python -m pytest -q --collect-only tests/test_glibatree_openai.py` → `2 tests collected`
+
+### Next
+
+- merge this gate-unblock PR first
+- then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if full suite passes

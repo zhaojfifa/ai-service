@@ -27,7 +27,6 @@ class GlibatreeOpenAITestCase(unittest.TestCase):
             "api_key": "sk-test",
             "model": "gpt-image-1",
             "proxy": None,
-            "client": "openai",
         }
         defaults.update(overrides)
         return GlibatreeConfig(**defaults)  # type: ignore[arg-type]

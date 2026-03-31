@@ -207,6 +207,35 @@ Focused tests run:
 - `scenario_region`: Pillow safe_fill parity fix (after annotation contract)
 - Beautification layer planning (after all-region behavior stability)
 
+### Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)
+
+State read before coding:
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the task
+
+Scope:
+- fix only the non-PR-8B merge-gate failure in `tests/test_glibatree_openai.py`
+- no poster2 changes
+- no PR-8A / PR-8B changes
+
+What changed:
+- restored `_request_glibatree_openai_edit` in `app/services/glibatree.py` as a backward-compatible OpenAI edit shim for the legacy import surface
+- aligned `tests/test_glibatree_openai.py` with the current `GlibatreeConfig` dataclass by removing the obsolete `client` constructor field
+
+Why this was the smallest backward-compatible fix:
+- the gate failure started as an import error on a removed symbol
+- restoring the symbol preserves backward compatibility for existing tests/callers
+- updating the test’s config construction avoids reintroducing an obsolete public config field just for test compatibility
+
+Validation:
+- `.venv/bin/python -m pytest -q tests/test_glibatree_openai.py` → `2 passed`
+- `.venv/bin/python -m pytest -q --collect-only tests/test_glibatree_openai.py` → `2 tests collected`
+
+Next:
+- merge this gate-unblock PR first
+- then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite passes
+
 ---
 
 ## Scope discipline
