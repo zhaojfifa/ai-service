@@ -26,16 +26,16 @@ _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_an
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
 # Final frozen geometry for Task-2 product-region closeout.
-# This replaces the conservative 344/208 shell with a wider/taller final shell:
-# - product shell expands rightward and downward
-# - primary/secondary gap increases to 24px
+# This replaces the conservative v3 box with a wider/taller final shell:
+# - product shell expands rightward and slightly downward
+# - primary/secondary gap increases to 16px
 # - secondary card gets materially more room
 # - annotation ownership remains on product_region / product_primary_slot
 # - annotation label bounds do not constrain image-slot sizing
-# Parent region: x=456, y=188, w=376, h=576.
-_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 376, "h": 324}
-_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 536, "w": 376, "h": 228}
-_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 376, "h": 576}
+# Parent region: x=456, y=188, w=344, h=544.
+_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 344, "h": 320}
+_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 524, "w": 344, "h": 208}
+_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 344, "h": 544}
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -699,8 +699,8 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 376,
-                "product_region_h": 576,
+                "product_region_w": 344,
+                "product_region_h": 544,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
                 "product_pad_bottom": 10,
@@ -727,8 +727,8 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 376,
-                "product_region_h": 576,
+                "product_region_w": 344,
+                "product_region_h": 544,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
                 "product_pad_bottom": 10,
@@ -817,6 +817,10 @@ def resolve_product_behavior(
             raise ValueError(f"Unsupported product_annotation_mode: {annotation_mode}")
 
         annotation_items = []
+        left = None
+        top = None
+        right = None
+        bottom = None
         for index, callout in enumerate(spec.feature_callouts[:max_items], start=1):
             label_box = callout.label_box
             annotation_items.append(
@@ -837,11 +841,15 @@ def resolve_product_behavior(
                     "positions_source": "template_spec_fixed",
                 }
             )
+            left = int(label_box.x) if left is None else min(left, int(label_box.x))
+            top = int(label_box.y) if top is None else min(top, int(label_box.y))
+            right = int(label_box.x + label_box.w) if right is None else max(right, int(label_box.x + label_box.w))
+            bottom = int(label_box.y + label_box.h) if bottom is None else max(bottom, int(label_box.y + label_box.h))
         annotation_shell = {
-            "x": int(product_primary_slot["x"]),
-            "y": int(product_primary_slot["y"]),
-            "w": int(product_primary_slot["w"]),
-            "h": int(product_primary_slot["h"]),
+            "x": int(left or product_region["x"]),
+            "y": int(top or product_region["y"]),
+            "w": int((right - left) if left is not None and right is not None else 0),
+            "h": int((bottom - top) if top is not None and bottom is not None else 0),
         }
 
     layout_metrics = {
