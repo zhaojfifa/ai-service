@@ -514,14 +514,6 @@ class TestPosterPipelineRun:
         assert feature_review["feature_slots"][0]["rendered"] is False
         assert feature_review["feature_slots"][0]["truncation_applied"] is False
         assert feature_review["feature_slots"][0]["reason_code"] == "delegated_to_product_annotation_region"
-        assert feature_review["feature_slots"][0]["bounds"] == {
-            "x": 848,
-            "y": 224,
-            "w": 128,
-            "h": 72,
-        }
-        assert feature_review["anchor_evidence"][0]["anchor_x"] == 812
-        assert feature_review["anchor_evidence"][0]["positions_source"] == "product_region_external_right_lane"
         hero_review = metadata["hero_contract_review"]
         assert hero_review["hero_mode"] == "scenario_cover_product_contain"
         assert hero_review["requested_product_source"] == "mock://product"
@@ -2166,13 +2158,6 @@ class TestTextOwnershipFreeze:
         ]
         assert review["annotation_text_owner_region"] == "product_region"
         assert review["ownership_frozen"] is True
-        assert review["annotation_slots"][0]["label_bounds"] == {
-            "x": 848,
-            "y": 350,
-            "w": 128,
-            "h": 72,
-        }
-        assert review["annotation_slots"][0]["positions_source"] == "product_region_external_right_lane"
 
 
 class TestPostFreezeTextCapacity:

@@ -1470,12 +1470,6 @@ def _build_feature_contract_review(
     resolved_behavior,
     region_render_status: dict[str, dict[str, object]],
 ) -> dict[str, object]:
-    canonical_annotation_slots = _build_canonical_product_annotation_slots(
-        requested_spec=requested_spec,
-        effective_spec=effective_spec,
-        resolved_behavior=resolved_behavior,
-        slot_id_prefix="product_annotation_slot_",
-    )
     feature_region_bounds = {
         "x": int(template.feature_callouts[0].label_box.x) if template.feature_callouts else 0,
         "y": int(template.feature_callouts[0].label_box.y) if template.feature_callouts else 0,
@@ -1500,9 +1494,7 @@ def _build_feature_contract_review(
             and bool(sanitized_text)
         )
         rendered_excerpt = _apply_text_budget(sanitized_text, resolved_behavior.feature_policy.char_budget) if slot_rendered else ""
-        if delegated_to_product_annotation and index <= len(canonical_annotation_slots):
-            bounds = canonical_annotation_slots[index - 1]["label_bounds"]
-        elif index <= len(template.feature_callouts):
+        if index <= len(template.feature_callouts):
             label_box = template.feature_callouts[index - 1].label_box
             bounds = {"x": int(label_box.x), "y": int(label_box.y), "w": int(label_box.w), "h": int(label_box.h)}
         else:
@@ -1524,18 +1516,7 @@ def _build_feature_contract_review(
             }
         )
     anchor_evidence = None
-    if delegated_to_product_annotation:
-        anchor_evidence = [
-            {
-                "anchor_index": slot.get("anchor_index"),
-                "anchor_x": slot.get("anchor_x"),
-                "anchor_y": slot.get("anchor_y"),
-                "anchor_color": slot.get("anchor_color"),
-                "positions_source": slot.get("positions_source"),
-            }
-            for slot in canonical_annotation_slots
-        ]
-    elif resolved_behavior.feature_policy.mode == "product_anchor_callouts" and not delegated_to_product_annotation:
+    if resolved_behavior.feature_policy.mode == "product_anchor_callouts" and not delegated_to_product_annotation:
         anchor_evidence = [
             {
                 "anchor_index": i,
@@ -1609,12 +1590,53 @@ def _build_product_annotation_contract_review(
         }
 
     max_slots = product_policy.max_annotation_items  # fixed 3
-    slot_reviews = _build_canonical_product_annotation_slots(
-        requested_spec=requested_spec,
-        effective_spec=effective_spec,
-        resolved_behavior=resolved_behavior,
-        slot_id_prefix="annotation_slot_",
-    )
+    slot_reviews = []
+    for i in range(max_slots):
+        requested_text = (
+            requested_spec.features[i]
+            if i < len(requested_spec.features)
+            else ""
+        )
+        sanitized_text = (
+            effective_spec.features[i]
+            if i < len(effective_spec.features)
+            else ""
+        )
+        is_visible = i < product_policy.visible_annotation_count and bool(sanitized_text)
+        rendered_excerpt = (
+            _apply_text_budget(sanitized_text, product_policy.char_budget)
+            if is_visible
+            else ""
+        )
+        if i < len(template.feature_callouts):
+            fc = template.feature_callouts[i]
+            lb = fc.label_box
+            anchor_x = int(fc.anchor_x)
+            anchor_y = int(fc.anchor_y)
+            label_bounds = {"x": int(lb.x), "y": int(lb.y), "w": int(lb.w), "h": int(lb.h)}
+            anchor_color = fc.anchor_color
+        else:
+            anchor_x = None
+            anchor_y = None
+            label_bounds = None
+            anchor_color = None
+        slot_reviews.append({
+            "slot_index": i,
+            "slot_id": f"annotation_slot_{i + 1}",
+            "rendered": is_visible,
+            "requested_text": requested_text,
+            "sanitized_text": sanitized_text,
+            "rendered_excerpt": rendered_excerpt,
+            "truncation_applied": rendered_excerpt != sanitized_text,
+            "anchor_x": anchor_x,
+            "anchor_y": anchor_y,
+            "label_bounds": label_bounds,
+            "connector_policy": feature_policy.connector_policy,
+            "annotation_owner": "product_region",
+            "marker_policy": "dot_marker_accent_color",
+            "positions_source": "template_spec_fixed",
+            "anchor_color": anchor_color,
+        })
 
     return {
         "product_annotation_mode": annotation_mode,
@@ -1647,49 +1669,7 @@ def _build_product_annotation_contract_review(
             "feature_right_stack_suppressed": True,
             "suppression_reason": "product_annotation_mode_active",
         },
-}
-
-
-def _build_canonical_product_annotation_slots(
-    *,
-    requested_spec: PosterSpec,
-    effective_spec: PosterSpec,
-    resolved_behavior,
-    slot_id_prefix: str,
-) -> list[dict[str, object]]:
-    product_policy = resolved_behavior.product_policy
-    slot_reviews: list[dict[str, object]] = []
-    for i in range(product_policy.max_annotation_items):
-        requested_text = requested_spec.features[i] if i < len(requested_spec.features) else ""
-        sanitized_text = effective_spec.features[i] if i < len(effective_spec.features) else ""
-        is_visible = i < product_policy.visible_annotation_count and bool(sanitized_text)
-        rendered_excerpt = (
-            _apply_text_budget(sanitized_text, product_policy.char_budget)
-            if is_visible
-            else ""
-        )
-        annotation_meta = product_policy.annotation_items[i] if i < len(product_policy.annotation_items) else {}
-        slot_reviews.append(
-            {
-                "slot_index": i,
-                "slot_id": f"{slot_id_prefix}{i + 1}",
-                "rendered": is_visible,
-                "requested_text": requested_text,
-                "sanitized_text": sanitized_text,
-                "rendered_excerpt": rendered_excerpt,
-                "truncation_applied": rendered_excerpt != sanitized_text,
-                "anchor_index": annotation_meta.get("anchor_index"),
-                "anchor_x": annotation_meta.get("anchor_x"),
-                "anchor_y": annotation_meta.get("anchor_y"),
-                "label_bounds": annotation_meta.get("label_bounds"),
-                "connector_policy": annotation_meta.get("connector_policy"),
-                "annotation_owner": "product_region",
-                "marker_policy": annotation_meta.get("marker_policy"),
-                "positions_source": annotation_meta.get("positions_source"),
-                "anchor_color": annotation_meta.get("anchor_color"),
-            }
-        )
-    return slot_reviews
+    }
 
 
 def _build_scenario_contract_review(

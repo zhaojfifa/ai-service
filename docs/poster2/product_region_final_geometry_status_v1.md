@@ -69,7 +69,6 @@ These stay frozen:
 Secondary product imagery remains a display-only surface, not an annotation owner.
 Annotation label bounds remain evidence surfaces only, not sizing inputs for the product image slots.
 `product_annotation_shell_layer.bounds` is now recomputed from the frozen product geometry as an explicit external right-side lane.
-`product_annotation_contract_review` and delegated `feature_contract_review` now both read annotation slot evidence from the same canonical runtime source instead of duplicating old template-fixed bounds.
 
 ---
 
