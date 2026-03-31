@@ -440,7 +440,7 @@ class TestPosterPipelineRun:
         assert metadata["template_behavior"]["behavior_modes"]["product_annotation_mode"] == "product_anchor_callouts"
         assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "title_gallery_split"
         assert metadata["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "title_gallery_split"
-        assert metadata["template_behavior"]["behavior_modes"]["product_geometry_mode"] == "single_primary_v1"
+        assert metadata["template_behavior"]["behavior_modes"]["product_geometry_mode"] == "single_primary_v2"
         assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "strip_local_visible_only"
         assert metadata["template_behavior"]["hero_policy"]["scenario_enabled"] is True
         assert metadata["template_behavior"]["hero_policy"]["product_fit"] == "contain"
@@ -491,11 +491,11 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 320, "h": 520}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
-        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 320, "h": 520}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 752, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["scenario_region"] == 0
@@ -525,7 +525,7 @@ class TestPosterPipelineRun:
         assert hero_review["behavior_policy"]["product_render_policy"] == "product_contain_centered"
         product_review = metadata["product_contract_review"]
         assert product_review["product_annotation_owner"] == "product_region"
-        assert product_review["product_geometry_mode"] == "single_primary_v1"
+        assert product_review["product_geometry_mode"] == "single_primary_v2"
         header_review = metadata["header_contract_review"]
         assert header_review["requested_brand_text"] == "厨厨房"
         assert header_review["requested_agent_text"] == "智能顾问"
@@ -1588,7 +1588,7 @@ class TestProductLayoutContract:
         primary = review["product_primary_slot"]
         assert primary["x"] == 456
         assert primary["y"] == 188
-        assert primary["w"] == 300
+        assert primary["w"] == 320
         assert primary["h"] == 520
         assert review["product_secondary_slot"] is None
         assert review["product_secondary_slot_rendered"] is False
@@ -1610,14 +1610,14 @@ class TestProductLayoutContract:
         primary = review["product_primary_slot"]
         assert primary["x"] == 456
         assert primary["y"] == 188
-        assert primary["w"] == 300
+        assert primary["w"] == 320
         assert primary["h"] == 310
 
         secondary = review["product_secondary_slot"]
         assert secondary is not None
         assert secondary["x"] == 456
         assert secondary["y"] == 506
-        assert secondary["w"] == 300
+        assert secondary["w"] == 320
         assert secondary["h"] == 202
 
         assert review["product_secondary_slot_rendered"] is True
@@ -1626,25 +1626,25 @@ class TestProductLayoutContract:
         assert review["product_secondary_image_layer"]["bounds"] == {
             "x": 456,
             "y": 506,
-            "w": 300,
+            "w": 320,
             "h": 202,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_slot"] == {
             "x": 456,
             "y": 188,
-            "w": 300,
+            "w": 320,
             "h": 310,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_primary_slot"] == {
             "x": 456,
             "y": 188,
-            "w": 300,
+            "w": 320,
             "h": 310,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_secondary_slot"] == {
             "x": 456,
             "y": 506,
-            "w": 300,
+            "w": 320,
             "h": 202,
         }
 
@@ -1954,20 +1954,22 @@ class TestProductOwnerSurfaceFreeze:
         assert review["geometry_frozen"] is True
 
     def test_v2_geometry_constants_are_final(self):
-        """Dual-mode slot bounds must match the frozen primary_secondary_dual_v2 values."""
+        """Dual-mode slot bounds must match the frozen primary_secondary_dual_v3 values."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_DUAL_PRIMARY_SLOT,
             _PRODUCT_DUAL_SECONDARY_SLOT,
             _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
         )
-        # Primary slot: upper 310px of product region
-        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
+        # Primary slot: upper 310px of the widened product region
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 320, "h": 310}
         # Secondary slot: lower 202px, 8px below primary
-        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 506, "w": 300, "h": 202}
+        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 506, "w": 320, "h": 202}
         # Single-primary fallback: full 520px product region
-        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 300, "h": 520}
+        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 320, "h": 520}
         # Verify no vertical overlap: primary bottom (188+310=498) < secondary top (506)
         assert _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"] < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
+        # Verify rightward expansion still leaves an 8px gap before annotation label boxes at x=784.
+        assert 784 - (_PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]) == 8
 
     def test_single_primary_activates_when_no_secondary_asset(self):
         """single_primary mode when secondary asset is absent (runtime freeze rule)."""
@@ -1993,9 +1995,24 @@ class TestProductOwnerSurfaceFreeze:
         review = metadata["product_contract_review"]
 
         assert review["product_layout_mode"] == "primary_secondary_dual"
-        assert review["product_geometry_mode"] == "primary_secondary_dual_v2"
+        assert review["product_geometry_mode"] == "primary_secondary_dual_v3"
         assert review["geometry_frozen"] is True
         assert review["product_secondary_slot_rendered"] is True
+        assert review["secondary_slot_annotation_ownership"] is False
+
+    def test_final_geometry_rightward_expansion_keeps_annotation_owner_on_primary(self):
+        """Task-2 freeze: geometry can widen rightward without changing annotation ownership truth."""
+        template = _load_template()
+        spec = _make_spec(product_secondary_image=AssetRef(url="mock://product-secondary"))
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec, assets=assets)
+        review = metadata["product_contract_review"]
+
+        assert review["product_region"]["bounds"] == {"x": 456, "y": 188, "w": 320, "h": 520}
+        assert review["annotation_owner_slot"] == "product_primary_slot"
         assert review["secondary_slot_annotation_ownership"] is False
 
 

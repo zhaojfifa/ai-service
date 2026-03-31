@@ -703,3 +703,65 @@ Eliminate inlined `owner_region` string literals. Enforce no-dual-ownership when
 - `product_annotation_contract_review` emits `annotation_text_owner_region`, `annotation_slot_ids`, `ownership_frozen` ✓
 - Dead code removed ✓
 - 252/252 tests pass ✓
+
+---
+
+## Task-2 — Product Region Final Geometry Freeze (2026-03-31)
+
+**Status:** Complete
+
+### Goal
+
+Make one final contract-level product-region geometry adjustment now that text ownership is independent:
+- expand product region rightward
+- improve alignment against the header/banner envelope
+- keep annotation ownership on `product_region`
+- keep `annotation_owner_slot = product_primary_slot`
+- keep `secondary_slot_annotation_ownership = false`
+- freeze geometry again immediately after the decision
+
+### Final geometry decision
+
+The product region is widened rightward from `300px` to `320px` while preserving its left/top anchor:
+
+- `product_region = {x:456, y:188, w:320, h:520}`
+- `product_primary_slot = {x:456, y:188, w:320, h:310}`
+- `product_secondary_slot = {x:456, y:506, w:320, h:202}`
+
+The geometry contract is now versioned as:
+- dual-image: `primary_secondary_dual_v3`
+- single-image: `single_primary_v2`
+
+### Why this remains structurally safe
+
+- The product region now reaches `x+width = 776`
+- Product annotation label boxes still begin at `x = 784`
+- This preserves an explicit `8px` handoff gap between product shell and annotation text area
+- Annotation truth is unchanged:
+  - `annotation_owner_slot = "product_primary_slot"`
+  - `secondary_slot_annotation_ownership = false`
+
+### Runtime verification
+
+Fresh local HTTP runtime proof:
+- trace: `6d73e12b-614d-42c6-8eab-4b1ca2601900`
+- `degraded = false`
+- `structure_complete = true`
+- `deliverable = true`
+- `product_layout_mode = primary_secondary_dual`
+- `product_geometry_mode = primary_secondary_dual_v3`
+- `product_region = {x:456, y:188, w:320, h:520}`
+- `product_primary_slot = {x:456, y:188, w:320, h:310}`
+- `product_secondary_slot = {x:456, y:506, w:320, h:202}`
+- `annotation_owner_slot = product_primary_slot`
+- `secondary_slot_annotation_ownership = false`
+
+### Validation
+
+Focused Task-2 gate:
+- `python -m pytest tests/poster2/test_pipeline.py -q -k 'product_layout_contract or product_owner_surface_freeze or product_region or annotation_owner_slot or secondary_slot_annotation_ownership or product_geometry_mode'`
+- result: `3 passed`
+
+### Docs
+
+- `docs/poster2/product_region_final_geometry_status_v1.md`
