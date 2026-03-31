@@ -158,12 +158,27 @@ Three contract-level scopes closed. Ends the budget-tuning loop; places Family A
 - **Phase 2 (bottom SOP)**: `bottom_region` resolver baseline
 - **Beautification Phase 1**: `glass_light` shell, `soft_line` border, `soft` shadow, feature connector/marker visual
 
+### PR-7 — Product image contract: bounds and fit authoritative from product_policy — COMPLETE (2026-03-31)
+
+Closes the split between `hero_policy` and `product_policy` as authority for product image geometry.
+
+**Three gaps closed:**
+1. `_build_product_annotation_contract_review()` was reading `product_region.bounds` from `hero_policy.layout_metrics` → now reads from `product_policy.layout_metrics`
+2. `_product_image_slot()` single_primary path was using `hero_policy.layout_metrics` for slot bounds → now uses `product_policy.product_primary_slot` (same values, correct authority)
+3. Image fit policy was scattered in renderer (`hero_policy.product_fit`) → lifted to `product_policy.product_primary_image_fit` declared at resolver level
+
+**Changes:**
+- `template_behavior.py`: `product_primary_image_fit: str` added to `ResolvedProductBehavior`; set from `hero_policy.product_fit` in `resolve_product_behavior()`
+- `renderer.py`: `_product_image_slot()` — single_primary path now uses `product_policy.product_primary_slot` for bounds and `product_policy.product_primary_image_fit` for fit
+- `pipeline.py`: `_build_product_annotation_contract_review()` bounds fixed to product_policy; `_build_product_contract_review()` exposes `product_primary_image_fit`
+
+`TestProductImageContract`: 5 tests. 262/262 scoped tests pass.
+
 ### Next
 
-- `header_region`: complete `identity_zone_mode` resolver wiring
-- `scenario_region`: fix Pillow `scenario_safe_fill` to match Puppeteer conditional logic
-- `product_secondary_slot`: Pillow renderer parity (currently Puppeteer-only)
-- Preview-path / generation-path parity (Puppeteer vs Pillow)
+- **PR-8**: Annotation/text contract — slot ownership, text evidence, and annotation lane formally declared as product-policy-owned contract (separate PR)
+- `product_secondary_slot`: Pillow renderer parity (contract-only for now)
+- `scenario_region`: Pillow safe_fill parity fix (after annotation contract)
 - Beautification layer planning (after all-region behavior stability)
 
 ---

@@ -1751,22 +1751,42 @@ def _scenario_image_slot(spec: TemplateSpec, hero_policy):
 
 
 def _product_image_slot(spec: TemplateSpec, hero_policy, product_policy=None):
-    if product_policy is not None and getattr(product_policy, "product_layout_mode", "single_primary") == "primary_secondary_dual":
+    if product_policy is not None:
         primary = product_policy.product_primary_slot
+        fit = product_policy.product_primary_image_fit
+        if getattr(product_policy, "product_layout_mode", "single_primary") == "primary_secondary_dual":
+            return replace(
+                spec.product_slot,
+                x=int(primary["x"]),
+                y=int(primary["y"]),
+                w=int(primary["w"]),
+                h=int(primary["h"]),
+                fit=fit,
+                align_x="center",
+                align_y="center",
+                pad_top=16,
+                pad_right=12,
+                pad_bottom=8,
+                pad_left=12,
+            )
+        # single_primary: bounds from product_policy, padding from hero_policy metrics
+        metrics = hero_policy.layout_metrics
+        anchor = hero_policy.product_anchor if hero_policy.product_anchor in {"start", "center", "end"} else "center"
         return replace(
             spec.product_slot,
             x=int(primary["x"]),
             y=int(primary["y"]),
             w=int(primary["w"]),
             h=int(primary["h"]),
-            fit=hero_policy.product_fit,
+            fit=fit,
             align_x="center",
-            align_y="center",
-            pad_top=16,
-            pad_right=12,
-            pad_bottom=8,
-            pad_left=12,
+            align_y=anchor,
+            pad_top=int(metrics["product_pad_top"]),
+            pad_right=int(metrics["product_pad_right"]),
+            pad_bottom=int(metrics["product_pad_bottom"]),
+            pad_left=int(metrics["product_pad_left"]),
         )
+    # No product_policy: legacy hero-only fallback
     metrics = hero_policy.layout_metrics
     anchor = hero_policy.product_anchor if hero_policy.product_anchor in {"start", "center", "end"} else "center"
     return replace(

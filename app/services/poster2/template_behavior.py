@@ -281,6 +281,7 @@ class ResolvedProductBehavior:
     product_geometry_mode: str
     product_geometry_mode_reason: str
     product_primary_slot: dict[str, int]              # {x, y, w, h} of primary product image region
+    product_primary_image_fit: str                    # "contain" | "cover" — fit policy for primary image
     product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
     product_secondary_slot_rendered: bool
     product_secondary_asset_policy: str
@@ -306,6 +307,7 @@ class ResolvedProductBehavior:
             "product_geometry_mode": self.product_geometry_mode,
             "product_geometry_mode_reason": self.product_geometry_mode_reason,
             "product_primary_slot": dict(self.product_primary_slot),
+            "product_primary_image_fit": self.product_primary_image_fit,
             "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
             "product_secondary_slot_rendered": self.product_secondary_slot_rendered,
             "product_secondary_asset_policy": self.product_secondary_asset_policy,
@@ -877,6 +879,7 @@ def resolve_product_behavior(
         product_geometry_mode=product_geometry_mode,
         product_geometry_mode_reason=product_geometry_mode_reason,
         product_primary_slot=product_primary_slot,
+        product_primary_image_fit=hero_policy.product_fit,
         product_secondary_slot=product_secondary_slot,
         product_secondary_slot_rendered=product_secondary_slot_rendered,
         product_secondary_asset_policy=product_secondary_asset_policy,

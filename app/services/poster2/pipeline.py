@@ -1443,6 +1443,7 @@ def _build_product_contract_review(
         "product_geometry_mode": product_policy.product_geometry_mode,
         "product_geometry_mode_reason": product_policy.product_geometry_mode_reason,
         "geometry_frozen": True,
+        "product_primary_image_fit": product_policy.product_primary_image_fit,
         "product_primary_slot": dict(product_policy.product_primary_slot),
         "product_secondary_slot": dict(product_policy.product_secondary_slot) if product_policy.product_secondary_slot else None,
         "product_secondary_slot_rendered": product_policy.product_secondary_slot_rendered,
@@ -1653,10 +1654,10 @@ def _build_product_annotation_contract_review(
         "product_region": {
             "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
             "bounds": {
-                "x": int(resolved_behavior.hero_policy.layout_metrics["product_region_x"]),
-                "y": int(resolved_behavior.hero_policy.layout_metrics["product_region_y"]),
-                "w": int(resolved_behavior.hero_policy.layout_metrics["product_region_w"]),
-                "h": int(resolved_behavior.hero_policy.layout_metrics["product_region_h"]),
+                "x": int(resolved_behavior.product_policy.layout_metrics["product_region_x"]),
+                "y": int(resolved_behavior.product_policy.layout_metrics["product_region_y"]),
+                "w": int(resolved_behavior.product_policy.layout_metrics["product_region_w"]),
+                "h": int(resolved_behavior.product_policy.layout_metrics["product_region_h"]),
             },
         },
         "behavior_policy": {
