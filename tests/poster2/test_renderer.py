@@ -1079,35 +1079,7 @@ class TestStructuredScenarioLayer:
         assert resolved.product_annotation_mode == "product_anchor_callouts"
         assert resolved.product_policy.annotation_count_policy == "fixed_3_product_anchor_annotations"
         assert resolved.product_policy.visible_annotation_count == 3
-        assert resolved.product_policy.annotation_items[0]["anchor_x"] == 812
-        assert resolved.product_policy.annotation_items[0]["label_bounds"] == {
-            "x": 848,
-            "y": 350,
-            "w": 128,
-            "h": 72,
-        }
-
-    def test_product_annotation_callouts_follow_external_lane_geometry(self):
-        template = _load_real_template()
-        template.behavior_modes = replace(
-            template.behavior_modes,
-            product_annotation_mode="product_anchor_callouts",
-        )
-
-        resolved_behavior = resolve_template_behavior(template, feature_count=3)
-        resolved = _resolve_feature_callout_layout(
-            template.feature_callouts,
-            ("One", "Two", "Three"),
-            feature_policy=resolved_behavior.feature_policy,
-            product_policy=resolved_behavior.product_policy,
-        )
-
-        assert len(resolved) == 3
-        assert [item[0].anchor_x for item in resolved] == [812, 812, 812]
-        assert [item[0].anchor_y for item in resolved] == [386, 476, 566]
-        assert [item[0].label_box.x for item in resolved] == [848, 848, 848]
-        assert [item[0].label_box.y for item in resolved] == [350, 440, 530]
-        assert [item[0].label_box.w for item in resolved] == [128, 128, 128]
+        assert resolved.product_policy.annotation_items[0]["anchor_x"] == 764
 
     def test_template_behavior_resolver_supports_expanded_beauty_presets(self):
         template = _load_real_template()

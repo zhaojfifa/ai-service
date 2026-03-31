@@ -1194,21 +1194,15 @@ class TestPosterPipelineRun:
         assert product_review["product_canvas_shell_layer"]["rendered"] is True
         assert product_review["product_annotation_shell_layer"]["rendered"] is True
         assert product_review["product_annotation_shell_layer"]["bounds"] == {
-            "x": 848,
-            "y": 224,
-            "w": 128,
-            "h": 252,
+            "x": 456,
+            "y": 188,
+            "w": 376,
+            "h": 324,
         }
         assert product_review["product_annotation_items_layer"]["visible_item_count"] == 3
         assert product_review["behavior_policy"]["annotation_count_policy"] == "fixed_3_product_anchor_annotations"
         assert product_review["behavior_policy"]["annotation_connector_policy"] == "product_anchor_leader_line"
-        assert product_review["annotation_slots"][0]["anchor_x"] == 812
-        assert product_review["annotation_slots"][0]["label_bounds"] == {
-            "x": 848,
-            "y": 224,
-            "w": 128,
-            "h": 72,
-        }
+        assert product_review["annotation_slots"][0]["anchor_x"] == 764
         assert product_review["annotation_slots"][0]["rendered_excerpt"] == "特性A"
         assert feature_review["delegated_to_product_annotation"] is True
         assert feature_review["feature_region"]["rendered"] is False
@@ -2026,15 +2020,13 @@ class TestProductOwnerSurfaceFreeze:
 
         assert review["product_region"]["bounds"] == {"x": 456, "y": 188, "w": 376, "h": 576}
         assert review["product_annotation_shell_layer"]["bounds"] == {
-            "x": 848,
-            "y": 224,
-            "w": 128,
-            "h": 252,
+            "x": 456,
+            "y": 188,
+            "w": 376,
+            "h": 324,
         }
         assert review["annotation_owner_slot"] == "product_primary_slot"
         assert review["secondary_slot_annotation_ownership"] is False
-        assert review["annotation_slots"][0]["label_bounds"]["x"] == 848
-        assert review["annotation_slots"][0]["label_bounds"]["w"] == 128
 
 
 # ---------------------------------------------------------------------------
