@@ -98,8 +98,6 @@ Read this section only after the product baseline and architecture guidance. The
   Product annotation layer activation: `product_anchor_callouts` switched to live production mode for `template_dual_v2`. Records renderer algorithm fix (fixed-anchor path), new pipeline layers (`product_annotation_shell_layer`, `product_annotation_items_layer`), `_build_product_annotation_contract_review()` per-slot evidence, `product_annotation_mode` in behavior_modes, frontend Stage 2 evidence display. 179/179 tests pass.
 - [product_region_contract_closure_status_v1.md](product_region_contract_closure_status_v1.md)
   PR-3 product region contract closure: 7 owner surfaces frozen, annotation ownership enforced (primary slot only, secondary never owner), `primary_secondary_dual_v2` geometry declared final, `geometry_frozen` / `annotation_owner_slot` / `secondary_slot_annotation_ownership` / `owner_surfaces` emitted in contract evidence. 242/242 tests pass.
-- [post_freeze_delivery_tuning_status_v1.md](post_freeze_delivery_tuning_status_v1.md)
-  Task-3 delivery-only closeout: header agent text, product annotation text, and default split subtitle/title capacity tuned without any contract, geometry, or ownership change.
 - [text_layer_contract_closure_status_v1.md](text_layer_contract_closure_status_v1.md)
   PR-4 text ownership freeze and feature delegation: `_TEXT_LAYER_OWNER_MAP` / `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` / `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION` declared as constants; all three text layers emit `ownership_frozen = True`; `feature_view_mode = delegated_diagnostic` enforces no dual ownership when annotation active. 252/252 tests pass.
 

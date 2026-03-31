@@ -652,23 +652,6 @@ New class `TestPostFreezeTextCapacity` (10 tests):
 - No contract changes; no mode changes; no geometry changes ✓
 - 262/262 tests pass (252 prior + 10 new) ✓
 
-### Task-3 closeout note (2026-03-31)
-
-Task-3 is now treated as a closed, delivery-tuning-only responsibility line.
-
-- Read before closeout:
-  - `CLAUDE.md`
-  - `docs/poster2/current_branch_execution_log_v1.md`
-  - `project_poster2_baseline_2026-03-30.md` (requested but not present in repo)
-  - `docs/poster2/README.md`
-- No additional code-path tuning was required on top of the current `main` baseline.
-- Dedicated status doc added:
-  - `docs/poster2/post_freeze_delivery_tuning_status_v1.md`
-- Scoped regression for this task remains:
-  - `TestPostFreezeTextCapacity`
-- What remains for the next task:
-  - nothing inside Task-3 scope; future work must not reopen geometry/ownership under delivery tuning
-
 ---
 
 
