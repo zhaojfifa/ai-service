@@ -174,9 +174,35 @@ Closes the split between `hero_policy` and `product_policy` as authority for pro
 
 `TestProductImageContract`: 5 tests. 262/262 scoped tests pass.
 
+### PR-8A — Safe product-geometry widening baseline with frozen bottom and annotation/text lane — ACCEPTED INTERMEDIATE (2026-03-31)
+
+State read before coding:
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+Contract truth changed:
+- `product_region.w` widened `300 -> 320`
+- `product_primary_slot.w` widened `300 -> 320`
+- `product_secondary_slot.w` widened `300 -> 320`
+- `_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT.w` widened `300 -> 320`
+- `template_dual_v2` version bumped `2.1.4 -> 2.1.5`
+
+What remained frozen:
+- `bottom_shell_top` unchanged
+- `title_band_region` / `gallery_strip_region` unchanged
+- annotation ownership unchanged: `annotation_owner_slot = product_primary_slot`
+- annotation lane / annotation shell computation unchanged
+- no text budget tuning, no header/scenario work, no beautification
+
+Focused tests run:
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestProductOwnerSurfaceFreeze or TestTask2FinalProductGeometry or TestProductImageContract'` → `29 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product and not header and not scenario and not bottom'` → `1 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TestTemplateSpecLoading'` → `12 passed`
+
 ### Next
 
-- **PR-8**: Annotation/text contract — slot ownership, text evidence, and annotation lane formally declared as product-policy-owned contract (separate PR)
+- **PR-8B only**: Annotation/text contract — annotation shell, anchors, connectors, markers, label bounds, and text placement mode
 - `product_secondary_slot`: Pillow renderer parity (contract-only for now)
 - `scenario_region`: Pillow safe_fill parity fix (after annotation contract)
 - Beautification layer planning (after all-region behavior stability)

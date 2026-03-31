@@ -907,3 +907,67 @@ Three distinct contract gaps, same root cause:
 - `_product_image_slot()` single_primary uses `product_policy.product_primary_slot` bounds ✓
 - No geometry changes; no annotation slot changes; no text budget changes ✓
 - Focused validation clean on the merge path ✓
+
+---
+
+## PR-8A — Safe product-geometry widening baseline with frozen bottom and annotation/text lane (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+### Goal
+
+Widen only the product geometry contract surfaces while keeping bottom, annotation ownership,
+annotation lane, and non-product region behavior frozen.
+
+This is an accepted intermediate product-geometry PR, not a final product-region closeout.
+
+### Contract truth changed
+
+| Surface | Before | After |
+|---|---|---|
+| `product_region` | `{x:456, y:188, w:300, h:540}` | `{x:456, y:188, w:320, h:540}` |
+| `product_primary_slot` | `{x:456, y:188, w:300, h:310}` | `{x:456, y:188, w:320, h:310}` |
+| `product_secondary_slot` | `{x:456, y:518, w:300, h:210}` | `{x:456, y:518, w:320, h:210}` |
+| `_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT` | `{x:456, y:188, w:300, h:540}` | `{x:456, y:188, w:320, h:540}` |
+| template version | `2.1.4` | `2.1.5` |
+
+Anchor derivation:
+- Left anchor: `scenario_region_right(384) + gap(72) = 456`
+- Right anchor: `annotation_shell_x(784) - gutter(8) = 776`
+- Width: `776 - 456 = 320`
+
+### What remained frozen
+
+- `bottom_shell_top` unchanged
+- `title_band_region` unchanged
+- `gallery_strip_region` unchanged
+- annotation ownership unchanged: `annotation_owner_slot = product_primary_slot`
+- annotation lane unchanged: label boxes still start at `x=784`, leaving an 8px gutter from product right edge `x=776`
+- annotation shell computation unchanged
+- no text budget tuning, no header/scenario work, no beautification
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/template_registry.py`
+- `app/templates/specs/template_dual_v2.json`
+- `app/templates_html/slot_spec.template_dual_v2.json`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_contracts.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestProductOwnerSurfaceFreeze or TestTask2FinalProductGeometry or TestProductImageContract'` → `29 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product and not header and not scenario and not bottom'` → `1 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TestTemplateSpecLoading'` → `12 passed`
+
+### Next PR
+
+- `PR-8B` only: annotation/text contract
+- scope: annotation shell, anchors, connectors, markers, label bounds, text placement mode
+- keep bottom frozen
+- keep the widened product geometry as the new baseline

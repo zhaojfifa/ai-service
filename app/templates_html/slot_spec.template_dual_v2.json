@@ -6,7 +6,7 @@
   "regions": {
     "header_region": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "scenario_region": { "x": 96, "y": 188, "w": 288, "h": 520 },
-    "product_region": { "x": 456, "y": 188, "w": 300, "h": 540 },
+    "product_region": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "feature_region": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 232 },
     "title_band_region": { "x": 112, "y": 728, "w": 800, "h": 144 },
@@ -26,9 +26,9 @@
     "scenario_card_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_card_shell_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_image_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
-    "product": { "x": 456, "y": 188, "w": 300, "h": 540 },
-    "product_card_shell_layer": { "x": 456, "y": 188, "w": 300, "h": 540 },
-    "product_image_layer": { "x": 456, "y": 188, "w": 300, "h": 540 },
+    "product": { "x": 456, "y": 188, "w": 320, "h": 540 },
+    "product_card_shell_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
+    "product_image_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "feature_callout_layer": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 232 },
@@ -153,7 +153,7 @@
     },
     "product_card_shell_layer": {
       "visible_when": "always",
-      "bounds": { "x": 456, "y": 188, "w": 300, "h": 540 },
+      "bounds": { "x": 456, "y": 188, "w": 320, "h": 540 },
       "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
       "max_items": 1,
       "max_lines": 0,
@@ -162,7 +162,7 @@
     },
     "product_image_layer": {
       "visible_when": "product_image.url exists",
-      "bounds": { "x": 456, "y": 188, "w": 300, "h": 540 },
+      "bounds": { "x": 456, "y": 188, "w": 320, "h": 540 },
       "padding": { "top": 24, "right": 18, "bottom": 10, "left": 18 },
       "fit_policy": "contain",
       "anchor": "bottom-center inside product_card_shell_layer",
@@ -261,7 +261,7 @@
   "protected_zones": [
     { "name": "header_banner", "x": 72, "y": 56, "w": 880, "h": 104 },
     { "name": "scenario_card", "x": 96, "y": 188, "w": 288, "h": 520 },
-    { "name": "product_card", "x": 456, "y": 188, "w": 300, "h": 540 },
+    { "name": "product_card", "x": 456, "y": 188, "w": 320, "h": 540 },
     { "name": "feature_column", "x": 764, "y": 204, "w": 164, "h": 392 },
     { "name": "text_zone", "x": 112, "y": 728, "w": 800, "h": 144 },
     { "name": "gallery_band", "x": 96, "y": 888, "w": 832, "h": 72 }
@@ -271,7 +271,7 @@
     "brand_name": { "x": 244, "y": 72, "w": 484, "h": 68 },
     "agent_name": { "x": 748, "y": 78, "w": 164, "h": 48 },
     "scenario": { "x": 96, "y": 188, "w": 288, "h": 520, "fit": "cover", "align_x": "center", "align_y": "center", "radius": 24 },
-    "product": { "x": 456, "y": 188, "w": 300, "h": 540, "fit": "contain", "align_x": "center", "align_y": "end", "pad_top": 24, "pad_right": 18, "pad_bottom": 10, "pad_left": 18, "radius": 24 },
+    "product": { "x": 456, "y": 188, "w": 320, "h": 540, "fit": "contain", "align_x": "center", "align_y": "end", "pad_top": 24, "pad_right": 18, "pad_bottom": 10, "pad_left": 18, "radius": 24 },
     "gallery": [
       { "x": 96, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },
       { "x": 308, "y": 896, "w": 196, "h": 56, "fit": "cover", "radius": 14 },

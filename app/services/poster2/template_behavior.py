@@ -27,14 +27,16 @@ _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
 # Frozen geometry for primary_secondary_dual product layout mode (geometry_mode = primary_secondary_dual_v2).
 # Lane model: external right lane — annotation labels (x=784+) are outside the product region right
-# boundary (x=756); image-slot sizing is fully independent of label_bounds.
+# boundary (x=776); image-slot sizing is fully independent of label_bounds.
+# Horizontal anchors: left = scenario_region_right(384) + gap(72) = 456;
+#   right = annotation_shell_x(784) - gutter(8) = 776 -> w = 776 - 456 = 320.
 # Primary slot: upper ~57% of the product region; receives all annotation callouts.
 # Secondary slot: lower ~39% of the product region; no callouts, no annotation ownership.
-# Parent region (scenario_cover_product_contain): x=456, y=188, w=300, h=540.
+# Parent region (scenario_cover_product_contain): x=456, y=188, w=320, h=540.
 # Gap between primary bottom and secondary top: 518-(188+310)=20px.
-_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 310}
-_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 300, "h": 210}
-_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
+_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 310}
+_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 320, "h": 210}
+_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 540}
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -700,7 +702,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 300,
+                "product_region_w": 320,
                 "product_region_h": 540,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
@@ -728,7 +730,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 300,
+                "product_region_w": 320,
                 "product_region_h": 540,
                 "product_pad_top": 24,
                 "product_pad_right": 18,

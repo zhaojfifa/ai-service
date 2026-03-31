@@ -1,7 +1,7 @@
 {
   "_comment": "Poster 2.0 — template_dual mapped to deterministic TemplateSpec. Coordinates match template_dual_spec.json exactly. Version must be bumped on any geometry change.",
   "template_id": "template_dual_v2",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "contract_version": "poster2.template_dual_v2.v1",
   "behavior_modes": {
     "hero_mode": "scenario_cover_product_contain",
@@ -78,7 +78,7 @@
   },
 
   "product_slot": {
-    "x": 456, "y": 188, "w": 300, "h": 540,
+    "x": 456, "y": 188, "w": 320, "h": 540,
     "fit": "contain",
     "align_x": "center",
     "align_y": "center",

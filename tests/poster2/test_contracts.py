@@ -109,7 +109,7 @@ class TestTemplateSpecLoading:
         assert spec.contract_version == "poster2.template_dual_v2.v1"
         assert len(spec.feature_callouts) == 4
         assert spec.gallery_slot.count == 4
-        assert spec.version == "2.1.4"
+        assert spec.version == "2.1.5"
         assert spec.gallery_slot.thumb_w == 196
         assert spec.agent_name_slot.bg_color == "transparent"
         assert spec.agent_name_slot.bg_radius == 0
@@ -119,7 +119,7 @@ class TestTemplateSpecLoading:
         assert spec.scenario_slot.x == 96
         assert spec.scenario_slot.align_x == "center"
         assert spec.scenario_slot.align_y == "center"
-        assert spec.product_slot.w == 300
+        assert spec.product_slot.w == 320
         assert spec.product_slot.align_x == "center"
         assert spec.product_slot.align_y == "center"
         assert spec.product_slot.pad_top == 24

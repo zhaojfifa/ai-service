@@ -271,7 +271,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.4"
+        assert manifest.template_version == "2.1.5"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"
@@ -491,11 +491,11 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 540}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 320, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
-        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 540}
+        assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 320, "h": 540}
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 752, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["scenario_region"] == 0
@@ -1588,7 +1588,7 @@ class TestProductLayoutContract:
         primary = review["product_primary_slot"]
         assert primary["x"] == 456
         assert primary["y"] == 188
-        assert primary["w"] == 300
+        assert primary["w"] == 320
         assert primary["h"] == 540
         assert review["product_secondary_slot"] is None
         assert review["product_secondary_slot_rendered"] is False
@@ -1610,14 +1610,14 @@ class TestProductLayoutContract:
         primary = review["product_primary_slot"]
         assert primary["x"] == 456
         assert primary["y"] == 188
-        assert primary["w"] == 300
+        assert primary["w"] == 320
         assert primary["h"] == 310
 
         secondary = review["product_secondary_slot"]
         assert secondary is not None
         assert secondary["x"] == 456
         assert secondary["y"] == 518
-        assert secondary["w"] == 300
+        assert secondary["w"] == 320
         assert secondary["h"] == 210
 
         assert review["product_secondary_slot_rendered"] is True
@@ -1626,25 +1626,25 @@ class TestProductLayoutContract:
         assert review["product_secondary_image_layer"]["bounds"] == {
             "x": 456,
             "y": 518,
-            "w": 300,
+            "w": 320,
             "h": 210,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_slot"] == {
             "x": 456,
             "y": 188,
-            "w": 300,
+            "w": 320,
             "h": 310,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_primary_slot"] == {
             "x": 456,
             "y": 188,
-            "w": 300,
+            "w": 320,
             "h": 310,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_secondary_slot"] == {
             "x": 456,
             "y": 518,
-            "w": 300,
+            "w": 320,
             "h": 210,
         }
 
@@ -2110,11 +2110,11 @@ class TestProductOwnerSurfaceFreeze:
             _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
         )
         # Primary slot: upper 310px of product region
-        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 320, "h": 310}
         # Secondary slot: 210px, 20px gap below primary (y=518)
-        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 518, "w": 300, "h": 210}
+        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 518, "w": 320, "h": 210}
         # Single-primary fallback: full 540px product region
-        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 300, "h": 540}
+        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 320, "h": 540}
         # Verify no vertical overlap: primary bottom (188+310=498) < secondary top (518)
         assert _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"] < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
 
@@ -2156,14 +2156,17 @@ class TestTask2FinalProductGeometry:
     """Task-2: product region geometry finalized from primary_secondary_dual_v2 healthy baseline.
 
     Lane model: external right lane — annotation labels (x=784+) sit outside the
-    product region right boundary (x=756). Image-slot sizing is fully independent
+    product region right boundary (x=776). Image-slot sizing is fully independent
     of label_bounds.
 
+    Horizontal anchors: left = scenario_region_right(384) + gap(72) = 456;
+    right = annotation_shell_x(784) - gutter(8) = 776 -> w = 320.
+
     Frozen geometry:
-    - product_region outer shell: {x:456, y:188, w:300, h:540}
-    - product_primary_slot:       {x:456, y:188, w:300, h:310}  (unchanged)
-    - product_secondary_slot:     {x:456, y:518, w:300, h:210}  (gap: 20px)
-    - single_primary fallback:    {x:456, y:188, w:300, h:540}
+    - product_region outer shell: {x:456, y:188, w:320, h:540}
+    - product_primary_slot:       {x:456, y:188, w:320, h:310}
+    - product_secondary_slot:     {x:456, y:518, w:320, h:210}  (gap: 20px)
+    - single_primary fallback:    {x:456, y:188, w:320, h:540}
     """
 
     def test_product_region_outer_shell_enlarged_to_540(self):
@@ -2192,9 +2195,9 @@ class TestTask2FinalProductGeometry:
         assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 518
 
     def test_annotation_lane_is_external_label_bounds_outside_product_region(self):
-        """Annotation label x=784 must be outside product_region right boundary (x+w=756)."""
+        """Annotation label x=784 must be outside product_region right boundary (x+w=776)."""
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
-        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 756
+        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 776
         label_x = 784  # frozen in template spec
         assert label_x > product_right, (
             f"label_x ({label_x}) must be outside product right boundary ({product_right})"
@@ -2205,10 +2208,10 @@ class TestTask2FinalProductGeometry:
         from app.services.poster2.template_behavior import _PRODUCT_ANNOTATION_OWNER_SLOT
         assert _PRODUCT_ANNOTATION_OWNER_SLOT == "product_primary_slot"
 
-    def test_primary_slot_unchanged(self):
-        """primary slot dimensions must be unchanged by Task-2 geometry decision."""
+    def test_primary_slot_dimensions(self):
+        """primary slot dimensions after horizontal widening."""
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
-        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 320, "h": 310}
 
     def test_geometry_is_internally_consistent(self):
         """primary h + gap + secondary h must equal product_region h."""
@@ -2222,6 +2225,32 @@ class TestTask2FinalProductGeometry:
         )
         total = _PRODUCT_DUAL_PRIMARY_SLOT["h"] + gap + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
         assert total == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+
+    def test_product_region_w_widened_to_320(self):
+        """product_region w must be 320 (anchor-derived: annotation_shell_x(784) - gutter(8) - product_x(456) = 320)."""
+        from app.services.poster2.template_behavior import _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT
+        assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["w"] == 320
+
+    def test_product_primary_slot_w_widened_to_320(self):
+        """product_primary_slot w must be 320."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
+        assert _PRODUCT_DUAL_PRIMARY_SLOT["w"] == 320
+
+    def test_product_secondary_slot_w_widened_to_320(self):
+        """product_secondary_slot w must be 320."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
+        assert _PRODUCT_DUAL_SECONDARY_SLOT["w"] == 320
+
+    def test_all_slots_share_same_x_and_w(self):
+        """All product slots must share the same x and w (horizontally aligned)."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        for slot in (_PRODUCT_DUAL_PRIMARY_SLOT, _PRODUCT_DUAL_SECONDARY_SLOT, _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT):
+            assert slot["x"] == 456
+            assert slot["w"] == 320
 
 
 # ---------------------------------------------------------------------------
