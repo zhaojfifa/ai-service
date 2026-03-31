@@ -308,6 +308,23 @@ Next:
 - merge this full-suite gate-unblock PR first
 - then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite still passes
 
+### PR-8B merge gate final rerun — PASSED (2026-03-31)
+
+State read before merge gate:
+- `README.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the gate
+
+Merge gate result:
+- `.venv/bin/python -m pytest -q` → `324 passed, 10 warnings, 3 subtests passed`
+
+Scope assessment:
+- PR-8B code path remained limited to product annotation contract work
+- gate now passes on top of the two separate non-PR-8B gate-unblock merges
+- branch is eligible to merge to `main`
+
 ---
 
 ## Scope discipline
