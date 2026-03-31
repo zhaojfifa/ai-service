@@ -236,6 +236,33 @@ Next:
 - merge this gate-unblock PR first
 - then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite passes
 
+### Gate-unblock PR — Full-suite follow-up test/runtime compatibility (2026-03-31)
+
+State read before coding:
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the task
+
+Scope:
+- fix only the remaining non-PR-8B full-suite gate blockers
+- no poster2 changes
+- no PR-8A / PR-8B changes
+
+What changed:
+- `app/config.py`: restored `GlibatreeConfig.use_openai_client` as a backward-compatible property for legacy callers like `prepare_poster_assets()`
+- `app/services/template_variants.py`: invalid template image bytes now raise `TemplatePosterInvalidImage` so the API returns structured 400 detail instead of bubbling to 500
+- `tests/test_poster_services.py`: updated tests from forbidden inline base64 assets to current URL/ref-based inputs and patched image loading accordingly
+- `tests/test_schemas.py`: aligned `GeneratePosterResponse.results` expectation to current `None` default
+- `tests/test_template_posters.py`: added missing `base64` import, added local `fake_r2_storage` fixture, and aligned direct helper calls/assertions to the current template poster API
+
+Validation:
+- `.venv/bin/python -m pytest -q tests/test_poster_services.py tests/test_schemas.py tests/test_template_posters.py` → `21 passed`
+- `.venv/bin/python -m pytest -q` → `319 passed`
+
+Next:
+- merge this full-suite gate-unblock PR first
+- then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite still passes
+
 ---
 
 ## Scope discipline

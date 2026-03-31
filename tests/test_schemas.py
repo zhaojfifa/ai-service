@@ -77,7 +77,7 @@ def test_generate_poster_response_accepts_prompt_bundle_dict() -> None:
     # Missing slots fall back to defaults
     assert response.prompt_bundle.product.aspect == "4:5"
     assert response.prompt_bundle.product.prompt == ""
-    assert response.results == []
+    assert response.results is None
     assert response.poster_url is None
 
 

@@ -1,3 +1,4 @@
+import base64
 from io import BytesIO
 
 import pytest
@@ -25,21 +26,33 @@ def template_tmpdir(tmp_path, monkeypatch):
     yield tmp_path
 
 
-def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch):
+@pytest.fixture()
+def fake_r2_storage(monkeypatch):
+    import app.services.template_variants as template_variants
+
+    storage: dict[str, bytes] = {}
+
+    def fake_get_bytes(key: str):
+        return storage[key]
+
+    def fake_public_url_for(key: str):
+        return f"https://cdn.example.com/{key}"
+
+    monkeypatch.setattr(template_variants, "get_bytes", fake_get_bytes)
+    monkeypatch.setattr(template_variants, "public_url_for", fake_public_url_for)
+    return storage
+
+
+def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch, fake_r2_storage):
     from app.main import app
     import app.services.template_variants as template_variants
 
-    raw_png = base64.b64decode(_encode_png((255, 0, 0)))
-
-    def fake_get_bytes(key: str):
-        assert key == "template-posters/PosterA.png"
-        return raw_png
-
-    monkeypatch.setattr(template_variants, "get_bytes", fake_get_bytes)
+    raw_png = _png_bytes((255, 0, 0))
 
     client = TestClient(app)
     key = "template-posters/variant_a/poster-a.png"
     fake_r2_storage[key] = _png_bytes((255, 0, 0))
+    fake_r2_storage["template-posters/PosterA.png"] = raw_png
     payload = {
         "slot": "variant_a",
         "filename": "PosterA.png",
@@ -56,7 +69,7 @@ def test_template_poster_upload_and_fetch(template_tmpdir, monkeypatch):
     assert data["poster"]["height"] == 64
     assert data["poster"]["data_url"].startswith("data:image/png;base64,")
     assert data["poster"]["url"].startswith("https://cdn.example.com/")
-    assert data["poster"]["key"] == key
+    assert data["poster"]["key"] == "template-posters/PosterA.png"
 
     response = client.get("/api/template-posters")
     assert response.status_code == 200
@@ -76,7 +89,8 @@ def test_template_poster_metadata_uses_existing_r2_key(template_tmpdir, fake_r2_
         filename="Cloud.png",
         content_type="image/png",
         key=key,
-        size=len(fake_r2_storage[key]),
+        width=64,
+        height=64,
     )
 
     assert record.key == key
@@ -96,7 +110,8 @@ def test_generate_poster_uses_template_overrides(template_tmpdir, fake_r2_storag
         filename="alpha.png",
         content_type="image/png",
         key=key_a,
-        size=len(fake_r2_storage[key_a]),
+        width=64,
+        height=64,
     )
     key_b = "template-posters/variant_b/bravo.png"
     fake_r2_storage[key_b] = _png_bytes((0, 0, 255))
@@ -105,7 +120,8 @@ def test_generate_poster_uses_template_overrides(template_tmpdir, fake_r2_storag
         filename="bravo.png",
         content_type="image/png",
         key=key_b,
-        size=len(fake_r2_storage[key_b]),
+        width=64,
+        height=64,
     )
 
     from app.schemas import PosterInput

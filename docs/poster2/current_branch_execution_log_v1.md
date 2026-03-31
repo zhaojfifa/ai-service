@@ -1013,3 +1013,44 @@ touching poster2 or reopening PR-8B.
 
 - merge this gate-unblock PR first
 - then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if full suite passes
+
+---
+
+## Gate-unblock PR — Full-suite follow-up test/runtime compatibility (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the task
+
+### Goal
+
+Unblock the remaining non-PR-8B full-suite failures revealed after the first gate-unblock PR,
+without touching poster2 or reopening PR-8B.
+
+### Investigation result
+
+- `prepare_poster_assets()` still referenced legacy `GlibatreeConfig.use_openai_client`, but the property was missing from the current config dataclass
+- several tests still expected forbidden inline base64 asset inputs to validate
+- one schema test still expected `GeneratePosterResponse.results == []` while current default is `None`
+- `tests/test_template_posters.py` was missing local test scaffolding (`base64` import, `fake_r2_storage` fixture) and still called current helpers with outdated parameters/assertions
+- invalid template image bytes were bubbling into a 500 instead of producing the structured `INVALID_IMAGE` 400 detail path
+
+### Files changed
+
+- `app/config.py`
+- `app/services/template_variants.py`
+- `tests/test_poster_services.py`
+- `tests/test_schemas.py`
+- `tests/test_template_posters.py`
+
+### Validation
+
+- `.venv/bin/python -m pytest -q tests/test_poster_services.py tests/test_schemas.py tests/test_template_posters.py` → `21 passed`
+- `.venv/bin/python -m pytest -q` → `319 passed`
+
+### Next
+
+- merge this full-suite gate-unblock PR first
+- then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite still passes
