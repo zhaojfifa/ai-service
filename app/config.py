@@ -124,6 +124,11 @@ class GlibatreeConfig:
     proxy: str | None = None
 
     @property
+    def use_openai_client(self) -> bool:
+        """Backward-compatible flag for legacy callers."""
+        return True
+
+    @property
     def is_configured(self) -> bool:
         return bool(self.api_url and self.api_key)
 

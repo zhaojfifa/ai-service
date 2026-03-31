@@ -41,6 +41,10 @@ def make_data_url(color: tuple[int, int, int]) -> str:
     return f"data:image/png;base64,{encoded}"
 
 
+def make_asset_ref(name: str) -> str:
+    return f"https://cdn.example.com/{name}.png"
+
+
 @unittest.skipIf(DEPENDENCY_ERROR is not None, f"Missing dependency: {DEPENDENCY_ERROR}")
 class PosterServiceTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -122,26 +126,38 @@ class PosterServiceTests(unittest.TestCase):
             payload = self.poster.dict()
         payload.update(
             {
-                "brand_logo": make_data_url((255, 0, 0)),
-                "scenario_asset": make_data_url((0, 200, 0)),
-                "product_asset": make_data_url((0, 0, 255)),
+                "brand_logo": make_asset_ref("brand-logo"),
+                "scenario_image": make_asset_ref("scenario-source"),
+                "scenario_asset": make_asset_ref("scenario"),
+                "product_asset": make_asset_ref("product"),
                 "gallery_items": [
-                    {"asset": make_data_url((245, 220, 0)), "caption": f"系列 {i+1}"}
+                    {"asset": make_asset_ref(f"gallery-{i+1}"), "caption": f"系列 {i+1}"}
                     for i in range(3)
                 ],
             }
         )
         poster = PosterInput(**payload)  # type: ignore[arg-type]
 
-        preview = render_layout_preview(poster)
-        prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(poster)
-        result = generate_poster_asset(
-            poster,
-            prompt_text,
-            preview,
-            prompt_bundle=prompt_bundle,
-            prompt_details=prompt_details,
-        )
+        asset_map = {
+            make_asset_ref("brand-logo"): Image.new("RGBA", (120, 120), (255, 0, 0, 255)),
+            make_asset_ref("scenario-source"): Image.new("RGBA", (120, 120), (0, 200, 0, 255)),
+            make_asset_ref("scenario"): Image.new("RGBA", (120, 120), (0, 200, 0, 255)),
+            make_asset_ref("product"): Image.new("RGBA", (120, 120), (0, 0, 255, 255)),
+            make_asset_ref("gallery-1"): Image.new("RGBA", (120, 120), (245, 220, 0, 255)),
+            make_asset_ref("gallery-2"): Image.new("RGBA", (120, 120), (245, 220, 0, 255)),
+            make_asset_ref("gallery-3"): Image.new("RGBA", (120, 120), (245, 220, 0, 255)),
+        }
+
+        with patch("app.services.glibatree._load_image_from_url", side_effect=lambda url: asset_map.get(url)):
+            preview = render_layout_preview(poster)
+            prompt_text, prompt_details, prompt_bundle = build_glibatree_prompt(poster)
+            result = generate_poster_asset(
+                poster,
+                prompt_text,
+                preview,
+                prompt_bundle=prompt_bundle,
+                prompt_details=prompt_details,
+            )
         asset = result.poster
 
         if not asset.data_url:
@@ -247,7 +263,7 @@ class PosterServiceTests(unittest.TestCase):
 
         gallery_items = [
             PosterGalleryItem(mode="prompt", prompt="AI 小图 1", caption="系列 1"),
-            PosterGalleryItem(mode="upload", asset=make_data_url((32, 32, 32)), caption="系列 2"),
+            PosterGalleryItem(mode="upload", asset=make_asset_ref("gallery-series-2"), caption="系列 2"),
             PosterGalleryItem(mode="prompt", prompt="AI 小图 3", caption="系列 3"),
         ]
 
@@ -304,13 +320,13 @@ class PosterServiceTests(unittest.TestCase):
         )
 
         gallery_items = [
-            PosterGalleryItem(mode="upload", asset=make_data_url((120, 120, 120)), caption="系列 A"),
+            PosterGalleryItem(mode="upload", asset=make_asset_ref("gallery-series-a"), caption="系列 A"),
             PosterGalleryItem(mode="prompt", prompt="AI 小图", caption="系列 B"),
         ]
 
         update = {
             "scenario_mode": "upload",
-            "scenario_asset": make_data_url((0, 0, 0)),
+            "scenario_asset": make_asset_ref("scenario-upload"),
             "product_mode": "prompt",
             "gallery_items": gallery_items,
         }
@@ -360,15 +376,15 @@ class PosterServiceTests(unittest.TestCase):
         )
 
         gallery_items = [
-            PosterGalleryItem(mode="upload", asset=make_data_url((10, 20, 30)), caption="图 1"),
+            PosterGalleryItem(mode="upload", asset=make_asset_ref("gallery-1"), caption="图 1"),
             PosterGalleryItem(mode="prompt", prompt="需要生成的图 2", caption="图 2"),
-            PosterGalleryItem(mode="upload", asset=make_data_url((40, 50, 60)), caption="图 3"),
+            PosterGalleryItem(mode="upload", asset=make_asset_ref("gallery-3"), caption="图 3"),
             PosterGalleryItem(mode="prompt", prompt="需要生成的图 4", caption="图 4"),
         ]
 
         update = {
             "scenario_mode": "upload",
-            "scenario_asset": make_data_url((120, 120, 120)),
+            "scenario_asset": make_asset_ref("scenario-string-flags"),
             "scenario_prompt": "明亮的厨房场景",
             "product_mode": "prompt",
             "product_prompt": "磨砂金属蒸烤箱",

@@ -344,7 +344,7 @@ def save_template_poster(
             fallback_height=height_hint,
         )
     except Exception as exc:
-        raise ValueError("Invalid image payload") from exc
+        raise TemplatePosterInvalidImage("cannot_identify", hint="cannot decode uploaded image bytes") from exc
 
     aspect_ratio = width / height if height else 0
     expected_aspect = 0.75
