@@ -26,16 +26,15 @@ _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_an
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
 # Final frozen geometry for Task-2 product-region closeout.
-# This replaces the conservative v3 box with a wider/taller final shell:
-# - product shell expands rightward and slightly downward
-# - primary/secondary gap increases to 16px
-# - secondary card gets materially more room
-# - annotation ownership remains on product_region / product_primary_slot
-# - annotation label bounds do not constrain image-slot sizing
-# Parent region: x=456, y=188, w=344, h=544.
-_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 344, "h": 320}
-_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 524, "w": 344, "h": 208}
-_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 344, "h": 544}
+# Product expands rightward to better align with the header/banner envelope while preserving:
+# - annotation ownership on product_region
+# - annotation_owner_slot = product_primary_slot
+# - secondary_slot_annotation_ownership = false
+# Parent region: x=456, y=188, w=320, h=520.
+# Label boxes still begin at x=784, leaving an 8px handoff gap after the product right edge (776).
+_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 310}
+_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 506, "w": 320, "h": 202}
+_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 520}
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -699,8 +698,8 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 344,
-                "product_region_h": 544,
+                "product_region_w": 320,
+                "product_region_h": 520,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
                 "product_pad_bottom": 10,
@@ -727,8 +726,8 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 344,
-                "product_region_h": 544,
+                "product_region_w": 320,
+                "product_region_h": 520,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
                 "product_pad_bottom": 10,
@@ -759,10 +758,10 @@ def resolve_product_behavior(
         product_layout_mode_reason = "single_primary_without_secondary_asset"
     if effective_product_layout_mode == "primary_secondary_dual":
         product_geometry_mode = "primary_secondary_dual_v3"
-        product_geometry_mode_reason = "dual_image_geometry_v3_frozen_final_bounds"
+        product_geometry_mode_reason = "dual_image_geometry_v3_selected"
     else:
         product_geometry_mode = "single_primary_v2"
-        product_geometry_mode_reason = "single_image_geometry_v2_frozen_final_bounds"
+        product_geometry_mode_reason = "single_image_geometry_v2_selected"
     max_items = min(len(spec.feature_callouts), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
     visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
     hero_metrics = hero_policy.layout_metrics

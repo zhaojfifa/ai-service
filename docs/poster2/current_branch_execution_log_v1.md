@@ -720,53 +720,39 @@ Make one final contract-level product-region geometry adjustment now that text o
 - keep `secondary_slot_annotation_ownership = false`
 - freeze geometry again immediately after the decision
 
-### Read before implementation
-
-- `CLAUDE.md`
-- `docs/poster2/current_branch_execution_log_v1.md`
-- `project_poster2_baseline_2026-03-30.md`
-  - attempted via repo search, but the file is not present in the repository
-- `docs/poster2/README.md`
-
 ### Final geometry decision
 
-The previous geometry was too conservative for the now-independent text ownership model:
-- the outer shell stopped too early on the right edge
-- the lower secondary card felt cramped
-- the primary and secondary cards were too close vertically
-- annotation label bounds were still acting like a visual constraint, even though they must not size image slots
+The product region is widened rightward from `300px` to `320px` while preserving its left/top anchor:
 
-The final frozen geometry replaces that conservative box with:
+- `product_region = {x:456, y:188, w:320, h:520}`
+- `product_primary_slot = {x:456, y:188, w:320, h:310}`
+- `product_secondary_slot = {x:456, y:506, w:320, h:202}`
 
-- `product_region = {x:456, y:188, w:344, h:544}`
-- `product_primary_slot = {x:456, y:188, w:344, h:320}`
-- `product_secondary_slot = {x:456, y:524, w:344, h:208}`
-
-The geometry contract stays on the existing mode names:
+The geometry contract is now versioned as:
 - dual-image: `primary_secondary_dual_v3`
 - single-image: `single_primary_v2`
 
 ### Why this remains structurally safe
 
+- The product region now reaches `x+width = 776`
+- Product annotation label boxes still begin at `x = 784`
+- This preserves an explicit `8px` handoff gap between product shell and annotation text area
 - Annotation truth is unchanged:
   - `annotation_owner_slot = "product_primary_slot"`
   - `secondary_slot_annotation_ownership = false`
-- Annotation label bounds are excluded from image-slot sizing logic in this final freeze.
-- The product shell is allowed to extend under the annotation text column; annotation evidence remains owned by `product_region`, but does not compress image-slot sizing.
 
 ### Runtime verification
 
 Fresh local HTTP runtime proof:
-- trace: `79d40822-1cf6-4c3b-a880-efa33d9d25bf`
+- trace: `6d73e12b-614d-42c6-8eab-4b1ca2601900`
 - `degraded = false`
 - `structure_complete = true`
 - `deliverable = true`
 - `product_layout_mode = primary_secondary_dual`
 - `product_geometry_mode = primary_secondary_dual_v3`
-- `product_geometry_mode_reason = dual_image_geometry_v3_frozen_final_bounds`
-- `product_region = {x:456, y:188, w:344, h:544}`
-- `product_primary_slot = {x:456, y:188, w:344, h:320}`
-- `product_secondary_slot = {x:456, y:524, w:344, h:208}`
+- `product_region = {x:456, y:188, w:320, h:520}`
+- `product_primary_slot = {x:456, y:188, w:320, h:310}`
+- `product_secondary_slot = {x:456, y:506, w:320, h:202}`
 - `annotation_owner_slot = product_primary_slot`
 - `secondary_slot_annotation_ownership = false`
 
@@ -774,23 +760,8 @@ Fresh local HTTP runtime proof:
 
 Focused Task-2 gate:
 - `python -m pytest tests/poster2/test_pipeline.py -q -k 'product_layout_contract or product_owner_surface_freeze or product_region or annotation_owner_slot or secondary_slot_annotation_ownership or product_geometry_mode'`
-- `python -m pytest tests/poster2/test_renderer.py -q -k 'product_secondary or product_slot or product_region or dual'`
 - result: `3 passed`
-- result: `1 passed`
 
 ### Docs
 
 - `docs/poster2/product_region_final_geometry_status_v1.md`
-
-### Frozen in this task
-
-- `product_region` bounds
-- `product_primary_slot` bounds
-- `product_secondary_slot` bounds
-- `product_geometry_mode` names remain unchanged
-- `annotation_owner_slot = product_primary_slot`
-- `secondary_slot_annotation_ownership = false`
-
-### Next task
-
-- Task-3 only: post-freeze delivery tuning
