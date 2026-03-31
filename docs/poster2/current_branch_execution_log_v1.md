@@ -974,7 +974,7 @@ Anchor derivation:
 
 ---
 
-## PR-8B — Annotation/text contract under product_policy (2026-03-31)
+## PR-8B redo — Annotation/text runtime contract under product_policy (2026-03-31)
 
 ### State read before coding
 
@@ -984,29 +984,44 @@ Anchor derivation:
 
 ### Goal
 
-Close the remaining annotation/text contract drift by making annotation shell, anchors,
-connectors, markers, label bounds, and text placement mode product-policy-owned truth.
+Redo PR-8B so annotation/text behavior is actual product-owned runtime contract, not
+evidence surfacing only.
 
-### Contract truth changed
+### Old path removed
 
-- `ResolvedProductBehavior.annotation_text_placement_mode` added as a declared contract field
-- `product_policy.annotation_items` now carry:
-  - `anchor_radius`
-  - `leader_color`
-  - `leader_width`
-  - `label_bounds`
-  - `text_placement_mode`
-- `_build_product_contract_review()` now exposes those per-slot fields from `product_policy.annotation_items`
-- `_build_product_annotation_contract_review()` no longer rebuilds slot truth from raw `template.feature_callouts` or `feature_policy`
-- `product_annotation_contract_review.annotation_shell.bounds` now exposes product-owned shell bounds
-- `product_annotation_contract_review.behavior_policy` is now product-owned:
-  - `connector_policy`
-  - `marker_policy`
-  - `shell_policy`
-  - `bounds_policy`
-  - `text_placement_mode`
-  - `char_budget`
-  - `line_clamp`
+- active annotation runtime no longer uses the old `feature_policy` / template `feature_callouts`
+  path as placement truth when `product_annotation_mode == product_anchor_callouts`
+- structured HTML annotation markup no longer defaults connector behavior to
+  `feature_policy.connector_policy` for the active product-annotation path
+
+### Contract fields that became runtime truth
+
+- `product_policy.annotation_items[*].anchor_x`
+- `product_policy.annotation_items[*].anchor_y`
+- `product_policy.annotation_items[*].anchor_radius`
+- `product_policy.annotation_items[*].leader_color`
+- `product_policy.annotation_items[*].leader_width`
+- `product_policy.annotation_items[*].label_bounds`
+- `product_policy.annotation_items[*].connector_policy`
+- `product_policy.annotation_items[*].marker_policy`
+- `product_policy.annotation_items[*].text_placement_mode`
+- `product_policy.annotation_text_placement_mode`
+- `product_annotation_contract_review.annotation_shell.bounds`
+- `product_annotation_contract_review.behavior_policy.{connector_policy, marker_policy, shell_policy, bounds_policy, text_placement_mode, char_budget, line_clamp}`
+
+### Runtime behavior now aligned
+
+- Pillow annotation rendering reads anchors and label bounds from `product_policy.annotation_items`
+- structured HTML annotation rendering reads anchors and label bounds from `product_policy.annotation_items`
+- active connector markup follows per-slot contract policy
+- Stage2 diagnostics continue to reflect backend truth only
+
+### Explicit verification
+
+- no active annotation text placement path still reads placement inputs from `feature_policy`
+- no active annotation placement path depends on `template_spec_fixed` except for the explicit
+  active mode `template_label_box_fixed`
+- product image sizing path remains isolated from annotation text bounds
 
 ### What remained frozen
 
@@ -1018,23 +1033,19 @@ connectors, markers, label bounds, and text placement mode product-policy-owned 
 
 ### Files changed
 
-- `app/services/poster2/template_behavior.py`
-- `app/services/poster2/pipeline.py`
-- `frontend/stage2.html`
-- `docs/stage2.html`
-- `tests/poster2/test_pipeline.py`
-- `tests/test_stage2_guard_diagnostics_surface.py`
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_renderer.py`
 
 ### Focused tests run
 
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or feature_markup_prefers_product_annotation_runtime_truth or template_behavior_resolver_supports_product_annotation_mode'` → `4 passed`
 - `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestTextOwnershipFreeze or product_annotation or TestProductImageContract'` → `19 passed`
 - `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
-- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or feature_callout'` → `12 passed`
 
 ### Next
 
-- `product_secondary_slot`: Pillow renderer parity
-- `scenario_region`: Pillow safe_fill parity fix
+- merge gate only: broader validation before merge
+- do not reopen product geometry, bottom, header/scenario, or beautification from PR-8B
 
 ---
 

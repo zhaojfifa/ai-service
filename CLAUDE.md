@@ -200,19 +200,40 @@ Focused tests run:
 - `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product and not header and not scenario and not bottom'` → `1 passed`
 - `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TestTemplateSpecLoading'` → `12 passed`
 
-### PR-8B — Annotation/text contract under product_policy — COMPLETE (2026-03-31)
+### PR-8B redo — Annotation/text runtime contract under product_policy — COMPLETE (2026-03-31)
 
 State read before coding:
 - `CLAUDE.md`
 - `docs/poster2/current_branch_execution_log_v1.md`
 - `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
 
-Contract truth changed:
-- `product_annotation_contract_review.annotation_shell` now exposes product-owned shell bounds
-- per-slot annotation truth now reads from `product_policy.annotation_items`, not raw template reads rebuilt in `pipeline.py`
-- per-slot contract now includes `anchor_radius`, `leader_color`, `leader_width`, `label_bounds`, and `text_placement_mode`
-- annotation `behavior_policy` is now product-owned: connector, marker, shell, bounds, text placement, char budget, line clamp
-- Stage 2 annotation diagnostics now surface shell bounds, connector policy, marker policy, and text placement mode
+Old path removed:
+- active annotation runtime no longer uses the old `feature_policy` + template `feature_callouts` path as placement truth when `product_annotation_mode == product_anchor_callouts`
+- structured HTML annotation markup no longer defaults connector behavior to `feature_policy.connector_policy` on the active product-annotation path
+
+Contract fields that became runtime truth:
+- `product_policy.annotation_items[*].anchor_x`
+- `product_policy.annotation_items[*].anchor_y`
+- `product_policy.annotation_items[*].anchor_radius`
+- `product_policy.annotation_items[*].leader_color`
+- `product_policy.annotation_items[*].leader_width`
+- `product_policy.annotation_items[*].label_bounds`
+- `product_policy.annotation_items[*].connector_policy`
+- `product_policy.annotation_items[*].marker_policy`
+- `product_policy.annotation_items[*].text_placement_mode`
+- `product_policy.annotation_text_placement_mode`
+- `product_annotation_contract_review.annotation_shell.bounds`
+- `product_annotation_contract_review.behavior_policy.{connector_policy, marker_policy, shell_policy, bounds_policy, text_placement_mode, char_budget, line_clamp}`
+
+Runtime alignment:
+- Pillow annotation rendering now consumes anchors and label bounds from `product_policy.annotation_items`
+- structured HTML annotation rendering now consumes anchors and label bounds from `product_policy.annotation_items`
+- Stage2 diagnostics remain backend-truth only
+
+Explicit verification:
+- no active annotation text placement path still reads placement inputs from `feature_policy`
+- no active annotation placement path depends on `template_spec_fixed` except for the explicit active mode `template_label_box_fixed`
+- product image sizing path stayed on `product_policy.product_primary_slot` / `product_primary_image_fit`; annotation bounds did not affect product image sizing
 
 What remained frozen:
 - product geometry from PR-8A stayed frozen
@@ -222,15 +243,14 @@ What remained frozen:
 - no broad tuning
 
 Focused tests run:
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or feature_markup_prefers_product_annotation_runtime_truth or template_behavior_resolver_supports_product_annotation_mode'` → `4 passed`
 - `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestTextOwnershipFreeze or product_annotation or TestProductImageContract'` → `19 passed`
 - `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
-- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or feature_callout'` → `12 passed`
 
 ### Next
 
-- `product_secondary_slot`: Pillow renderer parity (contract-only for now)
-- `scenario_region`: Pillow safe_fill parity fix
-- Beautification layer planning (after all-region behavior stability)
+- merge gate only: broader validation before merge
+- do not reopen product geometry, bottom, header/scenario, or beautification from PR-8B
 
 ### Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)
 

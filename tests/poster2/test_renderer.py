@@ -47,6 +47,8 @@ from app.services.poster2.renderer import (
     _resolve_feature_mode,
     _resolve_feature_callout_layout,
     _resolve_feature_callout_map,
+    _resolve_product_annotation_callout_layout,
+    _resolve_product_annotation_callout_map,
     _safe_preset_scenario_data_url,
     _visible_gallery_item_count,
     _prepare_gallery_urls,
@@ -994,6 +996,103 @@ class TestStructuredGalleryMarkup:
 
         assert layer_class == "state-show feature-mode-3"
         assert markup.count("connector-policy-uniform_stack") == 3
+
+    def test_resolve_product_annotation_callout_layout_uses_product_policy_runtime_truth(self):
+        template = _load_real_template()
+        resolved = resolve_template_behavior(template, feature_count=3)
+        custom_items = [dict(item) for item in resolved.product_policy.annotation_items]
+        custom_items[0]["anchor_x"] = 701
+        custom_items[0]["anchor_y"] = 222
+        custom_items[0]["label_bounds"] = {"x": 720, "y": 200, "w": 120, "h": 44}
+        custom_items[0]["connector_policy"] = "contract_line"
+        custom_items[0]["marker_policy"] = "contract_dot"
+        product_policy = replace(
+            resolved.product_policy,
+            visible_annotation_count=3,
+            annotation_items=tuple(custom_items),
+        )
+
+        runtime = _resolve_product_annotation_callout_layout(
+            template.feature_callouts,
+            ["One", "Two", "Three"],
+            product_policy=product_policy,
+            accent_color="#112233",
+            text_color="#445566",
+        )
+
+        assert runtime is not None
+        callout, text = runtime[0]
+        assert text == "One"
+        assert callout.anchor_x == 701
+        assert callout.anchor_y == 222
+        assert callout.label_box.x == 720
+        assert callout.label_box.y == 200
+        assert callout.label_box.w == 120
+        assert callout.label_box.h == 44
+        assert callout.anchor_color == "#112233"
+        assert callout.leader_color == "#112233"
+        assert callout.label_box.color == "#445566"
+
+    def test_resolve_product_annotation_callout_map_uses_product_policy_runtime_truth(self):
+        template = _load_real_template()
+        resolved = resolve_template_behavior(template, feature_count=3)
+        custom_items = [dict(item) for item in resolved.product_policy.annotation_items]
+        custom_items[0]["anchor_x"] = 702
+        custom_items[0]["anchor_y"] = 223
+        custom_items[0]["label_bounds"] = {"x": 721, "y": 201, "w": 121, "h": 45}
+        custom_items[0]["connector_policy"] = "contract_line"
+        custom_items[0]["marker_policy"] = "contract_dot"
+        product_policy = replace(
+            resolved.product_policy,
+            visible_annotation_count=3,
+            annotation_items=tuple(custom_items),
+        )
+
+        runtime = _resolve_product_annotation_callout_map(
+            ["One", "Two", "Three"],
+            product_policy=product_policy,
+        )
+
+        assert runtime is not None
+        callout, text = runtime[0]
+        assert text == "One"
+        assert callout["anchor_x"] == 702
+        assert callout["anchor_y"] == 223
+        assert callout["label_box"] == {"x": 721, "y": 201, "w": 121, "h": 45}
+        assert callout["mode_connector_policy"] == "contract_line"
+        assert callout["marker_policy"] == "contract_dot"
+        assert callout["text_placement_mode"] == "template_label_box_fixed"
+
+    def test_feature_markup_prefers_product_annotation_runtime_truth(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        resolved = resolve_template_behavior(template, feature_count=3)
+        custom_items = [dict(item) for item in resolved.product_policy.annotation_items]
+        custom_items[0]["anchor_x"] = 703
+        custom_items[0]["anchor_y"] = 224
+        custom_items[0]["label_bounds"] = {"x": 722, "y": 202, "w": 122, "h": 46}
+        custom_items[0]["connector_policy"] = "contract_line"
+        product_policy = replace(
+            resolved.product_policy,
+            visible_annotation_count=3,
+            annotation_items=tuple(custom_items),
+        )
+
+        markup, layer_class = renderer._feature_markup(
+            {
+                "feature_callouts": [
+                    {"anchor_x": 10, "anchor_y": 20, "label_box": {"x": 30, "y": 0, "w": 60, "h": 40}},
+                ]
+            },
+            ("One", "Two", "Three"),
+            feature_policy=resolved.feature_policy,
+            product_policy=product_policy,
+        )
+
+        assert layer_class == "state-show feature-mode-3"
+        assert "left:703px;top:224px;" in markup
+        assert 'left:722px;top:202px;width:122px;height:46px;' in markup
+        assert "connector-policy-contract_line" in markup
 
     def test_resolve_feature_mode_clamps_to_supported_range(self):
         assert _resolve_feature_mode(0)[0] == 1
