@@ -2502,3 +2502,108 @@ class TestPostFreezeTextCapacity:
         )
         excerpt = _apply_text_budget("A" * 40, policy.agent_char_budget)
         assert len(excerpt) == policy.agent_char_budget
+class TestProductImageContract:
+    """PR-7: Product image contract — bounds and fit authoritative from product_policy.
+
+    Verifies that:
+    - product_policy.product_primary_image_fit is declared and correct
+    - product_contract_review exposes product_primary_image_fit
+    - product_annotation_contract_review product_region.bounds come from product_policy
+    - renderer uses product_policy.product_primary_slot bounds for single_primary
+    """
+
+    def test_resolve_product_behavior_declares_product_primary_image_fit(self):
+        """resolve_product_behavior must set product_primary_image_fit from hero_policy."""
+        from app.services.poster2.template_behavior import (
+            resolve_product_behavior, resolve_hero_behavior
+        )
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="none",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=0,
+            hero_policy=hero,
+        )
+        assert policy.product_primary_image_fit == "contain"
+        assert policy.product_primary_image_fit == hero.product_fit
+
+    def test_product_primary_image_fit_present_in_product_contract_review(self):
+        """product_contract_review must expose product_primary_image_fit at root level."""
+        template = _load_template()
+        spec = _make_spec()
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert "product_primary_image_fit" in review
+        assert review["product_primary_image_fit"] == "contain"
+
+    def test_annotation_contract_review_product_region_bounds_from_product_policy(self):
+        """product_annotation_contract_review product_region.bounds must come from product_policy, not hero_policy."""
+        from app.services.poster2.template_behavior import (
+            resolve_product_behavior, resolve_hero_behavior,
+        )
+        template = _load_template()
+        spec = _make_spec(features=("卖点A", "卖点B", "卖点C"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        annotation_review = metadata["product_annotation_contract_review"]
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        product_policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=3,
+            hero_policy=hero,
+        )
+
+        bounds = annotation_review["product_region"]["bounds"]
+        assert bounds == {
+            "x": int(product_policy.layout_metrics["product_region_x"]),
+            "y": int(product_policy.layout_metrics["product_region_y"]),
+            "w": int(product_policy.layout_metrics["product_region_w"]),
+            "h": int(product_policy.layout_metrics["product_region_h"]),
+        }
+
+    def test_product_primary_slot_bounds_match_single_primary_constant(self):
+        """In single_primary mode, product_primary_slot must match _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+            resolve_product_behavior, resolve_hero_behavior,
+        )
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="none",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=0,
+            hero_policy=hero,
+        )
+        assert policy.product_primary_slot == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT
+        assert policy.product_primary_slot["x"] == 456
+        assert policy.product_primary_slot["y"] == 188
+        assert policy.product_primary_slot["w"] == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["w"]
+        assert policy.product_primary_slot["h"] == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+
+    def test_product_primary_image_fit_consistent_with_hero_fit_for_both_hero_modes(self):
+        """product_primary_image_fit must equal hero_policy.product_fit for both hero modes."""
+        from app.services.poster2.template_behavior import (
+            resolve_product_behavior, resolve_hero_behavior
+        )
+        template = _load_template()
+        for hero_mode in ("scenario_cover_product_contain", "single_product_focus"):
+            hero = resolve_hero_behavior(hero_mode)
+            policy = resolve_product_behavior(
+                template,
+                annotation_mode="none",
+                product_layout_mode="single_primary",
+                has_product_secondary_asset=False,
+                requested_feature_count=0,
+                hero_policy=hero,
+            )
+            assert policy.product_primary_image_fit == hero.product_fit, f"Mismatch for hero_mode={hero_mode}"
+            assert policy.product_primary_image_fit == "contain"

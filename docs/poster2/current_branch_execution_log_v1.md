@@ -854,3 +854,56 @@ Internal consistency: 310 + 20 + 210 = 540 ✓
 ### Docs
 
 - `docs/poster2/product_region_final_geometry_status_v1.md` — formal closure record
+
+---
+
+## PR-7 — Product image contract: bounds and fit authoritative from product_policy (2026-03-31)
+
+### Goal
+
+Close the split where `hero_policy` was the authority for product region bounds in two places,
+and the image fit policy was scattered in renderer branches instead of declared in the product contract.
+
+### Root causes
+
+Three distinct contract gaps, same root cause:
+
+| Location | Old (wrong) | New (correct) |
+|---|---|---|
+| `_build_product_annotation_contract_review()` | `hero_policy.layout_metrics["product_region_*"]` | `product_policy.layout_metrics["product_region_*"]` |
+| `_product_image_slot()` single_primary path | bounds from `hero_policy.layout_metrics` | bounds from `product_policy.product_primary_slot` |
+| renderer fit policy | `hero_policy.product_fit` hardcoded in renderer branches | `product_policy.product_primary_image_fit` declared in resolver |
+
+### Changes
+
+#### `app/services/poster2/template_behavior.py`
+- `product_primary_image_fit: str` added to `ResolvedProductBehavior` dataclass
+- Set from `hero_policy.product_fit` in `resolve_product_behavior()`
+- Included in `as_dict()`
+
+#### `app/services/poster2/renderer.py`
+- `_product_image_slot()` restructured:
+  - When `product_policy` present: always uses `product_policy.product_primary_slot` for bounds and `product_policy.product_primary_image_fit` for fit
+  - Dual mode: reads from product_policy (unchanged behavior)
+  - Single_primary: now reads bounds from product_policy (was hero_policy.layout_metrics — same values, correct authority)
+  - No-product_policy fallback: unchanged (legacy hero-only path)
+
+#### `app/services/poster2/pipeline.py`
+- `_build_product_annotation_contract_review()`: `product_region.bounds` now from `product_policy.layout_metrics` (was `hero_policy.layout_metrics`)
+- `_build_product_contract_review()`: `product_primary_image_fit` added as root-level field
+
+#### Tests (`tests/poster2/test_pipeline.py`)
+- `TestProductImageContract` (5 tests):
+  - `test_resolve_product_behavior_declares_product_primary_image_fit`
+  - `test_product_primary_image_fit_present_in_product_contract_review`
+  - `test_annotation_contract_review_product_region_bounds_from_product_policy`
+  - `test_product_primary_slot_bounds_match_single_primary_constant`
+  - `test_product_primary_image_fit_consistent_with_hero_fit_for_both_hero_modes`
+
+### Acceptance
+- `product_policy.product_primary_image_fit == hero_policy.product_fit` (= `"contain"`) ✓
+- `product_contract_review["product_primary_image_fit"] == "contain"` ✓
+- `product_annotation_contract_review.product_region.bounds` now match `product_policy.layout_metrics` on the clean merge path ✓
+- `_product_image_slot()` single_primary uses `product_policy.product_primary_slot` bounds ✓
+- No geometry changes; no annotation slot changes; no text budget changes ✓
+- Focused validation clean on the merge path ✓
