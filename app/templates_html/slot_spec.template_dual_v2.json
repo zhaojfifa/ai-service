@@ -6,7 +6,7 @@
   "regions": {
     "header_region": { "x": 72, "y": 56, "w": 880, "h": 104 },
     "scenario_region": { "x": 96, "y": 188, "w": 288, "h": 520 },
-    "product_region": { "x": 456, "y": 188, "w": 300, "h": 540 },
+    "product_region": { "x": 456, "y": 188, "w": 472, "h": 540 },
     "feature_region": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "bottom_region": { "x": 96, "y": 728, "w": 832, "h": 232 },
     "title_band_region": { "x": 112, "y": 728, "w": 800, "h": 144 },
@@ -26,8 +26,9 @@
     "scenario_card_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_card_shell_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "scenario_image_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
-    "product": { "x": 456, "y": 188, "w": 300, "h": 540 },
-    "product_card_shell_layer": { "x": 456, "y": 188, "w": 300, "h": 540 },
+    "product": { "x": 456, "y": 188, "w": 472, "h": 540 },
+    "product_card_shell_layer": { "x": 456, "y": 188, "w": 472, "h": 540 },
+    "product_canvas_shell_layer": { "x": 456, "y": 188, "w": 300, "h": 540 },
     "product_image_layer": { "x": 456, "y": 188, "w": 300, "h": 540 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "feature_callout_layer": { "x": 764, "y": 204, "w": 164, "h": 392 },
@@ -153,11 +154,20 @@
     },
     "product_card_shell_layer": {
       "visible_when": "always",
+      "bounds": { "x": 456, "y": 188, "w": 472, "h": 540 },
+      "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "render the widened outer product base plate as the visible product_region shell",
+      "collapse_rule": "never collapse"
+    },
+    "product_canvas_shell_layer": {
+      "visible_when": "always",
       "bounds": { "x": 456, "y": 188, "w": 300, "h": 540 },
       "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
       "max_items": 1,
       "max_lines": 0,
-      "fallback_rule": "keep product card shell visible while product_image_layer resolves inside it",
+      "fallback_rule": "keep the image canvas shell separate from the widened outer product base plate",
       "collapse_rule": "never collapse"
     },
     "product_image_layer": {
@@ -165,11 +175,11 @@
       "bounds": { "x": 456, "y": 188, "w": 300, "h": 540 },
       "padding": { "top": 24, "right": 18, "bottom": 10, "left": 18 },
       "fit_policy": "contain",
-      "anchor": "bottom-center inside product_card_shell_layer",
+      "anchor": "bottom-center inside product_canvas_shell_layer",
       "max_items": 1,
       "max_lines": 0,
       "overflow_rule": "contain product image within card safe bounds without distortion",
-      "fallback_rule": "contain and bottom-anchor product image inside product card shell only",
+      "fallback_rule": "contain and bottom-anchor product image inside the separate product canvas shell only",
       "collapse_rule": "collapse when product_image.url is absent"
     },
     "feature_callout_layer": {

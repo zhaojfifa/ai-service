@@ -1403,6 +1403,8 @@ class TestStructuredScenarioLayer:
         assert "layer-hero-peer-region state-real state-fit-cover state-anchor-center hero-mode-scenario-cover-product-contain" in html_payload
         assert "region-shell-scenario state-real" in html_payload
         assert "layer layer-product layer-hero-peer-region state-fit-contain state-anchor-center hero-mode-scenario-cover-product-contain" in html_payload
+        assert 'data-layer="product_card_shell_layer"' in html_payload
+        assert 'data-layer="product_canvas_shell_layer"' in html_payload
 
     def test_template_html_hides_scenario_for_single_product_focus(self):
         renderer = PuppeteerStructuredRenderer()

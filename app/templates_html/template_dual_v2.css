@@ -54,6 +54,7 @@ body {
 .layer-scenario-region-shell,
 .layer-scenario-content,
 .layer-product-region-shell,
+.layer-product-canvas-shell,
 .layer-product-content,
 .layer-bottom-region-shell,
 .layer-title-band-region-shell,
@@ -399,9 +400,19 @@ body {
 
 .region-shell-product {
   left: 456px;
-  width: 300px;
+  width: 472px;
   border: var(--shell-border-product);
   background: var(--shell-surface-product);
+}
+
+.region-shell-product-canvas {
+  position: absolute;
+  left: 456px;
+  top: 188px;
+  width: 300px;
+  height: 540px;
+  border-radius: 24px;
+  overflow: hidden;
 }
 
 .slot-scenario,

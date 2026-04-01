@@ -1,5 +1,137 @@
 # Current Branch Execution Log v1
 
+## Entry 0 — PR-A Restart From PR-7 Baseline: Visible Product Outer Shell Only
+
+**Branch:** `fix/pra-product-outer-shell`
+**Status:** Complete
+**Last updated:** 2026-04-01
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `project_poster2_baseline_2026-03-30.md` is still missing in this workspace and did not block the PR
+
+### Restart rule applied
+- code path restarted from `fix/pr7-product-truth-only`
+- aligned docs system kept as-is from current main:
+  - `AGENTS.md`
+  - `CLAUDE.md`
+  - `docs/poster2/README.md`
+  - `docs/poster2/current_branch_execution_log_v1.md`
+
+### PR-A scope
+- restore PR-7 code baseline
+- add the visible enlarged `product_region` outer shell as the actual product base plate
+- keep `product_canvas_shell_layer` separate for the image surface
+- no text-shell work
+- no bottom work
+- no header/scenario work
+- no beautification
+
+### Contract truth changed in PR-A
+- `product_region` / `product_card_shell_layer` widen to `{x:456,y:188,w:472,h:540}`
+- `product_canvas_shell_layer` is now explicit in the template contract and stays `{x:456,y:188,w:300,h:540}`
+- `product_image_layer` now anchors to `product_canvas_shell_layer`, not the widened outer shell
+- existing fixed annotation lane at `x=784` is left untouched for now
+
+### What stayed frozen
+- product image slot sizing remains at the PR-7 baseline:
+  - primary `{x:456,y:188,w:300,h:310}` in dual mode
+  - secondary `{x:456,y:518,w:300,h:210}` in dual mode
+  - single-primary `{x:456,y:188,w:300,h:540}`
+- product text shell work not started yet
+- bottom frozen
+- header/scenario frozen
+- beautification frozen
+- broad tuning frozen
+
+### Focused validation run
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestTask2FinalProductGeometry or test_renderer_metadata_includes_layer_render_status'` → `13 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'structured_template_assets_exist or TemplateSpecLoading'` → `12 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'template_html_honors_scenario_real_state_and_product_fit or primary_secondary_dual_renders_secondary_product_slot_in_pillow'` → `1 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and not bottom and not header and not scenario and not text_shell'` → `32 passed`
+
+### Next step after PR-A
+- PR-B only:
+  - add `product_text_shell` as a sibling shell inside the widened outer product shell
+  - keep `feature_region` suppressed
+  - do not let text compete with image canvas width
+
+## Entry 1 — PR-9C Product Region Boundary Correction
+
+**Branch:** `fix/pr9c-product-region-boundary`
+**Status:** In progress
+**Last updated:** 2026-04-01
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `project_poster2_baseline_2026-03-30.md` is still missing in this workspace and did not block the PR
+
+### Why PR-9C exists
+- PR-9B did not lose feature text data
+- `feature_region` suppression was correct
+- the failure was boundary modeling: `product_text_shell` was moved under product ownership, but the active outer product container still behaved like a narrow image shell
+- therefore PR-9C corrects the outer container boundary instead of point-fixing label coordinates
+
+### Contract truth changed in PR-9C
+- `product_region` is widened from `{x:456,y:188,w:320,h:540}` to `{x:456,y:188,w:472,h:540}`
+- `product_content_container` matches that widened outer container
+- `product_canvas_shell_layer` remains the narrow image shell at `{x:456,y:188,w:320,h:540}`
+- `product_text_shell` is now a sibling shell inside `product_region` at `{x:784,y:216,w:144,h:260}`
+- `product_annotation_shell` follows the same sibling text-shell bounds
+- annotation anchors and label bounds now resolve against the widened outer container model:
+  - first anchor `x = 764`
+  - first label bounds `{x:784,y:216,w:144,h:60}`
+
+### Old active path removed
+- no active path treats the narrow `320px` image shell as the runtime container for product annotation/text
+
+### Frozen unchanged
+- `product_primary_slot` stays `{x:456,y:188,w:320,h:310}` in dual mode
+- `product_secondary_slot` stays `{x:456,y:518,w:320,h:210}` in dual mode
+- single-primary image surface stays `{x:456,y:188,w:320,h:540}`
+- feature ownership remains suppressed when product annotation is active
+- bottom stays frozen
+- header/scenario stay frozen
+- beautification stays frozen
+- broad tuning and copy budgets stay frozen
+
+### Focused validation run
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestTask2FinalProductGeometry or TestTextOwnershipFreeze or TestProductImageContract'` → `32 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or template_behavior_resolver_supports_product_annotation_mode or feature_markup_prefers_product_annotation_runtime_truth'` → `4 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or structured_template_assets_exist'` → `12 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and annotation and not bottom and not header and not scenario'` → `15 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'test_renderer_metadata_includes_layer_render_status'` → `1 passed`
+
+### Merge-gate result
+- `.venv/bin/python -m pytest -q` → `325 passed, 10 warnings, 3 subtests passed`
+- gate blocker removed:
+  - `tests/poster2/test_pipeline.py::TestPosterPipelineRun::test_renderer_metadata_includes_layer_render_status` had the stale pre-PR-9C expectation `product_region.w == 320`
+  - updated to the correct PR-9C outer-container truth `product_region.w == 472`
+
+### Right-side product-container confirmation
+- banner/header remains at `header_region = {x:72,y:56,w:880,h:104}`
+- product container remains in the hero peer area to the right of scenario and below header, with:
+  - `product_region = {x:456,y:188,w:472,h:540}`
+  - `product_canvas_shell_layer = {x:456,y:188,w:320,h:540}`
+  - `product_text_shell = {x:784,y:216,w:144,h:260}`
+- therefore text is a sibling shell on the right side of the product image shell, not an overlay competing for the same narrow image width
+- `product_text_shell_layer` and `product_annotation_shell_layer` are rendered independently when annotation is active
+- `feature_region` remains suppressed during active product annotation ownership
+
+### Next step after PR-9C
+- merge only
+
 **Branch:** `fix/poster2-task1-bottom-runtime-v2`
 **Last updated:** 2026-03-30
 
@@ -907,3 +1039,422 @@ Three distinct contract gaps, same root cause:
 - `_product_image_slot()` single_primary uses `product_policy.product_primary_slot` bounds ✓
 - No geometry changes; no annotation slot changes; no text budget changes ✓
 - Focused validation clean on the merge path ✓
+
+---
+
+## PR-8A — Safe product-geometry widening baseline with frozen bottom and annotation/text lane (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+### Goal
+
+Widen only the product geometry contract surfaces while keeping bottom, annotation ownership,
+annotation lane, and non-product region behavior frozen.
+
+This is an accepted intermediate product-geometry PR, not a final product-region closeout.
+
+### Contract truth changed
+
+| Surface | Before | After |
+|---|---|---|
+| `product_region` | `{x:456, y:188, w:300, h:540}` | `{x:456, y:188, w:320, h:540}` |
+| `product_primary_slot` | `{x:456, y:188, w:300, h:310}` | `{x:456, y:188, w:320, h:310}` |
+| `product_secondary_slot` | `{x:456, y:518, w:300, h:210}` | `{x:456, y:518, w:320, h:210}` |
+| `_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT` | `{x:456, y:188, w:300, h:540}` | `{x:456, y:188, w:320, h:540}` |
+| template version | `2.1.4` | `2.1.5` |
+
+Anchor derivation:
+- Left anchor: `scenario_region_right(384) + gap(72) = 456`
+- Right anchor: `annotation_shell_x(784) - gutter(8) = 776`
+- Width: `776 - 456 = 320`
+
+### What remained frozen
+
+- `bottom_shell_top` unchanged
+- `title_band_region` unchanged
+- `gallery_strip_region` unchanged
+- annotation ownership unchanged: `annotation_owner_slot = product_primary_slot`
+- annotation lane unchanged: label boxes still start at `x=784`, leaving an 8px gutter from product right edge `x=776`
+- annotation shell computation unchanged
+- no text budget tuning, no header/scenario work, no beautification
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/template_registry.py`
+- `app/templates/specs/template_dual_v2.json`
+- `app/templates_html/slot_spec.template_dual_v2.json`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_contracts.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestProductOwnerSurfaceFreeze or TestTask2FinalProductGeometry or TestProductImageContract'` → `29 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product and not header and not scenario and not bottom'` → `1 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TestTemplateSpecLoading'` → `12 passed`
+
+### Next PR
+
+- `PR-8B` only: annotation/text contract
+- scope: annotation shell, anchors, connectors, markers, label bounds, text placement mode
+- keep bottom frozen
+- keep the widened product geometry as the new baseline
+
+---
+
+## PR-8B redo — Annotation/text runtime contract under product_policy (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the PR
+
+### Goal
+
+Redo PR-8B so annotation/text behavior is actual product-owned runtime contract, not
+evidence surfacing only.
+
+### Old path removed
+
+- active annotation runtime no longer uses the old `feature_policy` / template `feature_callouts`
+  path as placement truth when `product_annotation_mode == product_anchor_callouts`
+- structured HTML annotation markup no longer defaults connector behavior to
+  `feature_policy.connector_policy` for the active product-annotation path
+
+### Contract fields that became runtime truth
+
+- `product_policy.annotation_items[*].anchor_x`
+- `product_policy.annotation_items[*].anchor_y`
+- `product_policy.annotation_items[*].anchor_radius`
+- `product_policy.annotation_items[*].leader_color`
+- `product_policy.annotation_items[*].leader_width`
+- `product_policy.annotation_items[*].label_bounds`
+- `product_policy.annotation_items[*].connector_policy`
+- `product_policy.annotation_items[*].marker_policy`
+- `product_policy.annotation_items[*].text_placement_mode`
+- `product_policy.annotation_text_placement_mode`
+- `product_annotation_contract_review.annotation_shell.bounds`
+- `product_annotation_contract_review.behavior_policy.{connector_policy, marker_policy, shell_policy, bounds_policy, text_placement_mode, char_budget, line_clamp}`
+
+### Runtime behavior now aligned
+
+- Pillow annotation rendering reads anchors and label bounds from `product_policy.annotation_items`
+- structured HTML annotation rendering reads anchors and label bounds from `product_policy.annotation_items`
+- active connector markup follows per-slot contract policy
+- Stage2 diagnostics continue to reflect backend truth only
+
+### Explicit verification
+
+- no active annotation text placement path still reads placement inputs from `feature_policy`
+- no active annotation placement path depends on `template_spec_fixed` except for the explicit
+  active mode `template_label_box_fixed`
+- product image sizing path remains isolated from annotation text bounds
+
+### What remained frozen
+
+- no product geometry changes beyond accepted PR-8A baseline
+- no bottom changes
+- no header/scenario changes
+- no beautification
+- no broad tuning
+
+### Files changed
+
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_renderer.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or feature_markup_prefers_product_annotation_runtime_truth or template_behavior_resolver_supports_product_annotation_mode'` → `4 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestTextOwnershipFreeze or product_annotation or TestProductImageContract'` → `19 passed`
+- `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
+
+### Next
+
+- merge gate only: broader validation before merge
+- do not reopen product geometry, bottom, header/scenario, or beautification from PR-8B
+
+---
+
+## Gate-unblock PR — Glibatree OpenAI import compatibility (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the task
+
+### Goal
+
+Unblock the non-PR-8B merge gate failure in `tests/test_glibatree_openai.py` without
+touching poster2 or reopening PR-8B.
+
+### Investigation result
+
+- `_request_glibatree_openai_edit` had been removed from `app/services/glibatree.py`
+- `tests/test_glibatree_openai.py` still imports that symbol directly
+- after restoring the symbol, the same test file still used an obsolete `GlibatreeConfig(client=...)`
+  constructor that no longer matches the current config dataclass
+
+### Smallest backward-compatible fix chosen
+
+- restore `_request_glibatree_openai_edit` as a compatibility shim
+- update the test to use the current `GlibatreeConfig` public shape instead of restoring the removed `client` config field
+
+### Files changed
+
+- `app/services/glibatree.py`
+- `tests/test_glibatree_openai.py`
+
+### Validation
+
+- `.venv/bin/python -m pytest -q tests/test_glibatree_openai.py` → `2 passed`
+- `.venv/bin/python -m pytest -q --collect-only tests/test_glibatree_openai.py` → `2 tests collected`
+
+### Next
+
+- merge this gate-unblock PR first
+- then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if full suite passes
+
+---
+
+## Gate-unblock PR — Full-suite follow-up test/runtime compatibility (2026-03-31)
+
+### State read before coding
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the task
+
+### Goal
+
+Unblock the remaining non-PR-8B full-suite failures revealed after the first gate-unblock PR,
+without touching poster2 or reopening PR-8B.
+
+### Investigation result
+
+- `prepare_poster_assets()` still referenced legacy `GlibatreeConfig.use_openai_client`, but the property was missing from the current config dataclass
+- several tests still expected forbidden inline base64 asset inputs to validate
+- one schema test still expected `GeneratePosterResponse.results == []` while current default is `None`
+- `tests/test_template_posters.py` was missing local test scaffolding (`base64` import, `fake_r2_storage` fixture) and still called current helpers with outdated parameters/assertions
+- invalid template image bytes were bubbling into a 500 instead of producing the structured `INVALID_IMAGE` 400 detail path
+
+### Files changed
+
+- `app/config.py`
+- `app/services/template_variants.py`
+- `tests/test_poster_services.py`
+- `tests/test_schemas.py`
+- `tests/test_template_posters.py`
+
+### Validation
+
+- `.venv/bin/python -m pytest -q tests/test_poster_services.py tests/test_schemas.py tests/test_template_posters.py` → `21 passed`
+- `.venv/bin/python -m pytest -q` → `319 passed`
+
+### Next
+
+- merge this full-suite gate-unblock PR first
+- then return to `fix/pr8b-annotation-text-contract`, rebase onto new `main`, rerun merge gate, and merge PR-8B only if the full suite still passes
+
+---
+
+## PR-8B merge gate final rerun — PASSED (2026-03-31)
+
+### State read before merge gate
+
+- `README.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — missing in this workspace; recorded explicitly and did not block the gate
+
+### Gate run
+
+- `.venv/bin/python -m pytest -q`
+
+### Result
+
+- `324 passed, 10 warnings, 3 subtests passed`
+
+### Scope assessment
+
+- PR-8B code path remained limited to product annotation contract work
+- gate now passes after the separate non-PR-8B gate-unblock merges landed on `main`
+- PR-8B is eligible to merge
+
+---
+
+## PR-9A — Product region contract upgrade: full product-content container baseline (2026-04-01)
+
+### State read before coding
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+
+### Goal
+
+Upgrade `product_region` from a narrow image-shell interpretation into a product-owned full
+product-content container, without changing geometry values and without reopening annotation/text
+mode work.
+
+### Old path removed
+
+- `geometry_evidence.region_bounds.product_region` no longer reads `hero_policy.layout_metrics`
+- Pillow product shell runtime no longer reads `hero_policy.layout_metrics` for `product_region`
+- formal HTML contract no longer describes `product_image_layer` as anchored only to the older
+  `product_card_shell_layer`
+
+### Contract/runtime truth added
+
+- `ResolvedProductBehavior.product_region`
+- `ResolvedProductBehavior.product_canvas_shell`
+- `ResolvedProductBehavior.product_content_container`
+- `ResolvedProductBehavior.product_content_container_policy = "full_product_region_container"`
+- `product_contract_review.product_content_container`
+- `product_contract_review.behavior_policy.product_content_container_policy`
+- formal HTML contract layers:
+  - `product_canvas_shell_layer`
+  - `product_content_container_layer`
+
+### Runtime alignment
+
+- `product_region` bounds are now product-owned runtime truth in pipeline geometry evidence
+- Pillow product shell uses product-owned `product_region` bounds
+- product shell, content container, primary slot, and secondary slot remain aligned under
+  `product_policy`
+- no product geometry values changed in this PR
+
+### What remained frozen
+
+- PR-8A product geometry values
+- bottom
+- header/scenario
+- beautification
+- annotation shell / anchors / connectors / markers / label bounds / text placement mode
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.html`
+- `app/templates_html/slot_spec.template_dual_v2.json`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_contracts.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestProductImageContract or TestProductOwnerSurfaceFreeze'` → `18 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading'` → `12 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'single_product_focus_hero_mode_skips_scenario_render or primary_secondary_dual_renders_secondary_product_slot_in_pillow'` → `2 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and not bottom and not header and not scenario and not annotation and not text'` → `24 passed`
+
+### README update
+
+- not needed; formal doc path did not change
+
+### Next
+
+- PR-9B only: move product annotation/text mode deeper onto the upgraded `product_region`
+  container path
+- do not reopen bottom, header/scenario, beautification, or geometry values from PR-9A
+
+---
+
+## PR-9 closure — Product region container and annotation/text contract (2026-04-01)
+
+### State files read before PR-9B
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — still missing in this workspace; recorded explicitly and did not block PR-9
+
+### PR-9A established
+
+- `product_region` is now a product-owned full content container
+- runtime truth now includes:
+  - `product_region`
+  - `product_canvas_shell`
+  - `product_content_container`
+  - `product_content_container_policy = full_product_region_container`
+- product container bounds are no longer read from `hero_policy` in active runtime truth
+
+### PR-9B established
+
+- annotation/text is now a true child contract of the upgraded `product_region`
+- product-owned runtime truth now includes:
+  - `product_text_shell`
+  - `product_text_shell_policy = product_region_text_shell`
+  - `product_annotation_shell`
+  - `annotation_items[*]` under product-owned runtime truth
+- active runtime now consumes from product-owned contract truth:
+  - anchors
+  - connector policy
+  - marker policy
+  - label bounds
+  - text placement mode
+- Stage2 and backend diagnostics now surface:
+  - `product_content_container`
+  - `product_text_shell`
+  - `product_text_shell_policy`
+  - per-slot `positions_source`
+
+### Active old path removed
+
+- active product annotation no longer attaches as an external fixed feature-region lane
+- active `product_anchor_callouts` no longer uses `template_spec_fixed` as the main placement
+  truth
+- active product annotation HTML no longer renders through the external `feature_region` path
+
+### Frozen unchanged
+
+- PR-9A geometry values
+- bottom
+- header/scenario
+- beautification
+- broad tuning
+- Stage1/API/background logic
+
+### Focused validation already completed
+
+- PR-9A focused/scoped product-container checks passed
+- PR-9B focused/scoped product-annotation/text checks passed
+- frontend/docs Stage2 mirror checks passed
+
+### Remaining step
+
+- merge-gate validation only
+
+---
+
+## PR-9 merge gate — PASSED (2026-04-01)
+
+### Gate run
+
+- `.venv/bin/python -m pytest -q`
+
+### Result
+
+- `325 passed, 10 warnings, 3 subtests passed`
+
+### Scope assessment
+
+- PR-9A and PR-9B remain aligned to product-region container and annotation/text contract work only
+- no new geometry work was added during merge-prep
+- no new runtime behavior work was added during merge-prep
+- branch is eligible to merge

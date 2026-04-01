@@ -35,6 +35,8 @@ _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 310}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 300, "h": 210}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
+_PRODUCT_REGION_OUTER_W = 472
+_PRODUCT_CANVAS_SHELL_W = 300
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -700,7 +702,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 300,
+                "product_region_w": _PRODUCT_REGION_OUTER_W,
                 "product_region_h": 540,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
@@ -728,7 +730,7 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
                 "scenario_region_h": 520,
                 "product_region_x": 456,
                 "product_region_y": 188,
-                "product_region_w": 300,
+                "product_region_w": _PRODUCT_REGION_OUTER_W,
                 "product_region_h": 540,
                 "product_pad_top": 24,
                 "product_pad_right": 18,
@@ -858,6 +860,10 @@ def resolve_product_behavior(
         "product_region_y": product_region["y"],
         "product_region_w": product_region["w"],
         "product_region_h": product_region["h"],
+        "product_canvas_shell_x": product_region["x"],
+        "product_canvas_shell_y": product_region["y"],
+        "product_canvas_shell_w": _PRODUCT_CANVAS_SHELL_W,
+        "product_canvas_shell_h": product_region["h"],
         "product_primary_slot_x": product_primary_slot["x"],
         "product_primary_slot_y": product_primary_slot["y"],
         "product_primary_slot_w": product_primary_slot["w"],

@@ -1402,14 +1402,24 @@ def _build_product_contract_review(
                 "h": int(layout_metrics["product_region_h"]),
             },
         },
-        "product_canvas_shell_layer": {
-            "rendered": bool(layer_render_status.get("product_canvas_shell_layer", {}).get("rendered", False)),
-            "reason_code": layer_render_status.get("product_canvas_shell_layer", {}).get("reason_code"),
+        "product_card_shell_layer": {
+            "rendered": bool(layer_render_status.get("product_card_shell_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_card_shell_layer", {}).get("reason_code"),
             "bounds": {
                 "x": int(layout_metrics["product_region_x"]),
                 "y": int(layout_metrics["product_region_y"]),
                 "w": int(layout_metrics["product_region_w"]),
                 "h": int(layout_metrics["product_region_h"]),
+            },
+        },
+        "product_canvas_shell_layer": {
+            "rendered": bool(layer_render_status.get("product_canvas_shell_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_canvas_shell_layer", {}).get("reason_code"),
+            "bounds": {
+                "x": int(layout_metrics["product_canvas_shell_x"]),
+                "y": int(layout_metrics["product_canvas_shell_y"]),
+                "w": int(layout_metrics["product_canvas_shell_w"]),
+                "h": int(layout_metrics["product_canvas_shell_h"]),
             },
         },
         "product_image_layer": {

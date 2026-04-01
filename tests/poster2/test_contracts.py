@@ -282,6 +282,7 @@ class TestTemplateSpecLoading:
         assert "scenario_card_shell_layer" in slot_spec["layers"]
         assert "scenario_image_layer" in slot_spec["layers"]
         assert "product_card_shell_layer" in slot_spec["layers"]
+        assert "product_canvas_shell_layer" in slot_spec["layers"]
         assert "product_image_layer" in slot_spec["layers"]
         assert "feature_callout_layer" in slot_spec["layers"]
         assert "bottom_region_shell_layer" in slot_spec["layers"]
@@ -312,6 +313,7 @@ class TestTemplateSpecLoading:
             "scenario_card_shell_layer",
             "scenario_image_layer",
             "product_card_shell_layer",
+            "product_canvas_shell_layer",
             "product_image_layer",
             "feature_callout_layer",
             "bottom_region_shell_layer",
@@ -348,8 +350,14 @@ class TestTemplateSpecLoading:
         assert scenario_image_contract["max_lines"] == 0
         assert "background_base_layer must not substitute" in scenario_image_contract["fallback_rule"]
         product_image_contract = slot_spec["layer_contracts"]["product_image_layer"]
+        product_card_contract = slot_spec["layer_contracts"]["product_card_shell_layer"]
+        product_canvas_contract = slot_spec["layer_contracts"]["product_canvas_shell_layer"]
+        assert product_card_contract["bounds"] == {"x": 456, "y": 188, "w": 472, "h": 540}
+        assert product_canvas_contract["bounds"] == {"x": 456, "y": 188, "w": 300, "h": 540}
+        assert "outer product base plate" in product_card_contract["fallback_rule"]
+        assert "image canvas shell separate" in product_canvas_contract["fallback_rule"]
         assert product_image_contract["fit_policy"] == "contain"
-        assert product_image_contract["anchor"] == "bottom-center inside product_card_shell_layer"
+        assert product_image_contract["anchor"] == "bottom-center inside product_canvas_shell_layer"
         assert product_image_contract["padding"] == {"top": 24, "right": 18, "bottom": 10, "left": 18}
         assert "without distortion" in product_image_contract["overflow_rule"]
         assert bottom_gallery_items_contract["visible_when"] == "gallery_images.length > 0"

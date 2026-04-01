@@ -491,7 +491,7 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 300, "h": 540}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
@@ -1577,6 +1577,19 @@ class TestBottomStructuralExpansion:
 class TestProductLayoutContract:
     """Scope B: product_layout_mode exposes named slot contract surfaces."""
 
+    def test_product_region_outer_shell_and_canvas_shell_are_separate(self):
+        template = _load_template()
+        spec = _make_spec()
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["product_region"] == {
+            "rendered": True,
+            "bounds": {"x": 456, "y": 188, "w": 472, "h": 540},
+        }
+        assert review["product_card_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 472, "h": 540}
+        assert review["product_canvas_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 300, "h": 540}
+
     def test_single_primary_mode_is_backward_compatible_default(self):
         template = _load_template()
         # Default mode from template spec — single_primary
@@ -2160,7 +2173,7 @@ class TestTask2FinalProductGeometry:
     of label_bounds.
 
     Frozen geometry:
-    - product_region outer shell: {x:456, y:188, w:300, h:540}
+    - product_region outer shell: {x:456, y:188, w:472, h:540}
     - product_primary_slot:       {x:456, y:188, w:300, h:310}  (unchanged)
     - product_secondary_slot:     {x:456, y:518, w:300, h:210}  (gap: 20px)
     - single_primary fallback:    {x:456, y:188, w:300, h:540}
@@ -2191,13 +2204,17 @@ class TestTask2FinalProductGeometry:
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
         assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 518
 
-    def test_annotation_lane_is_external_label_bounds_outside_product_region(self):
-        """Annotation label x=784 must be outside product_region right boundary (x+w=756)."""
-        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
-        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 756
+    def test_annotation_lane_is_outside_canvas_shell_but_inside_outer_shell(self):
+        """PR-A keeps text work untouched while the widened outer shell already contains the future lane."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT, _PRODUCT_REGION_OUTER_W
+        canvas_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 756
+        outer_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_REGION_OUTER_W  # 928
         label_x = 784  # frozen in template spec
-        assert label_x > product_right, (
-            f"label_x ({label_x}) must be outside product right boundary ({product_right})"
+        assert label_x > canvas_right, (
+            f"label_x ({label_x}) must stay outside image canvas right boundary ({canvas_right})"
+        )
+        assert label_x < outer_right, (
+            f"label_x ({label_x}) must already fall inside outer shell right boundary ({outer_right})"
         )
 
     def test_annotation_ownership_unchanged(self):
