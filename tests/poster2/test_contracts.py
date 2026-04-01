@@ -363,11 +363,11 @@ class TestTemplateSpecLoading:
         product_text_shell_contract = slot_spec["layer_contracts"]["product_text_shell_layer"]
         assert product_canvas_contract["visible_when"] == "always"
         assert product_content_contract["max_items"] == 5
-        assert "full product-content container" in product_content_contract["fallback_rule"]
+        assert "outer product-content container" in product_content_contract["fallback_rule"]
         assert "productRegion" not in product_text_shell_contract["fallback_rule"]
-        assert "external right-lane" in product_text_shell_contract["fallback_rule"]
+        assert "sibling shell" in product_text_shell_contract["fallback_rule"]
         assert product_image_contract["fit_policy"] == "contain"
-        assert product_image_contract["anchor"] == "bottom-center inside product_content_container_layer"
+        assert product_image_contract["anchor"] == "bottom-center inside product_canvas_shell_layer"
         assert product_image_contract["padding"] == {"top": 24, "right": 18, "bottom": 10, "left": 18}
         assert "without distortion" in product_image_contract["overflow_rule"]
         assert bottom_gallery_items_contract["visible_when"] == "gallery_images.length > 0"

@@ -82,11 +82,11 @@ These may remain as branch-local history or reference material, but the formal p
 ## Current Engineering Phase
 
 - PR-9A complete: `product_region` upgraded to a full product-owned content container
-- PR-9B complete: annotation/text moved under product-owned container truth
-- current priority: merge-gate validation only
+- PR-9B not accepted as a merge result: annotation/text moved under product-owned truth, but the outer product boundary stayed too narrow
+- current priority: PR-9C only, correcting `product_region` so it becomes the true outer container for image shell plus product text shell
 
 ## Next Steps
 
-- run merge-gate only
-- if merge-gate passes, merge PR-9
+- complete PR-9C only
+- then run merge-gate only
 - if merge-gate fails, record the exact blocker only and do not expand scope

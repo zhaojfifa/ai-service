@@ -491,7 +491,7 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
@@ -1198,7 +1198,7 @@ class TestPosterPipelineRun:
         assert product_review["behavior_policy"]["annotation_count_policy"] == "fixed_3_product_anchor_annotations"
         assert product_review["behavior_policy"]["annotation_connector_policy"] == "product_anchor_leader_line"
         assert product_review["behavior_policy"]["product_text_shell_policy"] == "product_region_text_shell"
-        assert product_review["annotation_slots"][0]["anchor_x"] == 600
+        assert product_review["annotation_slots"][0]["anchor_x"] == 764
         assert product_review["annotation_slots"][0]["rendered_excerpt"] == "特性A"
         assert feature_review["delegated_to_product_annotation"] is True
         assert feature_review["feature_region"]["rendered"] is False
@@ -1587,12 +1587,12 @@ class TestProductLayoutContract:
 
         assert review["product_region"] == {
             "rendered": True,
-            "bounds": {"x": 456, "y": 188, "w": 320, "h": 540},
+            "bounds": {"x": 456, "y": 188, "w": 472, "h": 540},
         }
         assert review["product_canvas_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 320, "h": 540}
-        assert review["product_content_container"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert review["product_content_container"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert review["behavior_policy"]["product_content_container_policy"] == "full_product_region_container"
-        assert metadata["geometry_evidence"]["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert metadata["geometry_evidence"]["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
 
     def test_single_primary_mode_is_backward_compatible_default(self):
         template = _load_template()
@@ -2209,12 +2209,16 @@ class TestTask2FinalProductGeometry:
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
         assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 518
 
-    def test_product_region_w_is_frozen_even_when_annotation_text_moves_inside_container(self):
-        """PR-9B must not reopen product_region width while annotation/text contract changes."""
-        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
-        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]
-        label_x = 620
-        assert label_x < product_right
+    def test_product_region_outer_container_widens_beyond_image_shell(self):
+        """PR-9C widens product_region so text_shell becomes a sibling inside the outer container."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT, _PRODUCT_REGION_OUTER_W
+        image_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]
+        container_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_REGION_OUTER_W
+        label_x = 784
+        assert image_right == 776
+        assert label_x > image_right
+        assert container_right == 928
+        assert label_x < container_right
 
     def test_annotation_ownership_unchanged(self):
         """annotation_owner_slot must remain product_primary_slot after geometry change."""
@@ -2239,8 +2243,8 @@ class TestTask2FinalProductGeometry:
         total = _PRODUCT_DUAL_PRIMARY_SLOT["h"] + gap + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
         assert total == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
 
-    def test_product_region_w_widened_to_320(self):
-        """product_region w must remain 320 under the frozen PR-9A geometry baseline."""
+    def test_product_image_shell_w_stays_frozen_at_320(self):
+        """PR-9C must widen only the outer container, not the image-owned shell width."""
         from app.services.poster2.template_behavior import _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT
         assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["w"] == 320
 
@@ -2395,9 +2399,9 @@ class TestTextOwnershipFreeze:
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["product_annotation_contract_review"]
 
-        assert review["product_content_container"] == {"x": 456, "y": 188, "w": 320, "h": 540}
-        assert review["product_text_shell"]["bounds"] == {"x": 620, "y": 216, "w": 144, "h": 260}
-        assert review["annotation_shell"]["bounds"] == {"x": 620, "y": 216, "w": 144, "h": 260}
+        assert review["product_content_container"] == {"x": 456, "y": 188, "w": 472, "h": 540}
+        assert review["product_text_shell"]["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 260}
+        assert review["annotation_shell"]["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 260}
         assert review["behavior_policy"]["connector_policy"] == "product_anchor_leader_line"
         assert review["behavior_policy"]["marker_policy"] == "product_anchor_marker"
         assert review["behavior_policy"]["product_text_shell_policy"] == "product_region_text_shell"
@@ -2408,10 +2412,10 @@ class TestTextOwnershipFreeze:
         slot = review["annotation_slots"][0]
         assert slot["slot_id"] == "product_annotation_slot_1"
         assert slot["anchor_index"] == 0
-        assert slot["anchor_x"] == 600
+        assert slot["anchor_x"] == 764
         assert slot["anchor_y"] == 246
         assert slot["anchor_radius"] == 7
-        assert slot["label_bounds"] == {"x": 620, "y": 216, "w": 144, "h": 60}
+        assert slot["label_bounds"] == {"x": 784, "y": 216, "w": 144, "h": 60}
         assert slot["connector_policy"] == "product_anchor_leader_line"
         assert slot["marker_policy"] == "product_anchor_marker"
         assert slot["positions_source"] == "product_content_container_runtime"
