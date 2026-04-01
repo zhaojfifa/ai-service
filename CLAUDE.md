@@ -18,7 +18,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - PR-8A accepted intermediate baseline: safe product-geometry widening baseline
 - PR-8B complete and merged: product annotation/text runtime contract under `product_policy`
 - PR-9A complete on `fix/pr9a-product-region-container`: `product_region` upgraded from image-first shell semantics to a product-owned full content container without changing geometry values
-- PR-9B in progress on `fix/pr9b-product-region-annotation-text`: product annotation/text is being moved deeper into the upgraded `product_region` container path
+- PR-9B complete on `fix/pr9b-product-region-annotation-text`: product annotation/text moved deeper into the upgraded `product_region` container path
+- PR-9 merge-gate passed on `fix/pr9b-product-region-annotation-text`: full suite green and branch is eligible to merge
 - Separate gate-unblock work merged for:
   - Glibatree OpenAI import compatibility
   - Remaining full-suite compatibility blockers
@@ -37,7 +38,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current code PR: product annotation/text follow-up inside the upgraded `product_region` container
-- next after PR-9B: merge-gate validation first, then return to non-product region backlog only if gate is clean
+- current priority: merge PR-9 on the clean gate result
+- next after PR-9 merge: return to non-product-region backlog only
 - not yet: beautification
 - not yet: opportunistic geometry drift

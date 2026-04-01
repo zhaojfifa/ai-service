@@ -1239,9 +1239,9 @@ mode work.
 
 ---
 
-## PR-9B — Product annotation/text moved into upgraded product_region container (2026-04-01)
+## PR-9 closure — Product region container and annotation/text contract (2026-04-01)
 
-### State files read before coding
+### State files read before PR-9B
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -1250,109 +1250,79 @@ mode work.
 - `docs/poster2/poster_generation_product_design_baseline_v1.md`
 - `docs/poster2/template_dual_v2_architecture_business_definition.md`
 - `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
-- `project_poster2_baseline_2026-03-30.md` — still missing in this workspace; recorded explicitly and did not block PR-9B
+- `project_poster2_baseline_2026-03-30.md` — still missing in this workspace; recorded explicitly and did not block PR-9
 
-### Goal
+### PR-9A established
 
-Move product annotation/text deeper onto the upgraded `product_region` container path so
-annotation/text behaves as a true child contract of `product_region`, not as an external fixed
-right-lane attachment.
+- `product_region` is now a product-owned full content container
+- runtime truth now includes:
+  - `product_region`
+  - `product_canvas_shell`
+  - `product_content_container`
+  - `product_content_container_policy = full_product_region_container`
+- product container bounds are no longer read from `hero_policy` in active runtime truth
 
-### Product-owned text/annotation truths changed
+### PR-9B established
 
-- `ResolvedProductBehavior.product_text_shell`
-- `ResolvedProductBehavior.product_text_shell_policy = "product_region_text_shell"`
-- `ResolvedProductBehavior.product_annotation_shell`
-- `product_contract_review.product_text_shell_layer`
-- `product_contract_review.behavior_policy.product_text_shell_policy`
-- `product_annotation_contract_review.product_content_container`
-- `product_annotation_contract_review.product_text_shell`
-- `product_annotation_contract_review.behavior_policy.product_text_shell_policy`
-- `product_policy.annotation_items[*].positions_source = "product_content_container_runtime"` for
-  active `product_anchor_callouts`
-- `product_policy.annotation_text_placement_mode = "product_text_shell_stack"` for active
-  `product_anchor_callouts`
-- `product_policy.annotation_bounds_policy = "product_text_shell_runtime"` for active
-  `product_anchor_callouts`
-- `product_policy.annotation_shell_policy = "product_region_annotation_shell"` for active
-  `product_anchor_callouts`
-- formal HTML product-owned layers now include:
-  - `product_text_shell_layer`
-  - `product_annotation_shell_layer`
-  - `product_annotation_items_layer`
-
-### Active old path removed
-
-- active Puppeteer product annotation no longer renders inside the external `feature_region` layer
-- active `product_anchor_callouts` no longer treats `template_spec_fixed` as the main placement
-  truth
-- active `product_anchor_callouts` no longer behaves like an external fixed right-lane attachment
-  outside `product_region`
-
-### Runtime alignment now in place
-
-- resolver computes product annotation shell + label bounds from `product_content_container`
-- renderer consumes annotation anchors, bounds, connector policy, marker policy, and text placement
-  from product-owned runtime truth
-- Stage2 product and annotation diagnostics now surface:
+- annotation/text is now a true child contract of the upgraded `product_region`
+- product-owned runtime truth now includes:
+  - `product_text_shell`
+  - `product_text_shell_policy = product_region_text_shell`
+  - `product_annotation_shell`
+  - `annotation_items[*]` under product-owned runtime truth
+- active runtime now consumes from product-owned contract truth:
+  - anchors
+  - connector policy
+  - marker policy
+  - label bounds
+  - text placement mode
+- Stage2 and backend diagnostics now surface:
   - `product_content_container`
   - `product_text_shell`
   - `product_text_shell_policy`
   - per-slot `positions_source`
-- frontend and docs mirror stay aligned
 
-### Explicit verification
+### Active old path removed
 
-- no active annotation runtime path still reads `feature_policy` as placement truth when
-  `product_annotation_mode = product_anchor_callouts`
-- no active `product_anchor_callouts` path still treats `template_spec_fixed` as the main truth;
-  `template_spec_fixed` remains only for explicit non-active template-fixed modes
-- product image sizing remains frozen
-- PR-9A `product_region` container geometry remains frozen
+- active product annotation no longer attaches as an external fixed feature-region lane
+- active `product_anchor_callouts` no longer uses `template_spec_fixed` as the main placement
+  truth
+- active product annotation HTML no longer renders through the external `feature_region` path
 
-### What stayed frozen
+### Frozen unchanged
 
-- product geometry values from PR-9A
+- PR-9A geometry values
 - bottom
 - header/scenario
 - beautification
 - broad tuning
 - Stage1/API/background logic
 
-### Files changed
+### Focused validation already completed
 
-- `app/services/poster2/template_behavior.py`
-- `app/services/poster2/pipeline.py`
-- `app/services/poster2/renderer.py`
-- `app/templates_html/template_dual_v2.html`
-- `app/templates_html/slot_spec.template_dual_v2.json`
-- `frontend/stage2.html`
-- `docs/stage2.html`
-- `tests/poster2/test_contracts.py`
-- `tests/poster2/test_pipeline.py`
-- `tests/poster2/test_renderer.py`
-- `tests/test_stage2_guard_diagnostics_surface.py`
+- PR-9A focused/scoped product-container checks passed
+- PR-9B focused/scoped product-annotation/text checks passed
+- frontend/docs Stage2 mirror checks passed
 
-### Focused tests run during development
+### Remaining step
 
-- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or feature_markup_prefers_product_annotation_runtime_truth or template_behavior_resolver_supports_product_annotation_mode'` → `4 passed`
-- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'product_annotation or TestProductLayoutContract or TestProductImageContract or TestProductOwnerSurfaceFreeze or TestTask2FinalProductGeometry'` → `34 passed`
-- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py tests/test_stage2_guard_diagnostics_surface.py -k 'TemplateSpecLoading or annotation_detail'` → `13 passed`
+- merge-gate validation only
 
-### Scoped regression before PR completion
+---
 
-- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py tests/test_stage2_guard_diagnostics_surface.py -k 'product and annotation and not bottom and not header and not scenario'` → `16 passed`
-- `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'annotation or docs_publish_mirror'` → `3 passed`
+## PR-9 merge gate — PASSED (2026-04-01)
 
-### Formal doc path / baseline references
+### Gate run
 
-- `docs/poster2/README.md` unchanged; formal doc path did not change
-- `docs/poster2/poster_generation_product_design_baseline_v1.md` unchanged
-- `docs/poster2/template_dual_v2_architecture_business_definition.md` unchanged
-- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md` unchanged
+- `.venv/bin/python -m pytest -q`
 
-### Next
+### Result
 
-- merge gate only first
-- after PR-9B clears merge gate, return to non-product region backlog only; do not reopen product
-  geometry, bottom, header/scenario, or beautification inside this PR line
+- `325 passed, 10 warnings, 3 subtests passed`
+
+### Scope assessment
+
+- PR-9A and PR-9B remain aligned to product-region container and annotation/text contract work only
+- no new geometry work was added during merge-prep
+- no new runtime behavior work was added during merge-prep
+- branch is eligible to merge
