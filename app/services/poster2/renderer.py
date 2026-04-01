@@ -713,12 +713,19 @@ class PuppeteerStructuredRenderer:
             asset_urls["gallery"][: behavior.bottom_policy.visible_item_count],
             behavior.bottom_policy,
         )
-        feature_markup, feature_layer_class = self._feature_markup(
-            anchor_map,
+        product_annotation_markup, product_text_shell_class, product_annotation_class, product_text_shell_style, product_annotation_shell_style = self._product_annotation_markup(
             poster.features,
-            feature_policy=behavior.feature_policy,
             product_policy=behavior.product_policy,
         )
+        if behavior.product_policy.annotation_mode == "product_anchor_callouts":
+            feature_markup, feature_layer_class = "", "state-hidden feature-mode-0"
+        else:
+            feature_markup, feature_layer_class = self._feature_markup(
+                anchor_map,
+                poster.features,
+                feature_policy=behavior.feature_policy,
+                product_policy=behavior.product_policy,
+            )
         logo_suppressed_by_mode = behavior.header_policy.identity_zone_mode == "brand_only"
         header_logo_class = "state-logo-empty" if (not asset_urls["logo"] or logo_suppressed_by_mode) else "state-logo-show"
         header_layer_class = " ".join(filter(None, [header_logo_class, *behavior.header_policy.css_classes]))
@@ -785,6 +792,11 @@ class PuppeteerStructuredRenderer:
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
             "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy, behavior.product_policy)),
             "__PRODUCT_URL__": asset_urls["product"],
+            "__PRODUCT_TEXT_SHELL_CLASS__": product_text_shell_class,
+            "__PRODUCT_TEXT_SHELL_STYLE__": product_text_shell_style,
+            "__PRODUCT_ANNOTATION_SHELL_STYLE__": product_annotation_shell_style,
+            "__PRODUCT_ANNOTATION_CLASS__": product_annotation_class,
+            "__PRODUCT_ANNOTATION_ITEMS__": product_annotation_markup,
             "__PRODUCT_SECONDARY_CLASS__": (
                 "state-show"
                 if behavior.product_policy.product_secondary_slot_rendered and asset_urls.get("product_secondary")
@@ -808,6 +820,58 @@ class PuppeteerStructuredRenderer:
         for key, value in replacements.items():
             rendered = rendered.replace(key, value)
         return rendered
+
+    def _product_annotation_markup(
+        self,
+        features: tuple[str, ...],
+        *,
+        product_policy: ResolvedProductBehavior,
+    ) -> tuple[str, str, str, str, str]:
+        callouts = _resolve_product_annotation_callout_map(
+            features,
+            product_policy=product_policy,
+        )
+        if not callouts:
+            return "", "state-hidden", "state-hidden", "left:0px;top:0px;width:0px;height:0px;", "left:0px;top:0px;width:0px;height:0px;"
+        text_shell = dict(product_policy.product_text_shell)
+        container = dict(product_policy.product_content_container)
+        local_text_shell = {
+            "x": int(text_shell["x"] - container["x"]),
+            "y": int(text_shell["y"] - container["y"]),
+            "w": int(text_shell["w"]),
+            "h": int(text_shell["h"]),
+        }
+        items: list[str] = []
+        for callout, feature in callouts:
+            anchor_x = int(callout["anchor_x"]) - int(text_shell["x"])
+            anchor_y = int(callout["anchor_y"]) - int(text_shell["y"])
+            label_box = dict(callout["label_box"])
+            local_label_box = {
+                "x": int(label_box["x"]) - int(text_shell["x"]),
+                "y": int(label_box["y"]) - int(text_shell["y"]),
+                "w": int(label_box["w"]),
+                "h": int(label_box["h"]),
+            }
+            label_x = int(local_label_box["x"])
+            connector_left = min(anchor_x, label_x)
+            connector_width = max(label_x - anchor_x, 0)
+            connector_policy = html.escape(str(callout.get("mode_connector_policy", product_policy.annotation_connector_policy)))
+            items.append(
+                f'<div class="feature-callout-connector connector-policy-{connector_policy}" style="left:{connector_left}px;top:{anchor_y}px;width:{connector_width}px;"></div>'
+            )
+            items.append(
+                f'<div class="feature-callout-marker" style="left:{anchor_x}px;top:{anchor_y}px;"></div>'
+            )
+            items.append(
+                (
+                    f'<div class="feature-callout feature-mode-box-product-text-shell" style="{_slot_style(local_label_box)}">'
+                    f"{html.escape(feature)}"
+                    "</div>"
+                )
+            )
+        shell_style = _slot_style(local_text_shell)
+        annotation_shell_style = _slot_style({"x": 0, "y": 0, "w": int(text_shell["w"]), "h": int(text_shell["h"])})
+        return "".join(items), "state-show", "state-show", shell_style, annotation_shell_style
 
     def _gallery_markup(
         self,
@@ -1249,7 +1313,7 @@ def _resolve_product_annotation_callout_layout(
 ) -> list[tuple[FeatureCalloutSpec, str]] | None:
     if product_policy is None or product_policy.annotation_mode != "product_anchor_callouts":
         return None
-    if product_policy.annotation_text_placement_mode != "template_label_box_fixed":
+    if product_policy.annotation_text_placement_mode not in {"template_label_box_fixed", "product_text_shell_stack"}:
         return None
     if not product_policy.annotation_items:
         return []
@@ -1293,7 +1357,7 @@ def _resolve_product_annotation_callout_map(
 ) -> list[tuple[dict[str, Any], str]] | None:
     if product_policy is None or product_policy.annotation_mode != "product_anchor_callouts":
         return None
-    if product_policy.annotation_text_placement_mode != "template_label_box_fixed":
+    if product_policy.annotation_text_placement_mode not in {"template_label_box_fixed", "product_text_shell_stack"}:
         return None
     if not product_policy.annotation_items:
         return []
@@ -1570,6 +1634,21 @@ def _build_renderer_layer_render_status(
             "source_binding": "template_dual_v2.product_canvas_shell",
             "count": 1,
             "collapsed": False,
+        },
+        "product_text_shell_layer": {
+            "rendered": product_annotation_rendered,
+            "reason_code": (
+                None
+                if product_annotation_rendered
+                else (
+                    "annotation_mode_none"
+                    if getattr(product_policy, "annotation_mode", "none") == "none"
+                    else "annotation_items_empty"
+                )
+            ),
+            "source_binding": getattr(product_policy, "product_text_shell_policy", "product_text_shell_collapsed"),
+            "count": 1 if product_annotation_rendered else 0,
+            "collapsed": not product_annotation_rendered,
         },
         "product_annotation_shell_layer": {
             "rendered": product_annotation_rendered,

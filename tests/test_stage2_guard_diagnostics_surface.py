@@ -147,7 +147,9 @@ def test_stage2_annotation_detail_surfaces_shell_and_text_placement_mode():
 
     assert "buildProductAnnotationDetail" in frontend_html
     assert "annotation_shell?.bounds" in frontend_html
+    assert "product_text_shell?.bounds" in frontend_html
     assert "text_placement_mode" in frontend_html
+    assert "product_text_shell_policy" in frontend_html
     assert "connector:" in frontend_html
     assert "marker:" in frontend_html
 

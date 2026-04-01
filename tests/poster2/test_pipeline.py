@@ -1193,10 +1193,12 @@ class TestPosterPipelineRun:
         assert product_review["requested_product_source"] == "mock://product"
         assert product_review["product_canvas_shell_layer"]["rendered"] is True
         assert product_review["product_annotation_shell_layer"]["rendered"] is True
+        assert product_review["product_text_shell_layer"]["rendered"] is True
         assert product_review["product_annotation_items_layer"]["visible_item_count"] == 3
         assert product_review["behavior_policy"]["annotation_count_policy"] == "fixed_3_product_anchor_annotations"
         assert product_review["behavior_policy"]["annotation_connector_policy"] == "product_anchor_leader_line"
-        assert product_review["annotation_slots"][0]["anchor_x"] == 764
+        assert product_review["behavior_policy"]["product_text_shell_policy"] == "product_region_text_shell"
+        assert product_review["annotation_slots"][0]["anchor_x"] == 600
         assert product_review["annotation_slots"][0]["rendered_excerpt"] == "特性A"
         assert feature_review["delegated_to_product_annotation"] is True
         assert feature_review["feature_region"]["rendered"] is False
@@ -2055,6 +2057,7 @@ class TestProductOwnerSurfaceFreeze:
 
     EXPECTED_OWNER_SURFACES = {
         "product_canvas_shell_layer",
+        "product_text_shell_layer",
         "product_primary_slot",
         "product_secondary_slot",
         "product_image_layer",
@@ -2064,7 +2067,7 @@ class TestProductOwnerSurfaceFreeze:
     }
 
     def test_owner_surfaces_constant_is_frozen(self):
-        """_FROZEN_PRODUCT_OWNER_SURFACES must be a frozenset with exactly the 7 surfaces."""
+        """_FROZEN_PRODUCT_OWNER_SURFACES must be a frozenset with exactly the product-owned surfaces."""
         from app.services.poster2.template_behavior import _FROZEN_PRODUCT_OWNER_SURFACES
         assert isinstance(_FROZEN_PRODUCT_OWNER_SURFACES, frozenset)
         assert _FROZEN_PRODUCT_OWNER_SURFACES == self.EXPECTED_OWNER_SURFACES
@@ -2170,12 +2173,9 @@ class TestProductOwnerSurfaceFreeze:
 class TestTask2FinalProductGeometry:
     """Task-2: product region geometry finalized from primary_secondary_dual_v2 healthy baseline.
 
-    Lane model: external right lane — annotation labels (x=784+) sit outside the
-    product region right boundary (x=776). Image-slot sizing is fully independent
-    of label_bounds.
-
-    Horizontal anchors: left = scenario_region_right(384) + gap(72) = 456;
-    right = annotation_shell_x(784) - gutter(8) = 776 -> w = 320.
+    Product-region geometry is frozen, while annotation/text may move inside the
+    upgraded product container. Image-slot sizing remains independent of annotation
+    label bounds.
 
     Frozen geometry:
     - product_region outer shell: {x:456, y:188, w:320, h:540}
@@ -2209,14 +2209,12 @@ class TestTask2FinalProductGeometry:
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
         assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 518
 
-    def test_annotation_lane_is_external_label_bounds_outside_product_region(self):
-        """Annotation label x=784 must be outside product_region right boundary (x+w=776)."""
+    def test_product_region_w_is_frozen_even_when_annotation_text_moves_inside_container(self):
+        """PR-9B must not reopen product_region width while annotation/text contract changes."""
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
-        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 776
-        label_x = 784  # frozen in template spec
-        assert label_x > product_right, (
-            f"label_x ({label_x}) must be outside product right boundary ({product_right})"
-        )
+        product_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]
+        label_x = 620
+        assert label_x < product_right
 
     def test_annotation_ownership_unchanged(self):
         """annotation_owner_slot must remain product_primary_slot after geometry change."""
@@ -2242,7 +2240,7 @@ class TestTask2FinalProductGeometry:
         assert total == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
 
     def test_product_region_w_widened_to_320(self):
-        """product_region w must be 320 (anchor-derived: annotation_shell_x(784) - gutter(8) - product_x(456) = 320)."""
+        """product_region w must remain 320 under the frozen PR-9A geometry baseline."""
         from app.services.poster2.template_behavior import _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT
         assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["w"] == 320
 
@@ -2397,24 +2395,27 @@ class TestTextOwnershipFreeze:
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["product_annotation_contract_review"]
 
-        assert review["annotation_shell"]["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 260}
+        assert review["product_content_container"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert review["product_text_shell"]["bounds"] == {"x": 620, "y": 216, "w": 144, "h": 260}
+        assert review["annotation_shell"]["bounds"] == {"x": 620, "y": 216, "w": 144, "h": 260}
         assert review["behavior_policy"]["connector_policy"] == "product_anchor_leader_line"
         assert review["behavior_policy"]["marker_policy"] == "product_anchor_marker"
-        assert review["behavior_policy"]["shell_policy"] == "product_anchor_annotation_shell"
-        assert review["behavior_policy"]["bounds_policy"] == "template_anchor_fixed"
-        assert review["behavior_policy"]["text_placement_mode"] == "template_label_box_fixed"
+        assert review["behavior_policy"]["product_text_shell_policy"] == "product_region_text_shell"
+        assert review["behavior_policy"]["shell_policy"] == "product_region_annotation_shell"
+        assert review["behavior_policy"]["bounds_policy"] == "product_text_shell_runtime"
+        assert review["behavior_policy"]["text_placement_mode"] == "product_text_shell_stack"
 
         slot = review["annotation_slots"][0]
         assert slot["slot_id"] == "product_annotation_slot_1"
         assert slot["anchor_index"] == 0
-        assert slot["anchor_x"] == 764
-        assert slot["anchor_y"] == 250
+        assert slot["anchor_x"] == 600
+        assert slot["anchor_y"] == 246
         assert slot["anchor_radius"] == 7
-        assert slot["label_bounds"] == {"x": 784, "y": 216, "w": 144, "h": 60}
+        assert slot["label_bounds"] == {"x": 620, "y": 216, "w": 144, "h": 60}
         assert slot["connector_policy"] == "product_anchor_leader_line"
         assert slot["marker_policy"] == "product_anchor_marker"
-        assert slot["positions_source"] == "template_spec_fixed"
-        assert slot["text_placement_mode"] == "template_label_box_fixed"
+        assert slot["positions_source"] == "product_content_container_runtime"
+        assert slot["text_placement_mode"] == "product_text_shell_stack"
 
 
 class TestPostFreezeTextCapacity:

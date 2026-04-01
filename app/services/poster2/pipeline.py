@@ -668,6 +668,21 @@ def _build_layer_render_status(
             "source_binding": "template_dual_v2.product_canvas_shell",
             "count": 1,
         },
+        "product_text_shell_layer": {
+            "rendered": product_annotation_rendered,
+            "reason_code": (
+                None
+                if product_annotation_rendered
+                else (
+                    "annotation_mode_none"
+                    if behavior.product_policy.annotation_mode == "none"
+                    else "annotation_items_empty"
+                )
+            ),
+            "source_binding": behavior.product_policy.product_text_shell_policy,
+            "count": 1 if product_annotation_rendered else 0,
+            "collapsed": not product_annotation_rendered,
+        },
         "product_image_layer": {
             "rendered": assets.product is not None,
             "reason_code": None if assets.product is not None else "product_image_missing",
@@ -1390,6 +1405,7 @@ def _build_product_contract_review(
     product_region_bounds = dict(product_policy.product_region)
     product_canvas_shell_bounds = dict(product_policy.product_canvas_shell)
     product_content_container_bounds = dict(product_policy.product_content_container)
+    product_text_shell_bounds = dict(product_policy.product_text_shell)
     return {
         "product_annotation_mode": product_policy.annotation_mode,
         "product_annotation_owner": "product_region" if product_policy.annotation_mode == "product_anchor_callouts" else "feature_region",
@@ -1410,6 +1426,11 @@ def _build_product_contract_review(
             "bounds": product_canvas_shell_bounds,
         },
         "product_content_container": product_content_container_bounds,
+        "product_text_shell_layer": {
+            "rendered": bool(layer_render_status.get("product_text_shell_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_text_shell_layer", {}).get("reason_code"),
+            "bounds": product_text_shell_bounds,
+        },
         "product_image_layer": {
             "rendered": bool(layer_render_status.get("product_image_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
@@ -1451,6 +1472,7 @@ def _build_product_contract_review(
         "secondary_slot_annotation_ownership": False,
         "behavior_policy": {
             "product_content_container_policy": product_policy.product_content_container_policy,
+            "product_text_shell_policy": product_policy.product_text_shell_policy,
             "annotation_count_policy": product_policy.annotation_count_policy,
             "annotation_connector_policy": product_policy.annotation_connector_policy,
             "annotation_marker_policy": product_policy.annotation_marker_policy,
@@ -1586,6 +1608,10 @@ def _build_product_annotation_contract_review(
         return {
             "product_annotation_mode": "none",
             "annotation_active": False,
+            "product_text_shell": {
+                "rendered": False,
+                "bounds": {"x": 0, "y": 0, "w": 0, "h": 0},
+            },
             "annotation_shell": {
                 "rendered": False,
                 "bounds": {"x": 0, "y": 0, "w": 0, "h": 0},
@@ -1651,14 +1677,14 @@ def _build_product_annotation_contract_review(
         "ownership_frozen": True,
         "max_slots": max_slots,
         "visible_slot_count": product_policy.visible_annotation_count,
+        "product_content_container": dict(product_policy.product_content_container),
+        "product_text_shell": {
+            "rendered": bool(product_policy.visible_annotation_count),
+            "bounds": dict(product_policy.product_text_shell),
+        },
         "annotation_shell": {
             "rendered": bool(product_policy.visible_annotation_count),
-            "bounds": {
-                "x": int(product_policy.layout_metrics["annotation_shell_x"]),
-                "y": int(product_policy.layout_metrics["annotation_shell_y"]),
-                "w": int(product_policy.layout_metrics["annotation_shell_w"]),
-                "h": int(product_policy.layout_metrics["annotation_shell_h"]),
-            },
+            "bounds": dict(product_policy.product_annotation_shell),
         },
         "annotation_slots": slot_reviews,
         "product_region": {
@@ -1673,6 +1699,7 @@ def _build_product_annotation_contract_review(
         "behavior_policy": {
             "connector_policy": product_policy.annotation_connector_policy,
             "marker_policy": product_policy.annotation_marker_policy,
+            "product_text_shell_policy": product_policy.product_text_shell_policy,
             "shell_policy": product_policy.annotation_shell_policy,
             "bounds_policy": product_policy.annotation_bounds_policy,
             "text_placement_mode": product_policy.annotation_text_placement_mode,

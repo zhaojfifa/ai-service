@@ -284,6 +284,9 @@ class TestTemplateSpecLoading:
         assert "product_card_shell_layer" in slot_spec["layers"]
         assert "product_canvas_shell_layer" in slot_spec["layers"]
         assert "product_content_container_layer" in slot_spec["layers"]
+        assert "product_text_shell_layer" in slot_spec["layers"]
+        assert "product_annotation_shell_layer" in slot_spec["layers"]
+        assert "product_annotation_items_layer" in slot_spec["layers"]
         assert "product_image_layer" in slot_spec["layers"]
         assert "feature_callout_layer" in slot_spec["layers"]
         assert "bottom_region_shell_layer" in slot_spec["layers"]
@@ -316,6 +319,9 @@ class TestTemplateSpecLoading:
             "product_card_shell_layer",
             "product_canvas_shell_layer",
             "product_content_container_layer",
+            "product_text_shell_layer",
+            "product_annotation_shell_layer",
+            "product_annotation_items_layer",
             "product_image_layer",
             "feature_callout_layer",
             "bottom_region_shell_layer",
@@ -354,9 +360,12 @@ class TestTemplateSpecLoading:
         product_image_contract = slot_spec["layer_contracts"]["product_image_layer"]
         product_canvas_contract = slot_spec["layer_contracts"]["product_canvas_shell_layer"]
         product_content_contract = slot_spec["layer_contracts"]["product_content_container_layer"]
+        product_text_shell_contract = slot_spec["layer_contracts"]["product_text_shell_layer"]
         assert product_canvas_contract["visible_when"] == "always"
         assert product_content_contract["max_items"] == 5
         assert "full product-content container" in product_content_contract["fallback_rule"]
+        assert "productRegion" not in product_text_shell_contract["fallback_rule"]
+        assert "external right-lane" in product_text_shell_contract["fallback_rule"]
         assert product_image_contract["fit_policy"] == "contain"
         assert product_image_contract["anchor"] == "bottom-center inside product_content_container_layer"
         assert product_image_contract["padding"] == {"top": 24, "right": 18, "bottom": 10, "left": 18}

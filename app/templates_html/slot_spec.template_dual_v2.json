@@ -30,6 +30,9 @@
     "product_card_shell_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "product_canvas_shell_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "product_content_container_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
+    "product_text_shell_layer": { "x": 620, "y": 216, "w": 144, "h": 260 },
+    "product_annotation_shell_layer": { "x": 620, "y": 216, "w": 144, "h": 260 },
+    "product_annotation_items_layer": { "x": 620, "y": 216, "w": 144, "h": 260 },
     "product_image_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "feature_callout_layer": { "x": 764, "y": 204, "w": 164, "h": 392 },
@@ -179,6 +182,33 @@
       "max_lines": 0,
       "fallback_rule": "treat product_region as a full product-content container instead of a narrow image-only shell",
       "collapse_rule": "collapse only when all product-owned content is absent"
+    },
+    "product_text_shell_layer": {
+      "visible_when": "product annotation text resolves inside product_region",
+      "bounds": { "x": 620, "y": 216, "w": 144, "h": 260 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 3,
+      "max_lines": 0,
+      "fallback_rule": "host product-owned annotation text inside product_region instead of an external right-lane attachment",
+      "collapse_rule": "collapse when product annotation text is inactive"
+    },
+    "product_annotation_shell_layer": {
+      "visible_when": "product annotation text resolves inside product_text_shell_layer",
+      "bounds": { "x": 620, "y": 216, "w": 144, "h": 260 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 3,
+      "max_lines": 0,
+      "fallback_rule": "annotation shell follows product-owned text-shell runtime truth",
+      "collapse_rule": "collapse when product annotation text is inactive"
+    },
+    "product_annotation_items_layer": {
+      "visible_when": "product annotation items resolve inside product_annotation_shell_layer",
+      "bounds": { "x": 620, "y": 216, "w": 144, "h": 260 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 3,
+      "max_lines": 2,
+      "fallback_rule": "annotation items consume product-owned anchor and label runtime truth inside product_region",
+      "collapse_rule": "collapse when product annotation text is inactive"
     },
     "product_image_layer": {
       "visible_when": "product_image.url exists",
