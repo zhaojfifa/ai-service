@@ -1467,3 +1467,69 @@ mode work.
 - no new geometry work was added during merge-prep
 - no new runtime behavior work was added during merge-prep
 - branch is eligible to merge
+
+## Entry — PR-1: Product Region Boundary Closure
+
+**Branch:** `claude/festive-heisenberg`
+**Status:** Complete
+**Date:** 2026-04-02
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+
+### Problem identified
+The Puppeteer CSS for `product_card_shell_layer` (outer product shell) had a height mismatch:
+
+- Shared CSS rule `.region-shell-scenario, .region-shell-product` sets `height: 520px`
+- `.region-shell-product` override block only set `left` and `width`, inheriting `height: 520px`
+- Contract and all other surfaces use `h: 540`
+- Effect: outer shell bottom at y=708 instead of y=728; secondary slot and canvas shell both extend 20px below outer shell
+
+The Pillow renderer was already correct (`_product_shell_bounds` reads `product_region_h=540` from metrics).
+
+### Fix applied
+- `app/templates_html/template_dual_v2.css`: added `height: 540px` to `.region-shell-product` override block
+
+### Frozen unchanged
+- `_PRODUCT_DUAL_PRIMARY_SLOT`, `_PRODUCT_DUAL_SECONDARY_SLOT`, `_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT` — unchanged
+- `_PRODUCT_REGION_OUTER_W = 472`, `_PRODUCT_CANVAS_SHELL_W = 300` — unchanged
+- Pillow renderer — unchanged (already correct)
+- Annotation lane — unchanged
+- `feature_region` delegation — unchanged (verified: suppressed when product_anchor_callouts active)
+- Bottom, header, scenario — unchanged
+- Text-shell work — not started
+
+### New test class
+`TestProductShellBoundaryClosure` in `tests/poster2/test_renderer.py` (4 tests):
+- CSS outer shell `height: 540px` override present
+- CSS canvas shell `height: 540px` present
+- Both shells share `top: 188px`
+- HTML data-layer attributes present
+
+### Validation
+
+```
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k TestProductShellBoundaryClosure
+→ 4 passed
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestTask2FinalProductGeometry or test_renderer_metadata_includes_layer_render_status'
+→ 13 passed
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and not bottom and not header and not scenario and not text_shell'
+→ 36 passed (32 prior + 4 new)
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_api.py tests/poster2/test_contracts.py tests/poster2/test_renderer.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py
+→ 245 passed, 2 warnings (241 prior + 4 new)
+```
+
+### Next step
+- PR-B: add `product_text_shell` as sibling shell inside the widened outer product shell
+- PR-B does not start on this branch

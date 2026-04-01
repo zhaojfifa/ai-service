@@ -1922,6 +1922,101 @@ class _FakePage:
         self.wait_timeouts.append(timeout_ms)
 
 
+class TestProductShellBoundaryClosure:
+    """PR-1: product_card_shell_layer CSS height must match contract h=540.
+
+    The shared .region-shell-scenario, .region-shell-product rule sets height: 520px.
+    The .region-shell-product override must explicitly set height: 540px so the outer
+    shell bottom edge (y=728) aligns with the canvas shell and secondary slot bottom.
+
+    Frozen boundary:
+    - product_card_shell_layer (outer shell): left=456, top=188, width=472, height=540
+    - product_canvas_shell_layer (image canvas): left=456, top=188, width=300, height=540
+    """
+
+    @staticmethod
+    def _read_css() -> str:
+        return (
+            Path(__file__).resolve().parents[2]
+            / "app"
+            / "templates_html"
+            / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+    def test_product_card_shell_css_height_is_540(self):
+        """region-shell-product override must declare height: 540px (not inherited 520px)."""
+        import re
+        css = self._read_css()
+        # Find the .region-shell-product override block (not the shared rule)
+        # Match the block that follows only .region-shell-product { (single selector)
+        match = re.search(
+            r"\.region-shell-product\s*\{([^}]*)\}",
+            css,
+        )
+        assert match, ".region-shell-product override block not found in CSS"
+        # Collect all such blocks (shared rule uses comma, override uses single selector)
+        blocks = re.findall(
+            r"(?<![,\w\-])\.region-shell-product\s*\{([^}]*)\}",
+            css,
+        )
+        # At least one block must contain height: 540px
+        heights_540 = [b for b in blocks if "540px" in b]
+        assert heights_540, (
+            ".region-shell-product CSS block must contain height: 540px to override the "
+            "shared rule's height: 520px. Found blocks: " + str(blocks)
+        )
+
+    def test_product_canvas_shell_css_height_is_540(self):
+        """region-shell-product-canvas must declare height: 540px."""
+        import re
+        css = self._read_css()
+        match = re.search(r"\.region-shell-product-canvas\s*\{([^}]*)\}", css)
+        assert match, ".region-shell-product-canvas block not found in CSS"
+        assert "540px" in match.group(1), (
+            ".region-shell-product-canvas must have height: 540px"
+        )
+
+    def test_product_card_shell_layer_present_in_html(self):
+        """HTML must mark the outer product shell with data-layer=product_card_shell_layer."""
+        html = (
+            Path(__file__).resolve().parents[2]
+            / "app"
+            / "templates_html"
+            / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        assert 'data-layer="product_card_shell_layer"' in html
+        assert 'data-layer="product_canvas_shell_layer"' in html
+
+    def test_outer_shell_and_canvas_shell_have_same_top_and_height(self):
+        """Both shells must start at top=188 and span height=540 (bottom=728)."""
+        import re
+        css = self._read_css()
+        # Shared rule for both .region-shell-scenario and .region-shell-product
+        shared_match = re.search(
+            r"\.region-shell-scenario,\s*\.region-shell-product\s*\{([^}]*)\}",
+            css,
+        )
+        assert shared_match, "Shared region-shell rule not found"
+        assert "top: 188px" in shared_match.group(1)
+
+        # Product override adds height: 540px
+        override_blocks = re.findall(
+            r"(?<![,\w\-])\.region-shell-product\s*\{([^}]*)\}",
+            css,
+        )
+        assert any("540px" in b for b in override_blocks), (
+            "Product override must set height: 540px"
+        )
+
+        # Canvas shell also top=188, height=540
+        canvas_match = re.search(
+            r"\.region-shell-product-canvas\s*\{([^}]*)\}", css
+        )
+        assert canvas_match
+        assert "top: 188px" in canvas_match.group(1)
+        assert "540px" in canvas_match.group(1)
+
+
 class TestPuppeteerHardening:
 
     def test_stabilize_page_waits_for_root_and_layout_flush(self):
