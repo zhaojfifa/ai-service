@@ -401,6 +401,7 @@ body {
 .region-shell-product {
   left: 456px;
   width: 472px;
+  height: 540px;
   border: var(--shell-border-product);
   background: var(--shell-surface-product);
 }
