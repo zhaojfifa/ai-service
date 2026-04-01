@@ -1178,7 +1178,7 @@ class TestStructuredScenarioLayer:
         assert resolved.product_annotation_mode == "product_anchor_callouts"
         assert resolved.product_policy.annotation_count_policy == "fixed_3_product_anchor_annotations"
         assert resolved.product_policy.visible_annotation_count == 3
-        assert resolved.product_policy.annotation_items[0]["anchor_x"] == 600
+        assert resolved.product_policy.annotation_items[0]["anchor_x"] == 764
 
     def test_template_behavior_resolver_supports_expanded_beauty_presets(self):
         template = _load_real_template()

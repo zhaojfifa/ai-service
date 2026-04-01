@@ -834,13 +834,6 @@ class PuppeteerStructuredRenderer:
         if not callouts:
             return "", "state-hidden", "state-hidden", "left:0px;top:0px;width:0px;height:0px;", "left:0px;top:0px;width:0px;height:0px;"
         text_shell = dict(product_policy.product_text_shell)
-        container = dict(product_policy.product_content_container)
-        local_text_shell = {
-            "x": int(text_shell["x"] - container["x"]),
-            "y": int(text_shell["y"] - container["y"]),
-            "w": int(text_shell["w"]),
-            "h": int(text_shell["h"]),
-        }
         items: list[str] = []
         for callout, feature in callouts:
             anchor_x = int(callout["anchor_x"]) - int(text_shell["x"])
@@ -869,7 +862,7 @@ class PuppeteerStructuredRenderer:
                     "</div>"
                 )
             )
-        shell_style = _slot_style(local_text_shell)
+        shell_style = _slot_style(text_shell)
         annotation_shell_style = _slot_style({"x": 0, "y": 0, "w": int(text_shell["w"]), "h": int(text_shell["h"])})
         return "".join(items), "state-show", "state-show", shell_style, annotation_shell_style
 

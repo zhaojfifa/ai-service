@@ -1,5 +1,60 @@
 # Current Branch Execution Log v1
 
+## Entry 0 — PR-9C Product Region Boundary Correction
+
+**Branch:** `fix/pr9c-product-region-boundary`
+**Status:** In progress
+**Last updated:** 2026-04-01
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `project_poster2_baseline_2026-03-30.md` is still missing in this workspace and did not block the PR
+
+### Why PR-9C exists
+- PR-9B did not lose feature text data
+- `feature_region` suppression was correct
+- the failure was boundary modeling: `product_text_shell` was moved under product ownership, but the active outer product container still behaved like a narrow image shell
+- therefore PR-9C corrects the outer container boundary instead of point-fixing label coordinates
+
+### Contract truth changed in PR-9C
+- `product_region` is widened from `{x:456,y:188,w:320,h:540}` to `{x:456,y:188,w:472,h:540}`
+- `product_content_container` matches that widened outer container
+- `product_canvas_shell_layer` remains the narrow image shell at `{x:456,y:188,w:320,h:540}`
+- `product_text_shell` is now a sibling shell inside `product_region` at `{x:784,y:216,w:144,h:260}`
+- `product_annotation_shell` follows the same sibling text-shell bounds
+- annotation anchors and label bounds now resolve against the widened outer container model:
+  - first anchor `x = 764`
+  - first label bounds `{x:784,y:216,w:144,h:60}`
+
+### Old active path removed
+- no active path treats the narrow `320px` image shell as the runtime container for product annotation/text
+
+### Frozen unchanged
+- `product_primary_slot` stays `{x:456,y:188,w:320,h:310}` in dual mode
+- `product_secondary_slot` stays `{x:456,y:518,w:320,h:210}` in dual mode
+- single-primary image surface stays `{x:456,y:188,w:320,h:540}`
+- feature ownership remains suppressed when product annotation is active
+- bottom stays frozen
+- header/scenario stay frozen
+- beautification stays frozen
+- broad tuning and copy budgets stay frozen
+
+### Focused validation run
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestTask2FinalProductGeometry or TestTextOwnershipFreeze or TestProductImageContract'` → `32 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or template_behavior_resolver_supports_product_annotation_mode or feature_markup_prefers_product_annotation_runtime_truth'` → `4 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or structured_template_assets_exist'` → `12 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and annotation and not bottom and not header and not scenario'` → `15 passed`
+
+### Next step after PR-9C
+- merge-gate only
+- if merge-gate fails, record the exact blocker only and do not expand scope
+
 **Branch:** `fix/poster2-task1-bottom-runtime-v2`
 **Last updated:** 2026-03-30
 

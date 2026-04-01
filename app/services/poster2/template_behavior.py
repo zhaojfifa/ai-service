@@ -35,6 +35,9 @@ _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 310}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 320, "h": 210}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 540}
+_PRODUCT_REGION_OUTER_W = 472
+_PRODUCT_CANVAS_SHELL_W = 320
+_PRODUCT_TEXT_SHELL_SIBLING_GAP = 8
 _PRODUCT_TEXT_SHELL_RIGHT_INSET = 12
 _PRODUCT_TEXT_SHELL_W = 144
 _PRODUCT_TEXT_SHELL_TOP_OFFSET = 28
@@ -793,10 +796,15 @@ def resolve_product_behavior(
     product_region = {
         "x": int(hero_metrics["product_region_x"]),
         "y": int(hero_metrics["product_region_y"]),
-        "w": int(hero_metrics["product_region_w"]),
+        "w": int(_PRODUCT_REGION_OUTER_W),
         "h": int(hero_metrics["product_region_h"]),
     }
-    product_canvas_shell = dict(product_region)
+    product_canvas_shell = {
+        "x": int(product_region["x"]),
+        "y": int(product_region["y"]),
+        "w": int(_PRODUCT_CANVAS_SHELL_W),
+        "h": int(product_region["h"]),
+    }
     product_content_container = dict(product_region)
     product_content_container_policy = "full_product_region_container"
 
@@ -852,7 +860,7 @@ def resolve_product_behavior(
 
         annotation_items = []
         if annotation_mode == "product_anchor_callouts":
-            shell_x = int(product_content_container["x"] + product_content_container["w"] - _PRODUCT_TEXT_SHELL_W - _PRODUCT_TEXT_SHELL_RIGHT_INSET)
+            shell_x = int(product_canvas_shell["x"] + product_canvas_shell["w"] + _PRODUCT_TEXT_SHELL_SIBLING_GAP)
             shell_y = int(product_content_container["y"] + _PRODUCT_TEXT_SHELL_TOP_OFFSET)
             anchor_x = int(shell_x - _PRODUCT_TEXT_SHELL_ANCHOR_GAP)
             annotation_shell = {
