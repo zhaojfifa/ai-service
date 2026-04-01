@@ -287,7 +287,7 @@ class LayoutRenderer:
             )
         self._draw_shell_box(
             canvas,
-            _product_shell_bounds(spec, behavior.hero_policy),
+            _product_shell_bounds(spec, behavior.product_policy),
             radius=24,
             fill=_pillow_shell_fill("product", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
             border=_pillow_border("product", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
@@ -1816,13 +1816,13 @@ def _scenario_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, i
     )
 
 
-def _product_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, int, int]:
-    metrics = hero_policy.layout_metrics
+def _product_shell_bounds(spec: TemplateSpec, product_policy) -> tuple[int, int, int, int]:
+    product_region = product_policy.product_region
     return (
-        int(metrics["product_region_x"]),
-        int(metrics["product_region_y"]),
-        int(metrics["product_region_w"]),
-        int(metrics["product_region_h"]),
+        int(product_region["x"]),
+        int(product_region["y"]),
+        int(product_region["w"]),
+        int(product_region["h"]),
     )
 
 

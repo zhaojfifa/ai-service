@@ -979,12 +979,12 @@ def _scenario_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[s
 
 
 def _product_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
-    metrics = resolved_behavior.hero_policy.layout_metrics
+    product_region = resolved_behavior.product_policy.product_region
     return {
-        "x": int(metrics["product_region_x"]),
-        "y": int(metrics["product_region_y"]),
-        "w": int(metrics["product_region_w"]),
-        "h": int(metrics["product_region_h"]),
+        "x": int(product_region["x"]),
+        "y": int(product_region["y"]),
+        "w": int(product_region["w"]),
+        "h": int(product_region["h"]),
     }
 
 
@@ -1387,6 +1387,9 @@ def _build_product_contract_review(
         if product_policy.product_secondary_slot is not None
         else None
     )
+    product_region_bounds = dict(product_policy.product_region)
+    product_canvas_shell_bounds = dict(product_policy.product_canvas_shell)
+    product_content_container_bounds = dict(product_policy.product_content_container)
     return {
         "product_annotation_mode": product_policy.annotation_mode,
         "product_annotation_owner": "product_region" if product_policy.annotation_mode == "product_anchor_callouts" else "feature_region",
@@ -1399,23 +1402,14 @@ def _build_product_contract_review(
         "rendered_annotation_items": rendered_items,
         "product_region": {
             "rendered": bool(region_render_status.get("product_region", {}).get("rendered", False)),
-            "bounds": {
-                "x": int(layout_metrics["product_region_x"]),
-                "y": int(layout_metrics["product_region_y"]),
-                "w": int(layout_metrics["product_region_w"]),
-                "h": int(layout_metrics["product_region_h"]),
-            },
+            "bounds": product_region_bounds,
         },
         "product_canvas_shell_layer": {
             "rendered": bool(layer_render_status.get("product_canvas_shell_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("product_canvas_shell_layer", {}).get("reason_code"),
-            "bounds": {
-                "x": int(layout_metrics["product_region_x"]),
-                "y": int(layout_metrics["product_region_y"]),
-                "w": int(layout_metrics["product_region_w"]),
-                "h": int(layout_metrics["product_region_h"]),
-            },
+            "bounds": product_canvas_shell_bounds,
         },
+        "product_content_container": product_content_container_bounds,
         "product_image_layer": {
             "rendered": bool(layer_render_status.get("product_image_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("product_image_layer", {}).get("reason_code"),
@@ -1456,6 +1450,7 @@ def _build_product_contract_review(
         "annotation_owner_slot": _PRODUCT_ANNOTATION_OWNER_SLOT,
         "secondary_slot_annotation_ownership": False,
         "behavior_policy": {
+            "product_content_container_policy": product_policy.product_content_container_policy,
             "annotation_count_policy": product_policy.annotation_count_policy,
             "annotation_connector_policy": product_policy.annotation_connector_policy,
             "annotation_marker_policy": product_policy.annotation_marker_policy,

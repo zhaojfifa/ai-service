@@ -28,6 +28,8 @@
     "scenario_image_layer": { "x": 96, "y": 188, "w": 288, "h": 520 },
     "product": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "product_card_shell_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
+    "product_canvas_shell_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
+    "product_content_container_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "product_image_layer": { "x": 456, "y": 188, "w": 320, "h": 540 },
     "feature_callouts": { "x": 764, "y": 204, "w": 164, "h": 392 },
     "feature_callout_layer": { "x": 764, "y": 204, "w": 164, "h": 392 },
@@ -160,16 +162,34 @@
       "fallback_rule": "keep product card shell visible while product_image_layer resolves inside it",
       "collapse_rule": "never collapse"
     },
+    "product_canvas_shell_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 456, "y": 188, "w": 320, "h": 540 },
+      "padding": { "top": 22, "right": 20, "bottom": 22, "left": 20 },
+      "max_items": 1,
+      "max_lines": 0,
+      "fallback_rule": "keep a full product-owned shell active as the parent container for all product content surfaces",
+      "collapse_rule": "never collapse"
+    },
+    "product_content_container_layer": {
+      "visible_when": "product_image.url exists or product_secondary_image.url exists or product annotation content resolves",
+      "bounds": { "x": 456, "y": 188, "w": 320, "h": 540 },
+      "padding": { "top": 0, "right": 0, "bottom": 0, "left": 0 },
+      "max_items": 5,
+      "max_lines": 0,
+      "fallback_rule": "treat product_region as a full product-content container instead of a narrow image-only shell",
+      "collapse_rule": "collapse only when all product-owned content is absent"
+    },
     "product_image_layer": {
       "visible_when": "product_image.url exists",
       "bounds": { "x": 456, "y": 188, "w": 320, "h": 540 },
       "padding": { "top": 24, "right": 18, "bottom": 10, "left": 18 },
       "fit_policy": "contain",
-      "anchor": "bottom-center inside product_card_shell_layer",
+      "anchor": "bottom-center inside product_content_container_layer",
       "max_items": 1,
       "max_lines": 0,
-      "overflow_rule": "contain product image within card safe bounds without distortion",
-      "fallback_rule": "contain and bottom-anchor product image inside product card shell only",
+      "overflow_rule": "contain product image within the product content container without distortion",
+      "fallback_rule": "contain and bottom-anchor product image inside the product content container only",
       "collapse_rule": "collapse when product_image.url is absent"
     },
     "feature_callout_layer": {

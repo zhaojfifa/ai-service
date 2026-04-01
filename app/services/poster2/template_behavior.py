@@ -282,6 +282,10 @@ class ResolvedProductBehavior:
     product_layout_mode_reason: str
     product_geometry_mode: str
     product_geometry_mode_reason: str
+    product_region: dict[str, int]                    # full product region container owned by product_policy
+    product_canvas_shell: dict[str, int]              # shell bounds for product container
+    product_content_container: dict[str, int]         # runtime content container for all product-owned surfaces
+    product_content_container_policy: str
     product_primary_slot: dict[str, int]              # {x, y, w, h} of primary product image region
     product_primary_image_fit: str                    # "contain" | "cover" — fit policy for primary image
     product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
@@ -309,6 +313,10 @@ class ResolvedProductBehavior:
             "product_layout_mode_reason": self.product_layout_mode_reason,
             "product_geometry_mode": self.product_geometry_mode,
             "product_geometry_mode_reason": self.product_geometry_mode_reason,
+            "product_region": dict(self.product_region),
+            "product_canvas_shell": dict(self.product_canvas_shell),
+            "product_content_container": dict(self.product_content_container),
+            "product_content_container_policy": self.product_content_container_policy,
             "product_primary_slot": dict(self.product_primary_slot),
             "product_primary_image_fit": self.product_primary_image_fit,
             "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
@@ -777,6 +785,9 @@ def resolve_product_behavior(
         "w": int(hero_metrics["product_region_w"]),
         "h": int(hero_metrics["product_region_h"]),
     }
+    product_canvas_shell = dict(product_region)
+    product_content_container = dict(product_region)
+    product_content_container_policy = "full_product_region_container"
 
     # Resolve product slot geometry from layout mode.
     if effective_product_layout_mode == "primary_secondary_dual":
@@ -889,6 +900,10 @@ def resolve_product_behavior(
         product_layout_mode_reason=product_layout_mode_reason,
         product_geometry_mode=product_geometry_mode,
         product_geometry_mode_reason=product_geometry_mode_reason,
+        product_region=product_region,
+        product_canvas_shell=product_canvas_shell,
+        product_content_container=product_content_container,
+        product_content_container_policy=product_content_container_policy,
         product_primary_slot=product_primary_slot,
         product_primary_image_fit=hero_policy.product_fit,
         product_secondary_slot=product_secondary_slot,

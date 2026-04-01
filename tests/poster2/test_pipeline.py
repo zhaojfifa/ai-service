@@ -1577,6 +1577,21 @@ class TestBottomStructuralExpansion:
 class TestProductLayoutContract:
     """Scope B: product_layout_mode exposes named slot contract surfaces."""
 
+    def test_product_region_is_product_owned_full_content_container(self):
+        template = _load_template()
+        spec = _make_spec()
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+
+        assert review["product_region"] == {
+            "rendered": True,
+            "bounds": {"x": 456, "y": 188, "w": 320, "h": 540},
+        }
+        assert review["product_canvas_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert review["product_content_container"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert review["behavior_policy"]["product_content_container_policy"] == "full_product_region_container"
+        assert metadata["geometry_evidence"]["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+
     def test_single_primary_mode_is_backward_compatible_default(self):
         template = _load_template()
         # Default mode from template spec — single_primary

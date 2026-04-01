@@ -17,6 +17,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - PR-7 complete: product image bounds / fit authority unified under `product_policy`
 - PR-8A accepted intermediate baseline: safe product-geometry widening baseline
 - PR-8B complete and merged: product annotation/text runtime contract under `product_policy`
+- PR-9A in progress on `fix/pr9a-product-region-container`: `product_region` is being upgraded from image-first shell semantics to a product-owned full content container without changing geometry values
 - Separate gate-unblock work merged for:
   - Glibatree OpenAI import compatibility
   - Remaining full-suite compatibility blockers
@@ -35,6 +36,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- next code PR: product region contract upgrade
+- current code PR: product region contract upgrade
+- next after PR-9A: product annotation/text mode follow-up inside the upgraded `product_region` container
 - not yet: beautification
 - not yet: opportunistic geometry drift
