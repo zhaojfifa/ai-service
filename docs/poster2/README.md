@@ -83,10 +83,12 @@ These may remain as branch-local history or reference material, but the formal p
 
 - restart path active from `fix/pr7-product-truth-only`
 - PR-A complete: visible enlarged `product_region` outer shell added as the real product base plate, with separate `product_canvas_shell_layer`
+- `main` was replaced to this PR-A baseline; no merge commit was used
 - current priority: PR-B only, adding `product_text_shell` as a sibling shell inside the outer product shell
 
 ## Next Steps
 
 - PR-B only
 - then PR-C only
+- all future poster2 work starts from the new `main` only
 - keep bottom, header/scenario, beautification, and broad tuning frozen during the restart path

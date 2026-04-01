@@ -28,6 +28,11 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - Restart path established on `fix/pra-product-outer-shell`: code path rebased to `fix/pr7-product-truth-only` while keeping `AGENTS.md`, `CLAUDE.md`, `docs/poster2/README.md`, and `docs/poster2/current_branch_execution_log_v1.md` aligned to current main
 - PR-A complete on `fix/pra-product-outer-shell`: add the visible enlarged `product_region` outer shell as the real product base plate and keep `product_canvas_shell_layer` separate
 - PR-A does not add product text shell behavior; annotation text path remains on the old fixed lane for now by design
+- old `origin/main` archived before replacement:
+  - branch: `archive/main-before-pra-product-outer-shell-20260401`
+  - tag: `backup/main-before-pra-product-outer-shell-20260401`
+- new `main` now points to the `fix/pra-product-outer-shell` baseline
+- no merge commit was used for this mainline change
 - Separate gate-unblock work merged for:
   - Glibatree OpenAI import compatibility
   - Remaining full-suite compatibility blockers
@@ -58,5 +63,6 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 - current priority: PR-B only
 - next after PR-B: PR-C only for capacity / label bounds / clamp / connector tuning
+- future poster2 work starts from the new `main` only
 - not yet: beautification
 - not yet: opportunistic geometry drift

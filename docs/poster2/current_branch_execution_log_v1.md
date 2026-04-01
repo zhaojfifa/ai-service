@@ -1,5 +1,14 @@
 # Current Branch Execution Log v1
 
+## Mainline Replacement Note — 2026-04-01
+
+- old `origin/main` archived before replacement:
+  - branch: `archive/main-before-pra-product-outer-shell-20260401`
+  - tag: `backup/main-before-pra-product-outer-shell-20260401`
+- new `origin/main` now points to `fix/pra-product-outer-shell` baseline commit `1b4d001`
+- no merge commit was used
+- future poster2 work starts from the new `main` only
+
 ## Entry 0 — PR-A Restart From PR-7 Baseline: Visible Product Outer Shell Only
 
 **Branch:** `fix/pra-product-outer-shell`
