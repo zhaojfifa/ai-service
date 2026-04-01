@@ -42,6 +42,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [feature_anchor_callouts_contract_status_v1.md](feature_anchor_callouts_contract_status_v1.md)
 - [product_region_annotation_contract_status_v1.md](product_region_annotation_contract_status_v1.md)
 - [product_region_contract_closure_status_v1.md](product_region_contract_closure_status_v1.md)
+- [product_region_container_and_annotation_text_contract_status_v1.md](product_region_container_and_annotation_text_contract_status_v1.md)
 - [text_layer_contract_closure_status_v1.md](text_layer_contract_closure_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](scenario_region_resolver_and_renderer_parity_status_v1.md)
 - [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
@@ -78,6 +79,14 @@ These may remain as branch-local history or reference material, but the formal p
 - this file is index only
 - branch-local progress belongs in `current_branch_execution_log_v1.md`
 
-## Next Code PR
+## Current Engineering Phase
 
-- product region contract upgrade
+- PR-9A complete: `product_region` upgraded to a full product-owned content container
+- PR-9B complete: annotation/text moved under product-owned container truth
+- current priority: merge-gate validation only
+
+## Next Steps
+
+- run merge-gate only
+- if merge-gate passes, merge PR-9
+- if merge-gate fails, record the exact blocker only and do not expand scope

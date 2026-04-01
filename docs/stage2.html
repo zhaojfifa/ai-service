@@ -784,6 +784,11 @@
           html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">annotation ${slotStatusHtml(productReview.product_annotation_items_layer?.rendered, productReview.product_annotation_items_layer?.reason_code)}</span>`;
           html += `</div>`;
           const slotChips = [];
+          if (productReview.product_content_container) slotChips.push(`container (${productReview.product_content_container.x},${productReview.product_content_container.y},${productReview.product_content_container.w},${productReview.product_content_container.h})`);
+          if (productReview.product_text_shell_layer?.bounds) {
+            const shell = productReview.product_text_shell_layer.bounds;
+            slotChips.push(`text shell (${shell.x},${shell.y},${shell.w},${shell.h})`);
+          }
           if (productReview.product_primary_slot) slotChips.push(`primary (${productReview.product_primary_slot.x},${productReview.product_primary_slot.y},${productReview.product_primary_slot.w},${productReview.product_primary_slot.h})`);
           if (productReview.product_secondary_slot) slotChips.push(`secondary (${productReview.product_secondary_slot.x},${productReview.product_secondary_slot.y},${productReview.product_secondary_slot.w},${productReview.product_secondary_slot.h})`);
           if (slotChips.length) {
@@ -836,7 +841,16 @@
           const mode = annotationReview.product_annotation_mode || '';
           const visibleCount = annotationReview.visible_slot_count;
           const policy = annotationReview.behavior_policy || {};
+          const container = annotationReview.product_content_container;
+          const textShell = annotationReview.product_text_shell?.bounds;
           if (mode) html += `<div class="s2-slot-note">mode: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' slots' : ''}${policy.text_placement_mode ? ' · text: ' + policy.text_placement_mode : ''}</div>`;
+          if (container || textShell) {
+            html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
+            if (container) html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">container (${container.x},${container.y},${container.w},${container.h})</span>`;
+            if (textShell) html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">text shell (${textShell.x},${textShell.y},${textShell.w},${textShell.h})</span>`;
+            if (policy.product_text_shell_policy) html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">text-shell:${policy.product_text_shell_policy}</span>`;
+            html += `</div>`;
+          }
           const shell = annotationReview.annotation_shell?.bounds;
           if (shell) {
             html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
@@ -855,7 +869,7 @@
             html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">`;
             for (const slot of slots) {
               if (slot.anchor_x != null) {
-                html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${slot.slot_id}:(${slot.anchor_x},${slot.anchor_y}) r=${slot.anchor_radius ?? 0}</span>`;
+                html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${slot.slot_id}:(${slot.anchor_x},${slot.anchor_y}) r=${slot.anchor_radius ?? 0}${slot.positions_source ? ' · ' + slot.positions_source : ''}</span>`;
               }
             }
             html += '</div>';

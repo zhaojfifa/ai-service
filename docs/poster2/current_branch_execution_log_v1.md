@@ -1155,3 +1155,174 @@ without touching poster2 or reopening PR-8B.
 - PR-8B code path remained limited to product annotation contract work
 - gate now passes after the separate non-PR-8B gate-unblock merges landed on `main`
 - PR-8B is eligible to merge
+
+---
+
+## PR-9A — Product region contract upgrade: full product-content container baseline (2026-04-01)
+
+### State read before coding
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+
+### Goal
+
+Upgrade `product_region` from a narrow image-shell interpretation into a product-owned full
+product-content container, without changing geometry values and without reopening annotation/text
+mode work.
+
+### Old path removed
+
+- `geometry_evidence.region_bounds.product_region` no longer reads `hero_policy.layout_metrics`
+- Pillow product shell runtime no longer reads `hero_policy.layout_metrics` for `product_region`
+- formal HTML contract no longer describes `product_image_layer` as anchored only to the older
+  `product_card_shell_layer`
+
+### Contract/runtime truth added
+
+- `ResolvedProductBehavior.product_region`
+- `ResolvedProductBehavior.product_canvas_shell`
+- `ResolvedProductBehavior.product_content_container`
+- `ResolvedProductBehavior.product_content_container_policy = "full_product_region_container"`
+- `product_contract_review.product_content_container`
+- `product_contract_review.behavior_policy.product_content_container_policy`
+- formal HTML contract layers:
+  - `product_canvas_shell_layer`
+  - `product_content_container_layer`
+
+### Runtime alignment
+
+- `product_region` bounds are now product-owned runtime truth in pipeline geometry evidence
+- Pillow product shell uses product-owned `product_region` bounds
+- product shell, content container, primary slot, and secondary slot remain aligned under
+  `product_policy`
+- no product geometry values changed in this PR
+
+### What remained frozen
+
+- PR-8A product geometry values
+- bottom
+- header/scenario
+- beautification
+- annotation shell / anchors / connectors / markers / label bounds / text placement mode
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.html`
+- `app/templates_html/slot_spec.template_dual_v2.json`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_contracts.py`
+
+### Focused tests run
+
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestProductImageContract or TestProductOwnerSurfaceFreeze'` → `18 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading'` → `12 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'single_product_focus_hero_mode_skips_scenario_render or primary_secondary_dual_renders_secondary_product_slot_in_pillow'` → `2 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and not bottom and not header and not scenario and not annotation and not text'` → `24 passed`
+
+### README update
+
+- not needed; formal doc path did not change
+
+### Next
+
+- PR-9B only: move product annotation/text mode deeper onto the upgraded `product_region`
+  container path
+- do not reopen bottom, header/scenario, beautification, or geometry values from PR-9A
+
+---
+
+## PR-9 closure — Product region container and annotation/text contract (2026-04-01)
+
+### State files read before PR-9B
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `project_poster2_baseline_2026-03-30.md` — still missing in this workspace; recorded explicitly and did not block PR-9
+
+### PR-9A established
+
+- `product_region` is now a product-owned full content container
+- runtime truth now includes:
+  - `product_region`
+  - `product_canvas_shell`
+  - `product_content_container`
+  - `product_content_container_policy = full_product_region_container`
+- product container bounds are no longer read from `hero_policy` in active runtime truth
+
+### PR-9B established
+
+- annotation/text is now a true child contract of the upgraded `product_region`
+- product-owned runtime truth now includes:
+  - `product_text_shell`
+  - `product_text_shell_policy = product_region_text_shell`
+  - `product_annotation_shell`
+  - `annotation_items[*]` under product-owned runtime truth
+- active runtime now consumes from product-owned contract truth:
+  - anchors
+  - connector policy
+  - marker policy
+  - label bounds
+  - text placement mode
+- Stage2 and backend diagnostics now surface:
+  - `product_content_container`
+  - `product_text_shell`
+  - `product_text_shell_policy`
+  - per-slot `positions_source`
+
+### Active old path removed
+
+- active product annotation no longer attaches as an external fixed feature-region lane
+- active `product_anchor_callouts` no longer uses `template_spec_fixed` as the main placement
+  truth
+- active product annotation HTML no longer renders through the external `feature_region` path
+
+### Frozen unchanged
+
+- PR-9A geometry values
+- bottom
+- header/scenario
+- beautification
+- broad tuning
+- Stage1/API/background logic
+
+### Focused validation already completed
+
+- PR-9A focused/scoped product-container checks passed
+- PR-9B focused/scoped product-annotation/text checks passed
+- frontend/docs Stage2 mirror checks passed
+
+### Remaining step
+
+- merge-gate validation only
+
+---
+
+## PR-9 merge gate — PASSED (2026-04-01)
+
+### Gate run
+
+- `.venv/bin/python -m pytest -q`
+
+### Result
+
+- `325 passed, 10 warnings, 3 subtests passed`
+
+### Scope assessment
+
+- PR-9A and PR-9B remain aligned to product-region container and annotation/text contract work only
+- no new geometry work was added during merge-prep
+- no new runtime behavior work was added during merge-prep
+- branch is eligible to merge

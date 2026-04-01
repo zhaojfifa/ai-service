@@ -26,10 +26,8 @@ _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_an
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
 # Frozen geometry for primary_secondary_dual product layout mode (geometry_mode = primary_secondary_dual_v2).
-# Lane model: external right lane — annotation labels (x=784+) are outside the product region right
-# boundary (x=776); image-slot sizing is fully independent of label_bounds.
-# Horizontal anchors: left = scenario_region_right(384) + gap(72) = 456;
-#   right = annotation_shell_x(784) - gutter(8) = 776 -> w = 776 - 456 = 320.
+# Product_region remains the full container baseline; product image sizing stays independent of
+# annotation/text shell placement inside that container.
 # Primary slot: upper ~57% of the product region; receives all annotation callouts.
 # Secondary slot: lower ~39% of the product region; no callouts, no annotation ownership.
 # Parent region (scenario_cover_product_contain): x=456, y=188, w=320, h=540.
@@ -37,6 +35,12 @@ _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 310}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 320, "h": 210}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 320, "h": 540}
+_PRODUCT_TEXT_SHELL_RIGHT_INSET = 12
+_PRODUCT_TEXT_SHELL_W = 144
+_PRODUCT_TEXT_SHELL_TOP_OFFSET = 28
+_PRODUCT_TEXT_SHELL_ITEM_H = 60
+_PRODUCT_TEXT_SHELL_ITEM_GAP = 40
+_PRODUCT_TEXT_SHELL_ANCHOR_GAP = 20
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -44,6 +48,7 @@ _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w":
 # Secondary slot never becomes an annotation owner.
 _FROZEN_PRODUCT_OWNER_SURFACES: frozenset[str] = frozenset({
     "product_canvas_shell_layer",
+    "product_text_shell_layer",
     "product_primary_slot",
     "product_secondary_slot",
     "product_image_layer",
@@ -282,6 +287,13 @@ class ResolvedProductBehavior:
     product_layout_mode_reason: str
     product_geometry_mode: str
     product_geometry_mode_reason: str
+    product_region: dict[str, int]                    # full product region container owned by product_policy
+    product_canvas_shell: dict[str, int]              # shell bounds for product container
+    product_content_container: dict[str, int]         # runtime content container for all product-owned surfaces
+    product_content_container_policy: str
+    product_text_shell: dict[str, int]
+    product_text_shell_policy: str
+    product_annotation_shell: dict[str, int]
     product_primary_slot: dict[str, int]              # {x, y, w, h} of primary product image region
     product_primary_image_fit: str                    # "contain" | "cover" — fit policy for primary image
     product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
@@ -309,6 +321,13 @@ class ResolvedProductBehavior:
             "product_layout_mode_reason": self.product_layout_mode_reason,
             "product_geometry_mode": self.product_geometry_mode,
             "product_geometry_mode_reason": self.product_geometry_mode_reason,
+            "product_region": dict(self.product_region),
+            "product_canvas_shell": dict(self.product_canvas_shell),
+            "product_content_container": dict(self.product_content_container),
+            "product_content_container_policy": self.product_content_container_policy,
+            "product_text_shell": dict(self.product_text_shell),
+            "product_text_shell_policy": self.product_text_shell_policy,
+            "product_annotation_shell": dict(self.product_annotation_shell),
             "product_primary_slot": dict(self.product_primary_slot),
             "product_primary_image_fit": self.product_primary_image_fit,
             "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
@@ -777,6 +796,9 @@ def resolve_product_behavior(
         "w": int(hero_metrics["product_region_w"]),
         "h": int(hero_metrics["product_region_h"]),
     }
+    product_canvas_shell = dict(product_region)
+    product_content_container = dict(product_region)
+    product_content_container_policy = "full_product_region_container"
 
     # Resolve product slot geometry from layout mode.
     if effective_product_layout_mode == "primary_secondary_dual":
@@ -797,11 +819,13 @@ def resolve_product_behavior(
         annotation_shell_policy = "annotation_shell_collapsed"
         annotation_bounds_policy = "no_annotation_bounds"
         annotation_text_placement_mode = "annotation_text_disabled"
+        product_text_shell_policy = "product_text_shell_collapsed"
         text_budget_policy = "annotation_budget_disabled"
         line_clamp = 0
         char_budget = 0
         annotation_items: list[dict[str, object]] = []
-        annotation_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
+        product_text_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
+        annotation_shell = dict(product_text_shell)
     else:
         char_budget = {1: 40, 2: 34, 3: 28}.get(max(visible_annotation_count, 1), 28)
         line_clamp = 2
@@ -812,63 +836,111 @@ def resolve_product_behavior(
             annotation_shell_policy = "right_stack_annotation_shell"
             annotation_bounds_policy = "template_label_box_fixed"
             annotation_text_placement_mode = "template_label_box_fixed"
+            product_text_shell_policy = "template_right_stack_shell"
             text_budget_policy = "fixed_3_right_stack_two_line_budget"
         elif annotation_mode == "product_anchor_callouts":
             annotation_count_policy = "fixed_3_product_anchor_annotations"
             annotation_connector_policy = "product_anchor_leader_line"
             annotation_marker_policy = "product_anchor_marker"
-            annotation_shell_policy = "product_anchor_annotation_shell"
-            annotation_bounds_policy = "template_anchor_fixed"
-            annotation_text_placement_mode = "template_label_box_fixed"
+            annotation_shell_policy = "product_region_annotation_shell"
+            annotation_bounds_policy = "product_text_shell_runtime"
+            annotation_text_placement_mode = "product_text_shell_stack"
+            product_text_shell_policy = "product_region_text_shell"
             text_budget_policy = "fixed_3_anchor_two_line_budget"
         else:
             raise ValueError(f"Unsupported product_annotation_mode: {annotation_mode}")
 
         annotation_items = []
-        left = None
-        top = None
-        right = None
-        bottom = None
+        if annotation_mode == "product_anchor_callouts":
+            shell_x = int(product_content_container["x"] + product_content_container["w"] - _PRODUCT_TEXT_SHELL_W - _PRODUCT_TEXT_SHELL_RIGHT_INSET)
+            shell_y = int(product_content_container["y"] + _PRODUCT_TEXT_SHELL_TOP_OFFSET)
+            anchor_x = int(shell_x - _PRODUCT_TEXT_SHELL_ANCHOR_GAP)
+            annotation_shell = {
+                "x": shell_x,
+                "y": shell_y,
+                "w": _PRODUCT_TEXT_SHELL_W,
+                "h": 0,
+            }
+        else:
+            left = None
+            top = None
+            right = None
+            bottom = None
         for index, callout in enumerate(spec.feature_callouts[:max_items], start=1):
-            label_box = callout.label_box
+            if annotation_mode == "product_anchor_callouts":
+                label_y = int(shell_y + (index - 1) * (_PRODUCT_TEXT_SHELL_ITEM_H + _PRODUCT_TEXT_SHELL_ITEM_GAP))
+                label_box_bounds = {
+                    "x": shell_x,
+                    "y": label_y,
+                    "w": _PRODUCT_TEXT_SHELL_W,
+                    "h": _PRODUCT_TEXT_SHELL_ITEM_H,
+                }
+                current_anchor_x = anchor_x
+                current_anchor_y = int(label_y + _PRODUCT_TEXT_SHELL_ITEM_H // 2)
+                current_anchor_radius = int(callout.anchor_radius)
+                current_anchor_color = callout.anchor_color
+                current_leader_color = callout.leader_color
+                current_leader_width = int(callout.leader_width)
+                positions_source = "product_content_container_runtime"
+            else:
+                label_box = callout.label_box
+                label_box_bounds = {
+                    "x": int(label_box.x),
+                    "y": int(label_box.y),
+                    "w": int(label_box.w),
+                    "h": int(label_box.h),
+                }
+                current_anchor_x = int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None
+                current_anchor_y = int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None
+                current_anchor_radius = int(callout.anchor_radius) if annotation_mode == "product_anchor_callouts" else 0
+                current_anchor_color = callout.anchor_color if annotation_mode == "product_anchor_callouts" else None
+                current_leader_color = callout.leader_color if annotation_mode == "product_anchor_callouts" else None
+                current_leader_width = int(callout.leader_width) if annotation_mode == "product_anchor_callouts" else 0
+                positions_source = "template_spec_fixed"
             annotation_items.append(
                 {
                     "slot_id": f"product_annotation_slot_{index}",
                     "anchor_index": index - 1,
-                    "anchor_x": int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None,
-                    "anchor_y": int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None,
-                    "anchor_radius": int(callout.anchor_radius) if annotation_mode == "product_anchor_callouts" else 0,
-                    "anchor_color": callout.anchor_color if annotation_mode == "product_anchor_callouts" else None,
-                    "leader_color": callout.leader_color if annotation_mode == "product_anchor_callouts" else None,
-                    "leader_width": int(callout.leader_width) if annotation_mode == "product_anchor_callouts" else 0,
-                    "label_bounds": {
-                        "x": int(label_box.x),
-                        "y": int(label_box.y),
-                        "w": int(label_box.w),
-                        "h": int(label_box.h),
-                    },
+                    "anchor_x": current_anchor_x,
+                    "anchor_y": current_anchor_y,
+                    "anchor_radius": current_anchor_radius,
+                    "anchor_color": current_anchor_color,
+                    "leader_color": current_leader_color,
+                    "leader_width": current_leader_width,
+                    "label_bounds": label_box_bounds,
                     "connector_policy": annotation_connector_policy,
                     "marker_policy": annotation_marker_policy,
-                    "positions_source": "template_spec_fixed",
+                    "positions_source": positions_source,
                     "text_placement_mode": annotation_text_placement_mode,
                 }
             )
-            left = int(label_box.x) if left is None else min(left, int(label_box.x))
-            top = int(label_box.y) if top is None else min(top, int(label_box.y))
-            right = int(label_box.x + label_box.w) if right is None else max(right, int(label_box.x + label_box.w))
-            bottom = int(label_box.y + label_box.h) if bottom is None else max(bottom, int(label_box.y + label_box.h))
-        annotation_shell = {
-            "x": int(left or product_region["x"]),
-            "y": int(top or product_region["y"]),
-            "w": int((right - left) if left is not None and right is not None else 0),
-            "h": int((bottom - top) if top is not None and bottom is not None else 0),
-        }
+            if annotation_mode == "product_anchor_callouts":
+                annotation_shell["h"] = int((label_box_bounds["y"] + label_box_bounds["h"]) - shell_y)
+            else:
+                left = int(label_box_bounds["x"]) if left is None else min(left, int(label_box_bounds["x"]))
+                top = int(label_box_bounds["y"]) if top is None else min(top, int(label_box_bounds["y"]))
+                right = int(label_box_bounds["x"] + label_box_bounds["w"]) if right is None else max(right, int(label_box_bounds["x"] + label_box_bounds["w"]))
+                bottom = int(label_box_bounds["y"] + label_box_bounds["h"]) if bottom is None else max(bottom, int(label_box_bounds["y"] + label_box_bounds["h"]))
+        if annotation_mode == "product_anchor_callouts":
+            product_text_shell = dict(annotation_shell)
+        else:
+            product_text_shell = {
+                "x": int(left or product_region["x"]),
+                "y": int(top or product_region["y"]),
+                "w": int((right - left) if left is not None and right is not None else 0),
+                "h": int((bottom - top) if top is not None and bottom is not None else 0),
+            }
+            annotation_shell = dict(product_text_shell)
 
     layout_metrics = {
         "product_region_x": product_region["x"],
         "product_region_y": product_region["y"],
         "product_region_w": product_region["w"],
         "product_region_h": product_region["h"],
+        "product_text_shell_x": int(product_text_shell["x"]),
+        "product_text_shell_y": int(product_text_shell["y"]),
+        "product_text_shell_w": int(product_text_shell["w"]),
+        "product_text_shell_h": int(product_text_shell["h"]),
         "product_primary_slot_x": product_primary_slot["x"],
         "product_primary_slot_y": product_primary_slot["y"],
         "product_primary_slot_w": product_primary_slot["w"],
@@ -889,6 +961,13 @@ def resolve_product_behavior(
         product_layout_mode_reason=product_layout_mode_reason,
         product_geometry_mode=product_geometry_mode,
         product_geometry_mode_reason=product_geometry_mode_reason,
+        product_region=product_region,
+        product_canvas_shell=product_canvas_shell,
+        product_content_container=product_content_container,
+        product_content_container_policy=product_content_container_policy,
+        product_text_shell=product_text_shell,
+        product_text_shell_policy=product_text_shell_policy,
+        product_annotation_shell=annotation_shell,
         product_primary_slot=product_primary_slot,
         product_primary_image_fit=hero_policy.product_fit,
         product_secondary_slot=product_secondary_slot,

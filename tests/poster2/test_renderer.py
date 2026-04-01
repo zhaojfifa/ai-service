@@ -1061,7 +1061,7 @@ class TestStructuredGalleryMarkup:
         assert callout["label_box"] == {"x": 721, "y": 201, "w": 121, "h": 45}
         assert callout["mode_connector_policy"] == "contract_line"
         assert callout["marker_policy"] == "contract_dot"
-        assert callout["text_placement_mode"] == "template_label_box_fixed"
+        assert callout["text_placement_mode"] == "product_text_shell_stack"
 
     def test_feature_markup_prefers_product_annotation_runtime_truth(self):
         renderer = PuppeteerStructuredRenderer()
@@ -1178,7 +1178,7 @@ class TestStructuredScenarioLayer:
         assert resolved.product_annotation_mode == "product_anchor_callouts"
         assert resolved.product_policy.annotation_count_policy == "fixed_3_product_anchor_annotations"
         assert resolved.product_policy.visible_annotation_count == 3
-        assert resolved.product_policy.annotation_items[0]["anchor_x"] == 764
+        assert resolved.product_policy.annotation_items[0]["anchor_x"] == 600
 
     def test_template_behavior_resolver_supports_expanded_beauty_presets(self):
         template = _load_real_template()

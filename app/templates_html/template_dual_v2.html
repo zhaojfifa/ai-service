@@ -63,13 +63,20 @@ __INLINE_CSS__
     </div>
 
     <div class="layer layer-product layer-hero-peer-region __PRODUCT_LAYER_CLASS__">
-      <div class="layer layer-product-region-shell" data-region="product_region">
+      <div class="layer layer-product-region-shell" data-region="product_region" data-layer="product_canvas_shell_layer">
         <div class="region-shell region-shell-product"></div>
       </div>
-      <div class="layer layer-product-content __PRODUCT_CONTENT_CLASS__">
+      <div class="layer layer-product-content __PRODUCT_CONTENT_CLASS__" data-layer="product_content_container_layer">
         <div class="layer layer-product-image">
           <div class="slot slot-product image-slot product-fit-contain" style="__PRODUCT_STYLE__">
             <img src="__PRODUCT_URL__" alt="" loading="eager" />
+          </div>
+        </div>
+        <div class="layer layer-product-text-shell __PRODUCT_TEXT_SHELL_CLASS__" data-layer="product_text_shell_layer" style="__PRODUCT_TEXT_SHELL_STYLE__">
+          <div class="layer layer-product-annotation-shell __PRODUCT_ANNOTATION_CLASS__" data-layer="product_annotation_shell_layer" style="__PRODUCT_ANNOTATION_SHELL_STYLE__">
+            <div class="layer layer-product-annotation-items __PRODUCT_ANNOTATION_CLASS__" data-layer="product_annotation_items_layer">
+              __PRODUCT_ANNOTATION_ITEMS__
+            </div>
           </div>
         </div>
         <div class="layer layer-product-secondary-image __PRODUCT_SECONDARY_CLASS__">
