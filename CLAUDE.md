@@ -28,6 +28,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - PR-9A complete on `fix/pr9a-product-region-container`: `product_region` upgraded from image-first shell semantics to a product-owned full content container without changing geometry values
 - PR-9B is not an acceptable merge result: it moved annotation/text under product ownership but kept the outer product container too narrow, so text competed with image-shell width
 - PR-9C in progress on `fix/pr9c-product-region-boundary`: boundary correction widens `product_region` / `product_content_container` into a true outer container while keeping image-owned surfaces frozen
+- PR-9C merge-gate now passes on `fix/pr9c-product-region-boundary`
 - Separate gate-unblock work merged for:
   - Glibatree OpenAI import compatibility
   - Remaining full-suite compatibility blockers
@@ -40,6 +41,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - `product_region` / `product_content_container` widened to contain both the image shell and product text shell
   - `product_canvas_shell_layer`, `product_primary_slot`, and `product_secondary_slot` remain image-owned surfaces at frozen width
   - `product_text_shell`, `product_annotation_shell`, and `annotation_items` now consume the widened outer-container model instead of competing for the narrow image shell
+  - product annotation/text remains a distinct rendered layer path, not a copy-budget or coordinate-only patch
 - PR-9C old active path removed:
   - no active product annotation path that treats the narrow `320px` image shell as the annotation/text container
 
@@ -52,7 +54,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current priority: complete PR-9C only, then run merge-gate only
-- next after PR-9C: merge-gate validation only; do not point-fix label coordinates or reopen other regions
+- current priority: PR-9C is merge-ready on a green full suite
+- next after PR-9C: merge only; do not point-fix label coordinates or reopen other regions
 - not yet: beautification
 - not yet: opportunistic geometry drift

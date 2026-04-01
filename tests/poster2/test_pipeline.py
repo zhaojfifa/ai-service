@@ -491,7 +491,7 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 320, "h": 540}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}

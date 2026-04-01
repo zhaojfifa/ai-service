@@ -50,10 +50,26 @@
 - `.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'product_annotation or template_behavior_resolver_supports_product_annotation_mode or feature_markup_prefers_product_annotation_runtime_truth'` → `4 passed`
 - `.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'TemplateSpecLoading or structured_template_assets_exist'` → `12 passed`
 - `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and annotation and not bottom and not header and not scenario'` → `15 passed`
+- `.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'test_renderer_metadata_includes_layer_render_status'` → `1 passed`
+
+### Merge-gate result
+- `.venv/bin/python -m pytest -q` → `325 passed, 10 warnings, 3 subtests passed`
+- gate blocker removed:
+  - `tests/poster2/test_pipeline.py::TestPosterPipelineRun::test_renderer_metadata_includes_layer_render_status` had the stale pre-PR-9C expectation `product_region.w == 320`
+  - updated to the correct PR-9C outer-container truth `product_region.w == 472`
+
+### Right-side product-container confirmation
+- banner/header remains at `header_region = {x:72,y:56,w:880,h:104}`
+- product container remains in the hero peer area to the right of scenario and below header, with:
+  - `product_region = {x:456,y:188,w:472,h:540}`
+  - `product_canvas_shell_layer = {x:456,y:188,w:320,h:540}`
+  - `product_text_shell = {x:784,y:216,w:144,h:260}`
+- therefore text is a sibling shell on the right side of the product image shell, not an overlay competing for the same narrow image width
+- `product_text_shell_layer` and `product_annotation_shell_layer` are rendered independently when annotation is active
+- `feature_region` remains suppressed during active product annotation ownership
 
 ### Next step after PR-9C
-- merge-gate only
-- if merge-gate fails, record the exact blocker only and do not expand scope
+- merge only
 
 **Branch:** `fix/poster2-task1-bottom-runtime-v2`
 **Last updated:** 2026-03-30
