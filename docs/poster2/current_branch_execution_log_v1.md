@@ -18,7 +18,6 @@
 - `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
 
 ---
-
 ## Entry — PR-4: Product Geometry Rebalance
 
 **Branch:** `claude/festive-heisenberg`
