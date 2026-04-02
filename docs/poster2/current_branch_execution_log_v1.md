@@ -1,5 +1,22 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-4: Product Geometry Rebalance
+
+**Branch:** `claude/festive-heisenberg`
+**Status:** Complete
+**Last updated:** 2026-04-02
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_PRODUCT_DUAL_PRIMARY_SLOT` h 310→360; `_PRODUCT_DUAL_SECONDARY_SLOT` y 518→564 h 210→144; comment block updated
+- `app/services/poster2/renderer.py` — stale comment updated (h:310→h:360)
+- `tests/poster2/test_pipeline.py` — updated 8 existing assertions to new geometry; added `TestProductGeometryPR4Rebalance` (10 tests)
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `126 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+---
+
 ## Entry — PR-3: Product Text-Layer UI and Stage2 Driver Wiring
 
 **Branch:** `claude/festive-heisenberg`
@@ -32,8 +49,8 @@
 ## Current Active Workstream
 - workstream: `product region contract upgrade`
 - execution mode: `one function = one PR`
-- current active PR: `PR-3 complete — next is PR-C`
-- current PR status doc: `docs/poster2/product_region_pr3_text_ui_and_driver_status_v1.md`
+- current active PR: `PR-4 complete — next is PR-C`
+- current PR status doc: `docs/poster2/product_region_pr4_geometry_rebalance_status_v1.md`
 
 ## Frozen Unchanged
 - bottom frozen as SOP baseline
@@ -50,13 +67,15 @@
 - declared next priority after PR-A: add `product_text_shell` as a sibling shell and keep `feature_region` suppressed
 
 ## Last Accepted PR
-- `PR-3 — Product Text-Layer UI and Stage2 Driver Wiring`
+- `PR-4 — Product Geometry Rebalance`
 - status: complete
-- status doc: `docs/poster2/product_region_pr3_text_ui_and_driver_status_v1.md`
+- status doc: `docs/poster2/product_region_pr4_geometry_rebalance_status_v1.md`
 - carry-forward result:
-  - Stage2 `buildProductDetail` surfaces `product_text_shell_layer` evidence from backend payload
-  - `text_does_not_compete_with_canvas`, `owner_region/surface`, `char_budget`, `line_clamp`, full slot text chain — all driven by backend truth
-  - `feature_region` remains delegated diagnostic in UI
+  - `product_primary_slot`: `{x:456,y:188,w:300,h:360}` (was h:310 — stronger visual weight, 67% of canvas)
+  - `product_secondary_slot`: `{x:456,y:564,w:300,h:144}` (was y:518,h:210 — 20px bottom breathing room)
+  - slot arithmetic: 360 + 16 (gap) + 144 + 20 (breathing) = 540 ✓
+  - `product_text_shell_layer`, `product_canvas_shell_layer`, `product_region` outer shell — all unchanged
+  - `feature_region` remains delegated diagnostic
 
 ## Current PR Goal
 `PR-C — capacity / label bounds / clamp / connector tuning`
