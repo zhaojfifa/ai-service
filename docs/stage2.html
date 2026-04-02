@@ -782,6 +782,7 @@
           html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">image ${slotStatusHtml(productReview.product_image_layer?.rendered, productReview.product_image_layer?.reason_code)}</span>`;
           html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">secondary ${slotStatusHtml(productReview.product_secondary_image_layer?.rendered, productReview.product_secondary_image_layer?.reason_code)}</span>`;
           html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">annotation ${slotStatusHtml(productReview.product_annotation_items_layer?.rendered, productReview.product_annotation_items_layer?.reason_code)}</span>`;
+          html += `<span style="display:flex;align-items:center;gap:3px;font-size:10.5px;font-family:monospace;color:#6B6762;">text_shell ${slotStatusHtml(productReview.product_text_shell_layer?.rendered, productReview.product_text_shell_layer?.reason_code)}</span>`;
           html += `</div>`;
           const slotChips = [];
           if (productReview.product_primary_slot) slotChips.push(`primary (${productReview.product_primary_slot.x},${productReview.product_primary_slot.y},${productReview.product_primary_slot.w},${productReview.product_primary_slot.h})`);
@@ -789,11 +790,37 @@
           if (slotChips.length) {
             html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;">${slotChips.map((text) => `<span style="font-size:10px;font-family:monospace;color:#6B6762;">${text}</span>`).join('')}</div>`;
           }
+          const textShell = productReview.product_text_shell_layer;
+          if (textShell?.bounds) {
+            const b = textShell.bounds;
+            html += `<div style="padding-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">`;
+            html += `<span style="font-size:10px;font-family:monospace;color:#6B6762;">text_shell (${b.x},${b.y},${b.w},${b.h}) · owner: ${textShell.owner_region} / ${textShell.owner_surface}</span>`;
+            if (textShell.text_does_not_compete_with_canvas) {
+              html += `<span class="s2-region-status s2-status-ok" style="font-size:10px;padding:1px 5px;">no-compete-with-canvas</span>`;
+            }
+            html += `</div>`;
+          }
           const slots = productReview.annotation_slots || [];
           if (slots.length) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
+            const charBudget = productReview.behavior_policy?.char_budget;
+            const lineClamp = productReview.behavior_policy?.line_clamp;
+            if (charBudget != null || lineClamp != null) {
+              html += `<div style="padding:2px 0;font-size:10px;font-family:monospace;color:#6B6762;">${[charBudget != null ? `char_budget: ${charBudget}` : null, lineClamp != null ? `line_clamp: ${lineClamp}` : null].filter(Boolean).join(' · ')}</div>`;
+            }
             for (const item of slots) {
-              html += textRow(item.slot_id?.replace('product_annotation_slot_', 'anno ') || '?', item.requested_text || '—', item.rendered_excerpt, item.truncation_applied);
+              const label = item.slot_id?.replace('product_annotation_slot_', 'anno ') || '?';
+              const reqText = item.requested_text || '—';
+              const sanitizedText = item.sanitized_text || '';
+              const sanitizedDiffers = sanitizedText && sanitizedText !== (item.requested_text || '');
+              if (sanitizedDiffers) {
+                html += textRow(label, reqText, sanitizedText, true);
+                if (item.truncation_applied) {
+                  html += textRow('  ↳ rendered', sanitizedText, item.rendered_excerpt, true);
+                }
+              } else {
+                html += textRow(label, reqText, item.rendered_excerpt, item.truncation_applied);
+              }
             }
             html += '</div>';
           }
