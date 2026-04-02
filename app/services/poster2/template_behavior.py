@@ -20,20 +20,22 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
 _SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
 _SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
 _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; enforces annotation items within primary slot y-range
-                                         # (callouts 0-2 have anchor_y 250/350/450, within primary [188,498];
-                                         #  callout 3 has anchor_y 550, which falls in secondary territory [518,728])
+                                         # (callouts 0-2 have anchor_y 250/350/450, within primary [188,548];
+                                         #  callout 3 has anchor_y 550, which falls in the inter-slot gap [548,564])
 _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
 _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 
 # Frozen geometry for primary_secondary_dual product layout mode (geometry_mode = primary_secondary_dual_v2).
 # Lane model: external right lane — annotation labels (x=784+) are outside the product region right
 # boundary (x=756); image-slot sizing is fully independent of label_bounds.
-# Primary slot: upper ~57% of the product region; receives all annotation callouts.
-# Secondary slot: lower ~39% of the product region; no callouts, no annotation ownership.
+# Primary slot: upper ~67% of the product region; receives all annotation callouts.
+# Secondary slot: ~27% of the product region; no callouts, no annotation ownership.
+# Bottom breathing room: 20px clear gap between secondary bottom (y=708) and canvas bottom (y=728).
 # Parent region (scenario_cover_product_contain): x=456, y=188, w=300, h=540.
-# Gap between primary bottom and secondary top: 518-(188+310)=20px.
-_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 310}
-_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 518, "w": 300, "h": 210}
+# Slot arithmetic: 360 (primary) + 16 (gap) + 144 (secondary) + 20 (breathing) = 540.
+# Gap between primary bottom and secondary top: 564-(188+360)=16px.
+_PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 360}
+_PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 564, "w": 300, "h": 144}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
 _PRODUCT_REGION_OUTER_W = 472
 _PRODUCT_CANVAS_SHELL_W = 300

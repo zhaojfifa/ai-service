@@ -2048,7 +2048,7 @@ def _product_slot(slot_spec: dict[str, Any], hero_policy, product_policy=None) -
     slot = dict(slot_spec["slots"]["product"])
     # Use product_primary_slot geometry when product_policy is available.
     # For single_primary: primary_slot == full product_region — backward compatible.
-    # For primary_secondary_dual: primary_slot is upper portion (h:310 not h:520).
+    # For primary_secondary_dual: primary_slot is upper portion (h:360 not h:540).
     if product_policy is not None:
         primary = product_policy.product_primary_slot
         slot.update(

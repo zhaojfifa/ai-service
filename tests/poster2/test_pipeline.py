@@ -1624,41 +1624,41 @@ class TestProductLayoutContract:
         assert primary["x"] == 456
         assert primary["y"] == 188
         assert primary["w"] == 300
-        assert primary["h"] == 310
+        assert primary["h"] == 360
 
         secondary = review["product_secondary_slot"]
         assert secondary is not None
         assert secondary["x"] == 456
-        assert secondary["y"] == 518
+        assert secondary["y"] == 564
         assert secondary["w"] == 300
-        assert secondary["h"] == 210
+        assert secondary["h"] == 144
 
         assert review["product_secondary_slot_rendered"] is True
         assert review["product_secondary_asset_policy"] == "secondary_present"
         assert review["product_secondary_image_layer"]["rendered"] is True
         assert review["product_secondary_image_layer"]["bounds"] == {
             "x": 456,
-            "y": 518,
+            "y": 564,
             "w": 300,
-            "h": 210,
+            "h": 144,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_slot"] == {
             "x": 456,
             "y": 188,
             "w": 300,
-            "h": 310,
+            "h": 360,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_primary_slot"] == {
             "x": 456,
             "y": 188,
             "w": 300,
-            "h": 310,
+            "h": 360,
         }
         assert metadata["geometry_evidence"]["slot_bounds"]["product_secondary_slot"] == {
             "x": 456,
-            "y": 518,
+            "y": 564,
             "w": 300,
-            "h": 210,
+            "h": 144,
         }
 
     def test_annotation_mode_unaffected_by_dual_product_layout(self):
@@ -2123,13 +2123,13 @@ class TestProductOwnerSurfaceFreeze:
             _PRODUCT_DUAL_SECONDARY_SLOT,
             _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
         )
-        # Primary slot: upper 310px of product region
-        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
-        # Secondary slot: 210px, 20px gap below primary (y=518)
-        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 518, "w": 300, "h": 210}
+        # Primary slot: upper 360px of product region (67% of 540 — PR-4 rebalance)
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 360}
+        # Secondary slot: 144px, 16px gap below primary (y=564), 20px breathing room to canvas bottom
+        assert _PRODUCT_DUAL_SECONDARY_SLOT == {"x": 456, "y": 564, "w": 300, "h": 144}
         # Single-primary fallback: full 540px product region
         assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT == {"x": 456, "y": 188, "w": 300, "h": 540}
-        # Verify no vertical overlap: primary bottom (188+310=498) < secondary top (518)
+        # Verify no vertical overlap: primary bottom (188+360=548) < secondary top (564)
         assert _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"] < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
 
     def test_single_primary_activates_when_no_secondary_asset(self):
@@ -2168,16 +2168,18 @@ class TestProductOwnerSurfaceFreeze:
 
 class TestTask2FinalProductGeometry:
     """Task-2: product region geometry finalized from primary_secondary_dual_v2 healthy baseline.
+    Updated by PR-4 geometry rebalance.
 
     Lane model: external right lane — annotation labels (x=784+) sit outside the
     product region right boundary (x=756). Image-slot sizing is fully independent
     of label_bounds.
 
-    Frozen geometry:
-    - product_region outer shell: {x:456, y:188, w:472, h:540}
-    - product_primary_slot:       {x:456, y:188, w:300, h:310}  (unchanged)
-    - product_secondary_slot:     {x:456, y:518, w:300, h:210}  (gap: 20px)
-    - single_primary fallback:    {x:456, y:188, w:300, h:540}
+    PR-4 geometry (rebalanced):
+    - product_region outer shell: {x:456, y:188, w:472, h:540}  (unchanged)
+    - product_primary_slot:       {x:456, y:188, w:300, h:360}  (was h:310; +50px, 67% of 540)
+    - product_secondary_slot:     {x:456, y:564, w:300, h:144}  (was y:518, h:210; 20px breathing room)
+    - single_primary fallback:    {x:456, y:188, w:300, h:540}  (unchanged)
+    - slot arithmetic:            360 + 16 (gap) + 144 + 20 (breathing) = 540
     """
 
     def test_product_region_outer_shell_enlarged_to_540(self):
@@ -2185,25 +2187,25 @@ class TestTask2FinalProductGeometry:
         from app.services.poster2.template_behavior import _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT
         assert _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"] == 540
 
-    def test_primary_secondary_gap_is_20px(self):
-        """Gap between primary bottom and secondary top must be 20px."""
+    def test_primary_secondary_gap_is_16px(self):
+        """Gap between primary bottom and secondary top must be 16px (PR-4 rebalance)."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_DUAL_PRIMARY_SLOT,
             _PRODUCT_DUAL_SECONDARY_SLOT,
         )
         primary_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
         secondary_top = _PRODUCT_DUAL_SECONDARY_SLOT["y"]
-        assert secondary_top - primary_bottom == 20
+        assert secondary_top - primary_bottom == 16
 
-    def test_secondary_slot_h_enlarged_to_210(self):
-        """product_secondary_slot h must be 210 (up from 202)."""
+    def test_secondary_slot_h_is_144(self):
+        """product_secondary_slot h must be 144 (PR-4 rebalance — leaves 20px bottom breathing room)."""
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
-        assert _PRODUCT_DUAL_SECONDARY_SLOT["h"] == 210
+        assert _PRODUCT_DUAL_SECONDARY_SLOT["h"] == 144
 
-    def test_secondary_slot_y_updated(self):
-        """product_secondary_slot y must be 518 (updated for 20px gap)."""
+    def test_secondary_slot_y_is_564(self):
+        """product_secondary_slot y must be 564 (PR-4 rebalance — follows primary h:360 + 16px gap)."""
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_SECONDARY_SLOT
-        assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 518
+        assert _PRODUCT_DUAL_SECONDARY_SLOT["y"] == 564
 
     def test_annotation_lane_is_outside_canvas_shell_but_inside_outer_shell(self):
         """PR-A keeps text work untouched while the widened outer shell already contains the future lane."""
@@ -2219,27 +2221,155 @@ class TestTask2FinalProductGeometry:
         )
 
     def test_annotation_ownership_unchanged(self):
-        """annotation_owner_slot must remain product_primary_slot after geometry change."""
+        """annotation_owner_slot must remain product_primary_slot after PR-4 geometry change."""
         from app.services.poster2.template_behavior import _PRODUCT_ANNOTATION_OWNER_SLOT
         assert _PRODUCT_ANNOTATION_OWNER_SLOT == "product_primary_slot"
 
-    def test_primary_slot_unchanged(self):
-        """primary slot dimensions must be unchanged by Task-2 geometry decision."""
+    def test_primary_slot_pr4_geometry(self):
+        """primary slot must reflect PR-4 rebalanced geometry (h:360, 67% of 540)."""
         from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
-        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 310}
+        assert _PRODUCT_DUAL_PRIMARY_SLOT == {"x": 456, "y": 188, "w": 300, "h": 360}
 
     def test_geometry_is_internally_consistent(self):
-        """primary h + gap + secondary h must equal product_region h."""
+        """primary h + gap + secondary h + bottom breathing must equal canvas h (540)."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_DUAL_PRIMARY_SLOT,
             _PRODUCT_DUAL_SECONDARY_SLOT,
             _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
         )
+        canvas_h = _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
         gap = _PRODUCT_DUAL_SECONDARY_SLOT["y"] - (
             _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
         )
-        total = _PRODUCT_DUAL_PRIMARY_SLOT["h"] + gap + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
-        assert total == _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+        secondary_bottom = _PRODUCT_DUAL_SECONDARY_SLOT["y"] + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
+        canvas_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + canvas_h
+        bottom_breathing = canvas_bottom - secondary_bottom
+        total = _PRODUCT_DUAL_PRIMARY_SLOT["h"] + gap + _PRODUCT_DUAL_SECONDARY_SLOT["h"] + bottom_breathing
+        assert total == canvas_h
+        assert bottom_breathing == 20  # explicit breathing room assertion
+
+
+# ---------------------------------------------------------------------------
+# PR-4: Product geometry rebalance acceptance tests
+# ---------------------------------------------------------------------------
+
+class TestProductGeometryPR4Rebalance:
+    """PR-4: product slot geometry rebalance acceptance tests.
+
+    Goals validated here:
+    - primary has stronger visual weight (h:360, 67% of 540)
+    - secondary is no longer bottom-stuck (bottom at y=708, 20px clear of canvas bottom y=728)
+    - breathing room is explicit and measurable
+    - slot arithmetic sums correctly to canvas height
+    - text shell independence unaffected
+    - annotation anchor coverage unaffected
+    """
+
+    def test_primary_slot_height_increased(self):
+        """PR-4: primary slot h must be 360 (up from 310 — stronger visual weight)."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
+        assert _PRODUCT_DUAL_PRIMARY_SLOT["h"] == 360
+
+    def test_primary_slot_occupies_majority_of_canvas(self):
+        """PR-4: primary slot must occupy ≥ 65% of canvas height."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        canvas_h = _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+        primary_share = _PRODUCT_DUAL_PRIMARY_SLOT["h"] / canvas_h
+        assert primary_share >= 0.65, f"Primary share {primary_share:.2%} must be ≥ 65%"
+
+    def test_secondary_slot_not_bottom_stuck(self):
+        """PR-4: secondary slot bottom must leave ≥ 16px breathing room above canvas bottom."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        canvas_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+        secondary_bottom = _PRODUCT_DUAL_SECONDARY_SLOT["y"] + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
+        breathing = canvas_bottom - secondary_bottom
+        assert breathing >= 16, (
+            f"Secondary bottom (y={secondary_bottom}) must leave ≥ 16px breathing room "
+            f"above canvas bottom (y={canvas_bottom}); got {breathing}px"
+        )
+
+    def test_secondary_bottom_breathing_room_is_20px(self):
+        """PR-4: secondary slot bottom breathing room must be exactly 20px."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        canvas_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+        secondary_bottom = _PRODUCT_DUAL_SECONDARY_SLOT["y"] + _PRODUCT_DUAL_SECONDARY_SLOT["h"]
+        assert canvas_bottom - secondary_bottom == 20
+
+    def test_slot_arithmetic_with_breathing_sums_to_540(self):
+        """PR-4: primary + gap + secondary + bottom_breathing must equal canvas h (540)."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+            _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT,
+        )
+        canvas_h = _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT["h"]
+        primary_h = _PRODUCT_DUAL_PRIMARY_SLOT["h"]
+        gap = _PRODUCT_DUAL_SECONDARY_SLOT["y"] - (_PRODUCT_DUAL_PRIMARY_SLOT["y"] + primary_h)
+        secondary_h = _PRODUCT_DUAL_SECONDARY_SLOT["h"]
+        secondary_bottom = _PRODUCT_DUAL_SECONDARY_SLOT["y"] + secondary_h
+        canvas_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + canvas_h
+        bottom_breathing = canvas_bottom - secondary_bottom
+        assert primary_h + gap + secondary_h + bottom_breathing == canvas_h
+
+    def test_no_slot_overlap(self):
+        """PR-4: primary bottom must be strictly below secondary top (gap ≥ 1)."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_DUAL_SECONDARY_SLOT,
+        )
+        primary_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
+        assert primary_bottom < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
+
+    def test_text_shell_bounds_unaffected(self):
+        """PR-4: product_text_shell_layer bounds must be unchanged."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_TEXT_SHELL_X,
+            _PRODUCT_TEXT_SHELL_Y,
+            _PRODUCT_TEXT_SHELL_W,
+            _PRODUCT_TEXT_SHELL_H,
+        )
+        assert _PRODUCT_TEXT_SHELL_X == 784
+        assert _PRODUCT_TEXT_SHELL_Y == 216
+        assert _PRODUCT_TEXT_SHELL_W == 144
+        assert _PRODUCT_TEXT_SHELL_H == 260
+
+    def test_text_shell_still_does_not_compete_with_canvas(self):
+        """PR-4: text_shell_x must remain > canvas_right after primary slot change."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_DUAL_PRIMARY_SLOT,
+            _PRODUCT_TEXT_SHELL_X,
+        )
+        canvas_right = _PRODUCT_DUAL_PRIMARY_SLOT["x"] + _PRODUCT_DUAL_PRIMARY_SLOT["w"]  # 756
+        assert _PRODUCT_TEXT_SHELL_X > canvas_right
+
+    def test_annotation_anchors_within_new_primary_range(self):
+        """PR-4: all 3 active annotation anchor_y values must fall within new primary slot range."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
+        primary_top = _PRODUCT_DUAL_PRIMARY_SLOT["y"]
+        primary_bottom = primary_top + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
+        active_anchor_ys = (250, 350, 450)  # callouts 0-2 from template spec
+        for ay in active_anchor_ys:
+            assert primary_top <= ay <= primary_bottom, (
+                f"anchor_y {ay} must be within primary slot [{primary_top}, {primary_bottom}]"
+            )
+
+    def test_excluded_anchor_outside_primary_range(self):
+        """PR-4: callout 3 anchor_y 550 must remain outside the active primary slot range."""
+        from app.services.poster2.template_behavior import _PRODUCT_DUAL_PRIMARY_SLOT
+        primary_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
+        excluded_anchor_y = 550  # callout index 3, excluded by max_items=3
+        assert excluded_anchor_y > primary_bottom
 
 
 # ---------------------------------------------------------------------------
