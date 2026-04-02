@@ -2053,6 +2053,7 @@ class TestProductOwnerSurfaceFreeze:
 
     EXPECTED_OWNER_SURFACES = {
         "product_canvas_shell_layer",
+        "product_text_shell_layer",
         "product_primary_slot",
         "product_secondary_slot",
         "product_image_layer",
@@ -2062,7 +2063,7 @@ class TestProductOwnerSurfaceFreeze:
     }
 
     def test_owner_surfaces_constant_is_frozen(self):
-        """_FROZEN_PRODUCT_OWNER_SURFACES must be a frozenset with exactly the 7 surfaces."""
+        """_FROZEN_PRODUCT_OWNER_SURFACES must be a frozenset with exactly the 8 surfaces (PR-2 adds product_text_shell_layer)."""
         from app.services.poster2.template_behavior import _FROZEN_PRODUCT_OWNER_SURFACES
         assert isinstance(_FROZEN_PRODUCT_OWNER_SURFACES, frozenset)
         assert _FROZEN_PRODUCT_OWNER_SURFACES == self.EXPECTED_OWNER_SURFACES
@@ -2073,7 +2074,7 @@ class TestProductOwnerSurfaceFreeze:
         assert _PRODUCT_ANNOTATION_OWNER_SLOT == "product_primary_slot"
 
     def test_product_contract_review_lists_all_owner_surfaces(self):
-        """product_contract_review must expose owner_surfaces with all 7 frozen surfaces."""
+        """product_contract_review must expose owner_surfaces with all 8 frozen surfaces (PR-2 adds product_text_shell_layer)."""
         template = _load_template()
         spec = _make_spec()
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
@@ -2362,6 +2363,127 @@ class TestTextOwnershipFreeze:
         ]
         assert review["annotation_text_owner_region"] == "product_region"
         assert review["ownership_frozen"] is True
+
+
+class TestProductTextShellContract:
+    """PR-2: product_text_shell is explicit in backend contract, a real sibling of product_canvas_shell.
+
+    Validates:
+    - _PRODUCT_TEXT_SHELL_* constants exist with correct geometry
+    - product_text_shell_layer is in _FROZEN_PRODUCT_OWNER_SURFACES
+    - layout_metrics exposes all four product_text_shell_* keys
+    - product_contract_review includes product_text_shell_layer with bounds, owner_region, and no-compete flag
+    - renderer layer_render_status includes product_text_shell_layer
+    - text_shell does not compete with canvas width (left edge >= canvas right edge)
+    - feature_region is not a parallel text owner when annotation is active
+    """
+
+    def test_product_text_shell_constants_geometry(self):
+        """_PRODUCT_TEXT_SHELL_* constants must match the template spec label_box geometry."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_TEXT_SHELL_X,
+            _PRODUCT_TEXT_SHELL_Y,
+            _PRODUCT_TEXT_SHELL_W,
+            _PRODUCT_TEXT_SHELL_H,
+            _PRODUCT_CANVAS_SHELL_W,
+            _PRODUCT_REGION_OUTER_W,
+        )
+        # Matches template_dual_v2.json feature_callouts label_box union across 3 slots
+        assert _PRODUCT_TEXT_SHELL_X == 784
+        assert _PRODUCT_TEXT_SHELL_Y == 216
+        assert _PRODUCT_TEXT_SHELL_W == 144
+        assert _PRODUCT_TEXT_SHELL_H == 260
+        # Does not compete with canvas: text shell left edge >= canvas right edge
+        canvas_right = 456 + _PRODUCT_CANVAS_SHELL_W  # 756
+        assert _PRODUCT_TEXT_SHELL_X >= canvas_right
+        # Fits within product_region outer width: right edge == region right edge
+        region_right = 456 + _PRODUCT_REGION_OUTER_W  # 928
+        assert (_PRODUCT_TEXT_SHELL_X + _PRODUCT_TEXT_SHELL_W) == region_right
+
+    def test_product_text_shell_layer_in_frozen_owner_surfaces(self):
+        """product_text_shell_layer must appear in _FROZEN_PRODUCT_OWNER_SURFACES."""
+        from app.services.poster2.template_behavior import _FROZEN_PRODUCT_OWNER_SURFACES
+        assert "product_text_shell_layer" in _FROZEN_PRODUCT_OWNER_SURFACES
+
+    def test_product_text_shell_bounds_in_layout_metrics(self):
+        """layout_metrics from resolve_product_behavior must include all four product_text_shell_* keys."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        lm = metadata["product_contract_review"]["behavior_policy"]["layout_metrics"]
+        assert lm["product_text_shell_x"] == 784
+        assert lm["product_text_shell_y"] == 216
+        assert lm["product_text_shell_w"] == 144
+        assert lm["product_text_shell_h"] == 260
+
+    def test_product_text_shell_layer_in_product_contract_review(self):
+        """product_contract_review must include product_text_shell_layer with bounds and owner truth."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+        tsl = review["product_text_shell_layer"]
+        assert tsl["rendered"] is True
+        assert tsl["reason_code"] is None
+        assert tsl["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 260}
+        assert tsl["owner_region"] == "product_region"
+        assert tsl["owner_surface"] == "product_text_shell_layer"
+        assert tsl["text_does_not_compete_with_canvas"] is True
+
+    def test_product_text_shell_does_not_compete_with_canvas_width(self):
+        """text_shell_x must be >= canvas_right (canvas_x + canvas_w) in the contract review."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1",))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["product_contract_review"]
+        canvas = review["product_canvas_shell_layer"]["bounds"]
+        text = review["product_text_shell_layer"]["bounds"]
+        canvas_right = canvas["x"] + canvas["w"]
+        assert text["x"] >= canvas_right
+
+    def test_product_text_shell_layer_collapsed_when_annotation_mode_none(self):
+        """product_text_shell_layer must be collapsed when annotation_mode is none."""
+        template = _load_template()
+        template.behavior_modes = replace(
+            template.behavior_modes, feature_mode="count_driven_callout_stack"
+        )
+        spec = _make_spec(features=("Feature 1",))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        tsl = metadata["product_contract_review"]["product_text_shell_layer"]
+        assert tsl["rendered"] is False
+        assert tsl["reason_code"] == "annotation_mode_none"
+
+    def test_product_text_shell_layer_in_renderer_metadata(self):
+        """renderer_metadata layer_render_status must include product_text_shell_layer."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        lrs = metadata["layer_render_status"]
+        assert "product_text_shell_layer" in lrs
+        tsl = lrs["product_text_shell_layer"]
+        assert tsl["rendered"] is True
+        assert tsl["source_binding"] == "product_region.product_text_shell"
+
+    def test_product_text_shell_layer_sibling_to_canvas_in_owner_surfaces(self):
+        """Both product_canvas_shell_layer and product_text_shell_layer must be in owner_surfaces."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1",))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        owner_surfaces = metadata["product_contract_review"]["owner_surfaces"]
+        assert "product_canvas_shell_layer" in owner_surfaces
+        assert "product_text_shell_layer" in owner_surfaces
+
+    def test_feature_region_not_parallel_owner_when_text_shell_active(self):
+        """When product_text_shell_layer is rendered, feature_region must not claim text ownership."""
+        template = _load_template()
+        spec = _make_spec(features=("Feature 1", "Feature 2", "Feature 3"))
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        tsl = metadata["product_contract_review"]["product_text_shell_layer"]
+        feature_review = metadata["feature_contract_review"]
+        assert tsl["rendered"] is True
+        assert feature_review["delegated_to_product_annotation"] is True
+        assert feature_review["feature_region"]["visible_item_count"] == 0
+        assert feature_review["rendered_feature_items"] == []
 
 
 class TestPostFreezeTextCapacity:

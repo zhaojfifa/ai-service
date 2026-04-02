@@ -1533,3 +1533,73 @@ The Pillow renderer was already correct (`_product_shell_bounds` reads `product_
 ### Next step
 - PR-B: add `product_text_shell` as sibling shell inside the widened outer product shell
 - PR-B does not start on this branch
+
+## Entry — PR-2 Product Text-Shell Contract Closure
+
+**Branch:** `claude/festive-heisenberg`
+**Status:** Complete
+**Last updated:** 2026-04-02
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/product_region_pr1_boundary_closure_status_v1.md` (PR-1 results: h:540 frozen, feature_region confirmed delegated)
+- `docs/poster2/product_region_pr2_text_shell_contract_status_v1.md` (created before coding)
+
+### PR-2 scope
+- Add `_PRODUCT_TEXT_SHELL_X/Y/W/H` constants to `template_behavior.py`
+- Add `"product_text_shell_layer"` to `_FROZEN_PRODUCT_OWNER_SURFACES` (set grows from 7 → 8 surfaces)
+- Add `product_text_shell_bounds` field to `ResolvedProductBehavior` dataclass and `as_dict()`
+- Add `product_text_shell_*` keys to `layout_metrics`
+- Add `product_text_shell_layer` to Pillow `layer_render_status` in `pipeline.py`
+- Add `product_text_shell_layer` section with bounds, owner_region, owner_surface, and no-compete flag to `_build_product_contract_review()` in `pipeline.py`
+- Add `product_text_shell_layer` to HTML renderer layer status in `renderer.py` with `bounds` dict
+- Update `TestProductOwnerSurfaceFreeze` expected set from 7 → 8 surfaces
+- Add new `TestProductTextShellContract` class (9 tests)
+
+### Contract truth added in PR-2
+
+```
+product_text_shell = {x:784, y:216, w:144, h:260}
+```
+
+- Derived from `template_dual_v2.json` feature_callouts union across 3 label slots (y=216..476)
+- Does not compete with canvas: text_shell_x (784) ≥ canvas_right (456+300=756) → 28px gap ✓
+- Fits within outer product_region: 784+144=928 = 456+472 ✓
+- Owner region: `product_region` (matches `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION`)
+- Sibling to `product_canvas_shell_layer`, not an overlay of it
+
+### What stayed frozen
+- `product_primary_slot`, `product_secondary_slot`, `product_single_primary_slot` — unchanged
+- `_PRODUCT_CANVAS_SHELL_W`, `_PRODUCT_REGION_OUTER_W` — unchanged
+- `_PRODUCT_ANNOTATION_TEXT_OWNER_REGION` — unchanged (`"product_region"`)
+- `_FROZEN_PRODUCT_ANNOTATION_SLOT_IDS` — unchanged
+- `annotation_shell` dynamic bounding box — unchanged
+- CSS / HTML — unchanged
+- char_budget, line_clamp values — unchanged
+- Bottom, header, scenario — unchanged
+- Beautification — unchanged
+
+### Focused validation run
+
+```
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py::TestProductTextShellContract
+→ 9 passed
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py::TestProductTextShellContract tests/poster2/test_pipeline.py::TestProductOwnerSurfaceFreeze tests/poster2/test_pipeline.py::TestTextOwnershipFreeze
+→ 28 passed
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/poster2/test_contracts.py -k 'product and not bottom and not header and not scenario and not text_shell'
+→ 36 passed
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'product and not bottom and not header and not scenario'
+→ 40 passed
+
+/Users/tylerzhao/Code/ai-service/.venv/bin/python -m pytest -q tests/poster2/
+→ 291 passed, 2 warnings
+```
+
+### Next step after PR-2
+- PR-C only: capacity / label bounds / clamp / connector tuning
