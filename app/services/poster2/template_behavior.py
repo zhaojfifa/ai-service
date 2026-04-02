@@ -38,12 +38,26 @@ _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w":
 _PRODUCT_REGION_OUTER_W = 472
 _PRODUCT_CANVAS_SHELL_W = 300
 
+# Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
+# This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
+# x=784: product_region_x (456) + canvas_shell_w (300) + 28px gap
+# y=216: product_region_y (188) + 28px top pad
+# w=144: annotation label slot width (all 3 slots share this width)
+# h=260: bottom_of_slot_3 (y=416+h=60=476) − top_of_slot_1 (y=216) = 260
+# Right edge: 784 + 144 = 928 = product_region_x (456) + outer_w (472) ✓
+# Does not compete with canvas: text_shell_x (784) > canvas_right (456+300=756) ✓
+_PRODUCT_TEXT_SHELL_X = 784
+_PRODUCT_TEXT_SHELL_Y = 216
+_PRODUCT_TEXT_SHELL_W = 144
+_PRODUCT_TEXT_SHELL_H = 260
+
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
 # Annotation shell anchors exclusively to product_primary_slot.
 # Secondary slot never becomes an annotation owner.
 _FROZEN_PRODUCT_OWNER_SURFACES: frozenset[str] = frozenset({
     "product_canvas_shell_layer",
+    "product_text_shell_layer",
     "product_primary_slot",
     "product_secondary_slot",
     "product_image_layer",
@@ -300,6 +314,7 @@ class ResolvedProductBehavior:
     layout_metrics: dict[str, object]
     annotation_items: tuple[dict[str, object], ...]
     css_classes: tuple[str, ...]
+    product_text_shell_bounds: dict[str, int]
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -326,6 +341,7 @@ class ResolvedProductBehavior:
             "layout_metrics": dict(self.layout_metrics),
             "annotation_items": [dict(item) for item in self.annotation_items],
             "css_classes": list(self.css_classes),
+            "product_text_shell_bounds": dict(self.product_text_shell_bounds),
         }
 
 
@@ -876,6 +892,10 @@ def resolve_product_behavior(
         "annotation_shell_y": int(annotation_shell["y"]),
         "annotation_shell_w": int(annotation_shell["w"]),
         "annotation_shell_h": int(annotation_shell["h"]),
+        "product_text_shell_x": _PRODUCT_TEXT_SHELL_X,
+        "product_text_shell_y": _PRODUCT_TEXT_SHELL_Y,
+        "product_text_shell_w": _PRODUCT_TEXT_SHELL_W,
+        "product_text_shell_h": _PRODUCT_TEXT_SHELL_H,
     }
 
     return ResolvedProductBehavior(
@@ -905,6 +925,12 @@ def resolve_product_behavior(
             _css_mode_class("product-annotation", annotation_mode),
             _css_mode_class("product-annotation-count", str(visible_annotation_count)),
         ),
+        product_text_shell_bounds={
+            "x": _PRODUCT_TEXT_SHELL_X,
+            "y": _PRODUCT_TEXT_SHELL_Y,
+            "w": _PRODUCT_TEXT_SHELL_W,
+            "h": _PRODUCT_TEXT_SHELL_H,
+        },
     )
 
 

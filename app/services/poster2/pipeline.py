@@ -668,6 +668,17 @@ def _build_layer_render_status(
             "source_binding": "template_dual_v2.product_canvas_shell",
             "count": 1,
         },
+        "product_text_shell_layer": {
+            "rendered": behavior.product_policy.annotation_mode != "none",
+            "reason_code": (
+                "annotation_mode_none"
+                if behavior.product_policy.annotation_mode == "none"
+                else None
+            ),
+            "source_binding": "product_region.product_text_shell",
+            "count": 1 if behavior.product_policy.annotation_mode != "none" else 0,
+            "collapsed": behavior.product_policy.annotation_mode == "none",
+        },
         "product_image_layer": {
             "rendered": assets.product is not None,
             "reason_code": None if assets.product is not None else "product_image_missing",
@@ -1421,6 +1432,22 @@ def _build_product_contract_review(
                 "w": int(layout_metrics["product_canvas_shell_w"]),
                 "h": int(layout_metrics["product_canvas_shell_h"]),
             },
+        },
+        "product_text_shell_layer": {
+            "rendered": bool(layer_render_status.get("product_text_shell_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_text_shell_layer", {}).get("reason_code"),
+            "bounds": {
+                "x": int(layout_metrics["product_text_shell_x"]),
+                "y": int(layout_metrics["product_text_shell_y"]),
+                "w": int(layout_metrics["product_text_shell_w"]),
+                "h": int(layout_metrics["product_text_shell_h"]),
+            },
+            "owner_region": _PRODUCT_ANNOTATION_TEXT_OWNER_REGION,
+            "owner_surface": "product_text_shell_layer",
+            "text_does_not_compete_with_canvas": (
+                int(layout_metrics["product_text_shell_x"])
+                >= (int(layout_metrics["product_canvas_shell_x"]) + int(layout_metrics["product_canvas_shell_w"]))
+            ),
         },
         "product_image_layer": {
             "rendered": bool(layer_render_status.get("product_image_layer", {}).get("rendered", False)),

@@ -1479,6 +1479,23 @@ def _build_renderer_layer_render_status(
             "count": 1,
             "collapsed": False,
         },
+        "product_text_shell_layer": {
+            "rendered": getattr(product_policy, "annotation_mode", "none") != "none",
+            "reason_code": (
+                "annotation_mode_none"
+                if getattr(product_policy, "annotation_mode", "none") == "none"
+                else None
+            ),
+            "source_binding": "product_region.product_text_shell",
+            "bounds": {
+                "x": int(getattr(product_policy, "layout_metrics", {}).get("product_text_shell_x", 0)),
+                "y": int(getattr(product_policy, "layout_metrics", {}).get("product_text_shell_y", 0)),
+                "w": int(getattr(product_policy, "layout_metrics", {}).get("product_text_shell_w", 0)),
+                "h": int(getattr(product_policy, "layout_metrics", {}).get("product_text_shell_h", 0)),
+            },
+            "count": 1 if getattr(product_policy, "annotation_mode", "none") != "none" else 0,
+            "collapsed": getattr(product_policy, "annotation_mode", "none") == "none",
+        },
         "product_annotation_shell_layer": {
             "rendered": product_annotation_rendered,
             "reason_code": (
