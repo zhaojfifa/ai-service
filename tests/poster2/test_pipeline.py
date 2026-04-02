@@ -3029,3 +3029,108 @@ class TestProductTextCapacityPRC:
         assert slot3_top - slot2_bottom >= 16, (
             f"Gap slot2→slot3 ({slot3_top - slot2_bottom}px) must be ≥ 16px"
         )
+
+
+# ---------------------------------------------------------------------------
+# PR-6: Bottom optional subtitle closure — four-case acceptance
+# ---------------------------------------------------------------------------
+
+class TestBottomPR6OptionalSubtitleClosure:
+    """PR-6: Four-case contract for title_gallery_split bottom mode.
+
+    Cases:
+      1. gallery + subtitle   → standard title band; subtitle renders
+      2. gallery + no subtitle → standard title band; subtitle collapsed, no fake space
+      3. no gallery + subtitle → expanded title band (x=96, w=832); subtitle renders
+      4. no gallery + no subtitle → expanded title band; subtitle collapsed
+    """
+
+    def _run(self, *, subtitle: str, gallery_count: int):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        return resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="测试标题",
+            subtitle_text=subtitle,
+            requested_gallery_count=gallery_count,
+            normalized_gallery_count=gallery_count,
+            resolved_gallery_count=gallery_count,
+            max_items=4,
+        )
+
+    # --- Case 1: gallery + subtitle -----------------------------------------
+
+    def test_case1_gallery_and_subtitle_renders_subtitle_slot(self):
+        policy = self._run(subtitle="测试副标题", gallery_count=2)
+        assert policy.subtitle_slot_rendered is True
+        assert policy.gallery_strip_rendered is True
+
+    def test_case1_gallery_and_subtitle_uses_standard_title_band(self):
+        policy = self._run(subtitle="测试副标题", gallery_count=2)
+        assert policy.title_band_expansion_policy == "standard_title_band_with_gallery"
+        assert policy.layout_metrics["title_band_x"] == 112
+        assert policy.layout_metrics["title_band_w"] == 800
+        assert policy.layout_metrics["subtitle_slot_x"] == 152
+        assert policy.layout_metrics["subtitle_slot_w"] == 720
+
+    # --- Case 2: gallery + no subtitle --------------------------------------
+
+    def test_case2_gallery_no_subtitle_collapses_subtitle(self):
+        policy = self._run(subtitle="", gallery_count=2)
+        assert policy.subtitle_slot_rendered is False
+        assert policy.subtitle_slot_state["reason_code"] == "subtitle_empty"
+
+    def test_case2_gallery_no_subtitle_slot_height_is_zero(self):
+        policy = self._run(subtitle="", gallery_count=2)
+        assert policy.layout_metrics["subtitle_slot_height"] == 0
+        assert policy.gallery_strip_rendered is True
+        assert policy.title_band_expansion_policy == "standard_title_band_with_gallery"
+
+    # --- Case 3: no gallery + subtitle --------------------------------------
+
+    def test_case3_no_gallery_with_subtitle_renders_subtitle_slot(self):
+        policy = self._run(subtitle="测试副标题", gallery_count=0)
+        assert policy.subtitle_slot_rendered is True
+        assert policy.gallery_strip_rendered is False
+
+    def test_case3_no_gallery_with_subtitle_expands_title_band(self):
+        policy = self._run(subtitle="测试副标题", gallery_count=0)
+        assert policy.title_band_expansion_policy == "full_width_title_band_no_gallery"
+        assert policy.layout_metrics["title_band_x"] == 96
+        assert policy.layout_metrics["title_band_w"] == 832
+        assert policy.layout_metrics["subtitle_slot_x"] == 136   # 96 + 40
+        assert policy.layout_metrics["subtitle_slot_w"] == 752   # 832 - 80
+
+    # --- Case 4: no gallery + no subtitle -----------------------------------
+
+    def test_case4_no_gallery_no_subtitle_collapses_subtitle(self):
+        policy = self._run(subtitle="", gallery_count=0)
+        assert policy.subtitle_slot_rendered is False
+        assert policy.gallery_strip_rendered is False
+
+    def test_case4_no_gallery_no_subtitle_expands_title_band(self):
+        policy = self._run(subtitle="", gallery_count=0)
+        assert policy.title_band_expansion_policy == "full_width_title_band_no_gallery"
+        assert policy.layout_metrics["title_band_x"] == 96
+        assert policy.layout_metrics["title_band_w"] == 832
+        # subtitle x/w still computed correctly even though subtitle does not render
+        assert policy.layout_metrics["subtitle_slot_x"] == 136
+        assert policy.layout_metrics["subtitle_slot_w"] == 752
+
+    # --- CSS var evidence ---------------------------------------------------
+
+    def test_css_vars_emit_title_band_left_and_width_standard(self):
+        """gallery present → --title-band-left:112px, --title-band-width:800px."""
+        from app.services.poster2.template_behavior import _resolve_bottom_behavior_vars
+        policy = self._run(subtitle="测试副标题", gallery_count=2)
+        css = _resolve_bottom_behavior_vars(policy)
+        assert css["--title-band-left"] == "112px"
+        assert css["--title-band-width"] == "800px"
+
+    def test_css_vars_emit_title_band_left_and_width_expanded(self):
+        """no gallery → --title-band-left:96px, --title-band-width:832px."""
+        from app.services.poster2.template_behavior import _resolve_bottom_behavior_vars
+        policy = self._run(subtitle="", gallery_count=0)
+        css = _resolve_bottom_behavior_vars(policy)
+        assert css["--title-band-left"] == "96px"
+        assert css["--title-band-width"] == "832px"
