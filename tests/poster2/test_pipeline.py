@@ -1491,8 +1491,8 @@ class TestBottomStructuralExpansion:
         manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["bottom_contract_review"]
 
-        # Shell starts higher than frozen baseline
-        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 656
+        # Shell starts higher than frozen baseline (PR-6B: same as other expanded modes)
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 640
         # Title budget materially larger than frozen baseline max (36–44 chars)
         assert review["behavior_policy"]["title_char_budget"] >= 52
         # Subtitle budget materially larger than frozen baseline max (28 chars)
@@ -3134,3 +3134,128 @@ class TestBottomPR6OptionalSubtitleClosure:
         css = _resolve_bottom_behavior_vars(policy)
         assert css["--title-band-left"] == "96px"
         assert css["--title-band-width"] == "832px"
+
+
+# ---------------------------------------------------------------------------
+# PR-6B: bottom expanded space / text expansion / overlap closure
+# ---------------------------------------------------------------------------
+
+class TestBottomPR6BExpandedSpaceClosure:
+    """PR-6B: text_only_expanded fills the full canvas bottom area (shell top=640, height=384).
+
+    Validates:
+    - shell top=640 (same as other expanded modes, PR-6B lowered from 656)
+    - shell height=384 (1024 - 640; fills to canvas bottom)
+    - title_band_height=384 (title band IS the full shell in text_only_expanded)
+    - title_slot_y and subtitle_slot_y are inside the expanded shell bounds
+    - no gallery overlap (gallery_shell_height=0)
+    - CSS vars emit correct shell geometry
+    - preview/final parity (CSS vars and Pillow both read layout_metrics)
+    """
+
+    def _run(self, *, subtitle: str = "", title: str = "测试标题"):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        return resolve_bottom_behavior(
+            "text_only_expanded",
+            gallery_mode="strip_local_visible_only",
+            title_text=title,
+            subtitle_text=subtitle,
+            requested_gallery_count=0,
+            normalized_gallery_count=0,
+            resolved_gallery_count=0,
+            max_items=4,
+        )
+
+    # --- Shell geometry ---
+
+    def test_shell_top_is_640(self):
+        policy = self._run()
+        assert policy.layout_metrics["bottom_shell_top"] == 640
+
+    def test_shell_height_fills_to_canvas_bottom(self):
+        """bottom_shell_height = 1024 - 640 = 384."""
+        policy = self._run()
+        assert policy.layout_metrics["bottom_shell_height"] == 384
+
+    def test_shell_covers_canvas_bottom(self):
+        """shell_top + shell_height == 1024."""
+        policy = self._run()
+        top = policy.layout_metrics["bottom_shell_top"]
+        h = policy.layout_metrics["bottom_shell_height"]
+        assert top + h == 1024
+
+    # --- Title band geometry ---
+
+    def test_title_band_height_equals_shell_height(self):
+        """No gallery → title band occupies full shell."""
+        policy = self._run()
+        assert policy.layout_metrics["title_band_height"] == 384
+
+    def test_title_band_top_equals_shell_top(self):
+        policy = self._run()
+        assert policy.layout_metrics["title_band_top"] == policy.layout_metrics["bottom_shell_top"]
+
+    # --- Text slot bounds inside shell ---
+
+    def test_title_slot_y_is_inside_shell(self):
+        policy = self._run(title="A sufficiently long title for testing purposes")
+        shell_top = policy.layout_metrics["bottom_shell_top"]
+        shell_bottom = shell_top + policy.layout_metrics["bottom_shell_height"]
+        title_slot_y = policy.layout_metrics["title_slot_y"]
+        title_slot_bottom = title_slot_y + policy.layout_metrics["title_slot_height"]
+        assert title_slot_y >= shell_top
+        assert title_slot_bottom <= shell_bottom
+
+    def test_subtitle_slot_y_is_inside_shell_when_rendered(self):
+        policy = self._run(subtitle="测试副标题内容足够长的文字")
+        assert policy.subtitle_slot_rendered is True
+        shell_top = policy.layout_metrics["bottom_shell_top"]
+        shell_bottom = shell_top + policy.layout_metrics["bottom_shell_height"]
+        sub_y = policy.layout_metrics["subtitle_slot_y"]
+        sub_bottom = sub_y + policy.layout_metrics["subtitle_slot_height"]
+        assert sub_y >= shell_top
+        assert sub_bottom <= shell_bottom
+
+    # --- No gallery overlap ---
+
+    def test_gallery_strip_not_rendered(self):
+        policy = self._run()
+        assert policy.gallery_strip_rendered is False
+
+    def test_gallery_shell_height_is_zero(self):
+        policy = self._run()
+        assert policy.layout_metrics["gallery_shell_height"] == 0
+
+    # --- Full-width title band (PR-6 carry-forward) ---
+
+    def test_title_band_is_full_width(self):
+        """text_only_expanded always has no gallery → full_width_title_band_no_gallery."""
+        policy = self._run()
+        assert policy.title_band_expansion_policy == "full_width_title_band_no_gallery"
+        assert policy.layout_metrics["title_band_x"] == 96
+        assert policy.layout_metrics["title_band_w"] == 832
+
+    # --- CSS var parity (preview/final) ---
+
+    def test_css_vars_emit_correct_shell_geometry(self):
+        from app.services.poster2.template_behavior import _resolve_bottom_behavior_vars
+        policy = self._run()
+        css = _resolve_bottom_behavior_vars(policy)
+        assert css["--bottom-shell-top"] == "640px"
+        assert css["--bottom-shell-height"] == "384px"
+        assert css["--title-band-top"] == "640px"
+        assert css["--title-band-height"] == "384px"
+        assert css["--title-band-left"] == "96px"
+        assert css["--title-band-width"] == "832px"
+
+    # --- Subtitle cases ---
+
+    def test_title_only_case_has_no_subtitle_slot(self):
+        policy = self._run(subtitle="")
+        assert policy.subtitle_slot_rendered is False
+        assert policy.layout_metrics["subtitle_slot_height"] == 0
+
+    def test_subtitle_case_renders_subtitle_slot(self):
+        policy = self._run(subtitle="副标题文字测试内容")
+        assert policy.subtitle_slot_rendered is True
+        assert policy.layout_metrics["subtitle_slot_height"] > 0

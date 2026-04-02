@@ -1,5 +1,29 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-6B: Bottom Expanded Space / Text Expansion / Overlap Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-02
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_EXPANDED_BOTTOM_SHELL_TOPS["text_only_expanded"]`: 656 → 640; `text_only_expanded` branch: `title_band_height = 384` (all 4 sub-cases, was 164–220), `pad_top`/`pad_bottom` updated to 80–112 for centering; `_resolve_bottom_shell_height` for `text_only_expanded`: `return title_band_height` → `return 1024 - bottom_shell_top`
+- `app/templates_html/template_dual_v2.css` — `.layer-bottom-region.state-title-only` CSS fallback vars and shell height updated to match new geometry (top 728→640, height 160→384)
+- `tests/poster2/test_pipeline.py` — updated `bottom_shell_top == 656` assertion to `== 640`; added `TestBottomPR6BExpandedSpaceClosure` (13 tests)
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `161 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+### Carry-forward geometry for text_only_expanded
+- `bottom_shell_top`: 640 (was 656)
+- `bottom_shell_height`: 384 (= 1024 − 640; fills to canvas bottom)
+- `title_band_height`: 384 (all sub-cases; title band = full shell)
+- `shell_top + shell_height = 1024` ✓ (no dead canvas below)
+- `title_band_x = 96`, `title_band_w = 832` (PR-6 full-width carry-forward, unchanged)
+
+---
+
 ## Entry — PR-6: Bottom Optional Subtitle Closure
 
 **Branch:** `claude/festive-heisenberg`

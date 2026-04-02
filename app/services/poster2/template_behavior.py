@@ -98,10 +98,11 @@ _BOTTOM_MODE_ALIASES: dict[str, str] = {
 }
 
 # Structural expansion: new modes start the bottom shell higher than the frozen baseline (y=728).
-# title_gallery_split and text_gallery_expanded both use y=640; text_only_expanded uses y=656.
+# All three expanded modes share y=640 as the shell top.
+# text_only_expanded fills the full canvas height from 640 to 1024 (384px); no gallery competes for space.
 _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
     "title_gallery_split": 640,   # upgraded from frozen baseline; matches text_gallery_expanded
-    "text_only_expanded": 656,    # 368px capacity
+    "text_only_expanded": 640,    # PR-6B: 384px capacity, fills to canvas bottom (no gallery)
     "text_gallery_expanded": 640, # 384px capacity
 }
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
@@ -1535,8 +1536,9 @@ def _resolve_bottom_layout_policies(
         title_content_pad_bottom = 0
         title_stack_gap = 0
     elif bottom_mode == "text_only_expanded":
-        # Structural expansion: shell starts at y=656 (368px capacity). No gallery.
-        # Materially larger title+subtitle capacity than frozen baseline max.
+        # PR-6B: shell starts at y=640 (384px capacity, fills to canvas bottom). No gallery.
+        # Title band occupies the full shell height — text is centered within with generous padding.
+        # Available height per sub-case: title_content_height - pad_top - pad_bottom.
         content_priority_policy = "expanded_text_only_full_copy_priority"
         peer_balance_policy = "expanded_title_band_only"
         bottom_peer_balance_policy = "expanded_text_only_rebalance"
@@ -1551,10 +1553,10 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 3
             title_char_budget = 72
             subtitle_char_budget = 80
-            title_band_height = 220
-            title_content_pad_top = 20
-            title_content_pad_bottom = 16
-            title_stack_gap = 8
+            title_band_height = 384  # full shell; text centered via pad
+            title_content_pad_top = 80
+            title_content_pad_bottom = 80
+            title_stack_gap = 10
         elif subtitle_slot_rendered and subtitle_length > 28:
             title_band_sizing_mode = "expanded"
             title_band_growth_policy = "grow_for_expanded_text_only_moderate_copy"
@@ -1565,10 +1567,10 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 2
             title_char_budget = 64
             subtitle_char_budget = 64
-            title_band_height = 196
-            title_content_pad_top = 22
-            title_content_pad_bottom = 18
-            title_stack_gap = 8
+            title_band_height = 384  # full shell; text centered via pad
+            title_content_pad_top = 90
+            title_content_pad_bottom = 90
+            title_stack_gap = 10
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "standard_expanded_text_only_with_subtitle"
@@ -1579,10 +1581,10 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 1
             title_char_budget = 56
             subtitle_char_budget = 44
-            title_band_height = 180
-            title_content_pad_top = 24
-            title_content_pad_bottom = 20
-            title_stack_gap = 8
+            title_band_height = 384  # full shell; text centered via pad
+            title_content_pad_top = 100
+            title_content_pad_bottom = 100
+            title_stack_gap = 10
         else:
             title_band_sizing_mode = "compact"
             title_band_growth_policy = "compact_expanded_text_only_without_subtitle"
@@ -1593,9 +1595,9 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 0
             title_char_budget = 52
             subtitle_char_budget = 0
-            title_band_height = 164
-            title_content_pad_top = 28
-            title_content_pad_bottom = 24
+            title_band_height = 384  # full shell; text centered via pad
+            title_content_pad_top = 112
+            title_content_pad_bottom = 112
             title_stack_gap = 0
         title_content_top = title_band_top
         title_content_height = title_band_height
@@ -2159,7 +2161,8 @@ def _resolve_bottom_shell_height(
     if bottom_mode == "gallery_only":
         return gallery_shell_height
     if bottom_mode == "text_only_expanded":
-        return title_band_height
+        # PR-6B: title band fills the full shell (no gallery). Return full canvas coverage.
+        return 1024 - bottom_shell_top
     bottom_edges: list[int] = []
     if title_slot_rendered:
         bottom_edges.append(title_band_top + title_band_height)

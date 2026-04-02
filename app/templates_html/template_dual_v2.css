@@ -651,17 +651,19 @@ body {
   box-shadow: var(--shell-shadow-secondary);
 }
 
+/* PR-6B: text_only_expanded (state-title-only) fills full canvas bottom area.
+   Shell top=640, height=384 (fills to canvas bottom 1024). Backend vars override these. */
 .layer-bottom-region.state-title-only .region-shell-bottom {
-  height: 160px;
+  height: 384px;
 }
 
 .layer-bottom-region.state-title-only {
-  --bottom-shell-top: 728px;
-  --bottom-shell-height: 160px;
-  --title-band-top: 728px;
-  --title-band-height: 144px;
-  --title-content-top: 728px;
-  --title-content-height: 144px;
+  --bottom-shell-top: 640px;
+  --bottom-shell-height: 384px;
+  --title-band-top: 640px;
+  --title-band-height: 384px;
+  --title-content-top: 640px;
+  --title-content-height: 384px;
 }
 
 .layer-bottom-region.state-gallery-only .region-shell-bottom {
