@@ -1144,7 +1144,7 @@ def _resolve_feature_callout_layout(
                 label_box=replace(
                     base.label_box,
                     color=text_color or base.label_box.color,
-                    max_lines=2,
+                    max_lines=3,
                 ),
             )
             resolved.append((resolved_callout, feature_text))

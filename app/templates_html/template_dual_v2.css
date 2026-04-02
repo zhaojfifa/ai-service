@@ -581,6 +581,12 @@ body {
   padding-bottom: 7px;
 }
 
+.product-annotation-mode-product_anchor_callouts .feature-callout {
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  min-height: 76px;
+}
+
 .feature-callout-connector {
   position: absolute;
   height: 2px;

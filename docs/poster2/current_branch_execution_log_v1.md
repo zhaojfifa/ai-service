@@ -1,5 +1,24 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-C: Text Capacity / Label Bounds / Clamp / Connector Tuning
+
+**Branch:** `claude/festive-heisenberg`
+**Status:** Complete
+**Last updated:** 2026-04-02
+
+### What changed
+- `app/templates/specs/template_dual_v2.json` — slots 1-3 `label_box.h` 60→76; `label_box.max_lines` 2→3; slot 4 unchanged
+- `app/templates_html/template_dual_v2.css` — added `.product-annotation-mode-product_anchor_callouts .feature-callout { -webkit-line-clamp: 3; line-clamp: 3; min-height: 76px; }`
+- `app/services/poster2/renderer.py` — `_resolve_feature_callout_layout` template_anchor_fixed branch: `max_lines=2` → `max_lines=3`
+- `app/services/poster2/template_behavior.py` — `_PRODUCT_TEXT_SHELL_H` 260→276; comment updated; `char_budget` map `{1:40,2:34,3:28}`→`{1:44,2:38,3:32}`; `anchor_char_budgets` same; `line_clamp` 2→3 and `text_budget_policy` `fixed_3_anchor_three_line_budget` for product_anchor branch; `truncation_policy` `three_line_clamp` and `line_clamp=3` in `resolve_feature_behavior`
+- `tests/poster2/test_pipeline.py` — updated 4 assertions `h==260`→`h==276`; renamed `test_text_shell_bounds_unaffected` to `test_text_shell_bounds_after_prc`; added `TestProductTextCapacityPRC` (12 tests)
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `138 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+---
+
 ## Entry — PR-4: Product Geometry Rebalance
 
 **Branch:** `claude/festive-heisenberg`
@@ -49,8 +68,9 @@
 ## Current Active Workstream
 - workstream: `product region contract upgrade`
 - execution mode: `one function = one PR`
-- current active PR: `PR-4 complete — next is PR-C`
-- current PR status doc: `docs/poster2/product_region_pr4_geometry_rebalance_status_v1.md`
+- current active PR: `PR-5 / PR-C complete`
+- current PR status doc: `docs/poster2/product_region_pr5_text_capacity_tuning_status_v1.md`
+- alias doc (internal): `docs/poster2/product_region_prc_text_capacity_tuning_status_v1.md`
 
 ## Frozen Unchanged
 - bottom frozen as SOP baseline
@@ -67,18 +87,23 @@
 - declared next priority after PR-A: add `product_text_shell` as a sibling shell and keep `feature_region` suppressed
 
 ## Last Accepted PR
-- `PR-4 — Product Geometry Rebalance`
+- `PR-5 (PR-C) — Text Capacity / Label Bounds / Clamp / Connector Tuning`
 - status: complete
-- status doc: `docs/poster2/product_region_pr4_geometry_rebalance_status_v1.md`
+- status doc: `docs/poster2/product_region_pr5_text_capacity_tuning_status_v1.md`
 - carry-forward result:
-  - `product_primary_slot`: `{x:456,y:188,w:300,h:360}` (was h:310 — stronger visual weight, 67% of canvas)
-  - `product_secondary_slot`: `{x:456,y:564,w:300,h:144}` (was y:518,h:210 — 20px bottom breathing room)
-  - slot arithmetic: 360 + 16 (gap) + 144 + 20 (breathing) = 540 ✓
-  - `product_text_shell_layer`, `product_canvas_shell_layer`, `product_region` outer shell — all unchanged
-  - `feature_region` remains delegated diagnostic
+  - `label_box.h` 60→76 for slots 1-3; slot 4 unchanged
+  - `label_box.max_lines` 2→3 for slots 1-3
+  - CSS: `-webkit-line-clamp: 3` for product_anchor_callouts mode
+  - Pillow: `max_lines=3` for template_anchor_fixed
+  - `_PRODUCT_TEXT_SHELL_H` 260→276 (slot_3 bottom 492 − slot_1 top 216)
+  - `char_budget`: `{1:44, 2:38, 3:32}` (was `{1:40, 2:34, 3:28}`)
+  - `line_clamp=3`, `text_budget_policy="fixed_3_anchor_three_line_budget"` for product_anchor
+  - `truncation_policy="three_line_clamp"` in ResolvedFeatureBehavior
+  - inter-slot gap: 40px→24px (slots use 16px more h, gaps tighten by same)
+  - `product_primary_slot`, `product_secondary_slot`, outer shell, canvas shell — all unchanged
 
 ## Current PR Goal
-`PR-C — capacity / label bounds / clamp / connector tuning`
+`next: TBD`
 
 ## Reading Rule For New Sessions
 Do not read this whole file as a long archive.
