@@ -2331,8 +2331,8 @@ class TestProductGeometryPR4Rebalance:
         primary_bottom = _PRODUCT_DUAL_PRIMARY_SLOT["y"] + _PRODUCT_DUAL_PRIMARY_SLOT["h"]
         assert primary_bottom < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
 
-    def test_text_shell_bounds_unaffected(self):
-        """PR-4: product_text_shell_layer bounds must be unchanged."""
+    def test_text_shell_bounds_after_prc(self):
+        """PR-4/PR-C: text_shell x/y/w unchanged by PR-4; h updated to 276 in PR-C (label_box h 60→76)."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_TEXT_SHELL_X,
             _PRODUCT_TEXT_SHELL_Y,
@@ -2342,7 +2342,7 @@ class TestProductGeometryPR4Rebalance:
         assert _PRODUCT_TEXT_SHELL_X == 784
         assert _PRODUCT_TEXT_SHELL_Y == 216
         assert _PRODUCT_TEXT_SHELL_W == 144
-        assert _PRODUCT_TEXT_SHELL_H == 260
+        assert _PRODUCT_TEXT_SHELL_H == 276
 
     def test_text_shell_still_does_not_compete_with_canvas(self):
         """PR-4: text_shell_x must remain > canvas_right after primary slot change."""
@@ -2509,7 +2509,7 @@ class TestProductTextShellContract:
     """
 
     def test_product_text_shell_constants_geometry(self):
-        """_PRODUCT_TEXT_SHELL_* constants must match the template spec label_box geometry."""
+        """_PRODUCT_TEXT_SHELL_* constants must match the template spec label_box geometry (h=276 after PR-C)."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_TEXT_SHELL_X,
             _PRODUCT_TEXT_SHELL_Y,
@@ -2522,7 +2522,7 @@ class TestProductTextShellContract:
         assert _PRODUCT_TEXT_SHELL_X == 784
         assert _PRODUCT_TEXT_SHELL_Y == 216
         assert _PRODUCT_TEXT_SHELL_W == 144
-        assert _PRODUCT_TEXT_SHELL_H == 260
+        assert _PRODUCT_TEXT_SHELL_H == 276  # PR-C: label_box h 60→76, shell h 260→276
         # Does not compete with canvas: text shell left edge >= canvas right edge
         canvas_right = 456 + _PRODUCT_CANVAS_SHELL_W  # 756
         assert _PRODUCT_TEXT_SHELL_X >= canvas_right
@@ -2544,7 +2544,7 @@ class TestProductTextShellContract:
         assert lm["product_text_shell_x"] == 784
         assert lm["product_text_shell_y"] == 216
         assert lm["product_text_shell_w"] == 144
-        assert lm["product_text_shell_h"] == 260
+        assert lm["product_text_shell_h"] == 276  # PR-C
 
     def test_product_text_shell_layer_in_product_contract_review(self):
         """product_contract_review must include product_text_shell_layer with bounds and owner truth."""
@@ -2555,7 +2555,7 @@ class TestProductTextShellContract:
         tsl = review["product_text_shell_layer"]
         assert tsl["rendered"] is True
         assert tsl["reason_code"] is None
-        assert tsl["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 260}
+        assert tsl["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 276}  # PR-C: h 260→276
         assert tsl["owner_region"] == "product_region"
         assert tsl["owner_surface"] == "product_text_shell_layer"
         assert tsl["text_does_not_compete_with_canvas"] is True
@@ -2876,3 +2876,156 @@ class TestProductImageContract:
             )
             assert policy.product_primary_image_fit == hero.product_fit, f"Mismatch for hero_mode={hero_mode}"
             assert policy.product_primary_image_fit == "contain"
+
+
+class TestProductTextCapacityPRC:
+    """PR-C: annotation label bounds / line clamp / char budget tuning.
+
+    Validates:
+    - _PRODUCT_TEXT_SHELL_H updated to 276 (slot_3 bottom 492 - slot_1 top 216)
+    - label_box h=76 for slots 1-3 in template spec
+    - line_clamp=3 in ResolvedProductBehavior for product_anchor_callouts
+    - line_clamp=3 in ResolvedFeatureBehavior for product_anchor_callouts
+    - char_budget raised: {1:44, 2:38, 3:32}
+    - truncation_policy="three_line_clamp" for product_anchor_callouts feature behavior
+    - text_budget_policy="fixed_3_anchor_three_line_budget" for product annotation
+    - text_shell still does not compete with canvas; stays within product_region
+    """
+
+    def test_text_shell_h_updated_to_276(self):
+        """PR-C: _PRODUCT_TEXT_SHELL_H must be 276 (slot_3 bottom 492 − slot_1 top 216)."""
+        from app.services.poster2.template_behavior import _PRODUCT_TEXT_SHELL_H
+        assert _PRODUCT_TEXT_SHELL_H == 276
+
+    def test_text_shell_bottom_within_product_region(self):
+        """PR-C: text_shell bottom (216+276=492) must be within product_region bottom (188+540=728)."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_TEXT_SHELL_Y,
+            _PRODUCT_TEXT_SHELL_H,
+        )
+        text_shell_bottom = _PRODUCT_TEXT_SHELL_Y + _PRODUCT_TEXT_SHELL_H
+        product_region_bottom = 188 + 540
+        assert text_shell_bottom == 492
+        assert text_shell_bottom < product_region_bottom
+
+    def test_template_spec_label_box_h_is_76_for_active_slots(self):
+        """PR-C: template spec label_box h must be 76 for slots 1-3 (active annotation slots)."""
+        template = _load_template()
+        for idx in range(3):
+            callout = template.feature_callouts[idx]
+            assert callout.label_box.h == 76, (
+                f"Slot {idx+1} label_box.h expected 76, got {callout.label_box.h}"
+            )
+
+    def test_template_spec_label_box_max_lines_is_3_for_active_slots(self):
+        """PR-C: template spec label_box max_lines must be 3 for slots 1-3."""
+        template = _load_template()
+        for idx in range(3):
+            callout = template.feature_callouts[idx]
+            assert callout.label_box.max_lines == 3, (
+                f"Slot {idx+1} label_box.max_lines expected 3, got {callout.label_box.max_lines}"
+            )
+
+    def test_product_behavior_line_clamp_is_3_for_anchor_callouts(self):
+        """PR-C: ResolvedProductBehavior.line_clamp must be 3 for product_anchor_callouts."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=3,
+            hero_policy=hero,
+        )
+        assert policy.line_clamp == 3
+
+    def test_feature_behavior_line_clamp_is_3_for_anchor_callouts(self):
+        """PR-C: ResolvedFeatureBehavior.line_clamp must be 3 for product_anchor_callouts."""
+        from app.services.poster2.template_behavior import resolve_feature_behavior
+        policy = resolve_feature_behavior("product_anchor_callouts", requested_count=3, max_items=3)
+        assert policy.line_clamp == 3
+
+    def test_feature_behavior_truncation_policy_is_three_line_clamp(self):
+        """PR-C: product_anchor_callouts truncation_policy must be 'three_line_clamp'."""
+        from app.services.poster2.template_behavior import resolve_feature_behavior
+        policy = resolve_feature_behavior("product_anchor_callouts", requested_count=3, max_items=3)
+        assert policy.truncation_policy == "three_line_clamp"
+
+    def test_char_budget_raised_three_items(self):
+        """PR-C: char_budget for 3 annotation items must be 32."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=3,
+            hero_policy=hero,
+        )
+        assert policy.char_budget == 32
+
+    def test_char_budget_raised_two_items(self):
+        """PR-C: char_budget for 2 annotation items must be 38."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=2,
+            hero_policy=hero,
+        )
+        assert policy.char_budget == 38
+
+    def test_char_budget_raised_one_item(self):
+        """PR-C: char_budget for 1 annotation item must be 44."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=1,
+            hero_policy=hero,
+        )
+        assert policy.char_budget == 44
+
+    def test_text_budget_policy_is_three_line_label(self):
+        """PR-C: product annotation text_budget_policy must be 'fixed_3_anchor_three_line_budget'."""
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=3,
+            hero_policy=hero,
+        )
+        assert policy.text_budget_policy == "fixed_3_anchor_three_line_budget"
+
+    def test_inter_slot_gaps_are_clear_after_h76(self):
+        """PR-C: with label_box h=76, slot gaps must be ≥ 16px (slot_1 bottom 292, slot_2 top 316)."""
+        template = _load_template()
+        callouts = template.feature_callouts
+        assert len(callouts) >= 3
+        # slot_1 bottom
+        slot1_bottom = callouts[0].label_box.y + callouts[0].label_box.h
+        slot2_top = callouts[1].label_box.y
+        slot2_bottom = callouts[1].label_box.y + callouts[1].label_box.h
+        slot3_top = callouts[2].label_box.y
+        assert slot2_top - slot1_bottom >= 16, (
+            f"Gap slot1→slot2 ({slot2_top - slot1_bottom}px) must be ≥ 16px"
+        )
+        assert slot3_top - slot2_bottom >= 16, (
+            f"Gap slot2→slot3 ({slot3_top - slot2_bottom}px) must be ≥ 16px"
+        )

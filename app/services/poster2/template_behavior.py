@@ -45,13 +45,13 @@ _PRODUCT_CANVAS_SHELL_W = 300
 # x=784: product_region_x (456) + canvas_shell_w (300) + 28px gap
 # y=216: product_region_y (188) + 28px top pad
 # w=144: annotation label slot width (all 3 slots share this width)
-# h=260: bottom_of_slot_3 (y=416+h=60=476) − top_of_slot_1 (y=216) = 260
+# h=276: bottom_of_slot_3 (y=416+h=76=492) − top_of_slot_1 (y=216) = 276 (PR-C: label_box h 60→76)
 # Right edge: 784 + 144 = 928 = product_region_x (456) + outer_w (472) ✓
 # Does not compete with canvas: text_shell_x (784) > canvas_right (456+300=756) ✓
 _PRODUCT_TEXT_SHELL_X = 784
 _PRODUCT_TEXT_SHELL_Y = 216
 _PRODUCT_TEXT_SHELL_W = 144
-_PRODUCT_TEXT_SHELL_H = 260
+_PRODUCT_TEXT_SHELL_H = 276
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -818,7 +818,7 @@ def resolve_product_behavior(
         annotation_items: list[dict[str, object]] = []
         annotation_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
     else:
-        char_budget = {1: 40, 2: 34, 3: 28}.get(max(visible_annotation_count, 1), 28)
+        char_budget = {1: 44, 2: 38, 3: 32}.get(max(visible_annotation_count, 1), 32)
         line_clamp = 2
         if annotation_mode == "right_stack_mirror":
             annotation_count_policy = "fixed_3_right_stack_annotations"
@@ -833,7 +833,8 @@ def resolve_product_behavior(
             annotation_marker_policy = "product_anchor_marker"
             annotation_shell_policy = "product_anchor_annotation_shell"
             annotation_bounds_policy = "template_anchor_fixed"
-            text_budget_policy = "fixed_3_anchor_two_line_budget"
+            text_budget_policy = "fixed_3_anchor_three_line_budget"
+            line_clamp = 3
         else:
             raise ValueError(f"Unsupported product_annotation_mode: {annotation_mode}")
 
@@ -987,7 +988,7 @@ def resolve_feature_behavior(
         # No drag-and-drop, no dynamic slot count beyond 3.
         anchor_visible = min(max(requested_count, 0), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
         anchor_clamped = min(max(anchor_visible, 1), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
-        anchor_char_budgets = {1: 40, 2: 34, 3: 28}
+        anchor_char_budgets = {1: 44, 2: 38, 3: 32}
         anchor_box_h = _FEATURE_MODE_LAYOUT_SPECS[anchor_clamped]["box_h"]
         return ResolvedFeatureBehavior(
             mode=feature_mode,
@@ -997,10 +998,10 @@ def resolve_feature_behavior(
             visible_item_count_policy="fixed_3_anchor_points",
             connector_policy="product_anchor_leader_line",
             box_policy="anchor_fixed_position",
-            truncation_policy="two_line_clamp",
+            truncation_policy="three_line_clamp",
             collapse_policy="collapse_when_empty",
             text_budget_policy="anchor_fixed_budget",
-            line_clamp=2,
+            line_clamp=3,
             char_budget=anchor_char_budgets[anchor_clamped],
             box_h=int(anchor_box_h),
             gap=0,

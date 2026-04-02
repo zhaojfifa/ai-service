@@ -109,12 +109,12 @@
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 784, "y": 216, "w": 144, "h": 60,
+        "x": 784, "y": 216, "w": 144, "h": 76,
         "font_key": "feature",
         "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
-        "max_lines": 2,
+        "max_lines": 3,
         "line_height": 1.3,
         "auto_shrink": true
       }
@@ -126,12 +126,12 @@
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 784, "y": 316, "w": 144, "h": 60,
+        "x": 784, "y": 316, "w": 144, "h": 76,
         "font_key": "feature",
         "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
-        "max_lines": 2,
+        "max_lines": 3,
         "line_height": 1.3,
         "auto_shrink": true
       }
@@ -143,12 +143,12 @@
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 784, "y": 416, "w": 144, "h": 60,
+        "x": 784, "y": 416, "w": 144, "h": 76,
         "font_key": "feature",
         "font_size": 15,
         "color": "#1A1A1A",
         "align": "left",
-        "max_lines": 2,
+        "max_lines": 3,
         "line_height": 1.3,
         "auto_shrink": true
       }
