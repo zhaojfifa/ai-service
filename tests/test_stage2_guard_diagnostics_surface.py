@@ -142,6 +142,49 @@ def test_docs_publish_mirror_contains_same_guard_diagnostics():
     assert docs_js == frontend_js
 
 
+def test_frontend_stage2_surfaces_product_text_shell_evidence():
+    """Prove that Stage2 reads product_text_shell evidence from the backend payload.
+
+    Checks:
+    1. text_shell status chip is present in buildProductDetail (reads product_text_shell_layer from payload).
+    2. text_does_not_compete_with_canvas badge is present.
+    3. owner_region / owner_surface are displayed.
+    4. char_budget and line_clamp are displayed from behavior_policy.
+    5. sanitized_text is referenced in the annotation slot text chain.
+    6. feature_region continues to show delegated diagnostic (not a parallel owner).
+    7. docs/stage2.html mirrors frontend/stage2.html exactly.
+    """
+    html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    docs_html = (ROOT / "docs" / "stage2.html").read_text(encoding="utf-8")
+
+    # 1. text_shell chip reads product_text_shell_layer from backend payload
+    assert "product_text_shell_layer?.rendered" in html
+    assert "product_text_shell_layer?.reason_code" in html
+
+    # 2. no-compete badge is gated on backend truth
+    assert "text_does_not_compete_with_canvas" in html
+
+    # 3. owner_region / owner_surface displayed
+    assert "textShell.owner_region" in html
+    assert "textShell.owner_surface" in html
+
+    # 4. char_budget and line_clamp from behavior_policy
+    assert "char_budget" in html
+    assert "line_clamp" in html
+    assert "behavior_policy?.char_budget" in html
+    assert "behavior_policy?.line_clamp" in html
+
+    # 5. sanitized_text in annotation slot chain
+    assert "sanitized_text" in html
+    assert "sanitizedDiffers" in html
+
+    # 6. feature_region delegated diagnostic badge is still present
+    assert "delegated to product_annotation" in html
+
+    # 7. docs mirror is identical
+    assert docs_html == html
+
+
 def test_api_response_schema_exposes_scenario_and_annotation_contract_review():
     """Prove that GeneratePosterV2Response schema and main.py both surface
     scenario_contract_review and product_annotation_contract_review.
