@@ -1,5 +1,22 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-6: Bottom Optional Subtitle Closure
+
+**Branch:** `claude/festive-heisenberg`
+**Status:** Complete
+**Last updated:** 2026-04-02
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `ResolvedBottomBehavior`: added `title_band_expansion_policy: str` field + `as_dict()` update; `_resolve_bottom_layout_policies`: added PR-6 horizontal expansion block computing `title_band_x`, `title_band_w`, `subtitle_slot_x`, `subtitle_slot_w`, `title_band_expansion_policy` (full_width_title_band_no_gallery when `title_slot_rendered and not gallery_strip_rendered`, else standard/no-band); `_resolve_bottom_behavior_vars`: added `--title-band-left` and `--title-band-width`
+- `app/templates_html/template_dual_v2.css` — `#poster-root`: added `--title-band-left: 112px` and `--title-band-width: 800px`; `.region-shell-title-band`: `left: 112px` → `left: var(--title-band-left)`, `width: 800px` → `width: var(--title-band-width)`
+- `app/services/poster2/renderer.py` — `_title_band_shell_bounds`: uses `layout_metrics["title_band_x"]` and `layout_metrics["title_band_w"]`; `_title_text_slot`: overrides `x` and `w` from layout_metrics; `_subtitle_text_slot`: overrides `x` and `w` from `layout_metrics["subtitle_slot_x"]` and `["subtitle_slot_w"]`
+- `tests/poster2/test_pipeline.py` — added `TestBottomPR6OptionalSubtitleClosure` class (10 tests across 4 cases + CSS var evidence)
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `148 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+---
 ## Entry — PR-C: Text Capacity / Label Bounds / Clamp / Connector Tuning
 
 **Branch:** `claude/festive-heisenberg`
@@ -86,6 +103,18 @@
 - declared next priority after PR-A: add `product_text_shell` as a sibling shell and keep `feature_region` suppressed
 
 ## Last Accepted PR
+- `PR-6 — Bottom Optional Subtitle Closure`
+- status: complete
+- status doc: `docs/poster2/bottom_region_pr6_optional_subtitle_closure_status_v1.md`
+- carry-forward result:
+  - `title_band_expansion_policy`: `"full_width_title_band_no_gallery"` when gallery absent, `"standard_title_band_with_gallery"` when present
+  - no-gallery case: `title_band_x=96`, `title_band_w=832`, `subtitle_slot_x=136`, `subtitle_slot_w=752`
+  - standard case: `title_band_x=112`, `title_band_w=800`, `subtitle_slot_x=152`, `subtitle_slot_w=720`
+  - CSS vars `--title-band-left` / `--title-band-width` now dynamic from resolver
+  - Pillow `_title_band_shell_bounds`, `_title_text_slot`, `_subtitle_text_slot` consume layout_metrics x/w
+  - four-case closure established: gallery+subtitle / gallery+no_subtitle / no_gallery+subtitle / no_gallery+no_subtitle
+
+## Previous Last Accepted PR
 - `PR-5 (PR-C) — Text Capacity / Label Bounds / Clamp / Connector Tuning`
 - status: complete
 - status doc: `docs/poster2/product_region_pr5_text_capacity_tuning_status_v1.md`
@@ -102,7 +131,7 @@
   - `product_primary_slot`, `product_secondary_slot`, outer shell, canvas shell — all unchanged
 
 ## Current PR Goal
-`next: TBD`
+`next: TBD` (PR-6 complete)
 
 ## Reading Rule For New Sessions
 Do not read this whole file as a long archive.

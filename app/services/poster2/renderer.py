@@ -1845,9 +1845,9 @@ def _product_secondary_image_slot(spec: TemplateSpec, product_policy):
 def _title_band_shell_bounds(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior) -> tuple[int, int, int, int]:
     layout = bottom_policy.layout_metrics
     return (
-        spec.title_slot.x,
+        int(layout.get("title_band_x", spec.title_slot.x)),
         int(layout["title_band_top"]),
-        spec.title_slot.w,
+        int(layout.get("title_band_w", spec.title_slot.w)),
         int(layout["title_band_height"]),
     )
 
@@ -1877,7 +1877,9 @@ def _title_text_slot(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavior, 
     layout = bottom_policy.layout_metrics
     return replace(
         spec.title_slot,
+        x=int(layout.get("title_band_x", spec.title_slot.x)),
         y=int(layout["title_slot_y"]),
+        w=int(layout.get("title_band_w", spec.title_slot.w)),
         h=int(layout["title_slot_height"]),
         color=color,
         max_lines=max(bottom_policy.title_line_clamp, 1),
@@ -1888,7 +1890,9 @@ def _subtitle_text_slot(spec: TemplateSpec, bottom_policy: ResolvedBottomBehavio
     layout = bottom_policy.layout_metrics
     return replace(
         spec.subtitle_slot,
+        x=int(layout.get("subtitle_slot_x", spec.subtitle_slot.x)),
         y=int(layout["subtitle_slot_y"]),
+        w=int(layout.get("subtitle_slot_w", spec.subtitle_slot.w)),
         h=int(layout["subtitle_slot_height"]),
         color=color,
         max_lines=max(bottom_policy.subtitle_line_clamp, 1),

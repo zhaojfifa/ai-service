@@ -149,6 +149,8 @@ body {
   --bottom-subtitle-opacity: 0.9;
   --title-line-clamp: 2;
   --subtitle-line-clamp: 1;
+  --title-band-left: 112px;
+  --title-band-width: 800px;
 }
 
 .region-shell {
@@ -696,9 +698,9 @@ body {
 
 .region-shell-title-band {
   position: absolute;
-  left: 112px;
+  left: var(--title-band-left);
   top: var(--title-band-top);
-  width: 800px;
+  width: var(--title-band-width);
   height: var(--title-band-height);
   border-radius: 28px;
   background: var(--shell-surface-title-band);

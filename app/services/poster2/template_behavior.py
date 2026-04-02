@@ -422,6 +422,7 @@ class ResolvedBottomBehavior:
     gallery_aspect_policy: str
     gallery_spacing_policy: str
     bottom_text_emphasis_policy: str
+    title_band_expansion_policy: str
     title_line_clamp: int
     subtitle_line_clamp: int
     title_char_budget: int
@@ -470,6 +471,7 @@ class ResolvedBottomBehavior:
             "gallery_aspect_policy": self.gallery_aspect_policy,
             "gallery_spacing_policy": self.gallery_spacing_policy,
             "bottom_text_emphasis_policy": self.bottom_text_emphasis_policy,
+            "title_band_expansion_policy": self.title_band_expansion_policy,
             "title_line_clamp": self.title_line_clamp,
             "subtitle_line_clamp": self.subtitle_line_clamp,
             "title_char_budget": self.title_char_budget,
@@ -1347,6 +1349,7 @@ def resolve_bottom_behavior(
         visible_item_count=visible_item_count,
         bottom_shell_top=actual_bottom_shell_top,
     )
+    title_band_expansion_policy = str(layout_metrics["title_band_expansion_policy"])
 
     bottom_region_rendered = title_band_rendered or gallery_strip_rendered
     if title_band_rendered and gallery_strip_rendered:
@@ -1469,6 +1472,7 @@ def resolve_bottom_behavior(
         gallery_aspect_policy=gallery_aspect_policy,
         gallery_spacing_policy=gallery_spacing_policy,
         bottom_text_emphasis_policy=bottom_text_emphasis_policy,
+        title_band_expansion_policy=title_band_expansion_policy,
         title_line_clamp=title_line_clamp,
         subtitle_line_clamp=subtitle_line_clamp,
         title_char_budget=title_char_budget,
@@ -1889,6 +1893,31 @@ def _resolve_bottom_layout_policies(
         subtitle_slot_rendered=subtitle_slot_rendered,
     )
 
+    # PR-6: Title band horizontal expansion.
+    # When gallery strip is absent, expand the title band (and subtitle text slot)
+    # to fill the full bottom shell width (x=96, w=832), matching gallery_slot geometry.
+    # Standard (gallery present): x=112, w=800, matching title_slot template spec.
+    # Subtitle inset from title band edge: 40px on each side (matches frozen subtitle_slot spec).
+    _BOTTOM_SHELL_X = 96
+    _BOTTOM_SHELL_W = 832
+    _TITLE_BAND_DEFAULT_X = 112
+    _TITLE_BAND_DEFAULT_W = 800
+    _SUBTITLE_INSET = 40
+    if title_slot_rendered and not gallery_strip_rendered:
+        title_band_x = _BOTTOM_SHELL_X
+        title_band_w = _BOTTOM_SHELL_W
+        title_band_expansion_policy = "full_width_title_band_no_gallery"
+    else:
+        title_band_x = _TITLE_BAND_DEFAULT_X
+        title_band_w = _TITLE_BAND_DEFAULT_W
+        title_band_expansion_policy = (
+            "standard_title_band_with_gallery"
+            if gallery_strip_rendered
+            else "no_title_band_rendered"
+        )
+    subtitle_slot_x = title_band_x + _SUBTITLE_INSET
+    subtitle_slot_w = title_band_w - 2 * _SUBTITLE_INSET
+
     return (
         title_band_sizing_mode,
         title_band_growth_policy,
@@ -1934,6 +1963,11 @@ def _resolve_bottom_layout_policies(
             "title_slot_height": title_slot_h,
             "subtitle_slot_y": subtitle_slot_y,
             "subtitle_slot_height": subtitle_slot_h,
+            "title_band_x": title_band_x,
+            "title_band_w": title_band_w,
+            "subtitle_slot_x": subtitle_slot_x,
+            "subtitle_slot_w": subtitle_slot_w,
+            "title_band_expansion_policy": title_band_expansion_policy,
         },
     )
 
@@ -2164,6 +2198,8 @@ def _resolve_bottom_behavior_vars(policy: ResolvedBottomBehavior) -> dict[str, s
         "--bottom-subtitle-opacity": _resolve_bottom_subtitle_opacity(policy.bottom_text_emphasis_policy),
         "--title-line-clamp": str(title_line_clamp),
         "--subtitle-line-clamp": str(subtitle_line_clamp),
+        "--title-band-left": f"{int(layout['title_band_x'])}px",
+        "--title-band-width": f"{int(layout['title_band_w'])}px",
     }
 
 
