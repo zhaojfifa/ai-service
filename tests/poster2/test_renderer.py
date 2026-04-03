@@ -553,7 +553,7 @@ class TestGalleryPositions:
         assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_copy_priority_strong_title"
         assert [item["x"] for item in gallery_layouts] == [224, 520]
         assert [item["w"] for item in gallery_layouts] == [280, 280]
-        assert [item["y"] for item in gallery_layouts] == [862, 862]
+        assert [item["y"] for item in gallery_layouts] == [882, 882]
         assert [item["h"] for item in gallery_layouts] == [80, 80]
 
     def test_three_item_distribution_uses_balanced_triplet_layout(self):
@@ -1160,7 +1160,7 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.title_line_clamp == 2
         assert resolved.bottom_policy.subtitle_line_clamp == 2
         assert resolved.bottom_policy.layout_metrics["title_band_height"] == 192
-        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 852
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 872
         assert resolved.bottom_policy.layout_metrics["gallery_shell_x"] == 208
         assert resolved.bottom_policy.layout_metrics["gallery_shell_w"] == 608
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 80
@@ -1198,7 +1198,7 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.title_line_clamp == 2
         assert resolved.bottom_policy.subtitle_line_clamp == 1
         assert resolved.bottom_policy.layout_metrics["title_band_height"] == 168
-        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 828
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 848
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
 
     def test_template_behavior_resolver_promotes_dense_feature_and_bottom_into_template_policy(self):

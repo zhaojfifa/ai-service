@@ -1,5 +1,37 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-6D: Bottom Mode Parity and Rebalance Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-03
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_EXPANDED_BOTTOM_SHELL_TOPS["title_gallery_split"]`: 660 → 680; `_resolve_bottom_shell_height` for `text_only_expanded`: `return 1024 - bottom_shell_top` → `return title_band_height`; comments updated
+- `app/templates_html/template_dual_v2.css` — `.state-title-only` fallback: `--bottom-shell-height` and `.region-shell-bottom height` 384px → 160px; comment updated
+- `tests/poster2/test_pipeline.py` — updated all title_gallery_split y-values +20px (shell_top 660→680; gallery_strip, title_band, subtitle_slot, gallery_slot coordinates shifted); updated text_only_expanded shell-height tests (now expects `shell_height == title_band_height`); updated PR-6C class docstring and `test_toe_shell_still_fills_to_canvas_bottom` → `test_toe_shell_height_equals_title_band_height`; updated `test_toe_title_band_is_smaller_than_shell` → `test_toe_title_band_equals_shell_for_all_sub_cases`; added `TestBottomPR6DModeParityClosure` (16 tests)
+- `tests/poster2/test_renderer.py` — `gallery_shell_top` 852→872, 828→848; `gallery_items_y` 862→882
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `192 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+### Carry-forward geometry
+
+**title_gallery_split:**
+- `bottom_shell_top`: 680 (was 660; cumulative +40px from original 640; eliminates bottom-image overlap)
+- All gallery/title heights, widths, distribution rules: unchanged
+
+**text_only_expanded:**
+- `bottom_shell_top`: 640 (unchanged)
+- `bottom_shell_height`: = `title_band_height` (160 / 176 / 196 / 220 per sub-case)
+- `shell_top + shell_height`: 800 / 816 / 836 / 860 (dead canvas eliminated)
+- `title_band_x = 96`, `title_band_w = 832` (unchanged)
+- `layout_metrics["bottom_shell_height"] == layout_metrics["title_band_height"]` for all sub-cases
+- CSS vars and layout_metrics unified: no separate geometry_evidence vs layout_metrics divergence
+
+---
+
 ## Entry — PR-6C: Bottom Mode Rebalance
 
 **Branch:** `pr6-clean`
@@ -158,9 +190,9 @@
 - declared next priority after PR-A: add `product_text_shell` as a sibling shell and keep `feature_region` suppressed
 
 ## Last Accepted PR
-- `PR-6 — Bottom Optional Subtitle Closure`
+- `PR-6D — Bottom Mode Parity and Rebalance Closure`
 - status: complete
-- status doc: `docs/poster2/bottom_region_pr6_optional_subtitle_closure_status_v1.md`
+- status doc: `docs/poster2/bottom_region_pr6d_mode_parity_closure_status_v1.md`
 - carry-forward result:
   - `title_band_expansion_policy`: `"full_width_title_band_no_gallery"` when gallery absent, `"standard_title_band_with_gallery"` when present
   - no-gallery case: `title_band_x=96`, `title_band_w=832`, `subtitle_slot_x=136`, `subtitle_slot_w=752`
@@ -186,7 +218,7 @@
   - `product_primary_slot`, `product_secondary_slot`, outer shell, canvas shell — all unchanged
 
 ## Current PR Goal
-`next: TBD` (PR-6 complete)
+`next: TBD` (PR-6D complete)
 
 ## Reading Rule For New Sessions
 Do not read this whole file as a long archive.

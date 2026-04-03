@@ -651,16 +651,15 @@ body {
   box-shadow: var(--shell-shadow-secondary);
 }
 
-/* PR-6B/6C: text_only_expanded (state-title-only) fills full canvas bottom area.
-   Shell top=640, height=384 (fills to canvas bottom 1024). Backend vars override these.
-   PR-6C: title band is content-proportionate; default fallback is compact (160px, no subtitle). */
+/* PR-6D: text_only_expanded (state-title-only) shell height = title_band_height (content-proportionate).
+   Shell top=640. Default fallback is compact (160px, no subtitle). Backend vars override all. */
 .layer-bottom-region.state-title-only .region-shell-bottom {
-  height: 384px;
+  height: 160px;
 }
 
 .layer-bottom-region.state-title-only {
   --bottom-shell-top: 640px;
-  --bottom-shell-height: 384px;
+  --bottom-shell-height: 160px;
   --title-band-top: 640px;
   --title-band-height: 160px;
   --title-content-top: 640px;
