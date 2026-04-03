@@ -1,5 +1,36 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-6C: Bottom Mode Rebalance
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-03
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_EXPANDED_BOTTOM_SHELL_TOPS["title_gallery_split"]`: 640 → 660; comment updated; `text_only_expanded` branch: `title_band_height` per sub-case 384 → 160/176/196/220; `title_content_pad_top`/`pad_bottom` updated to 28–40; `_resolve_bottom_shell_height` comment updated
+- `app/templates_html/template_dual_v2.css` — `.layer-bottom-region.state-title-only`: `--title-band-height` 384px → 160px; `--title-content-height` 384px → 160px; comment updated
+- `tests/poster2/test_pipeline.py` — `title_gallery_split` shell_top assertion 640 → 660; `TestBottomPR6BExpandedSpaceClosure` title_band_height test updated; CSS var `--title-band-height` assertion updated to 160px; 8 geometry y-values shifted +20px; added `TestBottomPR6CModeRebalance` (16 tests)
+- `tests/poster2/test_renderer.py` — 3 gallery geometry y-values shifted +20px
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `177 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+### Carry-forward geometry
+
+**title_gallery_split:**
+- `bottom_shell_top`: 660 (was 640; +20px shift eliminates bottom-image overlap)
+- All gallery/title heights unchanged; everything inside the shell shifts +20px
+
+**text_only_expanded:**
+- `bottom_shell_top`: 640 (unchanged)
+- `bottom_shell_height`: 384 (unchanged; fills to canvas bottom)
+- `title_band_height`: 160 (no subtitle) / 176 (short subtitle) / 196 (moderate subtitle >28) / 220 (dense subtitle >48)
+- `title_band_x = 96`, `title_band_w = 832` (PR-6 full-width carry-forward, unchanged)
+- `title_band_expansion_policy = "full_width_title_band_no_gallery"` (unchanged)
+
+---
+
 ## Entry — PR-6B: Bottom Expanded Space / Text Expansion / Overlap Closure
 
 **Branch:** `pr6-clean`
