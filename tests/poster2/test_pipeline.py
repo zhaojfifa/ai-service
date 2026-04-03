@@ -489,14 +489,14 @@ class TestPosterPipelineRun:
         geometry = metadata["geometry_evidence"]
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
-        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 640, "w": 832, "h": 168}
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
+        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 660, "w": 832, "h": 168}
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 660, "w": 800, "h": 168}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 540}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 752, "w": 720, "h": 28}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 772, "w": 720, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["scenario_region"] == 0
         assert geometry["visible_item_count"]["title_band_region"] == 2
@@ -688,8 +688,8 @@ class TestPosterPipelineRun:
         assert gallery_status[0]["local_bounds"]["x"] == 272
         assert gallery_status[0]["local_bounds"]["y"] == 0
         geometry = metadata["geometry_evidence"]
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 350, "y": 808, "w": 324, "h": 88}
-        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 368, "y": 818, "w": 288, "h": 68}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 350, "y": 828, "w": 324, "h": 88}
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 368, "y": 838, "w": 288, "h": 68}
         assert geometry["visible_item_count"]["gallery_strip_region"] == 1
 
     def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
@@ -801,9 +801,9 @@ class TestPosterPipelineRun:
         assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_quad_text_emphasis"
         assert behavior["subtitle_line_clamp"] == 1
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 640, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 808, "w": 832, "h": 68}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 751, "w": 720, "h": 28}
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 660, "w": 800, "h": 168}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 828, "w": 832, "h": 68}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 771, "w": 720, "h": 28}
 
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
         stored_payloads: dict[str, bytes] = {}
@@ -853,7 +853,7 @@ class TestPosterPipelineRun:
         assert behavior["gallery_strip_shift_policy"] == "downshift_for_spacious_pair"
         assert behavior["gallery_aspect_policy"] == "spacious_pair_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_copy_priority_strong_title"
-        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 208, "y": 832, "w": 608, "h": 100}
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 208, "y": 852, "w": 608, "h": 100}
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 128,
             "y": 10,
@@ -907,7 +907,7 @@ class TestPosterPipelineRun:
         assert behavior["gallery_aspect_policy"] == "balanced_triplet_aspect"
         assert behavior["gallery_spacing_policy"] == "balanced_triplet_spacing"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_balanced_triplet_text_emphasis"
-        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 156, "y": 816, "w": 712, "h": 80}
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 156, "y": 836, "w": 712, "h": 80}
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 74,
             "y": 10,
@@ -1544,8 +1544,8 @@ class TestBottomStructuralExpansion:
         manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["bottom_contract_review"]
 
-        # Frozen baseline shell top (title_gallery_split now uses y=640 via expanded geometry)
-        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 640
+        # PR-6C: title_gallery_split shifted down 20px to y=660 to remove bottom-image overlap
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 660
         assert review["bottom_layout_mode"] == "title_gallery_split"
         assert review["bottom_mode"] == "title_gallery_split"
 
@@ -3186,10 +3186,15 @@ class TestBottomPR6BExpandedSpaceClosure:
 
     # --- Title band geometry ---
 
-    def test_title_band_height_equals_shell_height(self):
-        """No gallery → title band occupies full shell."""
+    def test_title_band_height_is_within_shell_and_content_proportionate(self):
+        """PR-6C: title band is content-proportionate (≤shell height), not the full 384px block."""
         policy = self._run()
-        assert policy.layout_metrics["title_band_height"] == 384
+        shell_h = policy.layout_metrics["bottom_shell_height"]
+        band_h = policy.layout_metrics["title_band_height"]
+        assert band_h <= shell_h
+        assert band_h > 0
+        # compact (no subtitle): expect 160px
+        assert band_h == 160
 
     def test_title_band_top_equals_shell_top(self):
         policy = self._run()
@@ -3244,7 +3249,7 @@ class TestBottomPR6BExpandedSpaceClosure:
         assert css["--bottom-shell-top"] == "640px"
         assert css["--bottom-shell-height"] == "384px"
         assert css["--title-band-top"] == "640px"
-        assert css["--title-band-height"] == "384px"
+        assert css["--title-band-height"] == "160px"   # PR-6C: compact (no subtitle) = 160px
         assert css["--title-band-left"] == "96px"
         assert css["--title-band-width"] == "832px"
 
@@ -3259,3 +3264,152 @@ class TestBottomPR6BExpandedSpaceClosure:
         policy = self._run(subtitle="副标题文字测试内容")
         assert policy.subtitle_slot_rendered is True
         assert policy.layout_metrics["subtitle_slot_height"] > 0
+
+
+class TestBottomPR6CModeRebalance:
+    """PR-6C: bottom mode geometry rebalance.
+
+    title_gallery_split:
+    - whole bottom block shifted down +20px (shell_top 640 → 660)
+    - gallery distribution / collapse rules / title band widths unchanged
+
+    text_only_expanded:
+    - title band height reduced from 384 to content-proportionate values (160–220px)
+    - shell still fills to canvas bottom (height=384, top+height=1024)
+    - full-width text occupation unchanged (title_band_x=96, title_band_w=832)
+    """
+
+    def _run_tgs(self, *, title: str = "Test Title", subtitle: str = "", gallery_count: int = 2):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        return resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text=title,
+            subtitle_text=subtitle,
+            requested_gallery_count=gallery_count,
+            normalized_gallery_count=gallery_count,
+            resolved_gallery_count=gallery_count,
+            max_items=4,
+        )
+
+    def _run_toe(self, *, title: str = "Test Title", subtitle: str = ""):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        return resolve_bottom_behavior(
+            "text_only_expanded",
+            gallery_mode="strip_local_visible_only",
+            title_text=title,
+            subtitle_text=subtitle,
+            requested_gallery_count=0,
+            normalized_gallery_count=0,
+            resolved_gallery_count=0,
+            max_items=4,
+        )
+
+    # --- title_gallery_split: +20px shift ---
+
+    def test_tgs_shell_top_is_660(self):
+        """PR-6C: title_gallery_split shell shifted down from 640 to 660."""
+        policy = self._run_tgs()
+        assert policy.layout_metrics["bottom_shell_top"] == 660
+
+    def test_tgs_title_band_top_equals_shell_top(self):
+        policy = self._run_tgs()
+        assert policy.layout_metrics["title_band_top"] == policy.layout_metrics["bottom_shell_top"]
+
+    def test_tgs_gallery_strip_rendered(self):
+        policy = self._run_tgs(gallery_count=2)
+        assert policy.gallery_strip_rendered is True
+
+    def test_tgs_gallery_shell_top_above_shell_bottom(self):
+        """Gallery strip sits inside the bottom shell."""
+        policy = self._run_tgs(gallery_count=2)
+        shell_top = policy.layout_metrics["bottom_shell_top"]
+        shell_h = policy.layout_metrics["bottom_shell_height"]
+        gallery_top = policy.layout_metrics["gallery_shell_top"]
+        gallery_h = policy.layout_metrics["gallery_shell_height"]
+        assert gallery_top >= shell_top
+        assert gallery_top + gallery_h <= shell_top + shell_h
+
+    def test_tgs_mode_identity_preserved(self):
+        """title_gallery_split mode identity and bottom_layout_mode must be preserved."""
+        policy = self._run_tgs()
+        assert policy.effective_mode == "title_gallery_split"
+        assert policy.bottom_layout_mode == "title_gallery_split"
+
+    def test_tgs_full_width_policy_absent(self):
+        """title_gallery_split has gallery → must not use full_width_title_band_no_gallery."""
+        policy = self._run_tgs(gallery_count=2)
+        assert policy.title_band_expansion_policy == "standard_title_band_with_gallery"
+
+    # --- text_only_expanded: title band rebalance ---
+
+    def test_toe_shell_still_fills_to_canvas_bottom(self):
+        """PR-6C does not change shell height — shell still covers to y=1024."""
+        policy = self._run_toe()
+        assert policy.layout_metrics["bottom_shell_top"] == 640
+        assert policy.layout_metrics["bottom_shell_height"] == 384
+        assert policy.layout_metrics["bottom_shell_top"] + policy.layout_metrics["bottom_shell_height"] == 1024
+
+    def test_toe_title_band_compact_is_160(self):
+        """No subtitle (compact): title_band_height == 160."""
+        policy = self._run_toe(title="Short Title")
+        assert policy.layout_metrics["title_band_height"] == 160
+
+    def test_toe_title_band_with_short_subtitle_is_176(self):
+        """Short subtitle (≤28 chars): title_band_height == 176."""
+        policy = self._run_toe(title="Title", subtitle="Short sub")
+        assert policy.layout_metrics["title_band_height"] == 176
+
+    def test_toe_title_band_with_moderate_subtitle_is_196(self):
+        """Moderate subtitle (29–48 chars): title_band_height == 196."""
+        policy = self._run_toe(title="Title", subtitle="This subtitle is moderately long enough here")
+        assert policy.layout_metrics["title_band_height"] == 196
+
+    def test_toe_title_band_with_dense_subtitle_is_220(self):
+        """Dense subtitle (>48 chars): title_band_height == 220."""
+        policy = self._run_toe(
+            title="A fairly long product title for this test",
+            subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
+        )
+        assert policy.layout_metrics["title_band_height"] == 220
+
+    def test_toe_title_band_is_smaller_than_shell(self):
+        """For all sub-cases, title band must be strictly smaller than shell height."""
+        for subtitle in ["", "Short", "Moderate length subtitle here", "Very long subtitle over forty-eight characters total"]:
+            policy = self._run_toe(title="Product Title", subtitle=subtitle)
+            assert policy.layout_metrics["title_band_height"] < policy.layout_metrics["bottom_shell_height"]
+
+    def test_toe_full_width_text_occupation_unchanged(self):
+        """PR-6C does not change horizontal expansion — full-width title band stays."""
+        policy = self._run_toe()
+        assert policy.title_band_expansion_policy == "full_width_title_band_no_gallery"
+        assert policy.layout_metrics["title_band_x"] == 96
+        assert policy.layout_metrics["title_band_w"] == 832
+
+    def test_toe_text_slots_inside_title_band(self):
+        """Title and subtitle slots remain inside the title band bounds."""
+        policy = self._run_toe(title="A sufficiently long title", subtitle="A subtitle for this test")
+        band_top = policy.layout_metrics["title_band_top"]
+        band_bottom = band_top + policy.layout_metrics["title_band_height"]
+        title_y = policy.layout_metrics["title_slot_y"]
+        title_bottom = title_y + policy.layout_metrics["title_slot_height"]
+        sub_y = policy.layout_metrics["subtitle_slot_y"]
+        sub_bottom = sub_y + policy.layout_metrics["subtitle_slot_height"]
+        assert title_y >= band_top
+        assert title_bottom <= band_bottom
+        assert sub_y >= band_top
+        assert sub_bottom <= band_bottom
+
+    def test_toe_css_vars_title_band_height_not_384(self):
+        """PR-6C: CSS var --title-band-height must no longer be 384px for any sub-case."""
+        from app.services.poster2.template_behavior import _resolve_bottom_behavior_vars
+        for subtitle in ["", "Short sub", "Moderate subtitle here yes", "Very long subtitle that exceeds 48 chars easily yes"]:
+            policy = self._run_toe(title="Product Title", subtitle=subtitle)
+            css = _resolve_bottom_behavior_vars(policy)
+            assert css["--title-band-height"] != "384px", f"subtitle={subtitle!r} still produces 384px band"
+
+    def test_toe_gallery_still_absent(self):
+        """text_only_expanded: gallery_strip_rendered stays False after PR-6C."""
+        policy = self._run_toe()
+        assert policy.gallery_strip_rendered is False
+        assert policy.layout_metrics["gallery_shell_height"] == 0
