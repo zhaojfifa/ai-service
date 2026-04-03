@@ -99,11 +99,11 @@ _BOTTOM_MODE_ALIASES: dict[str, str] = {
 
 # Structural expansion: new modes start the bottom shell higher than the frozen baseline (y=728).
 # text_only_expanded and text_gallery_expanded share y=640 as the shell top.
-# title_gallery_split uses y=660 (PR-6C: +20px shift eliminates bottom-image overlap/clipping).
-# text_only_expanded fills the full canvas height from 640 to 1024 (384px); no gallery competes for space.
+# title_gallery_split uses y=680 (PR-6D: +40px total shift from 640 eliminates bottom-image overlap/clipping).
+# text_only_expanded shell height = title_band_height (PR-6D: content-proportionate, no dead canvas below).
 _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
-    "title_gallery_split": 660,   # PR-6C: shifted down 20px from 640 to remove bottom-image overlap
-    "text_only_expanded": 640,    # PR-6B: 384px capacity, fills to canvas bottom (no gallery)
+    "title_gallery_split": 680,   # PR-6D: shifted down 40px from 640 (660→680) to fully close bottom-image overlap
+    "text_only_expanded": 640,    # PR-6B: shell top fixed; PR-6D: shell height = title_band_height (content-proportionate)
     "text_gallery_expanded": 640, # 384px capacity
 }
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
@@ -1537,8 +1537,9 @@ def _resolve_bottom_layout_policies(
         title_content_pad_bottom = 0
         title_stack_gap = 0
     elif bottom_mode == "text_only_expanded":
-        # PR-6B: shell starts at y=640 (384px capacity, fills to canvas bottom). No gallery.
-        # PR-6C: title band is content-proportionate (160–220px); shell still fills to canvas bottom.
+        # PR-6B: shell starts at y=640. No gallery.
+        # PR-6C: title band is content-proportionate (160–220px).
+        # PR-6D: shell height = title_band_height (no dead canvas below active text band).
         # Text is centered within the title band with proportionate padding.
         content_priority_policy = "expanded_text_only_full_copy_priority"
         peer_balance_policy = "expanded_title_band_only"
@@ -1554,7 +1555,7 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 3
             title_char_budget = 72
             subtitle_char_budget = 80
-            title_band_height = 220  # PR-6C: content-fit (3+3 lines); shell fills to canvas bottom
+            title_band_height = 220  # PR-6D: shell height = title_band_height (3+3 lines)
             title_content_pad_top = 28
             title_content_pad_bottom = 28
             title_stack_gap = 10
@@ -1568,7 +1569,7 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 2
             title_char_budget = 64
             subtitle_char_budget = 64
-            title_band_height = 196  # PR-6C: content-fit (2+2 lines); shell fills to canvas bottom
+            title_band_height = 196  # PR-6D: shell height = title_band_height (2+2 lines)
             title_content_pad_top = 30
             title_content_pad_bottom = 30
             title_stack_gap = 10
@@ -1582,7 +1583,7 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 1
             title_char_budget = 56
             subtitle_char_budget = 44
-            title_band_height = 176  # PR-6C: content-fit (2+1 lines); shell fills to canvas bottom
+            title_band_height = 176  # PR-6D: shell height = title_band_height (2+1 lines)
             title_content_pad_top = 32
             title_content_pad_bottom = 32
             title_stack_gap = 10
@@ -1596,7 +1597,7 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 0
             title_char_budget = 52
             subtitle_char_budget = 0
-            title_band_height = 160  # PR-6C: content-fit (2 lines title only); shell fills to canvas bottom
+            title_band_height = 160  # PR-6D: shell height = title_band_height (2 lines title only, compact)
             title_content_pad_top = 40
             title_content_pad_bottom = 40
             title_stack_gap = 0
@@ -2162,8 +2163,9 @@ def _resolve_bottom_shell_height(
     if bottom_mode == "gallery_only":
         return gallery_shell_height
     if bottom_mode == "text_only_expanded":
-        # PR-6B: shell fills to canvas bottom (no gallery). PR-6C: title_band_height is content-proportionate (≤384).
-        return 1024 - bottom_shell_top
+        # PR-6D: shell height matches title_band_height (content-proportionate, 160–220px).
+        # No dead canvas below the active text band. Shell top stays at 640.
+        return title_band_height
     bottom_edges: list[int] = []
     if title_slot_rendered:
         bottom_edges.append(title_band_top + title_band_height)
