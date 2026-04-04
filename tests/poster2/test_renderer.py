@@ -1781,8 +1781,9 @@ class TestBottomSplitBehavior:
             ],
         )
 
-        assert "--title-band-height: 168px" in html_payload
+        assert "--title-band-height: 184px" in html_payload
         assert "--subtitle-line-clamp: 2" in html_payload
+        assert "--title-stack-gap: 4px" in html_payload
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
         assert "left:0px;top:8px;width:196px;height:52px;" in html_payload

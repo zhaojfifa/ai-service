@@ -1569,8 +1569,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 72
             subtitle_char_budget = 160  # PR-7B2: expanded to allow genuine 3-line support copy
             title_band_height = 240  # PR-7B2: 240px to accommodate 3-line title + 3-line subtitle slots
-            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
-            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance; subtitle touches band edge
+            title_content_pad_top = 24  # PR-7B5: subtitle-present vertical allocation moved upward from bottom-heavy anchoring
+            title_content_pad_bottom = 24  # PR-7B5: keep balanced lower clearance while preserving 3-line non-truncation
             title_stack_gap = 8  # PR-7B2: reduced from 10 for tighter title/subtitle stack
         elif subtitle_slot_rendered and subtitle_length > 28:
             title_band_sizing_mode = "expanded"
@@ -1583,8 +1583,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 64
             subtitle_char_budget = 64
             title_band_height = 196  # PR-6D: shell height = title_band_height (2+2 lines)
-            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
-            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance
+            title_content_pad_top = 24  # PR-7B5: subtitle-present vertical allocation moved upward
+            title_content_pad_bottom = 24  # PR-7B5: balanced lower clearance, budgets unchanged
             title_stack_gap = 10
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
@@ -1597,8 +1597,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 56
             subtitle_char_budget = 44
             title_band_height = 176  # PR-6D: shell height = title_band_height (2+1 lines)
-            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
-            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance
+            title_content_pad_top = 24  # PR-7B5: subtitle-present vertical allocation moved upward
+            title_content_pad_bottom = 24  # PR-7B5: balanced lower clearance
             title_stack_gap = 10
         else:
             title_band_sizing_mode = "compact"
@@ -1657,8 +1657,8 @@ def _resolve_bottom_layout_policies(
             title_content_pad_bottom = 16
             title_stack_gap = 8
         elif subtitle_slot_rendered and dense_copy and visible_item_count >= 4:
-            # Dense quad in expanded mode: keep quad gallery structure, but allow controlled
-            # two-line subtitle wrapping so subtitle no longer falls back to single-line ellipsis.
+            # Dense quad in expanded mode: keep quad gallery structure while extending
+            # the visible two-line subtitle excerpt.
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "hold_growth_expanded_text_gallery_quad"
             subtitle_overflow_policy = "two_line_clamp_inside_expanded_split_title_band"
@@ -1671,11 +1671,11 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 52
-            subtitle_char_budget = 56
-            title_band_height = 168
+            subtitle_char_budget = 72  # PR-7B5: longer excerpt target; still allowed to truncate under dense quad pressure
+            title_band_height = 184  # PR-7B5: small growth to stabilize 2-line subtitle without changing quad distribution
             title_content_pad_top = 22
             title_content_pad_bottom = 18
-            title_stack_gap = 6
+            title_stack_gap = 4  # PR-7B5: reclaim 2px before growing the shell further
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "hold_standard_expanded_text_gallery_with_subtitle"

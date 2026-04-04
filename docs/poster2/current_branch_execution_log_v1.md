@@ -1,5 +1,186 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-7B-final-review: Bottom Mode Family Closeout Review And Smallest Next Plan
+
+**Branch:** `main`
+**Status:** Review only
+**Last updated:** 2026-04-04
+
+### Read state
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+
+### Runtime proofs inspected
+- fresh local runtime proof: `title_gallery_split`
+- fresh local runtime proof: `text_only_expanded`
+
+Probe inputs used for both:
+- `title = "Family A final alignment title"`
+- `subtitle = "Validate canonical bottom layout mode, dual-image geometry, and annotation ownership through the real runtime route."`
+- `product_secondary_image` present
+- `title_gallery_split` proof used 4 gallery items
+
+Hashes:
+- `title_gallery_split` final hash: `b629689bdad3153fcb2a8744424b7e9385a7a7e62f9c0d51a0297eab0d71a54e`
+- `text_only_expanded` final hash: `315f00786d6750b72c815d7d1c1d77b86c58598c05e3b80d219f88b88d9a1ede`
+
+### What actually improved
+
+`title_gallery_split`
+- bottom shell top is now `728`
+- product secondary bottom is `708`
+- visible gap below product secondary is now `20px`
+- subtitle policy is no longer single-line ellipsis in the active split path
+- current proof resolves:
+  - `subtitle_overflow_policy = two_line_clamp_inside_expanded_split_title_band`
+  - `subtitle_line_clamp = 2`
+  - `subtitle_char_budget = 56`
+  - `subtitle_slot_height = 44`
+- structure stayed intact:
+  - `title_band_region = {x:112,y:728,w:800,h:168}`
+  - gallery distribution unchanged
+
+`text_only_expanded`
+- upper overlap is gone:
+  - `bottom_shell_top = 728`
+  - product secondary bottom = `708`
+  - gap = `20px`
+- full-width parity is closed:
+  - `title_band_region = {x:96,y:728,w:832,h:240}`
+  - `title_text_layer.slot_bounds = {x:96,y:792,w:832,h:88}`
+  - `subtitle_text_layer.slot_bounds = {x:136,y:888,w:752,h:64}`
+- subtitle non-truncation is closed in the current primary proof:
+  - `subtitle_truncation_applied = false`
+  - `subtitle_line_clamp = 3`
+  - `subtitle_char_budget = 160`
+
+### What is still not closed
+
+`title_gallery_split`
+- subtitle is still truncating in the dense quad proof
+- current proof:
+  - `subtitle_truncation_applied = true`
+  - rendered subtitle length `56`
+  - sanitized subtitle length `116`
+- the gap closure is done, but dense subtitle capacity is still too tight under the current split-band stack
+
+`text_only_expanded`
+- contract/evidence parity is closed, but the active vertical anchoring is visually too bottom-heavy
+- current proof:
+  - `title_content_pad_top = 20`
+  - `title_content_pad_bottom = 16`
+  - `title_slot_y = 792`
+  - `subtitle_slot_y = 888`
+- because `text_only_expanded` is lower-anchored, the live vertical result is driven mainly by bottom clearance; current content sits too close to the lower edge of the shell
+
+### Smallest contract-first improvement plan
+
+Next PR scope only:
+- `PR-7B5` — bottom copy-capacity and vertical-allocation micro-closure
+- no header
+- no product geometry
+- no feature delegation
+- no beautification
+- no email/save workflow
+- no bottom structure redesign
+
+#### A. `title_gallery_split`
+
+Target only the dense quad split branch.
+
+Exact fields to change:
+- `subtitle_char_budget`: `56 -> 72`
+- `subtitle_slot_height`: `44 -> 48`
+- `title_band_height`: `168 -> 184`
+- `title_stack_gap`: `6 -> 4`
+
+Reason:
+- keep the current `20px` product gap and current split structure
+- buy the smallest extra subtitle capacity without reopening gallery distribution
+- absorb the added subtitle height mostly by band growth, while taking back `2px` from inter-line spacing
+
+Acceptance criteria:
+- `subtitle_truncation_applied = false` for the current dense-quad proof
+- `subtitle_overflow_policy` stays `two_line_clamp_inside_expanded_split_title_band`
+- `subtitle_line_clamp = 2` stays unchanged
+- `gallery_distribution_policy = dense_quad` unchanged
+- bottom shell still clears product secondary by at least `16px`
+
+Tests to add/update:
+- update dense quad pipeline assertions for:
+  - `subtitle_char_budget`
+  - `subtitle_slot_height`
+  - `title_band_height`
+  - `title_stack_gap`
+- add a dense-quad proof test that asserts `subtitle_truncation_applied is False`
+- update renderer HTML-var assertions for:
+  - `--title-band-height`
+  - `--subtitle-line-clamp`
+  - `--title-stack-gap`
+
+#### B. `text_only_expanded`
+
+Keep full-width and non-truncation intact.
+Change only vertical allocation for subtitle-present cases.
+
+Exact fields to change:
+- `title_content_pad_top`: `20 -> 24`
+- `title_content_pad_bottom`: `16 -> 24`
+- expected `title_slot_y`: `792 -> 784`
+- expected `subtitle_slot_y`: `888 -> 880`
+
+Reason:
+- move the text stack up by `8px`
+- preserve full-width x/w truth and current 3-line support-copy capacity
+- avoid reopening shell top or horizontal geometry
+
+Acceptance criteria:
+- `subtitle_truncation_applied = false` remains true for the current primary proof
+- `title_text_layer.slot_bounds.x/w` and `subtitle_text_layer.slot_bounds.x/w` remain full-width truth
+- upper gap to product secondary remains `20px`
+- final render reads less bottom-heavy while keeping the same shell envelope
+
+Tests to add/update:
+- update subtitle-present `text_only_expanded` y/pad assertions in pipeline tests
+- add one explicit vertical-allocation test asserting:
+  - `title_content_pad_top = 24`
+  - `title_content_pad_bottom = 24`
+  - `title_slot_y = 784`
+  - `subtitle_slot_y = 880`
+- keep existing full-width parity assertions unchanged
+
+### Review outcome
+- `title_gallery_split`: improved, but not closed
+- `text_only_expanded`: contract closure is done; only vertical micro-balance remains
+- smallest next step is a bounded bottom-only micro-closure PR, not a broader bottom redesign
+
+## Entry — PR-7B5: Bottom Copy-Capacity And Vertical-Allocation Micro-Closure
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-04
+
+### Scope
+- `title_gallery_split`: keep stable two-line subtitle clamp and extend dense-quad excerpt capacity
+- `text_only_expanded`: keep non-truncation and full-width parity; rebalance subtitle-present vertical allocation upward
+
+### Engineering truth
+- `title_gallery_split` dense-quad branch:
+  - `subtitle_char_budget`: `56 -> 72`
+  - `title_band_height`: `168 -> 184`
+  - `title_stack_gap`: `6 -> 4`
+  - keeps `subtitle_line_clamp = 2`
+  - keeps quad gallery distribution unchanged
+- `text_only_expanded` subtitle-present cases:
+  - `title_content_pad_top`: `20 -> 24`
+  - `title_content_pad_bottom`: `16 -> 24`
+  - lower anchoring remains active
+  - budgets and line clamps unchanged
+
+
 ## Entry — PR-7B-final: Bottom Mode Family Contract Closure
 
 **Branch:** `pr6-clean`
