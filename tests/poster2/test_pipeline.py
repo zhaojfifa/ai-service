@@ -557,7 +557,7 @@ class TestPosterPipelineRun:
         assert bottom_review["subtitle_slot"]["rendered"] is True
         assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is False
         assert bottom_review["behavior_policy"]["title_band_sizing_mode"] == "standard"
-        assert bottom_review["behavior_policy"]["subtitle_overflow_policy"] == "single_line_ellipsis_inside_expanded_split_title_band"
+        assert bottom_review["behavior_policy"]["subtitle_overflow_policy"] == "two_line_clamp_inside_expanded_split_title_band"
         assert bottom_review["behavior_policy"]["content_priority_policy"] == "expanded_balanced_text_and_gallery_priority"
         assert bottom_review["behavior_policy"]["layout_metrics"]["title_band_height"] == 168
 
@@ -793,7 +793,7 @@ class TestPosterPipelineRun:
         geometry = metadata["geometry_evidence"]
         assert behavior["title_band_sizing_mode"] == "standard"
         assert behavior["title_band_growth_policy"] == "hold_growth_expanded_text_gallery_quad"
-        assert behavior["subtitle_overflow_policy"] == "single_line_ellipsis_inside_expanded_split_title_band"
+        assert behavior["subtitle_overflow_policy"] == "two_line_clamp_inside_expanded_split_title_band"
         assert behavior["content_priority_policy"] == "expanded_gallery_count_priority_with_text_preserved"
         assert behavior["peer_balance_policy"] == "expanded_gallery_preserved_with_full_title"
         assert behavior["bottom_peer_balance_policy"] == "expanded_quad_gallery_with_full_title"
@@ -802,10 +802,10 @@ class TestPosterPipelineRun:
         assert behavior["gallery_strip_shift_policy"] == "tight_quad_shift"
         assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_quad_text_emphasis"
-        assert behavior["subtitle_line_clamp"] == 1
+        assert behavior["subtitle_line_clamp"] == 2
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 680, "w": 800, "h": 168}
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 848, "w": 832, "h": 68}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 791, "w": 720, "h": 28}
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 783, "w": 720, "h": 44}
 
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
         stored_payloads: dict[str, bytes] = {}
@@ -3651,6 +3651,14 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         assert slot["x"] == 136
         assert slot["w"] == 752  # 832 - 80
         assert slot["h"] == 28   # single-line clamp
+
+    def test_text_layers_follow_full_width_expanded_bottom_truth(self):
+        """text_only_expanded text layers must use expanded title/subtitle slot bounds, not stale 112/800 or 152/720."""
+        metadata = self._run(subtitle="测试副标题")
+        title_layer = metadata["title_text_layer"]
+        subtitle_layer = metadata["subtitle_text_layer"]
+        assert title_layer["slot_bounds"] == {"x": 96, "y": 673, "w": 832, "h": 72}
+        assert subtitle_layer["slot_bounds"] == {"x": 136, "y": 755, "w": 752, "h": 28}
 
     # --- layout_metrics == geometry_evidence consistency ---
 

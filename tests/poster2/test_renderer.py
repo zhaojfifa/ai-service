@@ -1196,7 +1196,7 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.gallery_aspect_policy == "compact_quad_aspect"
         assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_quad_text_emphasis"
         assert resolved.bottom_policy.title_line_clamp == 2
-        assert resolved.bottom_policy.subtitle_line_clamp == 1
+        assert resolved.bottom_policy.subtitle_line_clamp == 2
         assert resolved.bottom_policy.layout_metrics["title_band_height"] == 168
         assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 848
         assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
@@ -1762,9 +1762,9 @@ class TestBottomSplitBehavior:
             ],
         )
 
-        assert "--title-band-height: 144px" in html_payload
+        assert "--title-band-height: 192px" in html_payload
         assert "--title-line-clamp:" in html_payload
-        assert "--subtitle-line-clamp: 1" in html_payload
+        assert "--subtitle-line-clamp: 2" in html_payload
         assert "--title-stack-gap: 8px" in html_payload
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
@@ -1781,12 +1781,23 @@ class TestBottomSplitBehavior:
             ],
         )
 
-        assert "--title-band-height: 144px" in html_payload
-        assert "--subtitle-line-clamp: 1" in html_payload
+        assert "--title-band-height: 168px" in html_payload
+        assert "--subtitle-line-clamp: 2" in html_payload
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
         assert "left:0px;top:8px;width:196px;height:52px;" in html_payload
         assert "left:636px;top:8px;width:196px;height:52px;" in html_payload
+
+    def test_text_only_expanded_html_keeps_full_width_text_layer_vars(self):
+        html_payload = self._render_html_payload(
+            title="Main title",
+            subtitle="Supporting subtitle copy",
+            gallery=[],
+        )
+
+        assert "layer-bottom-region state-show state-title-only" in html_payload
+        assert "--title-band-left: 96px" in html_payload
+        assert "--title-band-width: 832px" in html_payload
 
     def test_template_css_exposes_independent_bottom_split_state_tokens(self):
         css_template = (

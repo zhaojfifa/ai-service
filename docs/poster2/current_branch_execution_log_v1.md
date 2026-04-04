@@ -372,3 +372,29 @@ If deeper detail is needed, open the linked PR status doc instead of expanding t
 ## Archive Note
 Detailed historical entries were moved out of the active working set.
 Use an archive file or the per-PR status docs for full historical detail.
+## Entry — PR-7B: Bottom Subtitle Wrapping And Expansion Closure
+
+Scope:
+- `title_gallery_split`: close remaining single-line subtitle overflow fallback by moving active subtitle-present split cases to controlled two-line clamp
+- `text_only_expanded`: close text-layer propagation parity so title/subtitle slot bounds follow expanded bottom truth, not frozen template slot width
+
+Files:
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/bottom_subtitle_wrap_and_expansion_status_v1.md`
+
+Engineering truth:
+- active `title_gallery_split` subtitle policy now resolves to `two_line_clamp_inside_expanded_split_title_band`
+- active `title_gallery_split` subtitle clamp now resolves to `2`, and subtitle slot height to `44`
+- `text_only_expanded` `title_text_layer.slot_bounds` now uses `title_band_x/w`
+- `text_only_expanded` `subtitle_text_layer.slot_bounds` now uses `subtitle_slot_x/w`
+
+Frozen unchanged:
+- header
+- product geometry
+- feature delegation
+- beautification
+- email/save workflow
+- bottom structure and gallery distribution

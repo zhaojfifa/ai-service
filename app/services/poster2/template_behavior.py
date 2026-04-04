@@ -1656,20 +1656,21 @@ def _resolve_bottom_layout_policies(
             title_content_pad_bottom = 16
             title_stack_gap = 8
         elif subtitle_slot_rendered and dense_copy and visible_item_count >= 4:
-            # Dense quad in expanded mode: 2-line title + 1-line subtitle minimum
+            # Dense quad in expanded mode: keep quad gallery structure, but allow controlled
+            # two-line subtitle wrapping so subtitle no longer falls back to single-line ellipsis.
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "hold_growth_expanded_text_gallery_quad"
-            subtitle_overflow_policy = "single_line_ellipsis_inside_expanded_split_title_band"
+            subtitle_overflow_policy = "two_line_clamp_inside_expanded_split_title_band"
             title_text_budget_policy = "expanded_title_budget_quad_gallery_peer"
-            subtitle_text_budget_policy = "single_line_support_copy_budget_expanded"
+            subtitle_text_budget_policy = "two_line_support_copy_budget_expanded"
             content_priority_policy = "expanded_gallery_count_priority_with_text_preserved"
             peer_balance_policy = "expanded_gallery_preserved_with_full_title"
             bottom_peer_balance_policy = "expanded_quad_gallery_with_full_title"
             bottom_text_emphasis_policy = "expanded_quad_text_emphasis"
             title_line_clamp = 2
-            subtitle_line_clamp = 1
+            subtitle_line_clamp = 2
             title_char_budget = 52
-            subtitle_char_budget = 48
+            subtitle_char_budget = 56
             title_band_height = 168
             title_content_pad_top = 22
             title_content_pad_bottom = 18
@@ -1677,17 +1678,17 @@ def _resolve_bottom_layout_policies(
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "hold_standard_expanded_text_gallery_with_subtitle"
-            subtitle_overflow_policy = "single_line_ellipsis_inside_expanded_split_title_band"
+            subtitle_overflow_policy = "two_line_clamp_inside_expanded_split_title_band"
             title_text_budget_policy = "expanded_two_line_title_budget_with_gallery_peer"
-            subtitle_text_budget_policy = "single_line_support_copy_budget_expanded"
+            subtitle_text_budget_policy = "two_line_support_copy_budget_expanded"
             content_priority_policy = "expanded_balanced_text_and_gallery_priority"
             peer_balance_policy = "expanded_balanced_title_band_and_gallery_strip"
             bottom_peer_balance_policy = "expanded_balanced_bottom_regions"
             bottom_text_emphasis_policy = "expanded_balanced_bottom_text_emphasis"
             title_line_clamp = 2
-            subtitle_line_clamp = 1
+            subtitle_line_clamp = 2
             title_char_budget = 60
-            subtitle_char_budget = 40
+            subtitle_char_budget = 56
             title_band_height = 168
             title_content_pad_top = 24
             title_content_pad_bottom = 20

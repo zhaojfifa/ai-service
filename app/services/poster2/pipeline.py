@@ -1787,9 +1787,9 @@ def _build_title_text_layer_evidence(
     truncation_applied = rendered and len(sanitized) > len(rendered_excerpt)
     layout = bottom.layout_metrics
     slot_bounds = {
-        "x": template.title_slot.x,
+        "x": int(layout.get("title_band_x", template.title_slot.x)),
         "y": int(layout.get("title_slot_y", template.title_slot.y)),
-        "w": template.title_slot.w,
+        "w": int(layout.get("title_band_w", template.title_slot.w)),
         "h": int(layout.get("title_slot_height", template.title_slot.h)),
     }
     return {
@@ -1825,9 +1825,9 @@ def _build_subtitle_text_layer_evidence(
     truncation_applied = rendered and len(sanitized) > len(rendered_excerpt)
     layout = bottom.layout_metrics
     slot_bounds = {
-        "x": template.subtitle_slot.x,
+        "x": int(layout.get("subtitle_slot_x", template.subtitle_slot.x)),
         "y": int(layout.get("subtitle_slot_y", template.subtitle_slot.y)),
-        "w": template.subtitle_slot.w,
+        "w": int(layout.get("subtitle_slot_w", template.subtitle_slot.w)),
         "h": int(layout.get("subtitle_slot_height", template.subtitle_slot.h)),
     }
     return {
