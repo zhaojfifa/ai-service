@@ -1,5 +1,92 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-7B-final: Bottom Mode Family Contract Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_EXPANDED_BOTTOM_SHELL_TOPS["title_gallery_split"]` 680→728; `_EXPANDED_BOTTOM_SHELL_TOPS["text_only_expanded"]` 640→728; comments updated to state 20px design gap above product_secondary_slot bottom (708)
+- `tests/poster2/test_pipeline.py` — updated 20+ stale y-assertions across 6 test classes (bottom_region, title_band_region, gallery_strip_region, gallery_slot, subtitle_slot, CSS vars); added `TestBottomModeFamilyContractClosure` (15 tests)
+- `tests/poster2/test_renderer.py` — updated 2 stale gallery_shell_top assertions (872→920, 848→896); updated 1 gallery_items_y assertion (882→930)
+- `docs/poster2/bottom_mode_family_contract_closure_status_v1.md` — created
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py::TestBottomModeFamilyContractClosure` → `15 passed`
+- `python3 -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `2 failed (pre-existing), 361 passed`
+
+### Contract change summary
+
+| Field | Before | After |
+|-------|--------|-------|
+| `_EXPANDED_BOTTOM_SHELL_TOPS["title_gallery_split"]` | 680 | 728 |
+| `_EXPANDED_BOTTOM_SHELL_TOPS["text_only_expanded"]` | 640 | 728 |
+
+`product_secondary_slot` bottom = y(564) + h(144) = 708. Shell top 728 → 20px design gap (satisfies ≥ 16px).
+
+### Invariants closed
+- `title_gallery_split`: shell_top(728) ≥ product_secondary_bottom(708) + design_gap(16) = 724 ✓
+- `text_only_expanded`: same ✓
+- subtitle wrap: `subtitle_line_clamp=2` via text_gallery_expanded alias (unchanged, already correct) ✓
+- lower-anchor occupation: dead space above only, subtitle_bottom == band_bottom − pad_bottom ✓
+- all sub-cases fit within canvas (max 728+192+100=1020 ≤ 1024) ✓
+
+---
+
+## Entry — PR-7B4: text_only_expanded Bottom Lower-Anchor Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/template_behavior.py` — all four text_only_expanded sub-cases: `title_content_pad_top` 24–40 → 20; `title_content_pad_bottom` 24–40 → 16 (uniform)
+- `tests/poster2/test_pipeline.py` — updated PR-7B3 test class docstring and 9 stale y/pad assertions; updated 2 stale y assertions in `TestBottomPR6ETextOnlyFullWidthClosure`
+- `docs/poster2/bottom_vertical_anchoring_closure_status_v1.md` — updated to reflect PR-7B4
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `2 failed (pre-existing), 346 passed`
+
+### Before/after pad values (text_only_expanded, all sub-cases)
+
+| Sub-case | pad_top before→after | pad_bottom before→after | title_slot_y before→after | sub_slot_y before→after | gap_below before→after |
+|----------|----------------------|--------------------------|--------------------------|------------------------|------------------------|
+| compact  | 40→20                | 40→16                    | 680→704                  | —                      | 40→16 |
+| standard | 32→20                | 32→16                    | 673→690                  | 755→772                | 32→16 |
+| moderate | 30→20                | 30→16                    | 675→694                  | 757→776                | 30→16 |
+| dense    | 24→20                | 24→16                    | 680→704                  | 776→800                | 24→16 |
+
+---
+
+## Entry — PR-7B3: text_only_expanded Vertical Anchoring Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_resolve_bottom_text_slot_metrics`: added branch for `bottom_mode == "text_only_expanded"` to compute `offset = max(available_height - used_height, 0)` instead of `(available_height - used_height) // 2`; all other modes remain center-packed
+- `tests/poster2/test_pipeline.py` — updated 1 stale y assertion in `TestBottomPR6ETextOnlyFullWidthClosure::test_text_layers_follow_full_width_expanded_bottom_truth` (title y: 673→674, subtitle y: 755→756); added `TestBottomPR7B3TextOnlyExpandedVerticalAnchoring` (11 tests)
+- `docs/poster2/bottom_vertical_anchoring_closure_status_v1.md` — created
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py::TestBottomPR7B3TextOnlyExpandedVerticalAnchoring` → `11 passed`
+- `python3 -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `2 failed (pre-existing), 346 passed`
+
+### Before/after vertical slot positions (band_top=640)
+
+| Sub-case | title_slot_y before | title_slot_y after | subtitle_slot_y before | subtitle_slot_y after | Dead below (before→after) |
+|----------|--------------------|--------------------|------------------------|-----------------------|--------------------------|
+| compact | 680 | 680 | 760 (no sub) | 760 (no sub) | 0→0 |
+| standard | 673 | 674 | 755 | 756 | 1→0 |
+| moderate | 675 | 680 | 757 | 762 | 5→0 |
+| dense | 680 | 696 | 776 | 792 | 16→0 |
+
+Policy change: center-packed `offset = dead//2` → lower-anchored `offset = dead` for `text_only_expanded` only.
+
+---
+
 ## Entry — PR-7A2: Header Agent Truncation Closure
 
 **Branch:** `pr6-clean`
