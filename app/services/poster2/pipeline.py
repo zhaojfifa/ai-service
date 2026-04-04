@@ -1250,6 +1250,7 @@ def _build_header_contract_review(
             "content_priority_policy": resolved_behavior.header_policy.content_priority_policy,
             "brand_line_clamp": resolved_behavior.header_policy.brand_line_clamp,
             "brand_char_budget": resolved_behavior.header_policy.brand_char_budget,
+            "agent_line_clamp": resolved_behavior.header_policy.agent_line_clamp,
             "agent_char_budget": resolved_behavior.header_policy.agent_char_budget,
             "layout_metrics": dict(resolved_behavior.header_policy.layout_metrics),
         },
@@ -1887,7 +1888,7 @@ def _build_header_text_layer_evidence(
             "sanitized_text": agent_sanitized,
             "rendered_excerpt": agent_excerpt if agent_rendered else "",
             "truncation_applied": agent_rendered and len(agent_sanitized) > len(agent_excerpt),
-            "line_clamp": 1,
+            "line_clamp": header.agent_line_clamp,
             "char_budget": header.agent_char_budget,
             "slot_bounds": {
                 "x": int(metrics["agent_slot_x"]),

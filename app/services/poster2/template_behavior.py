@@ -235,6 +235,7 @@ class ResolvedHeaderBehavior:
     effective_agent_text_present: bool
     brand_line_clamp: int
     brand_char_budget: int
+    agent_line_clamp: int
     agent_char_budget: int
     layout_metrics: dict[str, int]
 
@@ -255,6 +256,7 @@ class ResolvedHeaderBehavior:
             "effective_agent_text_present": self.effective_agent_text_present,
             "brand_line_clamp": self.brand_line_clamp,
             "brand_char_budget": self.brand_char_budget,
+            "agent_line_clamp": self.agent_line_clamp,
             "agent_char_budget": self.agent_char_budget,
             "layout_metrics": dict(self.layout_metrics),
             "css_classes": list(self.css_classes),
@@ -1126,6 +1128,7 @@ def resolve_header_behavior(
         content_priority_policy = "brand_identity_priority_over_agent"
         brand_line_clamp = 1
         brand_char_budget = 40
+        agent_line_clamp = 1
         agent_char_budget = 28
         layout_metrics = {
             "header_banner_left": 72,
@@ -1157,6 +1160,7 @@ def resolve_header_behavior(
         content_priority_policy = "brand_copy_priority_under_two_line_lockup"
         brand_line_clamp = 2
         brand_char_budget = 72
+        agent_line_clamp = 1
         agent_char_budget = 28
         layout_metrics = {
             "header_banner_left": 72,
@@ -1188,6 +1192,7 @@ def resolve_header_behavior(
         content_priority_policy = "brand_only_priority"
         brand_line_clamp = 1
         brand_char_budget = 52
+        agent_line_clamp = 1
         agent_char_budget = 0
         layout_metrics = {
             "header_banner_left": 72,
@@ -1226,6 +1231,8 @@ def resolve_header_behavior(
     )
     if not agent_pill_visible:
         css_classes = (*css_classes, "header-agent-collapsed")
+    if brand_line_clamp > 1:
+        css_classes = (*css_classes, "header-brand-wrap")
 
     return ResolvedHeaderBehavior(
         mode=header_mode,
@@ -1241,6 +1248,7 @@ def resolve_header_behavior(
         effective_agent_text_present=effective_agent_text_present,
         brand_line_clamp=brand_line_clamp,
         brand_char_budget=brand_char_budget,
+        agent_line_clamp=agent_line_clamp,
         agent_char_budget=agent_char_budget,
         layout_metrics=layout_metrics,
         css_classes=css_classes,
@@ -1262,6 +1270,8 @@ def _resolve_header_behavior_vars(header_policy: ResolvedHeaderBehavior) -> dict
         "--header-logo-width": f"{int(metrics['header_logo_width'])}px",
         "--header-logo-height": f"{int(metrics['header_logo_height'])}px",
         "--header-logo-gap": f"{int(metrics['header_logo_gap'])}px",
+        "--header-brand-line-clamp": str(header_policy.brand_line_clamp),
+        "--header-agent-line-clamp": str(header_policy.agent_line_clamp),
     }
 
 

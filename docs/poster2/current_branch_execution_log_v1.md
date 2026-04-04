@@ -1,5 +1,48 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-7A: Header Text Contract / Propagation / Wrapping Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `ResolvedHeaderBehavior`: added `agent_line_clamp: int` field (after `brand_char_budget`); added to `as_dict()`; set `agent_line_clamp = 1` in all three modes (`identity_left_agent_right`, `brand_block_two_line`, `brand_only`); `resolve_header_behavior`: adds `header-brand-wrap` to `css_classes` when `brand_line_clamp > 1`; `_resolve_header_behavior_vars`: added `"--header-brand-line-clamp"` and `"--header-agent-line-clamp"` to emitted CSS vars
+- `app/services/poster2/pipeline.py` — `_build_header_contract_review`: added `"agent_line_clamp"` to `behavior_policy`; `_build_header_text_layer_evidence`: `agent_text_slot.line_clamp` changed from hardcoded `1` to `header.agent_line_clamp`
+- `app/templates_html/template_dual_v2.css` — `.layer-header-banner`: added `--header-brand-line-clamp: 1` and `--header-agent-line-clamp: 1` defaults; replaced `.header-mode-brand_block_two_line .text-brand { -webkit-line-clamp: 2 }` with `.header-brand-wrap .text-brand { -webkit-line-clamp: var(--header-brand-line-clamp) }` (behavior-class-driven, CSS-var-driven)
+- `tests/poster2/test_pipeline.py` — added `TestHeaderTextContractPR7A` (15 tests)
+- `docs/poster2/header_text_contract_and_wrap_status_v1.md` — created
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `214 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed` (1 test in test_renderer.py updated: stale assertion `header-mode-brand_block_two_line` with underscores replaced by correct `header-mode-brand-block-two-line` + new `header-brand-wrap` + `--header-brand-line-clamp: 2` assertions)
+
+### Contract fields now aligned
+
+| field | brand_text_slot | agent_text_slot |
+|-------|----------------|----------------|
+| `requested_text` | ✓ | ✓ |
+| `sanitized_text` | ✓ | ✓ |
+| `rendered_excerpt` | ✓ | ✓ |
+| `truncation_applied` | ✓ | ✓ |
+| `line_clamp` | ✓ resolver | ✓ resolver (was hardcoded) |
+| `char_budget` | ✓ | ✓ |
+| `slot_bounds` | ✓ | ✓ |
+
+### Propagation alignment
+- `--header-brand-line-clamp` and `--header-agent-line-clamp` now emitted from resolver into inline style
+- `header-brand-wrap` CSS class added by resolver when `brand_line_clamp > 1` (brand_block_two_line mode)
+- CSS clamp value for brand wrap is now `var(--header-brand-line-clamp)` instead of hardcoded `2`
+- `agent_line_clamp` present in `header_contract_review.behavior_policy`
+- `agent_line_clamp` present in `header_text_layer.agent_text_slot.line_clamp`
+
+### Wrap / truncation
+- Brand text `identity_left_agent_right`: no wrap class (clamp=1), `white-space: nowrap` unchanged
+- Brand text `brand_block_two_line`: wrap governed by `header-brand-wrap` class + `var(--header-brand-line-clamp)` = 2 (was hardcoded mode-class + hardcoded `2`)
+- Agent text all modes: `agent_line_clamp=1` explicit; CSS unchanged (`white-space: nowrap`)
+
+---
+
 ## Entry — PR-6E: text_only_expanded Full-Width Closure
 
 **Branch:** `pr6-clean`

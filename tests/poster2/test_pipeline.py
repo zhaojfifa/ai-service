@@ -3692,3 +3692,182 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         css = _resolve_bottom_behavior_vars(policy)
         assert css["--title-band-left"] == "96px"
         assert css["--title-band-width"] == "832px"
+
+
+class TestHeaderTextContractPR7A:
+    """PR-7A: Header text contract / propagation / wrapping closure.
+
+    Validates that:
+    - agent_line_clamp is a resolver field (not hardcoded) for all three header modes
+    - agent_line_clamp propagates to header_contract_review.behavior_policy
+    - agent_text_slot.line_clamp in header_text_layer comes from the resolver
+    - --header-brand-line-clamp and --header-agent-line-clamp CSS vars are emitted
+    - header-brand-wrap CSS class is added when brand_line_clamp > 1
+    - header-brand-wrap CSS class is absent when brand_line_clamp == 1
+    - brand_block_two_line wrap is now class-driven via header-brand-wrap, not mode-hardcoded
+    """
+
+    # ── resolver contract field alignment ──────────────────────────────────────
+
+    def test_agent_line_clamp_field_present_identity_left_agent_right(self):
+        """agent_line_clamp must be a resolver field, not hardcoded."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="ChefCraft",
+            agent_name="SmartKitchen Advisor",
+        )
+        assert hasattr(policy, "agent_line_clamp")
+        assert policy.agent_line_clamp == 1
+
+    def test_agent_line_clamp_field_present_brand_block_two_line(self):
+        """agent_line_clamp must be present for brand_block_two_line mode."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="ChefCraft Brand Long Name",
+            agent_name="SmartKitchen Advisor",
+        )
+        assert hasattr(policy, "agent_line_clamp")
+        assert policy.agent_line_clamp == 1
+
+    def test_agent_line_clamp_field_present_brand_only(self):
+        """agent_line_clamp must be present for brand_only mode (agent is always hidden)."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior("brand_only", brand_name="ChefCraft")
+        assert hasattr(policy, "agent_line_clamp")
+        assert policy.agent_line_clamp == 1
+
+    def test_brand_line_clamp_is_2_for_brand_block_two_line(self):
+        """brand_line_clamp must be 2 for brand_block_two_line (two-line wrap contract)."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="ChefCraft Brand Long Name",
+            agent_name="SmartKitchen Advisor",
+        )
+        assert policy.brand_line_clamp == 2
+
+    # ── CSS class propagation ──────────────────────────────────────────────────
+
+    def test_header_brand_wrap_class_present_for_brand_block_two_line(self):
+        """header-brand-wrap CSS class must be emitted when brand_line_clamp > 1."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="ChefCraft Brand Long Name",
+            agent_name="SmartKitchen Advisor",
+        )
+        assert "header-brand-wrap" in policy.css_classes
+
+    def test_header_brand_wrap_class_absent_for_identity_left_agent_right(self):
+        """header-brand-wrap CSS class must be absent when brand_line_clamp == 1."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="ChefCraft",
+            agent_name="SmartKitchen Advisor",
+        )
+        assert "header-brand-wrap" not in policy.css_classes
+
+    def test_header_brand_wrap_class_absent_for_brand_only(self):
+        """header-brand-wrap CSS class must be absent for brand_only (single-line lockup)."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior("brand_only", brand_name="ChefCraft")
+        assert "header-brand-wrap" not in policy.css_classes
+
+    # ── CSS var emission ───────────────────────────────────────────────────────
+
+    def test_css_vars_brand_line_clamp_is_1_for_identity_left_agent_right(self):
+        """--header-brand-line-clamp must be '1' for identity_left_agent_right."""
+        from app.services.poster2.template_behavior import (
+            resolve_header_behavior, _resolve_header_behavior_vars,
+        )
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="ChefCraft",
+            agent_name="SmartKitchen Advisor",
+        )
+        css = _resolve_header_behavior_vars(policy)
+        assert css["--header-brand-line-clamp"] == "1"
+        assert css["--header-agent-line-clamp"] == "1"
+
+    def test_css_vars_brand_line_clamp_is_2_for_brand_block_two_line(self):
+        """--header-brand-line-clamp must be '2' for brand_block_two_line."""
+        from app.services.poster2.template_behavior import (
+            resolve_header_behavior, _resolve_header_behavior_vars,
+        )
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="ChefCraft Brand Long Name",
+            agent_name="SmartKitchen Advisor",
+        )
+        css = _resolve_header_behavior_vars(policy)
+        assert css["--header-brand-line-clamp"] == "2"
+        assert css["--header-agent-line-clamp"] == "1"
+
+    def test_css_vars_brand_line_clamp_is_1_for_brand_only(self):
+        """--header-brand-line-clamp must be '1' for brand_only."""
+        from app.services.poster2.template_behavior import (
+            resolve_header_behavior, _resolve_header_behavior_vars,
+        )
+        policy = resolve_header_behavior("brand_only", brand_name="ChefCraft")
+        css = _resolve_header_behavior_vars(policy)
+        assert css["--header-brand-line-clamp"] == "1"
+        assert css["--header-agent-line-clamp"] == "1"
+
+    # ── pipeline propagation ───────────────────────────────────────────────────
+
+    def test_agent_line_clamp_in_header_contract_review_behavior_policy(self):
+        """header_contract_review.behavior_policy must expose agent_line_clamp."""
+        template = _load_template()
+        spec = _make_spec(brand_name="ChefCraft", agent_name="SmartKitchen Advisor")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["header_contract_review"]
+        assert "agent_line_clamp" in review["behavior_policy"]
+        assert review["behavior_policy"]["agent_line_clamp"] == 1
+
+    def test_agent_text_slot_line_clamp_from_resolver_not_hardcoded(self):
+        """header_text_layer.agent_text_slot.line_clamp must equal resolver agent_line_clamp."""
+        template = _load_template()
+        spec = _make_spec(brand_name="ChefCraft", agent_name="SmartKitchen Advisor")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["header_text_layer"]
+        agent_slot = layer["agent_text_slot"]
+        # line_clamp comes from resolver; default mode is identity_left_agent_right → 1
+        assert agent_slot["line_clamp"] == 1
+        # Verify it matches the contract review value (same resolver source)
+        assert agent_slot["line_clamp"] == metadata["header_contract_review"]["behavior_policy"]["agent_line_clamp"]
+
+    def test_brand_text_slot_line_clamp_from_resolver(self):
+        """header_text_layer.brand_text_slot.line_clamp must equal resolver brand_line_clamp."""
+        template = _load_template()
+        spec = _make_spec(brand_name="ChefCraft", agent_name="SmartKitchen Advisor")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["header_text_layer"]
+        brand_slot = layer["brand_text_slot"]
+        assert brand_slot["line_clamp"] == metadata["header_contract_review"]["behavior_policy"]["brand_line_clamp"]
+
+    def test_brand_block_two_line_agent_line_clamp_propagates_to_contract_review(self):
+        """brand_block_two_line mode: agent_line_clamp must be 1 in contract review."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, header_mode="brand_block_two_line")
+        spec = _make_spec(brand_name="ChefCraft", agent_name="SmartKitchen Advisor")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["header_contract_review"]
+        assert review["behavior_policy"]["agent_line_clamp"] == 1
+        assert review["behavior_policy"]["brand_line_clamp"] == 2
+
+    # ── as_dict coverage ───────────────────────────────────────────────────────
+
+    def test_agent_line_clamp_in_as_dict(self):
+        """ResolvedHeaderBehavior.as_dict() must include agent_line_clamp."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="ChefCraft",
+            agent_name="SmartKitchen Advisor",
+        )
+        d = policy.as_dict()
+        assert "agent_line_clamp" in d
+        assert d["agent_line_clamp"] == 1

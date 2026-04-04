@@ -1872,7 +1872,12 @@ class TestBottomSplitBehavior:
             behavior=behavior,
         )
 
-        assert "header-mode-brand_block_two_line" in html_payload
+        # PR-7A: class uses hyphens (css_mode_class replaces _ with -); CSS selector
+        # previously used underscores (.header-mode-brand_block_two_line) but that
+        # hardcoded rule was replaced by .header-brand-wrap in PR-7A.
+        assert "header-mode-brand-block-two-line" in html_payload
+        assert "header-brand-wrap" in html_payload
+        assert "--header-brand-line-clamp: 2" in html_payload
         assert "--header-banner-height: 120px" in html_payload
         assert "--header-inner-height: 72px" in html_payload
 
