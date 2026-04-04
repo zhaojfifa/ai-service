@@ -224,12 +224,17 @@ body {
   text-overflow: ellipsis;
 }
 
+.header-agent-wrap .slot-agent-name-text {
+  align-items: flex-start;
+}
+
 .header-agent-wrap .text-agent-secondary {
   white-space: normal;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: var(--header-agent-line-clamp);
   line-clamp: var(--header-agent-line-clamp);
+  text-overflow: clip;
 }
 
 .layer-header-layout {

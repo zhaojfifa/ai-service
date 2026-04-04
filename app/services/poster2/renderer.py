@@ -41,6 +41,7 @@ from .template_behavior import (
     ResolvedBottomBehavior,
     ResolvedFeatureBehavior,
     ResolvedHeaderBehavior,
+    _resolve_header_behavior_vars,
     resolve_feature_layout_mode,
     resolve_template_behavior,
 )
@@ -761,6 +762,7 @@ class PuppeteerStructuredRenderer:
             "__TEMPLATE_CONTRACT_VERSION__": html.escape(template_contract_version),
             "__SVG_OVERLAY__": "",
             "__HEADER_LAYER_CLASS__": header_layer_class,
+            "__HEADER_STYLE_VARS__": _inline_style_vars(_resolve_header_behavior_vars(behavior.header_policy)),
             "__LOGO_STYLE__": _slot_style(_header_logo_slot(slot_spec, behavior.header_policy)),
             "__LOGO_URL__": asset_urls["logo"],
             "__BRAND_STYLE__": _slot_style(_header_brand_slot(slot_spec, behavior.header_policy)),
@@ -1997,6 +1999,10 @@ def _slot_style(slot: dict[str, Any]) -> str:
     )
 
 
+def _inline_style_vars(vars_map: dict[str, str]) -> str:
+    return "; ".join(f"{key}: {value}" for key, value in vars_map.items())
+
+
 def _header_logo_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
     slot = dict(slot_spec["slots"]["logo"])
     metrics = header_policy.layout_metrics
@@ -2024,8 +2030,8 @@ def _header_agent_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderB
     metrics = header_policy.layout_metrics
     slot.update(
         {
-            "x": int(metrics["agent_slot_x"]),
-            "y": int(metrics["agent_slot_y"]),
+            "x": 0,
+            "y": 0,
             "w": int(metrics["agent_slot_w"]),
             "h": int(metrics["agent_slot_h"]),
         }

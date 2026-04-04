@@ -271,7 +271,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.4"
+        assert manifest.template_version == "2.1.5"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"
@@ -3769,12 +3769,14 @@ class TestHeaderTextContractPR7A:
             agent_name="SmartKitchen Advisor",
         )
         assert "header-brand-wrap" not in policy.css_classes
+        assert "header-agent-wrap" in policy.css_classes
 
     def test_header_brand_wrap_class_absent_for_brand_only(self):
         """header-brand-wrap CSS class must be absent for brand_only (single-line lockup)."""
         from app.services.poster2.template_behavior import resolve_header_behavior
         policy = resolve_header_behavior("brand_only", brand_name="ChefCraft")
         assert "header-brand-wrap" not in policy.css_classes
+        assert "header-agent-wrap" not in policy.css_classes
 
     # ── CSS var emission ───────────────────────────────────────────────────────
 
@@ -3834,7 +3836,7 @@ class TestHeaderTextContractPR7A:
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
         layer = metadata["header_text_layer"]
         agent_slot = layer["agent_text_slot"]
-        # line_clamp comes from resolver; identity_left_agent_right → 2 (PR-7A2 truncation closure)
+        # line_clamp comes from resolver; default mode is identity_left_agent_right → 2
         assert agent_slot["line_clamp"] == 2
         # Verify it matches the contract review value (same resolver source)
         assert agent_slot["line_clamp"] == metadata["header_contract_review"]["behavior_policy"]["agent_line_clamp"]
@@ -3871,8 +3873,6 @@ class TestHeaderTextContractPR7A:
         d = policy.as_dict()
         assert "agent_line_clamp" in d
         assert d["agent_line_clamp"] == 2
-
-
 class TestHeaderAgentTruncationClosurePR7A2:
     """PR-7A2: Header agent truncation closure.
 

@@ -1569,6 +1569,7 @@ class TestHeaderAndTitleBandLayoutControl:
         assert ".layer-agent-name-text {" in css_template
         assert ".slot-agent-name-text {" in css_template
         assert ".text-agent-secondary {" in css_template
+        assert ".header-agent-wrap .text-agent-secondary {" in css_template
         assert ".layer-header-banner.state-logo-empty {" in css_template
         assert ".layer-header-banner.state-logo-empty .layer-brand-logo" in css_template
         assert ".slot-title:empty," in css_template
@@ -1622,6 +1623,8 @@ class TestHeaderAndTitleBandLayoutControl:
         assert 'class="layer layer-brand-logo"' in html_payload
         assert 'class="layer layer-header-agent-zone" data-slot="header_agent_zone_slot"' in html_payload
         assert 'class="layer layer-agent-name-text state-show"' in html_payload
+        assert "header-agent-wrap" in html_payload
+        assert "--header-agent-line-clamp: 2" in html_payload
         assert 'class="layer-title-band-layout"' in html_payload
         assert 'data-region="title_band_region"' in html_payload
 
