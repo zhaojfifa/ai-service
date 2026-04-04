@@ -494,7 +494,7 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["title_band_region"] == {"x": 96, "y": 680, "w": 832, "h": 168}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
-        assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
+        assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 36}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 540}
         # PR-6E: subtitle_slot x=136 (96+40 inset) and w=752 (832-80) in full-width expansion
@@ -2763,15 +2763,15 @@ class TestPostFreezeTextCapacity:
         assert policy.agent_char_budget >= 28
 
     def test_header_agent_budget_truncates_longer_name_at_new_floor(self):
-        """Agent name longer than 28 chars must be truncated at the new budget floor."""
+        """Agent name longer than budget must be truncated; budget is now 52 (2-line capacity)."""
         from app.services.poster2.pipeline import _apply_text_budget
         from app.services.poster2.template_behavior import resolve_header_behavior
         policy = resolve_header_behavior(
             "identity_left_agent_right",
             brand_name="TestBrand",
-            agent_name="A" * 40,
+            agent_name="A" * 60,
         )
-        excerpt = _apply_text_budget("A" * 40, policy.agent_char_budget)
+        excerpt = _apply_text_budget("A" * 60, policy.agent_char_budget)
         assert len(excerpt) == policy.agent_char_budget
 class TestProductImageContract:
     """PR-7: Product image contract — bounds and fit authoritative from product_policy.
@@ -3710,7 +3710,7 @@ class TestHeaderTextContractPR7A:
     # ── resolver contract field alignment ──────────────────────────────────────
 
     def test_agent_line_clamp_field_present_identity_left_agent_right(self):
-        """agent_line_clamp must be a resolver field, not hardcoded."""
+        """agent_line_clamp must be a resolver field; 2 for identity_left_agent_right (PR-7A2 closure)."""
         from app.services.poster2.template_behavior import resolve_header_behavior
         policy = resolve_header_behavior(
             "identity_left_agent_right",
@@ -3718,7 +3718,7 @@ class TestHeaderTextContractPR7A:
             agent_name="SmartKitchen Advisor",
         )
         assert hasattr(policy, "agent_line_clamp")
-        assert policy.agent_line_clamp == 1
+        assert policy.agent_line_clamp == 2
 
     def test_agent_line_clamp_field_present_brand_block_two_line(self):
         """agent_line_clamp must be present for brand_block_two_line mode."""
@@ -3790,7 +3790,7 @@ class TestHeaderTextContractPR7A:
         )
         css = _resolve_header_behavior_vars(policy)
         assert css["--header-brand-line-clamp"] == "1"
-        assert css["--header-agent-line-clamp"] == "1"
+        assert css["--header-agent-line-clamp"] == "2"
 
     def test_css_vars_brand_line_clamp_is_2_for_brand_block_two_line(self):
         """--header-brand-line-clamp must be '2' for brand_block_two_line."""
@@ -3825,7 +3825,7 @@ class TestHeaderTextContractPR7A:
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["header_contract_review"]
         assert "agent_line_clamp" in review["behavior_policy"]
-        assert review["behavior_policy"]["agent_line_clamp"] == 1
+        assert review["behavior_policy"]["agent_line_clamp"] == 2
 
     def test_agent_text_slot_line_clamp_from_resolver_not_hardcoded(self):
         """header_text_layer.agent_text_slot.line_clamp must equal resolver agent_line_clamp."""
@@ -3834,8 +3834,8 @@ class TestHeaderTextContractPR7A:
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
         layer = metadata["header_text_layer"]
         agent_slot = layer["agent_text_slot"]
-        # line_clamp comes from resolver; default mode is identity_left_agent_right → 1
-        assert agent_slot["line_clamp"] == 1
+        # line_clamp comes from resolver; identity_left_agent_right → 2 (PR-7A2 truncation closure)
+        assert agent_slot["line_clamp"] == 2
         # Verify it matches the contract review value (same resolver source)
         assert agent_slot["line_clamp"] == metadata["header_contract_review"]["behavior_policy"]["agent_line_clamp"]
 
@@ -3870,4 +3870,158 @@ class TestHeaderTextContractPR7A:
         )
         d = policy.as_dict()
         assert "agent_line_clamp" in d
-        assert d["agent_line_clamp"] == 1
+        assert d["agent_line_clamp"] == 2
+
+
+class TestHeaderAgentTruncationClosurePR7A2:
+    """PR-7A2: Header agent truncation closure.
+
+    Validates that:
+    - agent_line_clamp = 2 for identity_left_agent_right (was 1; enables wrap, eliminates truncation)
+    - agent_char_budget = 52 for identity_left_agent_right (was 28; two-line capacity)
+    - agent_slot_h = 36 for identity_left_agent_right (was 18; 2 lines × 18px)
+    - header-agent-wrap CSS class emitted when agent_line_clamp > 1
+    - --header-agent-line-clamp CSS var = '2' for identity_left_agent_right
+    - STARLIGHT CHANNEL SERVICE CENTER (33 chars) no longer truncated (33 < 52 budget)
+    - agent_truncation_applied = False for that example
+    - brand_block_two_line and brand_only: agent_line_clamp unchanged at 1
+    - no header-agent-wrap for brand_block_two_line (agent stays single-line there)
+    """
+
+    # ── resolver fields ──────────────────────────────────────────────────────
+
+    def test_agent_line_clamp_is_2_for_identity_left_agent_right(self):
+        """identity_left_agent_right: agent_line_clamp must be 2 after PR-7A2."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        assert policy.agent_line_clamp == 2
+
+    def test_agent_char_budget_is_52_for_identity_left_agent_right(self):
+        """identity_left_agent_right: agent_char_budget must be 52 after PR-7A2."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        assert policy.agent_char_budget == 52
+
+    def test_agent_slot_h_is_36_for_identity_left_agent_right(self):
+        """identity_left_agent_right: agent_slot_h must be 36 (2-line height) after PR-7A2."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        assert policy.layout_metrics["agent_slot_h"] == 36
+
+    # ── CSS class emission ───────────────────────────────────────────────────
+
+    def test_header_agent_wrap_class_present_for_identity_left_agent_right(self):
+        """header-agent-wrap CSS class must be emitted for identity_left_agent_right."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        assert "header-agent-wrap" in policy.css_classes
+
+    def test_header_agent_wrap_class_absent_for_brand_block_two_line(self):
+        """brand_block_two_line: header-agent-wrap must be absent (agent_line_clamp = 1)."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="TestBrand Long Name",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        assert "header-agent-wrap" not in policy.css_classes
+
+    def test_header_agent_wrap_class_absent_for_brand_only(self):
+        """brand_only: header-agent-wrap must be absent (agent always hidden)."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior("brand_only", brand_name="TestBrand")
+        assert "header-agent-wrap" not in policy.css_classes
+
+    # ── CSS var emission ─────────────────────────────────────────────────────
+
+    def test_css_var_header_agent_line_clamp_is_2_for_identity_left_agent_right(self):
+        """--header-agent-line-clamp must be '2' for identity_left_agent_right."""
+        from app.services.poster2.template_behavior import (
+            resolve_header_behavior, _resolve_header_behavior_vars,
+        )
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        css = _resolve_header_behavior_vars(policy)
+        assert css["--header-agent-line-clamp"] == "2"
+
+    # ── truncation closure ───────────────────────────────────────────────────
+
+    def test_starlight_channel_not_truncated_by_char_budget(self):
+        """STARLIGHT CHANNEL SERVICE CENTER (33 chars) must not be truncated: 33 < 52 budget."""
+        from app.services.poster2.pipeline import _apply_text_budget
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        agent_name = "STARLIGHT CHANNEL SERVICE CENTER"
+        policy = resolve_header_behavior(
+            "identity_left_agent_right",
+            brand_name="TestBrand",
+            agent_name=agent_name,
+        )
+        excerpt = _apply_text_budget(agent_name, policy.agent_char_budget)
+        assert excerpt == agent_name
+
+    def test_agent_truncation_applied_false_for_starlight(self):
+        """header_text_layer.agent_text_slot.truncation_applied must be False for the primary case."""
+        template = _load_template()
+        spec = _make_spec(
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        layer = metadata["header_text_layer"]
+        agent_slot = layer["agent_text_slot"]
+        assert agent_slot["truncation_applied"] is False
+        assert agent_slot["rendered_excerpt"] == "STARLIGHT CHANNEL SERVICE CENTER"
+
+    def test_agent_truncation_applied_false_in_contract_review(self):
+        """header_contract_review.agent_truncation_applied must be False for the primary case."""
+        template = _load_template()
+        spec = _make_spec(
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["header_contract_review"]
+        assert review["agent_truncation_applied"] is False
+
+    # ── brand priority / other modes unchanged ───────────────────────────────
+
+    def test_brand_block_two_line_agent_unchanged(self):
+        """brand_block_two_line: agent_line_clamp still 1, agent_char_budget still 28."""
+        from app.services.poster2.template_behavior import resolve_header_behavior
+        policy = resolve_header_behavior(
+            "brand_block_two_line",
+            brand_name="TestBrand Long Name",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        assert policy.agent_line_clamp == 1
+        assert policy.agent_char_budget == 28
+
+    def test_geometry_evidence_agent_slot_h_is_36(self):
+        """geometry_evidence.slot_bounds.agent_name_slot.h must be 36 after PR-7A2."""
+        template = _load_template()
+        spec = _make_spec(
+            brand_name="TestBrand",
+            agent_name="STARLIGHT CHANNEL SERVICE CENTER",
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        geometry = metadata["geometry_evidence"]
+        assert geometry["slot_bounds"]["agent_name_slot"]["h"] == 36

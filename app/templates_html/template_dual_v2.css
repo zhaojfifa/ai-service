@@ -224,6 +224,14 @@ body {
   text-overflow: ellipsis;
 }
 
+.header-agent-wrap .text-agent-secondary {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--header-agent-line-clamp);
+  line-clamp: var(--header-agent-line-clamp);
+}
+
 .layer-header-layout {
   position: absolute;
   left: var(--header-inner-left);

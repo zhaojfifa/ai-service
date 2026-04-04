@@ -1,5 +1,47 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-7A2: Header Agent Truncation Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `identity_left_agent_right`: `agent_line_clamp` 1→2; `agent_char_budget` 28→52; `agent_slot_h` 18→36; `resolve_header_behavior`: added `if agent_line_clamp > 1: css_classes = (*css_classes, "header-agent-wrap")`
+- `app/services/poster2/renderer.py` — `_agent_text_slot`: `max_lines=1` (hardcoded) → `max_lines=header_policy.agent_line_clamp` (resolver-driven)
+- `app/templates_html/template_dual_v2.css` — added `.header-agent-wrap .text-agent-secondary` wrap rule using `var(--header-agent-line-clamp)` (activates only when `header-agent-wrap` present on header banner)
+- `tests/poster2/test_pipeline.py` — updated 7 stale assertions from PR-7A (agent_line_clamp 1→2, --header-agent-line-clamp "1"→"2", agent_slot_h h=18→36, truncation test input "A"*40→"A"*60); added `TestHeaderAgentTruncationClosurePR7A2` (12 tests)
+- `docs/poster2/header_agent_truncation_closure_status_v1.md` — created
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `226 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+### Before / after truncation evidence
+
+| | before | after |
+|--|--------|-------|
+| input | "STARLIGHT CHANNEL SERVICE CENTER" (33 chars) | same |
+| `agent_char_budget` | 28 | 52 |
+| `agent_line_clamp` | 1 | 2 |
+| `rendered_excerpt` | "STARLIGHT CHANNEL SERVICE CE" (truncated) | "STARLIGHT CHANNEL SERVICE CENTER" (full) |
+| `truncation_applied` | `True` | **`False`** |
+
+### Contract carry-forward — `identity_left_agent_right`
+
+| field | value |
+|-------|-------|
+| `agent_line_clamp` | 2 |
+| `agent_char_budget` | 52 |
+| `agent_slot_h` | 36 |
+| `header-agent-wrap` in css_classes | present |
+| `--header-agent-line-clamp` | `"2"` |
+| Pillow `max_lines` | resolver-driven |
+
+`brand_block_two_line` and `brand_only`: agent fields unchanged (line_clamp=1, budget=28).
+
+---
+
 ## Entry — PR-7A: Header Text Contract / Propagation / Wrapping Closure
 
 **Branch:** `pr6-clean`
