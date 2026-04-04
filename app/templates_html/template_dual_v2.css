@@ -628,9 +628,9 @@ body {
 .layer-title-subtitle {
   z-index: 5;
   position: absolute;
-  left: 112px;
+  left: var(--title-band-left);
   top: var(--title-content-top);
-  width: 800px;
+  width: var(--title-band-width);
   height: var(--title-content-height);
   padding: var(--title-content-pad-top) var(--title-content-pad-right) var(--title-content-pad-bottom) var(--title-content-pad-left);
   box-sizing: border-box;

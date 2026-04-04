@@ -490,13 +490,15 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 680, "w": 832, "h": 168}
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 680, "w": 800, "h": 168}
+        # PR-6E: no gallery → gallery_strip_rendered=False → full_width_title_band_no_gallery (x=96, w=832)
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 96, "y": 680, "w": 832, "h": 168}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 18}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 540}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 792, "w": 720, "h": 28}
+        # PR-6E: subtitle_slot x=136 (96+40 inset) and w=752 (832-80) in full-width expansion
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 136, "y": 792, "w": 752, "h": 28}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["scenario_region"] == 0
         assert geometry["visible_item_count"]["title_band_region"] == 2
@@ -3582,3 +3584,111 @@ class TestBottomPR6DModeParityClosure:
             assert lm["title_band_height"] == expected_band_h, (
                 f"subtitle len={len(subtitle)}: expected band_h={expected_band_h}, got {lm['title_band_height']}"
             )
+
+
+# ---------------------------------------------------------------------------
+# PR-6E: text_only_expanded full-width closure
+# ---------------------------------------------------------------------------
+
+class TestBottomPR6ETextOnlyFullWidthClosure:
+    """PR-6E: text_only_expanded full-width closure.
+
+    Verifies that layout_metrics, geometry_evidence, renderer slot bounds, and CSS vars
+    are all unified on full-width truth: title_band x=96/w=832; subtitle x=136/w=752.
+
+    Closure target:
+    - geometry_evidence title_band_region reflects layout_metrics title_band_x/w
+    - geometry_evidence title_slot reflects layout_metrics title_band_x/w
+    - geometry_evidence subtitle_slot reflects layout_metrics subtitle_slot_x/w
+    - CSS .layer-title-subtitle uses var(--title-band-left)/var(--title-band-width)
+
+    Frozen unchanged: title_gallery_split geometry_evidence (x=112, w=800 when gallery present).
+    """
+
+    def _run(self, *, subtitle: str = "", title: str = "测试标题"):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="text_only_expanded")
+        spec = _make_spec(title=title, subtitle=subtitle)
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        return metadata
+
+    # --- geometry_evidence: title_band_region full-width ---
+
+    def test_geometry_evidence_title_band_region_x_is_96(self):
+        """title_band_region.x must be 96 (full-width), not 112 (standard)."""
+        metadata = self._run()
+        region = metadata["geometry_evidence"]["region_bounds"]["title_band_region"]
+        assert region["x"] == 96
+        assert region["w"] == 832
+        assert region["y"] == 640
+        assert region["h"] == 160  # compact (no subtitle)
+
+    def test_geometry_evidence_title_band_region_with_subtitle(self):
+        """With subtitle the region x/w remain full-width; h grows to 176."""
+        metadata = self._run(subtitle="测试副标题")
+        region = metadata["geometry_evidence"]["region_bounds"]["title_band_region"]
+        assert region["x"] == 96
+        assert region["w"] == 832
+        assert region["h"] == 176
+
+    # --- geometry_evidence: title_slot full-width ---
+
+    def test_geometry_evidence_title_slot_x_is_96(self):
+        """title_slot.x must be 96 (full-width), not 112."""
+        metadata = self._run()
+        slot = metadata["geometry_evidence"]["slot_bounds"]["title_slot"]
+        assert slot["x"] == 96
+        assert slot["w"] == 832
+        assert slot["y"] == 680  # compact: available_top=680, offset=0
+        assert slot["h"] == 80   # compact: no subtitle → full 80px
+
+    # --- geometry_evidence: subtitle_slot full-width ---
+
+    def test_geometry_evidence_subtitle_slot_x_is_136_when_rendered(self):
+        """subtitle_slot.x must be 136 (96 + 40 inset), not 152."""
+        metadata = self._run(subtitle="测试副标题")
+        slot = metadata["geometry_evidence"]["slot_bounds"]["subtitle_slot"]
+        assert slot["x"] == 136
+        assert slot["w"] == 752  # 832 - 80
+        assert slot["h"] == 28   # single-line clamp
+
+    # --- layout_metrics == geometry_evidence consistency ---
+
+    def test_layout_metrics_equals_geometry_evidence_title_band_x_w(self):
+        """layout_metrics x/w must equal geometry_evidence region_bounds and slot_bounds."""
+        metadata = self._run()
+        lm = metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]
+        ge = metadata["geometry_evidence"]
+        region = ge["region_bounds"]["title_band_region"]
+        title_slot = ge["slot_bounds"]["title_slot"]
+        assert lm["title_band_x"] == region["x"]
+        assert lm["title_band_w"] == region["w"]
+        assert lm["title_band_x"] == title_slot["x"]
+        assert lm["title_band_w"] == title_slot["w"]
+
+    def test_layout_metrics_equals_geometry_evidence_subtitle_slot_x_w(self):
+        """layout_metrics subtitle x/w must equal geometry_evidence subtitle_slot bounds."""
+        metadata = self._run(subtitle="测试副标题")
+        lm = metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]
+        sub_slot = metadata["geometry_evidence"]["slot_bounds"]["subtitle_slot"]
+        assert lm["subtitle_slot_x"] == sub_slot["x"]
+        assert lm["subtitle_slot_w"] == sub_slot["w"]
+
+    # --- CSS var parity ---
+
+    def test_css_vars_title_band_left_and_width_are_full_width(self):
+        """--title-band-left:96px and --title-band-width:832px for text_only_expanded."""
+        from app.services.poster2.template_behavior import _resolve_bottom_behavior_vars, resolve_bottom_behavior
+        policy = resolve_bottom_behavior(
+            "text_only_expanded",
+            gallery_mode="strip_local_visible_only",
+            title_text="测试标题",
+            subtitle_text="",
+            requested_gallery_count=0,
+            normalized_gallery_count=0,
+            resolved_gallery_count=0,
+            max_items=4,
+        )
+        css = _resolve_bottom_behavior_vars(policy)
+        assert css["--title-band-left"] == "96px"
+        assert css["--title-band-width"] == "832px"
