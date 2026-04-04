@@ -1035,9 +1035,9 @@ def _product_secondary_slot_bounds(resolved_behavior) -> dict[str, int]:
 def _title_band_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
-        "x": 112,
+        "x": int(layout.get("title_band_x", 112)),
         "y": int(layout["title_band_top"]),
-        "w": 800,
+        "w": int(layout.get("title_band_w", 800)),
         "h": int(layout["title_band_height"]),
     }
 
@@ -1073,9 +1073,9 @@ def _gallery_item_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict
 def _title_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
-        "x": int(template.title_slot.x),
+        "x": int(layout.get("title_band_x", template.title_slot.x)),
         "y": int(layout["title_slot_y"]),
-        "w": int(template.title_slot.w),
+        "w": int(layout.get("title_band_w", template.title_slot.w)),
         "h": int(layout["title_slot_height"]),
     }
 
@@ -1083,9 +1083,9 @@ def _title_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, i
 def _subtitle_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
-        "x": int(template.subtitle_slot.x),
+        "x": int(layout.get("subtitle_slot_x", template.subtitle_slot.x)),
         "y": int(layout["subtitle_slot_y"]),
-        "w": int(template.subtitle_slot.w),
+        "w": int(layout.get("subtitle_slot_w", template.subtitle_slot.w)),
         "h": int(layout["subtitle_slot_height"]),
     }
 

@@ -1,5 +1,37 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-6E: text_only_expanded Full-Width Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/pipeline.py` — `_title_band_region_bounds`: `x`/`w` now read from `layout.get("title_band_x", 112)` / `layout.get("title_band_w", 800)` instead of hardcoded constants; `_title_slot_bounds`: same pattern using `title_band_x`/`title_band_w`; `_subtitle_slot_bounds`: `x`/`w` from `layout.get("subtitle_slot_x/w", template.subtitle_slot.x/w)`
+- `app/templates_html/template_dual_v2.css` — `.layer-title-subtitle`: `left: 112px` → `left: var(--title-band-left)`; `width: 800px` → `width: var(--title-band-width)`
+- `tests/poster2/test_pipeline.py` — added `TestBottomPR6ETextOnlyFullWidthClosure` (9 tests); updated 2 existing geometry_evidence assertions in `test_renderer_metadata_includes_layer_render_status` to reflect full-width truth for no-gallery case (x=96/w=832 for title_band_region; x=136/w=752 for subtitle_slot)
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py` → `199 passed`
+- `python3 -m pytest -q tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `109 passed`
+
+### Carry-forward geometry
+
+**text_only_expanded — unified full-width truth:**
+- `layout_metrics["title_band_x"] = 96`, `layout_metrics["title_band_w"] = 832` (unchanged)
+- `geometry_evidence.region_bounds.title_band_region` → `{x:96, y:640, w:832, h:<band_height>}` (was x=112/w=800)
+- `geometry_evidence.slot_bounds.title_slot` → `{x:96, w:832, ...}` (was x=112/w=800)
+- `geometry_evidence.slot_bounds.subtitle_slot` → `{x:136, w:752, ...}` (was x=152/w=720)
+- CSS `.layer-title-subtitle` → `left: var(--title-band-left)`, `width: var(--title-band-width)` (was hardcoded 112/800)
+- Pillow renderer: unchanged (was already consuming layout_metrics correctly)
+- All four sub-cases (compact/short/moderate/dense): full-width x/w applies in all
+
+**Side effect — no-gallery cases for other modes:**
+- `title_gallery_split` / `text_gallery_expanded` with `gallery_strip_rendered=False` now also report x=96/w=832 in geometry_evidence (correct by contract; previously masked by hardcoded constants)
+- Modes with gallery present (`gallery_strip_rendered=True`): x=112/w=800 unchanged
+
+---
+
 ## Entry — PR-6D: Bottom Mode Parity and Rebalance Closure
 
 **Branch:** `pr6-clean`
@@ -190,16 +222,16 @@
 - declared next priority after PR-A: add `product_text_shell` as a sibling shell and keep `feature_region` suppressed
 
 ## Last Accepted PR
-- `PR-6D — Bottom Mode Parity and Rebalance Closure`
+- `PR-6E — text_only_expanded Full-Width Closure`
 - status: complete
-- status doc: `docs/poster2/bottom_region_pr6d_mode_parity_closure_status_v1.md`
+- status doc: `docs/poster2/bottom_region_pr6e_text_only_full_width_closure_status_v1.md`
 - carry-forward result:
-  - `title_band_expansion_policy`: `"full_width_title_band_no_gallery"` when gallery absent, `"standard_title_band_with_gallery"` when present
-  - no-gallery case: `title_band_x=96`, `title_band_w=832`, `subtitle_slot_x=136`, `subtitle_slot_w=752`
-  - standard case: `title_band_x=112`, `title_band_w=800`, `subtitle_slot_x=152`, `subtitle_slot_w=720`
-  - CSS vars `--title-band-left` / `--title-band-width` now dynamic from resolver
-  - Pillow `_title_band_shell_bounds`, `_title_text_slot`, `_subtitle_text_slot` consume layout_metrics x/w
-  - four-case closure established: gallery+subtitle / gallery+no_subtitle / no_gallery+subtitle / no_gallery+no_subtitle
+  - `geometry_evidence.region_bounds.title_band_region` x/w now reads from `layout_metrics["title_band_x/w"]` — no longer hardcoded 112/800
+  - `geometry_evidence.slot_bounds.title_slot` x/w reads from `layout_metrics["title_band_x/w"]`
+  - `geometry_evidence.slot_bounds.subtitle_slot` x/w reads from `layout_metrics["subtitle_slot_x/w"]`
+  - CSS `.layer-title-subtitle`: `left: var(--title-band-left)`, `width: var(--title-band-width)`
+  - Full-width truth unified: resolver → CSS vars → geometry_evidence → rendered slot bounds all agree at x=96/w=832 for text_only_expanded
+  - No-gallery cases for other modes also report correct full-width geometry (was previously masked)
 
 ## Previous Last Accepted PR
 - `PR-5 (PR-C) — Text Capacity / Label Bounds / Clamp / Connector Tuning`
@@ -218,7 +250,7 @@
   - `product_primary_slot`, `product_secondary_slot`, outer shell, canvas shell — all unchanged
 
 ## Current PR Goal
-`next: TBD` (PR-6D complete)
+`next: TBD` (PR-6E complete)
 
 ## Reading Rule For New Sessions
 Do not read this whole file as a long archive.
