@@ -1727,7 +1727,7 @@ def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, 
         w=int(metrics["agent_slot_w"]),
         h=int(metrics["agent_slot_h"]),
         color=color,
-        max_lines=1,
+        max_lines=header_policy.agent_line_clamp,
     )
 
 

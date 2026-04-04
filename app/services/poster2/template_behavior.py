@@ -1128,8 +1128,8 @@ def resolve_header_behavior(
         content_priority_policy = "brand_identity_priority_over_agent"
         brand_line_clamp = 1
         brand_char_budget = 40
-        agent_line_clamp = 1
-        agent_char_budget = 28
+        agent_line_clamp = 2
+        agent_char_budget = 52
         layout_metrics = {
             "header_banner_left": 72,
             "header_banner_top": 56,
@@ -1150,7 +1150,7 @@ def resolve_header_behavior(
             "agent_slot_x": 684,
             "agent_slot_y": 96,
             "agent_slot_w": 228,
-            "agent_slot_h": 18,
+            "agent_slot_h": 36,
         }
     elif header_mode == "brand_block_two_line":
         lane_layout_mode = "two_line"
@@ -1233,6 +1233,8 @@ def resolve_header_behavior(
         css_classes = (*css_classes, "header-agent-collapsed")
     if brand_line_clamp > 1:
         css_classes = (*css_classes, "header-brand-wrap")
+    if agent_line_clamp > 1:
+        css_classes = (*css_classes, "header-agent-wrap")
 
     return ResolvedHeaderBehavior(
         mode=header_mode,
