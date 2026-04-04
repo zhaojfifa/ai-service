@@ -3368,13 +3368,13 @@ class TestBottomPR6CModeRebalance:
         policy = self._run_toe(title="Title", subtitle="This subtitle is moderately long enough here")
         assert policy.layout_metrics["title_band_height"] == 196
 
-    def test_toe_title_band_with_dense_subtitle_is_220(self):
-        """Dense subtitle (>48 chars): title_band_height == 220."""
+    def test_toe_title_band_with_dense_subtitle_is_240(self):
+        """Dense subtitle (>48 chars): title_band_height == 240 (PR-7B2: expanded for 3-line subtitle capacity)."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
-        assert policy.layout_metrics["title_band_height"] == 220
+        assert policy.layout_metrics["title_band_height"] == 240
 
     def test_toe_title_band_equals_shell_for_all_sub_cases(self):
         """PR-6D: for all sub-cases, shell height == title_band_height (no dead canvas below)."""
@@ -3527,13 +3527,13 @@ class TestBottomPR6DModeParityClosure:
         assert policy.layout_metrics["bottom_shell_height"] == policy.layout_metrics["title_band_height"]
 
     def test_toe_shell_height_equals_title_band_dense_subtitle(self):
-        """Dense subtitle: shell_height == title_band_height == 220."""
+        """Dense subtitle: shell_height == title_band_height == 240 (PR-7B2)."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
-        assert policy.layout_metrics["bottom_shell_height"] == 220
-        assert policy.layout_metrics["title_band_height"] == 220
+        assert policy.layout_metrics["bottom_shell_height"] == 240
+        assert policy.layout_metrics["title_band_height"] == 240
         assert policy.layout_metrics["bottom_shell_height"] == policy.layout_metrics["title_band_height"]
 
     def test_toe_no_dead_canvas_below_text_band(self):
@@ -3573,7 +3573,7 @@ class TestBottomPR6DModeParityClosure:
             ("", 160),
             ("Short sub", 176),
             ("This subtitle is moderately long enough here", 196),
-            ("Very long subtitle that exceeds forty-eight characters in total length", 220),
+            ("Very long subtitle that exceeds forty-eight characters in total length", 240),  # PR-7B2: 240
         ]
         for subtitle, expected_band_h in cases:
             policy = self._run_toe(title="Product Title", subtitle=subtitle)

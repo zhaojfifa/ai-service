@@ -1566,11 +1566,11 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 3
             subtitle_line_clamp = 3
             title_char_budget = 72
-            subtitle_char_budget = 80
-            title_band_height = 220  # PR-6D: shell height = title_band_height (3+3 lines)
-            title_content_pad_top = 28
-            title_content_pad_bottom = 28
-            title_stack_gap = 10
+            subtitle_char_budget = 160  # PR-7B2: expanded to allow genuine 3-line support copy
+            title_band_height = 240  # PR-7B2: 240px to accommodate 3-line title + 3-line subtitle slots
+            title_content_pad_top = 24  # PR-7B2: reduced from 28 to gain usable content height
+            title_content_pad_bottom = 24  # PR-7B2: reduced from 28 to gain usable content height
+            title_stack_gap = 8  # PR-7B2: reduced from 10 for tighter title/subtitle stack
         elif subtitle_slot_rendered and subtitle_length > 28:
             title_band_sizing_mode = "expanded"
             title_band_growth_policy = "grow_for_expanded_text_only_moderate_copy"
@@ -2004,8 +2004,22 @@ def _resolve_bottom_text_slot_metrics(
 ) -> tuple[int, int, int, int]:
     available_top = title_content_top + title_content_pad_top
     available_height = max(title_content_height - title_content_pad_top - title_content_pad_bottom, 0)
-    title_slot_height = 54 if title_line_clamp <= 1 else (72 if subtitle_slot_rendered else 80)
-    subtitle_slot_height = 0 if not subtitle_slot_rendered else (28 if subtitle_line_clamp <= 1 else 44)
+    # PR-7B2: title_slot_height scales to 3-line clamp (88px) vs 2-line (72px) or 1-line (54px).
+    # subtitle_slot_height scales to 3-line (64px) vs 2-line (44px) or 1-line (28px).
+    if title_line_clamp <= 1:
+        title_slot_height = 54
+    elif title_line_clamp >= 3:
+        title_slot_height = 88 if subtitle_slot_rendered else 96
+    else:
+        title_slot_height = 72 if subtitle_slot_rendered else 80
+    if not subtitle_slot_rendered:
+        subtitle_slot_height = 0
+    elif subtitle_line_clamp <= 1:
+        subtitle_slot_height = 28
+    elif subtitle_line_clamp >= 3:
+        subtitle_slot_height = 64
+    else:
+        subtitle_slot_height = 44
     stack_gap = title_stack_gap if subtitle_slot_rendered else 0
     used_height = title_slot_height + subtitle_slot_height + stack_gap
     if used_height > available_height and subtitle_slot_rendered:
@@ -2014,7 +2028,7 @@ def _resolve_bottom_text_slot_metrics(
         used_height = title_slot_height + subtitle_slot_height + stack_gap
     if used_height > available_height and subtitle_slot_rendered:
         overflow = used_height - available_height
-        subtitle_slot_height = max(subtitle_slot_height - overflow, 24 if subtitle_line_clamp <= 1 else 40)
+        subtitle_slot_height = max(subtitle_slot_height - overflow, 24 if subtitle_line_clamp <= 1 else (48 if subtitle_line_clamp >= 3 else 40))
         used_height = title_slot_height + subtitle_slot_height + stack_gap
     offset = max((available_height - used_height) // 2, 0)
     title_slot_y = available_top + offset
