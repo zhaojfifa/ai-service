@@ -49,6 +49,8 @@ from app.schemas import (
 )
 from app.schemas.kitposter import KitPosterDraft
 from app.services.email_sender import send_email
+from app.services.email.drafts import build_email_draft_from_poster_record
+from app.services.email.providers import get_email_provider
 from app.services.glibatree import (
     configure_vertex_imagen,
     generate_poster_asset,
@@ -77,6 +79,13 @@ from app.services.template_variants import (
 )
 from app.services.vertex_imagen import init_vertex
 from app.services.storage_bridge import store_image_and_url
+from app.services.poster_records import (
+    append_email_delivery,
+    create_poster_record,
+    generate_poster_key,
+    load_poster_record,
+    update_email_draft,
+)
 from app.services.vertex_imagen3 import VertexImagen3
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -1363,8 +1372,13 @@ def send_marketing_email(payload: SendEmailRequest) -> SendEmailResponse:
 # ---------------------------------------------------------------------------
 
 from app.schemas.poster2 import (
+    EmailPreviewRequest,
+    EmailPreviewResponse,
+    EmailSendV2Request,
+    EmailSendV2Response,
     GeneratePosterV2Request,
     GeneratePosterV2Response,
+    PosterRecordResponse,
     Poster2DebugArtifacts,
 )
 from app.services.poster2.contracts import (
@@ -1418,6 +1432,18 @@ def _poster2_request_log_fields(request: Request, payload: GeneratePosterV2Reque
         "has_scenario_image": payload.scenario_image is not None,
         "has_product_key": bool(payload.product_image.key),
         "product_url_host": urlparse(payload.product_image.url).netloc or None,
+    }
+
+
+def _poster2_final_poster_payload(manifest) -> dict[str, Any]:
+    return {
+        "filename": f"{manifest.trace_id}-final.png",
+        "media_type": "image/png",
+        "width": None,
+        "height": None,
+        "storage_key": manifest.trace_id,
+        "url": manifest.final_url,
+        "key": None,
     }
 
 
@@ -1486,7 +1512,9 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             manifest.timings_ms.get("total_ms"),
         )
 
-        return GeneratePosterV2Response(
+        poster_key = generate_poster_key()
+        response_payload = GeneratePosterV2Response(
+            poster_key=poster_key,
             trace_id=manifest.trace_id,
             final_url=manifest.final_url,
             final_hash=manifest.final_hash,
@@ -1537,6 +1565,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             subtitle_text_layer=manifest.subtitle_text_layer,
             header_text_layer=manifest.header_text_layer,
         )
+        create_poster_record(
+            poster_key=poster_key,
+            request_snapshot=_model_dump(payload),
+            render_result=_model_dump(response_payload),
+            final_poster=_poster2_final_poster_payload(manifest),
+        )
+        return response_payload
 
     except FileNotFoundError as exc:
         logger.warning("poster2: request file error %s detail=%s", request_log, exc)
@@ -1550,6 +1585,90 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             status_code=500,
             detail={"error": "poster2_generation_failed", "message": str(exc)},
         ) from exc
+
+
+@app.get(
+    "/api/v2/posters/{poster_key}",
+    response_model=PosterRecordResponse,
+    summary="Poster 2.0 — load persisted poster record",
+    tags=["poster-v2"],
+)
+def get_poster_v2_record(poster_key: str) -> PosterRecordResponse:
+    record = load_poster_record(poster_key)
+    if record is None:
+        raise HTTPException(status_code=404, detail="poster_record_not_found")
+    return PosterRecordResponse.model_validate(record)
+
+
+@app.post(
+    "/api/v2/email/preview",
+    response_model=EmailPreviewResponse,
+    summary="Poster 2.0 — build email draft from poster record",
+    tags=["poster-v2"],
+)
+def preview_poster_v2_email(payload: EmailPreviewRequest) -> EmailPreviewResponse:
+    record = load_poster_record(payload.poster_key)
+    if record is None:
+        raise HTTPException(status_code=404, detail="poster_record_not_found")
+    draft = build_email_draft_from_poster_record(record)
+    update_email_draft(payload.poster_key, draft)
+    return EmailPreviewResponse(
+        poster_key=payload.poster_key,
+        subject=draft["subject"],
+        preview_text=draft["preview_text"],
+        html=draft["html"],
+        text=draft["text"],
+    )
+
+
+@app.post(
+    "/api/v2/email/send",
+    response_model=EmailSendV2Response,
+    summary="Poster 2.0 — send email from poster record draft",
+    tags=["poster-v2"],
+)
+def send_poster_v2_email(payload: EmailSendV2Request) -> EmailSendV2Response:
+    record = load_poster_record(payload.poster_key)
+    if record is None:
+        raise HTTPException(status_code=404, detail="poster_record_not_found")
+
+    generated_draft = build_email_draft_from_poster_record(record)
+    draft = {
+        "subject": payload.subject or generated_draft["subject"],
+        "preview_text": payload.preview_text or generated_draft["preview_text"],
+        "html": payload.html or generated_draft["html"],
+        "text": payload.text or generated_draft["text"],
+        "generated_at": generated_draft["generated_at"],
+    }
+
+    provider = get_email_provider(payload.delivery_mode)
+    delivery_result = provider.send(
+        recipient=str(payload.recipient),
+        subject=draft["subject"],
+        preview_text=draft["preview_text"],
+        html=draft["html"],
+        text=draft["text"],
+    )
+    delivery = {
+        "sent_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "provider": delivery_result.provider,
+        "delivery_mode": payload.delivery_mode,
+        "status": delivery_result.status,
+        "recipient": str(payload.recipient),
+        "provider_message_id": delivery_result.provider_message_id,
+        "error": delivery_result.error,
+    }
+    append_email_delivery(payload.poster_key, delivery, draft=draft)
+
+    return EmailSendV2Response(
+        poster_key=payload.poster_key,
+        provider=delivery_result.provider,
+        delivery_mode=payload.delivery_mode,
+        status=delivery_result.status,
+        recipient=str(payload.recipient),
+        provider_message_id=delivery_result.provider_message_id,
+        error=delivery_result.error,
+    )
 
 if FRONTEND_DIR.exists():
     # Mount the static frontend after API routes so a single Render Web Service

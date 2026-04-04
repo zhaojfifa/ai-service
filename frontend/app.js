@@ -1858,6 +1858,51 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
 
 App.utils.postJsonWithRetry = postJsonWithRetry;
 
+async function getJsonWithRetry(apiBaseOrBases, path, retry = 1) {
+  const bases = (window.resolveApiBases?.(apiBaseOrBases))
+    ?? (Array.isArray(apiBaseOrBases) ? apiBaseOrBases
+        : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
+  if (!bases.length) throw new Error('未配置后端 API 地址');
+
+  const urlFor = (b) => `${String(b).replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
+  let base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
+  let lastErr = null;
+
+  for (let attempt = 0; attempt <= retry; attempt += 1) {
+    const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
+    for (const b of order) {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 30000);
+      const url = urlFor(b);
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-store',
+          credentials: 'omit',
+          signal: ctrl.signal,
+        });
+        const text = await res.text();
+        let json = null;
+        try { json = text ? JSON.parse(text) : null; } catch {}
+        if (!res.ok) {
+          throw new Error((json && (json.detail || json.message)) || text || `HTTP ${res.status}`);
+        }
+        return json ?? {};
+      } catch (error) {
+        lastErr = error;
+        base = null;
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+
+  throw lastErr || new Error('GET request failed');
+}
+
+App.utils.getJsonWithRetry = getJsonWithRetry;
+
 
 const STORAGE_KEYS = {
   apiBase: 'marketing-poster-api-base',
@@ -6735,7 +6780,7 @@ function initStage2() {
         setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
         return;
       }
-      window.location.href = 'stage3.html';
+      window.location.href = buildStage3Url(stored.poster_key || getPosterKeyFromLocation());
     });
   })();
 }
@@ -6842,6 +6887,31 @@ function normaliseFinalPosterPayload(result) {
     };
   }
   return null;
+}
+
+function getPosterKeyFromLocation() {
+  try {
+    const url = new URL(window.location.href);
+    return url.searchParams.get('poster_key') || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function buildStage3Url(posterKey) {
+  if (!posterKey) return 'stage3.html';
+  return `stage3.html?poster_key=${encodeURIComponent(posterKey)}`;
+}
+
+function syncPosterKeyInLocation(posterKey) {
+  if (!posterKey || typeof window === 'undefined') return;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set('poster_key', posterKey);
+    window.history.replaceState({}, '', url.toString());
+  } catch (error) {
+    console.warn('Unable to sync poster_key into Stage 2 URL', error);
+  }
 }
 
 function setPoster2Link(id, url) {
@@ -7996,6 +8066,7 @@ async function triggerGeneration(opts) {
         return null;
       }
       await saveStage2Result({
+        poster_key: data?.poster_key || null,
         prompt: nextPrompt,
         email_body: nextEmail,
         prompt_bundle: data?.prompt_bundle || null,
@@ -8009,6 +8080,7 @@ async function triggerGeneration(opts) {
         seed: data?.seed ?? null,
         lock_seed: data?.lock_seed ?? null,
       });
+      syncPosterKeyInLocation(data?.poster_key || null);
     } catch (error) {
       console.error('save stage2 result failed', error);
     }
@@ -8795,105 +8867,159 @@ function initStage3() {
     const posterCaption = document.getElementById('stage3-poster-caption');
     const posterUrlInput = document.getElementById('stage3-poster-url');
     const posterKeyInput = document.getElementById('stage3-poster-key');
+    const draftPreviewText = document.getElementById('email-preview-text');
     const emailRecipient = document.getElementById('email-recipient');
     const emailSubject = document.getElementById('email-subject');
-    const emailBody = document.getElementById('email-body');
+    const emailText = document.getElementById('email-text');
+    const emailHtml = document.getElementById('email-html');
+    const emailHtmlPreview = document.getElementById('email-html-preview');
     const sendButton = document.getElementById('send-email');
+    const refreshButton = document.getElementById('refresh-email-preview');
 
-    if (!sendButton || !emailRecipient || !emailSubject || !emailBody) {
+    if (!sendButton || !refreshButton || !emailRecipient || !emailSubject || !emailText || !emailHtml) {
       return;
     }
 
-    const stage1Data = loadStage1Data();
     const stage2Result = await loadStage2Result();
-    const finalPoster = stage2Result?.final_poster ?? null;
+    const posterKey = getPosterKeyFromLocation() || stage2Result?.poster_key || '';
+    const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
 
-    if (!stage1Data || !finalPoster) {
+    if (!posterKey) {
       setStatus(
         statusElement,
-        '?????? 2 ????? final_poster ???????',
+        '缺少 poster_key，无法从后端恢复 Stage 3 数据。',
         'warning'
       );
       sendButton.disabled = true;
+      refreshButton.disabled = true;
       return;
     }
 
-    assignPosterImage(posterImage, finalPoster, stage1Data.title || 'Final poster');
-    if (posterCaption) {
-      const captionParts = [stage1Data.brand_name, stage1Data.title].filter(Boolean);
-      posterCaption.textContent = captionParts.join(' / ');
-    }
-    if (posterUrlInput) {
-      posterUrlInput.value = finalPoster.url || '';
-    }
-    if (posterKeyInput) {
-      posterKeyInput.value = finalPoster.key || finalPoster.storage_key || '';
+    async function hydratePosterRecord() {
+      const record = await getJsonWithRetry(apiCandidates, `/api/v2/posters/${encodeURIComponent(posterKey)}`, 1);
+      const finalPoster = record?.final_poster || stage2Result?.final_poster || null;
+      if (!finalPoster) {
+        throw new Error('poster_record missing final_poster');
+      }
+      assignPosterImage(
+        posterImage,
+        finalPoster,
+        record?.request_snapshot?.title || 'Final poster'
+      );
+      if (posterCaption) {
+        const captionParts = [
+          record?.request_snapshot?.brand_name,
+          record?.request_snapshot?.title,
+        ].filter(Boolean);
+        posterCaption.textContent = captionParts.join(' / ');
+      }
+      if (posterUrlInput) {
+        posterUrlInput.value = finalPoster.url || '';
+      }
+      if (posterKeyInput) {
+        posterKeyInput.value = record?.poster_key || posterKey;
+      }
+      if (!emailRecipient.value) {
+        emailRecipient.value = DEFAULT_EMAIL_RECIPIENT;
+      }
+      return record;
     }
 
-    emailSubject.value = buildEmailSubject(stage1Data);
-    emailRecipient.value = stage1Data.default_recipient || DEFAULT_EMAIL_RECIPIENT;
-    emailBody.value = stage2Result.email_body || '';
+    async function refreshDraft() {
+      setStatus(statusElement, '正在从 poster_record 生成 email draft…', 'info');
+      const draft = await postJsonWithRetry(
+        apiCandidates,
+        '/api/v2/email/preview',
+        { poster_key: posterKey },
+        1
+      );
+      emailSubject.value = draft?.subject || '';
+      if (draftPreviewText) {
+        draftPreviewText.value = draft?.preview_text || '';
+      }
+      emailText.value = draft?.text || '';
+      emailHtml.value = draft?.html || '';
+      if (emailHtmlPreview) {
+        emailHtmlPreview.innerHTML = draft?.html || '';
+      }
+      setStatus(statusElement, 'Email draft 已从后端恢复。', 'success');
+      sendButton.disabled = false;
+      return draft;
+    }
+
+    try {
+      await warmUp(apiCandidates);
+      await hydratePosterRecord();
+      await refreshDraft();
+    } catch (error) {
+      console.error('[stage3 hydrate failed]', error);
+      setStatus(statusElement, error.message || 'Stage 3 恢复失败。', 'error');
+      sendButton.disabled = true;
+      refreshButton.disabled = false;
+      return;
+    }
+
+    emailHtml.addEventListener('input', () => {
+      if (emailHtmlPreview) {
+        emailHtmlPreview.innerHTML = emailHtml.value.trim();
+      }
+    });
+
+    refreshButton.disabled = false;
+    refreshButton.addEventListener('click', async () => {
+      refreshButton.disabled = true;
+      try {
+        await refreshDraft();
+      } catch (error) {
+        console.error('[email preview]', error);
+        setStatus(statusElement, error.message || 'Email preview 生成失败。', 'error');
+      } finally {
+        refreshButton.disabled = false;
+      }
+    });
 
     sendButton.disabled = false;
     sendButton.addEventListener('click', async () => {
-      const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
-      if (!apiCandidates.length) {
-        setStatus(statusElement, '???????????????', 'warning');
-        return;
-      }
-
       const recipient = emailRecipient.value.trim();
       const subject = emailSubject.value.trim();
-      const body = emailBody.value.trim();
+      const previewText = draftPreviewText?.value.trim() || '';
+      const text = emailText.value.trim();
+      const html = emailHtml.value.trim();
 
-      if (!recipient || !subject || !body) {
-        setStatus(statusElement, '????????????????', 'error');
-        return;
-      }
-
-      if (!finalPoster.url && !finalPoster.key && !finalPoster.storage_key) {
-        setStatus(statusElement, 'final_poster ?? URL/Key????????', 'error');
+      if (!recipient || !subject || !text || !html) {
+        setStatus(statusElement, '请先完成收件人和邮件内容。', 'error');
         return;
       }
 
       sendButton.disabled = true;
-      setStatus(statusElement, '?????????', 'info');
+      setStatus(statusElement, '正在发送 email…', 'info');
 
       try {
-        await warmUp(apiCandidates);
-
         const response = await postJsonWithRetry(
           apiCandidates,
-          '/api/send-email',
+          '/api/v2/email/send',
           {
+            poster_key: posterKey,
             recipient,
             subject,
-            body,
-            attachment: finalPoster,
+            preview_text: previewText,
+            text,
+            html,
+            delivery_mode: 'inline_only',
           },
           1
         );
 
         if (response?.status === 'sent') {
-          setStatus(statusElement, '?????????', 'success');
-        } else if (response?.status === 'skipped') {
-          setStatus(
-            statusElement,
-            response?.detail || '????????????????????',
-            'warning'
-          );
-        } else if (response?.status === 'error') {
-          setStatus(
-            statusElement,
-            response?.detail ? `???????${response.detail}` : '??????',
-            'error'
-          );
+          setStatus(statusElement, 'Email 已发送。', 'success');
+        } else if (response?.status === 'preview_only') {
+          setStatus(statusElement, 'Email draft 已保存；当前为 inline_only，未外发。', 'warning');
         } else {
-          setStatus(statusElement, '???????????????', 'warning');
+          setStatus(statusElement, response?.error || 'Email 发送失败。', 'error');
         }
       } catch (error) {
-        console.error('[??????]', error);
-        setStatus(statusElement, error.message || '?????????????', 'error');
+        console.error('[email send]', error);
+        setStatus(statusElement, error.message || 'Email 发送失败。', 'error');
       } finally {
         sendButton.disabled = false;
       }
@@ -8901,13 +9027,6 @@ function initStage3() {
   })();
 }
 
-// ✉️ 构造邮件标题
-function buildEmailSubject(stage1Data) {
-  const brand = stage1Data.brand_name || 'Brand';
-  const intent = stage1Data.intent ? ` (${stage1Data.intent})` : '';
-  const title = stage1Data.title || 'Poster';
-  return `${brand}${intent} ${title}`.trim();
-}
 function setStatus(element, message, level = 'info') {
   if (!element) return;
   element.textContent = message;

@@ -37,7 +37,7 @@
       <section class="card stage-card">
         <h2>Stage 3 - Send Email</h2>
         <p class="hint">
-          The email attaches the Mode S final_poster only.
+          Stage 3 restores the poster and email draft from live backend payload only.
         </p>
 
         <div class="output-group" id="stage3-preview">
@@ -73,13 +73,27 @@
             </label>
           </div>
           <label class="field">
-            <span>Email Body</span>
-            <textarea id="email-body" rows="10" required></textarea>
+            <span>Preview Text</span>
+            <input type="text" id="email-preview-text" />
+          </label>
+          <label class="field">
+            <span>Plain Text</span>
+            <textarea id="email-text" rows="8" required></textarea>
+          </label>
+          <label class="field">
+            <span>HTML</span>
+            <textarea id="email-html" rows="10" required></textarea>
           </label>
         </form>
 
+        <div class="output-group">
+          <h3>Email Preview</h3>
+          <div id="email-html-preview" class="prompt-wrapper"></div>
+        </div>
+
         <div class="actions">
           <a class="secondary" href="stage2.html">Back to Stage 2</a>
+          <button id="refresh-email-preview" class="secondary" type="button" disabled>Refresh Draft</button>
           <button id="send-email" class="primary" type="button" disabled>Send Email</button>
         </div>
         <p id="stage3-status" role="status" aria-live="polite"></p>
@@ -93,4 +107,3 @@
     <script src="./app.js?v=0cbaf65" type="module"></script>
   </body>
 </html>
-

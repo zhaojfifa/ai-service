@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import DEFAULT_CORS_ORIGINS, app
@@ -183,6 +185,7 @@ class _BoomPoster2Pipeline:
 
 def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-1"))
     client = TestClient(app)
 
     response = client.post(
@@ -202,6 +205,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["final_url"] == "https://example.com/final.png"
+    assert body["poster_key"].startswith("p2_")
     assert body["template_version"] == "2.1.0"
     assert body["template_contract_version"] == "poster2.template_dual_v2.v1"
     assert body["renderer_mode"] == "auto"
@@ -224,9 +228,17 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
     assert body["geometry_evidence"]["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
 
+    record = client.get(f"/api/v2/posters/{body['poster_key']}")
+    assert record.status_code == 200
+    record_body = record.json()
+    assert record_body["poster_key"] == body["poster_key"]
+    assert record_body["render_result"]["final_hash"] == body["final_hash"]
+    assert record_body["final_poster"]["url"] == "https://example.com/final.png"
+
 
 def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-2"))
     client = TestClient(app)
 
     response = client.post(
@@ -250,6 +262,7 @@ def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkey
 
 def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-3"))
     client = TestClient(app)
 
     response = client.post(
@@ -284,6 +297,7 @@ def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
 
 def test_generate_poster_v2_accepts_text_gallery_expanded_with_runtime_diagnostics(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-4"))
     client = TestClient(app)
 
     response = client.post(
@@ -315,6 +329,7 @@ def test_generate_poster_v2_accepts_text_gallery_expanded_with_runtime_diagnosti
 
 def test_generate_poster_v2_accepts_bottom_gallery_count_trace_fields(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-5"))
     client = TestClient(app)
 
     response = client.post(
@@ -340,6 +355,7 @@ def test_generate_poster_v2_accepts_bottom_gallery_count_trace_fields(monkeypatc
 
 def test_generate_poster_v2_accepts_three_gallery_items_with_edited_subtitle(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-6"))
     client = TestClient(app)
 
     response = client.post(
@@ -370,6 +386,7 @@ def test_generate_poster_v2_accepts_three_gallery_items_with_edited_subtitle(mon
 
 def test_generate_poster_v2_exposes_explicit_fallback_reason_fields(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakeDegradedPoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-7"))
     client = TestClient(app)
 
     response = client.post(
@@ -464,3 +481,98 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
     assert response.status_code == 500
     assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
     assert response.json()["detail"]["error"] == "poster2_generation_failed"
+
+
+def test_email_preview_and_inline_send_are_generated_from_poster_record(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-8"))
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Smart cooking for everyday use",
+            "features": ["A", "B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+
+    preview = client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+    assert preview.status_code == 200
+    preview_body = preview.json()
+    assert preview_body["poster_key"] == poster_key
+    assert preview_body["subject"] == "ChefCraft | Kitchen Upgrade"
+    assert "https://example.com/final.png" in preview_body["html"]
+
+    send = client.post(
+        "/api/v2/email/send",
+        json={
+            "poster_key": poster_key,
+            "recipient": "user@example.com",
+        },
+    )
+    assert send.status_code == 200
+    send_body = send.json()
+    assert send_body["status"] == "preview_only"
+    assert send_body["provider"] == "inline_only"
+
+    record = client.get(f"/api/v2/posters/{poster_key}")
+    record_body = record.json()
+    assert record_body["email_draft"]["subject"] == "ChefCraft | Kitchen Upgrade"
+    assert record_body["email_deliveries"][-1]["status"] == "preview_only"
+
+
+def test_email_send_supports_resend_provider(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-9"))
+
+    class _FakeProvider:
+        name = "resend"
+
+        def send(self, *, recipient, subject, preview_text, html, text):
+            return type("Delivery", (), {
+                "provider": "resend",
+                "status": "sent",
+                "provider_message_id": "msg_123",
+                "error": None,
+            })()
+
+    monkeypatch.setattr("app.main.get_email_provider", lambda delivery_mode: _FakeProvider())
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Smart cooking for everyday use",
+            "features": ["A", "B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+
+    send = client.post(
+        "/api/v2/email/send",
+        json={
+            "poster_key": poster_key,
+            "recipient": "user@example.com",
+            "delivery_mode": "resend",
+            "subject": "Custom subject",
+            "preview_text": "Custom preview",
+            "text": "Custom text",
+            "html": "<p>Custom html</p>",
+        },
+    )
+    assert send.status_code == 200
+    body = send.json()
+    assert body["status"] == "sent"
+    assert body["provider"] == "resend"
+    assert body["provider_message_id"] == "msg_123"

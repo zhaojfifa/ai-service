@@ -6,8 +6,9 @@ Internal pipeline uses dataclasses from app.services.poster2.contracts.
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
+from pydantic import EmailStr
 
 
 class AssetRefInput(BaseModel):
@@ -85,6 +86,7 @@ class Poster2DebugArtifacts(BaseModel):
 
 
 class GeneratePosterV2Response(BaseModel):
+    poster_key: str
     trace_id: str
     final_url: str
     final_hash: str
@@ -128,3 +130,78 @@ class GeneratePosterV2Response(BaseModel):
     title_text_layer: dict = Field(default_factory=dict)
     subtitle_text_layer: dict = Field(default_factory=dict)
     header_text_layer: dict = Field(default_factory=dict)
+
+
+class PosterRecordPoster(BaseModel):
+    filename: str
+    media_type: str = "image/png"
+    width: Optional[int] = None
+    height: Optional[int] = None
+    storage_key: Optional[str] = None
+    url: Optional[str] = None
+    key: Optional[str] = None
+
+
+class PosterRecordEmailDraft(BaseModel):
+    subject: str
+    preview_text: str
+    html: str
+    text: str
+    generated_at: str
+
+
+class PosterRecordEmailDelivery(BaseModel):
+    sent_at: str
+    provider: str
+    delivery_mode: Literal["inline_only", "resend"]
+    status: Literal["preview_only", "sent", "error"]
+    recipient: EmailStr
+    provider_message_id: Optional[str] = None
+    error: Optional[str] = None
+
+
+class PosterRecordResponse(BaseModel):
+    poster_key: str
+    created_at: str
+    updated_at: str
+    template_id: str
+    trace_id: str
+    final_hash: str
+    final_poster: PosterRecordPoster
+    request_snapshot: dict[str, Any] = Field(default_factory=dict)
+    render_result: dict[str, Any] = Field(default_factory=dict)
+    email_draft: Optional[PosterRecordEmailDraft] = None
+    email_deliveries: list[PosterRecordEmailDelivery] = Field(default_factory=list)
+
+
+class EmailPreviewRequest(BaseModel):
+    poster_key: str = Field(..., min_length=1, max_length=120)
+
+
+class EmailPreviewResponse(BaseModel):
+    poster_key: str
+    subject: str
+    preview_text: str
+    html: str
+    text: str
+    generated_from: Literal["poster_record"] = "poster_record"
+
+
+class EmailSendV2Request(BaseModel):
+    poster_key: str = Field(..., min_length=1, max_length=120)
+    recipient: EmailStr
+    subject: Optional[str] = Field(default=None, max_length=160)
+    preview_text: Optional[str] = Field(default=None, max_length=200)
+    html: Optional[str] = None
+    text: Optional[str] = None
+    delivery_mode: Literal["inline_only", "resend"] = "inline_only"
+
+
+class EmailSendV2Response(BaseModel):
+    poster_key: str
+    provider: str
+    delivery_mode: Literal["inline_only", "resend"]
+    status: Literal["preview_only", "sent", "error"]
+    recipient: EmailStr
+    provider_message_id: Optional[str] = None
+    error: Optional[str] = None

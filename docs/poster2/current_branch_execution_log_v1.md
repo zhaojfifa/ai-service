@@ -1,5 +1,71 @@
 # Current Branch Execution Log v1
 
+## Entry — Storage / Copy / Email Closure Engineering
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-04
+
+### Read state
+- `README.md`
+- `AGENTS.md`
+- `docs/poster2/README.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Scope
+- poster_record persistence
+- backend email draft generation from poster_record
+- Resend-backed send API
+- Stage3 live backend closure
+
+### Frozen unchanged
+- poster structure contract
+- bottom SOP baseline
+- product annotation ownership/runtime truth
+- beautification expansion
+- editor-first workflow
+
+### Engineering truth
+- `/api/v2/generate-poster` now returns `poster_key`
+- successful v2 generation now persists `poster_record`
+- new backend truth endpoints:
+  - `GET /api/v2/posters/{poster_key}`
+  - `POST /api/v2/email/preview`
+  - `POST /api/v2/email/send`
+- Stage2 success path now writes `poster_key` into URL and Stage3 link
+- Stage3 now restores poster + email draft from backend truth via `poster_key`
+- Stage3 light editing is allowed for subject / preview_text / html / text
+- frontend no longer uses `/api/send-email` in the Stage3 path
+- `sessionStorage` remains cache only
+
+### Files changed
+- `app/config.py`
+- `app/main.py`
+- `app/schemas/poster2.py`
+- `app/services/poster_records.py`
+- `app/services/email/__init__.py`
+- `app/services/email/drafts.py`
+- `app/services/email/providers.py`
+- `app/services/email/resend_provider.py`
+- `frontend/app.js`
+- `frontend/stage3.html`
+- `docs/app.js`
+- `docs/stage3.html`
+- `tests/poster2/test_api.py`
+- `tests/test_stage3_email_closure_surface.py`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Focused validation
+- `.venv/bin/python -m pytest -q tests/poster2/test_api.py` → `13 passed`
+- `.venv/bin/python -m pytest -q tests/test_stage3_email_closure_surface.py` → `2 passed`
+- `.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'docs_publish_mirror_contains_same_guard_diagnostics'` → `1 passed, 5 deselected`
+
+### Remaining risk
+- Resend live delivery still needs deployed-environment validation with real credentials
+- `inline_only` remains the default send mode until deployment config is present
+
 ## Entry — PR-7B-final-review: Bottom Mode Family Closeout Review And Smallest Next Plan
 
 **Branch:** `main`

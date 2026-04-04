@@ -25,32 +25,30 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - PR-7 complete: product image bounds / fit authority unified under `product_policy`
 - PR-8A accepted intermediate baseline: safe product-geometry widening baseline
 - PR-8B complete and merged: product annotation/text runtime contract under `product_policy`
-- Restart path established on `fix/pra-product-outer-shell`: code path rebased to `fix/pr7-product-truth-only` while keeping `AGENTS.md`, `CLAUDE.md`, `docs/poster2/README.md`, and `docs/poster2/current_branch_execution_log_v1.md` aligned to current main
-- PR-A complete on `fix/pra-product-outer-shell`: add the visible enlarged `product_region` outer shell as the real product base plate and keep `product_canvas_shell_layer` separate
-- PR-A does not add product text shell behavior; annotation text path remains on the old fixed lane for now by design
-- old `origin/main` archived before replacement:
-  - branch: `archive/main-before-pra-product-outer-shell-20260401`
-  - tag: `backup/main-before-pra-product-outer-shell-20260401`
-- new `main` now points to the `fix/pra-product-outer-shell` baseline
-- no merge commit was used for this mainline change
-- Separate gate-unblock work merged for:
-  - Glibatree OpenAI import compatibility
-  - Remaining full-suite compatibility blockers
+- poster2/template_dual_v2 skeleton is treated as stable for closure engineering
+- `product_anchor_callouts` is the live production mode
+- product ownership and bottom SOP baseline are treated as frozen
+- current closure engineering scope:
+  - poster_record persistence
+  - backend email draft generation
+  - Resend-backed send path plus Stage3 closure
+- Stage3 must consume live backend payload only
+- frontend may cache in `sessionStorage` but must not treat it as truth source
 
 ## Current branch-log facts
 
 - `project_poster2_baseline_2026-03-30.md` is missing in this workspace
 - `docs/poster2/current_branch_execution_log_v1.md` is the working execution/state log for branch-local progress
-- PR-A contract truth changed:
-  - `product_region` / visible `product_card_shell_layer` widen to `{x:456,y:188,w:472,h:540}`
-  - `product_canvas_shell_layer` stays a separate image shell at `{x:456,y:188,w:300,h:540}`
-  - product image continues to anchor inside `product_canvas_shell_layer`
-- PR-A intentionally leaves untouched:
-  - product text shell work
-  - bottom
-  - header/scenario
-  - beautification
-  - broad tuning
+- closure engineering adds:
+  - `poster_key` on `/api/v2/generate-poster`
+  - persisted `poster_record`
+  - `GET /api/v2/posters/{poster_key}`
+  - `POST /api/v2/email/preview`
+  - `POST /api/v2/email/send`
+- Stage2 now carries `poster_key` in the success URL and forwards Stage3 via query param
+- Stage3 now restores poster and email draft from backend truth, then supports light edit plus send
+- no poster structure contract changes were made in this closure pass
+- no bottom / product annotation truth changes were made in this closure pass
 
 ## Current document alignment target
 
@@ -61,8 +59,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current priority: PR-B only
-- next after PR-B: PR-C only for capacity / label bounds / clamp / connector tuning
-- future poster2 work starts from the new `main` only
-- not yet: beautification
-- not yet: opportunistic geometry drift
+- current priority: verify storage / copy / email closure end-to-end in Stage3
+- next after backend closure: live Resend send validation in deployed environment
+- not yet: bottom beautification reopen
+- not yet: poster contract redesign
+- not yet: editor-first drift

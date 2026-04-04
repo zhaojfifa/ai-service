@@ -117,6 +117,17 @@ class OpenAIConfig:
 
 
 @dataclass
+class ResendConfig:
+    api_key: str | None = None
+    from_email: str | None = None
+    audience: str | None = None
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.api_key and self.from_email)
+
+
+@dataclass
 class GlibatreeConfig:
     api_url: str | None = None
     api_key: str | None = None
@@ -145,6 +156,7 @@ class Settings:
     environment: str
     allowed_origins: List[str]
     email: EmailConfig
+    resend: ResendConfig
     gcp: GCPConfig
     vertex: VertexConfig
     glibatree: GlibatreeConfig
@@ -185,6 +197,12 @@ def get_settings() -> Settings:
         use_ssl=_as_bool(_get("SMTP_USE_SSL"), False),
     )
 
+    resend = ResendConfig(
+        api_key=_env_first("RESEND_API_KEY"),
+        from_email=_env_first("RESEND_FROM_EMAIL", "EMAIL_SENDER", "FROM_EMAIL"),
+        audience=_env_first("RESEND_AUDIENCE"),
+    )
+
     gcp = GCPConfig(
         project_id=_env_first("GCP_PROJECT_ID", "VERTEX_PROJECT_ID"),
         location=_env_first("GCP_LOCATION", "VERTEX_LOCATION", default="us-central1")
@@ -212,6 +230,7 @@ def get_settings() -> Settings:
         environment=environment,
         allowed_origins=allowed_origins,
         email=email,
+        resend=resend,
         gcp=gcp,
         vertex=vertex,
         glibatree=glibatree,
