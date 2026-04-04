@@ -489,16 +489,16 @@ class TestPosterPipelineRun:
         geometry = metadata["geometry_evidence"]
         assert geometry["region_bounds"]["header_region"] == {"x": 72, "y": 56, "w": 880, "h": 104}
         assert geometry["region_bounds"]["scenario_region"] == {"x": 96, "y": 188, "w": 288, "h": 520}
-        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 680, "w": 832, "h": 168}
+        assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 168}
         # PR-6E: no gallery → gallery_strip_rendered=False → full_width_title_band_no_gallery (x=96, w=832)
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 96, "y": 680, "w": 832, "h": 168}
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 96, "y": 728, "w": 832, "h": 168}
         assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 36}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
         assert geometry["slot_bounds"]["product_slot"] == {"x": 456, "y": 188, "w": 300, "h": 540}
-        # PR-6E: subtitle_slot x=136 (96+40 inset) and w=752 (832-80) in full-width expansion
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 136, "y": 792, "w": 752, "h": 28}
+        # PR-7B-final: subtitle_slot y shifts +88 (band_top 680→728); h=44 (2-line, subtitle_line_clamp=2)
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 136, "y": 832, "w": 752, "h": 44}
         assert geometry["visible_item_count"]["header_region"] == 2
         assert geometry["visible_item_count"]["scenario_region"] == 0
         assert geometry["visible_item_count"]["title_band_region"] == 2
@@ -690,8 +690,8 @@ class TestPosterPipelineRun:
         assert gallery_status[0]["local_bounds"]["x"] == 272
         assert gallery_status[0]["local_bounds"]["y"] == 0
         geometry = metadata["geometry_evidence"]
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 350, "y": 848, "w": 324, "h": 88}
-        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 368, "y": 858, "w": 288, "h": 68}
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 350, "y": 896, "w": 324, "h": 88}  # PR-7B-final: 728+168=896
+        assert geometry["slot_bounds"]["gallery_slot"] == {"x": 368, "y": 906, "w": 288, "h": 68}  # items_top=896+10=906
         assert geometry["visible_item_count"]["gallery_strip_region"] == 1
 
     def test_renderer_metadata_exposes_bottom_mode_gallery_only_review(self):
@@ -803,9 +803,9 @@ class TestPosterPipelineRun:
         assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_quad_text_emphasis"
         assert behavior["subtitle_line_clamp"] == 2
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 680, "w": 800, "h": 168}
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 848, "w": 832, "h": 68}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 783, "w": 720, "h": 44}
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 168}  # PR-7B-final: y 680→728
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 896, "w": 832, "h": 68}  # PR-7B-final: 728+168=896
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 831, "w": 720, "h": 44}  # PR-7B-final: center-packed, +48 shift
 
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
         stored_payloads: dict[str, bytes] = {}
@@ -855,7 +855,7 @@ class TestPosterPipelineRun:
         assert behavior["gallery_strip_shift_policy"] == "downshift_for_spacious_pair"
         assert behavior["gallery_aspect_policy"] == "spacious_pair_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_copy_priority_strong_title"
-        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 208, "y": 872, "w": 608, "h": 100}
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 208, "y": 920, "w": 608, "h": 100}  # PR-7B-final: 728+192=920
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 128,
             "y": 10,
@@ -909,7 +909,7 @@ class TestPosterPipelineRun:
         assert behavior["gallery_aspect_policy"] == "balanced_triplet_aspect"
         assert behavior["gallery_spacing_policy"] == "balanced_triplet_spacing"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_balanced_triplet_text_emphasis"
-        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 156, "y": 856, "w": 712, "h": 80}
+        assert metadata["bottom_contract_review"]["gallery_strip_region"]["bounds"] == {"x": 156, "y": 904, "w": 712, "h": 80}  # PR-7B-final: 728+176=904
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 74,
             "y": 10,
@@ -1493,8 +1493,8 @@ class TestBottomStructuralExpansion:
         manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["bottom_contract_review"]
 
-        # Shell starts higher than frozen baseline (PR-6B: same as other expanded modes)
-        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 640
+        # PR-7B-final: shell raised to 728 to clear product_secondary_slot bottom (708) + 20px gap
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 728
         # Title budget materially larger than frozen baseline max (36–44 chars)
         assert review["behavior_policy"]["title_char_budget"] >= 52
         # Subtitle budget materially larger than frozen baseline max (28 chars)
@@ -1546,8 +1546,8 @@ class TestBottomStructuralExpansion:
         manifest, metadata = _run_pipeline_with_stored_metadata(template, spec)
         review = metadata["bottom_contract_review"]
 
-        # PR-6D: title_gallery_split shifted down 40px total to y=680 to fully close bottom-image overlap
-        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 680
+        # PR-7B-final: title_gallery_split raised to 728 to clear product_secondary_slot bottom (708) + 20px gap
+        assert review["behavior_policy"]["layout_metrics"]["bottom_shell_top"] == 728
         assert review["bottom_layout_mode"] == "title_gallery_split"
         assert review["bottom_mode"] == "title_gallery_split"
 
@@ -3143,12 +3143,12 @@ class TestBottomPR6OptionalSubtitleClosure:
 # ---------------------------------------------------------------------------
 
 class TestBottomPR6BExpandedSpaceClosure:
-    """PR-6B/6D: text_only_expanded shell top=640; shell height = title_band_height (content-proportionate).
+    """PR-6B/6D/PR-7B-final: text_only_expanded shell top=728; shell height = title_band_height (content-proportionate).
 
     Validates:
-    - shell top=640 (same as other expanded modes, PR-6B lowered from 656)
+    - shell top=728 (PR-7B-final: raised from 640 to clear product_secondary_slot bottom 708 + 20px gap)
     - shell height = title_band_height (PR-6D: content-proportionate; no dead canvas below)
-    - title_band_height is content-proportionate (160–220px, not full 384px block)
+    - title_band_height is content-proportionate (160–240px, not full 384px block)
     - title_slot_y and subtitle_slot_y are inside the title band bounds
     - no gallery overlap (gallery_shell_height=0)
     - CSS vars emit correct shell geometry
@@ -3170,9 +3170,10 @@ class TestBottomPR6BExpandedSpaceClosure:
 
     # --- Shell geometry ---
 
-    def test_shell_top_is_640(self):
+    def test_shell_top_is_728(self):
+        """PR-7B-final: shell_top raised to 728 to clear product_secondary_slot bottom."""
         policy = self._run()
-        assert policy.layout_metrics["bottom_shell_top"] == 640
+        assert policy.layout_metrics["bottom_shell_top"] == 728
 
     def test_shell_height_equals_title_band_height(self):
         """PR-6D: bottom_shell_height = title_band_height (compact, no subtitle = 160)."""
@@ -3249,9 +3250,9 @@ class TestBottomPR6BExpandedSpaceClosure:
         from app.services.poster2.template_behavior import _resolve_bottom_behavior_vars
         policy = self._run()
         css = _resolve_bottom_behavior_vars(policy)
-        assert css["--bottom-shell-top"] == "640px"
+        assert css["--bottom-shell-top"] == "728px"  # PR-7B-final: raised from 640 to 728
         assert css["--bottom-shell-height"] == "160px"  # PR-6D: shell = title_band_height (compact = 160px)
-        assert css["--title-band-top"] == "640px"
+        assert css["--title-band-top"] == "728px"  # PR-7B-final: raised from 640 to 728
         assert css["--title-band-height"] == "160px"
         assert css["--title-band-left"] == "96px"
         assert css["--title-band-width"] == "832px"
@@ -3272,12 +3273,12 @@ class TestBottomPR6BExpandedSpaceClosure:
 class TestBottomPR6CModeRebalance:
     """PR-6C/6D: bottom mode geometry rebalance (updated for PR-6D closure).
 
-    title_gallery_split (PR-6D):
-    - whole bottom block shifted down +40px total (shell_top 640 → 680)
+    title_gallery_split (PR-7B-final):
+    - whole bottom block at shell_top=728 (PR-6C 640→660, PR-6D 660→680, PR-7B-final 680→728)
     - gallery distribution / collapse rules / title band widths unchanged
 
-    text_only_expanded (PR-6D):
-    - title band height is content-proportionate (160–220px)
+    text_only_expanded (PR-6D + PR-7B-final):
+    - title band height is content-proportionate (160–240px)
     - shell height = title_band_height (no dead canvas below active text band)
     - full-width text occupation unchanged (title_band_x=96, title_band_w=832)
     """
@@ -3310,10 +3311,10 @@ class TestBottomPR6CModeRebalance:
 
     # --- title_gallery_split: +20px shift ---
 
-    def test_tgs_shell_top_is_680(self):
-        """PR-6D: title_gallery_split shell shifted down from 660 to 680 (total +40px from 640)."""
+    def test_tgs_shell_top_is_728(self):
+        """PR-7B-final: title_gallery_split shell at 728 (clears product_secondary_slot bottom 708 + 20px gap)."""
         policy = self._run_tgs()
-        assert policy.layout_metrics["bottom_shell_top"] == 680
+        assert policy.layout_metrics["bottom_shell_top"] == 728
 
     def test_tgs_title_band_top_equals_shell_top(self):
         policy = self._run_tgs()
@@ -3347,9 +3348,9 @@ class TestBottomPR6CModeRebalance:
     # --- text_only_expanded: title band rebalance ---
 
     def test_toe_shell_height_equals_title_band_height(self):
-        """PR-6D: shell height = title_band_height (no dead canvas below active text band)."""
+        """PR-6D+PR-7B-final: shell height = title_band_height; shell_top=728."""
         policy = self._run_toe()
-        assert policy.layout_metrics["bottom_shell_top"] == 640
+        assert policy.layout_metrics["bottom_shell_top"] == 728
         assert policy.layout_metrics["bottom_shell_height"] == policy.layout_metrics["title_band_height"]
         assert policy.layout_metrics["bottom_shell_top"] + policy.layout_metrics["bottom_shell_height"] < 1024
 
@@ -3421,12 +3422,13 @@ class TestBottomPR6CModeRebalance:
 class TestBottomPR6DModeParityClosure:
     """PR-6D: bottom mode parity and rebalance closure.
 
-    title_gallery_split:
-    - shell shifted down another +20px (660 → 680); total +40px from original 640
+    title_gallery_split (PR-7B-final):
+    - shell_top=728 (PR-6C 640→660, PR-6D 660→680, PR-7B-final 680→728)
     - gallery strip remains inside shell bounds (no-overlap evidence)
     - gallery distribution / title band structure unchanged
 
-    text_only_expanded:
+    text_only_expanded (PR-7B-final):
+    - shell_top=728 (raised from 640 to match product_secondary_slot clearance contract)
     - shell height = title_band_height for all sub-cases (no dead canvas below active text band)
     - layout_metrics["bottom_shell_height"] == layout_metrics["title_band_height"] (consistency)
     - shell_top + shell_height < 1024 (no longer fills to canvas bottom)
@@ -3460,17 +3462,17 @@ class TestBottomPR6DModeParityClosure:
             max_items=4,
         )
 
-    # --- title_gallery_split: +20px additional shift (660 → 680) ---
+    # --- title_gallery_split: shell_top=728 (PR-7B-final) ---
 
-    def test_tgs_shell_top_is_680(self):
-        """PR-6D: title_gallery_split shell top shifted from 660 to 680."""
+    def test_tgs_shell_top_is_728(self):
+        """PR-7B-final: title_gallery_split shell_top=728 (clears product_secondary_slot bottom 708 + 20px)."""
         policy = self._run_tgs()
-        assert policy.layout_metrics["bottom_shell_top"] == 680
+        assert policy.layout_metrics["bottom_shell_top"] == 728
 
     def test_tgs_title_band_top_equals_shell_top(self):
-        """title_band_top tracks shell_top at 680."""
+        """title_band_top tracks shell_top at 728."""
         policy = self._run_tgs()
-        assert policy.layout_metrics["title_band_top"] == 680
+        assert policy.layout_metrics["title_band_top"] == 728
 
     def test_tgs_gallery_strip_inside_shell_no_overlap(self):
         """Gallery strip stays fully inside the bottom shell after +20px shift."""
@@ -3544,10 +3546,10 @@ class TestBottomPR6DModeParityClosure:
             h = policy.layout_metrics["bottom_shell_height"]
             assert top + h < 1024, f"subtitle={subtitle!r}: shell reaches canvas bottom ({top}+{h}={top+h})"
 
-    def test_toe_shell_top_unchanged(self):
-        """text_only_expanded shell_top stays at 640 (PR-6D does not move it)."""
+    def test_toe_shell_top_is_728(self):
+        """PR-7B-final: text_only_expanded shell_top=728 (clears product_secondary_slot bottom 708 + 20px)."""
         policy = self._run_toe()
-        assert policy.layout_metrics["bottom_shell_top"] == 640
+        assert policy.layout_metrics["bottom_shell_top"] == 728
 
     def test_toe_full_width_text_unchanged(self):
         """Full-width text occupation unchanged after PR-6D."""
@@ -3620,7 +3622,7 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         region = metadata["geometry_evidence"]["region_bounds"]["title_band_region"]
         assert region["x"] == 96
         assert region["w"] == 832
-        assert region["y"] == 640
+        assert region["y"] == 728  # PR-7B-final: shell_top raised from 640 to 728
         assert region["h"] == 160  # compact (no subtitle)
 
     def test_geometry_evidence_title_band_region_with_subtitle(self):
@@ -3639,7 +3641,7 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         slot = metadata["geometry_evidence"]["slot_bounds"]["title_slot"]
         assert slot["x"] == 96
         assert slot["w"] == 832
-        assert slot["y"] == 704  # compact: PR-7B4 pad_top=20, pad_bottom=16 → offset=44, y=660+44=704
+        assert slot["y"] == 792  # compact: PR-7B4+PR-7B-final band_top=728, pad_top=20 → avail_top=748, offset=44, y=748+44=792
         assert slot["h"] == 80   # compact: no subtitle → full 80px
 
     # --- geometry_evidence: subtitle_slot full-width ---
@@ -3657,10 +3659,10 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         metadata = self._run(subtitle="测试副标题")
         title_layer = metadata["title_text_layer"]
         subtitle_layer = metadata["subtitle_text_layer"]
-        # PR-7B4: pad_top=20, pad_bottom=16, lower-anchored.
-        # standard sub-case: available_top=660, available_h=140, used_h=110 → offset=30.
-        assert title_layer["slot_bounds"] == {"x": 96, "y": 690, "w": 832, "h": 72}
-        assert subtitle_layer["slot_bounds"] == {"x": 136, "y": 772, "w": 752, "h": 28}
+        # PR-7B4+PR-7B-final: pad_top=20, pad_bottom=16, lower-anchored; band_top=728.
+        # standard sub-case: available_top=748, available_h=140, used_h=110 → offset=30, title_slot_y=778.
+        assert title_layer["slot_bounds"] == {"x": 96, "y": 778, "w": 832, "h": 72}
+        assert subtitle_layer["slot_bounds"] == {"x": 136, "y": 860, "w": 752, "h": 28}
 
     # --- layout_metrics == geometry_evidence consistency ---
 
@@ -3734,9 +3736,9 @@ class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
     # --- compact: no subtitle ---
 
     def test_compact_title_slot_y_lower_anchored(self):
-        """Compact (no subtitle): pad_top=20, pad_bottom=16 → avail=124, offset=44, title_slot_y=704."""
+        """Compact (no subtitle): pad_top=20, pad_bottom=16 → avail=124, offset=44, title_slot_y=792 (band_top=728)."""
         policy = self._run_toe()
-        assert policy.layout_metrics["title_slot_y"] == 704
+        assert policy.layout_metrics["title_slot_y"] == 792
 
     def test_compact_title_bottom_at_available_bottom(self):
         """Compact: title bottom == available_bottom (band_bottom - pad_bottom = 800-16=784)."""
@@ -3749,15 +3751,15 @@ class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
     # --- standard: short subtitle ---
 
     def test_standard_title_slot_y_lower_anchored(self):
-        """Standard (short subtitle): pad_top=20, pad_bottom=16 → avail=140, offset=30, title_slot_y=690."""
+        """Standard (short subtitle): pad_top=20, pad_bottom=16 → avail=140, offset=30, title_slot_y=778 (band_top=728)."""
         policy = self._run_toe(subtitle="Short sub")
-        assert policy.layout_metrics["title_slot_y"] == 690
+        assert policy.layout_metrics["title_slot_y"] == 778
 
     def test_standard_subtitle_slot_y_at_bottom(self):
-        """Standard: subtitle_slot_y=772; subtitle bottom = available_bottom (816-16=800)."""
+        """Standard: subtitle_slot_y=860; subtitle bottom = available_bottom (904-16=888) (band_top=728)."""
         policy = self._run_toe(subtitle="Short sub")
         lm = policy.layout_metrics
-        assert lm["subtitle_slot_y"] == 772
+        assert lm["subtitle_slot_y"] == 860
         subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
         available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
         assert subtitle_bottom == available_bottom
@@ -3765,9 +3767,9 @@ class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
     # --- moderate: two-line subtitle ---
 
     def test_moderate_title_slot_y_lower_anchored(self):
-        """Moderate subtitle: pad_top=20, pad_bottom=16 → avail=160, offset=34, title_slot_y=694."""
+        """Moderate subtitle: pad_top=20, pad_bottom=16 → avail=160, offset=34, title_slot_y=782 (band_top=728)."""
         policy = self._run_toe(subtitle="This subtitle is moderately long enough here")
-        assert policy.layout_metrics["title_slot_y"] == 694
+        assert policy.layout_metrics["title_slot_y"] == 782
 
     def test_moderate_subtitle_slot_y_at_bottom(self):
         """Moderate: subtitle bottom == available_bottom (836-16=820)."""
@@ -3780,12 +3782,12 @@ class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
     # --- dense: three-line subtitle ---
 
     def test_dense_title_slot_y_lower_anchored(self):
-        """Dense subtitle: pad_top=20, pad_bottom=16 → avail=204, offset=44, title_slot_y=704."""
+        """Dense subtitle: pad_top=20, pad_bottom=16 → avail=204, offset=44, title_slot_y=792 (band_top=728)."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
-        assert policy.layout_metrics["title_slot_y"] == 704
+        assert policy.layout_metrics["title_slot_y"] == 792
 
     def test_dense_subtitle_slot_y_at_bottom(self):
         """Dense: subtitle bottom == available_bottom (880-16=864); no dead space below."""
@@ -3799,12 +3801,12 @@ class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
         assert subtitle_bottom == available_bottom
 
     def test_dense_subtitle_slot_y_value(self):
-        """Dense: subtitle_slot_y = 704 + 88 + 8 = 800."""
+        """Dense: subtitle_slot_y = 792 + 88 + 8 = 888 (band_top=728)."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
-        assert policy.layout_metrics["subtitle_slot_y"] == 800
+        assert policy.layout_metrics["subtitle_slot_y"] == 888
 
     # --- slots remain inside band for all sub-cases ---
 
@@ -4192,3 +4194,209 @@ class TestHeaderAgentTruncationClosurePR7A2:
         _, metadata = _run_pipeline_with_stored_metadata(template, spec)
         geometry = metadata["geometry_evidence"]
         assert geometry["slot_bounds"]["agent_name_slot"]["h"] == 36
+
+
+class TestBottomModeFamilyContractClosure:
+    """PR-7B-final: bottom mode family contract closure.
+
+    Required acceptance invariants:
+    1. split no-overlap gap: bottom_shell_top >= product_secondary_slot_bottom + design_gap (16px)
+    2. expanded no-overlap gap: same invariant for text_only_expanded
+    3. split subtitle wrap: long subtitle renders multi-line (subtitle_line_clamp >= 2)
+    4. expanded occupation: text stack is lower-anchored, subtitle touches bottom of band
+    5. resolver / geometry evidence / text layers all agree
+
+    product_secondary_slot: {x:456, y:564, w:300, h:144} → bottom at y=708.
+    design_gap = 16px → required bottom_shell_top >= 724.
+    Contract value: 728 (gives 20px gap).
+    """
+
+    _PRODUCT_SECONDARY_BOTTOM = 564 + 144  # = 708
+    _DESIGN_GAP = 16
+
+    def _run_tgs(self, *, title: str = "Test Title", subtitle: str = "", gallery_count: int = 2):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        return resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text=title,
+            subtitle_text=subtitle,
+            requested_gallery_count=gallery_count,
+            normalized_gallery_count=gallery_count,
+            resolved_gallery_count=gallery_count,
+            max_items=4,
+        )
+
+    def _run_toe(self, *, title: str = "Test Title", subtitle: str = ""):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+        return resolve_bottom_behavior(
+            "text_only_expanded",
+            gallery_mode="strip_local_visible_only",
+            title_text=title,
+            subtitle_text=subtitle,
+            requested_gallery_count=0,
+            normalized_gallery_count=0,
+            resolved_gallery_count=0,
+            max_items=4,
+        )
+
+    # --- A. Acceptance invariant 1: title_gallery_split no-overlap gap ---
+
+    def test_tgs_shell_top_clears_product_secondary_slot_bottom(self):
+        """bottom_shell_top >= product_secondary_slot_bottom + design_gap for title_gallery_split."""
+        for gallery_count in [1, 2, 3, 4]:
+            policy = self._run_tgs(gallery_count=gallery_count)
+            shell_top = policy.layout_metrics["bottom_shell_top"]
+            assert shell_top >= self._PRODUCT_SECONDARY_BOTTOM + self._DESIGN_GAP, (
+                f"gallery_count={gallery_count}: shell_top={shell_top} < "
+                f"product_secondary_bottom({self._PRODUCT_SECONDARY_BOTTOM}) + design_gap({self._DESIGN_GAP})"
+            )
+
+    def test_tgs_shell_top_gap_value(self):
+        """title_gallery_split shell_top=728 gives 20px gap above product_secondary_slot bottom (708)."""
+        policy = self._run_tgs()
+        shell_top = policy.layout_metrics["bottom_shell_top"]
+        gap = shell_top - self._PRODUCT_SECONDARY_BOTTOM
+        assert gap >= self._DESIGN_GAP, f"gap={gap}px is less than required {self._DESIGN_GAP}px"
+
+    def test_tgs_no_overlap_with_dense_subtitle_all_gallery_counts(self):
+        """No-overlap invariant holds for dense subtitle across all gallery counts."""
+        long_sub = "This subtitle exceeds the design threshold to trigger dense multi-line copy behavior"
+        for gallery_count in [1, 2, 3, 4]:
+            policy = self._run_tgs(
+                title="Long product title for testing",
+                subtitle=long_sub,
+                gallery_count=gallery_count,
+            )
+            shell_top = policy.layout_metrics["bottom_shell_top"]
+            assert shell_top >= self._PRODUCT_SECONDARY_BOTTOM + self._DESIGN_GAP
+
+    # --- B. Acceptance invariant 2: text_only_expanded no-overlap gap ---
+
+    def test_toe_shell_top_clears_product_secondary_slot_bottom(self):
+        """bottom_shell_top >= product_secondary_slot_bottom + design_gap for text_only_expanded."""
+        for subtitle in ["", "Short subtitle", "Moderate subtitle text here yes", "Very long subtitle exceeding 48 chars for dense case here"]:
+            policy = self._run_toe(subtitle=subtitle)
+            shell_top = policy.layout_metrics["bottom_shell_top"]
+            assert shell_top >= self._PRODUCT_SECONDARY_BOTTOM + self._DESIGN_GAP, (
+                f"subtitle={subtitle!r}: shell_top={shell_top} < "
+                f"product_secondary_bottom({self._PRODUCT_SECONDARY_BOTTOM}) + design_gap({self._DESIGN_GAP})"
+            )
+
+    def test_toe_shell_top_gap_value(self):
+        """text_only_expanded shell_top=728 gives 20px gap above product_secondary_slot bottom (708)."""
+        policy = self._run_toe()
+        shell_top = policy.layout_metrics["bottom_shell_top"]
+        gap = shell_top - self._PRODUCT_SECONDARY_BOTTOM
+        assert gap >= self._DESIGN_GAP
+
+    # --- C. Acceptance invariant 3: title_gallery_split subtitle wrap ---
+
+    def test_tgs_long_subtitle_wraps_not_ellipsis(self):
+        """Representative long subtitle is rendered multi-line (subtitle_line_clamp >= 2) in title_gallery_split."""
+        long_sub = "This is a representative subtitle that is long enough to trigger multi-line wrapping behavior"
+        policy = self._run_tgs(subtitle=long_sub, gallery_count=2)
+        assert policy.subtitle_line_clamp >= 2, (
+            f"Expected subtitle_line_clamp >= 2, got {policy.subtitle_line_clamp}"
+        )
+        assert "two_line_clamp" in policy.subtitle_overflow_policy or "three_line_clamp" in policy.subtitle_overflow_policy
+
+    def test_tgs_subtitle_wrap_applies_for_all_gallery_counts(self):
+        """Multi-line subtitle clamp (>= 2) applies for gallery counts 1-4 when subtitle is long."""
+        long_sub = "This subtitle exceeds the design threshold to trigger dense multi-line copy behavior at all counts"
+        for gallery_count in [1, 2, 3, 4]:
+            policy = self._run_tgs(subtitle=long_sub, gallery_count=gallery_count)
+            assert policy.subtitle_line_clamp >= 2, (
+                f"gallery_count={gallery_count}: subtitle_line_clamp={policy.subtitle_line_clamp} < 2"
+            )
+
+    def test_tgs_subtitle_slot_height_reflects_multi_line(self):
+        """subtitle_slot_height >= 44 (2-line) when subtitle wraps in title_gallery_split."""
+        long_sub = "This subtitle is long enough to trigger two-line wrapping behavior in the split mode"
+        policy = self._run_tgs(subtitle=long_sub, gallery_count=2)
+        subtitle_slot_h = policy.layout_metrics["subtitle_slot_height"]
+        assert subtitle_slot_h >= 44, f"Expected subtitle_slot_height >= 44, got {subtitle_slot_h}"
+
+    # --- D. Acceptance invariant 4: text_only_expanded lower-anchor occupation ---
+
+    def test_toe_subtitle_touches_band_bottom_for_all_sub_cases(self):
+        """text_only_expanded: subtitle_bottom == available_bottom for all sub-cases (lower-anchored)."""
+        cases = [
+            ("Test Title", "Short sub"),
+            ("Test Title", "This subtitle is moderately long enough here"),
+            ("A fairly long product title for this test", "This is a very long subtitle that exceeds forty-eight characters in total length"),
+        ]
+        for title, subtitle in cases:
+            policy = self._run_toe(title=title, subtitle=subtitle)
+            lm = policy.layout_metrics
+            subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+            available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
+            assert subtitle_bottom == available_bottom, (
+                f"subtitle={subtitle!r}: subtitle_bottom={subtitle_bottom} != available_bottom={available_bottom}"
+            )
+
+    def test_toe_dead_space_all_above_title_not_below(self):
+        """text_only_expanded: dead space is above the title stack, not below subtitle."""
+        cases = [
+            ("Test Title", "Short sub"),
+            ("Long product title here", "This is a very long subtitle that exceeds forty-eight characters in total length"),
+        ]
+        for title, subtitle in cases:
+            policy = self._run_toe(title=title, subtitle=subtitle)
+            lm = policy.layout_metrics
+            # Dead space below subtitle = available_bottom - subtitle_bottom
+            subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+            available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
+            dead_below = available_bottom - subtitle_bottom
+            assert dead_below == 0, f"subtitle={subtitle!r}: dead space below subtitle = {dead_below}px, expected 0"
+
+    def test_toe_text_occupies_full_width(self):
+        """text_only_expanded: title band uses full width (x=96, w=832) for all sub-cases."""
+        for subtitle in ["", "Short sub", "Moderately long subtitle text here yes", "Very long subtitle exceeding 48 chars for dense test"]:
+            policy = self._run_toe(subtitle=subtitle)
+            assert policy.layout_metrics["title_band_x"] == 96
+            assert policy.layout_metrics["title_band_w"] == 832
+
+    # --- E. Parity checks: layout_metrics / geometry_evidence / text layers ---
+
+    def test_tgs_geometry_evidence_band_y_matches_shell_top(self):
+        """geometry_evidence.region_bounds.title_band_region.y == bottom_shell_top for title_gallery_split."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="title_gallery_split")
+        spec = _make_spec(subtitle="Short subtitle")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        ge = metadata["geometry_evidence"]
+        lm = metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]
+        assert ge["region_bounds"]["title_band_region"]["y"] == lm["bottom_shell_top"]
+
+    def test_toe_geometry_evidence_band_y_matches_shell_top(self):
+        """geometry_evidence.region_bounds.title_band_region.y == bottom_shell_top for text_only_expanded."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="text_only_expanded")
+        spec = _make_spec(subtitle="Short subtitle")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        ge = metadata["geometry_evidence"]
+        lm = metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]
+        assert ge["region_bounds"]["title_band_region"]["y"] == lm["bottom_shell_top"]
+
+    def test_toe_text_layer_slot_bounds_match_layout_metrics(self):
+        """text_only_expanded: title_text_layer.slot_bounds matches layout_metrics title_slot_y/h."""
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="text_only_expanded")
+        spec = _make_spec(subtitle="Short subtitle")
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        lm = metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]
+        title_layer = metadata["title_text_layer"]
+        assert title_layer["slot_bounds"]["y"] == lm["title_slot_y"]
+        assert title_layer["slot_bounds"]["h"] == lm["title_slot_height"]
+
+    def test_tgs_gallery_shell_top_agrees_with_shell_top_plus_title_band(self):
+        """gallery_shell_top == bottom_shell_top + title_band_height (no peer_gap for title_gallery_split alias)."""
+        for gallery_count in [1, 2, 3, 4]:
+            policy = self._run_tgs(gallery_count=gallery_count)
+            lm = policy.layout_metrics
+            expected_gallery_top = lm["bottom_shell_top"] + lm["title_band_height"]
+            assert lm["gallery_shell_top"] == expected_gallery_top, (
+                f"gallery_count={gallery_count}: gallery_shell_top={lm['gallery_shell_top']} "
+                f"!= shell_top({lm['bottom_shell_top']}) + title_band_height({lm['title_band_height']})"
+            )

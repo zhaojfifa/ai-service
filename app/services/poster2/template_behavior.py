@@ -98,12 +98,13 @@ _BOTTOM_MODE_ALIASES: dict[str, str] = {
 }
 
 # Structural expansion: new modes start the bottom shell higher than the frozen baseline (y=728).
-# text_only_expanded and text_gallery_expanded share y=640 as the shell top.
-# title_gallery_split uses y=680 (PR-6D: +40px total shift from 640 eliminates bottom-image overlap/clipping).
+# PR-7B-final: both title_gallery_split and text_only_expanded move to y=728.
+# product_secondary_slot bottom = y(564) + h(144) = 708.
+# Shell top 728 gives a 20px design gap above product_secondary_slot bottom (satisfies >= 16px).
 # text_only_expanded shell height = title_band_height (PR-6D: content-proportionate, no dead canvas below).
 _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
-    "title_gallery_split": 680,   # PR-6D: shifted down 40px from 640 (660→680) to fully close bottom-image overlap
-    "text_only_expanded": 640,    # PR-6B: shell top fixed; PR-6D: shell height = title_band_height (content-proportionate)
+    "title_gallery_split": 728,   # PR-7B-final: raised from 680 → 728 to clear product_secondary_slot bottom (708) + 20px gap
+    "text_only_expanded": 728,    # PR-7B-final: raised from 640 → 728; shell height = title_band_height (content-proportionate)
     "text_gallery_expanded": 640, # 384px capacity
 }
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}

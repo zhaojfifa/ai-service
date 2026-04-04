@@ -1,5 +1,39 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-7B-final: Bottom Mode Family Contract Closure
+
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-04
+
+### What changed
+- `app/services/poster2/template_behavior.py` — `_EXPANDED_BOTTOM_SHELL_TOPS["title_gallery_split"]` 680→728; `_EXPANDED_BOTTOM_SHELL_TOPS["text_only_expanded"]` 640→728; comments updated to state 20px design gap above product_secondary_slot bottom (708)
+- `tests/poster2/test_pipeline.py` — updated 20+ stale y-assertions across 6 test classes (bottom_region, title_band_region, gallery_strip_region, gallery_slot, subtitle_slot, CSS vars); added `TestBottomModeFamilyContractClosure` (15 tests)
+- `tests/poster2/test_renderer.py` — updated 2 stale gallery_shell_top assertions (872→920, 848→896); updated 1 gallery_items_y assertion (882→930)
+- `docs/poster2/bottom_mode_family_contract_closure_status_v1.md` — created
+
+### Focused validation run
+- `python3 -m pytest -q tests/poster2/test_pipeline.py::TestBottomModeFamilyContractClosure` → `15 passed`
+- `python3 -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `2 failed (pre-existing), 361 passed`
+
+### Contract change summary
+
+| Field | Before | After |
+|-------|--------|-------|
+| `_EXPANDED_BOTTOM_SHELL_TOPS["title_gallery_split"]` | 680 | 728 |
+| `_EXPANDED_BOTTOM_SHELL_TOPS["text_only_expanded"]` | 640 | 728 |
+
+`product_secondary_slot` bottom = y(564) + h(144) = 708. Shell top 728 → 20px design gap (satisfies ≥ 16px).
+
+### Invariants closed
+- `title_gallery_split`: shell_top(728) ≥ product_secondary_bottom(708) + design_gap(16) = 724 ✓
+- `text_only_expanded`: same ✓
+- subtitle wrap: `subtitle_line_clamp=2` via text_gallery_expanded alias (unchanged, already correct) ✓
+- lower-anchor occupation: dead space above only, subtitle_bottom == band_bottom − pad_bottom ✓
+- all sub-cases fit within canvas (max 728+192+100=1020 ≤ 1024) ✓
+
+---
+
 ## Entry — PR-7B4: text_only_expanded Bottom Lower-Anchor Closure
 
 **Branch:** `pr6-clean`
