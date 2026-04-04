@@ -39,6 +39,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
 - [poster2_product_flow_reviewable_v1.md](poster2_product_flow_reviewable_v1.md)
 - [bottom_behavior_contract_status_v1.md](bottom_behavior_contract_status_v1.md)
+- [bottom_vertical_anchoring_closure_status_v1.md](bottom_vertical_anchoring_closure_status_v1.md)
 - [feature_anchor_callouts_contract_status_v1.md](feature_anchor_callouts_contract_status_v1.md)
 - [product_region_annotation_contract_status_v1.md](product_region_annotation_contract_status_v1.md)
 - [product_region_contract_closure_status_v1.md](product_region_contract_closure_status_v1.md)

@@ -1568,8 +1568,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 72
             subtitle_char_budget = 160  # PR-7B2: expanded to allow genuine 3-line support copy
             title_band_height = 240  # PR-7B2: 240px to accommodate 3-line title + 3-line subtitle slots
-            title_content_pad_top = 24  # PR-7B2: reduced from 28 to gain usable content height
-            title_content_pad_bottom = 24  # PR-7B2: reduced from 28 to gain usable content height
+            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
+            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance; subtitle touches band edge
             title_stack_gap = 8  # PR-7B2: reduced from 10 for tighter title/subtitle stack
         elif subtitle_slot_rendered and subtitle_length > 28:
             title_band_sizing_mode = "expanded"
@@ -1582,8 +1582,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 64
             subtitle_char_budget = 64
             title_band_height = 196  # PR-6D: shell height = title_band_height (2+2 lines)
-            title_content_pad_top = 30
-            title_content_pad_bottom = 30
+            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
+            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance
             title_stack_gap = 10
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
@@ -1596,8 +1596,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 56
             subtitle_char_budget = 44
             title_band_height = 176  # PR-6D: shell height = title_band_height (2+1 lines)
-            title_content_pad_top = 32
-            title_content_pad_bottom = 32
+            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
+            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance
             title_stack_gap = 10
         else:
             title_band_sizing_mode = "compact"
@@ -1610,8 +1610,8 @@ def _resolve_bottom_layout_policies(
             title_char_budget = 52
             subtitle_char_budget = 0
             title_band_height = 160  # PR-6D: shell height = title_band_height (2 lines title only, compact)
-            title_content_pad_top = 40
-            title_content_pad_bottom = 40
+            title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
+            title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance; was 40 (dead space)
             title_stack_gap = 0
         title_content_top = title_band_top
         title_content_height = title_band_height
@@ -2030,7 +2030,12 @@ def _resolve_bottom_text_slot_metrics(
         overflow = used_height - available_height
         subtitle_slot_height = max(subtitle_slot_height - overflow, 24 if subtitle_line_clamp <= 1 else (48 if subtitle_line_clamp >= 3 else 40))
         used_height = title_slot_height + subtitle_slot_height + stack_gap
-    offset = max((available_height - used_height) // 2, 0)
+    # PR-7B3: text_only_expanded uses lower-anchoring (dead space above, not below).
+    # All other modes remain center-packed.
+    if bottom_mode == "text_only_expanded":
+        offset = max(available_height - used_height, 0)
+    else:
+        offset = max((available_height - used_height) // 2, 0)
     title_slot_y = available_top + offset
     subtitle_slot_y = title_slot_y + title_slot_height + stack_gap if subtitle_slot_rendered else title_slot_y + title_slot_height
     return title_slot_y, title_slot_height, subtitle_slot_y, subtitle_slot_height
