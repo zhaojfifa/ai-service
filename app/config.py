@@ -128,6 +128,34 @@ class ResendConfig:
 
 
 @dataclass
+class EmailCopyConfig:
+    optimizer: str = "deterministic"
+    model: str = "gemini-2.5-flash"
+    fallback_mode: str = "deterministic"
+    timeout_sec: float = 8.0
+    gemini_api_key: str | None = None
+
+    @property
+    def gemini_enabled(self) -> bool:
+        return self.optimizer == "gemini" and bool(self.gemini_api_key)
+
+
+@dataclass
+class EmailAttachmentConfig:
+    enabled: bool = False
+    build_on_preview: bool = False
+    default_types: List[str] | None = None
+    store_backend: str = "auto"
+    public_base: str | None = None
+
+    @property
+    def normalized_default_types(self) -> List[str]:
+        allowed = {"poster_png", "poster_pdf"}
+        values = [item for item in (self.default_types or []) if item in allowed]
+        return values
+
+
+@dataclass
 class GlibatreeConfig:
     api_url: str | None = None
     api_key: str | None = None
@@ -157,6 +185,8 @@ class Settings:
     allowed_origins: List[str]
     email: EmailConfig
     resend: ResendConfig
+    email_copy: EmailCopyConfig
+    email_attachment: EmailAttachmentConfig
     gcp: GCPConfig
     vertex: VertexConfig
     glibatree: GlibatreeConfig
@@ -203,6 +233,25 @@ def get_settings() -> Settings:
         audience=_env_first("RESEND_AUDIENCE"),
     )
 
+    email_copy = EmailCopyConfig(
+        optimizer=(_env_first("EMAIL_COPY_OPTIMIZER", default="deterministic") or "deterministic").strip().lower(),
+        model=_env_first("EMAIL_COPY_MODEL", default="gemini-2.5-flash") or "gemini-2.5-flash",
+        fallback_mode=(_env_first("EMAIL_COPY_FALLBACK_MODE", default="deterministic") or "deterministic").strip().lower(),
+        timeout_sec=float(_env_first("EMAIL_COPY_TIMEOUT_SEC", default="8") or "8"),
+        gemini_api_key=_env_first("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+    )
+
+    email_attachment = EmailAttachmentConfig(
+        enabled=_as_bool(_env_first("EMAIL_ATTACHMENT_ENABLED"), False),
+        build_on_preview=_as_bool(_env_first("EMAIL_ATTACHMENT_BUILD_ON_PREVIEW"), False),
+        default_types=_as_list(
+            _env_first("EMAIL_ATTACHMENT_DEFAULT_TYPES"),
+            ["poster_png"],
+        ),
+        store_backend=_env_first("EMAIL_ATTACHMENT_STORE_BACKEND", default="auto") or "auto",
+        public_base=_env_first("EMAIL_ATTACHMENT_PUBLIC_BASE", "R2_PUBLIC_BASE", "S3_PUBLIC_BASE"),
+    )
+
     gcp = GCPConfig(
         project_id=_env_first("GCP_PROJECT_ID", "VERTEX_PROJECT_ID"),
         location=_env_first("GCP_LOCATION", "VERTEX_LOCATION", default="us-central1")
@@ -231,6 +280,8 @@ def get_settings() -> Settings:
         allowed_origins=allowed_origins,
         email=email,
         resend=resend,
+        email_copy=email_copy,
+        email_attachment=email_attachment,
         gcp=gcp,
         vertex=vertex,
         glibatree=glibatree,

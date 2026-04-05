@@ -4443,7 +4443,7 @@ class TestBottomModeFamilyContractClosure:
         assert title_layer["slot_bounds"]["y"] == lm["title_slot_y"]
         assert title_layer["slot_bounds"]["h"] == lm["title_slot_height"]
 
-    def test_tgs_gallery_shell_top_agrees_with_shell_top_plus_title_band(self):
+def test_tgs_gallery_shell_top_agrees_with_shell_top_plus_title_band(self):
         """gallery_shell_top == bottom_shell_top + title_band_height (no peer_gap for title_gallery_split alias)."""
         for gallery_count in [1, 2, 3, 4]:
             policy = self._run_tgs(gallery_count=gallery_count)
@@ -4453,3 +4453,95 @@ class TestBottomModeFamilyContractClosure:
                 f"gallery_count={gallery_count}: gallery_shell_top={lm['gallery_shell_top']} "
                 f"!= shell_top({lm['bottom_shell_top']}) + title_band_height({lm['title_band_height']})"
             )
+
+
+def test_email_draft_deterministic_prefers_annotation_summary_over_dirty_subtitle():
+    from app.services.email.copy_optimizer import build_email_draft_for_poster_record
+
+    record = {
+        "request_snapshot": {
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "A noisy subtitle that should stay low-priority in email preview.",
+            "features": ["Fast preheat", "Even cooking", "Easy cleaning"],
+        },
+        "render_result": {
+            "product_annotation_contract_review": {
+                "annotation_slots": [
+                    {"sanitized_text": "Fast preheat"},
+                    {"sanitized_text": "Even cooking"},
+                ]
+            },
+            "final_url": "https://example.com/final.png",
+        },
+        "final_poster": {"url": "https://example.com/final.png"},
+    }
+
+    draft = build_email_draft_for_poster_record(record)
+    assert draft["generated_from"] == "deterministic"
+    assert draft["preview_text"].startswith("Fast preheat")
+    assert draft["summary_points"][:2] == ["Fast preheat", "Even cooking"]
+
+
+def test_email_draft_gemini_failure_uses_fallback_deterministic(monkeypatch):
+    from app.config import get_settings
+    from app.services.email.copy_optimizer import build_email_draft_for_poster_record
+
+    monkeypatch.setenv("EMAIL_COPY_OPTIMIZER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.email.gemini_optimizer.GeminiEmailCopyOptimizer.optimize",
+        lambda self, canonical_input: (_ for _ in ()).throw(RuntimeError("gemini failed")),
+    )
+    record = {
+        "request_snapshot": {
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Should not lead",
+            "features": ["Fast preheat"],
+        },
+        "render_result": {},
+        "final_poster": {"url": "https://example.com/final.png"},
+    }
+
+    draft = build_email_draft_for_poster_record(record)
+    assert draft["generated_from"] == "gemini_fallback_deterministic"
+    assert draft["preview_text"].startswith("Fast preheat")
+
+
+def test_email_attachment_builder_surfaces_poster_png_and_pdf(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.config import get_settings
+    from app.services.email.attachments import build_email_assets_for_record
+    from app.services.poster_records import create_poster_record, generate_poster_key
+
+    monkeypatch.setenv("EMAIL_ATTACHMENT_ENABLED", "true")
+    monkeypatch.setenv("EMAIL_ATTACHMENT_DEFAULT_TYPES", "poster_png,poster_pdf")
+    get_settings.cache_clear()
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-pipeline"))
+    monkeypatch.setattr("app.services.email.attachments.EMAIL_ASSET_DIR", Path("/tmp/poster2-test-email-assets-pipeline"))
+    tiny = PILImage.new("RGB", (4, 4), color=(255, 255, 255))
+    buffer = BytesIO()
+    tiny.save(buffer, format="PNG")
+    monkeypatch.setattr(
+        "app.services.email.attachments.requests.get",
+        lambda url, timeout=30: SimpleNamespace(
+            content=buffer.getvalue(),
+            raise_for_status=lambda: None,
+        ),
+    )
+
+    poster_key = generate_poster_key()
+    create_poster_record(
+        poster_key=poster_key,
+        request_snapshot={"brand_name": "ChefCraft", "title": "Kitchen Upgrade"},
+        render_result={"template_id": "template_dual_v2", "trace_id": "trace-1", "final_hash": "abc"},
+        final_poster={"url": "https://example.com/final.png", "storage_key": "trace-1"},
+    )
+    record = build_email_assets_for_record(poster_key, asset_types=["poster_png", "poster_pdf"])
+    assert "poster_png" in record["email_assets"]
+    assert "poster_pdf" in record["email_assets"]

@@ -88,7 +88,29 @@
 
         <div class="output-group">
           <h3>Email Preview</h3>
+          <p id="email-draft-source" class="hint"></p>
           <div id="email-html-preview" class="prompt-wrapper"></div>
+        </div>
+
+        <div class="output-group" id="email-attachment-group" hidden>
+          <h3>Optional Attachments</h3>
+          <p id="email-attachment-status" class="hint"></p>
+          <div class="grid">
+            <label class="field">
+              <span>Delivery Mode</span>
+              <select id="email-delivery-mode">
+                <option value="inline_only">inline_only</option>
+                <option value="resend">resend</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Attachment Types</span>
+              <div class="prompt-wrapper">
+                <label><input type="checkbox" id="attachment-poster-png" value="poster_png" /> poster_png</label>
+                <label><input type="checkbox" id="attachment-poster-pdf" value="poster_pdf" /> poster_pdf</label>
+              </div>
+            </label>
+          </div>
         </div>
 
         <div class="actions">

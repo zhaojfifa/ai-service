@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.main import DEFAULT_CORS_ORIGINS, app
 from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
@@ -181,6 +184,30 @@ class _FakeDegradedPoster2Pipeline:
 class _BoomPoster2Pipeline:
     async def run(self, spec, template=None) -> RenderManifest:
         raise RuntimeError("simulated poster2 failure")
+
+
+def _tiny_png_bytes() -> bytes:
+    image = Image.new("RGB", (4, 4), color=(255, 255, 255))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _reset_email_closure_env(monkeypatch) -> None:
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records"))
+    monkeypatch.setattr("app.services.email.attachments.EMAIL_ASSET_DIR", Path("/tmp/poster2-test-email-assets"))
+    monkeypatch.delenv("EMAIL_COPY_OPTIMIZER", raising=False)
+    monkeypatch.delenv("EMAIL_COPY_MODEL", raising=False)
+    monkeypatch.delenv("EMAIL_COPY_FALLBACK_MODE", raising=False)
+    monkeypatch.delenv("EMAIL_COPY_TIMEOUT_SEC", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("EMAIL_ATTACHMENT_ENABLED", raising=False)
+    monkeypatch.delenv("EMAIL_ATTACHMENT_BUILD_ON_PREVIEW", raising=False)
+    monkeypatch.delenv("EMAIL_ATTACHMENT_DEFAULT_TYPES", raising=False)
+    from app.config import get_settings
+
+    get_settings.cache_clear()
 
 
 def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
@@ -485,7 +512,7 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
 
 def test_email_preview_and_inline_send_are_generated_from_poster_record(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
-    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-8"))
+    _reset_email_closure_env(monkeypatch)
     client = TestClient(app)
 
     generated = client.post(
@@ -507,6 +534,8 @@ def test_email_preview_and_inline_send_are_generated_from_poster_record(monkeypa
     preview_body = preview.json()
     assert preview_body["poster_key"] == poster_key
     assert preview_body["subject"] == "ChefCraft | Kitchen Upgrade"
+    assert preview_body["preview_text"].startswith("A")
+    assert preview_body["generated_from"] == "deterministic"
     assert "https://example.com/final.png" in preview_body["html"]
 
     send = client.post(
@@ -520,21 +549,23 @@ def test_email_preview_and_inline_send_are_generated_from_poster_record(monkeypa
     send_body = send.json()
     assert send_body["status"] == "preview_only"
     assert send_body["provider"] == "inline_only"
+    assert send_body["attachment_types"] == []
 
     record = client.get(f"/api/v2/posters/{poster_key}")
     record_body = record.json()
     assert record_body["email_draft"]["subject"] == "ChefCraft | Kitchen Upgrade"
+    assert record_body["email_draft"]["generated_from"] == "deterministic"
     assert record_body["email_deliveries"][-1]["status"] == "preview_only"
 
 
 def test_email_send_supports_resend_provider(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
-    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-9"))
+    _reset_email_closure_env(monkeypatch)
 
     class _FakeProvider:
         name = "resend"
 
-        def send(self, *, recipient, subject, preview_text, html, text):
+        def send(self, *, recipient, subject, preview_text, html, text, attachments=None):
             return type("Delivery", (), {
                 "provider": "resend",
                 "status": "sent",
@@ -576,3 +607,215 @@ def test_email_send_supports_resend_provider(monkeypatch):
     assert body["status"] == "sent"
     assert body["provider"] == "resend"
     assert body["provider_message_id"] == "msg_123"
+
+
+def test_preview_uses_gemini_when_available(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    monkeypatch.setenv("EMAIL_COPY_OPTIMIZER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+
+    monkeypatch.setattr(
+        "app.services.email.gemini_optimizer.GeminiEmailCopyOptimizer.optimize",
+        lambda self, canonical_input: {
+            "subject": "Gemini subject",
+            "preview_text": "Gemini preview",
+            "html": "<p>Gemini html</p>",
+            "text": "Gemini text",
+            "summary_points": ["A", "B"],
+            "tone": "gemini_clean",
+            "generated_at": "2026-04-05T00:00:00+00:00",
+        },
+    )
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Dirty subtitle that should not lead",
+            "features": ["Fast preheat", "Even cooking"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+    preview = client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+    body = preview.json()
+    assert preview.status_code == 200
+    assert body["generated_from"] == "gemini"
+    assert body["subject"] == "Gemini subject"
+    assert body["tone"] == "gemini_clean"
+
+
+def test_preview_falls_back_when_gemini_fails(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    monkeypatch.setenv("EMAIL_COPY_OPTIMIZER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.email.gemini_optimizer.GeminiEmailCopyOptimizer.optimize",
+        lambda self, canonical_input: (_ for _ in ()).throw(TimeoutError("gemini timeout")),
+    )
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "This dirty subtitle should not dominate the preview",
+            "features": ["Fast preheat", "Even cooking"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+    preview = client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+    body = preview.json()
+    assert preview.status_code == 200
+    assert body["generated_from"] == "gemini_fallback_deterministic"
+    assert body["preview_text"].startswith("Fast preheat")
+
+
+def test_preview_can_build_and_persist_email_assets(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    monkeypatch.setenv("EMAIL_ATTACHMENT_ENABLED", "true")
+    monkeypatch.setenv("EMAIL_ATTACHMENT_BUILD_ON_PREVIEW", "true")
+    monkeypatch.setenv("EMAIL_ATTACHMENT_DEFAULT_TYPES", "poster_png,poster_pdf")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.email.attachments.requests.get",
+        lambda url, timeout=30: SimpleNamespace(
+            content=_tiny_png_bytes(),
+            raise_for_status=lambda: None,
+        ),
+    )
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Smart cooking for everyday use",
+            "features": ["Fast preheat", "Even cooking"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+
+    preview = client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+    body = preview.json()
+    assert preview.status_code == 200
+    assert sorted(body["available_attachment_types"]) == ["poster_pdf", "poster_png"]
+    assert "poster_png" in body["email_assets"]
+    assert "poster_pdf" in body["email_assets"]
+
+    record = client.get(f"/api/v2/posters/{poster_key}").json()
+    assert "poster_png" in record["email_assets"]
+    assert "poster_pdf" in record["email_assets"]
+
+
+def test_send_with_missing_requested_asset_fails_clearly(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Smart cooking for everyday use",
+            "features": ["Fast preheat", "Even cooking"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+    response = client.post(
+        "/api/v2/email/send",
+        json={
+            "poster_key": poster_key,
+            "recipient": "user@example.com",
+            "delivery_mode": "resend",
+            "attachment_types": ["poster_pdf"],
+        },
+    )
+    assert response.status_code == 422
+    assert "missing_email_attachment_asset:poster_pdf" in response.json()["detail"]
+
+
+def test_resend_provider_includes_attachment_payload_from_email_assets(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    monkeypatch.setenv("EMAIL_ATTACHMENT_ENABLED", "true")
+    monkeypatch.setenv("EMAIL_ATTACHMENT_BUILD_ON_PREVIEW", "true")
+    monkeypatch.setenv("EMAIL_ATTACHMENT_DEFAULT_TYPES", "poster_png")
+    monkeypatch.setenv("RESEND_API_KEY", "resend-key")
+    monkeypatch.setenv("RESEND_FROM_EMAIL", "sender@example.com")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.email.attachments.requests.get",
+        lambda url, timeout=30: SimpleNamespace(
+            content=_tiny_png_bytes(),
+            raise_for_status=lambda: None,
+        ),
+    )
+    captured = {}
+
+    def _fake_post(url, headers=None, json=None, timeout=30):
+        captured["json"] = json
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"id": "msg_with_attachment"},
+        )
+
+    monkeypatch.setattr("app.services.email.resend_provider.requests.post", _fake_post)
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Smart cooking for everyday use",
+            "features": ["Fast preheat", "Even cooking"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+    client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+
+    response = client.post(
+        "/api/v2/email/send",
+        json={
+            "poster_key": poster_key,
+            "recipient": "user@example.com",
+            "delivery_mode": "resend",
+            "attachment_types": ["poster_png"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["attachment_types"] == ["poster_png"]
+    assert captured["json"]["attachments"][0]["filename"].endswith(".png")

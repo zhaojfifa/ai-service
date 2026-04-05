@@ -1,5 +1,92 @@
 # Current Branch Execution Log v1
 
+## Entry — PR: Gemini Copy Optimizer And Optional Attachment Assets
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-05
+
+### Scope
+- Gemini-backed email copy optimization
+- improved deterministic draft fallback
+- optional backend-owned attachment assets
+- optional resend attachment wiring
+- Stage3 source/docs mirror alignment for draft source and attachment readiness
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+- task-relevant email closure files only after the state read
+
+### Root rules followed
+- contract-first
+- no poster structure contract drift
+- no bottom truth drift
+- no product annotation truth drift
+- Stage3 stayed backend-driven through live payload only
+- frontend/docs mirror stayed aligned in the same PR
+
+### Problem reproduced
+- deterministic draft over-trusted subtitle and produced overly mechanical preview text
+- current draft path had no optimizer layer above canonical business facts
+- current closure path had no backend-owned optional attachment assets for resend readiness
+
+### Root cause found
+- email draft generation was still a single deterministic formatter instead of a structured canonical-input pipeline
+- subtitle was treated too early as preview text source
+- attachment readiness had no persisted backend asset model in `poster_record`
+
+### Files changed
+- `app/config.py`
+- `app/main.py`
+- `app/schemas/poster2.py`
+- `app/services/poster_records.py`
+- `app/services/email/drafts.py`
+- `app/services/email/copy_optimizer.py`
+- `app/services/email/gemini_optimizer.py`
+- `app/services/email/attachments.py`
+- `app/services/email/providers.py`
+- `app/services/email/resend_provider.py`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `docs/stage3.html`
+- `docs/app.js`
+- `tests/poster2/test_api.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage3_email_closure_surface.py`
+- `docs/poster2/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+
+### Layer changed
+- contract
+- behavior
+- docs
+- validation
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py` → `18 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage3_email_closure_surface.py` → `2 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'email or poster_record or attachment or draft'` → `3 passed, 254 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `2 passed`
+
+### Remaining risks
+- Gemini live optimization still needs deployed-environment validation with real credentials
+- resend attachment delivery still needs real-provider validation
+- local fallback attachment assets are backend-owned but server-local until object storage is configured
+
+### Exact acceptance
+- preview draft is business-cleaner than direct subtitle echo
+- Gemini failure does not block preview and returns deterministic fallback
+- attachment assets are backend-owned and inspectable in `poster_record`
+- resend path is optional-attachment-ready
+- `inline_only` safe default remains unchanged
+- frontend/docs mirror remains aligned
+
 ## Entry — Storage / Copy / Email Closure Engineering
 
 **Branch:** `main`

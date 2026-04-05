@@ -49,7 +49,12 @@ from app.schemas import (
 )
 from app.schemas.kitposter import KitPosterDraft
 from app.services.email_sender import send_email
-from app.services.email.drafts import build_email_draft_from_poster_record
+from app.services.email.attachments import (
+    SUPPORTED_ATTACHMENT_TYPES,
+    build_email_assets_for_record,
+    resolve_email_assets,
+)
+from app.services.email.copy_optimizer import build_email_draft_for_poster_record
 from app.services.email.providers import get_email_provider
 from app.services.glibatree import (
     configure_vertex_imagen,
@@ -1610,14 +1615,26 @@ def preview_poster_v2_email(payload: EmailPreviewRequest) -> EmailPreviewRespons
     record = load_poster_record(payload.poster_key)
     if record is None:
         raise HTTPException(status_code=404, detail="poster_record_not_found")
-    draft = build_email_draft_from_poster_record(record)
+    draft = build_email_draft_for_poster_record(record)
     update_email_draft(payload.poster_key, draft)
+    settings = get_settings()
+    if settings.email_attachment.enabled and settings.email_attachment.build_on_preview:
+        record = build_email_assets_for_record(payload.poster_key)
+    else:
+        record = load_poster_record(payload.poster_key) or record
+    email_assets = record.get("email_assets") or {}
     return EmailPreviewResponse(
         poster_key=payload.poster_key,
         subject=draft["subject"],
         preview_text=draft["preview_text"],
         html=draft["html"],
         text=draft["text"],
+        summary_points=list(draft.get("summary_points") or []),
+        tone=str(draft.get("tone") or "clean_product_business"),
+        generated_from=draft.get("generated_from") or "deterministic",
+        email_assets=email_assets,
+        available_attachment_types=sorted(email_assets.keys()),
+        buildable_attachment_types=list(SUPPORTED_ATTACHMENT_TYPES) if settings.email_attachment.enabled else [],
     )
 
 
@@ -1632,14 +1649,26 @@ def send_poster_v2_email(payload: EmailSendV2Request) -> EmailSendV2Response:
     if record is None:
         raise HTTPException(status_code=404, detail="poster_record_not_found")
 
-    generated_draft = build_email_draft_from_poster_record(record)
+    generated_draft = record.get("email_draft") or build_email_draft_for_poster_record(record)
     draft = {
         "subject": payload.subject or generated_draft["subject"],
         "preview_text": payload.preview_text or generated_draft["preview_text"],
         "html": payload.html or generated_draft["html"],
         "text": payload.text or generated_draft["text"],
+        "summary_points": list(generated_draft.get("summary_points") or []),
+        "tone": generated_draft.get("tone") or "clean_product_business",
+        "generated_from": generated_draft.get("generated_from") or "deterministic",
         "generated_at": generated_draft["generated_at"],
     }
+
+    requested_attachment_types = list(payload.attachment_types or [])
+
+    attachments = []
+    if payload.delivery_mode == "resend" and requested_attachment_types:
+        try:
+            attachments = resolve_email_assets(record, requested_attachment_types)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     provider = get_email_provider(payload.delivery_mode)
     delivery_result = provider.send(
@@ -1648,6 +1677,7 @@ def send_poster_v2_email(payload: EmailSendV2Request) -> EmailSendV2Response:
         preview_text=draft["preview_text"],
         html=draft["html"],
         text=draft["text"],
+        attachments=attachments,
     )
     delivery = {
         "sent_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
@@ -1668,6 +1698,7 @@ def send_poster_v2_email(payload: EmailSendV2Request) -> EmailSendV2Response:
         recipient=str(payload.recipient),
         provider_message_id=delivery_result.provider_message_id,
         error=delivery_result.error,
+        attachment_types=requested_attachment_types,
     )
 
 if FRONTEND_DIR.exists():

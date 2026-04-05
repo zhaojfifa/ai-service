@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
+
 import requests
 
 from app.config import ResendConfig
+from app.services.email.attachments import load_email_asset_bytes
 from app.services.email.providers import EmailDeliveryResult
 
 
@@ -20,6 +23,7 @@ class ResendEmailProvider:
         preview_text: str,
         html: str,
         text: str,
+        attachments: list[dict] | None = None,
     ) -> EmailDeliveryResult:
         if not self._config.is_configured:
             return EmailDeliveryResult(
@@ -35,6 +39,14 @@ class ResendEmailProvider:
             "html": html,
             "text": text,
         }
+        if attachments:
+            payload["attachments"] = [
+                {
+                    "filename": asset["filename"],
+                    "content": base64.b64encode(load_email_asset_bytes(asset)).decode("ascii"),
+                }
+                for asset in attachments
+            ]
         if self._config.audience:
             payload["tags"] = [{"name": "audience", "value": self._config.audience}]
 

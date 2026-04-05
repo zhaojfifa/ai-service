@@ -147,7 +147,21 @@ class PosterRecordEmailDraft(BaseModel):
     preview_text: str
     html: str
     text: str
+    summary_points: list[str] = Field(default_factory=list)
+    tone: str = "clean_product_business"
+    generated_from: Literal["deterministic", "gemini", "gemini_fallback_deterministic"] = "deterministic"
     generated_at: str
+
+
+class PosterRecordEmailAsset(BaseModel):
+    asset_type: Literal["poster_png", "poster_pdf"]
+    filename: str
+    content_type: str
+    storage_backend: str
+    size_bytes: int = 0
+    created_at: str
+    url: Optional[str] = None
+    key: Optional[str] = None
 
 
 class PosterRecordEmailDelivery(BaseModel):
@@ -171,6 +185,7 @@ class PosterRecordResponse(BaseModel):
     request_snapshot: dict[str, Any] = Field(default_factory=dict)
     render_result: dict[str, Any] = Field(default_factory=dict)
     email_draft: Optional[PosterRecordEmailDraft] = None
+    email_assets: dict[str, PosterRecordEmailAsset] = Field(default_factory=dict)
     email_deliveries: list[PosterRecordEmailDelivery] = Field(default_factory=list)
 
 
@@ -184,7 +199,12 @@ class EmailPreviewResponse(BaseModel):
     preview_text: str
     html: str
     text: str
-    generated_from: Literal["poster_record"] = "poster_record"
+    summary_points: list[str] = Field(default_factory=list)
+    tone: str = "clean_product_business"
+    generated_from: Literal["deterministic", "gemini", "gemini_fallback_deterministic"] = "deterministic"
+    email_assets: dict[str, PosterRecordEmailAsset] = Field(default_factory=dict)
+    available_attachment_types: list[str] = Field(default_factory=list)
+    buildable_attachment_types: list[str] = Field(default_factory=list)
 
 
 class EmailSendV2Request(BaseModel):
@@ -195,6 +215,7 @@ class EmailSendV2Request(BaseModel):
     html: Optional[str] = None
     text: Optional[str] = None
     delivery_mode: Literal["inline_only", "resend"] = "inline_only"
+    attachment_types: list[Literal["poster_png", "poster_pdf"]] = Field(default_factory=list, max_length=2)
 
 
 class EmailSendV2Response(BaseModel):
@@ -205,3 +226,4 @@ class EmailSendV2Response(BaseModel):
     recipient: EmailStr
     provider_message_id: Optional[str] = None
     error: Optional[str] = None
+    attachment_types: list[str] = Field(default_factory=list)

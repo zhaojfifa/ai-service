@@ -8868,11 +8868,17 @@ function initStage3() {
     const posterUrlInput = document.getElementById('stage3-poster-url');
     const posterKeyInput = document.getElementById('stage3-poster-key');
     const draftPreviewText = document.getElementById('email-preview-text');
+    const draftSource = document.getElementById('email-draft-source');
     const emailRecipient = document.getElementById('email-recipient');
     const emailSubject = document.getElementById('email-subject');
     const emailText = document.getElementById('email-text');
     const emailHtml = document.getElementById('email-html');
     const emailHtmlPreview = document.getElementById('email-html-preview');
+    const deliveryMode = document.getElementById('email-delivery-mode');
+    const attachmentGroup = document.getElementById('email-attachment-group');
+    const attachmentStatus = document.getElementById('email-attachment-status');
+    const attachmentPosterPng = document.getElementById('attachment-poster-png');
+    const attachmentPosterPdf = document.getElementById('attachment-poster-pdf');
     const sendButton = document.getElementById('send-email');
     const refreshButton = document.getElementById('refresh-email-preview');
 
@@ -8939,8 +8945,30 @@ function initStage3() {
       }
       emailText.value = draft?.text || '';
       emailHtml.value = draft?.html || '';
+      if (draftSource) {
+        draftSource.textContent = `Draft source: ${draft?.generated_from || 'deterministic'} | Tone: ${draft?.tone || 'clean_product_business'}`;
+      }
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = draft?.html || '';
+      }
+      const availableAttachmentTypes = Array.isArray(draft?.available_attachment_types) ? draft.available_attachment_types : [];
+      const buildableAttachmentTypes = Array.isArray(draft?.buildable_attachment_types) ? draft.buildable_attachment_types : [];
+      const showAttachmentUi = availableAttachmentTypes.length > 0 || buildableAttachmentTypes.length > 0;
+      if (attachmentGroup) {
+        attachmentGroup.hidden = !showAttachmentUi;
+      }
+      if (attachmentPosterPng) {
+        attachmentPosterPng.checked = availableAttachmentTypes.includes('poster_png');
+        attachmentPosterPng.disabled = !availableAttachmentTypes.includes('poster_png');
+      }
+      if (attachmentPosterPdf) {
+        attachmentPosterPdf.checked = availableAttachmentTypes.includes('poster_pdf');
+        attachmentPosterPdf.disabled = !availableAttachmentTypes.includes('poster_pdf');
+      }
+      if (attachmentStatus) {
+        attachmentStatus.textContent = showAttachmentUi
+          ? `Available: ${availableAttachmentTypes.join(', ') || 'none'} | Buildable: ${buildableAttachmentTypes.join(', ') || 'none'}`
+          : 'No optional backend-owned attachments available.';
       }
       setStatus(statusElement, 'Email draft 已从后端恢复。', 'success');
       sendButton.disabled = false;
@@ -8985,6 +9013,10 @@ function initStage3() {
       const previewText = draftPreviewText?.value.trim() || '';
       const text = emailText.value.trim();
       const html = emailHtml.value.trim();
+      const attachmentTypes = [
+        attachmentPosterPng?.checked ? 'poster_png' : null,
+        attachmentPosterPdf?.checked ? 'poster_pdf' : null,
+      ].filter(Boolean);
 
       if (!recipient || !subject || !text || !html) {
         setStatus(statusElement, '请先完成收件人和邮件内容。', 'error');
@@ -9005,7 +9037,8 @@ function initStage3() {
             preview_text: previewText,
             text,
             html,
-            delivery_mode: 'inline_only',
+            delivery_mode: deliveryMode?.value || 'inline_only',
+            attachment_types: attachmentTypes,
           },
           1
         );

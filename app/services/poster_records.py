@@ -82,6 +82,7 @@ def create_poster_record(
         "request_snapshot": deepcopy(request_snapshot),
         "render_result": deepcopy(render_result),
         "email_draft": None,
+        "email_assets": {},
         "email_deliveries": [],
     }
     return save_poster_record(record)
@@ -105,5 +106,14 @@ def append_email_delivery(poster_key: str, delivery: dict[str, Any], draft: dict
     record["email_deliveries"] = deliveries
     if draft is not None:
         record["email_draft"] = deepcopy(draft)
+    record["updated_at"] = _utc_now()
+    return save_poster_record(record)
+
+
+def update_email_assets(poster_key: str, email_assets: dict[str, Any]) -> dict[str, Any]:
+    record = load_poster_record(poster_key)
+    if record is None:
+        raise KeyError(poster_key)
+    record["email_assets"] = deepcopy(email_assets)
     record["updated_at"] = _utc_now()
     return save_poster_record(record)

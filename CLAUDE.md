@@ -32,6 +32,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - poster_record persistence
   - backend email draft generation
   - Resend-backed send path plus Stage3 closure
+  - Gemini-backed copy optimization with deterministic fallback
+  - optional backend-owned email attachment assets
 - Stage3 must consume live backend payload only
 - frontend may cache in `sessionStorage` but must not treat it as truth source
 
@@ -45,8 +47,13 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - `GET /api/v2/posters/{poster_key}`
   - `POST /api/v2/email/preview`
   - `POST /api/v2/email/send`
+- current closure extension adds:
+  - optimizer-aware email draft generation from canonical poster_record truth
+  - `generated_from` / `summary_points` / `tone`
+  - backend-owned `email_assets.poster_png` and `email_assets.poster_pdf`
+  - optional resend attachment wiring through `attachment_types`
 - Stage2 now carries `poster_key` in the success URL and forwards Stage3 via query param
-- Stage3 now restores poster and email draft from backend truth, then supports light edit plus send
+- Stage3 now restores poster, draft source, and attachment readiness from backend truth, then supports light edit plus send
 - no poster structure contract changes were made in this closure pass
 - no bottom / product annotation truth changes were made in this closure pass
 
@@ -60,7 +67,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 ## Next code priority
 
 - current priority: verify storage / copy / email closure end-to-end in Stage3
-- next after backend closure: live Resend send validation in deployed environment
+- next after backend closure: live Gemini + Resend attachment validation in deployed environment
 - not yet: bottom beautification reopen
 - not yet: poster contract redesign
 - not yet: editor-first drift

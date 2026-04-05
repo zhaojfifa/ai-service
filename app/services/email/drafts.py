@@ -9,52 +9,49 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _first_non_empty(*values: Any, default: str = "") -> str:
-    for value in values:
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return default
+def _clean_text(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.strip().split())
 
 
-def build_email_draft_from_poster_record(record: dict[str, Any]) -> dict[str, str]:
-    request_snapshot = record.get("request_snapshot") or {}
-    render_result = record.get("render_result") or {}
-    final_poster = record.get("final_poster") or {}
+def _truncate(value: str, limit: int) -> str:
+    clean = _clean_text(value)
+    if len(clean) <= limit:
+        return clean
+    return clean[: max(limit - 1, 0)].rstrip() + "…"
 
-    brand_name = _first_non_empty(
-        request_snapshot.get("brand_name"),
-        render_result.get("header_contract_review", {}).get("rendered_brand_excerpt"),
-        default="Brand",
-    )
-    agent_name = _first_non_empty(
-        request_snapshot.get("agent_name"),
-        render_result.get("header_contract_review", {}).get("rendered_agent_excerpt"),
-    )
-    title = _first_non_empty(
-        request_snapshot.get("title"),
-        render_result.get("title_text_layer", {}).get("rendered_excerpt"),
-        default="Poster Update",
-    )
-    subtitle = _first_non_empty(
-        request_snapshot.get("subtitle"),
-        render_result.get("subtitle_text_layer", {}).get("rendered_excerpt"),
-    )
-    final_url = _first_non_empty(final_poster.get("url"), render_result.get("final_url"))
 
-    subject = f"{brand_name} | {title}".strip()
-    preview_text = subtitle or f"{brand_name} poster is ready to review."
+def build_deterministic_email_draft(canonical_input: dict[str, Any]) -> dict[str, Any]:
+    brand_name = _clean_text(canonical_input.get("brand_name")) or "Brand"
+    agent_name = _clean_text(canonical_input.get("agent_name"))
+    title = _clean_text(canonical_input.get("title")) or "Poster Update"
+    subtitle = _clean_text(canonical_input.get("subtitle"))
+    summary_points = [
+        _clean_text(item)
+        for item in (canonical_input.get("summary_points") or [])
+        if _clean_text(item)
+    ][:3]
+    final_url = _clean_text(canonical_input.get("final_poster_url"))
+
+    subject = _truncate(f"{brand_name} | {title}", 140)
+    if summary_points:
+        preview_text = _truncate(" • ".join(summary_points[:2]), 160)
+    elif subtitle:
+        preview_text = _truncate(subtitle, 160)
+    else:
+        preview_text = _truncate(f"{brand_name} poster is ready to review.", 160)
 
     intro_line = f"{brand_name} poster is ready."
     if agent_name:
         intro_line = f"{brand_name} / {agent_name} poster is ready."
 
-    text_lines = [
-        intro_line,
-        "",
-        f"Title: {title}",
-    ]
-    if subtitle:
-        text_lines.append(f"Subtitle: {subtitle}")
+    text_lines = [intro_line, "", f"Title: {title}"]
+    if summary_points:
+        text_lines.extend(["", "Highlights:"])
+        text_lines.extend([f"- {point}" for point in summary_points])
+    elif subtitle:
+        text_lines.append(f"Support line: {subtitle}")
     if final_url:
         text_lines.extend(["", f"Preview: {final_url}"])
     text = "\n".join(text_lines).strip()
@@ -64,7 +61,12 @@ def build_email_draft_from_poster_record(record: dict[str, Any]) -> dict[str, st
         f"<p><strong>{escape(intro_line)}</strong></p>",
         f"<p style=\"margin:0 0 8px;\"><strong>{escape(title)}</strong></p>",
     ]
-    if subtitle:
+    if summary_points:
+        html_parts.append("<ul style=\"margin:0 0 12px;padding-left:18px;\">")
+        for point in summary_points:
+            html_parts.append(f"<li>{escape(point)}</li>")
+        html_parts.append("</ul>")
+    elif subtitle:
         html_parts.append(f"<p style=\"margin:0 0 12px;color:#4f4a43;\">{escape(subtitle)}</p>")
     if final_url:
         safe_url = escape(final_url, quote=True)
@@ -81,5 +83,15 @@ def build_email_draft_from_poster_record(record: dict[str, Any]) -> dict[str, st
         "preview_text": preview_text,
         "html": "".join(html_parts),
         "text": text,
+        "summary_points": summary_points,
+        "tone": "clean_product_business",
+        "generated_from": "deterministic",
         "generated_at": _utc_now(),
     }
+
+
+def build_email_draft_from_poster_record(record: dict[str, Any]) -> dict[str, Any]:
+    from app.services.email.copy_optimizer import build_canonical_copy_input
+
+    canonical = build_canonical_copy_input(record)
+    return build_deterministic_email_draft(canonical)

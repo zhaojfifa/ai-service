@@ -15,13 +15,19 @@ def test_stage3_consumes_live_backend_poster_and_email_payloads():
     assert "email-html" in html
     assert "refresh-email-preview" in html
     assert "email-html-preview" in html
+    assert "email-draft-source" in html
+    assert "email-delivery-mode" in html
+    assert "attachment-poster-png" in html
+    assert "attachment-poster-pdf" in html
 
     assert "/api/v2/posters/" in js
     assert "/api/v2/email/preview" in js
     assert "/api/v2/email/send" in js
     assert "buildStage3Url" in js
     assert "poster_key" in js
-    assert "delivery_mode: 'inline_only'" in js
+    assert "delivery_mode: deliveryMode?.value || 'inline_only'" in js
+    assert "available_attachment_types" in js
+    assert "generated_from" in js
     assert "/api/send-email" not in js
     assert "buildEmailSubject(" not in js
 

@@ -25,6 +25,7 @@ class EmailProvider(Protocol):
         preview_text: str,
         html: str,
         text: str,
+        attachments: list[dict] | None = None,
     ) -> EmailDeliveryResult:
         ...
 
@@ -40,6 +41,7 @@ class InlineOnlyEmailProvider:
         preview_text: str,
         html: str,
         text: str,
+        attachments: list[dict] | None = None,
     ) -> EmailDeliveryResult:
         return EmailDeliveryResult(provider=self.name, status="preview_only")
 

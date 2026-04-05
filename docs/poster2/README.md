@@ -48,6 +48,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [text_layer_contract_closure_status_v1.md](text_layer_contract_closure_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](scenario_region_resolver_and_renderer_parity_status_v1.md)
 - [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
+- [email_copy_optimizer_and_optional_attachment_status_v1.md](email_copy_optimizer_and_optional_attachment_status_v1.md)
 
 ### Plans
 
@@ -83,14 +84,11 @@ These may remain as branch-local history or reference material, but the formal p
 
 ## Current Engineering Phase
 
-- restart path active from `fix/pr7-product-truth-only`
-- PR-A complete: visible enlarged `product_region` outer shell added as the real product base plate, with separate `product_canvas_shell_layer`
-- `main` was replaced to this PR-A baseline; no merge commit was used
-- current priority: PR-B only, adding `product_text_shell` as a sibling shell inside the outer product shell
+- poster2 has entered Storage / Copy / Email Closure engineering
+- Stage3 is backend-driven through `poster_key` and `poster_record`
+- current priority is cleaner email copy plus optional attachment readiness on top of the frozen poster contract baseline
 
 ## Next Steps
 
-- PR-B only
-- then PR-C only
-- all future poster2 work starts from the new `main` only
-- keep bottom, header/scenario, beautification, and broad tuning frozen during the restart path
+- deployed-environment validation for Gemini optimizer and Resend attachments
+- keep poster contract, bottom truth, product annotation truth, renderer routing, and beautification frozen during closure work
