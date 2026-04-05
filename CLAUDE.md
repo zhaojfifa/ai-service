@@ -28,6 +28,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - poster2/template_dual_v2 skeleton is treated as stable for closure engineering
 - `product_anchor_callouts` is the live production mode
 - product ownership and bottom SOP baseline are treated as frozen
+- bottom remains in maintenance mode only; no redesign work is active
 - current closure engineering scope:
   - poster_record persistence
   - backend email draft generation
@@ -54,6 +55,11 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - optional resend attachment wiring through `attachment_types`
 - Stage2 now carries `poster_key` in the success URL and forwards Stage3 via query param
 - Stage3 now restores poster, draft source, and attachment readiness from backend truth, then supports light edit plus send
+- PR-S2 complete:
+  - Stage2 bottom mode state now canonicalizes before runtime
+  - `title_only -> text_only_expanded`
+  - stale `title_only_expand -> text_only_expanded`
+  - preview and final generate now use the same canonical `bottom_mode` truth
 - no poster structure contract changes were made in this closure pass
 - no bottom / product annotation truth changes were made in this closure pass
 
@@ -66,8 +72,9 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current priority: verify storage / copy / email closure end-to-end in Stage3
+- current priority: continue storage / copy / email closure end-to-end in Stage3
 - next after backend closure: live Gemini + Resend attachment validation in deployed environment
+- bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
 - not yet: bottom beautification reopen
 - not yet: poster contract redesign
 - not yet: editor-first drift

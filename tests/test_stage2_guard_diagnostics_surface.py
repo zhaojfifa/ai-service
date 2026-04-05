@@ -130,6 +130,12 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "requested/effective:" in html
     assert "text_gallery_expanded" in html
     assert "gallery_only" in html
+    assert 'option value="title_only"' in html
+    assert 'option value="title_only_expand"' not in html
+    assert "canonicalizePoster2BottomMode" in js
+    assert "title_only_expand: 'text_only_expanded'" in js
+    assert "bottomMode.value = canonicalBottomMode" in js
+    assert "bottom_mode: canonicalBottomMode" in js
 
 
 def test_docs_publish_mirror_contains_same_guard_diagnostics():

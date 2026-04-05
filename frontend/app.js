@@ -356,6 +356,22 @@ function resolvePoster2BottomFallbackText(stage1Data, field) {
   };
 }
 
+function canonicalizePoster2BottomMode(rawMode) {
+  const mode = typeof rawMode === 'string' ? rawMode.trim() : '';
+  const aliases = {
+    title_only: 'text_only_expanded',
+    title_only_expand: 'text_only_expanded',
+  };
+  const canonical = aliases[mode] || mode || 'title_gallery_split';
+  const allowedModes = new Set([
+    'title_gallery_split',
+    'text_gallery_expanded',
+    'text_only_expanded',
+    'gallery_only',
+  ]);
+  return allowedModes.has(canonical) ? canonical : 'title_gallery_split';
+}
+
 function ensurePoster2BottomContractState(stage1Data) {
   const bottom = stage2State.poster2?.bottomContract || {};
   const defaultTitle = resolvePoster2BottomFallbackText(stage1Data, 'title');
@@ -378,7 +394,7 @@ function ensurePoster2BottomContractState(stage1Data) {
     subtitleSource: hasPoster2BottomField(bottom, 'subtitleSource')
       ? bottom.subtitleSource
       : defaultSubtitle.source,
-    bottomMode: bottom.bottomMode || 'title_gallery_split',
+    bottomMode: canonicalizePoster2BottomMode(bottom.bottomMode),
     galleryMode: bottom.galleryMode || 'strip_local_visible_only',
     galleryCount:
       Number.isFinite(bottom.galleryCount)
@@ -392,6 +408,8 @@ function ensurePoster2BottomContractState(stage1Data) {
 
 function buildPoster2BottomRequestState(stage1Data) {
   const bottom = ensurePoster2BottomContractState(stage1Data);
+  const canonicalBottomMode = canonicalizePoster2BottomMode(bottom.bottomMode);
+  bottom.bottomMode = canonicalBottomMode;
   const requestedTitleText = normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS);
   const requestedSubtitleText = normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
   const requestedGalleryCount = Math.max(0, Math.min(Number(bottom.galleryCount || 0), 4));
@@ -409,7 +427,7 @@ function buildPoster2BottomRequestState(stage1Data) {
     sanitized_subtitle_text: requestedSubtitleText,
     title_source: bottom.titleSource || 'stage2.bottom_contract.title',
     subtitle_source: bottom.subtitleSource || 'stage2.bottom_contract.subtitle',
-    bottom_mode: bottom.bottomMode || 'title_gallery_split',
+    bottom_mode: canonicalBottomMode,
     gallery_mode: bottom.galleryMode || 'strip_local_visible_only',
     gallery_input_count_raw: requestedGalleryCount,
     gallery_input_count_normalized: galleryInputCountNormalized,
@@ -437,7 +455,9 @@ function syncPoster2BottomContractFromControls(stage1Data) {
     bottom.subtitleSource = 'stage2.bottom_contract.subtitle';
   }
   if (bottomMode) {
-    bottom.bottomMode = bottomMode.value || 'title_gallery_split';
+    const canonicalBottomMode = canonicalizePoster2BottomMode(bottomMode.value);
+    bottom.bottomMode = canonicalBottomMode;
+    bottomMode.value = canonicalBottomMode;
   }
   if (galleryMode) {
     bottom.galleryMode = galleryMode.value || 'strip_local_visible_only';
@@ -475,15 +495,17 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
 
   ensurePoster2BottomContractState(stage1Data);
   const sync = () => {
+    const canonicalBottomMode = canonicalizePoster2BottomMode(bottomMode.value);
     const nextTitle = normalisePoster2BottomText(titleInput.value, POSTER2_BOTTOM_TITLE_MAX_CHARS);
     const nextSubtitle = normalisePoster2BottomText(subtitleInput.value, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
     titleInput.value = nextTitle;
     subtitleInput.value = nextSubtitle;
+    bottomMode.value = canonicalBottomMode;
     stage2State.poster2.bottomContract.title = nextTitle;
     stage2State.poster2.bottomContract.subtitle = nextSubtitle;
     stage2State.poster2.bottomContract.titleSource = 'stage2.bottom_contract.title';
     stage2State.poster2.bottomContract.subtitleSource = 'stage2.bottom_contract.subtitle';
-    stage2State.poster2.bottomContract.bottomMode = bottomMode.value;
+    stage2State.poster2.bottomContract.bottomMode = canonicalBottomMode;
     stage2State.poster2.bottomContract.galleryMode = galleryMode.value;
     stage2State.poster2.bottomContract.galleryCount = Number(galleryCount.value || 0);
     stage2State.poster2.bottomContract.autoFillGallery = galleryAutofill.checked;
@@ -492,7 +514,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
 
   titleInput.value = stage2State.poster2.bottomContract.title;
   subtitleInput.value = stage2State.poster2.bottomContract.subtitle;
-  bottomMode.value = stage2State.poster2.bottomContract.bottomMode;
+  bottomMode.value = canonicalizePoster2BottomMode(stage2State.poster2.bottomContract.bottomMode);
   galleryMode.value = stage2State.poster2.bottomContract.galleryMode;
   galleryCount.value = String(stage2State.poster2.bottomContract.galleryCount);
   galleryAutofill.checked = stage2State.poster2.bottomContract.autoFillGallery;

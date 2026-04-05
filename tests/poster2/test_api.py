@@ -13,9 +13,22 @@ from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
 
 class _FakePoster2Pipeline:
     async def run(self, spec, template=None) -> RenderManifest:
-        requested_bottom_mode = spec.bottom_mode or "title_gallery_split"
-        title_band_rendered = requested_bottom_mode != "gallery_only"
-        gallery_strip_rendered = requested_bottom_mode != "text_only_expanded"
+        raw_bottom_mode = spec.bottom_mode or "title_gallery_split"
+        aliases = {
+            "title_only": "text_only_expanded",
+            "title_only_expand": "text_only_expanded",
+        }
+        requested_bottom_mode = raw_bottom_mode
+        effective_bottom_mode = aliases.get(raw_bottom_mode, raw_bottom_mode)
+        override_reason = (
+            "requested_matches_template_default"
+            if effective_bottom_mode == "title_gallery_split" and raw_bottom_mode == "title_gallery_split"
+            else "legacy_alias_canonicalized"
+            if requested_bottom_mode != effective_bottom_mode
+            else "request_override_applied"
+        )
+        title_band_rendered = effective_bottom_mode != "gallery_only"
+        gallery_strip_rendered = effective_bottom_mode != "text_only_expanded"
         return RenderManifest(
             trace_id="trace-123",
             template_id=spec.template_id,
@@ -55,8 +68,8 @@ class _FakePoster2Pipeline:
             slot_binding_status={"missing_required_slots": []},
             template_behavior={
                 "behavior_modes": {
-                    "bottom_mode": requested_bottom_mode,
-                    "bottom_layout_mode": requested_bottom_mode,
+                    "bottom_mode": effective_bottom_mode,
+                    "bottom_layout_mode": effective_bottom_mode,
                     "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
                 }
             },
@@ -85,14 +98,10 @@ class _FakePoster2Pipeline:
             },
             bottom_contract_review={
                 "requested_bottom_mode": requested_bottom_mode,
-                "effective_bottom_mode": requested_bottom_mode,
-                "bottom_mode": requested_bottom_mode,
-                "bottom_layout_mode": requested_bottom_mode,
-                "bottom_mode_override_reason": (
-                    "requested_matches_template_default"
-                    if requested_bottom_mode == "title_gallery_split"
-                    else "request_override_applied"
-                ),
+                "effective_bottom_mode": effective_bottom_mode,
+                "bottom_mode": effective_bottom_mode,
+                "bottom_layout_mode": effective_bottom_mode,
+                "bottom_mode_override_reason": override_reason,
                 "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
                 "title_band_region": {"rendered": title_band_rendered},
                 "gallery_strip_region": {"rendered": gallery_strip_rendered},
@@ -352,6 +361,38 @@ def test_generate_poster_v2_accepts_text_gallery_expanded_with_runtime_diagnosti
     assert body["bottom_contract_review"]["bottom_mode_override_reason"] == "request_override_applied"
     assert body["bottom_contract_review"]["title_band_region"]["rendered"] is True
     assert body["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
+
+
+def test_generate_poster_v2_canonicalizes_title_only_alias_with_runtime_diagnostics(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-4a"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "bottom_mode": "title_only",
+            "gallery_mode": "strip_local_visible_only",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "text_only_expanded"
+    assert body["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "text_only_expanded"
+    assert body["bottom_contract_review"]["requested_bottom_mode"] == "title_only"
+    assert body["bottom_contract_review"]["effective_bottom_mode"] == "text_only_expanded"
+    assert body["bottom_contract_review"]["bottom_layout_mode"] == "text_only_expanded"
+    assert body["bottom_contract_review"]["bottom_mode_override_reason"] == "legacy_alias_canonicalized"
+    assert body["bottom_contract_review"]["title_band_region"]["rendered"] is True
+    assert body["bottom_contract_review"]["gallery_strip_region"]["rendered"] is False
 
 
 def test_generate_poster_v2_accepts_bottom_gallery_count_trace_fields(monkeypatch):

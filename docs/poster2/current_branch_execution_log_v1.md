@@ -819,3 +819,78 @@ Frozen unchanged:
 - beautification
 - email/save workflow
 - bottom structure and gallery distribution
+
+## Entry — PR-S2: Bottom Mode Switch Investigation And Closure
+
+Branch / PR:
+- `PR-S2 — bottom mode switch investigation and closure`
+
+Scope:
+- investigate the post-generate Stage2 bottom mode switch failure for `title_only`, `title_only_expand`, and `text_only_expanded`
+- close the request-state / normalization / parity bug with the smallest frontend-state fix
+- keep bottom in maintenance mode only
+
+What was read first:
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+- latest stage2 screenshots / console / network payload evidence: not present as a tracked workspace artifact in this run
+- latest runtime evidence for `text_only_expanded`: taken from the focused pipeline/runtime test path
+
+Root rules followed:
+- docs first
+- contract/request-state first
+- no bottom redesign
+- no header/product/feature/email scope drift
+- keep `frontend/` and `docs/` aligned
+
+Problem reproduced:
+- after a successful generate, switching bottom mode and regenerating could still leak a stale bottom token into the backend request
+- `title_only` remained a legacy alias at the UI level
+- stale `title_only_expand` could survive through local state even though it is not a valid backend runtime mode
+
+Root cause found:
+- the leaking code path was frontend request-state logic, not backend contract logic
+- exact leaking path:
+  - `ensurePoster2BottomContractState(...)`
+  - `syncPoster2BottomContractFromControls(...)`
+  - `buildPoster2BottomRequestState(...)`
+  - `initPoster2BottomContractControls(...)`
+- these paths forwarded raw `bottomMode` without canonicalization before request preview and final generate payload construction
+
+Files changed:
+- `frontend/app.js`
+- `docs/app.js`
+- `tests/poster2/test_api.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/bottom_mode_switch_closure_status_v1.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+
+Layer changed:
+- behavior
+- docs
+- validation
+
+Validation run:
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'bottom or docs_publish_mirror_contains_same_guard_diagnostics'`
+  - `2 passed, 4 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'title_only or bottom_mode or text_gallery_expanded or gallery_only'`
+  - `2 passed, 17 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'requested_effective_and_override_reason or title_only_alias_canonicalized or gallery_only_bottom_mode_region_contract_marks_title_band_collapsed or text_only_expanded_bottom_mode_region_contract_marks_gallery_strip_collapsed or title_gallery_split_bottom_mode_region_contract_requires_title_band or text_gallery_expanded_bottom_mode_region_contract_requires_title_band or diagnostics_are_stable_for_all_modes'`
+  - `6 passed, 251 deselected`
+
+Exact acceptance:
+- switching bottom mode after a successful generate no longer relies on stale raw mode tokens
+- `title_only` now canonicalizes to `text_only_expanded` before runtime request construction
+- stale `title_only_expand` now canonicalizes to `text_only_expanded` before runtime request construction
+- Stage2 request preview and final generate payload both use the same canonical `bottom_mode`
+- mixed-state, text-only, and gallery-only bottom modes retain the expected requested/effective/layout diagnostics and collapse rules
+- `frontend/` and `docs/` remain aligned
+
+Remaining risks:
+- this closes the request-state / parity failure only
+- any residual bottom text/layout tuning should remain a known maintenance issue while storage / copy / email work proceeds
