@@ -1633,7 +1633,7 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 72
-            subtitle_char_budget = 60
+            subtitle_char_budget = 72  # PR-7C: increased from 60 for richer subtitle capacity
             title_band_height = 192
             title_content_pad_top = 18
             title_content_pad_bottom = 14
@@ -1651,7 +1651,7 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 60
-            subtitle_char_budget = 56
+            subtitle_char_budget = 72  # PR-7C: increased from 56 for triplet subtitle capacity
             title_band_height = 176
             title_content_pad_top = 20
             title_content_pad_bottom = 16
@@ -1671,11 +1671,11 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 52
-            subtitle_char_budget = 72  # PR-7B5: longer excerpt target; still allowed to truncate under dense quad pressure
-            title_band_height = 184  # PR-7B5: small growth to stabilize 2-line subtitle without changing quad distribution
-            title_content_pad_top = 22
-            title_content_pad_bottom = 18
-            title_stack_gap = 4  # PR-7B5: reclaim 2px before growing the shell further
+            subtitle_char_budget = 80  # PR-7C: increased from 56 for quad subtitle capacity
+            title_band_height = 176    # PR-7C: +8px from 168; better text breathing room
+            title_content_pad_top = 20  # PR-7C: uniform with other expanded branches
+            title_content_pad_bottom = 16  # PR-7C: uniform with other expanded branches
+            title_stack_gap = 8  # PR-7C: +2 from 6; matched to triplet/light-gallery branches
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
             title_band_growth_policy = "hold_standard_expanded_text_gallery_with_subtitle"
@@ -1689,7 +1689,7 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 60
-            subtitle_char_budget = 56
+            subtitle_char_budget = 72  # PR-7C: increased from 56 for subtitle capacity
             title_band_height = 168
             title_content_pad_top = 24
             title_content_pad_bottom = 20
@@ -2031,12 +2031,10 @@ def _resolve_bottom_text_slot_metrics(
         overflow = used_height - available_height
         subtitle_slot_height = max(subtitle_slot_height - overflow, 24 if subtitle_line_clamp <= 1 else (48 if subtitle_line_clamp >= 3 else 40))
         used_height = title_slot_height + subtitle_slot_height + stack_gap
-    # PR-7B3: text_only_expanded uses lower-anchoring (dead space above, not below).
-    # All other modes remain center-packed.
-    if bottom_mode == "text_only_expanded":
-        offset = max(available_height - used_height, 0)
-    else:
-        offset = max((available_height - used_height) // 2, 0)
+    # PR-7C: all modes use center-packing (content centered within available slot height).
+    # text_only_expanded lower-anchoring (PR-7B3) reverted: at band_top=728 the lower-anchor
+    # offset creates bottom-heavy appearance; symmetric center-packing is more natural.
+    offset = max((available_height - used_height) // 2, 0)
     title_slot_y = available_top + offset
     subtitle_slot_y = title_slot_y + title_slot_height + stack_gap if subtitle_slot_rendered else title_slot_y + title_slot_height
     return title_slot_y, title_slot_height, subtitle_slot_y, subtitle_slot_height
@@ -2129,13 +2127,13 @@ def _resolve_gallery_strip_vertical_metrics(
             1: ("single_gallery_centered_shift", 88, 68),
             2: ("downshift_for_spacious_pair", 100, 80),
             3: ("balanced_triplet_shift", 80, 60),
-            4: ("tight_quad_shift", 68, 52),
+            4: ("tight_quad_shift", 76, 60),  # PR-7C: shell 68→76, item 52→60; less cramped
         },
         "supporting_packshots": {
             1: ("single_gallery_centered_shift", 84, 64),
             2: ("downshift_for_supporting_pair", 76, 58),
             3: ("balanced_triplet_shift", 72, 54),
-            4: ("tight_quad_shift", 68, 52),
+            4: ("tight_quad_shift", 76, 60),  # PR-7C: shell 68→76, item 52→60; less cramped
         },
     }
     shift_policy, shell_height, item_height = vertical_table.get(gallery_mode, vertical_table["strip_local_visible_only"])[

@@ -310,29 +310,84 @@ Tests to add/update:
 - `text_only_expanded`: contract closure is done; only vertical micro-balance remains
 - smallest next step is a bounded bottom-only micro-closure PR, not a broader bottom redesign
 
-## Entry — PR-7B5: Bottom Copy-Capacity And Vertical-Allocation Micro-Closure
+## Entry — PR-7C: Bottom Mode Contract Tuning (A+B)
 
-**Branch:** `main`
-**Status:** In progress
-**Last updated:** 2026-04-04
+**Branch:** `pr6-clean`
+**Status:** Complete
+**Last updated:** 2026-04-05
 
-### Scope
-- `title_gallery_split`: keep stable two-line subtitle clamp and extend dense-quad excerpt capacity
-- `text_only_expanded`: keep non-truncation and full-width parity; rebalance subtitle-present vertical allocation upward
+### What changed
 
-### Engineering truth
-- `title_gallery_split` dense-quad branch:
-  - `subtitle_char_budget`: `56 -> 72`
-  - `title_band_height`: `168 -> 184`
-  - `title_stack_gap`: `6 -> 4`
-  - keeps `subtitle_line_clamp = 2`
-  - keeps quad gallery distribution unchanged
-- `text_only_expanded` subtitle-present cases:
-  - `title_content_pad_top`: `20 -> 24`
-  - `title_content_pad_bottom`: `16 -> 24`
-  - lower anchoring remains active
-  - budgets and line clamps unchanged
+- `app/services/poster2/template_behavior.py`
+  - `_resolve_bottom_text_slot_metrics`: removed `text_only_expanded` lower-anchor branch (PR-7B3 revert); all modes now use center-packing (`offset = available_height - used_height) // 2`)
+  - `text_gallery_expanded` dense ≤2 items: `subtitle_char_budget` 60→72
+  - `text_gallery_expanded` dense 3 items: `subtitle_char_budget` 56→72
+  - `text_gallery_expanded` dense ≥4 items: `subtitle_char_budget` 56→80; `title_band_height` 168→176; `title_content_pad_top` 22→20; `title_content_pad_bottom` 18→16; `title_stack_gap` 6→8
+  - `text_gallery_expanded` subtitle-not-dense: `subtitle_char_budget` 56→72
+  - `_resolve_gallery_strip_vertical_metrics`: 4-item entries both modes: `(68, 52)` → `(76, 60)` (shell_height, item_height)
+- `tests/poster2/test_pipeline.py` — updated 7 stale y-assertions in `TestBottomPR7B3TextOnlyExpandedVerticalAnchoring` (lower-anchor→center-pack); updated 2 dead-space tests in `TestBottomModeFamilyContractClosure`; updated 3 geometry_evidence assertions for dense quad
+- `tests/poster2/test_renderer.py` — updated `title_band_height` 168→176, `gallery_shell_top` 896→904, `gallery_items_height` 52→60; updated 4-item height 52→60; updated dense quad HTML assertions
 
+### Focused validation run
+
+```
+python3 -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py
+→ 2 failed (pre-existing), 361 passed
+```
+
+### Contract carry-forward
+
+**A. title_gallery_split:**
+
+| Branch | Field | Before | After |
+|--------|-------|--------|-------|
+| dense ≤2 items | `subtitle_char_budget` | 60 | 72 |
+| dense 3 items | `subtitle_char_budget` | 56 | 72 |
+| dense ≥4 items | `subtitle_char_budget` | 56 | 80 |
+| dense ≥4 items | `title_band_height` | 168 | 176 |
+| dense ≥4 items | `title_content_pad_top` | 22 | 20 |
+| dense ≥4 items | `title_content_pad_bottom` | 18 | 16 |
+| dense ≥4 items | `title_stack_gap` | 6 | 8 |
+| subtitle not-dense | `subtitle_char_budget` | 56 | 72 |
+| gallery 4-item | `gallery_shell_height` | 68 | 76 |
+| gallery 4-item | `gallery_items_height` | 52 | 60 |
+
+Canvas check (dense ≥4): 728 + 176 + 76 = 980 ≤ 1024 ✓
+
+**B. text_only_expanded:**
+
+Center-packing replaces lower-anchoring. New slot positions (band_top=728):
+
+| Sub-case | band_h | title_slot_y | subtitle_slot_y | offset_above = dead_below |
+|----------|--------|--------------|-----------------|--------------------------|
+| compact | 160 | 770 | — | 22px |
+| standard | 176 | 763 | 845 | 15px |
+| moderate | 196 | 765 | 847 | 17px |
+| dense | 240 | 770 | 866 | 22px |
+
+---
+
+## Entry — Bottom Final Architecture Review
+
+**Branch:** `pr6-clean`
+**Status:** Review complete (no code changes)
+**Last updated:** 2026-04-05
+
+### Review conclusion
+
+Bottom is **structurally closed** after the PR-6 through PR-7B-final series. No final PR required.
+
+- **Problem type**: remaining issues are acceptance/visual-goal alignment only — not partition, contract, or render parity
+- **title_gallery_split**: shell_top=728 clears product_secondary_slot(708) with 20px gap; subtitle wraps (clamp>=2) for all gallery counts; gallery shell top derived correctly; 15 dedicated tests pass
+- **text_only_expanded**: shell_top=728; shell_height=title_band_height (content-proportionate 160-240); lower-anchored (dead space above, not below); full-width x=96/w=832; uniform pad (20/16); 11 dedicated tests pass
+- **Partition judgment**: keep current `title_band_region` / `gallery_strip_region` hierarchy — no redesign needed
+- **4 tracked bugs** (rule-based gallery distribution, conservative text emphasis, minimum-viable supporting_packshots, operator presentation clarity) remain as known issues per section 23 of `bottom_behavior_contract_status_v1.md`
+
+### Recommendation
+
+Treat bottom as known-issue, not blocker. Move to next priority (PR-B: product text shell sibling).
+
+---
 
 ## Entry — PR-7B-final: Bottom Mode Family Contract Closure
 

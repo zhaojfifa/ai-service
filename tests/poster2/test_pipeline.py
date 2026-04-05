@@ -803,11 +803,11 @@ class TestPosterPipelineRun:
         assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_quad_text_emphasis"
         assert behavior["subtitle_line_clamp"] == 2
-        assert behavior["subtitle_char_budget"] == 72
-        assert behavior["layout_metrics"]["title_stack_gap"] == 4
-        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 184}
-        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 912, "w": 832, "h": 68}
-        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 838, "w": 720, "h": 44}
+        assert behavior["subtitle_char_budget"] == 80  # PR-7C: 56→80
+        assert behavior["layout_metrics"]["title_stack_gap"] == 8  # PR-7C: 6→8
+        assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 176}  # PR-7C: h 168→176
+        assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 904, "w": 832, "h": 76}  # PR-7C: y 896→904, h 68→76
+        assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 836, "w": 720, "h": 44}  # PR-7C: y 831→836
 
     def test_renderer_metadata_dense_quad_split_keeps_two_line_subtitle_and_longer_excerpt(self):
         stored_payloads: dict[str, bytes] = {}
@@ -856,8 +856,8 @@ class TestPosterPipelineRun:
 
         assert behavior["subtitle_overflow_policy"] == "two_line_clamp_inside_expanded_split_title_band"
         assert behavior["subtitle_line_clamp"] == 2
-        assert behavior["subtitle_char_budget"] == 72
-        assert len(bottom_review["rendered_subtitle_excerpt"]) == 72
+        assert behavior["subtitle_char_budget"] == 80  # PR-7C: 56→80
+        assert len(bottom_review["rendered_subtitle_excerpt"]) == 80  # PR-7C: truncated at 80
         assert bottom_review["subtitle_truncation_applied"] is True
 
     def test_renderer_metadata_exposes_light_gallery_peer_growth_policy(self):
@@ -3694,7 +3694,7 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         slot = metadata["geometry_evidence"]["slot_bounds"]["title_slot"]
         assert slot["x"] == 96
         assert slot["w"] == 832
-        assert slot["y"] == 792  # compact: PR-7B4+PR-7B-final band_top=728, pad_top=20 → avail_top=748, offset=44, y=748+44=792
+        assert slot["y"] == 770  # compact: PR-7C center-packed, avail_top=748, offset=22, y=748+22=770
         assert slot["h"] == 80   # compact: no subtitle → full 80px
 
     # --- geometry_evidence: subtitle_slot full-width ---
@@ -3712,10 +3712,9 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
         metadata = self._run(subtitle="测试副标题")
         title_layer = metadata["title_text_layer"]
         subtitle_layer = metadata["subtitle_text_layer"]
-        # PR-7B5: subtitle-present expanded cases use pad_top=24 / pad_bottom=24 to reduce bottom-heavy anchoring.
-        # standard sub-case: available_top=752, available_h=128, used_h=110 → offset=18, title_slot_y=770.
-        assert title_layer["slot_bounds"] == {"x": 96, "y": 770, "w": 832, "h": 72}
-        assert subtitle_layer["slot_bounds"] == {"x": 136, "y": 852, "w": 752, "h": 28}
+        # PR-7C: center-packed; standard sub-case: available_top=748, available_h=140, used_h=110 → offset=15, title_slot_y=763.
+        assert title_layer["slot_bounds"] == {"x": 96, "y": 763, "w": 832, "h": 72}
+        assert subtitle_layer["slot_bounds"] == {"x": 136, "y": 845, "w": 752, "h": 28}
 
     # --- layout_metrics == geometry_evidence consistency ---
 
@@ -3760,17 +3759,17 @@ class TestBottomPR6ETextOnlyFullWidthClosure:
 
 
 class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
-    """PR-7B3 + PR-7B4 + PR-7B5: text_only_expanded vertical anchoring closure.
+    """PR-7B3 + PR-7B4 + PR-7C: text_only_expanded vertical anchoring closure.
 
     PR-7B3: layout policy → lower-anchored (offset = available_height - used_height).
     PR-7B4: pad_top=20, pad_bottom=16 (uniform across all sub-cases; was 24–40).
-    PR-7B5: subtitle-present cases rebalance to pad_top=24, pad_bottom=24 while keeping lower anchoring.
+    PR-7C: reverted lower-anchoring → center-packing (offset = (avail - used) // 2); pad_top=20, pad_bottom=16 retained.
 
     Sub-cases (band_height / pad_top / pad_bottom / avail_h / used_h / offset / title_y / sub_y):
-    - compact:  160 / 20 / 16 / 124 / 80  / 44 / 704  / —
-    - standard: 176 / 24 / 24 / 128 / 110 / 18 / 770  / 852
-    - moderate: 196 / 24 / 24 / 148 / 126 / 22 / 774  / 856
-    - dense:    240 / 24 / 24 / 192 / 160 / 32 / 784  / 880
+    - compact:  160 / 20 / 16 / 124 / 80  / 22 / 770  / —
+    - standard: 176 / 20 / 16 / 140 / 110 / 15 / 763  / 845
+    - moderate: 196 / 20 / 16 / 160 / 126 / 17 / 765  / 847
+    - dense:    240 / 20 / 16 / 204 / 160 / 22 / 770  / 866
     """
 
     def _run_toe(self, *, title: str = "Test Title", subtitle: str = ""):
@@ -3788,78 +3787,91 @@ class TestBottomPR7B3TextOnlyExpandedVerticalAnchoring:
 
     # --- compact: no subtitle ---
 
-    def test_compact_title_slot_y_lower_anchored(self):
-        """Compact (no subtitle): pad_top=20, pad_bottom=16 → avail=124, offset=44, title_slot_y=792 (band_top=728)."""
+    def test_compact_title_slot_y_center_packed(self):
+        """Compact (no subtitle): avail=124, used=80, offset=(124-80)//2=22, title_slot_y=770 (band_top=728)."""
         policy = self._run_toe()
-        assert policy.layout_metrics["title_slot_y"] == 792
+        assert policy.layout_metrics["title_slot_y"] == 770
 
-    def test_compact_title_bottom_at_available_bottom(self):
-        """Compact: title bottom == available_bottom (band_bottom - pad_bottom = 800-16=784)."""
+    def test_compact_dead_space_is_symmetric(self):
+        """Compact: center-packed → dead space above == dead space below title (±0px)."""
         policy = self._run_toe()
         lm = policy.layout_metrics
-        title_bottom = lm["title_slot_y"] + lm["title_slot_height"]
+        available_top = lm["title_band_top"] + lm["title_content_pad_top"]
         available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
-        assert title_bottom == available_bottom
+        offset_above = lm["title_slot_y"] - available_top
+        title_bottom = lm["title_slot_y"] + lm["title_slot_height"]
+        offset_below = available_bottom - title_bottom
+        assert offset_above == offset_below
 
     # --- standard: short subtitle ---
 
-    def test_standard_title_slot_y_lower_anchored(self):
-        """Standard (short subtitle): pad_top=24, pad_bottom=24 → avail=128, offset=18, title_slot_y=770 (band_top=728)."""
+    def test_standard_title_slot_y_center_packed(self):
+        """Standard (short subtitle): avail=140, used=110, offset=(140-110)//2=15, title_slot_y=763 (band_top=728)."""
         policy = self._run_toe(subtitle="Short sub")
-        assert policy.layout_metrics["title_slot_y"] == 770
+        assert policy.layout_metrics["title_slot_y"] == 763
 
-    def test_standard_subtitle_slot_y_at_bottom(self):
-        """Standard: subtitle_slot_y=852; subtitle bottom = available_bottom (904-24=880) (band_top=728)."""
+    def test_standard_subtitle_slot_y_center_packed(self):
+        """Standard: subtitle_slot_y=845; dead_below==offset==15 (center-packed, band_top=728)."""
         policy = self._run_toe(subtitle="Short sub")
         lm = policy.layout_metrics
-        assert lm["subtitle_slot_y"] == 852
-        subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+        assert lm["subtitle_slot_y"] == 845
+        available_top = lm["title_band_top"] + lm["title_content_pad_top"]
+        offset_above = lm["title_slot_y"] - available_top
         available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
-        assert subtitle_bottom == available_bottom
+        subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+        dead_below = available_bottom - subtitle_bottom
+        assert dead_below == offset_above
 
     # --- moderate: two-line subtitle ---
 
-    def test_moderate_title_slot_y_lower_anchored(self):
-        """Moderate subtitle: pad_top=24, pad_bottom=24 → avail=148, offset=22, title_slot_y=774 (band_top=728)."""
+    def test_moderate_title_slot_y_center_packed(self):
+        """Moderate subtitle: avail=160, used=126, offset=(160-126)//2=17, title_slot_y=765 (band_top=728)."""
         policy = self._run_toe(subtitle="This subtitle is moderately long enough here")
-        assert policy.layout_metrics["title_slot_y"] == 774
+        assert policy.layout_metrics["title_slot_y"] == 765
 
-    def test_moderate_subtitle_slot_y_at_bottom(self):
-        """Moderate: subtitle bottom == available_bottom (836-16=820)."""
+    def test_moderate_dead_space_is_symmetric(self):
+        """Moderate: center-packed → dead_below == offset_above."""
         policy = self._run_toe(subtitle="This subtitle is moderately long enough here")
         lm = policy.layout_metrics
-        subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+        available_top = lm["title_band_top"] + lm["title_content_pad_top"]
+        offset_above = lm["title_slot_y"] - available_top
         available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
-        assert subtitle_bottom == available_bottom
+        subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+        dead_below = available_bottom - subtitle_bottom
+        assert dead_below == offset_above
 
     # --- dense: three-line subtitle ---
 
-    def test_dense_title_slot_y_lower_anchored(self):
-        """Dense subtitle: pad_top=24, pad_bottom=24 → avail=192, offset=32, title_slot_y=784 (band_top=728)."""
+    def test_dense_title_slot_y_center_packed(self):
+        """Dense subtitle: avail=204, used=160, offset=(204-160)//2=22, title_slot_y=770 (band_top=728)."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
-        assert policy.layout_metrics["title_slot_y"] == 784
+        assert policy.layout_metrics["title_slot_y"] == 770
 
-    def test_dense_subtitle_slot_y_at_bottom(self):
-        """Dense: subtitle bottom == available_bottom (880-16=864); no dead space below."""
+    def test_dense_dead_space_is_symmetric(self):
+        """Dense: center-packed → dead_below == offset_above == 22px."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
         lm = policy.layout_metrics
-        subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+        available_top = lm["title_band_top"] + lm["title_content_pad_top"]
+        offset_above = lm["title_slot_y"] - available_top
         available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
-        assert subtitle_bottom == available_bottom
+        subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+        dead_below = available_bottom - subtitle_bottom
+        assert dead_below == offset_above
+        assert offset_above == 22
 
     def test_dense_subtitle_slot_y_value(self):
-        """Dense: subtitle_slot_y = 784 + 88 + 8 = 880 (band_top=728)."""
+        """Dense: subtitle_slot_y = 770 + 88 + 8 = 866 (band_top=728, center-packed)."""
         policy = self._run_toe(
             title="A fairly long product title for this test",
             subtitle="This is a very long subtitle that exceeds forty-eight characters in total length",
         )
-        assert policy.layout_metrics["subtitle_slot_y"] == 880
+        assert policy.layout_metrics["subtitle_slot_y"] == 866
 
     # --- slots remain inside band for all sub-cases ---
 
@@ -4372,8 +4384,8 @@ class TestBottomModeFamilyContractClosure:
 
     # --- D. Acceptance invariant 4: text_only_expanded lower-anchor occupation ---
 
-    def test_toe_subtitle_touches_band_bottom_for_all_sub_cases(self):
-        """text_only_expanded: subtitle_bottom == available_bottom for all sub-cases (lower-anchored)."""
+    def test_toe_dead_space_is_symmetric_for_all_sub_cases(self):
+        """text_only_expanded: center-packed → dead_below == offset_above for all sub-cases (PR-7C)."""
         cases = [
             ("Test Title", "Short sub"),
             ("Test Title", "This subtitle is moderately long enough here"),
@@ -4382,14 +4394,17 @@ class TestBottomModeFamilyContractClosure:
         for title, subtitle in cases:
             policy = self._run_toe(title=title, subtitle=subtitle)
             lm = policy.layout_metrics
-            subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+            available_top = lm["title_band_top"] + lm["title_content_pad_top"]
+            offset_above = lm["title_slot_y"] - available_top
             available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
-            assert subtitle_bottom == available_bottom, (
-                f"subtitle={subtitle!r}: subtitle_bottom={subtitle_bottom} != available_bottom={available_bottom}"
+            subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
+            dead_below = available_bottom - subtitle_bottom
+            assert dead_below == offset_above, (
+                f"subtitle={subtitle!r}: dead_below={dead_below} != offset_above={offset_above}"
             )
 
-    def test_toe_dead_space_all_above_title_not_below(self):
-        """text_only_expanded: dead space is above the title stack, not below subtitle."""
+    def test_toe_center_packed_not_bottom_heavy(self):
+        """text_only_expanded: dead_below > 0 (not lower-anchored) and offset_above == dead_below (PR-7C)."""
         cases = [
             ("Test Title", "Short sub"),
             ("Long product title here", "This is a very long subtitle that exceeds forty-eight characters in total length"),
@@ -4397,11 +4412,15 @@ class TestBottomModeFamilyContractClosure:
         for title, subtitle in cases:
             policy = self._run_toe(title=title, subtitle=subtitle)
             lm = policy.layout_metrics
-            # Dead space below subtitle = available_bottom - subtitle_bottom
-            subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
             available_bottom = lm["title_band_top"] + lm["title_band_height"] - lm["title_content_pad_bottom"]
+            subtitle_bottom = lm["subtitle_slot_y"] + lm["subtitle_slot_height"]
             dead_below = available_bottom - subtitle_bottom
-            assert dead_below == 0, f"subtitle={subtitle!r}: dead space below subtitle = {dead_below}px, expected 0"
+            assert dead_below > 0, (
+                f"subtitle={subtitle!r}: dead_below={dead_below} expected > 0 (not lower-anchored)"
+            )
+            available_top = lm["title_band_top"] + lm["title_content_pad_top"]
+            offset_above = lm["title_slot_y"] - available_top
+            assert dead_below == offset_above
 
     def test_toe_text_occupies_full_width(self):
         """text_only_expanded: title band uses full width (x=96, w=832) for all sub-cases."""

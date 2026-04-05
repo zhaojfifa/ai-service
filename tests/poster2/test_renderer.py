@@ -528,7 +528,7 @@ class TestGalleryPositions:
         assert resolved.bottom_policy.content_priority_policy == "expanded_balanced_text_and_gallery_priority"
         assert [item["x"] for item in gallery_layouts] == [96, 308, 520, 732]
         assert [item["w"] for item in gallery_layouts] == [196, 196, 196, 196]
-        assert [item["h"] for item in gallery_layouts] == [52, 52, 52, 52]
+        assert [item["h"] for item in gallery_layouts] == [60, 60, 60, 60]  # PR-7C: item height 52→60
 
     def test_two_item_distribution_recenters_gallery_strip(self):
         template = _load_real_template()
@@ -1197,9 +1197,9 @@ class TestStructuredScenarioLayer:
         assert resolved.bottom_policy.bottom_text_emphasis_policy == "expanded_quad_text_emphasis"
         assert resolved.bottom_policy.title_line_clamp == 2
         assert resolved.bottom_policy.subtitle_line_clamp == 2
-        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 168
-        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 896  # PR-7B-final: 728+168=896
-        assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 52
+        assert resolved.bottom_policy.layout_metrics["title_band_height"] == 176  # PR-7C: 168→176
+        assert resolved.bottom_policy.layout_metrics["gallery_shell_top"] == 904  # PR-7C: 728+176=904
+        assert resolved.bottom_policy.layout_metrics["gallery_items_height"] == 60  # PR-7C: 52→60
 
     def test_template_behavior_resolver_promotes_dense_feature_and_bottom_into_template_policy(self):
         template = _load_real_template()
@@ -1781,13 +1781,13 @@ class TestBottomSplitBehavior:
             ],
         )
 
-        assert "--title-band-height: 184px" in html_payload
+        assert "--title-band-height: 176px" in html_payload  # PR-7C: 168→176
         assert "--subtitle-line-clamp: 2" in html_payload
         assert "--title-stack-gap: 4px" in html_payload
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
-        assert "left:0px;top:8px;width:196px;height:52px;" in html_payload
-        assert "left:636px;top:8px;width:196px;height:52px;" in html_payload
+        assert "left:0px;top:8px;width:196px;height:60px;" in html_payload  # PR-7C: height 52→60
+        assert "left:636px;top:8px;width:196px;height:60px;" in html_payload  # PR-7C: height 52→60
 
     def test_text_only_expanded_html_keeps_full_width_text_layer_vars(self):
         html_payload = self._render_html_payload(
