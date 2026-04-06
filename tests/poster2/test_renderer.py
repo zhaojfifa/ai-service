@@ -1530,6 +1530,26 @@ class TestStructuredScenarioLayer:
         assert ".layer-feature-callouts.feature-mode-1 .feature-callout" in css_template
         assert ".layer-feature-callouts.feature-mode-4 .feature-callout" in css_template
 
+    def test_template_css_exposes_visual_polish_phase1_without_geometry_tokens_drift(self):
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+        assert "--scenario-image-treatment: saturate(0.88) brightness(0.94);" in css_template
+        assert "--product-primary-shadow: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.20));" in css_template
+        assert "--product-secondary-opacity: 0.72;" in css_template
+        assert "--gallery-shell-backdrop-blur: blur(12px);" in css_template
+        assert ".layer-scenario-content.state-real .slot-scenario img {" in css_template
+        assert ".layer-product-secondary-image {" in css_template
+        assert ".product-secondary-fit-contain img {" in css_template
+        assert ".product-annotation-mode-product_anchor_callouts .feature-callout {" in css_template
+        assert ".region-shell-title-band {" in css_template
+        assert ".region-shell-gallery-strip {" in css_template
+        assert "backdrop-filter: var(--gallery-shell-backdrop-blur);" in css_template
+        assert "--title-band-top: 728px;" in css_template
+        assert "--gallery-shell-left: 96px;" in css_template
+        assert "--title-band-width: 800px;" in css_template
+
 
 class TestHeaderAndTitleBandLayoutControl:
 

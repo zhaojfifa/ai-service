@@ -1102,3 +1102,70 @@ Remaining risks:
 ### Remaining risks
 - live Gemini quality still needs deployed-environment review with real credentials
 - this round intentionally does not touch send-provider transport or deployment-side delivery behavior
+
+## Entry — PR-10A: poster2 visual polish phase 1
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-06
+
+### Scope
+- visual hierarchy polish only
+- header optical balance
+- scenario attention softening
+- product primary-secondary hierarchy polish
+- callout pill refinement
+- bottom title/subtitle emphasis rebalance
+- gallery strip evidence styling
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+
+### Root rules followed
+- contract-first baseline preserved
+- no geometry drift
+- no ownership drift
+- no resend / email / storage scope drift
+- no contract expansion
+- no header/product/bottom geometry rewrite
+
+### Files changed
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/visual_polish_phase1_status_v1.md`
+- `docs/poster2/README.md`
+
+### Layer changed
+- beautification
+- docs
+- validation
+
+### Visual changes
+- softened scenario visual dominance so product reads as the stronger subject
+- clarified product primary vs secondary hierarchy through shadow/opacity treatment only
+- refined product annotation callout pills, connectors, and markers
+- rebalanced bottom title/subtitle emphasis so subtitle no longer competes with title
+- polished gallery strip shell and item evidence styling
+- improved header optical balance without changing header structure or line-lane truth
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'template_css_exposes_peer_region_fit_policies or template_css_exposes_visual_polish_phase1_without_geometry_tokens_drift or HeaderAndTitleBandLayoutControl or template_html_marks_real_scenario_when_asset_exists or text_only_expanded_html_keeps_full_width_text_layer_vars'`
+  - `8 passed, 97 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductLayoutContract or TestTask2FinalProductGeometry or TestProductImageContract or TestBottomModeFamilyContractClosure'`
+  - `32 passed, 228 deselected`
+
+### Remaining risks
+- production-like visual review is still needed to judge the final polish level
+- one broader pipeline assertion outside PR-10A scope still fails on `template_layout_policy.layout_density_mode` mismatch; no geometry/ownership assertion failed in this PR
+
+### Exact acceptance
+- no geometry drift
+- no ownership drift
+- scenario is visually softer and no longer overpowers product
+- product region hierarchy is clearer
+- bottom subtitle no longer competes with title

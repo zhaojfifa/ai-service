@@ -51,6 +51,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [bottom_mode_switch_closure_status_v1.md](bottom_mode_switch_closure_status_v1.md)
 - [email_copy_optimizer_and_optional_attachment_status_v1.md](email_copy_optimizer_and_optional_attachment_status_v1.md)
 - [generation_quality_and_copy_optimization_status_v1.md](generation_quality_and_copy_optimization_status_v1.md)
+- [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
 
 ### Plans
 
