@@ -52,6 +52,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [email_copy_optimizer_and_optional_attachment_status_v1.md](email_copy_optimizer_and_optional_attachment_status_v1.md)
 - [generation_quality_and_copy_optimization_status_v1.md](generation_quality_and_copy_optimization_status_v1.md)
 - [copy_quality_phase1_status_v1.md](copy_quality_phase1_status_v1.md)
+- [stage1_operator_input_surface_bugfix_status_v1.md](stage1_operator_input_surface_bugfix_status_v1.md)
 - [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
 
 ### Plans
@@ -93,6 +94,7 @@ These may remain as branch-local history or reference material, but the formal p
 - bottom remains maintenance-only; PR-S2 closed the Stage2 bottom mode switch canonicalization/parity bug
 - copy quality tightening is now complete on top of the frozen poster contract baseline
 - copy quality phase 1 tightened poster-facing text normalization, annotation compression, and Gemini quality gates without changing contract or transport
+- Stage1 operator input surfaces now match frozen contract truth: secondary image is removable, bottom support copy is explicit, and product callouts have a dedicated input surface
 - current priority is deployed-environment validation for Gemini quality and Resend live closure behavior
 
 ## Next Steps

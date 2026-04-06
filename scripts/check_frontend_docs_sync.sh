@@ -6,6 +6,7 @@ FRONTEND_DIR="${FRONTEND_DIR:-$ROOT_DIR/frontend}"
 DOCS_DIR="${DOCS_DIR:-$ROOT_DIR/docs}"
 
 FILES=(
+  "index.html"
   "stage2.html"
   "app.js"
   "styles.css"

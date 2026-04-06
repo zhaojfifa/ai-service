@@ -116,6 +116,7 @@
                 <img data-inline-preview="product_image_2" alt="Product image 2 preview" />
               </div>
               <small class="hint">Optional second angle/detail shot.</small>
+              <button type="button" class="secondary subtle" data-secondary-image-clear>Clear secondary image</button>
             </label>
             <label class="field">
               <span>Product description</span>
@@ -130,19 +131,19 @@
               <small class="hint">If too long, system will shrink text or add ellipsis.</small>
             </label>
             <label class="field optional">
-              <span>Tagline (optional)</span>
-              <input type="text" name="tagline" placeholder="Short brand line" />
+              <span>Bottom Support Copy (optional)</span>
+              <input type="text" name="subtitle" placeholder="底部辅助文案 / short support copy" />
+              <small class="hint">This stays bottom-owned support copy. It does not feed product callouts.</small>
             </label>
           </div>
 
           <div class="feature-fields">
-            <span class="feature-label">Bullets (optional, up to 4)</span>
-            <small class="hint">Short phrases recommended.</small>
+            <span class="feature-label">Product Callouts / Selling Points (optional, up to 3)</span>
+            <small class="hint">These feed the product-owned annotation path. Keep each line short and product-specific.</small>
             <div class="feature-grid">
-              <input type="text" name="bullets" placeholder="Optional" />
-              <input type="text" name="bullets" placeholder="Optional" />
-              <input type="text" name="bullets" placeholder="Optional" />
-              <input type="text" name="bullets" placeholder="Optional" />
+              <input type="text" name="product_callouts" placeholder="Callout 1" />
+              <input type="text" name="product_callouts" placeholder="Callout 2" />
+              <input type="text" name="product_callouts" placeholder="Callout 3" />
             </div>
           </div>
         </fieldset>
@@ -240,7 +241,7 @@
               </div>
               <div id="preview-title" class="poster-title">Title</div>
               <div id="preview-gallery" class="poster-gallery"></div>
-              <div id="preview-subtitle" class="poster-subtitle">Tagline</div>
+              <div id="preview-subtitle" class="poster-subtitle">Bottom Support Copy</div>
             </div>
           </div>
         </section>

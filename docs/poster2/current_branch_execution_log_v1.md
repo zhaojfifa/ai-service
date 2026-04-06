@@ -1,5 +1,100 @@
 # Current Branch Execution Log v1
 
+## Entry — PR: close stage1 secondary-image delete and add product-callout input surface
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-06
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+
+### Scope
+- Stage1 secondary product image removable
+- Stage1 input split:
+  - bottom support copy stays bottom-owned
+  - dedicated product callout inputs feed product-owned annotation truth
+- Stage2 operator label alignment for bottom support copy / product callouts
+- frontend/docs mirror sync
+- targeted validation only
+
+### Root rules followed
+- contract-first
+- no poster contract drift
+- no geometry drift
+- no ownership drift
+- no resend / storage / email transport changes
+- Stage2/Stage3 remained backend-driven
+
+### Problem reproduced
+- secondary product image was optional in backend/runtime truth, but Stage1 had no explicit operator-facing remove action
+- Stage1 still framed product explanation as generic bullets instead of dedicated product callouts
+- bottom support copy risked being confused with product explanation input, even though bottom semantics are frozen
+
+### Root cause found
+- Stage1 input surfaces lagged behind the already-frozen product annotation ownership model
+- the frontend request builder still depended on generic `features/bullets` fallback without a dedicated operator surface
+- secondary image clearing existed only as an implicit file-input-empty path, not an explicit operator control
+
+### Why subtitle was NOT repurposed
+- bottom subtitle remains title-band / bottom support copy semantics
+- product explanation remains product-owned and continues to normalize into canonical `features`
+- this avoids mixing product annotation ownership into bottom-owned copy
+
+### Files changed
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/app.js`
+- `scripts/check_frontend_docs_sync.sh`
+- `scripts/sync_frontend_to_docs.sh`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/stage1_operator_input_surface_bugfix_status_v1.md`
+- `docs/poster2/README.md`
+
+### Layer changed
+- behavior
+- docs
+- validation
+
+### Request mapping changes
+- new Stage1 operator fields: `product_callouts[0..2]`
+- frontend normalization prefers:
+  - `product_callouts`
+  - then legacy `features`
+  - then legacy `bullets`
+- canonical backend surface remains `features`
+- bottom support copy still maps to canonical backend `subtitle`
+- clearing secondary product image removes `product_image_2` from Stage1 state and keeps `/api/v2/generate-poster` compatible with `product_secondary_image: null`
+
+### Validation run
+- `node --check frontend/app.js` → `pass`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py` → `23 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'product or annotation or single_primary'` → `73 passed, 190 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `4 passed`
+
+### Remaining risks
+- no dedicated browser automation test exists for the button click path; validation is from source-path regression plus payload/path invariants
+- Stage1 still lives in `index.html`, not a dedicated `stage1.html`; this was recorded explicitly and not treated as a blocker
+
+### Exact acceptance
+- Stage1 second product image can now be removed explicitly
+- removing it leaves the payload compatible with single-primary fallback
+- operator-facing subtitle is relabeled as bottom support copy
+- product explanation now has a dedicated 3-input callout surface
+- product explanation still feeds product-owned annotation truth
+- bottom subtitle semantics remain unchanged
+- frontend/docs mirror remains aligned
+
 ## Entry — PR-10B: poster2 copy quality phase 1
 
 **Branch:** `main`

@@ -10,14 +10,16 @@ SYNC_SCRIPT = ROOT / "scripts" / "sync_frontend_to_docs.sh"
 CHECK_SCRIPT = ROOT / "scripts" / "check_frontend_docs_sync.sh"
 
 
-def _write_asset_tree(base: Path, *, stage2: str, app: str, styles: str) -> None:
+def _write_asset_tree(base: Path, *, index: str = "index", stage2: str, app: str, styles: str) -> None:
     frontend = base / "frontend"
     docs = base / "docs"
     frontend.mkdir()
     docs.mkdir()
+    (frontend / "index.html").write_text(index, encoding="utf-8")
     (frontend / "stage2.html").write_text(stage2, encoding="utf-8")
     (frontend / "app.js").write_text(app, encoding="utf-8")
     (frontend / "styles.css").write_text(styles, encoding="utf-8")
+    (docs / "index.html").write_text(index, encoding="utf-8")
     (docs / "stage2.html").write_text(stage2, encoding="utf-8")
     (docs / "app.js").write_text(app, encoding="utf-8")
     (docs / "styles.css").write_text(styles, encoding="utf-8")
@@ -66,3 +68,31 @@ def test_sync_frontend_to_docs_restores_publish_mirror(tmp_path: Path):
     )
 
     assert (tmp_path / "docs" / "stage2.html").read_text(encoding="utf-8") == "new stage2"
+
+
+def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
+    root = ROOT
+    frontend_index = (root / "frontend" / "index.html").read_text(encoding="utf-8")
+    docs_index = (root / "docs" / "index.html").read_text(encoding="utf-8")
+    frontend_stage2 = (root / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    docs_stage2 = (root / "docs" / "stage2.html").read_text(encoding="utf-8")
+
+    assert frontend_index == docs_index
+    assert frontend_stage2 == docs_stage2
+    assert "Bottom Support Copy" in frontend_index
+    assert "Product Callouts / Selling Points" in frontend_index
+    assert "data-secondary-image-clear" in frontend_index
+    assert "Bottom Support Copy" in frontend_stage2
+    assert "Product Callouts" in frontend_stage2
+
+
+def test_stage1_request_mapping_prefers_dedicated_product_callouts_and_secondary_clear_path_exists():
+    app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    assert "function normaliseStage1ProductCallouts" in app_js
+    assert "function resolveStage1ProductCallouts" in app_js
+    assert "formData.getAll('product_callouts')" in app_js
+    assert "product_callouts: productCallouts" in app_js
+    assert "stage1Data.product_callouts" in app_js
+    assert "state.productImage2 = null;" in app_js
+    assert "input.value = '';" in app_js

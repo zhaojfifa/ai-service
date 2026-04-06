@@ -185,6 +185,7 @@ const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
 const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
+const STAGE1_PRODUCT_CALLOUT_MAX_ITEMS = 3;
 const FRONTEND_BASELINE_STAMP = 'ee1cd4c';
 const BACKEND_BASELINE_EXPECTED = 'ee1cd4c';
 
@@ -1345,6 +1346,31 @@ function ensureArray(value) {
   return [];
 }
 
+function normaliseStage1ProductCallouts(values) {
+  return ensureArray(values)
+    .map((value) => (typeof value === 'string' ? value.trim() : ''))
+    .filter(Boolean)
+    .slice(0, STAGE1_PRODUCT_CALLOUT_MAX_ITEMS);
+}
+
+function resolveStage1ProductCallouts(stage1Data) {
+  return normaliseStage1ProductCallouts(
+    stage1Data?.product_callouts && stage1Data.product_callouts.length
+      ? stage1Data.product_callouts
+      : stage1Data?.features && stage1Data.features.length
+      ? stage1Data.features
+      : stage1Data?.bullets || []
+  );
+}
+
+function setStage1ProductCalloutInputs(form, values) {
+  const inputs = form.querySelectorAll('input[name="product_callouts"]');
+  const callouts = normaliseStage1ProductCallouts(values);
+  inputs.forEach((input, index) => {
+    input.value = callouts[index] ?? '';
+  });
+}
+
 
 
 // 读取候选 API 基址（修复：避免 STORAGE_KEYS 的 TDZ）
@@ -1968,6 +1994,12 @@ const MODE_S_DEFAULT_STAGE1 = {
     'Stainless steel finish with easy cleaning',
     'Smart controls for daily convenience',
   ],
+  product_callouts: [
+    'Fast preheat and even cooking',
+    'Stainless steel finish with easy cleaning',
+    'Smart controls for daily convenience',
+  ],
+  subtitle: '',
   tagline: '',
   product_name: '',
   allow_auto_fill: true,
@@ -3377,8 +3409,8 @@ function initStage1ModeS() {
 
     const previewPayload = {
       ...payload,
-      features: payload.bullets || [],
-      subtitle: payload.tagline || payload.promo || '',
+      features: payload.product_callouts || payload.features || payload.bullets || [],
+      subtitle: payload.subtitle || payload.tagline || payload.promo || '',
       brand_logo: payload.brand_logo,
       scenario_asset: payload.scenario_asset,
       product_asset: payload.product_asset || payload.product_image_1,
@@ -3548,6 +3580,14 @@ function initStage1ModeS() {
     refreshPreview,
     statusElement
   );
+  bindStage1SecondaryImageClearButton(
+    document.querySelector('[data-secondary-image-clear]'),
+    form.querySelector('input[name="product_image_2"]'),
+    inlinePreviews.product_image_2,
+    state,
+    refreshPreview,
+    statusElement
+  );
 
   bindModeSOptionalAsset(
     form.querySelector('input[name="brand_logo"]'),
@@ -3620,10 +3660,7 @@ function applyStage1Defaults(form) {
       }
     }
 
-    const bulletInputs = form.querySelectorAll('input[name="bullets"]');
-    bulletInputs.forEach((input, index) => {
-      input.value = DEFAULT_STAGE1.bullets?.[index] ?? '';
-    });
+    setStage1ProductCalloutInputs(form, DEFAULT_STAGE1.product_callouts || DEFAULT_STAGE1.bullets || []);
     const allowAutoFill = form.elements.namedItem('allow_auto_fill');
     if (allowAutoFill && 'checked' in allowAutoFill) {
       allowAutoFill.checked = DEFAULT_STAGE1.allow_auto_fill !== false;
@@ -3695,13 +3732,19 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
       'channel',
       'intent',
       'title',
-      'tagline',
+      'subtitle',
       'scenario_image',
       'product_name',
     ]) {
       const element = form.elements.namedItem(key);
-      if (element && typeof data[key] === 'string') {
-        element.value = data[key];
+      const nextValue =
+        typeof data[key] === 'string'
+          ? data[key]
+          : key === 'subtitle' && typeof data.tagline === 'string'
+          ? data.tagline
+          : '';
+      if (element && typeof nextValue === 'string') {
+        element.value = nextValue;
       }
     }
 
@@ -3710,13 +3753,12 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
       allowAutoFill.checked = data.allow_auto_fill !== false;
     }
 
-    const bullets = Array.isArray(data.bullets) && data.bullets.length
-      ? data.bullets
-      : DEFAULT_STAGE1.bullets || [];
-    const bulletInputs = form.querySelectorAll('input[name="bullets"]');
-    bulletInputs.forEach((input, index) => {
-      input.value = bullets[index] ?? '';
-    });
+    setStage1ProductCalloutInputs(
+      form,
+      resolveStage1ProductCallouts(data).length
+        ? resolveStage1ProductCallouts(data)
+        : DEFAULT_STAGE1.product_callouts || DEFAULT_STAGE1.bullets || []
+    );
 
     state.brandLogo = await rehydrateStoredAsset(data.brand_logo);
     state.scenario = await rehydrateStoredAsset(data.scenario_asset);
@@ -3930,6 +3972,35 @@ function attachSingleImageHandler(
           ? error.message || '处理图片素材时发生错误，请重试。'
           : '处理图片素材时发生错误，请重试。';
       setStatus(statusElement, message, 'error');
+    }
+  });
+}
+
+function bindStage1SecondaryImageClearButton(
+  button,
+  input,
+  inlinePreview,
+  state,
+  refreshPreview,
+  statusElement
+) {
+  if (!button) return;
+  button.addEventListener('click', async () => {
+    try {
+      await deleteStoredAsset(state.productImage2);
+      state.productImage2 = null;
+      state.previewBuilt = false;
+      if (input) {
+        input.value = '';
+      }
+      if (inlinePreview) {
+        inlinePreview.src = placeholderImages.productAlt;
+      }
+      refreshPreview?.();
+      setStatus(statusElement, 'Secondary product image cleared.', 'info');
+    } catch (error) {
+      console.error(error);
+      setStatus(statusElement, 'Failed to clear secondary product image.', 'error');
     }
   });
 }
@@ -4302,10 +4373,9 @@ function buildModeSGalleryEntries(state) {
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
   if (MODE_S) {
-    const bullets = formData
-      .getAll('bullets')
-      .map((bullet) => bullet.toString().trim())
-      .filter((bullet) => bullet.length > 0);
+    const productCallouts = normaliseStage1ProductCallouts(
+      formData.getAll('product_callouts').map((value) => value.toString())
+    );
 
     const channel =
       formData.get('channel')?.toString().trim() || MODE_S_DEFAULT_STAGE1.channel || '';
@@ -4333,10 +4403,12 @@ function collectStage1Data(form, state, { strict = false } = {}) {
         'default',
       product_name: formData.get('product_name')?.toString().trim() || '',
       title: formData.get('title')?.toString().trim() || '',
-      tagline: formData.get('tagline')?.toString().trim() || '',
+      subtitle: formData.get('subtitle')?.toString().trim() || '',
+      tagline: formData.get('subtitle')?.toString().trim() || '',
       allow_auto_fill: formData.get('allow_auto_fill') === 'on',
-      bullets,
-      features: bullets,
+      product_callouts: productCallouts,
+      bullets: productCallouts,
+      features: productCallouts,
       brand_logo: state.brandLogo || null,
       scenario_asset: state.scenario || null,
         product_asset: state.productImage1 || null,
@@ -4360,8 +4432,8 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       if (!payload.title) {
         throw new Error('Title is required.');
       }
-      if (bullets.length > 4) {
-        throw new Error('Please keep bullets to 4 or fewer.');
+      if (productCallouts.length > STAGE1_PRODUCT_CALLOUT_MAX_ITEMS) {
+        throw new Error(`Please keep product callouts to ${STAGE1_PRODUCT_CALLOUT_MAX_ITEMS} or fewer.`);
       }
     }
 
@@ -4749,13 +4821,15 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
     title.textContent = payload.title || '标题文案';
   }
   if (subtitle) {
-    subtitle.textContent = payload.subtitle || '副标题文案';
+    subtitle.textContent = payload.subtitle || '底部辅助文案';
   }
 
   if (featureList) {
-    const featuresForPreview = payload.features.length
+    const featuresForPreview = (payload.product_callouts && payload.product_callouts.length)
+      ? payload.product_callouts
+      : payload.features.length
       ? payload.features
-      : DEFAULT_STAGE1.features;
+      : DEFAULT_STAGE1.product_callouts || DEFAULT_STAGE1.features;
     renderFeatureTags(featureList, featuresForPreview.slice(0, 3));
   }
 
@@ -4786,13 +4860,14 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 
 function buildLayoutPreview(payload) {
   if (MODE_S) {
-    const bullets = Array.isArray(payload.bullets) ? payload.bullets : [];
+    const callouts = resolveStage1ProductCallouts(payload);
     const lines = [
       'Mode S summary',
       `Channel: ${payload.channel || 'missing'}`,
       `Intent: ${payload.intent || 'missing'}`,
       `Title: ${payload.title || 'missing'}`,
-      `Bullets: ${bullets.length}`,
+      `Product callouts: ${callouts.length}`,
+      `Bottom support copy: ${payload.subtitle || payload.tagline || 'optional'}`,
       `Brand: ${payload.brand_name || 'n/a'}`,
       `Brand color: ${payload.brand_color || 'n/a'}`,
       `Price: ${payload.price || 'n/a'}`,
@@ -4823,7 +4898,11 @@ function buildLayoutPreview(payload) {
   const galleryLabel = payload.gallery_label || MATERIAL_DEFAULT_LABELS.gallery;
   const galleryLimit = payload.gallery_limit || 4;
 
-  const featuresPreview = (payload.features.length ? payload.features : DEFAULT_STAGE1.features)
+  const featuresPreview = (
+    resolveStage1ProductCallouts(payload).length
+      ? resolveStage1ProductCallouts(payload)
+      : DEFAULT_STAGE1.product_callouts || DEFAULT_STAGE1.features
+  )
     .map((feature, index) => `    - 功能点${index + 1}: ${feature}`)
     .join('\n');
 
@@ -4846,7 +4925,7 @@ function buildLayoutPreview(payload) {
 
   return `模板锁版\n  · 当前模板：${templateLine}\n\n顶部横条\n  · 品牌 Logo（左上）：${logoLine}\n  · 品牌代理名 / 分销名（右上）：${
     payload.agent_name || '代理名待填写'
-  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 功能点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '副标题待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
+  }\n\n左侧区域（约 40% 宽）\n  · 应用场景图：${scenarioLine}\n\n右侧区域（视觉中心）\n  · 主产品 45° 渲染图：${productLine}\n  · 产品卖点标注：\n${featuresPreview}\n\n中部标题（大号粗体红字）\n  · ${payload.title || '标题文案待补充'}\n\n底部区域（三视图或系列款式）\n${gallerySummary}\n\n角落副标题 / 标语（大号粗体红字）\n  · ${payload.subtitle || '底部辅助文案待补充'}\n\n主色建议：黑（功能）、红（标题 / 副标题）、灰 / 银（金属质感）\n背景：浅灰或白色，保持留白与对齐。`;
 }
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
@@ -4862,9 +4941,12 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       scenario_image: payload.scenario_image || MODE_S_DEFAULT_STAGE1.scenario_image,
       product_name: payload.product_name || '',
       title: payload.title,
+      subtitle: payload.subtitle || payload.tagline || '',
       tagline: payload.tagline || '',
       allow_auto_fill: payload.allow_auto_fill !== false,
-      bullets: payload.bullets || [],
+      product_callouts: payload.product_callouts || payload.features || payload.bullets || [],
+      bullets: payload.bullets || payload.product_callouts || payload.features || [],
+      features: payload.features || payload.product_callouts || payload.bullets || [],
       brand_logo: serialiseAssetForStorage(state.brandLogo),
       scenario_asset: serialiseAssetForStorage(state.scenario),
       product_asset: serialiseAssetForStorage(state.productImage1),
@@ -5012,6 +5094,7 @@ function safeParseJson(raw) {
 function buildDraftFromStage1Data(stage1Data) {
   if (!stage1Data || typeof stage1Data !== 'object') return {};
   const bullets = Array.isArray(stage1Data.bullets) ? stage1Data.bullets : [];
+  const productCallouts = resolveStage1ProductCallouts(stage1Data);
   return {
     core: {
       brand_name: stage1Data.brand_name || '',
@@ -5019,8 +5102,10 @@ function buildDraftFromStage1Data(stage1Data) {
       price: stage1Data.price || '',
       promo: stage1Data.promo || '',
       title: stage1Data.title || '',
-      tagline: stage1Data.tagline || '',
-      bullets,
+      subtitle: stage1Data.subtitle || stage1Data.tagline || '',
+      tagline: stage1Data.tagline || stage1Data.subtitle || '',
+      bullets: productCallouts.length ? productCallouts : bullets,
+      product_callouts: productCallouts,
       product_image_1: stage1Data.product_image_1 || null,
       product_image_2: stage1Data.product_image_2 || null,
     },
@@ -5070,7 +5155,7 @@ function getKitPosterVariant(renderMode) {
 
 function buildKitPosterDraftFromSource(source, adjustments, renderMode) {
   const payload = source && typeof source === 'object' ? source : {};
-  const bullets = Array.isArray(payload.bullets) ? payload.bullets.filter(Boolean) : [];
+  const bullets = resolveStage1ProductCallouts(payload);
   const productImages = [];
   const image1 = pickDraftImageRef(payload.product_image_1 || payload.productImage1);
   const image2 = pickDraftImageRef(payload.product_image_2 || payload.productImage2);
@@ -5085,7 +5170,7 @@ function buildKitPosterDraftFromSource(source, adjustments, renderMode) {
     copy: {
       title: payload.title || '',
       bullets: showBullets ? bullets : [],
-      tagline: payload.tagline || payload.promo || null,
+      tagline: payload.subtitle || payload.tagline || payload.promo || null,
     },
     options: {
       quality_mode: adjustments?.qualityMode || 'stable',
@@ -5097,7 +5182,7 @@ function buildGeneratePosterPayload(draft) {
   const core = draft?.core || {};
   const messaging = draft?.messaging || {};
   const posterSource = draft?.poster || {};
-  const bullets = Array.isArray(core.bullets) ? core.bullets : [];
+  const bullets = normaliseStage1ProductCallouts(core.product_callouts || core.bullets);
   const title = core.title || posterSource.title || '';
   const showBullets = stage2State.adjustments?.showBullets !== false;
   const renderMode = stage2State.renderMode || 'kitposter1_a';
@@ -5123,7 +5208,7 @@ function buildGeneratePosterPayload(draft) {
       template_id: posterSource.template_id || DEFAULT_STAGE1.template_id,
       features: featureBullets,
       title,
-      subtitle: posterSource.subtitle || posterSource.tagline || core.tagline || '',
+      subtitle: posterSource.subtitle || core.subtitle || posterSource.tagline || core.tagline || '',
       series_description: posterSource.series_description || '',
       brand_color: core.brand_color || posterSource.brand_color || null,
       price: core.price || posterSource.price || null,
@@ -5174,7 +5259,9 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   const subtitle = bottomRequestState.sanitized_subtitle_text;
   const requestedGalleryCount = bottomRequestState.requested_gallery_count;
   const autoFillGallery = bottomRequestState.auto_fill_gallery;
-  const featureSource = Array.isArray(stage1Data.features) && stage1Data.features.length
+  const featureSource = Array.isArray(stage1Data.product_callouts) && stage1Data.product_callouts.length
+    ? stage1Data.product_callouts
+    : Array.isArray(stage1Data.features) && stage1Data.features.length
     ? stage1Data.features
     : Array.isArray(stage1Data.bullets)
     ? stage1Data.bullets
