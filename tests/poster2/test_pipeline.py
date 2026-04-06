@@ -1291,6 +1291,64 @@ class TestPosterPipelineRun:
         assert feature_review["feature_slots"][1]["truncation_applied"] is True
         assert feature_review["feature_slots"][4]["rendered"] is False
 
+    def test_product_annotation_copy_compression_reduces_truncation_for_verbose_sell_points(self):
+        stored_payloads: dict[str, bytes] = {}
+
+        def fake_put_bytes(key, data, **kwargs):
+            stored_payloads[key] = data
+            return f"mock://{key}"
+
+        template = _load_template()
+        template.behavior_modes = replace(
+            template.behavior_modes,
+            feature_mode="product_anchor_callouts",
+            product_annotation_mode="product_anchor_callouts",
+        )
+        pipeline = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_AsyncPillowRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=fake_put_bytes,
+        )
+
+        asyncio.run(
+            pipeline.run(
+                _make_spec(
+                    features=(
+                        "Feature: Fast preheat for busy weeknight cooking",
+                        "Highlight: Even cooking with less guesswork",
+                        "Benefit: Easy cleanup after family dinners",
+                    )
+                ),
+                template,
+            )
+        )
+
+        metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
+        metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
+        product_review = metadata["product_contract_review"]
+        feature_review = metadata["feature_contract_review"]
+
+        assert feature_review["sanitized_feature_items"] == [
+            "Fast preheat",
+            "Even cooking",
+            "Easy cleanup",
+        ]
+        assert product_review["sanitized_annotation_items"] == [
+            "Fast preheat",
+            "Even cooking",
+            "Easy cleanup",
+        ]
+        assert product_review["annotation_slots"][0]["truncation_applied"] is False
+        assert product_review["annotation_slots"][1]["truncation_applied"] is False
+        assert product_review["annotation_slots"][2]["truncation_applied"] is False
+        assert product_review["rendered_annotation_items"] == [
+            "Fast preheat",
+            "Even cooking",
+            "Easy cleanup",
+        ]
+
     def test_renderer_metadata_includes_explicit_fallback_fields(self):
         template = _load_template()
         stored_payloads: dict[str, bytes] = {}
@@ -4561,6 +4619,30 @@ def test_email_draft_deterministic_clean_features_only_builds_sell_point_summary
     assert draft["preview_text"] == "Fast preheat • Even cooking"
 
 
+def test_email_draft_deterministic_uses_clean_subtitle_fallback_when_no_summary_points():
+    from app.services.email.copy_optimizer import build_email_draft_for_poster_record
+
+    record = {
+        "request_snapshot": {
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade !!!",
+            "subtitle": "Now with clean setup for everyday cooking!!!",
+            "features": [],
+        },
+        "render_result": {
+            "final_url": "https://example.com/final.png",
+        },
+        "final_poster": {"url": "https://example.com/final.png"},
+    }
+
+    draft = build_email_draft_for_poster_record(record)
+    assert draft["generated_from"] == "deterministic"
+    assert draft["subject"] == "ChefCraft | Kitchen Upgrade"
+    assert draft["preview_text"] == "clean setup for everyday cooking"
+    assert "!!!" not in draft["preview_text"]
+
+
 def test_email_draft_gemini_failure_uses_fallback_deterministic(monkeypatch):
     from app.config import get_settings
     from app.services.email.copy_optimizer import build_email_draft_for_poster_record
@@ -4624,6 +4706,42 @@ def test_email_draft_gemini_success_rejects_ungrounded_claims(monkeypatch):
     assert draft["generated_from"] == "gemini_fallback_deterministic"
     assert "free shipping" not in draft["subject"].lower()
     assert "delivery" not in draft["preview_text"].lower()
+
+
+def test_email_draft_gemini_subtitle_echo_falls_back_to_deterministic(monkeypatch):
+    from app.config import get_settings
+    from app.services.email.copy_optimizer import build_email_draft_for_poster_record
+
+    monkeypatch.setenv("EMAIL_COPY_OPTIMIZER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.email.gemini_optimizer.GeminiEmailCopyOptimizer.optimize",
+        lambda self, canonical_input: {
+            "subject": "ChefCraft | Kitchen Upgrade",
+            "preview_text": "Dirty subtitle should not lead the campaign",
+            "html": "<p>Dirty subtitle should not lead the campaign</p>",
+            "text": "Dirty subtitle should not lead the campaign",
+            "summary_points": [],
+            "tone": "marketing_clean",
+            "generated_at": "2026-04-06T00:00:00+00:00",
+        },
+    )
+    record = {
+        "request_snapshot": {
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Dirty subtitle should not lead the campaign",
+            "features": ["Fast preheat", "Even cooking"],
+        },
+        "render_result": {},
+        "final_poster": {"url": "https://example.com/final.png"},
+    }
+
+    draft = build_email_draft_for_poster_record(record)
+    assert draft["generated_from"] == "gemini_fallback_deterministic"
+    assert draft["preview_text"] == "Fast preheat • Even cooking"
 
 
 def test_email_attachment_builder_surfaces_poster_png_and_pdf(monkeypatch):

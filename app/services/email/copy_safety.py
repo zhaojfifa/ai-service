@@ -50,6 +50,31 @@ _UNGROUNDED_CLAIM_PATTERNS = [
     )
 ]
 
+_POINT_PREFIX_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"^(feature|highlight|benefit|selling point|key point)\s*[:\-]\s*",
+        r"^(亮点|卖点|特点|优势)\s*[:：\-]\s*",
+        r"^(now with|designed for|ideal for|perfect for)\s+",
+    )
+]
+
+_POINT_TAIL_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"\s+(for busy [^.!,;]+)$",
+        r"\s+(for everyday [^.!,;]+)$",
+        r"\s+(for daily [^.!,;]+)$",
+        r"\s+(for modern [^.!,;]+)$",
+        r"\s+(with less [^.!,;]+)$",
+        r"\s+(with confidence)$",
+        r"\s+(made easy)$",
+        r"\s+(after [^.!,;]+)$",
+        r"\s+(so you can [^.!,;]+)$",
+        r"\s+(to help [^.!,;]+)$",
+    )
+]
+
 
 def clean_copy_text(value: Any) -> str:
     if not isinstance(value, str):
@@ -78,11 +103,46 @@ def sanitize_marketing_text(value: Any) -> str:
     return sanitized
 
 
+def normalize_marketing_title(value: Any) -> str:
+    text = sanitize_marketing_text(value)
+    if not text:
+        return ""
+    text = re.sub(r"[!！?？]+$", "", text)
+    text = re.sub(r"\s*[\-|/|]+\s*$", "", text)
+    return clean_copy_text(text.strip(" -|:;,.，。"))
+
+
+def normalize_marketing_subtitle(value: Any, *, title: str = "") -> str:
+    text = sanitize_marketing_text(value)
+    if not text:
+        return ""
+    for pattern in _POINT_PREFIX_PATTERNS:
+        text = pattern.sub("", text)
+    text = re.sub(r"[!！?？]+$", "", text)
+    text = clean_copy_text(text.strip(" -|:;,.，。"))
+    if title and text.casefold() == clean_copy_text(title).casefold():
+        return ""
+    return text
+
+
+def compress_marketing_point(value: Any) -> str:
+    text = sanitize_marketing_text(value)
+    if not text:
+        return ""
+    for pattern in _POINT_PREFIX_PATTERNS:
+        text = pattern.sub("", text)
+    for pattern in _POINT_TAIL_PATTERNS:
+        text = pattern.sub("", text)
+    text = re.sub(r"\s*[|/]\s*.*$", "", text)
+    text = clean_copy_text(text.strip(" -|:;,.，。"))
+    return text
+
+
 def sanitize_marketing_points(values: list[Any] | tuple[Any, ...] | None) -> list[str]:
     points: list[str] = []
     seen: set[str] = set()
     for value in values or []:
-        point = sanitize_marketing_text(value)
+        point = compress_marketing_point(value)
         if not point:
             continue
         point = point.rstrip(".;,:")

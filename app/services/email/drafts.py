@@ -4,7 +4,13 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any
 
-from app.services.email.copy_safety import clean_copy_text, sanitize_marketing_points, sanitize_marketing_text
+from app.services.email.copy_safety import (
+    clean_copy_text,
+    normalize_marketing_subtitle,
+    normalize_marketing_title,
+    sanitize_marketing_points,
+    sanitize_marketing_text,
+)
 
 
 def _utc_now() -> str:
@@ -21,8 +27,8 @@ def _truncate(value: str, limit: int) -> str:
 def build_deterministic_email_draft(canonical_input: dict[str, Any]) -> dict[str, Any]:
     brand_name = sanitize_marketing_text(canonical_input.get("brand_name")) or "Brand"
     agent_name = sanitize_marketing_text(canonical_input.get("agent_name"))
-    title = sanitize_marketing_text(canonical_input.get("title")) or "Poster Update"
-    subtitle = sanitize_marketing_text(canonical_input.get("subtitle"))
+    title = normalize_marketing_title(canonical_input.get("title")) or "Poster Update"
+    subtitle = normalize_marketing_subtitle(canonical_input.get("subtitle"), title=title)
     summary_points = sanitize_marketing_points(canonical_input.get("summary_points") or [])[:3]
     final_url = clean_copy_text(canonical_input.get("final_poster_url"))
 
@@ -30,7 +36,7 @@ def build_deterministic_email_draft(canonical_input: dict[str, Any]) -> dict[str
     if summary_points:
         preview_text = _truncate(" • ".join(summary_points[:2]), 160)
     elif subtitle:
-        preview_text = _truncate(f"{title} | {subtitle}", 160)
+        preview_text = _truncate(subtitle, 160)
     else:
         preview_text = _truncate(f"{brand_name} | {title}", 160)
 

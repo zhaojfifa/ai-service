@@ -5,7 +5,10 @@ from typing import Any
 
 from app.config import get_settings
 from app.services.email.copy_safety import (
+    compress_marketing_point,
     contains_ungrounded_claims,
+    normalize_marketing_subtitle,
+    normalize_marketing_title,
     sanitize_marketing_points,
     sanitize_marketing_text,
 )
@@ -21,7 +24,7 @@ def _collect_annotation_points(record: dict[str, Any]) -> list[str]:
     points: list[str] = []
 
     for slot in annotation_review.get("annotation_slots") or []:
-        value = sanitize_marketing_text(
+        value = compress_marketing_point(
             slot.get("sanitized_text")
             or slot.get("rendered_excerpt")
             or slot.get("requested_text")
@@ -30,12 +33,12 @@ def _collect_annotation_points(record: dict[str, Any]) -> list[str]:
             points.append(value)
 
     for value in (render_result.get("product_contract_review") or {}).get("rendered_annotation_items") or []:
-        clean = sanitize_marketing_text(value)
+        clean = compress_marketing_point(value)
         if clean and clean not in points:
             points.append(clean)
 
     for value in (record.get("request_snapshot") or {}).get("features") or []:
-        clean = sanitize_marketing_text(value)
+        clean = compress_marketing_point(value)
         if clean and clean not in points:
             points.append(clean)
 
@@ -56,14 +59,16 @@ def build_canonical_copy_input(record: dict[str, Any]) -> dict[str, Any]:
         request_snapshot.get("agent_name")
         or (render_result.get("header_contract_review") or {}).get("rendered_agent_excerpt")
     )
-    title = sanitize_marketing_text(
+    title = normalize_marketing_title(
         request_snapshot.get("title")
         or (render_result.get("title_text_layer") or {}).get("rendered_excerpt")
         or "Poster Update"
     )
-    subtitle = sanitize_marketing_text(
+    subtitle = normalize_marketing_subtitle(
         request_snapshot.get("subtitle")
         or (render_result.get("subtitle_text_layer") or {}).get("rendered_excerpt")
+        or "",
+        title=title or "Poster Update",
     )
     summary_points = _collect_annotation_points(record)
     final_url = sanitize_marketing_text(final_poster.get("url") or render_result.get("final_url"))
@@ -84,7 +89,7 @@ def _sanitize_optimized_draft(
     deterministic: dict[str, Any],
 ) -> dict[str, Any]:
     cleaned = {
-        "subject": sanitize_marketing_text(optimized.get("subject")) or deterministic["subject"],
+        "subject": normalize_marketing_title(optimized.get("subject")) or deterministic["subject"],
         "preview_text": sanitize_marketing_text(optimized.get("preview_text")) or deterministic["preview_text"],
         "html": str(optimized.get("html") or "").strip() or deterministic["html"],
         "text": str(optimized.get("text") or "").strip() or deterministic["text"],
@@ -99,6 +104,18 @@ def _sanitize_optimized_draft(
 
     if any(contains_ungrounded_claims(point, canonical) for point in cleaned["summary_points"]):
         cleaned["summary_points"] = list(deterministic.get("summary_points") or [])
+
+    canonical_points = sanitize_marketing_points(canonical.get("summary_points") or [])
+    if canonical_points and not cleaned["summary_points"]:
+        fallback = deepcopy(deterministic)
+        fallback["generated_from"] = "gemini_fallback_deterministic"
+        return fallback
+    if canonical_points:
+        canonical_subtitle = sanitize_marketing_text(canonical.get("subtitle"))
+        if canonical_subtitle and cleaned["preview_text"].casefold() == canonical_subtitle.casefold():
+            fallback = deepcopy(deterministic)
+            fallback["generated_from"] = "gemini_fallback_deterministic"
+            return fallback
 
     if (
         cleaned["subject"] == deterministic["subject"]

@@ -1,5 +1,76 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-10B: poster2 copy quality phase 1
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-06
+
+### Scope
+- annotation copy compression
+- title / subtitle style normalization
+- deterministic marketing-safe subtitle fallback
+- Gemini optimizer quality hardening
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+
+### Root rules followed
+- contract-first; no poster structure contract drift
+- no resend / attachment / transport changes
+- no region-bounds or ownership changes
+- no bottom mode or feature suppression changes
+- state/docs were read first and written back after completion
+
+### Problem reproduced
+- annotation sell-point copy could still arrive too verbose for the fixed product annotation shell budget, causing avoidable truncation
+- deterministic draft still used subtitle as the weak fallback but not yet as a normalized campaign-safe fallback
+- Gemini success path was safe but not strict enough against low-quality subtitle-echo output
+
+### Root cause found
+- there was no shared copy policy for title / subtitle / feature / annotation text normalization across poster runtime and email draft generation
+- annotation compression was not happening before poster runtime text budgets applied
+- Gemini safety gates blocked invented claims, but not low-quality “subtitle echo” behavior when stronger product sell points already existed
+
+### Files changed
+- `app/services/email/copy_safety.py`
+- `app/services/email/drafts.py`
+- `app/services/email/copy_optimizer.py`
+- `app/services/email/gemini_optimizer.py`
+- `app/services/poster2/pipeline.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_api.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/copy_quality_phase1_status_v1.md`
+- `docs/poster2/README.md`
+
+### Layer changed
+- behavior
+- docs
+- validation
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'email_draft or canonical_copy_input or product_annotation_copy_compression or gemini or deterministic_uses_clean_subtitle_fallback'` → `8 passed, 255 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'preview_uses_gemini_when_available or preview_falls_back_when_gemini_fails or preview_deterministic_uses_clean_subtitle_fallback_when_no_sell_points or preview_gemini_subtitle_echo_falls_back_to_deterministic'` → `4 passed, 19 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py` → `23 passed`
+
+### Remaining risks
+- live Gemini output still needs deployed-environment quality review
+- copy compression is conservative by design and is not a geometry-budget rewrite
+- a pre-existing out-of-scope feature dense-quad test baseline still expects `char_budget=24` instead of the current compacted `20`; this PR did not change feature suppression or feature behavior
+
+### Exact acceptance
+- annotation truncation rate is reduced through pre-budget copy compression, with no geometry drift
+- title / subtitle tone is cleaner and more campaign-ready
+- deterministic fallback no longer lets dirty subtitle dominate preview copy
+- Gemini success path is hardened against low-quality subtitle echo
+- no transport regressions were introduced
+- no contract drift was introduced
+
 ## Entry — PR-bottom-final-last-mile: title_gallery_split dense_quad subtitle capacity closeout
 
 **Branch:** `claude/recursing-joliot`

@@ -19,6 +19,11 @@ from pathlib import Path
 from typing import Optional
 
 from PIL import Image as PILImage
+from app.services.email.copy_safety import (
+    compress_marketing_point,
+    normalize_marketing_subtitle,
+    normalize_marketing_title,
+)
 
 from .asset_loader import AssetLoader
 from .background import (
@@ -545,12 +550,15 @@ def _gallery_contract_counts(spec: PosterSpec) -> dict[str, object]:
 def _normalize_contract_text_spec(spec: PosterSpec, template=None) -> PosterSpec:
     brand_name = _normalize_requested_text(spec.brand_name)
     agent_name = _normalize_requested_text(spec.agent_name)
-    title = _normalize_requested_text(spec.title)
-    subtitle = _normalize_requested_text(spec.subtitle)
+    title = normalize_marketing_title(_normalize_requested_text(spec.title))
+    subtitle = normalize_marketing_subtitle(
+        _normalize_requested_text(spec.subtitle),
+        title=title,
+    )
     features = tuple(
         normalized
         for item in spec.features
-        if (normalized := _normalize_requested_text(item))
+        if (normalized := compress_marketing_point(_normalize_requested_text(item)))
     )
     if not brand_name:
         raise ValueError("brand_name must not be empty after normalization")

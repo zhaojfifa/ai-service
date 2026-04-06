@@ -784,6 +784,74 @@ def test_preview_falls_back_when_gemini_fails(monkeypatch):
     assert body["preview_text"].startswith("Fast preheat")
 
 
+def test_preview_deterministic_uses_clean_subtitle_fallback_when_no_sell_points(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade !!!",
+            "subtitle": "Now with clean setup for everyday cooking!!!",
+            "features": [],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+    preview = client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+    body = preview.json()
+    assert preview.status_code == 200
+    assert body["generated_from"] == "deterministic"
+    assert body["subject"] == "ChefCraft | Kitchen Upgrade"
+    assert body["preview_text"] == "clean setup for everyday cooking"
+
+
+def test_preview_gemini_subtitle_echo_falls_back_to_deterministic(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    _reset_email_closure_env(monkeypatch)
+    monkeypatch.setenv("EMAIL_COPY_OPTIMIZER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    monkeypatch.setattr(
+        "app.services.email.gemini_optimizer.GeminiEmailCopyOptimizer.optimize",
+        lambda self, canonical_input: {
+            "subject": "ChefCraft | Kitchen Upgrade",
+            "preview_text": "Dirty subtitle should not dominate the launch email",
+            "html": "<p>Dirty subtitle should not dominate the launch email</p>",
+            "text": "Dirty subtitle should not dominate the launch email",
+            "summary_points": [],
+            "tone": "marketing_clean",
+            "generated_at": "2026-04-06T00:00:00+00:00",
+        },
+    )
+    client = TestClient(app)
+
+    generated = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "ChefCraft",
+            "agent_name": "Growth Team",
+            "title": "Kitchen Upgrade",
+            "subtitle": "Dirty subtitle should not dominate the launch email",
+            "features": ["Fast preheat", "Even cooking"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+        },
+    )
+    poster_key = generated.json()["poster_key"]
+    preview = client.post("/api/v2/email/preview", json={"poster_key": poster_key})
+    body = preview.json()
+    assert preview.status_code == 200
+    assert body["generated_from"] == "gemini_fallback_deterministic"
+    assert body["preview_text"] == "Fast preheat • Even cooking"
+
+
 def test_preview_can_build_and_persist_email_assets(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
     _reset_email_closure_env(monkeypatch)
