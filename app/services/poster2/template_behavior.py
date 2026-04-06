@@ -31,6 +31,7 @@ _SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
 # Primary slot: upper ~67% of the product region; receives all annotation callouts.
 # Secondary slot: ~27% of the product region; no callouts, no annotation ownership.
 # Bottom breathing room: 20px clear gap between secondary bottom (y=708) and canvas bottom (y=728).
+_CANVAS_H = 1024  # poster canvas height in px (template_dual_v2 fixed dimension)
 # Parent region (scenario_cover_product_contain): x=456, y=188, w=300, h=540.
 # Slot arithmetic: 360 (primary) + 16 (gap) + 144 (secondary) + 20 (breathing) = 540.
 # Gap between primary bottom and secondary top: 564-(188+360)=16px.
@@ -1614,6 +1615,11 @@ def _resolve_bottom_layout_policies(
             title_content_pad_top = 20  # PR-7B4: reduced; lower-anchor places all dead space above
             title_content_pad_bottom = 16  # PR-7B4: 16px bottom clearance; was 40 (dead space)
             title_stack_gap = 0
+        # PR-8C: center title band vertically within the full bottom zone (shell_top → _CANVAS_H).
+        # Before this, title_band_top was pinned to bottom_shell_top, placing the band at the top
+        # of the zone and leaving dead canvas below. Now it floats centered in the zone.
+        _bottom_zone_h = _CANVAS_H - bottom_shell_top
+        title_band_top = bottom_shell_top + (_bottom_zone_h - title_band_height) // 2
         title_content_top = title_band_top
         title_content_height = title_band_height
     elif bottom_mode == "text_gallery_expanded":
@@ -2194,9 +2200,8 @@ def _resolve_bottom_shell_height(
     if bottom_mode == "gallery_only":
         return gallery_shell_height
     if bottom_mode == "text_only_expanded":
-        # PR-6D: shell height matches title_band_height (content-proportionate, 160–220px).
-        # No dead canvas below the active text band. Shell top stays at 640.
-        return title_band_height
+        # PR-8C: shell fills full bottom zone to canvas bottom; title band is centered within.
+        return _CANVAS_H - bottom_shell_top
     bottom_edges: list[int] = []
     if title_slot_rendered:
         bottom_edges.append(title_band_top + title_band_height)
@@ -2204,7 +2209,7 @@ def _resolve_bottom_shell_height(
         bottom_edges.append(gallery_shell_top + gallery_shell_height)
     if not bottom_edges:
         return 0
-    return max(bottom_edges) - bottom_shell_top
+    return max(bottom_edges) - bottom_shell_top + 20  # PR-8C: 20px bottom breathing room below gallery
 
 
 def _resolve_bottom_behavior_vars(policy: ResolvedBottomBehavior) -> dict[str, str]:
