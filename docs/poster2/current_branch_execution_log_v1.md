@@ -1025,3 +1025,80 @@ Exact acceptance:
 Remaining risks:
 - this closes the request-state / parity failure only
 - any residual bottom text/layout tuning should remain a known maintenance issue while storage / copy / email work proceeds
+
+## Entry — PR: Generation Quality And Copy Optimization
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-06
+
+### Scope
+- poster-facing text sanitization for title / subtitle / features / annotation-derived text
+- deterministic draft quality tightening
+- Gemini optimizer quality tightening
+- explicit fallback preservation
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+
+### Root rules followed
+- contract-first
+- no poster contract drift
+- no bottom truth drift
+- no product annotation truth drift
+- no resend / attachment transport scope drift
+- no geometry or beautification work
+
+### Problem reproduced
+- current deterministic draft still treated subtitle as too strong a backup source
+- prompt-like / internal / training-like text could enter copy inputs from subtitle, features, or annotation text
+- Gemini path had no post-sanitization guard against unsafe invented claims
+- Gemini success path did not yet enforce “cleaner than deterministic base”
+
+### Root cause found
+- copy quality logic had no dedicated poster-facing sanitization layer
+- canonical input gathered raw business text too early
+- Gemini output was trusted as long as the request succeeded, without grounded-claim filtering or material-improvement check
+
+### Files changed
+- `app/services/email/copy_safety.py`
+- `app/services/email/drafts.py`
+- `app/services/email/copy_optimizer.py`
+- `app/services/email/gemini_optimizer.py`
+- `tests/poster2/test_api.py`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/generation_quality_and_copy_optimization_status_v1.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+
+### Layer changed
+- behavior
+- docs
+- validation
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py`
+  - `21 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage3_email_closure_surface.py`
+  - `2 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'email or poster_record or attachment or draft'`
+  - `5 passed, 255 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - `2 passed`
+
+### Exact acceptance
+- no dirty subtitle leaks into final marketing copy
+- email copy and poster copy remain aligned without mechanically duplicating dirty subtitle text
+- Gemini success path is accepted only when cleaner and safely grounded
+- Gemini failure or unsafe output falls back to deterministic business-safe copy
+- no contract drift
+
+### Remaining risks
+- live Gemini quality still needs deployed-environment review with real credentials
+- this round intentionally does not touch send-provider transport or deployment-side delivery behavior

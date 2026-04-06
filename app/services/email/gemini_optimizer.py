@@ -56,11 +56,19 @@ class GeminiEmailCopyOptimizer:
         }
 
     def _build_prompt(self, canonical_input: dict[str, Any]) -> str:
+        deterministic_base = {
+            "subject": f"{canonical_input.get('brand_name') or 'Brand'} | {canonical_input.get('title') or 'Poster Update'}",
+            "preview_priority": list(canonical_input.get("summary_points") or [])[:2],
+        }
         return (
             "You are optimizing outbound marketing email copy.\n"
             "Rewrite and summarize only the provided facts.\n"
-            "Do not invent specs, pricing, certification, shipping, offers, or extra claims.\n"
-            "Prefer annotation summary points over subtitle.\n"
+            "Gemini is optimizer only, never a fact source.\n"
+            "Do not invent specs, pricing, certification, shipping, delivery promises, offers, or extra claims.\n"
+            "Prefer product sell points from summary_points over subtitle.\n"
+            "Use subtitle only as weak support text.\n"
+            "Keep the result more marketing-clean than the deterministic base.\n"
             "Return strict JSON with keys: subject, preview_text, html, text, summary_points, tone.\n\n"
+            f"DETERMINISTIC_BASE={json.dumps(deterministic_base, ensure_ascii=False)}\n"
             f"FACTS_JSON={json.dumps(canonical_input, ensure_ascii=False)}"
         )

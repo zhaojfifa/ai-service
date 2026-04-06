@@ -4,43 +4,35 @@ from datetime import datetime, timezone
 from html import escape
 from typing import Any
 
+from app.services.email.copy_safety import clean_copy_text, sanitize_marketing_points, sanitize_marketing_text
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _clean_text(value: Any) -> str:
-    if not isinstance(value, str):
-        return ""
-    return " ".join(value.strip().split())
-
-
 def _truncate(value: str, limit: int) -> str:
-    clean = _clean_text(value)
+    clean = clean_copy_text(value)
     if len(clean) <= limit:
         return clean
     return clean[: max(limit - 1, 0)].rstrip() + "…"
 
 
 def build_deterministic_email_draft(canonical_input: dict[str, Any]) -> dict[str, Any]:
-    brand_name = _clean_text(canonical_input.get("brand_name")) or "Brand"
-    agent_name = _clean_text(canonical_input.get("agent_name"))
-    title = _clean_text(canonical_input.get("title")) or "Poster Update"
-    subtitle = _clean_text(canonical_input.get("subtitle"))
-    summary_points = [
-        _clean_text(item)
-        for item in (canonical_input.get("summary_points") or [])
-        if _clean_text(item)
-    ][:3]
-    final_url = _clean_text(canonical_input.get("final_poster_url"))
+    brand_name = sanitize_marketing_text(canonical_input.get("brand_name")) or "Brand"
+    agent_name = sanitize_marketing_text(canonical_input.get("agent_name"))
+    title = sanitize_marketing_text(canonical_input.get("title")) or "Poster Update"
+    subtitle = sanitize_marketing_text(canonical_input.get("subtitle"))
+    summary_points = sanitize_marketing_points(canonical_input.get("summary_points") or [])[:3]
+    final_url = clean_copy_text(canonical_input.get("final_poster_url"))
 
     subject = _truncate(f"{brand_name} | {title}", 140)
     if summary_points:
         preview_text = _truncate(" • ".join(summary_points[:2]), 160)
     elif subtitle:
-        preview_text = _truncate(subtitle, 160)
+        preview_text = _truncate(f"{title} | {subtitle}", 160)
     else:
-        preview_text = _truncate(f"{brand_name} poster is ready to review.", 160)
+        preview_text = _truncate(f"{brand_name} | {title}", 160)
 
     intro_line = f"{brand_name} poster is ready."
     if agent_name:

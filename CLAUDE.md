@@ -53,6 +53,11 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - `generated_from` / `summary_points` / `tone`
   - backend-owned `email_assets.poster_png` and `email_assets.poster_pdf`
   - optional resend attachment wiring through `attachment_types`
+- copy quality tightening adds:
+  - poster-facing text sanitization for title / subtitle / features / annotation-derived text
+  - deterministic preview policy that prefers product sell points over subtitle
+  - Gemini post-sanitization and grounded-claim rejection
+  - fallback to deterministic when Gemini is unsafe or not materially better
 - Stage2 now carries `poster_key` in the success URL and forwards Stage3 via query param
 - Stage3 now restores poster, draft source, and attachment readiness from backend truth, then supports light edit plus send
 - PR-S2 complete:
@@ -72,8 +77,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current priority: continue storage / copy / email closure end-to-end in Stage3
-- next after backend closure: live Gemini + Resend attachment validation in deployed environment
+- current priority: deployed-environment validation for Gemini quality and Resend live closure behavior
+- next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
 - not yet: bottom beautification reopen
 - not yet: poster contract redesign

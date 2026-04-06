@@ -50,6 +50,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
 - [bottom_mode_switch_closure_status_v1.md](bottom_mode_switch_closure_status_v1.md)
 - [email_copy_optimizer_and_optional_attachment_status_v1.md](email_copy_optimizer_and_optional_attachment_status_v1.md)
+- [generation_quality_and_copy_optimization_status_v1.md](generation_quality_and_copy_optimization_status_v1.md)
 
 ### Plans
 
@@ -88,11 +89,12 @@ These may remain as branch-local history or reference material, but the formal p
 - poster2 has entered Storage / Copy / Email Closure engineering
 - Stage3 is backend-driven through `poster_key` and `poster_record`
 - bottom remains maintenance-only; PR-S2 closed the Stage2 bottom mode switch canonicalization/parity bug
-- current priority remains storage / copy / email closure work on top of the frozen poster contract baseline
+- copy quality tightening is now complete on top of the frozen poster contract baseline
+- current priority is deployed-environment validation for Gemini quality and Resend live closure behavior
 
 ## Next Steps
 
-- continue storage / copy / email closure work
+- deployed-environment validation for Gemini optimizer output quality
+- deployed-environment validation for Resend attachments and live closure behavior
 - keep bottom in maintenance mode only unless a request-state / parity regression appears
-- deployed-environment validation for Gemini optimizer and Resend attachments
 - keep poster contract, bottom truth, product annotation truth, renderer routing, and beautification frozen during closure work
