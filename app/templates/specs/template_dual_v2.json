@@ -116,7 +116,9 @@
         "align": "left",
         "max_lines": 3,
         "line_height": 1.3,
-        "auto_shrink": true
+        "auto_shrink": true,
+        "bg_color": "#FFFFFF",
+        "bg_radius": 8
       }
     },
     {
@@ -133,7 +135,9 @@
         "align": "left",
         "max_lines": 3,
         "line_height": 1.3,
-        "auto_shrink": true
+        "auto_shrink": true,
+        "bg_color": "#FFFFFF",
+        "bg_radius": 8
       }
     },
     {
@@ -150,7 +154,9 @@
         "align": "left",
         "max_lines": 3,
         "line_height": 1.3,
-        "auto_shrink": true
+        "auto_shrink": true,
+        "bg_color": "#FFFFFF",
+        "bg_radius": 8
       }
     },
     {
