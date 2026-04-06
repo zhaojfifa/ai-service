@@ -90,6 +90,7 @@ class TextSlotSpec:
     # Optional CTA pill button: draw filled rounded rect behind text
     bg_color: Optional[str] = None         # e.g. "#E8002A" for red pill button
     bg_radius: int = 0                     # corner radius; 0 = no background
+    balance_wrap: bool = False             # when True + max_lines==2: balance line widths instead of greedy wrap
 
 
 @dataclass

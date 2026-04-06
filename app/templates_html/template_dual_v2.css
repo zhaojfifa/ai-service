@@ -235,6 +235,7 @@ body {
   -webkit-line-clamp: var(--header-agent-line-clamp);
   line-clamp: var(--header-agent-line-clamp);
   text-overflow: clip;
+  text-wrap: balance;
 }
 
 .layer-header-layout {

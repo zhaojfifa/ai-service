@@ -1618,8 +1618,13 @@ def _resolve_bottom_layout_policies(
         # PR-8C: center title band vertically within the full bottom zone (shell_top → _CANVAS_H).
         # Before this, title_band_top was pinned to bottom_shell_top, placing the band at the top
         # of the zone and leaving dead canvas below. Now it floats centered in the zone.
+        # PR-9C: apply min_bottom_clearance so dense copy (240px band) doesn't graze canvas edge.
+        # Without this, dense case gives only 28px clearance (band bottom=996, canvas=1024).
+        _BOTTOM_MIN_CLEARANCE = 40  # minimum px between band bottom and canvas bottom
         _bottom_zone_h = _CANVAS_H - bottom_shell_top
-        title_band_top = bottom_shell_top + (_bottom_zone_h - title_band_height) // 2
+        _centered_top = bottom_shell_top + (_bottom_zone_h - title_band_height) // 2
+        _max_top = _CANVAS_H - _BOTTOM_MIN_CLEARANCE - title_band_height
+        title_band_top = min(_centered_top, max(_max_top, bottom_shell_top + 16))
         title_content_top = title_band_top
         title_content_height = title_band_height
     elif bottom_mode == "text_gallery_expanded":

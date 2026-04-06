@@ -583,6 +583,24 @@ def _apply_text_budget(text: str, budget: int) -> str:
     return text[:budget]
 
 
+def _apply_text_budget_word_safe(text: str, budget: int) -> str:
+    """Truncate to budget at a word boundary and append ellipsis.
+
+    Prefers truncating at the last space within budget so no partial word
+    is visible.  Only falls back to the hard character boundary when no
+    usable space is found within the last 30 % of the budget.
+    """
+    if not text or budget <= 0:
+        return text
+    if len(text) <= budget:
+        return text
+    truncated = text[:budget]
+    last_space = truncated.rfind(" ")
+    if last_space >= int(budget * 0.7):
+        truncated = truncated[:last_space]
+    return truncated + "\u2026"
+
+
 def _build_layer_render_status(
     *,
     template: TemplateSpec,
@@ -1349,7 +1367,7 @@ def _build_product_contract_review(
             and bool(sanitized_text)
         )
         rendered_excerpt = (
-            _apply_text_budget(sanitized_text, product_policy.char_budget)
+            _apply_text_budget_word_safe(sanitized_text, product_policy.char_budget)
             if rendered
             else ""
         )
@@ -1523,7 +1541,7 @@ def _build_feature_contract_review(
         []
         if delegated_to_product_annotation
         else [
-            _apply_text_budget(text, resolved_behavior.feature_policy.char_budget)
+            _apply_text_budget_word_safe(text, resolved_behavior.feature_policy.char_budget)
             for text in effective_spec.features[: resolved_behavior.feature_policy.visible_item_count]
         ]
     )
@@ -1535,7 +1553,7 @@ def _build_feature_contract_review(
             and index <= resolved_behavior.feature_policy.visible_item_count
             and bool(sanitized_text)
         )
-        rendered_excerpt = _apply_text_budget(sanitized_text, resolved_behavior.feature_policy.char_budget) if slot_rendered else ""
+        rendered_excerpt = _apply_text_budget_word_safe(sanitized_text, resolved_behavior.feature_policy.char_budget) if slot_rendered else ""
         if index <= len(template.feature_callouts):
             label_box = template.feature_callouts[index - 1].label_box
             bounds = {"x": int(label_box.x), "y": int(label_box.y), "w": int(label_box.w), "h": int(label_box.h)}
@@ -1646,7 +1664,7 @@ def _build_product_annotation_contract_review(
         )
         is_visible = i < product_policy.visible_annotation_count and bool(sanitized_text)
         rendered_excerpt = (
-            _apply_text_budget(sanitized_text, product_policy.char_budget)
+            _apply_text_budget_word_safe(sanitized_text, product_policy.char_budget)
             if is_visible
             else ""
         )
