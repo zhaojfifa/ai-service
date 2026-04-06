@@ -122,6 +122,7 @@ class LayoutRenderer:
         assets: ResolvedAssets,
     ) -> ForegroundResult:
         feature_count = len(_normalized_feature_texts(poster.features))
+        is_template_b = spec.template_id.startswith("template_product_sheet")
         behavior = resolve_template_behavior(
             spec,
             feature_count=feature_count,
@@ -135,7 +136,14 @@ class LayoutRenderer:
             gallery_mode=poster.gallery_mode,
             agent_name=poster.agent_name,
             has_product_secondary_asset=assets.product_secondary is not None,
+            # Template B extensions
+            materials_count=len(assets.materials),
+            description_title=poster.description_title,
+            description_body=poster.description_body,
+            sku_text=poster.sku_text,
         )
+        if is_template_b:
+            return self._render_product_sheet(spec, poster, assets, behavior)
         canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
         layer_timings: dict[str, int] = {}
 
@@ -249,6 +257,148 @@ class LayoutRenderer:
             template_contract_version=spec.contract_version,
             layer_timings_ms=layer_timings,
             gallery_items_status=gallery_items_status,
+            layer_render_status=layer_render_status,
+            region_render_status=_build_renderer_region_render_status(layer_render_status),
+        )
+
+    def _render_product_sheet(
+        self,
+        spec: TemplateSpec,
+        poster: PosterSpec,
+        assets: ResolvedAssets,
+        behavior: Any,
+    ) -> ForegroundResult:
+        """Pillow fallback renderer for Template B (product_sheet_v1) vertical stack layout."""
+        canvas = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        layer_timings: dict[str, int] = {}
+
+        t0 = _now()
+        # Header shell
+        header_box = _header_shell_bounds(spec, behavior.header_policy)
+        self._draw_shell_box(
+            canvas,
+            header_box,
+            radius=28,
+            fill=_pillow_shell_fill("header", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+            border=_pillow_border("header", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+            shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+        )
+        # Description region shell
+        desc_policy = behavior.description_policy
+        if desc_policy and desc_policy.rendered:
+            self._draw_shell_box(
+                canvas,
+                (96, 748, 832, 228),
+                radius=20,
+                fill=_pillow_shell_fill("bottom", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+                border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+                shadow=None,
+            )
+        # Product hero image
+        self._draw_product(
+            canvas,
+            _product_image_slot(spec, behavior.hero_policy, behavior.product_policy),
+            assets.product,
+        )
+        # Secondary product inset (hide_no_reserve when absent)
+        if behavior.product_policy.product_secondary_slot_rendered and assets.product_secondary is not None:
+            self._draw_product(
+                canvas,
+                _product_secondary_image_slot(spec, behavior.product_policy),
+                assets.product_secondary,
+            )
+        # Materials strip thumbnails
+        mat_policy = behavior.materials_policy
+        if mat_policy and mat_policy.rendered and assets.materials and spec.materials_slot:
+            ms = spec.materials_slot
+            for idx, mat_img in enumerate(assets.materials[: mat_policy.visible_item_count]):
+                item_x = ms.x + idx * (ms.thumb_w + ms.gap)
+                thumb_slot = ImageSlotSpec(
+                    x=item_x,
+                    y=ms.y,
+                    w=ms.thumb_w,
+                    h=ms.thumb_h,
+                    fit="contain",
+                    radius=ms.thumb_radius,
+                )
+                self._draw_image(canvas, thumb_slot, mat_img.convert("RGBA"))
+        # Logo (brand_only mode hides logo; identity_zone_mode drives this)
+        if spec.logo_slot and assets.logo and behavior.header_policy.identity_zone_mode != "brand_only":
+            self._draw_image(canvas, spec.logo_slot, assets.logo)
+        layer_timings["product_material_layer_ms"] = _elapsed(t0)
+
+        t1 = _now()
+        # Brand text
+        self._draw_text(
+            canvas,
+            _brand_text_slot(spec, behavior.header_policy, color=behavior.text_colors["brand"]),
+            _apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget),
+            draw_background=False,
+        )
+        # Top copy: title
+        top_copy_policy = behavior.top_copy_policy
+        if top_copy_policy and top_copy_policy.title_present and spec.title_slot:
+            self._draw_text(
+                canvas,
+                replace(spec.title_slot, color=behavior.text_colors["title"]),
+                _apply_char_budget(poster.title, 120),
+                draw_background=False,
+            )
+        # Top copy: subtitle
+        if top_copy_policy and top_copy_policy.subtitle_present and spec.subtitle_slot:
+            self._draw_text(
+                canvas,
+                replace(spec.subtitle_slot, color=behavior.text_colors["subtitle"]),
+                _apply_char_budget(poster.subtitle, 80),
+                draw_background=False,
+            )
+        # Description title
+        if desc_policy and desc_policy.title_present and spec.description_title_slot:
+            self._draw_text(
+                canvas,
+                replace(spec.description_title_slot, color=behavior.text_colors["title"]),
+                _apply_char_budget(poster.description_title, 80),
+                draw_background=False,
+            )
+        # Description body
+        if desc_policy and desc_policy.body_present and spec.description_body_slot:
+            self._draw_text(
+                canvas,
+                replace(spec.description_body_slot, color="#444444"),
+                _apply_char_budget(poster.description_body, 400),
+                draw_background=False,
+            )
+        layer_timings["text_layer_ms"] = _elapsed(t1)
+
+        png_bytes = _to_png(canvas)
+        layer_render_status = _build_renderer_layer_render_status(
+            poster=poster,
+            has_logo=assets.logo is not None,
+            has_scenario=False,
+            has_product=assets.product is not None,
+            has_product_secondary=assets.product_secondary is not None,
+            feature_count=0,
+            gallery_valid=0,
+            gallery_visible=0,
+            gallery_requested=0,
+            scenario_source=None,
+            product_source=poster.product_image.url,
+            logo_source=poster.logo.url if poster.logo else None,
+            scenario_safe_fill=False,
+            bottom_policy=behavior.bottom_policy,
+            header_policy=behavior.header_policy,
+            feature_mode="none",
+            product_policy=behavior.product_policy,
+        )
+        return ForegroundResult(
+            image=canvas,
+            png_bytes=png_bytes,
+            sha256=hashlib.sha256(png_bytes).hexdigest(),
+            render_engine_used=self.RENDER_ENGINE,
+            foreground_renderer=self.RENDERER_NAME,
+            template_contract_version=spec.contract_version,
+            layer_timings_ms=layer_timings,
+            gallery_items_status=[],
             layer_render_status=layer_render_status,
             region_render_status=_build_renderer_region_render_status(layer_render_status),
         )
@@ -632,6 +782,7 @@ class PuppeteerStructuredRenderer:
                 "product": _image_to_data_url(assets.product),
                 "product_secondary": _image_to_data_url(assets.product_secondary) if assets.product_secondary else "",
                 "gallery": gallery_urls,
+                "materials": [_image_to_data_url(m) for m in (assets.materials or [])],
             }
             logger.info(
                 "poster2.gallery_render_done count=%d bytes=%d",
@@ -735,6 +886,11 @@ class PuppeteerStructuredRenderer:
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
             agent_name=poster.agent_name,
+            # Template B extensions
+            materials_count=len(asset_urls.get("materials") or []),
+            description_title=poster.description_title,
+            description_body=poster.description_body,
+            sku_text=poster.sku_text,
         )
         template_contract_version = str(slot_spec.get("template_contract_version", spec.contract_version))
         font_css = self._font_faces_css()
@@ -783,6 +939,41 @@ class PuppeteerStructuredRenderer:
         gallery_items_class = gallery_layer_class
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
+
+        # Template B: title/subtitle live in top_copy_region, not bottom_policy
+        is_template_b = spec.template_id.startswith("template_product_sheet")
+        title_char_budget = 120 if is_template_b else behavior.bottom_policy.title_char_budget
+        subtitle_char_budget = 80 if is_template_b else behavior.bottom_policy.subtitle_char_budget
+        subtitle_class_resolved = (
+            ("state-show" if poster.subtitle else "state-hidden")
+            if is_template_b else subtitle_class
+        )
+
+        # Template B materials markup
+        materials_markup = ""
+        if is_template_b:
+            materials_markup = self._materials_markup(
+                slot_spec, asset_urls.get("materials") or []
+            )
+
+        # Template B top-copy/description/SKU state classes
+        top_copy_policy = behavior.top_copy_policy
+        materials_policy = behavior.materials_policy
+        description_policy = behavior.description_policy
+        top_copy_class = "state-show" if not is_template_b or (top_copy_policy and top_copy_policy.title_present) else "state-show"
+        sku_class = "state-show" if (top_copy_policy and top_copy_policy.sku_present) else "state-hidden"
+        materials_class = "state-show materials-strip-visible" if (materials_policy and materials_policy.rendered) else "state-hidden materials-strip-hidden"
+        product_hero_class = "state-show"
+        description_class = "state-show" if (description_policy and description_policy.rendered) else "state-hidden"
+        description_title_class = "state-show" if (description_policy and description_policy.title_present) else "state-hidden"
+        description_body_class = "state-show" if (description_policy and description_policy.body_present) else "state-hidden"
+
+        # Slot styles — guard against missing slots in Template B
+        scenario_slot_raw = slot_spec.get("slots", {}).get("scenario", {"x": 0, "y": 0, "w": 0, "h": 0})
+        desc_title_slot = slot_spec.get("slots", {}).get("description_title", {"x": 0, "y": 0, "w": 0, "h": 0})
+        desc_body_slot = slot_spec.get("slots", {}).get("description_body", {"x": 0, "y": 0, "w": 0, "h": 0})
+        sku_slot = {"x": 112, "y": 0, "w": 800, "h": 20}  # relative within top-copy container
+
         replacements = {
             "__INLINE_CSS__": css_template,
             "__FONT_FACE_CSS__": font_css,
@@ -801,16 +992,16 @@ class PuppeteerStructuredRenderer:
             "__AGENT_STYLE__": _slot_style(_header_agent_slot(slot_spec, behavior.header_policy)),
             "__AGENT_TEXT__": html.escape(_apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget)),
             "__TITLE_STYLE__": _slot_style(slot_spec["slots"]["title"]),
-            "__TITLE_TEXT__": html.escape(_apply_char_budget(poster.title, behavior.bottom_policy.title_char_budget)),
+            "__TITLE_TEXT__": html.escape(_apply_char_budget(poster.title, title_char_budget)),
             "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
-            "__SUBTITLE_TEXT__": html.escape(_apply_char_budget(poster.subtitle, behavior.bottom_policy.subtitle_char_budget)),
-            "__SUBTITLE_CLASS__": subtitle_class,
+            "__SUBTITLE_TEXT__": html.escape(_apply_char_budget(poster.subtitle, subtitle_char_budget)),
+            "__SUBTITLE_CLASS__": subtitle_class_resolved,
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
             "__SCENARIO_SHELL_CLASS__": scenario_shell_class,
             "__SCENARIO_CONTENT_CLASS__": scenario_content_class,
             "__AGENT_TEXT_CLASS__": agent_text_class,
-            "__SCENARIO_STYLE__": _slot_style(_scenario_slot(slot_spec, behavior.hero_policy)),
-            "__SCENARIO_URL__": asset_urls["scenario"],
+            "__SCENARIO_STYLE__": _slot_style(_scenario_slot_safe(slot_spec, behavior.hero_policy)),
+            "__SCENARIO_URL__": asset_urls.get("scenario", ""),
             "__PRODUCT_LAYER_CLASS__": product_layer_class,
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
             "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy, behavior.product_policy)),
@@ -833,6 +1024,21 @@ class PuppeteerStructuredRenderer:
             "__BOTTOM_TAGLINE_CLASS__": bottom_tagline_class,
             "__BOTTOM_TAGLINE_STYLE__": _slot_style(slot_spec["slots"]["bottom_tagline"]),
             "__BOTTOM_TAGLINE_TEXT__": html.escape(bottom_tagline_text),
+            # Template B tokens
+            "__TOP_COPY_CLASS__": top_copy_class,
+            "__SKU_CLASS__": sku_class,
+            "__SKU_STYLE__": _slot_style(sku_slot),
+            "__SKU_TEXT__": html.escape(poster.sku_text or ""),
+            "__MATERIALS_CLASS__": materials_class,
+            "__MATERIALS_ITEMS__": materials_markup,
+            "__PRODUCT_HERO_CLASS__": product_hero_class,
+            "__DESCRIPTION_CLASS__": description_class,
+            "__DESCRIPTION_TITLE_CLASS__": description_title_class,
+            "__DESCRIPTION_TITLE_STYLE__": _slot_style(desc_title_slot),
+            "__DESCRIPTION_TITLE_TEXT__": html.escape(poster.description_title or ""),
+            "__DESCRIPTION_BODY_CLASS__": description_body_class,
+            "__DESCRIPTION_BODY_STYLE__": _slot_style(desc_body_slot),
+            "__DESCRIPTION_BODY_TEXT__": html.escape(poster.description_body or ""),
         }
         rendered = html_template
         for key, value in replacements.items():
@@ -908,6 +1114,30 @@ class PuppeteerStructuredRenderer:
                 )
             )
         return "".join(items), f"state-show feature-mode-{mode}"
+
+    def _materials_markup(
+        self,
+        slot_spec: dict[str, Any],
+        materials_urls: list[str],
+    ) -> str:
+        """Build HTML markup for Template B materials thumbnail strip."""
+        if not materials_urls:
+            return ""
+        material_slots = slot_spec.get("slots", {}).get("materials", [])
+        items: list[str] = []
+        for idx, url in enumerate(materials_urls):
+            if idx >= len(material_slots):
+                break
+            ms = material_slots[idx]
+            w = int(ms.get("w", 140))
+            h = int(ms.get("h", 52))
+            radius = int(ms.get("radius", 8))
+            items.append(
+                f'<div class="materials-item" style="width:{w}px;height:{h}px;border-radius:{radius}px;">'
+                f'<img src="{url}" alt="" loading="eager" />'
+                "</div>"
+            )
+        return "".join(items)
 
     async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
         try:
@@ -2089,6 +2319,14 @@ def _header_agent_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderB
         }
     )
     return slot
+
+
+def _scenario_slot_safe(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:
+    """Like _scenario_slot but returns a zero-size slot when scenario is absent (Template B)."""
+    raw = slot_spec.get("slots", {}).get("scenario")
+    if raw is None:
+        return {"x": 0, "y": 0, "w": 0, "h": 0}
+    return _scenario_slot(slot_spec, hero_policy)
 
 
 def _scenario_slot(slot_spec: dict[str, Any], hero_policy) -> dict[str, Any]:

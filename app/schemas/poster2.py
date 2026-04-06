@@ -52,6 +52,12 @@ class GeneratePosterV2Request(BaseModel):
     bottom_mode: Optional[Literal["title_gallery_split", "title_only", "gallery_only", "text_only_expanded", "text_gallery_expanded"]] = Field(default=None)
     gallery_mode: Optional[Literal["strip_local_visible_only", "supporting_packshots"]] = Field(default=None)
 
+    # Template B extensions
+    materials_images: list[AssetRefInput] = Field(default_factory=list, max_length=5)
+    description_title: str = Field(default="", max_length=120)
+    description_body: str = Field(default="", max_length=500)
+    sku_text: str = Field(default="", max_length=80)
+
     # Style (background only)
     style: StyleInput = Field(default_factory=StyleInput)
 

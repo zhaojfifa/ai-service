@@ -1,0 +1,145 @@
+{
+  "template_id": "template_product_sheet_v1",
+  "template_contract_version": "poster2.template_product_sheet_v1.v1",
+  "canvas": { "w": 1024, "h": 1024 },
+  "safe_margin": 48,
+  "regions": {
+    "logo_banner_region":     { "x": 72,  "y": 56,  "w": 880, "h": 88  },
+    "top_copy_region":        { "x": 96,  "y": 168, "w": 832, "h": 100 },
+    "materials_strip_region": { "x": 112, "y": 280, "w": 800, "h": 52  },
+    "product_hero_region":    { "x": 112, "y": 348, "w": 800, "h": 384 },
+    "description_region":     { "x": 96,  "y": 748, "w": 832, "h": 228 }
+  },
+  "layers": {
+    "background":             { "x": 0,   "y": 0,   "w": 1024, "h": 1024 },
+    "background_base_layer":  { "x": 0,   "y": 0,   "w": 1024, "h": 1024 },
+    "header_banner":          { "x": 72,  "y": 56,  "w": 880,  "h": 88   },
+    "header_shell_layer":     { "x": 72,  "y": 56,  "w": 880,  "h": 88   },
+    "brand_logo_layer":       { "x": 104, "y": 68,  "w": 120,  "h": 64   },
+    "brand_text_layer":       { "x": 244, "y": 74,  "w": 536,  "h": 36   },
+    "agent_name_text_layer":  { "x": 244, "y": 108, "w": 536,  "h": 24   },
+    "top_copy_layer":         { "x": 96,  "y": 168, "w": 832,  "h": 100  },
+    "sku_text_layer":         { "x": 112, "y": 172, "w": 800,  "h": 20   },
+    "title_layer":            { "x": 112, "y": 176, "w": 800,  "h": 56   },
+    "subtitle_layer":         { "x": 152, "y": 238, "w": 720,  "h": 24   },
+    "materials_strip_layer":  { "x": 112, "y": 280, "w": 800,  "h": 52   },
+    "product_hero_layer":     { "x": 112, "y": 348, "w": 800,  "h": 384  },
+    "product_image_layer":    { "x": 112, "y": 348, "w": 800,  "h": 384  },
+    "description_layer":      { "x": 96,  "y": 748, "w": 832,  "h": 228  },
+    "description_title_layer":{ "x": 112, "y": 756, "w": 800,  "h": 40   },
+    "description_body_layer": { "x": 128, "y": 804, "w": 768,  "h": 120  }
+  },
+  "layer_contracts": {
+    "background_base_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 0, "y": 0, "w": 1024, "h": 1024 },
+      "collapse_rule": "never collapse"
+    },
+    "header_shell_layer": {
+      "visible_when": "always",
+      "bounds": { "x": 72, "y": 56, "w": 880, "h": 88 },
+      "collapse_rule": "never collapse"
+    },
+    "brand_logo_layer": {
+      "visible_when": "logo.url exists",
+      "bounds": { "x": 104, "y": 68, "w": 120, "h": 64 },
+      "collapse_rule": "collapse only when logo is absent"
+    },
+    "brand_text_layer": {
+      "visible_when": "brand_name present",
+      "bounds": { "x": 244, "y": 74, "w": 536, "h": 36 },
+      "max_lines": 1,
+      "collapse_rule": "must not collapse"
+    },
+    "agent_name_text_layer": {
+      "visible_when": "agent_name present",
+      "bounds": { "x": 244, "y": 108, "w": 536, "h": 24 },
+      "max_lines": 1,
+      "collapse_rule": "collapse when agent_name is empty"
+    },
+    "top_copy_layer": {
+      "visible_when": "title present",
+      "bounds": { "x": 96, "y": 168, "w": 832, "h": 100 },
+      "collapse_rule": "must not collapse"
+    },
+    "sku_text_layer": {
+      "visible_when": "sku_text present",
+      "bounds": { "x": 112, "y": 172, "w": 800, "h": 20 },
+      "max_lines": 1,
+      "collapse_rule": "collapse when sku_text is empty"
+    },
+    "title_layer": {
+      "visible_when": "title present",
+      "bounds": { "x": 112, "y": 176, "w": 800, "h": 56 },
+      "max_lines": 2,
+      "collapse_rule": "must not collapse"
+    },
+    "subtitle_layer": {
+      "visible_when": "subtitle present",
+      "bounds": { "x": 152, "y": 238, "w": 720, "h": 24 },
+      "max_lines": 1,
+      "collapse_rule": "collapse when subtitle is empty"
+    },
+    "materials_strip_layer": {
+      "visible_when": "materials_images.length > 0",
+      "bounds": { "x": 112, "y": 280, "w": 800, "h": 52 },
+      "max_items": 5,
+      "collapse_rule": "collapse when no materials images provided",
+      "collapse_policy": "hide_no_reserve"
+    },
+    "product_hero_layer": {
+      "visible_when": "product_image.url exists",
+      "bounds": { "x": 112, "y": 348, "w": 800, "h": 384 },
+      "collapse_rule": "must not collapse"
+    },
+    "product_image_layer": {
+      "visible_when": "product_image.url exists",
+      "bounds": { "x": 112, "y": 348, "w": 800, "h": 384 },
+      "fit_policy": "contain",
+      "collapse_rule": "collapse when product_image.url is absent"
+    },
+    "description_layer": {
+      "visible_when": "description_title or description_body present",
+      "bounds": { "x": 96, "y": 748, "w": 832, "h": 228 },
+      "collapse_rule": "collapse when both description_title and description_body are empty"
+    },
+    "description_title_layer": {
+      "visible_when": "description_title present",
+      "bounds": { "x": 112, "y": 756, "w": 800, "h": 40 },
+      "max_lines": 1,
+      "collapse_rule": "collapse when description_title is empty"
+    },
+    "description_body_layer": {
+      "visible_when": "description_body present",
+      "bounds": { "x": 128, "y": 804, "w": 768, "h": 120 },
+      "max_lines": 5,
+      "collapse_rule": "collapse when description_body is empty"
+    }
+  },
+  "protected_zones": [
+    { "name": "logo_banner",      "x": 72,  "y": 56,  "w": 880, "h": 88  },
+    { "name": "top_copy",         "x": 96,  "y": 168, "w": 832, "h": 100 },
+    { "name": "materials_strip",  "x": 112, "y": 280, "w": 800, "h": 52  },
+    { "name": "product_hero",     "x": 112, "y": 348, "w": 800, "h": 384 },
+    { "name": "description_zone", "x": 96,  "y": 748, "w": 832, "h": 228 }
+  ],
+  "slots": {
+    "logo":               { "x": 104, "y": 68,  "w": 120, "h": 64,  "fit": "contain" },
+    "brand_name":         { "x": 244, "y": 74,  "w": 536, "h": 36  },
+    "agent_name":         { "x": 244, "y": 108, "w": 536, "h": 24  },
+    "title":              { "x": 112, "y": 176, "w": 800, "h": 56  },
+    "subtitle":           { "x": 152, "y": 238, "w": 720, "h": 24  },
+    "product":            { "x": 112, "y": 348, "w": 800, "h": 384, "fit": "contain", "align_x": "center", "align_y": "center", "pad_top": 16, "pad_right": 24, "pad_bottom": 16, "pad_left": 24 },
+    "description_title":  { "x": 112, "y": 756, "w": 800, "h": 40  },
+    "description_body":   { "x": 128, "y": 804, "w": 768, "h": 120 },
+    "bottom_tagline":     { "x": 196, "y": 966, "w": 632, "h": 20  },
+    "gallery":            [],
+    "materials": [
+      { "x": 112, "y": 280, "w": 140, "h": 52, "fit": "contain", "radius": 8 },
+      { "x": 264, "y": 280, "w": 140, "h": 52, "fit": "contain", "radius": 8 },
+      { "x": 416, "y": 280, "w": 140, "h": 52, "fit": "contain", "radius": 8 },
+      { "x": 568, "y": 280, "w": 140, "h": 52, "fit": "contain", "radius": 8 },
+      { "x": 720, "y": 280, "w": 140, "h": 52, "fit": "contain", "radius": 8 }
+    ]
+  }
+}

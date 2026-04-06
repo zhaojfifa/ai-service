@@ -117,6 +117,18 @@ class AssetLoader:
             })
             gallery_tasks.append(asyncio.create_task(fetch_gallery(ref, idx)))
 
+        materials_refs = list(spec.materials_images)[:5]
+        materials_tasks = []
+        materials_status: list[dict] = []
+        for idx, ref in enumerate(materials_refs):
+            materials_status.append({
+                "index": idx,
+                "url": ref.url,
+                "resolved": False,
+                "error_code": None,
+            })
+            materials_tasks.append(asyncio.create_task(maybe(ref)))
+
         product = await product_task
         if product is None:
             raise ValueError("product_image is required and could not be loaded")
@@ -138,6 +150,15 @@ class AssetLoader:
             len(gallery),
         )
 
+        materials_results = await asyncio.gather(*materials_tasks)
+        materials: list[PILImage.Image] = []
+        for idx, img in enumerate(materials_results):
+            if img is None:
+                materials_status[idx]["error_code"] = "materials_item_load_failed"
+                continue
+            materials.append(img)
+            materials_status[idx]["resolved"] = True
+
         return ResolvedAssets(
             product=product,
             logo=logo,
@@ -145,6 +166,8 @@ class AssetLoader:
             product_secondary=product_secondary,
             gallery=gallery,
             gallery_status=gallery_status,
+            materials=materials,
+            materials_status=materials_status,
         )
 
     async def load_url(self, url: str) -> PILImage.Image:

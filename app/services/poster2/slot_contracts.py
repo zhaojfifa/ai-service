@@ -244,87 +244,96 @@ def _resolve_family_a_slot_contracts(
 
 def _resolve_family_b_slot_contracts(metadata: TemplateMetadata) -> ResolvedSlotContracts:
     slots = {
+        "brand_logo_slot": SlotContractDefinition(
+            slot_id="brand_logo_slot",
+            region_id="logo_banner_region",
+            source_binding="logo",
+            required=False,
+            count_min=0,
+            count_max=1,
+            collapse_rule="collapse when logo is absent",
+            failure_semantics="logo may collapse without failing logo_banner_region",
+        ),
         "brand_text_slot": SlotContractDefinition(
             slot_id="brand_text_slot",
-            region_id="brand_banner_region",
+            region_id="logo_banner_region",
             source_binding="brand_name",
             required=True,
             count_min=1,
             count_max=1,
             collapse_rule="must not collapse",
-            failure_semantics="brand_banner_region fails when brand identity is missing",
+            failure_semantics="logo_banner_region fails when brand identity is missing",
         ),
-        "reference_slot": SlotContractDefinition(
-            slot_id="reference_slot",
-            region_id="reference_region",
-            source_binding="reference_text",
+        "title_slot": SlotContractDefinition(
+            slot_id="title_slot",
+            region_id="top_copy_region",
+            source_binding="title",
+            required=True,
+            count_min=1,
+            count_max=1,
+            collapse_rule="must not collapse",
+            failure_semantics="top_copy_region fails when title is missing",
+        ),
+        "subtitle_slot": SlotContractDefinition(
+            slot_id="subtitle_slot",
+            region_id="top_copy_region",
+            source_binding="subtitle",
             required=False,
             count_min=0,
             count_max=1,
-            collapse_rule="collapse when reference_text is empty",
-            failure_semantics="reference_region may collapse without failing Family B",
+            collapse_rule="collapse when subtitle is empty",
+            failure_semantics="subtitle may collapse without failing top_copy_region",
+        ),
+        "materials_item_slot[]": SlotContractDefinition(
+            slot_id="materials_item_slot[]",
+            region_id="materials_strip_region",
+            source_binding="materials_images",
+            required=False,
+            count_min=0,
+            count_max=5,
+            collapse_rule="collapse when no materials images provided",
+            failure_semantics="materials_strip_region collapses entirely when empty",
+            is_array=True,
         ),
         "product_image_slot": SlotContractDefinition(
             slot_id="product_image_slot",
-            region_id="hero_product_region",
+            region_id="product_hero_region",
             source_binding="product_image",
             required=True,
             count_min=1,
             count_max=1,
             collapse_rule="must not collapse",
-            failure_semantics="hero_product_region fails when product_image is missing",
+            failure_semantics="product_hero_region fails when product_image is missing",
         ),
-        "supporting_image_slot[]": SlotContractDefinition(
-            slot_id="supporting_image_slot[]",
-            region_id="hero_product_region",
-            source_binding="supporting_images",
-            required=False,
-            count_min=0,
-            count_max=4,
-            collapse_rule="collapse unused supporting images without changing hero product semantics",
-            failure_semantics="supporting visuals may collapse without failing Family B",
-            is_array=True,
-        ),
-        "spec_item_slot[]": SlotContractDefinition(
-            slot_id="spec_item_slot[]",
-            region_id="spec_region",
-            source_binding="spec_items",
-            required=False,
-            count_min=0,
-            count_max=8,
-            collapse_rule="collapse when no spec items exist",
-            failure_semantics="spec_region requires valid spec entries when rendered",
-            is_array=True,
-        ),
-        "copy_slot": SlotContractDefinition(
-            slot_id="copy_slot",
-            region_id="copy_region",
-            source_binding="copy_text",
+        "product_secondary_slot": SlotContractDefinition(
+            slot_id="product_secondary_slot",
+            region_id="product_hero_region",
+            source_binding="product_secondary_image",
             required=False,
             count_min=0,
             count_max=1,
-            collapse_rule="collapse when copy_text is empty",
-            failure_semantics="copy_region requires text when rendered",
+            collapse_rule="hide_no_reserve when asset absent",
+            failure_semantics="secondary image collapses without reserving space",
         ),
-        "cta_slot": SlotContractDefinition(
-            slot_id="cta_slot",
-            region_id="cta_region",
-            source_binding="cta_text",
+        "description_title_slot": SlotContractDefinition(
+            slot_id="description_title_slot",
+            region_id="description_region",
+            source_binding="description_title",
             required=False,
             count_min=0,
             count_max=1,
-            collapse_rule="collapse when cta_text is empty",
-            failure_semantics="cta may collapse without failing Family B",
+            collapse_rule="collapse when description_title is empty",
+            failure_semantics="description title may collapse without failing description_region",
         ),
-        "footer_brand_slot": SlotContractDefinition(
-            slot_id="footer_brand_slot",
-            region_id="footer_brand_region",
-            source_binding="footer_brand_text",
+        "description_body_slot": SlotContractDefinition(
+            slot_id="description_body_slot",
+            region_id="description_region",
+            source_binding="description_body",
             required=False,
             count_min=0,
             count_max=1,
-            collapse_rule="collapse when footer brand text is empty",
-            failure_semantics="footer brand may collapse without failing Family B",
+            collapse_rule="collapse when description_body is empty",
+            failure_semantics="description body may collapse without failing description_region",
         ),
     }
     return ResolvedSlotContracts(
@@ -360,6 +369,14 @@ def _resolve_rendered_count(
         return 1 if spec.subtitle else 0
     if binding == "gallery_images":
         return min(len(assets.gallery), contract.count_max)
+    if binding == "materials_images":
+        return min(len(assets.materials), contract.count_max)
+    if binding == "description_title":
+        return 1 if spec.description_title else 0
+    if binding == "description_body":
+        return 1 if spec.description_body else 0
+    if binding == "product_secondary_image":
+        return 1 if assets.product_secondary is not None else 0
     raw = binding_inputs.get(binding)
     if contract.is_array:
         if not raw:
@@ -385,10 +402,13 @@ def _apply_cross_slot_rules(
             )
         return
     if metadata.template_family == FAMILY_B_PRODUCT_SHEET_STORY:
-        spec_items = binding_inputs.get("spec_items") or []
-        copy_text = binding_inputs.get("copy_text") or ""
-        if not spec_items and not copy_text:
+        if not spec.brand_name:
             report.add_violation(
-                "family_b_information_core",
-                "spec_item_slot[] or copy_slot must satisfy minimum information delivery",
+                "logo_banner_region",
+                "brand_text_slot must be present for product sheet identity",
+            )
+        if not spec.title:
+            report.add_violation(
+                "top_copy_region",
+                "title_slot must be present for product identity",
             )

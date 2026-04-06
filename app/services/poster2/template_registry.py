@@ -95,6 +95,30 @@ _TEMPLATE_REGISTRY: dict[str, TemplateMetadata] = {
             "title_band_region",
         ),
     ),
+    "template_product_sheet_v1": TemplateMetadata(
+        template_id="template_product_sheet_v1",
+        template_version="1.0.0",
+        template_family=FAMILY_B_PRODUCT_SHEET_STORY,
+        family_mode="product_sheet_core",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=(
+            "puppeteer_timeout",
+            "puppeteer_template_render_failed",
+            "puppeteer_navigation_failed",
+            "puppeteer_screenshot_failed",
+            "puppeteer_browser_launch_failed",
+            "puppeteer_asset_load_failed",
+            "puppeteer_missing_chromium",
+            "puppeteer_missing_system_libs",
+            "puppeteer_unknown_error",
+        ),
+        minimum_deliverable_regions=(
+            "logo_banner_region",
+            "top_copy_region",
+            "product_hero_region",
+        ),
+    ),
 }
 
 
