@@ -408,7 +408,12 @@ class LayoutRenderer:
         canvas: PILImage.Image,
         bounds: dict[str, int],
     ) -> None:
-        """Draw a semi-transparent white panel behind the annotation text shell zone."""
+        """Draw a visual separator and tint behind the annotation text shell zone.
+
+        The shell background is already white, so a white fill is invisible.
+        Instead: draw a subtle gray tint on the zone + a thin vertical line
+        in the gap between the product canvas and the text column.
+        """
         w = bounds.get("w", 0)
         if w <= 0:
             return
@@ -418,7 +423,11 @@ class LayoutRenderer:
         x1 = bounds["x"] + bounds["w"] + pad
         y1 = bounds["y"] + bounds["h"] + pad
         draw = ImageDraw.Draw(canvas)
-        draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(255, 255, 255, 160))
+        # Subtle gray tint over text shell zone — visible on white shell background
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(0, 0, 0, 18))
+        # Thin vertical separator line in the 28px gap between canvas right (756) and text shell (784)
+        sep_x = bounds["x"] - 14  # midpoint of gap: 784 - 14 = 770
+        draw.line([(sep_x, y0 + 8), (sep_x, y1 - 8)], fill=(0, 0, 0, 35), width=1)
 
     def _draw_image(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
         inner_x = slot.x + slot.pad_left
