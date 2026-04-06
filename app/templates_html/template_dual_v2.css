@@ -666,20 +666,6 @@ body {
   box-shadow: var(--shell-shadow-secondary);
 }
 
-/* PR-6D: text_only_expanded (state-title-only) shell height = title_band_height (content-proportionate).
-   Shell top=640. Default fallback is compact (160px, no subtitle). Backend vars override all. */
-.layer-bottom-region.state-title-only .region-shell-bottom {
-  height: 160px;
-}
-
-.layer-bottom-region.state-title-only {
-  --bottom-shell-top: 640px;
-  --bottom-shell-height: 160px;
-  --title-band-top: 640px;
-  --title-band-height: 160px;
-  --title-content-top: 640px;
-  --title-content-height: 160px;
-}
 
 .layer-bottom-region.state-gallery-only .region-shell-bottom {
   top: 880px;
@@ -695,23 +681,6 @@ body {
   --gallery-items-height: 56px;
 }
 
-.layer-bottom-region.state-title-gallery .region-shell-bottom {
-  top: 728px;
-  height: 232px;
-}
-
-.layer-bottom-region.state-title-gallery {
-  --bottom-shell-top: 728px;
-  --bottom-shell-height: 232px;
-  --title-band-top: 728px;
-  --title-band-height: 144px;
-  --title-content-top: 728px;
-  --title-content-height: 144px;
-  --gallery-shell-top: 888px;
-  --gallery-shell-height: 72px;
-  --gallery-items-top: 896px;
-  --gallery-items-height: 56px;
-}
 
 .region-shell-title-band {
   position: absolute;
