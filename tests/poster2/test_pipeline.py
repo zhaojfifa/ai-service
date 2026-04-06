@@ -271,7 +271,7 @@ class TestPosterPipelineRun:
         manifest = self._run(_make_spec())
         assert manifest.background_seed == 42
         assert manifest.background_model == "firefly-v3"
-        assert manifest.template_version == "2.1.5"
+        assert manifest.template_version == "2.1.6"
         assert manifest.template_contract_version == "poster2.template_dual_v2.v1"
         assert manifest.engine_version == "2.0.0"
         assert manifest.render_engine_used == "pillow"
@@ -492,7 +492,7 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 168}
         # PR-6E: no gallery → gallery_strip_rendered=False → full_width_title_band_no_gallery (x=96, w=832)
         assert geometry["region_bounds"]["title_band_region"] == {"x": 96, "y": 728, "w": 832, "h": 168}
-        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 472, "h": 540}
+        assert geometry["region_bounds"]["product_region"] == {"x": 456, "y": 188, "w": 504, "h": 540}  # PR-11: outer_w 472→504
         assert geometry["slot_bounds"]["brand_name_slot"] == {"x": 244, "y": 88, "w": 416, "h": 36}
         assert geometry["slot_bounds"]["agent_name_slot"] == {"x": 684, "y": 96, "w": 228, "h": 36}
         assert geometry["slot_bounds"]["scenario_slot"] == {"x": 96, "y": 188, "w": 288, "h": 520}
@@ -1698,9 +1698,9 @@ class TestProductLayoutContract:
 
         assert review["product_region"] == {
             "rendered": True,
-            "bounds": {"x": 456, "y": 188, "w": 472, "h": 540},
+            "bounds": {"x": 456, "y": 188, "w": 504, "h": 540},  # PR-11: outer_w 472→504
         }
-        assert review["product_card_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 472, "h": 540}
+        assert review["product_card_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 504, "h": 540}  # PR-11
         assert review["product_canvas_shell_layer"]["bounds"] == {"x": 456, "y": 188, "w": 300, "h": 540}
 
     def test_single_primary_mode_is_backward_compatible_default(self):
@@ -2445,7 +2445,7 @@ class TestProductGeometryPR4Rebalance:
         assert primary_bottom < _PRODUCT_DUAL_SECONDARY_SLOT["y"]
 
     def test_text_shell_bounds_after_prc(self):
-        """PR-4/PR-C: text_shell x/y/w unchanged by PR-4; h updated to 276 in PR-C (label_box h 60→76)."""
+        """PR-4/PR-C/PR-11: text_shell x/y/h unchanged; w widened to 176 in PR-11 (label_box w 144→176)."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_TEXT_SHELL_X,
             _PRODUCT_TEXT_SHELL_Y,
@@ -2454,7 +2454,7 @@ class TestProductGeometryPR4Rebalance:
         )
         assert _PRODUCT_TEXT_SHELL_X == 784
         assert _PRODUCT_TEXT_SHELL_Y == 216
-        assert _PRODUCT_TEXT_SHELL_W == 144
+        assert _PRODUCT_TEXT_SHELL_W == 176
         assert _PRODUCT_TEXT_SHELL_H == 276
 
     def test_text_shell_still_does_not_compete_with_canvas(self):
@@ -2622,7 +2622,7 @@ class TestProductTextShellContract:
     """
 
     def test_product_text_shell_constants_geometry(self):
-        """_PRODUCT_TEXT_SHELL_* constants must match the template spec label_box geometry (h=276 after PR-C)."""
+        """_PRODUCT_TEXT_SHELL_* constants must match the template spec label_box geometry (w=176 after PR-11)."""
         from app.services.poster2.template_behavior import (
             _PRODUCT_TEXT_SHELL_X,
             _PRODUCT_TEXT_SHELL_Y,
@@ -2634,7 +2634,7 @@ class TestProductTextShellContract:
         # Matches template_dual_v2.json feature_callouts label_box union across 3 slots
         assert _PRODUCT_TEXT_SHELL_X == 784
         assert _PRODUCT_TEXT_SHELL_Y == 216
-        assert _PRODUCT_TEXT_SHELL_W == 144
+        assert _PRODUCT_TEXT_SHELL_W == 176  # PR-11: label_box w 144→176
         assert _PRODUCT_TEXT_SHELL_H == 276  # PR-C: label_box h 60→76, shell h 260→276
         # Does not compete with canvas: text shell left edge >= canvas right edge
         canvas_right = 456 + _PRODUCT_CANVAS_SHELL_W  # 756
@@ -2656,7 +2656,7 @@ class TestProductTextShellContract:
         lm = metadata["product_contract_review"]["behavior_policy"]["layout_metrics"]
         assert lm["product_text_shell_x"] == 784
         assert lm["product_text_shell_y"] == 216
-        assert lm["product_text_shell_w"] == 144
+        assert lm["product_text_shell_w"] == 176  # PR-11: label_box w 144→176
         assert lm["product_text_shell_h"] == 276  # PR-C
 
     def test_product_text_shell_layer_in_product_contract_review(self):
@@ -2668,7 +2668,7 @@ class TestProductTextShellContract:
         tsl = review["product_text_shell_layer"]
         assert tsl["rendered"] is True
         assert tsl["reason_code"] is None
-        assert tsl["bounds"] == {"x": 784, "y": 216, "w": 144, "h": 276}  # PR-C: h 260→276
+        assert tsl["bounds"] == {"x": 784, "y": 216, "w": 176, "h": 276}  # PR-11: w 144→176
         assert tsl["owner_region"] == "product_region"
         assert tsl["owner_surface"] == "product_text_shell_layer"
         assert tsl["text_does_not_compete_with_canvas"] is True
@@ -2992,14 +2992,16 @@ class TestProductImageContract:
 
 
 class TestProductTextCapacityPRC:
-    """PR-C: annotation label bounds / line clamp / char budget tuning.
+    """PR-C / PR-11: annotation label bounds / line clamp / char budget tuning.
 
     Validates:
-    - _PRODUCT_TEXT_SHELL_H updated to 276 (slot_3 bottom 492 - slot_1 top 216)
-    - label_box h=76 for slots 1-3 in template spec
-    - line_clamp=3 in ResolvedProductBehavior for product_anchor_callouts
-    - line_clamp=3 in ResolvedFeatureBehavior for product_anchor_callouts
-    - char_budget raised: {1:44, 2:38, 3:32}
+    - _PRODUCT_TEXT_SHELL_H updated to 276 (slot_3 bottom 492 - slot_1 top 216)  [PR-C]
+    - label_box h=76 for slots 1-3 in template spec  [PR-C]
+    - line_clamp=3 in ResolvedProductBehavior for product_anchor_callouts  [PR-C]
+    - line_clamp=3 in ResolvedFeatureBehavior for product_anchor_callouts  [PR-C]
+    - label_box w=176 for slots 1-3; overflow slot 4 stays at w=144  [PR-11 closeout]
+    - _PRODUCT_TEXT_SHELL_W=176, _PRODUCT_REGION_OUTER_W=504, right edge 960 < canvas 1024  [PR-11]
+    - char_budget raised: {1:52, 2:46, 3:44}  [PR-11: widened from {1:44, 2:38, 3:32}]
     - truncation_policy="three_line_clamp" for product_anchor_callouts feature behavior
     - text_budget_policy="fixed_3_anchor_three_line_budget" for product annotation
     - text_shell still does not compete with canvas; stays within product_region
@@ -3067,7 +3069,7 @@ class TestProductTextCapacityPRC:
         assert policy.truncation_policy == "three_line_clamp"
 
     def test_char_budget_raised_three_items(self):
-        """PR-C: char_budget for 3 annotation items must be 32."""
+        """PR-11: char_budget for 3 annotation items must be 44 (widened from 32 with label w 144→176)."""
         from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
         template = _load_template()
         hero = resolve_hero_behavior("scenario_cover_product_contain")
@@ -3079,10 +3081,10 @@ class TestProductTextCapacityPRC:
             requested_feature_count=3,
             hero_policy=hero,
         )
-        assert policy.char_budget == 32
+        assert policy.char_budget == 44
 
     def test_char_budget_raised_two_items(self):
-        """PR-C: char_budget for 2 annotation items must be 38."""
+        """PR-11: char_budget for 2 annotation items must be 46 (widened from 38 with label w 144→176)."""
         from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
         template = _load_template()
         hero = resolve_hero_behavior("scenario_cover_product_contain")
@@ -3094,10 +3096,10 @@ class TestProductTextCapacityPRC:
             requested_feature_count=2,
             hero_policy=hero,
         )
-        assert policy.char_budget == 38
+        assert policy.char_budget == 46
 
     def test_char_budget_raised_one_item(self):
-        """PR-C: char_budget for 1 annotation item must be 44."""
+        """PR-11: char_budget for 1 annotation item must be 52 (widened from 44 with label w 144→176)."""
         from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
         template = _load_template()
         hero = resolve_hero_behavior("scenario_cover_product_contain")
@@ -3109,7 +3111,7 @@ class TestProductTextCapacityPRC:
             requested_feature_count=1,
             hero_policy=hero,
         )
-        assert policy.char_budget == 44
+        assert policy.char_budget == 52
 
     def test_text_budget_policy_is_three_line_label(self):
         """PR-C: product annotation text_budget_policy must be 'fixed_3_anchor_three_line_budget'."""
@@ -3141,6 +3143,41 @@ class TestProductTextCapacityPRC:
         )
         assert slot3_top - slot2_bottom >= 16, (
             f"Gap slot2→slot3 ({slot3_top - slot2_bottom}px) must be ≥ 16px"
+        )
+
+    def test_label_box_w_is_176_for_active_slots(self):
+        """PR-11: label_box.w must be 176 for annotation slots 0-2 (active anchor slots)."""
+        template = _load_template()
+        callouts = template.feature_callouts
+        assert len(callouts) >= 3
+        assert callouts[0].label_box.w == 176, f"slot 0 w={callouts[0].label_box.w}, want 176"
+        assert callouts[1].label_box.w == 176, f"slot 1 w={callouts[1].label_box.w}, want 176"
+        assert callouts[2].label_box.w == 176, f"slot 2 w={callouts[2].label_box.w}, want 176"
+
+    def test_label_box_w_is_144_for_overflow_slot(self):
+        """PR-11: overflow-safety slot (index 3, y=516) must remain at w=144 — not widened."""
+        template = _load_template()
+        callouts = template.feature_callouts
+        assert len(callouts) >= 4
+        assert callouts[3].label_box.w == 144, f"slot 3 w={callouts[3].label_box.w}, want 144 (overflow slot)"
+
+    def test_right_edge_within_canvas_margin(self):
+        """PR-11: right edge of text shell (784+176=960) must be within canvas with >= 48px margin."""
+        from app.services.poster2.template_behavior import (
+            _PRODUCT_TEXT_SHELL_X,
+            _PRODUCT_TEXT_SHELL_W,
+            _PRODUCT_REGION_OUTER_W,
+        )
+        canvas_w = 1024
+        safe_margin = 48
+        right_edge = _PRODUCT_TEXT_SHELL_X + _PRODUCT_TEXT_SHELL_W
+        assert right_edge == 960, f"right edge={right_edge}, expected 960"
+        assert canvas_w - right_edge >= safe_margin, (
+            f"Right margin {canvas_w - right_edge}px < safe_margin {safe_margin}px"
+        )
+        # outer_w invariant: text_shell_x + text_shell_w == region_x + outer_w
+        assert right_edge == 456 + _PRODUCT_REGION_OUTER_W, (
+            f"outer_w invariant broken: {right_edge} != 456 + {_PRODUCT_REGION_OUTER_W}"
         )
 
 

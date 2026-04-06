@@ -1,7 +1,7 @@
 {
   "_comment": "Poster 2.0 — template_dual mapped to deterministic TemplateSpec. Coordinates match template_dual_spec.json exactly. Version must be bumped on any geometry change.",
   "template_id": "template_dual_v2",
-  "version": "2.1.5",
+  "version": "2.1.6",
   "contract_version": "poster2.template_dual_v2.v1",
   "behavior_modes": {
     "hero_mode": "scenario_cover_product_contain",
@@ -109,7 +109,7 @@
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 784, "y": 216, "w": 144, "h": 76,
+        "x": 784, "y": 216, "w": 176, "h": 76,
         "font_key": "feature",
         "font_size": 15,
         "color": "#1A1A1A",
@@ -128,7 +128,7 @@
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 784, "y": 316, "w": 144, "h": 76,
+        "x": 784, "y": 316, "w": 176, "h": 76,
         "font_key": "feature",
         "font_size": 15,
         "color": "#1A1A1A",
@@ -147,7 +147,7 @@
       "leader_color": "#E8002A",
       "leader_width": 2,
       "label_box": {
-        "x": 784, "y": 416, "w": 144, "h": 76,
+        "x": 784, "y": 416, "w": 176, "h": 76,
         "font_key": "feature",
         "font_size": 15,
         "color": "#1A1A1A",

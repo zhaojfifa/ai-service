@@ -631,7 +631,16 @@ body {
   -webkit-line-clamp: 3;
   line-clamp: 3;
   min-height: 76px;
-  padding-right: 14px;
+  padding: 10px 14px 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(232, 0, 42, 0.18);
+  box-shadow:
+    0 2px 8px rgba(22, 14, 14, 0.10),
+    0 8px 20px rgba(22, 14, 14, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+  hyphens: none;
 }
 
 .feature-callout-connector {
@@ -641,6 +650,12 @@ body {
   background: linear-gradient(90deg, rgba(232, 0, 42, 0.24), var(--accent-tone));
   border-radius: 1px;
   opacity: 0.72;
+}
+
+.product-annotation-mode-product_anchor_callouts .feature-callout-connector {
+  background: var(--accent-tone);
+  opacity: 0.88;
+  height: 1.5px;
 }
 
 .layer-feature-callouts.feature-mode-4 .feature-callout-connector {
@@ -657,6 +672,15 @@ body {
   box-shadow:
     0 0 0 3px rgba(255, 255, 255, 0.82),
     0 6px 14px rgba(232, 0, 42, 0.18);
+}
+
+.product-annotation-mode-product_anchor_callouts .feature-callout-marker {
+  width: 16px;
+  height: 16px;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.90),
+    0 0 0 5px rgba(232, 0, 42, 0.16),
+    0 4px 12px rgba(232, 0, 42, 0.28);
 }
 
 .layer-bottom-region {
