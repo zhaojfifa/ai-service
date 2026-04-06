@@ -267,33 +267,41 @@ def _resolve_family_a_matrix(metadata: TemplateMetadata) -> ResolvedRegionMatrix
 
 def _resolve_family_b_matrix(metadata: TemplateMetadata) -> ResolvedRegionMatrix:
     region_order = (
-        "brand_banner_region",
-        "reference_region",
-        "hero_product_region",
-        "spec_region",
-        "copy_region",
-        "cta_region",
-        "footer_brand_region",
+        "logo_banner_region",
+        "top_copy_region",
+        "materials_strip_region",
+        "product_hero_region",
+        "description_region",
     )
     regions = {
-        "brand_banner_region": RegionDefinition(
-            region_id="brand_banner_region",
+        "logo_banner_region": RegionDefinition(
+            region_id="logo_banner_region",
             role="branding_region",
             status="mandatory",
             mandatory=True,
             collapsible=False,
             minimum_success_conditions=("brand banner must remain visible",),
         ),
-        "reference_region": RegionDefinition(
-            region_id="reference_region",
+        "top_copy_region": RegionDefinition(
+            region_id="top_copy_region",
+            role="identity_region",
+            status="mandatory",
+            mandatory=True,
+            collapsible=False,
+            minimum_success_conditions=(
+                "product title must be visible for product identity",
+            ),
+        ),
+        "materials_strip_region": RegionDefinition(
+            region_id="materials_strip_region",
             role="proof_region",
             status="collapsible",
             mandatory=False,
             collapsible=True,
-            collapse_conditions=("collapse when reference binding is empty",),
+            collapse_conditions=("collapse when no materials images provided",),
         ),
-        "hero_product_region": RegionDefinition(
-            region_id="hero_product_region",
+        "product_hero_region": RegionDefinition(
+            region_id="product_hero_region",
             role="hero_region",
             status="mandatory",
             mandatory=True,
@@ -302,41 +310,13 @@ def _resolve_family_b_matrix(metadata: TemplateMetadata) -> ResolvedRegionMatrix
                 "hero product image must render without distortion",
             ),
         ),
-        "spec_region": RegionDefinition(
-            region_id="spec_region",
-            role="proof_region",
-            status="conditional_mandatory",
-            mandatory=False,
-            collapsible=True,
-            replacement_rules=(
-                "spec_region or copy_region must satisfy minimum information delivery",
-            ),
-        ),
-        "copy_region": RegionDefinition(
-            region_id="copy_region",
-            role="conversion_region",
-            status="conditional_mandatory",
-            mandatory=False,
-            collapsible=True,
-            replacement_rules=(
-                "copy_region or spec_region must satisfy minimum information delivery",
-            ),
-        ),
-        "cta_region": RegionDefinition(
-            region_id="cta_region",
+        "description_region": RegionDefinition(
+            region_id="description_region",
             role="conversion_region",
             status="collapsible",
             mandatory=False,
             collapsible=True,
-            collapse_conditions=("collapse when CTA binding is empty",),
-        ),
-        "footer_brand_region": RegionDefinition(
-            region_id="footer_brand_region",
-            role="footer_region",
-            status="collapsible",
-            mandatory=False,
-            collapsible=True,
-            collapse_conditions=("collapse when footer branding is disabled",),
+            collapse_conditions=("collapse when description text is empty",),
         ),
     }
     return ResolvedRegionMatrix(
@@ -344,13 +324,14 @@ def _resolve_family_b_matrix(metadata: TemplateMetadata) -> ResolvedRegionMatrix
         template_family=metadata.template_family,
         family_mode=metadata.family_mode,
         region_order=region_order,
-        mandatory_regions=("brand_banner_region", "hero_product_region"),
+        mandatory_regions=(
+            "logo_banner_region",
+            "top_copy_region",
+            "product_hero_region",
+        ),
         collapsible_regions=(
-            "reference_region",
-            "spec_region",
-            "copy_region",
-            "cta_region",
-            "footer_brand_region",
+            "materials_strip_region",
+            "description_region",
         ),
         regions=regions,
     )
@@ -515,48 +496,36 @@ def _resolve_family_b_presence(
         value = binding_inputs.get(key)
         return isinstance(value, (list, tuple)) and any(bool(item) for item in value)
 
-    brand_rendered = has_text("brand_name") or has_text("brand_banner_text")
-    hero_rendered = bool(binding_inputs.get("hero_product_present"))
-    reference_rendered = has_text("reference_text")
-    spec_rendered = has_items("spec_items")
-    copy_rendered = has_text("copy_text")
-    cta_rendered = has_text("cta_text")
-    footer_rendered = has_text("footer_brand_text")
+    banner_rendered = has_text("brand_name")
+    top_copy_rendered = has_text("title")
+    materials_rendered = has_items("materials_images")
+    hero_rendered = bool(binding_inputs.get("product_image_present"))
+    description_rendered = has_text("description_title") or has_text("description_body")
     return {
-        "brand_banner_region": {
-            "rendered": brand_rendered,
-            "collapsed": not brand_rendered,
-            "reasons": [] if brand_rendered else ["brand banner missing"],
+        "logo_banner_region": {
+            "rendered": banner_rendered,
+            "collapsed": not banner_rendered,
+            "reasons": [] if banner_rendered else ["brand banner missing"],
         },
-        "reference_region": {
-            "rendered": reference_rendered,
-            "collapsed": not reference_rendered,
-            "reasons": [] if reference_rendered else ["reference region collapsed"],
+        "top_copy_region": {
+            "rendered": top_copy_rendered,
+            "collapsed": not top_copy_rendered,
+            "reasons": [] if top_copy_rendered else ["top copy missing — no title"],
         },
-        "hero_product_region": {
+        "materials_strip_region": {
+            "rendered": materials_rendered,
+            "collapsed": not materials_rendered,
+            "reasons": [] if materials_rendered else ["no materials images provided"],
+        },
+        "product_hero_region": {
             "rendered": hero_rendered,
             "collapsed": not hero_rendered,
             "reasons": [] if hero_rendered else ["hero product missing"],
         },
-        "spec_region": {
-            "rendered": spec_rendered,
-            "collapsed": not spec_rendered,
-            "reasons": [] if spec_rendered else ["spec region collapsed"],
-        },
-        "copy_region": {
-            "rendered": copy_rendered,
-            "collapsed": not copy_rendered,
-            "reasons": [] if copy_rendered else ["copy region collapsed"],
-        },
-        "cta_region": {
-            "rendered": cta_rendered,
-            "collapsed": not cta_rendered,
-            "reasons": [] if cta_rendered else ["cta region collapsed"],
-        },
-        "footer_brand_region": {
-            "rendered": footer_rendered,
-            "collapsed": not footer_rendered,
-            "reasons": [] if footer_rendered else ["footer brand region collapsed"],
+        "description_region": {
+            "rendered": description_rendered,
+            "collapsed": not description_rendered,
+            "reasons": [] if description_rendered else ["description text empty"],
         },
     }
 

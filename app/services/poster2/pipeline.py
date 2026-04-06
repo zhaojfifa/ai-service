@@ -169,6 +169,11 @@ class PosterPipeline:
             gallery_mode=effective_spec.gallery_mode,
             agent_name=effective_spec.agent_name,
             has_product_secondary_asset=assets.product_secondary is not None,
+            # Template B extensions
+            materials_count=len(assets.materials),
+            description_title=effective_spec.description_title,
+            description_body=effective_spec.description_body,
+            sku_text=effective_spec.sku_text,
         )
         logger.info(
             "poster2: trace=%s bg=%.1fs assets=loaded",

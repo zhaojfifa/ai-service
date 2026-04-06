@@ -1502,6 +1502,12 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             template_id=payload.template_id,
             export_format=payload.export_format,
             renderer_mode=payload.renderer_mode,
+            materials_images=tuple(
+                P2AssetRef(url=m.url, key=m.key) for m in (payload.materials_images or [])
+            ),
+            description_title=payload.description_title or "",
+            description_body=payload.description_body or "",
+            sku_text=payload.sku_text or "",
         )
 
         pipeline = _get_poster2_pipeline()

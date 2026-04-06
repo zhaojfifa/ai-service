@@ -17,13 +17,13 @@ _UNIFORM_FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
     4: {"box_h": 68, "gap": 10, "connector_policy": "uniform_stack"},
 }
 
-_SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus"}
-_SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts"}
+_SUPPORTED_HERO_MODES = {"scenario_cover_product_contain", "single_product_focus", "centered_product_focus"}
+_SUPPORTED_FEATURE_MODES = {"count_driven_callout_stack", "uniform_callout_stack", "product_anchor_callouts", "none"}
 _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS = 3  # Fixed; enforces annotation items within primary slot y-range
                                          # (callouts 0-2 have anchor_y 250/350/450, within primary [188,548];
                                          #  callout 3 has anchor_y 550, which falls in the inter-slot gap [548,564])
 _SUPPORTED_PRODUCT_ANNOTATION_MODES = {"none", "right_stack_mirror", "product_anchor_callouts"}
-_SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual"}
+_SUPPORTED_PRODUCT_LAYOUT_MODES = {"single_primary", "primary_secondary_dual", "single_hero_centered"}
 
 # Frozen geometry for primary_secondary_dual product layout mode (geometry_mode = primary_secondary_dual_v2).
 # Lane model: external right lane — annotation labels (x=784+) are outside the product region right
@@ -92,6 +92,7 @@ _SUPPORTED_BOTTOM_MODES = {
     "gallery_only",
     "text_only_expanded",
     "text_gallery_expanded",
+    "description_block",
 }
 # Legacy request aliases: applied before validation; never reach the resolver.
 _BOTTOM_MODE_ALIASES: dict[str, str] = {
@@ -108,7 +109,7 @@ _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
     "text_only_expanded": 728,    # PR-7B-final: raised from 640 → 728; shell height = title_band_height (content-proportionate)
     "text_gallery_expanded": 640, # 384px capacity
 }
-_SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots"}
+_SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots", "none"}
 _SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
 _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
     "glass_light": {
@@ -218,6 +219,13 @@ _TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
         "title": "{accent}",
         "subtitle": "{accent}",
         "feature": "#111111",
+    },
+    "product_sheet_primary": {
+        "brand": "#1A1A1A",
+        "agent": "#6F5757",
+        "title": "#1A1A1A",
+        "subtitle": "#555555",
+        "feature": "#1A1A1A",
     },
 }
 
@@ -511,6 +519,59 @@ class ResolvedTemplateLayoutPolicy:
 
 
 @dataclass(frozen=True)
+class ResolvedTopCopyBehavior:
+    mode: str                              # "title_subtitle_stack"
+    sku_present: bool
+    title_present: bool
+    subtitle_present: bool
+    css_classes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "sku_present": self.sku_present,
+            "title_present": self.title_present,
+            "subtitle_present": self.subtitle_present,
+        }
+
+
+@dataclass(frozen=True)
+class ResolvedMaterialsBehavior:
+    mode: str                              # "strip_thumbnails" | "hidden"
+    visible_item_count: int
+    max_items: int
+    collapse_policy: str                   # "collapse_when_empty"
+    rendered: bool
+    css_classes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "visible_item_count": self.visible_item_count,
+            "max_items": self.max_items,
+            "collapse_policy": self.collapse_policy,
+            "rendered": self.rendered,
+        }
+
+
+@dataclass(frozen=True)
+class ResolvedDescriptionBehavior:
+    mode: str                              # "description_block"
+    title_present: bool
+    body_present: bool
+    rendered: bool
+    css_classes: tuple[str, ...]
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "title_present": self.title_present,
+            "body_present": self.body_present,
+            "rendered": self.rendered,
+        }
+
+
+@dataclass(frozen=True)
 class ResolvedTemplateBehavior:
     hero_mode: str
     feature_mode: str
@@ -529,6 +590,10 @@ class ResolvedTemplateBehavior:
     accent_color: str
     text_colors: dict[str, str]
     root_classes: tuple[str, ...]
+    # Template B optional policies
+    top_copy_policy: ResolvedTopCopyBehavior | None = None
+    materials_policy: ResolvedMaterialsBehavior | None = None
+    description_policy: ResolvedDescriptionBehavior | None = None
 
     def css_var_style(self) -> str:
         return "; ".join(f"{key}: {value}" for key, value in self.css_vars.items())
@@ -568,6 +633,9 @@ class ResolvedTemplateBehavior:
                 "text_emphasis": self.beauty_tokens.text_emphasis,
             },
             "css_vars": dict(self.css_vars),
+            **({"top_copy_policy": self.top_copy_policy.as_dict()} if self.top_copy_policy else {}),
+            **({"materials_policy": self.materials_policy.as_dict()} if self.materials_policy else {}),
+            **({"description_policy": self.description_policy.as_dict()} if self.description_policy else {}),
         }
 
 
@@ -585,7 +653,27 @@ def resolve_template_behavior(
     gallery_mode: str | None = None,
     agent_name: str | None = None,
     has_product_secondary_asset: bool = False,
+    # Template B extensions
+    materials_count: int = 0,
+    description_title: str | None = None,
+    description_body: str | None = None,
+    sku_text: str | None = None,
 ) -> ResolvedTemplateBehavior:
+    # ── Template B dispatch ──────────────────────────────────────────────
+    if spec.template_id.startswith("template_product_sheet"):
+        return _resolve_product_sheet_behavior(
+            spec,
+            title_text=title_text,
+            subtitle_text=subtitle_text,
+            brand_name=brand_name,
+            agent_name=agent_name,
+            has_product_secondary_asset=has_product_secondary_asset,
+            materials_count=materials_count,
+            description_title=description_title,
+            description_body=description_body,
+            sku_text=sku_text,
+        )
+
     modes = spec.behavior_modes
     beauty = spec.beauty_tokens
     hero_mode = _validate_token(modes.hero_mode, _SUPPORTED_HERO_MODES, "hero_mode")
@@ -765,6 +853,40 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
             },
             css_classes=(_css_mode_class("hero-mode", hero_mode), "hero-scenario-disabled"),
         )
+    if hero_mode == "centered_product_focus":
+        # Template B hero: full-width centered product, no scenario peer.
+        # product_region spans the full safe inner width (x=112, w=800).
+        return ResolvedHeroBehavior(
+            mode=hero_mode,
+            scenario_enabled=False,
+            scenario_uses_safe_fill=False,
+            scenario_render_policy="scenario_disabled",
+            product_render_policy="product_contain_centered_full_width",
+            peer_layout_policy="single_product_full_width_stack",
+            scenario_fit="cover",
+            scenario_anchor="center",
+            product_fit="contain",
+            product_anchor="center",
+            layout_metrics={
+                "scenario_region_x": 0,
+                "scenario_region_y": 0,
+                "scenario_region_w": 0,
+                "scenario_region_h": 0,
+                "product_region_x": 112,
+                "product_region_y": 348,
+                "product_region_w": 800,
+                "product_region_h": 384,
+                "product_pad_top": 16,
+                "product_pad_right": 24,
+                "product_pad_bottom": 16,
+                "product_pad_left": 24,
+            },
+            css_classes=(
+                _css_mode_class("hero-mode", hero_mode),
+                "hero-scenario-disabled",
+                "hero-product-full-width",
+            ),
+        )
     raise ValueError(f"Unsupported hero_mode: {hero_mode}")
 
 
@@ -808,6 +930,29 @@ def resolve_product_behavior(
         product_secondary_slot: dict[str, int] | None = dict(_PRODUCT_DUAL_SECONDARY_SLOT)
         product_secondary_slot_rendered = True
         product_secondary_asset_policy = "secondary_present"
+    elif effective_product_layout_mode == "single_hero_centered":
+        # Template B: full-width centered hero; secondary is an inset, policy=hide_no_reserve.
+        product_primary_slot = {
+            "x": int(hero_metrics["product_region_x"]),
+            "y": int(hero_metrics["product_region_y"]),
+            "w": int(hero_metrics["product_region_w"]),
+            "h": int(hero_metrics["product_region_h"]),
+        }
+        if has_product_secondary_asset:
+            # Inset in bottom-right corner of the product hero region
+            inset_w, inset_h = 160, 160
+            product_secondary_slot = {
+                "x": product_primary_slot["x"] + product_primary_slot["w"] - inset_w - 8,
+                "y": product_primary_slot["y"] + product_primary_slot["h"] - inset_h - 8,
+                "w": inset_w,
+                "h": inset_h,
+            }
+            product_secondary_slot_rendered = True
+            product_secondary_asset_policy = "secondary_inset_bottom_right"
+        else:
+            product_secondary_slot = None
+            product_secondary_slot_rendered = False
+            product_secondary_asset_policy = "hide_no_reserve"
     else:
         product_primary_slot = dict(_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT)
         product_secondary_slot = None
@@ -2343,3 +2488,238 @@ def _resolve_text_colors(text_emphasis: str, accent_color: str) -> dict[str, str
 
 def _css_mode_class(prefix: str, mode_name: str) -> str:
     return f"{prefix}-{mode_name.replace('_', '-')}"
+
+
+# ---------------------------------------------------------------------------
+# Template B (product_sheet) behavior resolver
+# ---------------------------------------------------------------------------
+
+def _resolve_product_sheet_behavior(
+    spec: TemplateSpec,
+    *,
+    title_text: str | None,
+    subtitle_text: str | None,
+    brand_name: str | None,
+    agent_name: str | None,
+    has_product_secondary_asset: bool,
+    materials_count: int,
+    description_title: str | None,
+    description_body: str | None,
+    sku_text: str | None,
+) -> ResolvedTemplateBehavior:
+    """Behavior resolver for template_product_sheet_v1 (Family B, vertical stack)."""
+    beauty = spec.beauty_tokens
+    shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
+    shell_border = _validate_token(beauty.shell_border, set(_SHELL_BORDER_PRESETS), "shell_border")
+    shell_shadow = _validate_token(beauty.shell_shadow, set(_SHELL_SHADOW_PRESETS), "shell_shadow")
+    accent_tone = _validate_token(beauty.accent_tone, set(_ACCENT_TONE_PRESETS), "accent_tone")
+    text_emphasis = _validate_token(beauty.text_emphasis, set(_TEXT_EMPHASIS_PRESETS), "text_emphasis")
+
+    hero_policy = resolve_hero_behavior("centered_product_focus")
+    header_policy = resolve_header_behavior(
+        "brand_only",
+        brand_name=brand_name,
+        agent_name=agent_name,
+    )
+
+    # Product behavior — no annotations
+    product_policy = resolve_product_behavior(
+        spec,
+        annotation_mode="none",
+        product_layout_mode="single_hero_centered",
+        has_product_secondary_asset=has_product_secondary_asset,
+        requested_feature_count=0,
+        hero_policy=hero_policy,
+    )
+
+    # Feature behavior — disabled (no callouts in Template B)
+    feature_policy = ResolvedFeatureBehavior(
+        mode="none",
+        requested_item_count=0,
+        visible_item_count=0,
+        max_items=0,
+        visible_item_count_policy="feature_mode_disabled",
+        connector_policy="connectors_disabled",
+        box_policy="boxes_disabled",
+        truncation_policy="no_truncation",
+        collapse_policy="collapse_all",
+        text_budget_policy="no_budget",
+        line_clamp=0,
+        char_budget=0,
+        box_h=0,
+        gap=0,
+        start_strategy="none",
+    )
+
+    # Bottom behavior — stub for description_block (no gallery, no title band at bottom)
+    bottom_policy = ResolvedBottomBehavior(
+        mode="description_block",
+        requested_mode=None,
+        effective_mode="description_block",
+        mode_override_reason="template_b_description_block",
+        bottom_layout_mode="description_block",
+        bottom_shell_top=748,
+        gallery_mode="none",
+        requested_gallery_count=0,
+        normalized_gallery_count=0,
+        visible_item_count=0,
+        max_gallery_items=0,
+        title_present=False,
+        subtitle_present=False,
+        title_slot_rendered=False,
+        subtitle_slot_rendered=False,
+        title_band_rendered=False,
+        gallery_strip_rendered=False,
+        bottom_region_rendered=bool(description_title or description_body),
+        visible_item_count_policy="no_gallery",
+        gallery_content_policy="gallery_disabled",
+        collapse_policy="collapse_when_empty",
+        title_band_sizing_mode="none",
+        title_band_growth_policy="none",
+        subtitle_overflow_policy="none",
+        title_text_budget_policy="none",
+        subtitle_text_budget_policy="none",
+        content_priority_policy="description_first",
+        peer_balance_policy="description_block_standalone",
+        bottom_peer_balance_policy="description_block_standalone",
+        gallery_distribution_policy="none",
+        gallery_shell_frame_policy="none",
+        gallery_strip_shift_policy="none",
+        gallery_aspect_policy="none",
+        gallery_spacing_policy="none",
+        bottom_text_emphasis_policy="none",
+        title_band_expansion_policy="none",
+        title_line_clamp=0,
+        subtitle_line_clamp=0,
+        title_char_budget=0,
+        subtitle_char_budget=0,
+        layout_metrics={
+            "bottom_shell_top": 748,
+            "bottom_shell_h": 228,
+            "gallery_strip_top": 0,
+            "gallery_strip_h": 0,
+            "title_band_top": 0,
+            "title_band_h": 0,
+        },
+        bottom_region_state="description_block",
+        collapsed_optional_slots=("title_band", "gallery_strip"),
+        subtitle_slot_state={"rendered": False, "collapsed": True},
+        gallery_slot_states=(),
+        css_classes=(
+            _css_mode_class("bottom-mode", "description-block"),
+            "gallery-strip-hidden",
+            "title-band-hidden",
+        ),
+    )
+
+    template_layout_policy = ResolvedTemplateLayoutPolicy(
+        content_priority_policy="product_hero_dominant",
+        region_priority_policy="product_hero_primary",
+        peer_rebalance_policy="vertical_stack_fixed",
+        layout_density_mode="product_sheet_default",
+        decision_scope="template_b_product_sheet",
+        drivers=("template_b_layout", "vertical_stack"),
+    )
+
+    # Template B specific policies
+    top_copy_policy = ResolvedTopCopyBehavior(
+        mode="title_subtitle_stack",
+        sku_present=bool((sku_text or "").strip()),
+        title_present=bool((title_text or "").strip()),
+        subtitle_present=bool((subtitle_text or "").strip()),
+        css_classes=(
+            _css_mode_class("top-copy-mode", "title-subtitle-stack"),
+            *(("sku-present",) if sku_text else ()),
+        ),
+    )
+
+    materials_max = spec.materials_slot.count if spec.materials_slot else 5
+    visible_materials = min(max(materials_count, 0), materials_max)
+    materials_policy = ResolvedMaterialsBehavior(
+        mode="strip_thumbnails" if visible_materials > 0 else "hidden",
+        visible_item_count=visible_materials,
+        max_items=materials_max,
+        collapse_policy="collapse_when_empty",
+        rendered=visible_materials > 0,
+        css_classes=(
+            _css_mode_class("materials-mode", "strip-thumbnails" if visible_materials > 0 else "hidden"),
+            *(("materials-strip-visible",) if visible_materials > 0 else ("materials-strip-hidden",)),
+        ),
+    )
+
+    description_policy = ResolvedDescriptionBehavior(
+        mode="description_block",
+        title_present=bool((description_title or "").strip()),
+        body_present=bool((description_body or "").strip()),
+        rendered=bool((description_title or description_body or "").strip()),
+        css_classes=(
+            _css_mode_class("description-mode", "description-block"),
+            *(("description-rendered",) if (description_title or description_body) else ("description-hidden",)),
+        ),
+    )
+
+    accent_color = _resolve_accent_color(accent_tone)
+    text_colors = _resolve_text_colors(text_emphasis, accent_color)
+    css_vars: dict[str, str] = {}
+    css_vars.update(_resolve_shell_surface_vars(shell_surface))
+    css_vars.update(_resolve_shell_border_vars(shell_border, accent_color))
+    css_vars.update(_resolve_shell_shadow_vars(shell_shadow))
+    css_vars.update({
+        "--accent-tone": accent_color,
+        "--text-color-brand": text_colors["brand"],
+        "--text-color-agent": text_colors["agent"],
+        "--text-color-title": text_colors["title"],
+        "--text-color-subtitle": text_colors["subtitle"],
+        "--text-color-feature": text_colors["feature"],
+    })
+    css_vars.update(_resolve_header_behavior_vars(header_policy))
+    # Template B description region CSS vars
+    css_vars.update({
+        "--description-region-top": "748px",
+        "--description-region-h": "228px",
+        "--materials-strip-top": f"{spec.materials_slot.y}px" if spec.materials_slot else "280px",
+        "--materials-strip-h": f"{spec.materials_slot.h}px" if spec.materials_slot else "52px",
+        "--product-hero-top": f"{hero_policy.layout_metrics['product_region_y']}px",
+        "--product-hero-h": f"{hero_policy.layout_metrics['product_region_h']}px",
+    })
+
+    return ResolvedTemplateBehavior(
+        hero_mode="centered_product_focus",
+        feature_mode="none",
+        product_annotation_mode="none",
+        header_mode="brand_only",
+        bottom_mode="description_block",
+        gallery_mode="none",
+        beauty_tokens=TemplateBeautyTokensSpec(
+            shell_surface=shell_surface,
+            shell_border=shell_border,
+            shell_shadow=shell_shadow,
+            accent_tone=accent_tone,
+            text_emphasis=text_emphasis,
+        ),
+        hero_policy=hero_policy,
+        product_policy=product_policy,
+        feature_policy=feature_policy,
+        bottom_policy=bottom_policy,
+        template_layout_policy=template_layout_policy,
+        header_policy=header_policy,
+        css_vars=css_vars,
+        accent_color=accent_color,
+        text_colors=text_colors,
+        root_classes=(
+            *hero_policy.css_classes,
+            _css_mode_class("feature-behavior", "none"),
+            _css_mode_class("layout-density", "product-sheet-default"),
+            _css_mode_class("region-priority", "product-hero-primary"),
+            _css_mode_class("template-peer-rebalance", "vertical-stack-fixed"),
+            *product_policy.css_classes,
+            *bottom_policy.css_classes,
+            *header_policy.css_classes,
+            *materials_policy.css_classes,
+            *description_policy.css_classes,
+            "template-family-b",
+        ),
+        top_copy_policy=top_copy_policy,
+        materials_policy=materials_policy,
+        description_policy=description_policy,
+    )

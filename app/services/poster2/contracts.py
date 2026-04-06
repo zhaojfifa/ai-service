@@ -59,6 +59,12 @@ class PosterSpec:
     bottom_mode: Optional[str] = None
     gallery_mode: Optional[str] = None
 
+    # --- Template B extensions ---
+    materials_images: tuple[AssetRef, ...] = field(default_factory=tuple)
+    description_title: str = ""
+    description_body: str = ""
+    sku_text: str = ""
+
     # --- Style (only for background generation) ---
     style: StyleSpec = field(default_factory=StyleSpec)
 
@@ -125,6 +131,25 @@ class GalleryStripSpec:
 
 
 @dataclass
+class MaterialsStripSpec:
+    """Materials / accessories thumbnail strip (Template B).
+
+    Semantically distinct from GalleryStripSpec: materials evidence lives
+    above the product hero, gallery lives below the bottom region.
+    """
+    x: int
+    y: int
+    w: int
+    h: int
+    count: int = 5
+    gap: int = 12
+    thumb_w: int = 140
+    thumb_h: int = 52                      # explicit height (materials may not be square)
+    thumb_radius: int = 8
+    show_label: bool = False
+
+
+@dataclass
 class FeatureCalloutSpec:
     """
     One feature callout entry = anchor dot + leader line + text label.
@@ -154,6 +179,9 @@ class TemplateBehaviorModesSpec:
     header_mode: Optional[str] = None
     bottom_mode: str = "title_gallery_split"
     gallery_mode: str = "strip_local_visible_only"
+    # Template B extensions
+    materials_mode: Optional[str] = None
+    top_copy_mode: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -189,6 +217,11 @@ class TemplateSpec:
     # Optional slots
     scenario_slot: Optional[ImageSlotSpec] = None
 
+    # Template B optional slots
+    materials_slot: Optional[MaterialsStripSpec] = None
+    description_title_slot: Optional[TextSlotSpec] = None
+    description_body_slot: Optional[TextSlotSpec] = None
+
     # Firefly background hint (never contains text/logo/UI words)
     background_prompt_hint: str = ""
     behavior_modes: TemplateBehaviorModesSpec = field(default_factory=TemplateBehaviorModesSpec)
@@ -216,6 +249,10 @@ class TemplateSpec:
         def gallery(raw: dict) -> GalleryStripSpec:
             known = {f.name for f in GalleryStripSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
             return GalleryStripSpec(**{k: v for k, v in raw.items() if k in known})
+
+        def materials(raw: dict) -> MaterialsStripSpec:
+            known = {f.name for f in MaterialsStripSpec.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+            return MaterialsStripSpec(**{k: v for k, v in raw.items() if k in known})
 
         def callout(raw: dict) -> FeatureCalloutSpec:
             return FeatureCalloutSpec(
@@ -252,6 +289,9 @@ class TemplateSpec:
             ]
 
         scenario_raw = d.get("scenario_slot")
+        materials_raw = d.get("materials_slot")
+        desc_title_raw = d.get("description_title_slot")
+        desc_body_raw = d.get("description_body_slot")
         return cls(
             template_id=d["template_id"],
             version=d["version"],
@@ -268,6 +308,9 @@ class TemplateSpec:
             product_slot=img(d["product_slot"]),
             gallery_slot=gallery(d["gallery_slot"]),
             scenario_slot=img(scenario_raw) if scenario_raw else None,
+            materials_slot=materials(materials_raw) if materials_raw else None,
+            description_title_slot=text(desc_title_raw) if desc_title_raw else None,
+            description_body_slot=text(desc_body_raw) if desc_body_raw else None,
             background_prompt_hint=d.get("background_prompt_hint", ""),
             behavior_modes=behavior_modes(d.get("behavior_modes")),
             beauty_tokens=beauty_tokens(d.get("beauty_tokens")),
@@ -286,6 +329,8 @@ class ResolvedAssets:
     product_secondary: Optional[PILImage.Image] = None
     gallery: list[PILImage.Image] = field(default_factory=list)
     gallery_status: list[dict] = field(default_factory=list)
+    materials: list[PILImage.Image] = field(default_factory=list)
+    materials_status: list[dict] = field(default_factory=list)
 
 
 @dataclass
