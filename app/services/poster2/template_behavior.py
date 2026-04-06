@@ -1671,7 +1671,7 @@ def _resolve_bottom_layout_policies(
             title_line_clamp = 2
             subtitle_line_clamp = 2
             title_char_budget = 52
-            subtitle_char_budget = 80  # PR-7C: increased from 56 for quad subtitle capacity
+            subtitle_char_budget = 120  # PR-bottom-final: raise to 2-line CSS capacity; CSS line-clamp:2 handles overflow
             title_band_height = 176    # PR-7C: +8px from 168; better text breathing room
             title_content_pad_top = 20  # PR-7C: uniform with other expanded branches
             title_content_pad_bottom = 16  # PR-7C: uniform with other expanded branches

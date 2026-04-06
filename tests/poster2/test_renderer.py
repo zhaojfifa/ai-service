@@ -1783,7 +1783,7 @@ class TestBottomSplitBehavior:
 
         assert "--title-band-height: 176px" in html_payload  # PR-7C: 168→176
         assert "--subtitle-line-clamp: 2" in html_payload
-        assert "--title-stack-gap: 4px" in html_payload
+        assert "--title-stack-gap: 8px" in html_payload  # PR-7C: 6→8
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
         assert "left:0px;top:8px;width:196px;height:60px;" in html_payload  # PR-7C: height 52→60
