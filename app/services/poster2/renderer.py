@@ -485,7 +485,10 @@ class LayoutRenderer:
         font = self._fonts.get(slot.font_key, slot.font_size)
         if slot.auto_shrink:
             font, text = self._fit_text(draw, text, slot)
-        lines = _wrap_text(draw, text, font, slot.w, slot.max_lines)
+        if slot.balance_wrap and slot.max_lines == 2:
+            lines = _balance_wrap_two_lines(draw, text, font, slot.w)
+        else:
+            lines = _wrap_text(draw, text, font, slot.w, slot.max_lines)
         _draw_lines(draw, lines, slot, font)
 
     def _fit_text(
@@ -1730,6 +1733,7 @@ def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, 
         h=int(metrics["agent_slot_h"]),
         color=color,
         max_lines=header_policy.agent_line_clamp,
+        balance_wrap=header_policy.agent_line_clamp == 2,
     )
 
 
@@ -2236,6 +2240,40 @@ def _apply_radius(img: PILImage.Image, radius: int) -> PILImage.Image:
     result = PILImage.new("RGBA", img.size, (0, 0, 0, 0))
     result.paste(img, mask=mask)
     return result
+
+
+def _balance_wrap_two_lines(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    max_width: int,
+) -> list[str]:
+    """Split *text* into two lines at the word boundary that minimises max(line1_w, line2_w).
+
+    Falls back to greedy single-line if the entire text fits in one line,
+    and falls back to greedy two-line wrap if no space candidate is found.
+    """
+    words = text.split()
+    if len(words) <= 1:
+        return [text]
+    full_bbox = draw.textbbox((0, 0), text, font=font)
+    if (full_bbox[2] - full_bbox[0]) <= max_width:
+        return [text]  # fits on one line — no need to wrap
+    # Find space positions (candidate split points between word[i] and word[i+1])
+    best_split: int | None = None
+    best_cost = float("inf")
+    for i in range(1, len(words)):
+        line1 = " ".join(words[:i])
+        line2 = " ".join(words[i:])
+        b1 = draw.textbbox((0, 0), line1, font=font)
+        b2 = draw.textbbox((0, 0), line2, font=font)
+        cost = max(b1[2] - b1[0], b2[2] - b2[0])
+        if cost < best_cost:
+            best_cost = cost
+            best_split = i
+    if best_split is None:
+        return [text]
+    return [" ".join(words[:best_split]), " ".join(words[best_split:])]
 
 
 def _wrap_text(
