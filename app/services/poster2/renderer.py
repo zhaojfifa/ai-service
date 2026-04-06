@@ -172,6 +172,8 @@ class LayoutRenderer:
         layer_timings["product_material_layer_ms"] = _elapsed(t0)
 
         t1 = _now()
+        if behavior.product_policy.annotation_mode == "product_anchor_callouts":
+            self._draw_text_shell_panel(canvas, behavior.product_policy.product_text_shell_bounds)
         resolved_callouts = _resolve_feature_callout_layout(
             spec.feature_callouts,
             poster.features,
@@ -375,7 +377,7 @@ class LayoutRenderer:
         for callout, text in callouts:
             if not text:
                 continue
-            self._draw_text(canvas, callout.label_box, text, draw_background=False)
+            self._draw_text(canvas, callout.label_box, text, draw_background=True)
 
     def _draw_feature_callout(
         self,
@@ -400,6 +402,23 @@ class LayoutRenderer:
     def _draw_slot_background(self, canvas: PILImage.Image, slot: TextSlotSpec) -> None:
         draw = ImageDraw.Draw(canvas)
         _draw_pill_bg(draw, slot)
+
+    def _draw_text_shell_panel(
+        self,
+        canvas: PILImage.Image,
+        bounds: dict[str, int],
+    ) -> None:
+        """Draw a semi-transparent white panel behind the annotation text shell zone."""
+        w = bounds.get("w", 0)
+        if w <= 0:
+            return
+        pad = 4
+        x0 = bounds["x"] - pad
+        y0 = bounds["y"] - pad
+        x1 = bounds["x"] + bounds["w"] + pad
+        y1 = bounds["y"] + bounds["h"] + pad
+        draw = ImageDraw.Draw(canvas)
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(255, 255, 255, 160))
 
     def _draw_image(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
         inner_x = slot.x + slot.pad_left
@@ -1136,18 +1155,38 @@ def _resolve_feature_callout_layout(
     # placed exactly where the template spec declares them.
     # The feature right-stack algorithm is suppressed for this mode.
     if feature_policy is not None and feature_policy.mode == "product_anchor_callouts":
-        from .template_behavior import _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS
+        from .template_behavior import (
+            _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS,
+            _PRODUCT_TEXT_SHELL_Y,
+            _PRODUCT_TEXT_SHELL_H,
+        )
         max_visible = feature_policy.visible_item_count
         limited_features = normalized_features[:max_visible]
         source = callouts[:max_visible]
+
+        # Compute dynamic label y-positions when fewer than max items.
+        # Labels distribute evenly in the text_shell zone; anchor_y follows label center.
+        n = len(source)
+        if n > 0 and n < _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS:
+            slot_h = source[0].label_box.h
+            total_label_h = n * slot_h
+            pad = (_PRODUCT_TEXT_SHELL_H - total_label_h) // (n + 1)
+            label_ys = [_PRODUCT_TEXT_SHELL_Y + pad + i * (slot_h + pad) for i in range(n)]
+        else:
+            label_ys = None  # use template-spec positions as-is
+
         resolved: list[tuple[FeatureCalloutSpec, str]] = []
-        for base, feature_text in zip(source, limited_features):
+        for i, (base, feature_text) in enumerate(zip(source, limited_features)):
+            new_label_y = label_ys[i] if label_ys is not None else base.label_box.y
+            new_anchor_y = new_label_y + base.label_box.h // 2 if label_ys is not None else base.anchor_y
             resolved_callout = replace(
                 base,
+                anchor_y=new_anchor_y,
                 anchor_color=accent_color or base.anchor_color,
                 leader_color=accent_color or base.leader_color,
                 label_box=replace(
                     base.label_box,
+                    y=new_label_y,
                     color=text_color or base.label_box.color,
                     max_lines=3,
                 ),
