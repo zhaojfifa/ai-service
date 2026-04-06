@@ -38,20 +38,21 @@ _CANVAS_H = 1024  # poster canvas height in px (template_dual_v2 fixed dimension
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 360}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 564, "w": 300, "h": 144}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
-_PRODUCT_REGION_OUTER_W = 472
+_PRODUCT_REGION_OUTER_W = 504
 _PRODUCT_CANVAS_SHELL_W = 300
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
 # This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
 # x=784: product_region_x (456) + canvas_shell_w (300) + 28px gap
 # y=216: product_region_y (188) + 28px top pad
-# w=144: annotation label slot width (all 3 slots share this width)
+# w=176: annotation label slot width — widened from 144 in PR-11 closeout (w 144→176)
+#         right edge: 784 + 176 = 960 = product_region_x (456) + outer_w (504) ✓
+#         right margin: canvas_w (1024) − 960 = 64px > safe_margin (48px) ✓
 # h=276: bottom_of_slot_3 (y=416+h=76=492) − top_of_slot_1 (y=216) = 276 (PR-C: label_box h 60→76)
-# Right edge: 784 + 144 = 928 = product_region_x (456) + outer_w (472) ✓
 # Does not compete with canvas: text_shell_x (784) > canvas_right (456+300=756) ✓
 _PRODUCT_TEXT_SHELL_X = 784
 _PRODUCT_TEXT_SHELL_Y = 216
-_PRODUCT_TEXT_SHELL_W = 144
+_PRODUCT_TEXT_SHELL_W = 176
 _PRODUCT_TEXT_SHELL_H = 276
 
 # Frozen owner surfaces for product_region.
@@ -826,7 +827,7 @@ def resolve_product_behavior(
         annotation_items: list[dict[str, object]] = []
         annotation_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
     else:
-        char_budget = {1: 44, 2: 38, 3: 32}.get(max(visible_annotation_count, 1), 32)
+        char_budget = {1: 52, 2: 46, 3: 44}.get(max(visible_annotation_count, 1), 44)
         line_clamp = 2
         if annotation_mode == "right_stack_mirror":
             annotation_count_policy = "fixed_3_right_stack_annotations"
@@ -996,7 +997,7 @@ def resolve_feature_behavior(
         # No drag-and-drop, no dynamic slot count beyond 3.
         anchor_visible = min(max(requested_count, 0), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
         anchor_clamped = min(max(anchor_visible, 1), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
-        anchor_char_budgets = {1: 44, 2: 38, 3: 32}
+        anchor_char_budgets = {1: 52, 2: 46, 3: 44}
         anchor_box_h = _FEATURE_MODE_LAYOUT_SPECS[anchor_clamped]["box_h"]
         return ResolvedFeatureBehavior(
             mode=feature_mode,

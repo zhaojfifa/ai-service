@@ -1335,3 +1335,80 @@ Remaining risks:
 - scenario is visually softer and no longer overpowers product
 - product region hierarchy is clearer
 - bottom subtitle no longer competes with title
+
+## Entry — PR-11: poster2 product region closeout
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-06
+
+### Scope
+- product_anchor_callouts contract tune: label_box.w 144→176 for active slots 0-2
+- char_budget widened: {1:44, 2:38, 3:32} → {1:52, 2:46, 3:44}
+- _PRODUCT_TEXT_SHELL_W 144→176, _PRODUCT_REGION_OUTER_W 472→504
+- annotation card visual reconstruction: card surface, connector, marker
+- template version bump: 2.1.5 → 2.1.6
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+- `app/templates/specs/template_dual_v2.json`
+- `app/services/poster2/template_behavior.py`
+- `app/templates_html/template_dual_v2.css`
+
+### Root rules followed
+- contract-first: constants and JSON updated before visual CSS
+- no anchor_x / label_box.x / y-position changes
+- overflow-safety slot (index 3, y=516) label_box.w unchanged at 144
+- no ownership drift: product region outer width updated in sync with text shell
+- no bottom / email / storage / Stage2 / Stage3 scope
+- no header / scenario region changes
+- right edge invariant preserved: 784+176=960=456+504 ✓
+- no-compete invariant preserved: text_shell_x (784) > canvas_right (756) ✓
+- right margin: 1024−960=64px > safe_margin 48px ✓
+
+### Files changed
+- `app/templates/specs/template_dual_v2.json`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/template_registry.py`
+- `app/templates_html/template_dual_v2.css`
+- `app/templates_html/slot_spec.template_dual_v2.json`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_contracts.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+- contract
+- beautification
+- validation
+- docs
+
+### Contract changes
+- `template_dual_v2.json`: feature_callouts[0-2].label_box.w 144→176; version 2.1.5→2.1.6
+- `template_behavior.py`: _PRODUCT_TEXT_SHELL_W 144→176, _PRODUCT_REGION_OUTER_W 472→504
+- `template_behavior.py`: char_budget dict {1:44,2:38,3:32} → {1:52,2:46,3:44} (both resolve_product_behavior and resolve_feature_behavior locations)
+
+### Visual changes
+- annotation card: border-radius 12px (from base 18px), border opacity 0.12→0.18, dual-layer shadow + inset top highlight, letter-spacing, text-wrap: balance
+- connector: solid accent line (background: var(--accent-tone)), opacity 0.72→0.88, height 2→1.5px
+- marker: size 14→16px, outer glow ring added (5px at 16% opacity), shadow depth 0.18→0.28
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TestProductAnnotationGeometryPR4 or TestProductTextShellContractPR4 or TestProductTextCapacityPRC or TestProductLayoutContract or TestPosterPipelineRun' tests/poster2/test_contracts.py`
+  - `52 passed, 4 pre-existing TestPosterPipelineRun failures (bottom layout_density_mode mismatch — not in scope)`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_contracts.py tests/poster2/test_renderer.py`
+  - `359 passed, 29 pre-existing failures (all TestBottom/TestHeader/TestBottomSplitBehavior — not in scope)`
+
+### Remaining risks
+- visual review needed: regenerate ChefCraft fryer poster to confirm truncation elimination and card quality
+- Pillow renderer still uses bg_radius=8 (template JSON unchanged) — CSS and Pillow renderer diverge on border-radius; Pillow fallback path is maintenance-only
+
+### Exact acceptance
+- label_box.w=176 for slots 0-2, w=144 preserved for overflow slot 3
+- right edge 960px, margin 64px
+- char_budget 44 for 3 items — "Stainless steel finish with easy cleaning" (40 chars) fits without truncation
+- all geometry invariants hold
+- no ownership drift
