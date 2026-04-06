@@ -1,5 +1,81 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-bottom-final-last-mile: title_gallery_split dense_quad subtitle capacity closeout
+
+**Branch:** `claude/recursing-joliot`
+**Status:** Complete
+**Last updated:** 2026-04-06
+
+### Scope
+- `title_gallery_split` dense_quad only: eliminate subtitle_truncation_applied by raising subtitle_char_budget to CSS 2-line capacity
+- `text_only_expanded`: frozen, no changes
+- No header / product / feature / beautification / storage / email changes
+
+### Root rules followed
+- contract-first; stay on the frozen bottom SOP baseline
+- do not change text_only_expanded, gallery distribution, bottom_shell_top, or 20px product gap
+- validate with metadata / truncation evidence, not visual estimate
+
+### Problem reproduced
+- `title_gallery_split` dense_quad with long subtitle: `subtitle_truncation_applied = True`
+- PR-7B5 had raised `subtitle_char_budget` from 56 → 72 but budget=72 still fell below the test subtitle length (116 chars)
+- `_apply_text_budget` hard-truncates at budget before passing text to renderer
+- CSS `line-clamp:2` was never responsible for the truncation — the policy budget was the bottleneck
+
+### Root cause
+`subtitle_char_budget = 72` (PR-7B5 intermediate) is below the actual test subtitle length (116 chars).
+`_apply_text_budget` returns `text[:budget]`, so `rendered_subtitle_excerpt != effective_spec.subtitle` → `subtitle_truncation_applied = True`.
+Geometry was already sufficient: `available_height = 184 - 22 - 18 = 144`, `used_height = title_slot(72) + gap(4) + subtitle_slot(44) = 120 ≤ 144`. No slot overflow. Budget was the only constraint.
+
+### Files changed
+- `app/services/poster2/template_behavior.py` — `subtitle_char_budget` in dense_quad branch: `72 → 120`
+- `tests/poster2/test_pipeline.py` — 4 assertion updates for dense_quad budget + truncation; 1 indentation fix (module-level test moved inside `TestBottomModeFamilyContractClosure`)
+- `tests/poster2/test_renderer.py` — 2 stale assertions updated: `title_band_height 168 → 184`, `gallery_shell_top 896 → 912` (both were stale from PR-7B5 title_band_height change)
+
+### Layer changed
+- behavior (budget policy only, no geometry)
+- validation
+
+### Exact fields changed
+
+| Field | Before | After |
+|-------|--------|-------|
+| `subtitle_char_budget` (dense_quad) | 72 | 120 |
+| `test_pipeline.py:806` assertion | `== 72` | `== 120` |
+| `test_pipeline.py:859` assertion | `== 72` | `== 120` |
+| `test_pipeline.py:860` assertion | `len == 72` | `rendered_excerpt == requested_subtitle` |
+| `test_pipeline.py:861` assertion | `is True` | `is False` |
+| `test_renderer.py:1200` assertion | `== 168` | `== 184` (stale from PR-7B5) |
+| `test_renderer.py:1201` assertion | `== 896` | `== 912` (stale from PR-7B5) |
+
+### Frozen invariants confirmed unchanged
+- `bottom_shell_top = 728` ✓
+- `title_band_height = 184` ✓
+- `title_content_pad_top = 22` ✓
+- `title_content_pad_bottom = 18` ✓
+- `title_stack_gap = 4` ✓
+- `subtitle_line_clamp = 2` ✓
+- `gallery_distribution_policy = dense_quad` ✓
+- `gallery_strip_region = {x:96, y:912, w:832, h:68}` ✓
+- `subtitle_slot = {x:152, y:838, w:720, h:44}` ✓
+- product_secondary_bottom(708) + 20px gap ✓
+
+### Validation run
+- `.venv/bin/python3 -m pytest -q tests/poster2/test_pipeline.py -k "dense_quad or dense_bottom"` → `6 passed`
+- `.venv/bin/python3 -m pytest -q tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_stage2_guard_diagnostics_surface.py` → `365 passed, 2 pre-existing failures (layout_density_mode, feature char_budget — out of scope)`
+
+### Remaining risks
+- Pre-existing failures in `TestPosterPipelineRun::test_renderer_metadata_includes_layer_render_status` (layout_density_mode) and `test_feature_contract_review_...` (feature char_budget) remain; not related to bottom or subtitle
+
+### Final acceptance evidence
+- `subtitle_char_budget = 120` (budget ≥ test subtitle length 116)
+- `subtitle_truncation_applied = False` (rendered_subtitle_excerpt == full subtitle)
+- `subtitle_overflow_policy = two_line_clamp_inside_expanded_split_title_band` unchanged
+- `subtitle_line_clamp = 2` unchanged
+- `gallery_distribution_policy = dense_quad` unchanged
+- `bottom_shell_top = 728`, product gap ≥ 20px preserved
+- `text_only_expanded` — no changes, frozen at PR-7B5 accepted baseline
+
 ## Entry — PR: Gemini Copy Optimizer And Optional Attachment Assets
 
 **Branch:** `main`
