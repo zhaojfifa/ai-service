@@ -83,7 +83,7 @@
           </div>
         </fieldset>
 
-        <fieldset id="s1-core-assets" class="card stage-card">
+        <fieldset id="s1-core-assets" class="card stage-card" data-variant-visible="a">
           <legend>Core Assets</legend>
           <div class="grid">
             <label class="field file-field optional">
@@ -148,7 +148,37 @@
           </div>
         </fieldset>
 
-                <fieldset id="s1-bottom-thumbs" class="card stage-card">
+        <fieldset id="s1-template-b-fields" class="card stage-card" data-variant-visible="b" hidden>
+          <legend>Template B — 产品图录字段</legend>
+
+          <div class="grid">
+            <label class="field optional">
+              <span>产品型号 / SKU <span class="optional">(选填)</span></span>
+              <input id="sku-text-stage1" name="sku_text" type="text" placeholder="型号编码，如 HW-X200" />
+            </label>
+            <label class="field optional">
+              <span>描述标题 <span class="optional">(选填)</span></span>
+              <input id="description-title-stage1" name="description_title" type="text" placeholder="如：产品特点" />
+            </label>
+          </div>
+
+          <div class="grid">
+            <label class="field optional">
+              <span>描述正文 <span class="optional">(选填)</span></span>
+              <textarea id="description-body-stage1" name="description_body" rows="4"
+                        placeholder="产品详细描述文案…"></textarea>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <span class="feature-label">材质 / 配料图片 <span class="optional">(选填，最多 5 张)</span></span>
+            <small class="hint">产品材质、配料或细节图，显示在产品主图下方的缩略图条。</small>
+            <div id="materials-image-slots" class="thumbnail-grid"></div>
+            <button type="button" id="add-materials-image-btn" class="secondary">+ 添加材质图片</button>
+          </div>
+        </fieldset>
+
+        <fieldset id="s1-bottom-thumbs" class="card stage-card" data-variant-visible="a">
           <legend>Bottom thumbnails (optional, 0-4)</legend>
           <p class="hint">Upload up to 4 small product images. Empty slots are allowed.</p>
           <div id="bottom-thumbnails" class="thumbnail-grid">

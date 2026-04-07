@@ -3349,6 +3349,11 @@ function initStage1ModeS() {
     templateId: DEFAULT_STAGE1.template_id,
     templateLabel: '',
     templateVariant: 'a',
+    // Template B fields
+    skuText: '',
+    descriptionTitle: '',
+    descriptionBody: '',
+    materialsImages: [],
   };
 
   let currentLayoutPreview = '';
@@ -3465,6 +3470,9 @@ function initStage1ModeS() {
       if (templateVariantStage1) {
         templateVariantStage1.value = state.templateVariant || 'a';
       }
+      applyVariantFieldVisibility(state.templateVariant || 'a');
+      refreshVariantTemplateMeta(state.templateVariant || 'a');
+      renderMaterialsSlots();
       refreshPreview();
     })();
   } else {
@@ -3483,13 +3491,26 @@ function initStage1ModeS() {
       ctx.clearRect(0, 0, width, height);
       ctx.fillStyle = '#f8fafc';
       ctx.fillRect(0, 0, width, height);
-      const img = assets.image;
-      const scale = Math.min(width / img.width, height / img.height);
-      const dw = img.width * scale;
-      const dh = img.height * scale;
-      const ox = (width - dw) / 2;
-      const oy = (height - dh) / 2;
-      ctx.drawImage(img, ox, oy, dw, dh);
+      if (assets.image) {
+        const img = assets.image;
+        const scale = Math.min(width / img.width, height / img.height);
+        const dw = img.width * scale;
+        const dh = img.height * scale;
+        const ox = (width - dw) / 2;
+        const oy = (height - dh) / 2;
+        ctx.drawImage(img, ox, oy, dw, dh);
+      } else {
+        // No preview image — draw placeholder text on canvas
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#64748b';
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(assets.entry?.name || templateId, width / 2, height / 2 - 10);
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText('暂无预览图', width / 2, height / 2 + 12);
+      }
       if (templateDescriptionStage1) {
         templateDescriptionStage1.textContent = assets.entry?.description || '';
       }
@@ -3552,16 +3573,118 @@ function initStage1ModeS() {
 
   void mountTemplateChooserStage1();
 
+  const applyVariantFieldVisibility = (variant) => {
+    document.querySelectorAll('[data-variant-visible]').forEach((el) => {
+      const v = el.dataset.variantVisible;
+      el.hidden = v !== 'all' && v !== variant;
+    });
+    // Template selector is only meaningful for Variant A (single B template exists)
+    if (templateSelectStage1) {
+      templateSelectStage1.closest('label')
+        ? (templateSelectStage1.closest('label').hidden = variant === 'b')
+        : (templateSelectStage1.hidden = variant === 'b');
+    }
+  };
+
+  const refreshVariantTemplateMeta = (variant) => {
+    const effectiveId =
+      variant === 'b' ? 'template_product_sheet_v1' : state.templateId;
+    void refreshTemplatePreviewStage1(effectiveId);
+  };
+
   if (templateVariantStage1) {
     templateVariantStage1.addEventListener('change', () => {
       state.templateVariant = templateVariantStage1.value || 'a';
       state.previewBuilt = false;
+      applyVariantFieldVisibility(state.templateVariant);
+      refreshVariantTemplateMeta(state.templateVariant);
       refreshPreview();
     });
   }
 
   ensureGalleryEntries(state, 4);
   bindModeSBottomThumbnails(bottomThumbnails, state, statusElement, refreshPreview);
+
+  // ── Template B: materials image slots ──────────────────────────────────────
+  const MATERIALS_MAX = 5;
+  const materialsSlotContainer = document.getElementById('materials-image-slots');
+  const addMaterialsBtn = document.getElementById('add-materials-image-btn');
+
+  const renderMaterialsSlots = () => {
+    if (!materialsSlotContainer) return;
+    materialsSlotContainer.innerHTML = '';
+    state.materialsImages.forEach((entry, idx) => {
+      const slot = document.createElement('div');
+      slot.className = 'thumbnail-slot';
+      slot.dataset.materialsIndex = idx;
+
+      const preview = document.createElement('div');
+      preview.className = 'thumbnail-preview';
+      const img = document.createElement('img');
+      img.alt = `材质图片 ${idx + 1}`;
+      if (entry.url) {
+        img.src = entry.dataUrl || entry.url;
+      }
+      const placeholder = document.createElement('span');
+      placeholder.className = 'slot-placeholder';
+      placeholder.textContent = '未上传';
+      preview.appendChild(img);
+      preview.appendChild(placeholder);
+
+      const actions = document.createElement('div');
+      actions.className = 'thumbnail-actions';
+      const uploadLabel = document.createElement('label');
+      uploadLabel.className = 'button-like';
+      uploadLabel.textContent = entry.url ? '替换' : '上传';
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          state.materialsImages[idx] = { file, url: ev.target.result, dataUrl: ev.target.result, key: null };
+          renderMaterialsSlots();
+        };
+        reader.readAsDataURL(file);
+      });
+      uploadLabel.appendChild(fileInput);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'secondary';
+      removeBtn.textContent = '移除';
+      removeBtn.addEventListener('click', () => {
+        state.materialsImages.splice(idx, 1);
+        renderMaterialsSlots();
+        if (addMaterialsBtn) {
+          addMaterialsBtn.disabled = state.materialsImages.length >= MATERIALS_MAX;
+        }
+      });
+
+      actions.appendChild(uploadLabel);
+      actions.appendChild(removeBtn);
+      slot.appendChild(preview);
+      slot.appendChild(actions);
+      materialsSlotContainer.appendChild(slot);
+    });
+
+    if (addMaterialsBtn) {
+      addMaterialsBtn.disabled = state.materialsImages.length >= MATERIALS_MAX;
+    }
+  };
+
+  if (addMaterialsBtn) {
+    addMaterialsBtn.addEventListener('click', () => {
+      if (state.materialsImages.length >= MATERIALS_MAX) return;
+      state.materialsImages.push({ file: null, url: null, dataUrl: null, key: null });
+      renderMaterialsSlots();
+    });
+  }
+
+  renderMaterialsSlots();
+  // ── end materials slots ────────────────────────────────────────────────────
 
   attachSingleImageHandler(
     form.querySelector('input[name="product_image_1"]'),
@@ -3611,6 +3734,13 @@ function initStage1ModeS() {
 
   form.addEventListener('input', () => {
     state.previewBuilt = false;
+    // Keep Template B text state in sync
+    const skuEl = document.getElementById('sku-text-stage1');
+    if (skuEl) state.skuText = skuEl.value.trim();
+    const descTitleEl = document.getElementById('description-title-stage1');
+    if (descTitleEl) state.descriptionTitle = descTitleEl.value.trim();
+    const descBodyEl = document.getElementById('description-body-stage1');
+    if (descBodyEl) state.descriptionBody = descBodyEl.value.trim();
     refreshPreview();
   });
 
@@ -3780,6 +3910,22 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
     state.templateLabel = data.template_label || '';
     state.templateVariant = data.template_variant || 'a';
+
+    // Template B text fields
+    state.skuText = data.sku_text || '';
+    state.descriptionTitle = data.description_title || '';
+    state.descriptionBody = data.description_body || '';
+    const skuInput = document.getElementById('sku-text-stage1');
+    if (skuInput) skuInput.value = state.skuText;
+    const descTitleInput = document.getElementById('description-title-stage1');
+    if (descTitleInput) descTitleInput.value = state.descriptionTitle;
+    const descBodyInput = document.getElementById('description-body-stage1');
+    if (descBodyInput) descBodyInput.value = state.descriptionBody;
+
+    // Template B materials images
+    state.materialsImages = Array.isArray(data.materials_images)
+      ? data.materials_images.map((e) => ({ file: null, url: e.url || null, dataUrl: e.url || null, key: e.key || null }))
+      : [];
 
     if (inlinePreviews.brand_logo) {
       inlinePreviews.brand_logo.src =
@@ -4425,6 +4571,18 @@ function collectStage1Data(form, state, { strict = false } = {}) {
         template_variant: formData.get('template_variant')?.toString().trim() || 'a',
       };
 
+    // Template B field overlay
+    const activeVariant = payload.template_variant;
+    if (activeVariant === 'b') {
+      payload.template_id = 'template_product_sheet_v1';
+      payload.sku_text = form.querySelector('[name="sku_text"]')?.value?.trim() || null;
+      payload.description_title = form.querySelector('[name="description_title"]')?.value?.trim() || null;
+      payload.description_body = form.querySelector('[name="description_body"]')?.value?.trim() || null;
+      payload.materials_images = state.materialsImages
+        .filter((e) => e.url)
+        .map((e) => ({ url: e.url, key: e.key || null }));
+    }
+
     if (strict) {
       if (!payload.product_image_1) {
         throw new Error('Product image 1 is required.');
@@ -4961,9 +5119,18 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
             mode: 'upload',
             prompt: null,
           })),
-        template_id: state.templateId || DEFAULT_STAGE1.template_id,
+        template_id: state.templateVariant === 'b'
+          ? 'template_product_sheet_v1'
+          : (state.templateId || DEFAULT_STAGE1.template_id),
         template_variant: state.templateVariant || payload.template_variant || 'a',
       template_label: state.templateLabel || '',
+      // Template B fields
+      sku_text: state.skuText || null,
+      description_title: state.descriptionTitle || null,
+      description_body: state.descriptionBody || null,
+      materials_images: (state.materialsImages || [])
+        .filter((e) => e.url)
+        .map((e) => ({ url: e.url, key: e.key || null })),
       layout_preview: layoutPreview,
       preview_built: previewBuilt,
     };
