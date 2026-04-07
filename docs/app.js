@@ -478,6 +478,33 @@ function updatePoster2BottomRequestPreview(stage1Data) {
   preview.textContent = JSON.stringify(buildPoster2BottomRequestState(stage1Data), null, 2);
 }
 
+// ── Template-family visibility: hide Family A controls for Template B ──────
+const TEMPLATE_B_ID = 'template_product_sheet_v1';
+
+function applyStage2TemplateFamilyVisibility(stage1Data) {
+  const isTemplateB = (stage1Data?.template_id || '') === TEMPLATE_B_ID;
+
+  // Bottom Region panel (gallery/mode controls) — Family A only
+  const bottomPanel = document.getElementById('s2-bottom-region-panel');
+  if (bottomPanel) bottomPanel.style.display = isTemplateB ? 'none' : '';
+
+  // "Bottom Support Copy" textarea — Family A only (maps to bottom subtitle band)
+  const bottomCopyField = document.getElementById('s2-bottom-support-copy-field');
+  if (bottomCopyField) bottomCopyField.style.display = isTemplateB ? 'none' : '';
+
+  // Product Callouts — show for Template B, hide for Family A (shown via wireFeatureDisplay for A)
+  const featuresSection = document.getElementById('s2-features-section');
+  if (featuresSection && isTemplateB) featuresSection.style.display = '';
+
+  // Template display label
+  const templateDisplay = document.getElementById('s2-template-display');
+  if (templateDisplay) {
+    templateDisplay.value = isTemplateB
+      ? 'template_product_sheet_v1 · Family B'
+      : 'template_dual_v2 · Family A';
+  }
+}
+
 function initPoster2BottomContractControls(stage1Data, statusElement) {
   const panel = document.getElementById('poster2-bottom-contract-panel');
   const titleInput = document.getElementById('poster2-bottom-title');
@@ -1168,6 +1195,13 @@ App.utils.ensureTemplateAssets = (() => {
     const registry = await App.utils.loadTemplateRegistry();
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
+
+    // Templates without static preview assets (e.g. Family B) return a spec-less stub.
+    if (!entry.spec || !entry.preview) {
+      const stub = { entry, spec: null, image: null };
+      _cache.set(entry.id, stub);
+      return stub;
+    }
 
     const specUrl = App.utils.assetUrl(`templates/${entry.spec}`);
     const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
@@ -2907,12 +2941,25 @@ function initStage1() {
     ctx.fillRect(0, 0, width, height);
 
     const img = assets.image;
-    const scale = Math.min(width / img.width, height / img.height);
-    const dw = img.width * scale;
-    const dh = img.height * scale;
-    const ox = (width - dw) / 2;
-    const oy = (height - dh) / 2;
-    ctx.drawImage(img, ox, oy, dw, dh);
+    if (!img) {
+      // No preview image (e.g. Template B / Family B) — draw name placeholder
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#64748b';
+      ctx.font = '14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(assets.entry?.name || templateId, width / 2, height / 2 - 10);
+      ctx.font = '11px sans-serif';
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillText('暂无预览图', width / 2, height / 2 + 12);
+    } else {
+      const scale = Math.min(width / img.width, height / img.height);
+      const dw = img.width * scale;
+      const dh = img.height * scale;
+      const ox = (width - dw) / 2;
+      const oy = (height - dh) / 2;
+      ctx.drawImage(img, ox, oy, dw, dh);
+    }
 
     if (templateDescriptionStage1) {
       templateDescriptionStage1.textContent = assets.entry?.description || '';
@@ -6416,6 +6463,7 @@ function initStage2() {
 
     initStage2Poster2PilotControls(stage1Data, statusElement);
     initPoster2BottomContractControls(stage1Data, statusElement);
+    applyStage2TemplateFamilyVisibility(stage1Data);
 
     refreshStage2Wireframe();
 
@@ -7890,6 +7938,78 @@ async function triggerGeneration(opts) {
         product_asset: payload.product_image?.url || null,
         product_key: payload.product_image?.key || null,
       };
+    } else if (MODE_S && templateId === TEMPLATE_B_ID) {
+      // ── Template B (product_sheet) serializer ──────────────────────────────
+      // Sends only Template B fields. Excludes Family A scenario/gallery/bottom fields.
+      const safeText = (value, fallback) => {
+        const text = typeof value === 'string' ? value.trim() : '';
+        return text || fallback;
+      };
+
+      productImage1Ref = await normaliseAssetReference(stage1Data.product_image_1, {
+        field: 'poster.product_image_1',
+        required: true,
+        apiCandidates,
+        folder: 'product',
+      });
+      productImage2Ref = await normaliseAssetReference(stage1Data.product_image_2, {
+        field: 'poster.product_image_2',
+        required: false,
+        apiCandidates,
+        folder: 'product',
+      }, productImage1Ref);
+
+      const brandName = safeText(stage1Data.brand_name, 'Brand');
+      const agentName = sanitizeAgentName(stage1Data.agent_name || '', brandName);
+      const title = safeText(stage1Data.title, '');
+      const productName = safeText(stage1Data.product_name, title);
+      const subtitle = safeText(stage1Data.subtitle || '', '');
+      const seriesDescription = safeText(stage1Data.series_description || stage1Data.subtitle || title, title);
+
+      const callouts = Array.isArray(stage1Data.product_callouts) && stage1Data.product_callouts.length
+        ? stage1Data.product_callouts
+        : Array.isArray(stage1Data.features) ? stage1Data.features : [];
+      const features = callouts.filter(Boolean);
+
+      const rawMaterials = Array.isArray(stage1Data.materialsImages) ? stage1Data.materialsImages : [];
+      const materialsImages = rawMaterials
+        .filter(m => m && (m.url || m.key))
+        .map(m => ({ url: m.url || null, key: m.key || null }));
+
+      if (productImage1Ref?.url) {
+        assertAssetUrl('product_image_1', productImage1Ref.url);
+      }
+
+      posterPayload = {
+        brand_name: brandName,
+        agent_name: agentName,
+        template_id: TEMPLATE_B_ID,
+        product_name: productName,
+        title,
+        subtitle,
+        series_description: seriesDescription,
+        features,
+        // Template B specific fields
+        sku_text: stage1Data.sku_text || null,
+        description_title: stage1Data.descriptionTitle || stage1Data.description_title || null,
+        description_body: stage1Data.descriptionBody || stage1Data.description_body || null,
+        materials_images: materialsImages,
+        // Product images only — no scenario for Template B
+        product_image_1: productImage1Ref?.url || null,
+        product_image_1_key: productImage1Ref?.key || null,
+        product_image_2: productImage2Ref?.url || null,
+        product_image_2_key: productImage2Ref?.key || null,
+        product_key: productImage1Ref?.key || null,
+        product_asset: productImage1Ref?.url || null,
+        product_mode: 'upload',
+      };
+      console.log('[stage2] Template B poster payload', {
+        template_id: posterPayload.template_id,
+        product_image_1_key: posterPayload.product_image_1_key,
+        sku_text: posterPayload.sku_text,
+        materials_count: materialsImages.length,
+        feature_count: features.length,
+      });
     } else if (MODE_S) {
       const safeText = (value, fallback) => {
         const text = typeof value === 'string' ? value.trim() : '';
@@ -8082,9 +8202,13 @@ async function triggerGeneration(opts) {
   const reqFromInspector = MODE_S ? {} : (promptManager?.buildRequest?.() || {});
   if (!MODE_S && forceVariants != null) reqFromInspector.variants = forceVariants;
 
-  let promptBundleStrings = MODE_S
-    ? await buildModeSPromptBundle(stage1Data)
-    : buildPromptBundleStrings(reqFromInspector.prompts || {});
+  // Template B does not use Family A prompt slots — skip bundle to avoid sending A-family prompts.
+  const isTemplateBRequest = MODE_S && stage1Data.template_id === TEMPLATE_B_ID;
+  let promptBundleStrings = isTemplateBRequest
+    ? null
+    : MODE_S
+      ? await buildModeSPromptBundle(stage1Data)
+      : buildPromptBundleStrings(reqFromInspector.prompts || {});
   if (!MODE_S && isPromptBundleEmpty(promptBundleStrings)) {
     const fallbackState = latestPromptState?.slots
       ? latestPromptState
@@ -8106,7 +8230,9 @@ async function triggerGeneration(opts) {
     if (promptBundleStrings) {
       payload.prompt_bundle = promptBundleStrings;
     }
-    if (MODE_S) {
+    // Template B (template_product_sheet_v1) does not use KitPosterDraft — omit draft
+    // to avoid backend schema rejection (KitPosterDraft.template_id is Literal family-A only).
+    if (MODE_S && stage1Data.template_id !== TEMPLATE_B_ID) {
       payload.draft = buildKitPosterDraftFromSource(
         stage1Data,
         stage2State.adjustments,
