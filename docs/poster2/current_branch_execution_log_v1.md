@@ -1,5 +1,100 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-UI2: fix Template B preview path and wire Stage2 generate path
+
+**Branch:** `claude/flamboyant-mclaren`
+**Status:** Complete
+**Last updated:** 2026-04-07
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Scope
+- Remove `/templates/undefined` requests for template_product_sheet_v1
+- Make Stage2 template-family-aware by template_id (hide Family A controls, show Family B label)
+- Fix 422 from KitPosterDraft schema rejecting template_product_sheet_v1
+- Add dedicated Template B posterPayload serializer (no Family A fields)
+- Skip Family A prompt_bundle for Template B
+- frontend/docs mirror sync
+
+### Root rules followed
+- contract-first
+- no poster contract drift
+- no resend / storage / email transport changes
+- no backend schema changes (frontend-only fix)
+
+### Problem reproduced (initial)
+- Template B selection visible in Stage1
+- Stage2 still requested `/templates/undefined` — registry entry lacks spec/preview
+- Stage2 showed Family A controls (Bottom Region panel, hardcoded "template_dual_v2 · Family A" label)
+- Generate returned 422: `buildKitPosterDraftFromSource` sent `draft.template_id: "template_product_sheet_v1"` but `KitPosterDraft.template_id: Literal["template_dual", "template_single"]`
+
+### Problem reproduced (follow-up)
+- `draft` still present in at least one path (buildGeneratePosterPayload debug build)
+- `posterPayload` still carried all Family A fields (scenario_image, gallery_items, gallery_limit, gallery_allows_*, scenario_mode, scenario_key) via the undifferentiated `else if (MODE_S)` branch
+- Stage2 Copy panel still showed "Bottom Support Copy" (Family A subtitle band field) for Template B
+- Family A prompt_bundle slots sent for Template B
+
+### Root cause found
+1. `ensureTemplateAssets` fetched `templates/${entry.spec}` / `templates/${entry.preview}` without guarding undefined
+2. Stage2 init had no template-family dispatch on mount
+3. Draft builder ran unconditionally for all MODE_S requests
+4. `triggerGeneration` had a single `else if (MODE_S)` branch — Template B entered the Family A path and built a Family A posterPayload
+5. `applyStage2TemplateFamilyVisibility` (pass 1) only hid the Bottom Region panel — "Bottom Support Copy" in the Copy panel remained
+6. `buildModeSPromptBundle` ran unconditionally for all MODE_S requests including Template B
+
+### Files changed
+- `frontend/app.js`
+- `frontend/stage2.html`
+- `docs/app.js`
+- `docs/stage2.html`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+- behavior
+- docs
+
+### Changes made
+- `ensureTemplateAssets`: guard — if no spec/preview, return `{entry, spec: null, image: null}` stub
+- standalone `refreshTemplatePreviewStage1`: guard null image — draws placeholder text
+- `TEMPLATE_B_ID = 'template_product_sheet_v1'` constant at module level
+- `applyStage2TemplateFamilyVisibility(stage1Data)`: new function
+  - hides `s2-bottom-region-panel` (Bottom Region controls)
+  - hides `s2-bottom-support-copy-field` (Bottom Support Copy in Copy panel)
+  - shows `s2-features-section` (Product Callouts) for Template B
+  - updates `s2-template-display` to "Family B" or "Family A" label
+- `stage2.html`: added IDs: `s2-bottom-region-panel`, `s2-template-display`, `s2-bottom-support-copy-field`
+- Stage2 init: call `applyStage2TemplateFamilyVisibility` after controls init
+- `triggerGeneration`: added `else if (MODE_S && templateId === TEMPLATE_B_ID)` branch before general `else if (MODE_S)`:
+  - normalises product images only (no scenario ref)
+  - builds posterPayload with Template B fields only: `sku_text`, `description_title`, `description_body`, `materials_images`, product images, features from product_callouts
+  - excludes: `scenario_image`, `scenario_key`, `scenario_asset`, `scenario_mode`, `gallery_items`, `gallery_limit`, `gallery_label`, `gallery_allows_*`
+- Draft builder: skip for Template B (`stage1Data.template_id !== TEMPLATE_B_ID`)
+- Prompt bundle: skip for Template B (`isTemplateBRequest` guard before `buildModeSPromptBundle`)
+
+### Validation run
+- `node --check frontend/app.js` → PASS
+- `bash scripts/sync_frontend_to_docs.sh` → synced (4 files)
+- `python -m pytest tests/poster2/test_api.py tests/test_frontend_docs_sync.py` → 27 passed + 4 passed
+
+### Remaining risks
+- Backend `/api/generate-poster` has no Template B handler — `run_kitposter_state_machine` may fail downstream for `template_product_sheet_v1`; this is step 5 (backend deployment verification)
+- `PosterInput.scenario_image` is required (`min_length=1`) — Template B posterPayload intentionally omits it; backend will return PosterInput 422 until schema is relaxed or a separate endpoint is added for Template B
+
+### Exact acceptance
+- Template B never requests `/templates/undefined`
+- Stage2 hides Bottom Region panel and Bottom Support Copy for Template B
+- Stage2 shows Product Callouts section for Template B
+- Stage2 shows "template_product_sheet_v1 · Family B" in template display field
+- Generate request: no `draft`, no `prompt_bundle`, no Family A fields in posterPayload
+- Generate request: contains `sku_text`, `description_title`, `description_body`, `materials_images`
+- Template A (template_dual_v2) behavior, controls, and payload unchanged
+
+---
+
 ## Entry — PR: close stage1 secondary-image delete and add product-callout input surface
 
 **Branch:** `main`
