@@ -12,5 +12,10 @@
     "spec": "template_focus_spec.json",
     "preview": "template_focus_template.b64",
     "description": "主产品居中、左侧列出功能卖点，适合突出单品气质与系列对比。"
+  },
+  {
+    "id": "template_product_sheet_v1",
+    "name": "产品图录模板",
+    "description": "垂直堆叠产品图录布局：品牌横幅 → SKU + 标题 + 副标题 → 产品主图 + 材质缩略图 → 描述区块。"
   }
 ]
