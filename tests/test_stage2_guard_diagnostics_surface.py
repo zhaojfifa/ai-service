@@ -29,6 +29,8 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "poster2-gallery-count",
         "poster2-bottom-request-preview",
         "poster2-product-contract-review",
+        "poster2-visible-truth-evidence",
+        "poster2-template-b-parity-review",
         'maxlength="120"',
     ):
         assert marker in html
@@ -48,6 +50,8 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "subtitle_text_layer",
         "header_text_layer",
         "product_contract_review",
+        "visible_truth_evidence",
+        "template_b_parity_review",
         "bottom_mode",
         "gallery_mode",
         "normalisePoster2BottomText",
@@ -104,7 +108,8 @@ def test_frontend_stage2_surfaces_scenario_contract_review():
     # 6. renderResolverLayout receives scenarioReview and product/text-layer payloads
     #    as parameters (not relying on outer-scope access which would be undefined)
     assert "renderResolverLayout(" in html
-    assert "annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer)" in html
+    assert "annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview)" in html
+    assert "parityReview" in html
 
 
 def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
@@ -120,6 +125,12 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "poster2-subtitle-text-layer" in html
     assert "poster2-header-text-layer" in html
     assert "buildProductDetail(productReview, annotationReview)" in html
+    assert "header in-banner" in html
+    assert "top-copy in-region" in html
+    assert "hero in-region" in html
+    assert "description in-region" in html
+    assert "poster2-template-b-parity-review" in html
+    assert "poster2-visible-truth-evidence" in html
     assert "product_secondary_image_layer" in html
     assert "product_secondary_slot" in html
     assert "syncPoster2BottomContractFromControls(stage1Data)" in js
@@ -209,3 +220,7 @@ def test_api_response_schema_exposes_scenario_and_annotation_contract_review():
     # main.py must forward both fields in the response constructor
     assert "scenario_contract_review=manifest.scenario_contract_review" in main_src
     assert "product_annotation_contract_review=manifest.product_annotation_contract_review" in main_src
+    assert "visible_truth_evidence" in schema_src
+    assert "template_b_parity_review" in schema_src
+    assert "visible_truth_evidence=manifest.visible_truth_evidence" in main_src
+    assert "template_b_parity_review=manifest.template_b_parity_review" in main_src

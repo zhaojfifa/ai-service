@@ -1577,6 +1577,8 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             title_text_layer=manifest.title_text_layer,
             subtitle_text_layer=manifest.subtitle_text_layer,
             header_text_layer=manifest.header_text_layer,
+            visible_truth_evidence=manifest.visible_truth_evidence,
+            template_b_parity_review=manifest.template_b_parity_review,
         )
         create_poster_record(
             poster_key=poster_key,

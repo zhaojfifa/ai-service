@@ -504,6 +504,7 @@ function buildTemplateBStage2State(stage1Data) {
   const materials = normaliseTemplateBMaterials(stage1Data);
   return {
     template_display: 'template_product_sheet_v1 · Family B',
+    region_order: 'logo_banner -> top_copy -> materials_strip -> product_hero -> description',
     title: stage1Data?.title || '',
     subtitle: stage1Data?.subtitle || '',
     sku_text: stage1Data?.sku_text || '',
@@ -5138,7 +5139,10 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 
     if (brandLogoEl) brandLogoEl.src = logoSrc;
     if (brandNameEl) brandNameEl.textContent = payload.brand_name || 'Brand';
-    if (agentNameEl) agentNameEl.textContent = payload.agent_name || 'Agent';
+    if (agentNameEl) {
+      agentNameEl.textContent = payload.agent_name || 'Agent';
+      agentNameEl.classList.toggle('hidden', !payload.agent_name);
+    }
     if (skuEl) {
       skuEl.textContent = payload.sku_text || 'SKU optional';
       skuEl.classList.toggle('hidden', !payload.sku_text);
@@ -5244,6 +5248,7 @@ function buildLayoutPreview(payload) {
       const lines = [
         'Template B / Family B summary',
         `Template: ${payload.template_id || TEMPLATE_B_ID}`,
+        'Region order: logo_banner -> top_copy -> materials_strip -> product_hero -> description',
         `Title: ${payload.title || 'missing'}`,
         `Subtitle: ${payload.subtitle || 'optional'}`,
         `SKU: ${payload.sku_text || 'optional'}`,
@@ -7665,6 +7670,8 @@ function updatePoster2DiagnosticsPanel(data) {
   setJson('poster2-feature-contract-review', data?.feature_contract_review, '{}');
   setJson('poster2-product-annotation-contract-review', data?.product_annotation_contract_review, '{}');
   setJson('poster2-scenario-contract-review', data?.scenario_contract_review, '{}');
+  setJson('poster2-visible-truth-evidence', data?.visible_truth_evidence, '{}');
+  setJson('poster2-template-b-parity-review', data?.template_b_parity_review, '{}');
 
   setPoster2Link('poster2-link-background', data?.debug_artifacts?.background_layer_url || data?.background_url || '');
   setPoster2Link('poster2-link-product-material', data?.debug_artifacts?.product_material_layer_url || '');

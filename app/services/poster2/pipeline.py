@@ -236,6 +236,7 @@ class PosterPipeline:
             binding_inputs={
                 "bottom_mode": resolved_behavior.bottom_policy.effective_mode,
                 "brand_name": effective_spec.brand_name,
+                "sku_text": effective_spec.sku_text,
                 "title": effective_spec.title,
                 "subtitle": effective_spec.subtitle,
                 "materials_images": list(effective_spec.materials_images),
@@ -243,6 +244,25 @@ class PosterPipeline:
                 "description_body": effective_spec.description_body,
                 "product_image_present": assets.product is not None,
             },
+        )
+        visible_truth_evidence = fg_result.visible_truth_evidence or {}
+        template_b_parity_review = (
+            _build_template_b_parity_review(
+                template,
+                visible_truth_evidence=visible_truth_evidence,
+                geometry_evidence=_build_geometry_evidence(
+                    template,
+                    resolved_behavior=resolved_behavior,
+                    layer_render_status=layer_render_status,
+                    region_render_status=quality_guard_report.region_render_status,
+                ),
+            )
+            if fg_result.render_engine_used == "puppeteer"
+            else {}
+        )
+        quality_guard_report = _apply_template_b_parity_to_quality_guard(
+            quality_guard_report,
+            template_b_parity_review=template_b_parity_review,
         )
         if fg_result.degraded:
             assert_quality_guard_deliverable(
@@ -294,6 +314,12 @@ class PosterPipeline:
         if not final_url:
             raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
 
+        geometry_evidence = _build_geometry_evidence(
+            template,
+            resolved_behavior=resolved_behavior,
+            layer_render_status=layer_render_status,
+            region_render_status=quality_guard_report.region_render_status,
+        )
         renderer_metadata_payload = {
             "trace_id": trace_id,
             "template_id": template.template_id,
@@ -328,12 +354,7 @@ class PosterPipeline:
             "structure_evidence_complete": quality_guard_report.structure_evidence_complete,
             "missing_mandatory_regions": quality_guard_report.missing_mandatory_regions,
             "missing_required_slots": quality_guard_report.missing_required_slots,
-            "geometry_evidence": _build_geometry_evidence(
-                template,
-                resolved_behavior=resolved_behavior,
-                layer_render_status=layer_render_status,
-                region_render_status=quality_guard_report.region_render_status,
-            ),
+            "geometry_evidence": geometry_evidence,
             "hero_contract_review": _build_hero_contract_review(
                 template,
                 requested_spec=requested_spec,
@@ -436,6 +457,8 @@ class PosterPipeline:
                 resolved_behavior=resolved_behavior,
                 layer_render_status=layer_render_status,
             ),
+            "visible_truth_evidence": visible_truth_evidence,
+            "template_b_parity_review": template_b_parity_review,
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -504,7 +527,7 @@ class PosterPipeline:
             region_render_status=quality_guard_report.region_render_status,
             slot_binding_status=quality_guard_report.slot_binding_status,
             template_behavior=resolved_behavior.as_dict(),
-            geometry_evidence=renderer_metadata_payload["geometry_evidence"],
+            geometry_evidence=geometry_evidence,
             hero_contract_review=renderer_metadata_payload["hero_contract_review"],
             product_contract_review=renderer_metadata_payload["product_contract_review"],
             header_contract_review=renderer_metadata_payload["header_contract_review"],
@@ -517,6 +540,8 @@ class PosterPipeline:
             title_text_layer=renderer_metadata_payload["title_text_layer"],
             subtitle_text_layer=renderer_metadata_payload["subtitle_text_layer"],
             header_text_layer=renderer_metadata_payload["header_text_layer"],
+            visible_truth_evidence=visible_truth_evidence,
+            template_b_parity_review=template_b_parity_review,
         )
 
 
@@ -1301,6 +1326,176 @@ def _build_geometry_evidence(
     }
 
 
+def _bounds_contains(container: dict[str, int], child: dict[str, int] | None) -> bool:
+    if not child:
+        return False
+    if child.get("w", 0) <= 0 or child.get("h", 0) <= 0:
+        return False
+    return (
+        int(child["x"]) >= int(container["x"])
+        and int(child["y"]) >= int(container["y"])
+        and int(child["x"]) + int(child["w"]) <= int(container["x"]) + int(container["w"])
+        and int(child["y"]) + int(child["h"]) <= int(container["y"]) + int(container["h"])
+    )
+
+
+def _parity_target_review(
+    *,
+    target_key: str,
+    region_key: str,
+    visible_truth_evidence: dict[str, object],
+    geometry_evidence: dict[str, object],
+) -> dict[str, object]:
+    region_bounds = dict((geometry_evidence.get("region_bounds") or {}).get(region_key) or {})
+    target = dict(visible_truth_evidence.get(target_key) or {})
+    visible_bounds = target.get("visible_bounds")
+    contained = _bounds_contains(region_bounds, visible_bounds) if region_bounds else False
+    return {
+        "target_key": target_key,
+        "region_key": region_key,
+        "rendered": bool(target.get("rendered", False)),
+        "visible_bounds": visible_bounds,
+        "layout_bounds": target.get("layout_bounds"),
+        "region_bounds": region_bounds,
+        "inside_region": contained,
+        "overflow_state": target.get("overflow_state"),
+        "clipping_state": target.get("clipping_state"),
+        "computed_opacity": target.get("computed_opacity"),
+        "stacking_context": target.get("stacking_context"),
+        "transform_summary": target.get("transform_summary"),
+        "reason_code": target.get("reason_code"),
+    }
+
+
+def _parity_passes_when_rendered(target: dict[str, object]) -> bool:
+    return (not bool(target.get("rendered", False))) or bool(target.get("inside_region", False))
+
+
+def _build_template_b_parity_review(
+    template: TemplateSpec,
+    *,
+    visible_truth_evidence: dict[str, object],
+    geometry_evidence: dict[str, object],
+) -> dict[str, object]:
+    if not _is_template_b_template(template):
+        return {}
+
+    if not visible_truth_evidence:
+        return {
+            "parity_enabled": False,
+            "parity_passed": False,
+            "parity_failure_reasons": ["visible_truth_evidence_missing"],
+            "header_in_banner": False,
+            "top_copy_in_region": False,
+            "hero_in_region": False,
+            "description_in_region": False,
+            "targets": {},
+        }
+
+    targets = {
+        "brand_logo_slot": _parity_target_review(
+            target_key="brand_logo_slot",
+            region_key="logo_banner_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "brand_name_slot": _parity_target_review(
+            target_key="brand_name_slot",
+            region_key="logo_banner_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "sku_text_layer": _parity_target_review(
+            target_key="sku_text_layer",
+            region_key="top_copy_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "top_copy_title_layer": _parity_target_review(
+            target_key="top_copy_title_layer",
+            region_key="top_copy_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "top_copy_subtitle_layer": _parity_target_review(
+            target_key="top_copy_subtitle_layer",
+            region_key="top_copy_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "product_primary_image": _parity_target_review(
+            target_key="product_primary_image",
+            region_key="product_hero_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "product_secondary_inset": _parity_target_review(
+            target_key="product_secondary_inset",
+            region_key="product_hero_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "description_title_layer": _parity_target_review(
+            target_key="description_title_layer",
+            region_key="description_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "description_body_layer": _parity_target_review(
+            target_key="description_body_layer",
+            region_key="description_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+    }
+
+    failures: list[str] = []
+    if not _parity_passes_when_rendered(targets["brand_logo_slot"]):
+        failures.append("brand_logo_slot_outside_logo_banner_region")
+    if not _parity_passes_when_rendered(targets["brand_name_slot"]):
+        failures.append("brand_name_slot_outside_logo_banner_region")
+    if not all(_parity_passes_when_rendered(targets[key]) for key in ("sku_text_layer", "top_copy_title_layer", "top_copy_subtitle_layer")):
+        failures.append("top_copy_content_outside_top_copy_region")
+    if not _parity_passes_when_rendered(targets["product_primary_image"]):
+        failures.append("product_primary_image_outside_product_hero_region")
+    if not _parity_passes_when_rendered(targets["product_secondary_inset"]):
+        failures.append("product_secondary_inset_outside_product_hero_region")
+    if not all(_parity_passes_when_rendered(targets[key]) for key in ("description_title_layer", "description_body_layer")):
+        failures.append("description_content_outside_description_region")
+
+    return {
+        "parity_enabled": True,
+        "parity_passed": not failures,
+        "parity_failure_reasons": failures,
+        "header_in_banner": all(_parity_passes_when_rendered(targets[key]) for key in ("brand_logo_slot", "brand_name_slot")),
+        "top_copy_in_region": all(_parity_passes_when_rendered(targets[key]) for key in ("sku_text_layer", "top_copy_title_layer", "top_copy_subtitle_layer")),
+        "hero_in_region": _parity_passes_when_rendered(targets["product_primary_image"]) and (
+            _parity_passes_when_rendered(targets["product_secondary_inset"])
+        ),
+        "description_in_region": all(_parity_passes_when_rendered(targets[key]) for key in ("description_title_layer", "description_body_layer")),
+        "targets": targets,
+    }
+
+
+def _apply_template_b_parity_to_quality_guard(
+    report,
+    *,
+    template_b_parity_review: dict[str, object],
+):
+    failures = list(template_b_parity_review.get("parity_failure_reasons") or [])
+    if not failures:
+        return report
+    missing_regions = sorted(set(report.missing_mandatory_regions) | {"template_b_visual_parity"})
+    return replace(
+        report,
+        structure_complete=False,
+        incomplete_structure=True,
+        deliverable=False,
+        structure_evidence_complete=False,
+        missing_mandatory_regions=missing_regions,
+    )
+
+
 def _slot_bounds(slot) -> dict[str, int]:
     return {"x": int(slot.x), "y": int(slot.y), "w": int(slot.w), "h": int(slot.h)}
 
@@ -1670,7 +1865,10 @@ def _build_header_contract_review(
             "rendered_brand_excerpt": brand_excerpt,
             "rendered_agent_excerpt": agent_excerpt,
             "brand_truncation_applied": brand_excerpt != effective_spec.brand_name,
-            "agent_truncation_applied": agent_excerpt != effective_spec.agent_name,
+            "agent_truncation_applied": bool(
+                resolved_behavior.header_policy.agent_pill_visible
+                and agent_excerpt != effective_spec.agent_name
+            ),
             "brand_source": "request.brand_name",
             "agent_source": "request.agent_name",
             "header_region": {
@@ -1726,7 +1924,10 @@ def _build_header_contract_review(
         "rendered_brand_excerpt": brand_excerpt,
         "rendered_agent_excerpt": agent_excerpt,
         "brand_truncation_applied": brand_excerpt != effective_spec.brand_name,
-        "agent_truncation_applied": agent_excerpt != effective_spec.agent_name,
+        "agent_truncation_applied": bool(
+            resolved_behavior.header_policy.agent_pill_visible
+            and agent_excerpt != effective_spec.agent_name
+        ),
         "brand_source": "request.brand_name",
         "agent_source": "request.agent_name",
         "header_region": {

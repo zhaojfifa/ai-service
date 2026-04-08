@@ -405,6 +405,8 @@ class RenderManifest:
     title_text_layer: dict = field(default_factory=dict)
     subtitle_text_layer: dict = field(default_factory=dict)
     header_text_layer: dict = field(default_factory=dict)
+    visible_truth_evidence: dict = field(default_factory=dict)
+    template_b_parity_review: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)

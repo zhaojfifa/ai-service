@@ -132,6 +132,20 @@
         background: #fff; border: 1px solid #E4E2DE;
         color: #6B6762;
       }
+      .s2-parity-strip {
+        display: flex; gap: 6px; flex-wrap: wrap;
+        padding: 10px 14px;
+        border-bottom: 1px solid #E4E2DE;
+        background: #FDFBF8;
+      }
+      .s2-parity-chip {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 10.5px; font-family: monospace;
+        padding: 3px 8px; border-radius: 999px;
+        border: 1px solid #E4E2DE; background: #fff; color: #6B6762;
+      }
+      .s2-parity-chip.ok { background: #F0FAF5; color: #1A7A4A; border-color: #B6E8CE; }
+      .s2-parity-chip.warn { background: #FFF8EC; color: #92650A; border-color: #F5D99A; }
       .s2-mode-key { color: #9E9A95; }
       .s2-mode-val { color: #1A1917; }
 
@@ -508,6 +522,8 @@
         <pre id="poster2-feature-contract-review">{}</pre>
         <pre id="poster2-product-annotation-contract-review">{}</pre>
         <pre id="poster2-scenario-contract-review">{}</pre>
+        <pre id="poster2-visible-truth-evidence">{}</pre>
+        <pre id="poster2-template-b-parity-review">{}</pre>
       </div>
 
       <!-- Debug artifact links: app.js sets href / removes hidden -->
@@ -687,12 +703,24 @@
           'feature_region',
           'bottom_region',
         ];
+        const TEMPLATE_B_REGION_ORDER = [
+          'logo_banner_region',
+          'top_copy_region',
+          'materials_strip_region',
+          'product_hero_region',
+          'description_region',
+        ];
         const REGION_META = {
           header_region:   { icon: 'H', cls: 'icon-header' },
           scenario_region: { icon: 'S', cls: 'icon-scenario' },
           product_region:  { icon: 'P', cls: 'icon-product' },
           feature_region:  { icon: 'F', cls: 'icon-feature' },
           bottom_region:   { icon: 'B', cls: 'icon-bottom' },
+          logo_banner_region: { icon: 'H', cls: 'icon-header' },
+          top_copy_region: { icon: 'T', cls: 'icon-title' },
+          materials_strip_region: { icon: 'M', cls: 'icon-gallery' },
+          product_hero_region: { icon: 'P', cls: 'icon-product' },
+          description_region: { icon: 'D', cls: 'icon-bottom' },
         };
 
         function statusCls(rendered, collapsed) {
@@ -1008,7 +1036,23 @@
           return html;
         }
 
-        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer) {
+        function buildTemplateBParityStrip(parityReview) {
+          if (!parityReview || !parityReview.parity_enabled) return '';
+          const chips = [
+            ['header in-banner', parityReview.header_in_banner],
+            ['top-copy in-region', parityReview.top_copy_in_region],
+            ['hero in-region', parityReview.hero_in_region],
+            ['description in-region', parityReview.description_in_region],
+          ];
+          const failureText = (parityReview.parity_failure_reasons || []).join(', ');
+          return `
+            <div class="s2-parity-strip">
+              ${chips.map(([label, ok]) => `<span class="s2-parity-chip ${ok ? 'ok' : 'warn'}">${label}: ${ok ? 'yes' : 'no'}</span>`).join('')}
+              ${failureText ? `<span class="s2-parity-chip warn">parity_failure: ${failureText}</span>` : ''}
+            </div>`;
+        }
+
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
           if (modesStrip && templateBehavior) {
@@ -1056,6 +1100,7 @@
           // Region rows
           const container = document.getElementById('s2-resolver-regions');
           if (!container) return;
+          const isTemplateB = Object.prototype.hasOwnProperty.call(regionStatus || {}, 'logo_banner_region');
 
           if (!regionStatus || Object.keys(regionStatus).length === 0) {
             container.innerHTML = '<div class="s2-resolver-empty">No resolver data available</div>';
@@ -1063,17 +1108,37 @@
           }
 
           const rows = [];
-          for (const key of REGION_ORDER) {
+          const orderedKeys = isTemplateB ? TEMPLATE_B_REGION_ORDER : REGION_ORDER;
+          if (isTemplateB) {
+            rows.push(buildTemplateBParityStrip(parityReview));
+          }
+          for (const key of orderedKeys) {
             const rs = regionStatus[key];
             if (!rs) continue;
             const m = REGION_META[key] || { icon: '?', cls: '' };
             const rendered  = Boolean(rs.rendered);
             const collapsed = Boolean(rs.collapsed);
             const count     = rs.count || 0;
-            const isBottom  = key === 'bottom_region';
+            const isBottom  = key === 'bottom_region' || key === 'description_region';
             let modeLabel = '';
             let detailHtml = '';
-            if (isBottom) {
+            if (key === 'description_region') {
+              modeLabel = templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || 'description_block';
+              detailHtml = buildBottomDetail(bottomReview, templateBehavior, titleTextLayer, subtitleTextLayer);
+            } else if (key === 'logo_banner_region') {
+              modeLabel = templateBehavior?.behavior_modes?.header_mode || headerReview?.header_mode || '';
+              detailHtml = buildHeaderDetail(headerReview, headerTextLayer);
+            } else if (key === 'top_copy_region') {
+              modeLabel = templateBehavior?.top_copy_policy?.mode || templateBehavior?.behavior_modes?.top_copy_mode || 'title_subtitle_stack';
+              detailHtml = buildBottomDetail(null, null, titleTextLayer, subtitleTextLayer);
+            } else if (key === 'materials_strip_region') {
+              modeLabel = templateBehavior?.materials_policy?.mode || 'strip_thumbnails';
+            } else if (key === 'product_hero_region') {
+              modeLabel = productReview?.product_layout_mode || templateBehavior?.behavior_modes?.product_layout_mode || '';
+              detailHtml = productReview
+                ? buildProductDetail(productReview, annotationReview)
+                : buildHeroDetail(heroReview, 'product_region');
+            } else if (isBottom) {
               modeLabel = templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || '';
               detailHtml = buildBottomDetail(bottomReview, templateBehavior, titleTextLayer, subtitleTextLayer);
             } else if (key === 'header_region') {
@@ -1131,6 +1196,7 @@
           let titleTextLayer = null;
           let subtitleTextLayer = null;
           let headerTextLayer = null;
+          let parityReview = null;
           try { regionStatus = JSON.parse(regionEl?.textContent || '{}'); } catch (_) {}
           try { templateBehavior = JSON.parse(behaviorEl?.textContent || '{}'); } catch (_) {}
           try { bottomReview = JSON.parse(bottomEl?.textContent || 'null'); } catch (_) {}
@@ -1145,6 +1211,7 @@
           try { annotationReview = JSON.parse(document.getElementById('poster2-product-annotation-contract-review')?.textContent || 'null'); } catch (_) {}
           let scenarioReview = null;
           try { scenarioReview = JSON.parse(document.getElementById('poster2-scenario-contract-review')?.textContent || 'null'); } catch (_) {}
+          try { parityReview = JSON.parse(document.getElementById('poster2-template-b-parity-review')?.textContent || 'null'); } catch (_) {}
 
           if (!Object.keys(regionStatus).length) return;
 
@@ -1169,7 +1236,7 @@
           // Update render engine badge
           if (engEl) engEl.className = 's2-badge ok';
 
-          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer);
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview);
         }
 
         /* Sync s2-out-url from final-poster-link.href */

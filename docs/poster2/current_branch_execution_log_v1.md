@@ -1994,3 +1994,66 @@ Remaining risks:
 - empty materials path works
 - empty description path works
 - Template A remains unchanged
+
+## PR-TB-P1 — Template B parity / visual-contract closure
+
+### Root rules followed
+- contract-first
+- backend evidence remains source of truth
+- Template A untouched
+- no Template B geometry redesign
+- `frontend/` and `docs/` kept aligned
+
+### Problem reproduced
+- Template B metadata could report clean Family B ownership while final visible render still drifted from declared regions
+- visible drift was most likely in banner content, top-copy placement, hero occupancy, and description containment
+- Stage2 diagnostics did not expose backend visible-truth parity checks
+
+### Root cause found
+- Template B HTML mixed global poster-root slot coordinates with nested positioned Family B containers
+- Puppeteer path emitted structural layer truth but not DOM/computed visible-truth evidence
+- pipeline therefore could still report clean structure truth even when visible containment had drifted
+
+### Files changed
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/contracts.py`
+- `app/schemas/poster2.py`
+- `app/main.py`
+- `app/templates_html/template_product_sheet_v1.html`
+- `app/templates_html/template_product_sheet_v1.css`
+- `frontend/app.js`
+- `frontend/stage2.html`
+- `frontend/index.html`
+- `frontend/styles.css`
+- `docs/app.js`
+- `docs/stage2.html`
+- `docs/index.html`
+- `docs/styles.css`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_parity_and_visual_contract_status_v1.md`
+
+### Layer changed
+- renderer
+- validation
+- metadata / API payload
+- Stage1 / Stage2 preview + diagnostics
+- docs
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/renderer.py app/services/poster2/pipeline.py app/services/poster2/contracts.py app/schemas/poster2.py app/main.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix'`
+  - `13 passed, 266 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+  - `6 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'template_b or generate_poster_v2_accepts_template_b'`
+  - `4 passed, 23 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py -k 'template_b_independent_preview_and_generate_path_are_present or stage1_operator_surfaces_and_publish_mirror_are_aligned'`
+  - `2 passed, 3 deselected`
+
+### Remaining risks
+- no fresh live before/after Chromium screenshot bundle was generated locally in this task
+- parity enforcement applies to Puppeteer evidence; degraded Pillow fallback still relies on structural evidence only
+- any future Template B DOM refactor must keep parity keys and backend target mapping aligned

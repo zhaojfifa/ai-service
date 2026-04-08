@@ -160,41 +160,32 @@ body {
 /* Header layout */
 .layer-header-content {
   z-index: 2;
+  position: absolute;
+  inset: 0;
 }
 
 .layer-header-layout {
   position: absolute;
   inset: 0;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  padding: 0 28px;
-  gap: 20px;
 }
 
 .layer-header-identity-zone {
-  position: relative;
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .layer-header-agent-zone {
-  position: relative;
-  flex: 0 0 auto;
-  min-width: 180px;
+  position: absolute;
+  inset: 0;
 }
 
 .layer-brand-logo {
-  position: relative;
-  flex-shrink: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .slot-logo {
-  position: relative;
+  position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -212,9 +203,8 @@ body {
 }
 
 .layer-brand-text {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
 }
 
 .text-brand {
@@ -230,6 +220,7 @@ body {
 }
 
 .slot-agent-name-text {
+  position: absolute;
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
@@ -280,12 +271,8 @@ body {
 }
 
 .layer-top-copy-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 8px 16px 0;
+  position: absolute;
+  inset: 0;
 }
 
 .text-sku {
@@ -455,7 +442,6 @@ body {
 
 .slot-product {
   position: absolute;
-  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -513,12 +499,8 @@ body {
 }
 
 .layer-description-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 24px 40px 18px;
-  gap: 8px;
+  position: absolute;
+  inset: 0;
 }
 
 .text-description-title {

@@ -87,6 +87,7 @@ class ForegroundResult:
     gallery_items_status: list[dict] = field(default_factory=list)
     layer_render_status: dict[str, dict[str, Any]] = field(default_factory=dict)
     region_render_status: dict[str, dict[str, Any]] = field(default_factory=dict)
+    visible_truth_evidence: dict[str, Any] = field(default_factory=dict)
 
 
 def _rectangles_intersect(
@@ -875,7 +876,11 @@ class PuppeteerStructuredRenderer:
             raise _classify_puppeteer_exception(exc, stage="template_render") from exc
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
-        png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
+        png_bytes, visible_truth_evidence = await self._render_html_to_png(
+            html_payload,
+            spec.canvas_w,
+            spec.canvas_h,
+        )
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
         gallery_items_status = _annotate_gallery_items_status(gallery_items_status, behavior.bottom_policy)
         if is_template_b:
@@ -928,6 +933,7 @@ class PuppeteerStructuredRenderer:
             gallery_items_status=gallery_items_status,
             layer_render_status=layer_render_status,
             region_render_status=region_render_status,
+            visible_truth_evidence=visible_truth_evidence,
         )
 
     def _read_template_file(self, name: str, optional: bool = False) -> str:
@@ -1052,7 +1058,11 @@ class PuppeteerStructuredRenderer:
         scenario_slot_raw = slot_spec.get("slots", {}).get("scenario", {"x": 0, "y": 0, "w": 0, "h": 0})
         desc_title_slot = slot_spec.get("slots", {}).get("description_title", {"x": 0, "y": 0, "w": 0, "h": 0})
         desc_body_slot = slot_spec.get("slots", {}).get("description_body", {"x": 0, "y": 0, "w": 0, "h": 0})
-        sku_slot = {"x": 112, "y": 0, "w": 800, "h": 20}  # relative within top-copy container
+        sku_slot = {"x": 112, "y": 172, "w": 800, "h": 20}
+        header_region = _header_region_bounds_local(slot_spec, behavior.header_policy)
+        top_copy_region = _template_b_region_slot(slot_spec, "top_copy")
+        product_region = _template_b_region_slot(slot_spec, "product")
+        description_region = _template_b_region_slot(slot_spec, "description")
 
         replacements = {
             "__INLINE_CSS__": css_template,
@@ -1065,15 +1075,21 @@ class PuppeteerStructuredRenderer:
             "__SVG_OVERLAY__": "",
             "__HEADER_LAYER_CLASS__": header_layer_class,
             "__HEADER_STYLE_VARS__": _inline_style_vars(_resolve_header_behavior_vars(behavior.header_policy)),
-            "__LOGO_STYLE__": _slot_style(_header_logo_slot(slot_spec, behavior.header_policy)),
+            "__LOGO_STYLE__": _slot_style(
+                _localize_slot(_header_logo_slot(slot_spec, behavior.header_policy), header_region)
+            ),
             "__LOGO_URL__": asset_urls["logo"],
-            "__BRAND_STYLE__": _slot_style(_header_brand_slot(slot_spec, behavior.header_policy)),
+            "__BRAND_STYLE__": _slot_style(
+                _localize_slot(_header_brand_slot(slot_spec, behavior.header_policy), header_region)
+            ),
             "__BRAND_TEXT__": html.escape(_apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget)),
-            "__AGENT_STYLE__": _slot_style(_header_agent_slot(slot_spec, behavior.header_policy)),
+            "__AGENT_STYLE__": _slot_style(
+                _localize_slot(_header_agent_slot(slot_spec, behavior.header_policy), header_region)
+            ),
             "__AGENT_TEXT__": html.escape(_apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget)),
-            "__TITLE_STYLE__": _slot_style(slot_spec["slots"]["title"]),
+            "__TITLE_STYLE__": _slot_style(_localize_slot(slot_spec["slots"]["title"], top_copy_region)),
             "__TITLE_TEXT__": html.escape(_apply_char_budget(poster.title, title_char_budget)),
-            "__SUBTITLE_STYLE__": _slot_style(slot_spec["slots"]["subtitle"]),
+            "__SUBTITLE_STYLE__": _slot_style(_localize_slot(slot_spec["slots"]["subtitle"], top_copy_region)),
             "__SUBTITLE_TEXT__": html.escape(_apply_char_budget(poster.subtitle, subtitle_char_budget)),
             "__SUBTITLE_CLASS__": subtitle_class_resolved,
             "__SCENARIO_LAYER_CLASS__": scenario_layer_class,
@@ -1084,14 +1100,18 @@ class PuppeteerStructuredRenderer:
             "__SCENARIO_URL__": asset_urls.get("scenario", ""),
             "__PRODUCT_LAYER_CLASS__": product_layer_class,
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
-            "__PRODUCT_STYLE__": _slot_style(_product_slot(slot_spec, behavior.hero_policy, behavior.product_policy)),
+            "__PRODUCT_STYLE__": _slot_style(
+                _localize_slot(_product_slot(slot_spec, behavior.hero_policy, behavior.product_policy), product_region)
+            ),
             "__PRODUCT_URL__": asset_urls["product"],
             "__PRODUCT_SECONDARY_CLASS__": (
                 "state-show"
                 if behavior.product_policy.product_secondary_slot_rendered and asset_urls.get("product_secondary")
                 else "state-hidden"
             ),
-            "__PRODUCT_SECONDARY_STYLE__": _slot_style(_product_secondary_slot(slot_spec, behavior.product_policy)),
+            "__PRODUCT_SECONDARY_STYLE__": _slot_style(
+                _localize_slot(_product_secondary_slot(slot_spec, behavior.product_policy), product_region)
+            ),
             "__PRODUCT_SECONDARY_URL__": asset_urls.get("product_secondary", ""),
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
             "__BOTTOM_REGION_CLASS__": bottom_region_class,
@@ -1107,7 +1127,7 @@ class PuppeteerStructuredRenderer:
             # Template B tokens
             "__TOP_COPY_CLASS__": top_copy_class,
             "__SKU_CLASS__": sku_class,
-            "__SKU_STYLE__": _slot_style(sku_slot),
+            "__SKU_STYLE__": _slot_style(_localize_slot(sku_slot, top_copy_region)),
             "__SKU_TEXT__": html.escape(poster.sku_text or ""),
             "__MATERIALS_CLASS__": materials_class,
             "__MATERIALS_COUNT_CLASS__": f"materials-count-{min(len(asset_urls.get('materials') or []), 5)}",
@@ -1115,10 +1135,10 @@ class PuppeteerStructuredRenderer:
             "__PRODUCT_HERO_CLASS__": product_hero_class,
             "__DESCRIPTION_CLASS__": description_class,
             "__DESCRIPTION_TITLE_CLASS__": description_title_class,
-            "__DESCRIPTION_TITLE_STYLE__": _slot_style(desc_title_slot),
+            "__DESCRIPTION_TITLE_STYLE__": _slot_style(_localize_slot(desc_title_slot, description_region)),
             "__DESCRIPTION_TITLE_TEXT__": html.escape(poster.description_title or ""),
             "__DESCRIPTION_BODY_CLASS__": description_body_class,
-            "__DESCRIPTION_BODY_STYLE__": _slot_style(desc_body_slot),
+            "__DESCRIPTION_BODY_STYLE__": _slot_style(_localize_slot(desc_body_slot, description_region)),
             "__DESCRIPTION_BODY_TEXT__": html.escape(poster.description_body or ""),
         }
         rendered = html_template
@@ -1214,13 +1234,18 @@ class PuppeteerStructuredRenderer:
             h = int(ms.get("h", 52))
             radius = int(ms.get("radius", 8))
             items.append(
-                f'<div class="materials-item" style="width:{w}px;height:{h}px;border-radius:{radius}px;">'
+                f'<div class="materials-item" data-parity-key="materials_item_{idx}" style="width:{w}px;height:{h}px;border-radius:{radius}px;">'
                 f'<img src="{url}" alt="" loading="eager" />'
                 "</div>"
             )
         return "".join(items)
 
-    async def _render_html_to_png(self, html_payload: str, width: int, height: int) -> bytes:
+    async def _render_html_to_png(
+        self,
+        html_payload: str,
+        width: int,
+        height: int,
+    ) -> tuple[bytes, dict[str, Any]]:
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc:  # pragma: no cover - import path depends on runtime
@@ -1261,6 +1286,7 @@ class PuppeteerStructuredRenderer:
                 logger.info("poster2.puppeteer: navigation_done")
                 logger.info("poster2.puppeteer: screenshot_start")
                 try:
+                    visible_truth_evidence = await self._collect_visible_truth_evidence(page)
                     png_bytes = await page.locator("#poster-root").screenshot(
                         type="png",
                         omit_background=True,
@@ -1269,7 +1295,7 @@ class PuppeteerStructuredRenderer:
                 except Exception as exc:
                     raise _classify_puppeteer_exception(exc, stage="screenshot") from exc
                 logger.info("poster2.puppeteer: screenshot_done")
-                return png_bytes
+                return png_bytes, visible_truth_evidence
             finally:
                 await browser.close()
 
@@ -1292,6 +1318,141 @@ class PuppeteerStructuredRenderer:
             timeout=self._render_timeout_ms,
         )
         await page.wait_for_timeout(32)
+
+    async def _collect_visible_truth_evidence(self, page: Any) -> dict[str, Any]:
+        return await page.evaluate(
+            """
+            () => {
+              const root = document.getElementById('poster-root');
+              if (!root) return {};
+              const rootRect = root.getBoundingClientRect();
+              const keys = [
+                'logo_banner_region',
+                'brand_logo_slot',
+                'brand_name_slot',
+                'agent_name_slot',
+                'top_copy_region',
+                'sku_text_layer',
+                'top_copy_title_layer',
+                'top_copy_subtitle_layer',
+                'materials_strip_region',
+                'materials_item_0',
+                'materials_item_1',
+                'materials_item_2',
+                'materials_item_3',
+                'materials_item_4',
+                'product_hero_region',
+                'product_primary_image',
+                'product_secondary_inset',
+                'description_region',
+                'description_title_layer',
+                'description_body_layer',
+              ];
+
+              const relRect = (rect) => ({
+                x: Math.round(rect.left - rootRect.left),
+                y: Math.round(rect.top - rootRect.top),
+                w: Math.round(rect.width),
+                h: Math.round(rect.height),
+              });
+
+              const intersect = (a, b) => {
+                const left = Math.max(a.left, b.left);
+                const top = Math.max(a.top, b.top);
+                const right = Math.min(a.right, b.right);
+                const bottom = Math.min(a.bottom, b.bottom);
+                return right > left && bottom > top
+                  ? { left, top, right, bottom, width: right - left, height: bottom - top }
+                  : null;
+              };
+
+              const overflowSummary = (style) => ({
+                x: style.overflowX,
+                y: style.overflowY,
+                shorthand: style.overflow,
+              });
+
+              const ancestorSummary = (el) => {
+                const items = [];
+                let node = el.parentElement;
+                while (node && node !== root && items.length < 6) {
+                  const style = getComputedStyle(node);
+                  const clips = ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowX)
+                    || ['hidden', 'clip', 'scroll', 'auto'].includes(style.overflowY);
+                  items.push({
+                    tag: node.tagName.toLowerCase(),
+                    className: node.className || '',
+                    overflow: overflowSummary(style),
+                    position: style.position,
+                    clips_descendants: clips,
+                  });
+                  node = node.parentElement;
+                }
+                return items;
+              };
+
+              const createsStackingContext = (style) => (
+                style.position === 'fixed'
+                || style.position === 'sticky'
+                || ((style.position === 'absolute' || style.position === 'relative') && style.zIndex !== 'auto')
+                || style.opacity !== '1'
+                || style.transform !== 'none'
+                || style.filter !== 'none'
+              );
+
+              const collect = (key) => {
+                const el = root.querySelector(`[data-parity-key="${key}"]`);
+                if (!el) {
+                  return {
+                    rendered: false,
+                    reason_code: 'element_not_found',
+                    visible_bounds: null,
+                    layout_bounds: null,
+                    overflow_state: null,
+                    clipping_state: null,
+                    computed_opacity: 0,
+                    stacking_context: null,
+                    transform_summary: null,
+                  };
+                }
+                const style = getComputedStyle(el);
+                const layoutRect = el.getBoundingClientRect();
+                const visible = intersect(layoutRect, rootRect);
+                const clippedByRoot = Boolean(visible) && (
+                  visible.width < layoutRect.width || visible.height < layoutRect.height
+                );
+                const hiddenByStyle = style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0;
+                return {
+                  rendered: !hiddenByStyle && layoutRect.width > 0 && layoutRect.height > 0,
+                  reason_code: hiddenByStyle ? 'hidden_by_style' : null,
+                  visible_bounds: visible ? relRect(visible) : null,
+                  layout_bounds: relRect(layoutRect),
+                  overflow_state: overflowSummary(style),
+                  clipping_state: {
+                    clipped_by_root: clippedByRoot,
+                    ancestor_chain: ancestorSummary(el),
+                  },
+                  computed_opacity: Number(style.opacity),
+                  stacking_context: {
+                    z_index: style.zIndex,
+                    position: style.position,
+                    creates_stacking_context: createsStackingContext(style),
+                  },
+                  transform_summary: {
+                    transform: style.transform,
+                    transform_origin: style.transformOrigin,
+                  },
+                };
+              };
+
+              const evidence = {};
+              for (const key of keys) {
+                evidence[key] = collect(key);
+              }
+              return evidence;
+            }
+            """
+        )
 
     def _font_faces_css(self) -> str:
         font_defs: list[str] = []
@@ -2661,6 +2822,13 @@ def _slot_style(slot: dict[str, Any]) -> str:
     )
 
 
+def _localize_slot(slot: dict[str, Any], region: dict[str, Any]) -> dict[str, Any]:
+    localized = dict(slot)
+    localized["x"] = int(slot.get("x", 0)) - int(region.get("x", 0))
+    localized["y"] = int(slot.get("y", 0)) - int(region.get("y", 0))
+    return localized
+
+
 def _inline_style_vars(vars_map: dict[str, str]) -> str:
     return "; ".join(f"{key}: {value}" for key, value in vars_map.items())
 
@@ -2671,6 +2839,44 @@ def _header_logo_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBe
     slot["w"] = int(metrics["header_logo_width"])
     slot["h"] = int(metrics["header_logo_height"])
     return slot
+
+
+def _header_region_bounds_local(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:
+    metrics = header_policy.layout_metrics
+    return {
+        "x": int(metrics["header_banner_left"]),
+        "y": int(metrics["header_banner_top"]),
+        "w": int(metrics["header_banner_width"]),
+        "h": int(metrics["header_banner_height"]),
+    }
+
+
+def _template_b_region_slot(slot_spec: dict[str, Any], region_key: str) -> dict[str, Any]:
+    slots = slot_spec.get("slots", {})
+    if region_key == "top_copy":
+        title = slots.get("title", {})
+        subtitle = slots.get("subtitle", {})
+        return {"x": 96, "y": 168, "w": 832, "h": 100} if title else {"x": 0, "y": 0, "w": 0, "h": 0}
+    if region_key == "materials":
+        materials = slots.get("materials", [])
+        if materials:
+            x = min(int(item.get("x", 0)) for item in materials)
+            y = min(int(item.get("y", 0)) for item in materials)
+            right = max(int(item.get("x", 0)) + int(item.get("w", 0)) for item in materials)
+            bottom = max(int(item.get("y", 0)) + int(item.get("h", 0)) for item in materials)
+            return {"x": x, "y": y, "w": right - x, "h": bottom - y}
+        return {"x": 112, "y": 280, "w": 800, "h": 52}
+    if region_key == "product":
+        product = slots.get("product", {})
+        return {
+            "x": int(product.get("x", 0)),
+            "y": int(product.get("y", 0)),
+            "w": int(product.get("w", 0)),
+            "h": int(product.get("h", 0)),
+        }
+    if region_key == "description":
+        return {"x": 96, "y": 748, "w": 832, "h": 228}
+    return {"x": 0, "y": 0, "w": 0, "h": 0}
 
 
 def _header_brand_slot(slot_spec: dict[str, Any], header_policy: ResolvedHeaderBehavior) -> dict[str, Any]:

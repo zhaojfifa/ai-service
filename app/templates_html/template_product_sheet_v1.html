@@ -21,26 +21,26 @@ __INLINE_CSS__
 
     <!-- 1. Logo banner region -->
     <div class="layer layer-header-banner __HEADER_LAYER_CLASS__" style="__HEADER_STYLE_VARS__">
-      <div class="layer layer-header-region-shell" data-region="logo_banner_region">
+      <div class="layer layer-header-region-shell" data-region="logo_banner_region" data-parity-key="logo_banner_region">
         <div class="region-shell region-shell-header"></div>
       </div>
       <div class="layer layer-header-content">
         <div class="layer-header-layout">
           <div class="layer layer-header-identity-zone" data-slot="header_identity_zone_slot">
             <div class="layer layer-brand-logo">
-              <div class="slot slot-logo" style="__LOGO_STYLE__">
+              <div class="slot slot-logo" data-parity-key="brand_logo_slot" style="__LOGO_STYLE__">
                 <img src="__LOGO_URL__" alt="" loading="eager" />
               </div>
             </div>
             <div class="layer layer-brand-text">
-              <div class="slot slot-brand" style="__BRAND_STYLE__">
+              <div class="slot slot-brand" data-parity-key="brand_name_slot" style="__BRAND_STYLE__">
                 <div class="text-brand">__BRAND_TEXT__</div>
               </div>
             </div>
           </div>
           <div class="layer layer-header-agent-zone" data-slot="header_agent_zone_slot">
             <div class="layer layer-agent-name-text __AGENT_TEXT_CLASS__">
-              <div class="slot slot-agent-name-text" style="__AGENT_STYLE__">
+              <div class="slot slot-agent-name-text" data-parity-key="agent_name_slot" style="__AGENT_STYLE__">
                 <div class="text-agent-secondary">__AGENT_TEXT__</div>
               </div>
             </div>
@@ -50,27 +50,27 @@ __INLINE_CSS__
     </div>
 
     <!-- 2. Top copy region: SKU + title + subtitle -->
-    <div class="layer layer-top-copy __TOP_COPY_CLASS__" data-region="top_copy_region">
+    <div class="layer layer-top-copy __TOP_COPY_CLASS__" data-region="top_copy_region" data-parity-key="top_copy_region">
       <div class="layer layer-top-copy-shell">
         <div class="region-shell region-shell-top-copy"></div>
       </div>
       <div class="layer layer-top-copy-content">
         <div class="layer layer-sku __SKU_CLASS__">
-          <div class="slot slot-sku" style="__SKU_STYLE__">
+          <div class="slot slot-sku" data-parity-key="sku_text_layer" style="__SKU_STYLE__">
             <span class="text-sku sku-chip">__SKU_TEXT__</span>
           </div>
         </div>
         <div class="layer layer-title">
-          <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
+          <div class="slot slot-title text-title" data-parity-key="top_copy_title_layer" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
         </div>
         <div class="layer layer-subtitle __SUBTITLE_CLASS__">
-          <div class="slot slot-subtitle text-subtitle" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
+          <div class="slot slot-subtitle text-subtitle" data-parity-key="top_copy_subtitle_layer" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
         </div>
       </div>
     </div>
 
     <!-- 3a. Materials strip region -->
-    <div class="layer layer-materials-strip __MATERIALS_CLASS__" data-region="materials_strip_region">
+    <div class="layer layer-materials-strip __MATERIALS_CLASS__" data-region="materials_strip_region" data-parity-key="materials_strip_region">
       <div class="layer layer-materials-strip-shell">
         <div class="region-shell region-shell-materials-strip"></div>
       </div>
@@ -80,7 +80,7 @@ __INLINE_CSS__
     </div>
 
     <!-- 3b. Product hero region -->
-    <div class="layer layer-product-hero __PRODUCT_HERO_CLASS__" data-region="product_hero_region">
+    <div class="layer layer-product-hero __PRODUCT_HERO_CLASS__" data-region="product_hero_region" data-parity-key="product_hero_region">
       <div class="layer layer-product-hero-shell">
         <div class="region-shell region-shell-product-hero"></div>
       </div>
@@ -89,28 +89,28 @@ __INLINE_CSS__
         <div class="product-hero-plane"></div>
       </div>
       <div class="layer layer-product-image">
-        <div class="slot slot-product image-slot product-fit-contain" style="__PRODUCT_STYLE__">
+        <div class="slot slot-product image-slot product-fit-contain" data-parity-key="product_primary_image" style="__PRODUCT_STYLE__">
           <img src="__PRODUCT_URL__" alt="" loading="eager" />
         </div>
       </div>
       <div class="layer layer-product-secondary-inset __PRODUCT_SECONDARY_CLASS__">
-        <div class="slot slot-product-secondary image-slot product-secondary-fit-contain" style="__PRODUCT_SECONDARY_STYLE__">
+        <div class="slot slot-product-secondary image-slot product-secondary-fit-contain" data-parity-key="product_secondary_inset" style="__PRODUCT_SECONDARY_STYLE__">
           <img src="__PRODUCT_SECONDARY_URL__" alt="" loading="eager" />
         </div>
       </div>
     </div>
 
     <!-- 4. Description region -->
-    <div class="layer layer-description __DESCRIPTION_CLASS__" data-region="description_region">
+    <div class="layer layer-description __DESCRIPTION_CLASS__" data-region="description_region" data-parity-key="description_region">
       <div class="layer layer-description-shell">
         <div class="region-shell region-shell-description"></div>
       </div>
       <div class="layer layer-description-content">
         <div class="layer layer-description-title __DESCRIPTION_TITLE_CLASS__">
-          <div class="slot slot-description-title text-description-title" style="__DESCRIPTION_TITLE_STYLE__">__DESCRIPTION_TITLE_TEXT__</div>
+          <div class="slot slot-description-title text-description-title" data-parity-key="description_title_layer" style="__DESCRIPTION_TITLE_STYLE__">__DESCRIPTION_TITLE_TEXT__</div>
         </div>
         <div class="layer layer-description-body __DESCRIPTION_BODY_CLASS__">
-          <div class="slot slot-description-body text-description-body" style="__DESCRIPTION_BODY_STYLE__">__DESCRIPTION_BODY_TEXT__</div>
+          <div class="slot slot-description-body text-description-body" data-parity-key="description_body_layer" style="__DESCRIPTION_BODY_STYLE__">__DESCRIPTION_BODY_TEXT__</div>
         </div>
       </div>
     </div>

@@ -236,6 +236,64 @@ class _FakeInferredRenderer:
         )
 
 
+class _FakeTemplateBPuppeteerRenderer:
+    def __init__(self, *, parity_fail: bool = False):
+        self._parity_fail = parity_fail
+
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        visible_truth_evidence = {
+            "brand_logo_slot": {"rendered": True, "visible_bounds": {"x": 104, "y": 68, "w": 120, "h": 64}, "layout_bounds": {"x": 104, "y": 68, "w": 120, "h": 64}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "brand_name_slot": {"rendered": True, "visible_bounds": {"x": 244, "y": 74, "w": 536, "h": 36}, "layout_bounds": {"x": 244, "y": 74, "w": 536, "h": 36}, "overflow_state": {"x": "visible", "y": "visible", "shorthand": "visible"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "sku_text_layer": {"rendered": True, "visible_bounds": {"x": 112, "y": 172, "w": 180, "h": 20}, "layout_bounds": {"x": 112, "y": 172, "w": 180, "h": 20}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "top_copy_title_layer": {"rendered": True, "visible_bounds": {"x": 112, "y": 176, "w": 640, "h": 56}, "layout_bounds": {"x": 112, "y": 176, "w": 640, "h": 56}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "top_copy_subtitle_layer": {"rendered": True, "visible_bounds": {"x": 152, "y": 238, "w": 520, "h": 24}, "layout_bounds": {"x": 152, "y": 238, "w": 520, "h": 24}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "product_primary_image": {"rendered": True, "visible_bounds": {"x": 112, "y": 348, "w": 800, "h": 384}, "layout_bounds": {"x": 112, "y": 348, "w": 800, "h": 384}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "2"}, "transform_summary": {"transform": "none"}},
+            "product_secondary_inset": {"rendered": bool(assets.product_secondary is not None), "visible_bounds": {"x": 744, "y": 564, "w": 160, "h": 160} if assets.product_secondary is not None else None, "layout_bounds": {"x": 744, "y": 564, "w": 160, "h": 160}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "3"}, "transform_summary": {"transform": "none"}},
+            "description_title_layer": {"rendered": True, "visible_bounds": {"x": 112, "y": 756, "w": 500, "h": 40}, "layout_bounds": {"x": 112, "y": 756, "w": 500, "h": 40}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "description_body_layer": {"rendered": True, "visible_bounds": {"x": 128, "y": 804, "w": 540, "h": 88}, "layout_bounds": {"x": 128, "y": 804, "w": 540, "h": 88}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+        }
+        if self._parity_fail:
+            visible_truth_evidence["top_copy_title_layer"]["visible_bounds"] = {"x": 112, "y": 332, "w": 640, "h": 56}
+
+        layer_render_status = {
+            "brand_logo_layer": {"rendered": assets.logo is not None, "count": 1 if assets.logo is not None else 0},
+            "brand_text_layer": {"rendered": True, "count": 1},
+            "agent_name_text_layer": {"rendered": False, "count": 0, "reason_code": "suppressed_by_header_mode"},
+            "sku_text_layer": {"rendered": bool(poster.sku_text), "count": 1 if poster.sku_text else 0},
+            "top_copy_title_layer": {"rendered": bool(poster.title), "count": 1 if poster.title else 0},
+            "top_copy_subtitle_layer": {"rendered": bool(poster.subtitle), "count": 1 if poster.subtitle else 0},
+            "materials_item_layer": {"rendered": bool(assets.materials), "count": len(assets.materials)},
+            "product_card_shell_layer": {"rendered": True, "count": 1},
+            "product_canvas_shell_layer": {"rendered": True, "count": 1},
+            "product_text_shell_layer": {"rendered": False, "count": 0, "reason_code": "not_used_in_template_b"},
+            "product_image_layer": {"rendered": True, "count": 1},
+            "product_secondary_image_layer": {"rendered": assets.product_secondary is not None, "count": 1 if assets.product_secondary is not None else 0},
+            "product_annotation_shell_layer": {"rendered": False, "count": 0, "reason_code": "annotation_mode_none"},
+            "product_annotation_items_layer": {"rendered": False, "count": 0, "reason_code": "annotation_mode_none"},
+            "description_title_layer": {"rendered": bool(poster.description_title), "count": 1 if poster.description_title else 0},
+            "description_body_layer": {"rendered": bool(poster.description_body), "count": 1 if poster.description_body else 0},
+        }
+        region_render_status = {
+            "logo_banner_region": {"rendered": True, "count": 2, "collapsed": False},
+            "top_copy_region": {"rendered": True, "count": 3 if poster.sku_text else 2, "collapsed": False},
+            "materials_strip_region": {"rendered": bool(assets.materials), "count": len(assets.materials), "collapsed": not bool(assets.materials)},
+            "product_hero_region": {"rendered": True, "count": 2 if assets.product_secondary is not None else 1, "collapsed": False},
+            "description_region": {"rendered": bool(poster.description_title or poster.description_body), "count": int(bool(poster.description_title)) + int(bool(poster.description_body)), "collapsed": not bool(poster.description_title or poster.description_body)},
+        }
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="1" * 64,
+            render_engine_used="puppeteer",
+            foreground_renderer="poster2.puppeteer_structured",
+            template_contract_version=spec.contract_version,
+            layer_render_status=layer_render_status,
+            region_render_status=region_render_status,
+            visible_truth_evidence=visible_truth_evidence,
+        )
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestPosterPipelineRun:
@@ -4850,6 +4908,16 @@ class TestTemplateBBackendGenerationFix:
         )
         return asyncio.run(pipe.run(spec, _load_template_b()))
 
+    def _run_template_b_with_renderer(self, spec: PosterSpec, assets: ResolvedAssets, renderer):
+        pipe = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=renderer,
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        return asyncio.run(pipe.run(spec, _load_template_b()))
+
     def test_template_b_primary_only_path_succeeds(self):
         spec = _make_spec(
             brand_name="KitchenWorks",
@@ -5068,6 +5136,59 @@ class TestTemplateBBackendGenerationFix:
         assert review["product_secondary_slot_rendered"] is True
         assert review["product_layout_mode_reason"] == "single_hero_centered_with_secondary_inset"
         assert review["product_secondary_asset_policy"] == "secondary_inset_bottom_right"
+
+    def test_template_b_renderer_metadata_includes_visible_truth_and_parity_fields(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-210",
+        )
+        assets = ResolvedAssets(
+            logo=PILImage.new("RGBA", (240, 128), (20, 20, 20, 255)),
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+        )
+        manifest = self._run_template_b_with_renderer(spec, assets, _FakeTemplateBPuppeteerRenderer())
+        assert manifest.visible_truth_evidence["brand_logo_slot"]["visible_bounds"] == {
+            "x": 104,
+            "y": 68,
+            "w": 120,
+            "h": 64,
+        }
+        assert manifest.visible_truth_evidence["top_copy_title_layer"]["overflow_state"]["shorthand"] == "hidden"
+        assert manifest.template_b_parity_review["parity_passed"] is True
+        assert manifest.template_b_parity_review["header_in_banner"] is True
+        assert manifest.template_b_parity_review["top_copy_in_region"] is True
+        assert manifest.structure_complete is True
+
+    def test_template_b_parity_failure_surfaces_and_breaks_clean_structure_truth(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-211",
+        )
+        assets = ResolvedAssets(
+            logo=PILImage.new("RGBA", (240, 128), (20, 20, 20, 255)),
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+        )
+        manifest = self._run_template_b_with_renderer(spec, assets, _FakeTemplateBPuppeteerRenderer(parity_fail=True))
+        assert manifest.template_b_parity_review["parity_passed"] is False
+        assert "top_copy_content_outside_top_copy_region" in manifest.template_b_parity_review["parity_failure_reasons"]
+        assert manifest.structure_complete is False
+        assert manifest.incomplete_structure is True
+        assert manifest.deliverable is False
+        assert "template_b_visual_parity" in manifest.missing_mandatory_regions
 
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector
