@@ -1591,10 +1591,26 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         logger.warning("poster2: request validation error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("poster2: generation failed request=%s", request_log)
+        reason_code = getattr(exc, "reason_code", None)
+        detail = getattr(exc, "detail", None) or str(exc)
+        failure_stage = getattr(exc, "stage", None) or getattr(exc, "fallback_stage", None)
+        logger.exception(
+            "poster2: generation failed request=%s exc_class=%s reason_code=%s failure_stage=%s detail=%s",
+            request_log,
+            exc.__class__.__name__,
+            reason_code,
+            failure_stage,
+            detail,
+        )
         raise HTTPException(
             status_code=500,
-            detail={"error": "poster2_generation_failed", "message": str(exc)},
+            detail={
+                "error": "poster2_generation_failed",
+                "message": detail,
+                "reason_code": reason_code,
+                "exception_class": exc.__class__.__name__,
+                "failure_stage": failure_stage,
+            },
         ) from exc
 
 

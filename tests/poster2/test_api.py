@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import base64
 import io
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 
 from fastapi.testclient import TestClient
 from PIL import Image
 
 from app.main import DEFAULT_CORS_ORIGINS, app
+from app.services.poster2.background import BackgroundResult, FireflyBackgroundService
+from app.services.poster2.pipeline import PosterPipeline
 from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
 
 
@@ -202,6 +206,27 @@ def _tiny_png_bytes() -> bytes:
     return buffer.getvalue()
 
 
+def _tiny_png_data_url() -> str:
+    return "data:image/png;base64," + base64.b64encode(_tiny_png_bytes()).decode("ascii")
+
+
+def _make_real_poster2_pipeline() -> PosterPipeline:
+    bg = MagicMock(spec=FireflyBackgroundService)
+    bg.generate = AsyncMock(return_value=BackgroundResult(
+        url=_tiny_png_data_url(),
+        key="bg",
+        prompt_used="studio background",
+        seed_used=42,
+        model="mock-firefly",
+        width=1024,
+        height=1024,
+    ))
+    return PosterPipeline(
+        background_svc=bg,
+        put_bytes_fn=lambda *args, **kwargs: "https://example.com/poster2-output.png",
+    )
+
+
 def _reset_email_closure_env(monkeypatch) -> None:
     monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records"))
     monkeypatch.setattr("app.services.email.attachments.EMAIL_ASSET_DIR", Path("/tmp/poster2-test-email-assets"))
@@ -387,6 +412,66 @@ def test_generate_poster_v2_accepts_template_b_two_image_and_materials_path(monk
     assert response.status_code == 200
     body = response.json()
     assert body["template_id"] == "template_product_sheet_v1"
+
+
+def test_generate_poster_v2_template_b_real_pipeline_primary_only_succeeds(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", _make_real_poster2_pipeline)
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-template-b-real-1"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "KitchenWorks",
+            "agent_name": "Dealer Team",
+            "title": "Product Sheet",
+            "subtitle": "Kitchen center hero",
+            "features": [],
+            "product_image": {"url": _tiny_png_data_url()},
+            "template_id": "template_product_sheet_v1",
+            "materials_images": [],
+            "sku_text": "KW-200",
+            "description_title": "Product Highlights",
+            "description_body": "Compact body with clean countertop fit.",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_id"] == "template_product_sheet_v1"
+    assert body["degraded"] is True
+    assert body["fallback_reason_code"] is not None
+    assert body["region_render_status"]["top_copy_region"]["rendered"] is True
+    assert body["region_render_status"]["product_hero_region"]["rendered"] is True
+
+
+def test_generate_poster_v2_template_b_real_pipeline_two_image_materials_succeeds(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", _make_real_poster2_pipeline)
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-template-b-real-2"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "KitchenWorks",
+            "agent_name": "Dealer Team",
+            "title": "Product Sheet",
+            "subtitle": "Kitchen center hero",
+            "features": [],
+            "product_image": {"url": _tiny_png_data_url()},
+            "product_secondary_image": {"url": _tiny_png_data_url()},
+            "template_id": "template_product_sheet_v1",
+            "materials_images": [{"url": _tiny_png_data_url()}, {"url": _tiny_png_data_url()}],
+            "sku_text": "KW-201",
+            "description_title": "",
+            "description_body": "",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_id"] == "template_product_sheet_v1"
+    assert body["product_contract_review"]["product_secondary_slot_rendered"] is True
 
 
 def test_generate_poster_v2_accepts_text_gallery_expanded_with_runtime_diagnostics(monkeypatch):
@@ -607,6 +692,8 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
     assert response.status_code == 500
     assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
     assert response.json()["detail"]["error"] == "poster2_generation_failed"
+    assert response.json()["detail"]["message"] == "simulated poster2 failure"
+    assert response.json()["detail"]["exception_class"] == "RuntimeError"
 
 
 def test_email_preview_and_inline_send_are_generated_from_poster_record(monkeypatch):

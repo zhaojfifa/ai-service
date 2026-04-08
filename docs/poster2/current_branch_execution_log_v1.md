@@ -1614,3 +1614,96 @@ Remaining risks:
 - char_budget 44 for 3 items — "Stainless steel finish with easy cleaning" (40 chars) fits without truncation
 - all geometry invariants hold
 - no ownership drift
+
+## Entry — PR-TB-BE1: Template B backend generation fix
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-08
+
+### Scope
+- fix `template_product_sheet_v1` backend 500 on `/api/v2/generate-poster`
+- keep Template A unchanged
+- keep Stage3 / resend / email closure unchanged
+- keep frozen bottom SOP baseline unchanged
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_line2_independent_flow_status_v1.md`
+
+### Additional inspection done first
+- branches inspected:
+  - `claude/flamboyant-mclaren`
+  - `claude/gracious-allen`
+- file inspected and missing:
+  - `docs/poster2/template_b_kitchen_center_hero_status_v1.md` was not present in workspace
+
+### Root rules followed
+- contract-first
+- no Template A runtime drift
+- no resend / Stage3 / email closure drift
+- no unrelated beautification changes
+- no bottom SOP redesign
+- kept the fix to payload normalization, renderer split, fallback safety, and error observability only
+
+### Problem reproduced
+- frontend Stage2 now sends valid Template B payloads
+- backend no longer 422s
+- runtime still failed with `poster2_generation_failed`
+- local real-pipeline reproduction exposed the concrete crash chain
+
+### Root cause found
+- Puppeteer renderer still used Family A gallery assumptions for Template B and dereferenced `bottom_gallery_items_layer`
+- Pillow fallback / pipeline evidence still assumed Family A `subtitle_slot_state.reason_code`
+- quality guard only received `bottom_mode`, so Family B mandatory regions were mis-evaluated during fallback
+
+### Files changed
+- `app/main.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/template_behavior.py`
+- `tests/poster2/test_api.py`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_backend_generation_fix_status_v1.md`
+
+### Layer changed
+- behavior
+- renderer
+- validation
+- docs
+
+### Exact backend exception reproduced
+- first failure:
+  - `KeyError: 'bottom_gallery_items_layer'`
+  - Template B Puppeteer path was still entering Family A gallery visibility logic
+- second failure:
+  - `KeyError: 'reason_code'`
+  - Family B `description_block` bottom stub lacked `subtitle_slot_state.reason_code`
+- third failure after the two direct crashes were fixed:
+  - `fallback result does not satisfy minimum deliverable regions: logo_banner_region, product_hero_region, top_copy_region`
+  - Family B binding inputs were missing in deliverability evaluation
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py`
+  - `27 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'product or annotation or single_primary or template_b'`
+  - `81 passed, 191 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - `5 passed`
+
+### Remaining risks
+- local environment still lacks Chromium and the full Noto font set, so Template B currently succeeds through clean Pillow fallback in local tests
+- deployed environment still needs one live operator validation pass for Template B primary-only / secondary / materials-empty states
+
+### Exact acceptance
+- `/api/v2/generate-poster` succeeds for `template_product_sheet_v1`
+- primary-only path works
+- primary+secondary path works
+- materials strip path works
+- empty materials path works
+- empty description path works
+- Template A remains unchanged

@@ -228,7 +228,16 @@ class PosterPipeline:
             ),
             structure_evidence_source=structure_evidence_source,
             structure_evidence_complete=structure_evidence_complete,
-            binding_inputs={"bottom_mode": resolved_behavior.bottom_policy.effective_mode},
+            binding_inputs={
+                "bottom_mode": resolved_behavior.bottom_policy.effective_mode,
+                "brand_name": effective_spec.brand_name,
+                "title": effective_spec.title,
+                "subtitle": effective_spec.subtitle,
+                "materials_images": list(effective_spec.materials_images),
+                "description_title": effective_spec.description_title,
+                "description_body": effective_spec.description_body,
+                "product_image_present": assets.product is not None,
+            },
         )
         if fg_result.degraded:
             assert_quality_guard_deliverable(
@@ -1004,9 +1013,9 @@ def _bottom_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
         "x": 96,
-        "y": int(layout["bottom_shell_top"]),
+        "y": int(layout.get("bottom_shell_top", 0)),
         "w": 832,
-        "h": int(layout["bottom_shell_height"]),
+        "h": int(layout.get("bottom_shell_height", layout.get("bottom_shell_h", 0))),
     }
 
 
@@ -1077,9 +1086,9 @@ def _gallery_strip_region_bounds(template: TemplateSpec, resolved_behavior) -> d
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
         "x": int(layout.get("gallery_shell_x", template.gallery_slot.x)),
-        "y": int(layout["gallery_shell_top"]),
+        "y": int(layout.get("gallery_shell_top", template.gallery_slot.y)),
         "w": int(layout.get("gallery_shell_w", template.gallery_slot.w)),
-        "h": int(layout["gallery_shell_height"]),
+        "h": int(layout.get("gallery_shell_height", template.gallery_slot.h)),
     }
 
 
@@ -1105,9 +1114,9 @@ def _title_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, i
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
         "x": int(layout.get("title_band_x", template.title_slot.x)),
-        "y": int(layout["title_slot_y"]),
+        "y": int(layout.get("title_slot_y", template.title_slot.y)),
         "w": int(layout.get("title_band_w", template.title_slot.w)),
-        "h": int(layout["title_slot_height"]),
+        "h": int(layout.get("title_slot_height", template.title_slot.h)),
     }
 
 
@@ -1115,9 +1124,9 @@ def _subtitle_slot_bounds(template: TemplateSpec, resolved_behavior) -> dict[str
     layout = resolved_behavior.bottom_policy.layout_metrics
     return {
         "x": int(layout.get("subtitle_slot_x", template.subtitle_slot.x)),
-        "y": int(layout["subtitle_slot_y"]),
+        "y": int(layout.get("subtitle_slot_y", template.subtitle_slot.y)),
         "w": int(layout.get("subtitle_slot_w", template.subtitle_slot.w)),
-        "h": int(layout["subtitle_slot_height"]),
+        "h": int(layout.get("subtitle_slot_height", template.subtitle_slot.h)),
     }
 
 

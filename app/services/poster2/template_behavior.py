@@ -2597,14 +2597,20 @@ def _resolve_product_sheet_behavior(
         layout_metrics={
             "bottom_shell_top": 748,
             "bottom_shell_h": 228,
+            "bottom_shell_height": 228,
             "gallery_strip_top": 0,
             "gallery_strip_h": 0,
             "title_band_top": 0,
             "title_band_h": 0,
+            "title_band_height": 0,
         },
         bottom_region_state="description_block",
         collapsed_optional_slots=("title_band", "gallery_strip"),
-        subtitle_slot_state={"rendered": False, "collapsed": True},
+        subtitle_slot_state={
+            "rendered": False,
+            "collapsed": True,
+            "reason_code": "suppressed_by_bottom_mode" if (subtitle_text or "").strip() else "subtitle_empty",
+        },
         gallery_slot_states=(),
         css_classes=(
             _css_mode_class("bottom-mode", "description-block"),

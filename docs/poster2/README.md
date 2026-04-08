@@ -54,6 +54,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [copy_quality_phase1_status_v1.md](copy_quality_phase1_status_v1.md)
 - [stage1_operator_input_surface_bugfix_status_v1.md](stage1_operator_input_surface_bugfix_status_v1.md)
 - [template_b_line2_independent_flow_status_v1.md](template_b_line2_independent_flow_status_v1.md)
+- [template_b_backend_generation_fix_status_v1.md](template_b_backend_generation_fix_status_v1.md)
 - [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
 
 ### Plans
@@ -96,12 +97,12 @@ These may remain as branch-local history or reference material, but the formal p
 - copy quality tightening is now complete on top of the frozen poster contract baseline
 - copy quality phase 1 tightened poster-facing text normalization, annotation compression, and Gemini quality gates without changing contract or transport
 - Stage1 operator input surfaces now match frozen contract truth: secondary image is removable, bottom support copy is explicit, and product callouts have a dedicated input surface
-- Template B now has an independent Stage1 -> Stage2 -> generate working line; it no longer rides on Family A preview/control assumptions
+- Template B now has an independent Stage1 -> Stage2 -> generate working line and backend generation succeeds end-to-end through the Family B path
 - current priority is Template B operator validation, then deployed-environment validation for Gemini quality and Resend live closure behavior
 
 ## Next Steps
 
-- operator validation for Template B 1-image / 2-image / empty-materials flows
+- operator validation for Template B 1-image / 2-image / empty-materials / empty-description flows
 - deployed-environment validation for Gemini optimizer output quality
 - deployed-environment validation for Resend attachments and live closure behavior
 - keep bottom in maintenance mode only unless a request-state / parity regression appears

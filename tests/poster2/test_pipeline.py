@@ -75,6 +75,14 @@ def _load_template() -> TemplateSpec:
     return TemplateSpec.from_json(p)
 
 
+def _load_template_b() -> TemplateSpec:
+    p = (
+        Path(__file__).resolve().parents[2]
+        / "app" / "templates" / "specs" / "template_product_sheet_v1.json"
+    )
+    return TemplateSpec.from_json(p)
+
+
 def _load_template_with_feature_mode(feature_mode: str) -> TemplateSpec:
     t = _load_template()
     t.behavior_modes = replace(t.behavior_modes, feature_mode=feature_mode)
@@ -205,6 +213,14 @@ class _AsyncPillowRenderer:
 
     async def render(self, spec, poster, assets):
         return self._renderer.render(spec, poster, assets)
+
+
+class _FakePuppeteerRendererFailure:
+    def __init__(self, exc: Exception):
+        self._exc = exc
+
+    async def render(self, spec, poster, assets):
+        raise self._exc
 
 
 class _FakeInferredRenderer:
@@ -4814,3 +4830,138 @@ def test_email_attachment_builder_surfaces_poster_png_and_pdf(monkeypatch):
     record = build_email_assets_for_record(poster_key, asset_types=["poster_png", "poster_pdf"])
     assert "poster_png" in record["email_assets"]
     assert "poster_pdf" in record["email_assets"]
+
+
+class TestTemplateBBackendGenerationFix:
+
+    def _run_template_b(self, spec: PosterSpec, assets: ResolvedAssets):
+        from app.services.poster2.renderer import RendererSelector
+
+        pipe = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=RendererSelector(
+                pillow_renderer=LayoutRenderer(),
+                puppeteer_renderer=_FakePuppeteerRendererFailure(KeyError("bottom_gallery_items_layer")),
+                default_mode="puppeteer",
+            ),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        return asyncio.run(pipe.run(spec, _load_template_b()))
+
+    def test_template_b_primary_only_path_succeeds(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-200",
+        )
+        manifest = self._run_template_b(spec, _make_assets())
+        assert manifest.template_id == "template_product_sheet_v1"
+        assert manifest.deliverable is True
+        assert manifest.fallback_reason_code == "puppeteer_unknown_error"
+        assert manifest.region_render_status["top_copy_region"]["rendered"] is True
+        assert manifest.region_render_status["product_hero_region"]["rendered"] is True
+
+    def test_template_b_primary_and_secondary_path_succeeds(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            product_secondary_image=AssetRef(url="mock://product-secondary"),
+            description_title="Product Highlights",
+            description_body="Two-image product sheet.",
+            sku_text="KW-201",
+        )
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        manifest = self._run_template_b(spec, assets)
+        assert manifest.deliverable is True
+        assert manifest.product_contract_review["product_secondary_slot_rendered"] is True
+
+    def test_template_b_materials_strip_path_succeeds(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            materials_images=(AssetRef(url="mock://mat-1"), AssetRef(url="mock://mat-2")),
+            description_title="Materials",
+            description_body="Material strip visible.",
+            sku_text="KW-202",
+        )
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            materials=[
+                PILImage.new("RGBA", (140, 52), (120, 120, 120, 255)),
+                PILImage.new("RGBA", (140, 52), (180, 180, 180, 255)),
+            ],
+        )
+        manifest = self._run_template_b(spec, assets)
+        assert manifest.deliverable is True
+        assert manifest.region_render_status["materials_strip_region"]["rendered"] is True
+
+    def test_template_b_empty_materials_path_succeeds(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            materials_images=(),
+            description_title="Product Highlights",
+            description_body="No materials strip.",
+            sku_text="KW-203",
+        )
+        manifest = self._run_template_b(spec, _make_assets())
+        assert manifest.deliverable is True
+        assert manifest.region_render_status["materials_strip_region"]["rendered"] is False
+
+    def test_template_b_empty_description_path_succeeds(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="",
+            description_body="",
+            sku_text="KW-204",
+        )
+        manifest = self._run_template_b(spec, _make_assets())
+        assert manifest.deliverable is True
+        assert manifest.region_render_status["description_region"]["rendered"] is False
+
+    def test_template_a_regression_path_remains_unchanged(self):
+        from app.services.poster2.renderer import RendererSelector
+
+        spec = _make_spec()
+        pipe = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=RendererSelector(
+                pillow_renderer=LayoutRenderer(),
+                puppeteer_renderer=_FakePuppeteerRendererFailure(RuntimeError("browser missing")),
+                default_mode="puppeteer",
+            ),
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        manifest = asyncio.run(pipe.run(spec, _load_template()))
+        assert manifest.template_id == "template_dual_v2"
+        assert manifest.deliverable is True

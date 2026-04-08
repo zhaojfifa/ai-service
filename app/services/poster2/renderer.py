@@ -371,23 +371,16 @@ class LayoutRenderer:
         layer_timings["text_layer_ms"] = _elapsed(t1)
 
         png_bytes = _to_png(canvas)
-        layer_render_status = _build_renderer_layer_render_status(
+        layer_render_status = _build_template_b_layer_render_status(
             poster=poster,
             has_logo=assets.logo is not None,
-            has_scenario=False,
             has_product=assets.product is not None,
             has_product_secondary=assets.product_secondary is not None,
-            feature_count=0,
-            gallery_valid=0,
-            gallery_visible=0,
-            gallery_requested=0,
-            scenario_source=None,
-            product_source=poster.product_image.url,
-            logo_source=poster.logo.url if poster.logo else None,
-            scenario_safe_fill=False,
-            bottom_policy=behavior.bottom_policy,
+            has_materials=bool(assets.materials),
             header_policy=behavior.header_policy,
-            feature_mode="none",
+            description_policy=behavior.description_policy,
+            materials_policy=behavior.materials_policy,
+            top_copy_policy=behavior.top_copy_policy,
             product_policy=behavior.product_policy,
         )
         return ForegroundResult(
@@ -400,7 +393,7 @@ class LayoutRenderer:
             layer_timings_ms=layer_timings,
             gallery_items_status=[],
             layer_render_status=layer_render_status,
-            region_render_status=_build_renderer_region_render_status(layer_render_status),
+            region_render_status=_build_template_b_region_render_status(layer_render_status),
         )
 
     def _draw_shells(
@@ -721,6 +714,7 @@ class PuppeteerStructuredRenderer:
         assets: ResolvedAssets,
     ) -> ForegroundResult:
         feature_count = len(_normalized_feature_texts(poster.features))
+        is_template_b = spec.template_id.startswith("template_product_sheet")
         behavior = resolve_template_behavior(
             spec,
             feature_count=feature_count,
@@ -734,6 +728,10 @@ class PuppeteerStructuredRenderer:
             gallery_mode=poster.gallery_mode,
             agent_name=poster.agent_name,
             has_product_secondary_asset=assets.product_secondary is not None,
+            materials_count=len(assets.materials),
+            description_title=poster.description_title,
+            description_body=poster.description_body,
+            sku_text=poster.sku_text,
         )
         t0 = _now()
         logger.info("poster2.puppeteer: template_render_start template=%s", spec.template_id)
@@ -764,11 +762,14 @@ class PuppeteerStructuredRenderer:
                 len(assets.gallery_status),
                 len(assets.gallery),
             )
-            gallery_urls, gallery_items_status = _prepare_gallery_urls(
-                assets.gallery,
-                assets.gallery_status,
-                slot_spec,
-            )
+            if is_template_b:
+                gallery_urls, gallery_items_status = [], []
+            else:
+                gallery_urls, gallery_items_status = _prepare_gallery_urls(
+                    assets.gallery,
+                    assets.gallery_status,
+                    slot_spec,
+                )
             logger.info(
                 "poster2.gallery_prepare_done requested=%d prepared=%d",
                 len(assets.gallery_status),
@@ -789,7 +790,7 @@ class PuppeteerStructuredRenderer:
                 len(gallery_urls),
                 sum(len(url) for url in gallery_urls),
             )
-            gallery_visible_count = _visible_gallery_item_count(slot_spec, len(gallery_urls))
+            gallery_visible_count = 0 if is_template_b else _visible_gallery_item_count(slot_spec, len(gallery_urls))
         except Exception as exc:
             raise _classify_puppeteer_exception(exc, stage="gallery_render") from exc
         layer_timings["product_material_layer_ms"] = _elapsed(t1)
@@ -814,29 +815,45 @@ class PuppeteerStructuredRenderer:
         png_bytes = await self._render_html_to_png(html_payload, spec.canvas_w, spec.canvas_h)
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
         gallery_items_status = _annotate_gallery_items_status(gallery_items_status, behavior.bottom_policy)
-        layer_render_status = _build_renderer_layer_render_status(
-            poster=poster,
-            has_logo=bool(asset_urls["logo"]),
-            has_scenario=behavior.hero_policy.scenario_enabled and bool(asset_urls.get("scenario_is_real")),
-            has_product=True,
-            has_product_secondary=bool(asset_urls.get("product_secondary")),
-            feature_count=behavior.feature_policy.visible_item_count,
-            gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
-            gallery_visible=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
-            gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
-            scenario_source=(
-                poster.scenario_image.url
-                if (poster.scenario_image and behavior.hero_policy.scenario_enabled)
-                else ("safe_preset_image" if behavior.hero_policy.scenario_enabled else None)
-            ),
-            product_source=poster.product_image.url,
-            logo_source=poster.logo.url if poster.logo else None,
-            scenario_safe_fill=behavior.hero_policy.scenario_enabled and not bool(asset_urls.get("scenario_is_real")),
-            bottom_policy=behavior.bottom_policy,
-            header_policy=behavior.header_policy,
-            feature_mode=behavior.feature_policy.mode,
-            product_policy=behavior.product_policy,
-        )
+        if is_template_b:
+            layer_render_status = _build_template_b_layer_render_status(
+                poster=poster,
+                has_logo=bool(asset_urls["logo"]),
+                has_product=True,
+                has_product_secondary=bool(asset_urls.get("product_secondary")),
+                has_materials=bool(asset_urls.get("materials")),
+                header_policy=behavior.header_policy,
+                description_policy=behavior.description_policy,
+                materials_policy=behavior.materials_policy,
+                top_copy_policy=behavior.top_copy_policy,
+                product_policy=behavior.product_policy,
+            )
+            region_render_status = _build_template_b_region_render_status(layer_render_status)
+        else:
+            layer_render_status = _build_renderer_layer_render_status(
+                poster=poster,
+                has_logo=bool(asset_urls["logo"]),
+                has_scenario=behavior.hero_policy.scenario_enabled and bool(asset_urls.get("scenario_is_real")),
+                has_product=True,
+                has_product_secondary=bool(asset_urls.get("product_secondary")),
+                feature_count=behavior.feature_policy.visible_item_count,
+                gallery_valid=min(len(asset_urls["gallery"]), spec.gallery_slot.count),
+                gallery_visible=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
+                gallery_requested=min(len(poster.gallery_images), spec.gallery_slot.count),
+                scenario_source=(
+                    poster.scenario_image.url
+                    if (poster.scenario_image and behavior.hero_policy.scenario_enabled)
+                    else ("safe_preset_image" if behavior.hero_policy.scenario_enabled else None)
+                ),
+                product_source=poster.product_image.url,
+                logo_source=poster.logo.url if poster.logo else None,
+                scenario_safe_fill=behavior.hero_policy.scenario_enabled and not bool(asset_urls.get("scenario_is_real")),
+                bottom_policy=behavior.bottom_policy,
+                header_policy=behavior.header_policy,
+                feature_mode=behavior.feature_policy.mode,
+                product_policy=behavior.product_policy,
+            )
+            region_render_status = _build_renderer_region_render_status(layer_render_status)
         return ForegroundResult(
             image=image,
             png_bytes=png_bytes,
@@ -847,7 +864,7 @@ class PuppeteerStructuredRenderer:
             layer_timings_ms=layer_timings,
             gallery_items_status=gallery_items_status,
             layer_render_status=layer_render_status,
-            region_render_status=_build_renderer_region_render_status(layer_render_status),
+            region_render_status=region_render_status,
         )
 
     def _read_template_file(self, name: str, optional: bool = False) -> str:
@@ -1872,6 +1889,126 @@ def _build_renderer_layer_render_status(
     }
 
 
+def _build_template_b_layer_render_status(
+    *,
+    poster: PosterSpec,
+    has_logo: bool,
+    has_product: bool,
+    has_product_secondary: bool,
+    has_materials: bool,
+    header_policy: ResolvedHeaderBehavior,
+    description_policy,
+    materials_policy,
+    top_copy_policy,
+    product_policy,
+) -> dict[str, dict[str, Any]]:
+    logo_suppressed_by_mode = header_policy.identity_zone_mode == "brand_only"
+    logo_rendered = has_logo and not logo_suppressed_by_mode
+    title_rendered = bool(top_copy_policy and top_copy_policy.title_present)
+    subtitle_rendered = bool(top_copy_policy and top_copy_policy.subtitle_present)
+    materials_rendered = bool(materials_policy and materials_policy.rendered and has_materials)
+    description_title_rendered = bool(description_policy and description_policy.title_present)
+    description_body_rendered = bool(description_policy and description_policy.body_present)
+    description_rendered = bool(description_policy and description_policy.rendered)
+    secondary_rendered = has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False)
+
+    return {
+        "brand_logo_layer": {
+            "rendered": logo_rendered,
+            "reason_code": (
+                None if logo_rendered
+                else ("logo_suppressed_by_header_mode" if logo_suppressed_by_mode else "logo_missing")
+            ),
+            "source_binding": poster.logo.url if poster.logo else None,
+            "count": 1 if logo_rendered else 0,
+            "collapsed": not logo_rendered,
+        },
+        "brand_text_layer": {
+            "rendered": bool(poster.brand_name),
+            "reason_code": None if poster.brand_name else "brand_name_empty",
+            "source_binding": "request.brand_name",
+            "count": 1 if poster.brand_name else 0,
+            "collapsed": not bool(poster.brand_name),
+        },
+        "agent_name_text_layer": {
+            "rendered": header_policy.agent_pill_visible,
+            "reason_code": (
+                None if header_policy.agent_pill_visible
+                else ("agent_name_empty" if not poster.agent_name else "suppressed_by_header_mode")
+            ),
+            "source_binding": "request.agent_name",
+            "count": 1 if header_policy.agent_pill_visible else 0,
+            "collapsed": not header_policy.agent_pill_visible,
+        },
+        "scenario_image_layer": {
+            "rendered": False,
+            "reason_code": "scenario_missing",
+            "source_binding": None,
+            "count": 0,
+            "collapsed": True,
+        },
+        "top_copy_title_layer": {
+            "rendered": title_rendered,
+            "reason_code": None if title_rendered else "title_empty",
+            "source_binding": "title",
+            "count": 1 if title_rendered else 0,
+            "collapsed": not title_rendered,
+        },
+        "top_copy_subtitle_layer": {
+            "rendered": subtitle_rendered,
+            "reason_code": None if subtitle_rendered else "subtitle_empty",
+            "source_binding": "subtitle",
+            "count": 1 if subtitle_rendered else 0,
+            "collapsed": not subtitle_rendered,
+        },
+        "materials_items_layer": {
+            "rendered": materials_rendered,
+            "reason_code": None if materials_rendered else "materials_empty",
+            "source_binding": "materials_images",
+            "count": int(getattr(materials_policy, "visible_item_count", 0)) if materials_rendered else 0,
+            "collapsed": not materials_rendered,
+        },
+        "product_image_layer": {
+            "rendered": has_product,
+            "reason_code": None if has_product else "product_image_missing",
+            "source_binding": poster.product_image.url,
+            "count": 1 if has_product else 0,
+            "collapsed": not has_product,
+        },
+        "product_secondary_image_layer": {
+            "rendered": secondary_rendered,
+            "reason_code": (
+                None if secondary_rendered else
+                ("secondary_slot_not_active" if not getattr(product_policy, "product_secondary_slot_rendered", False) else "secondary_image_missing")
+            ),
+            "source_binding": poster.product_secondary_image.url if poster.product_secondary_image else None,
+            "count": 1 if secondary_rendered else 0,
+            "collapsed": not secondary_rendered,
+        },
+        "description_title_layer": {
+            "rendered": description_title_rendered,
+            "reason_code": None if description_title_rendered else "description_title_empty",
+            "source_binding": "description_title",
+            "count": 1 if description_title_rendered else 0,
+            "collapsed": not description_title_rendered,
+        },
+        "description_body_layer": {
+            "rendered": description_body_rendered,
+            "reason_code": None if description_body_rendered else "description_body_empty",
+            "source_binding": "description_body",
+            "count": 1 if description_body_rendered else 0,
+            "collapsed": not description_body_rendered,
+        },
+        "description_region_shell_layer": {
+            "rendered": description_rendered,
+            "reason_code": None if description_rendered else "description_empty",
+            "source_binding": "description_region",
+            "count": 1 if description_rendered else 0,
+            "collapsed": not description_rendered,
+        },
+    }
+
+
 def _build_renderer_region_render_status(
     layer_status: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
@@ -1927,6 +2064,55 @@ def _build_renderer_region_render_status(
             "rendered": bottom_count > 0,
             "count": bottom_count,
             "collapsed": bottom_count == 0,
+        },
+    }
+
+
+def _build_template_b_region_render_status(
+    layer_status: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    banner_count = sum(
+        int(layer_status.get(layer_name, {}).get("count", 0))
+        for layer_name in ("brand_logo_layer", "brand_text_layer", "agent_name_text_layer")
+    )
+    top_copy_count = sum(
+        int(layer_status.get(layer_name, {}).get("count", 0))
+        for layer_name in ("top_copy_title_layer", "top_copy_subtitle_layer")
+    )
+    materials_count = int(layer_status.get("materials_items_layer", {}).get("count", 0))
+    hero_count = (
+        int(layer_status.get("product_image_layer", {}).get("count", 0))
+        + int(layer_status.get("product_secondary_image_layer", {}).get("count", 0))
+    )
+    description_count = (
+        int(layer_status.get("description_title_layer", {}).get("count", 0))
+        + int(layer_status.get("description_body_layer", {}).get("count", 0))
+    )
+    return {
+        "logo_banner_region": {
+            "rendered": banner_count > 0,
+            "count": banner_count,
+            "collapsed": banner_count == 0,
+        },
+        "top_copy_region": {
+            "rendered": top_copy_count > 0,
+            "count": top_copy_count,
+            "collapsed": top_copy_count == 0,
+        },
+        "materials_strip_region": {
+            "rendered": materials_count > 0,
+            "count": materials_count,
+            "collapsed": materials_count == 0,
+        },
+        "product_hero_region": {
+            "rendered": hero_count > 0,
+            "count": hero_count,
+            "collapsed": hero_count == 0,
+        },
+        "description_region": {
+            "rendered": description_count > 0,
+            "count": description_count,
+            "collapsed": description_count == 0,
         },
     }
 
