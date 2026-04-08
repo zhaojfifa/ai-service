@@ -157,6 +157,12 @@ body {
   box-shadow: var(--shell-shadow-main), var(--header-inset-shadow);
 }
 
+.header-visual-subdued-catalog-strip .region-shell-header {
+  background: linear-gradient(180deg, rgba(45, 42, 40, 0.92), rgba(28, 27, 27, 0.90));
+  border: 1px solid rgba(164, 56, 45, 0.10);
+  box-shadow: 0 14px 26px rgba(49, 38, 30, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
 /* Header layout */
 .layer-header-content {
   z-index: 2;
@@ -196,6 +202,12 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
+.header-visual-subdued-catalog-strip .slot-logo {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(244, 236, 229, 0.05));
+  box-shadow: none;
+}
+
 .slot-logo img {
   max-width: 100%;
   max-height: 100%;
@@ -217,6 +229,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-color-brand, #1a1a1a);
+}
+
+.header-visual-subdued-catalog-strip .text-brand {
+  font-size: 26px;
+  letter-spacing: 0.07em;
 }
 
 .slot-agent-name-text {
@@ -280,14 +297,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 20px;
-  padding: 0 10px;
+  min-height: 18px;
+  padding: 0 8px;
   border-radius: 999px;
   border: var(--sku-chip-border);
   background: var(--sku-chip-surface);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--accent-tone);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-align: left;
   text-transform: uppercase;
   white-space: nowrap;
@@ -298,8 +315,8 @@ body {
 .text-title {
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-weight: 700;
-  font-size: 46px;
-  letter-spacing: -0.02em;
+  font-size: 42px;
+  letter-spacing: -0.03em;
   text-align: left;
   color: var(--text-color-title, #1a1a1a);
   word-break: break-word;
@@ -311,13 +328,19 @@ body {
 
 .text-subtitle {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  font-size: 16px;
-  letter-spacing: 0.02em;
+  font-size: 15px;
+  letter-spacing: 0.015em;
   text-align: left;
-  color: var(--text-color-subtitle, #555555);
+  color: #70675f;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.top-copy-hierarchy-sku-meta-title-subtitle-catalog .layer-top-copy-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
 }
 
 /* Collapse states */
@@ -354,17 +377,17 @@ body {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  padding: 0 4px;
+  gap: 10px;
+  padding: 0 16px;
 }
 
 .materials-item {
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--materials-card-surface);
   border: var(--materials-card-border);
-  box-shadow: var(--materials-card-shadow);
+  box-shadow: 0 6px 12px rgba(54, 44, 38, 0.06);
 }
 
 .materials-item img {
@@ -409,10 +432,10 @@ body {
 }
 
 .region-shell-product-hero {
-  background: var(--shell-surface-product, transparent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.06));
   border-radius: 30px;
   border: var(--shell-border-product);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.40);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 
 .layer-product-hero-atmosphere {
@@ -420,6 +443,7 @@ body {
   inset: 0;
   z-index: 1;
   pointer-events: none;
+  opacity: 0.58;
 }
 
 .product-hero-halo,
@@ -434,10 +458,10 @@ body {
 
 .product-hero-plane {
   inset: auto 72px 24px;
-  height: 72px;
+  height: 52px;
   border-radius: 999px;
-  background: var(--product-hero-plane);
-  filter: blur(16px);
+  background: linear-gradient(180deg, rgba(145, 125, 110, 0.00), rgba(145, 125, 110, 0.10));
+  filter: blur(12px);
 }
 
 .slot-product {
@@ -452,7 +476,7 @@ body {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
-  filter: var(--product-primary-shadow, none);
+  filter: drop-shadow(0 22px 28px rgba(58, 46, 39, 0.16)) contrast(1.03);
 }
 
 /* Product secondary inset — hide_no_reserve when absent */
@@ -464,9 +488,9 @@ body {
   position: absolute;
   overflow: hidden;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 240, 234, 0.98));
-  box-shadow: var(--shell-shadow-secondary, 0 8px 20px rgba(0,0,0,0.12));
-  border: 1px solid rgba(82, 69, 62, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(246, 240, 234, 0.96));
+  box-shadow: 0 8px 18px rgba(49, 40, 34, 0.08);
+  border: 1px solid rgba(82, 69, 62, 0.10);
 }
 
 .slot-product-secondary img {
@@ -493,9 +517,9 @@ body {
 
 .region-shell-description {
   background: var(--shell-surface-description);
-  border: var(--shell-border-description, none);
+  border: 1px solid rgba(164, 56, 45, 0.10);
   border-radius: 24px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .layer-description-content {
@@ -503,13 +527,19 @@ body {
   inset: 0;
 }
 
+.description-density-compact-short-copy .layer-description-content {
+  inset: 0 0 auto 0;
+  padding-top: 6px;
+}
+
 .text-description-title {
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-weight: 700;
-  font-size: 21px;
-  letter-spacing: 0.04em;
+  font-size: 18px;
+  letter-spacing: 0.10em;
   text-align: left;
   color: var(--text-color-title, #1a1a1a);
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -517,15 +547,24 @@ body {
 
 .text-description-body {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  font-size: 17px;
+  font-size: 16px;
   text-align: left;
-  color: #4e4540;
+  color: #59514b;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
-  line-height: 1.55;
-  max-width: 640px;
+  line-height: 1.48;
+  max-width: 620px;
+}
+
+.description-density-compact-short-copy .text-description-title {
+  letter-spacing: 0.03em;
+}
+
+.description-density-compact-short-copy .text-description-body {
+  line-height: 1.42;
+  max-width: 700px;
 }
 
 .layer-description-title.state-hidden,

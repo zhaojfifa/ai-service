@@ -301,11 +301,11 @@
                   <textarea id="s2-b-description-body" rows="4" readonly></textarea>
                 </label>
                 <label class="s2-field">
-                  <span>Materials Preview State</span>
+                  <span>Materials Evidence Strip</span>
                   <input id="s2-b-materials-state" type="text" readonly />
                 </label>
                 <label class="s2-field">
-                  <span>Product Images</span>
+                  <span>Hero / Supporting Detail</span>
                   <input id="s2-b-image-state" type="text" readonly />
                 </label>
               </div>
@@ -1071,6 +1071,11 @@
             if (tb.product_geometry_mode) chips.push(['product-geometry', tb.product_geometry_mode]);
             if (tb.feature_mode) chips.push(['feature', tb.feature_mode]);
             if (tb.header_mode) chips.push(['header', tb.header_mode]);
+            if (tb.header_visual_mode) chips.push(['header-visual', tb.header_visual_mode]);
+            if (tb.top_copy_hierarchy_mode) chips.push(['top-copy-hierarchy', tb.top_copy_hierarchy_mode]);
+            if (tb.materials_emphasis_mode) chips.push(['materials-emphasis', tb.materials_emphasis_mode]);
+            if (tb.secondary_product_mode) chips.push(['secondary-product', tb.secondary_product_mode]);
+            if (tb.description_density_mode) chips.push(['description-density', tb.description_density_mode]);
             if (chips.length) {
               modesStrip.innerHTML = chips.map(([k, v]) =>
                 `<div class="s2-mode-chip"><span class="s2-mode-key">${k}</span>&nbsp;<span class="s2-mode-val">${v}</span></div>`
@@ -1123,18 +1128,18 @@
             let modeLabel = '';
             let detailHtml = '';
             if (key === 'description_region') {
-              modeLabel = templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || 'description_block';
+              modeLabel = templateBehavior?.behavior_modes?.description_density_mode || templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || 'description_block';
               detailHtml = buildBottomDetail(bottomReview, templateBehavior, titleTextLayer, subtitleTextLayer);
             } else if (key === 'logo_banner_region') {
               modeLabel = templateBehavior?.behavior_modes?.header_mode || headerReview?.header_mode || '';
               detailHtml = buildHeaderDetail(headerReview, headerTextLayer);
             } else if (key === 'top_copy_region') {
-              modeLabel = templateBehavior?.top_copy_policy?.mode || templateBehavior?.behavior_modes?.top_copy_mode || 'title_subtitle_stack';
+              modeLabel = templateBehavior?.behavior_modes?.top_copy_hierarchy_mode || templateBehavior?.top_copy_policy?.mode || templateBehavior?.behavior_modes?.top_copy_mode || 'title_subtitle_stack';
               detailHtml = buildBottomDetail(null, null, titleTextLayer, subtitleTextLayer);
             } else if (key === 'materials_strip_region') {
-              modeLabel = templateBehavior?.materials_policy?.mode || 'strip_thumbnails';
+              modeLabel = templateBehavior?.behavior_modes?.materials_emphasis_mode || templateBehavior?.materials_policy?.mode || 'strip_thumbnails';
             } else if (key === 'product_hero_region') {
-              modeLabel = productReview?.product_layout_mode || templateBehavior?.behavior_modes?.product_layout_mode || '';
+              modeLabel = templateBehavior?.behavior_modes?.secondary_product_mode || productReview?.product_layout_mode || templateBehavior?.behavior_modes?.product_layout_mode || '';
               detailHtml = productReview
                 ? buildProductDetail(productReview, annotationReview)
                 : buildHeroDetail(heroReview, 'product_region');

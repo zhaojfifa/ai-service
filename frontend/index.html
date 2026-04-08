@@ -83,9 +83,9 @@
           </div>
         </fieldset>
 
-        <fieldset id="s1-core-assets" class="card stage-card" data-variant-visible="a">
-          <legend>Core Assets</legend>
-          <div class="grid">
+        <fieldset id="s1-core-assets" class="card stage-card" data-variant-visible="all">
+          <legend id="stage1-core-assets-legend">Core Assets</legend>
+          <div class="grid" data-variant-visible="a">
             <label class="field file-field optional">
               <span>Scenario image (optional)</span>
               <input type="file" name="scenario_asset" accept="image/*" />
@@ -102,24 +102,24 @@
 
           <div class="grid">
             <label class="field file-field">
-              <span>Product image 1 (required)</span>
+              <span id="stage1-product1-label">Product image 1 (required)</span>
               <input type="file" name="product_image_1" accept="image/*" required />
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="product_image_1" alt="Product image 1 preview" />
               </div>
-              <small class="hint">Clear product photo. Prefer clean background.</small>
+              <small id="stage1-product1-hint" class="hint">Clear product photo. Prefer clean background.</small>
             </label>
             <label class="field file-field optional">
-              <span>Product image 2 (optional)</span>
+              <span id="stage1-product2-label">Product image 2 (optional)</span>
               <input type="file" name="product_image_2" accept="image/*" />
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="product_image_2" alt="Product image 2 preview" />
               </div>
-              <small class="hint">Optional second angle/detail shot.</small>
+              <small id="stage1-product2-hint" class="hint">Optional second angle/detail shot.</small>
               <button type="button" class="secondary subtle" data-secondary-image-clear>Clear secondary image</button>
             </label>
             <label class="field">
-              <span>Product description</span>
+              <span id="stage1-product-desc-label">Product description</span>
               <input type="text" name="product_name" placeholder="Short product descriptor" />
             </label>
           </div>
@@ -171,10 +171,10 @@
           </div>
 
           <div class="form-row">
-            <span class="feature-label">材质 / 配料图片 <span class="optional">(选填，最多 5 张)</span></span>
-            <small class="hint">产品材质、配料或细节图，显示在产品主图下方的缩略图条。</small>
+            <span id="stage1-materials-label" class="feature-label">配件 / 刀头 / 材质辅图 <span class="optional">(选填，最多 5 张)</span></span>
+            <small id="stage1-materials-hint" class="hint">这些素材作为产品主图下方的辅助证据条，不是第二主视觉。</small>
             <div id="materials-image-slots" class="thumbnail-grid"></div>
-            <button type="button" id="add-materials-image-btn" class="secondary">+ 添加材质图片</button>
+            <button type="button" id="add-materials-image-btn" class="secondary">+ 添加辅图条目</button>
           </div>
         </fieldset>
 

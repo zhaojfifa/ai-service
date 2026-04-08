@@ -2057,3 +2057,113 @@ Remaining risks:
 - no fresh live before/after Chromium screenshot bundle was generated locally in this task
 - parity enforcement applies to Puppeteer evidence; degraded Pillow fallback still relies on structural evidence only
 - any future Template B DOM refactor must keep parity keys and backend target mapping aligned
+
+## PR-TB-P0A — Template B expression contract closeout
+
+### Root rules followed
+- contract-first
+- behavior before beautification
+- Template B geometry frozen
+- Template A untouched
+- `frontend/` and `docs/` kept aligned
+
+### Problem reproduced
+- Template B already had clean Family B structure truth, but several expression behaviors still lived as implicit styling assumptions instead of explicit runtime contract
+- Stage2 could not directly read Template B expression modes such as header visual treatment, top-copy hierarchy, secondary inset strategy, or short-description density
+- short description states still resolved to a large generic block without explicit runtime density truth
+
+### Root cause found
+- Template B resolver exported structural ownership and parity truth, but not the Family B expression modes needed for a stable operator/runtime contract
+- renderer consumed Template B content states, but not Family B-specific hierarchy/emphasis/density mode classes from backend behavior
+- Stage2 diagnostics therefore lacked direct backend truth for the expression modes the operator needs to reason about
+
+### Files changed
+- `app/templates/specs/template_product_sheet_v1.json`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_product_sheet_v1.css`
+- `frontend/stage2.html`
+- `docs/stage2.html`
+- `docs/app.js`
+- `tests/poster2/test_contracts.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_p0_expression_closeout_status_v1.md`
+
+### Layer changed
+- contract
+- resolver / behavior wiring
+- renderer consumption
+- metadata / diagnostics
+- minimal shell/text styling for short-copy density
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_contracts.py -k 'product_sheet or behavior_modes'`
+  - `4 passed, 14 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix and (behavior_modes_surface_expression_closeout_truth or secondary_asset_reports_correct_layout_reason or description_evidence_emitted_when_description_fields_exist or product_hero_evidence_uses_consistent_full_width_owner_geometry)'`
+  - `4 passed, 276 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py -k 'prefers_backend_product_and_bottom_runtime_evidence or docs_publish_mirror_contains_same_guard_diagnostics'`
+  - `2 passed, 4 deselected`
+
+### Remaining risks
+- this PR only closes Template B P0A contract/expression truth; visual down-weighting and hero/materials/description visual refinement remain for the next Puppeteer expression pass
+- `description_density_mode` currently uses a conservative short-copy heuristic based on current body/title length, so edge cases may still need tuning after real operator samples
+- no live generated Template B sample payload was produced in this step; validation here is metadata/tests first
+
+## PR-TB-P0B/P0C — Template B expression and operator-line closeout
+
+### Root rules followed
+- contract-first
+- geometry frozen
+- behavior before beautification
+- no Template A behavior changes
+- `frontend/` source and `docs/` mirror updated together
+
+### Problem reproduced
+- Template B still looked too heavy in the banner, too washed in the hero, and too loose in the description block even though Family B structure was already correct
+- Stage1 hid the product image inputs when Template B was selected because the product asset fieldset was still gated by Family A visibility
+- Stage2 still treated Template B as a partial pilot path by coercing `puppeteer` back to `auto`
+
+### Root cause found
+- Template B preview/final shell styling was still carrying placeholder-level visual weight and opacity from the initial baseline
+- Stage1 operator controls still attached core product assets to a Family A-only visible group instead of a shared product asset surface
+- Stage2 request wiring still contained a stale Template B renderer coercion path from the earlier pilot stage
+
+### Files changed
+- `app/templates_html/template_product_sheet_v1.css`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_p0_visual_and_operator_closeout_status_v1.md`
+
+### Layer changed
+- Template B HTML/CSS expression
+- Stage1 operator flow
+- Stage2 operator flow
+- frontend/docs publish mirror
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - `5 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+  - `6 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix or test_template_a_regression_path_remains_unchanged'`
+  - `14 passed, 266 deselected`
+
+### Remaining risks
+- no fresh live Chromium screenshot pair was generated in this closeout step, so the visual pass is still code/test validated rather than screenshot-validated
+- Template B now allows explicit `puppeteer` selection again, but one live operator pass should still confirm that Stage2 and final generation visually align on real assets
+- further palette exploration is intentionally deferred; this pass only tightened hierarchy and operator/runtime parity

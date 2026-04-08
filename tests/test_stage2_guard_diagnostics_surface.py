@@ -129,6 +129,11 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "top-copy in-region" in html
     assert "hero in-region" in html
     assert "description in-region" in html
+    assert "header-visual" in html
+    assert "top-copy-hierarchy" in html
+    assert "materials-emphasis" in html
+    assert "secondary-product" in html
+    assert "description-density" in html
     assert "poster2-template-b-parity-review" in html
     assert "poster2-visible-truth-evidence" in html
     assert "product_secondary_image_layer" in html

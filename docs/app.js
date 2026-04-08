@@ -503,7 +503,7 @@ function normaliseTemplateBMaterials(stage1Data) {
 function buildTemplateBStage2State(stage1Data) {
   const materials = normaliseTemplateBMaterials(stage1Data);
   return {
-    template_display: 'template_product_sheet_v1 · Family B',
+    template_display: 'template_product_sheet_v1 · Family B product sheet',
     region_order: 'logo_banner -> top_copy -> materials_strip -> product_hero -> description',
     title: stage1Data?.title || '',
     subtitle: stage1Data?.subtitle || '',
@@ -511,9 +511,9 @@ function buildTemplateBStage2State(stage1Data) {
     description_title: stage1Data?.description_title || stage1Data?.descriptionTitle || '',
     description_body: stage1Data?.description_body || stage1Data?.descriptionBody || '',
     materials_count: materials.length,
-    materials_state: materials.length ? `${materials.length} material image(s) ready` : '0 material images',
+    materials_state: materials.length ? `${materials.length} accessory / sample image(s) ready` : '0 accessory / sample images',
     primary_product_state: stage1Data?.product_image_1 ? 'primary ready' : 'primary missing',
-    secondary_product_state: stage1Data?.product_image_2 ? 'secondary ready' : 'secondary empty',
+    secondary_product_state: stage1Data?.product_image_2 ? 'supporting detail ready' : 'supporting detail optional',
   };
 }
 
@@ -570,13 +570,8 @@ function applyStage2TemplateFamilyVisibility(stage1Data) {
   }
 
   const rendererModeSelect = document.getElementById('poster2-renderer-mode');
-  if (rendererModeSelect) {
-    const puppeteerOption = rendererModeSelect.querySelector('option[value="puppeteer"]');
-    if (puppeteerOption) puppeteerOption.disabled = isTemplateB;
-    if (isTemplateB && rendererModeSelect.value === 'puppeteer') {
-      rendererModeSelect.value = 'auto';
-      stage2State.poster2.rendererMode = 'auto';
-    }
+  if (rendererModeSelect && !stage2State.poster2.rendererMode) {
+    stage2State.poster2.rendererMode = rendererModeSelect.value || 'auto';
   }
 
   if (isTemplateB) {
@@ -3717,6 +3712,15 @@ function initStage1ModeS() {
   function updateStage1TemplateVariantLabels(variant) {
     const subtitleLabel = document.getElementById('stage1-subtitle-label');
     const subtitleHint = document.getElementById('stage1-subtitle-hint');
+    const coreAssetsLegend = document.getElementById('stage1-core-assets-legend');
+    const product1Label = document.getElementById('stage1-product1-label');
+    const product1Hint = document.getElementById('stage1-product1-hint');
+    const product2Label = document.getElementById('stage1-product2-label');
+    const product2Hint = document.getElementById('stage1-product2-hint');
+    const productDescLabel = document.getElementById('stage1-product-desc-label');
+    const materialsLabel = document.getElementById('stage1-materials-label');
+    const materialsHint = document.getElementById('stage1-materials-hint');
+    const secondaryClearButton = document.querySelector('[data-secondary-image-clear]');
     if (subtitleLabel) {
       subtitleLabel.textContent = variant === 'b'
         ? 'Subtitle / Secondary Heading (optional)'
@@ -3726,6 +3730,41 @@ function initStage1ModeS() {
       subtitleHint.textContent = variant === 'b'
         ? 'For Template B this stays in the top title/subtitle/SKU block. It does not feed product callouts.'
         : 'This stays bottom-owned support copy. It does not feed product callouts.';
+    }
+    if (coreAssetsLegend) {
+      coreAssetsLegend.textContent = variant === 'b' ? 'Product Assets' : 'Core Assets';
+    }
+    if (product1Label) {
+      product1Label.textContent = variant === 'b' ? 'Primary product image (required)' : 'Product image 1 (required)';
+    }
+    if (product1Hint) {
+      product1Hint.textContent = variant === 'b'
+        ? 'Main catalog hero asset. Keep the product isolated and undistorted.'
+        : 'Clear product photo. Prefer clean background.';
+    }
+    if (product2Label) {
+      product2Label.textContent = variant === 'b' ? 'Supporting detail image (optional)' : 'Product image 2 (optional)';
+    }
+    if (product2Hint) {
+      product2Hint.textContent = variant === 'b'
+        ? 'Optional inset detail / supporting angle. It should support the hero, not compete with it.'
+        : 'Optional second angle/detail shot.';
+    }
+    if (secondaryClearButton) {
+      secondaryClearButton.textContent = variant === 'b' ? 'Clear supporting detail' : 'Clear secondary image';
+    }
+    if (productDescLabel) {
+      productDescLabel.textContent = variant === 'b' ? 'Product reference line' : 'Product description';
+    }
+    if (materialsLabel) {
+      materialsLabel.innerHTML = variant === 'b'
+        ? '配件 / 刀头 / 材质辅图 <span class="optional">(选填，最多 5 张)</span>'
+        : '材质 / 配料图片 <span class="optional">(选填，最多 5 张)</span>';
+    }
+    if (materialsHint) {
+      materialsHint.textContent = variant === 'b'
+        ? '这些素材作为产品主图下方的辅助证据条，不是第二主视觉。'
+        : '产品材质、配料或细节图，显示在产品主图下方的缩略图条。';
     }
   }
 
@@ -5255,8 +5294,8 @@ function buildLayoutPreview(payload) {
         `Brand: ${payload.brand_name || 'n/a'}`,
         `Agent: ${payload.agent_name || 'n/a'}`,
         `Primary product: ${payload.product_image_1 ? 'ready' : 'missing'}`,
-        `Secondary detail: ${payload.product_image_2 ? 'ready' : 'empty'}`,
-        `Materials strip: ${materials.length} image(s)`,
+        `Supporting detail inset: ${payload.product_image_2 ? 'ready' : 'optional'}`,
+        `Materials evidence strip: ${materials.length} item(s)`,
         `Description title: ${payload.description_title || 'optional'}`,
         `Description body: ${payload.description_body ? 'present' : 'optional'}`,
       ];
@@ -5906,8 +5945,7 @@ async function buildTemplateBPosterPayload(stage1Data, apiCandidates) {
     }
   }
 
-  const requestedRenderer = stage2State.poster2.rendererMode || 'auto';
-  const rendererMode = requestedRenderer === 'puppeteer' ? 'auto' : requestedRenderer;
+  const rendererMode = stage2State.poster2.rendererMode || 'auto';
   const payload = {
     template_id: TEMPLATE_B_ID,
     renderer_mode: rendererMode,
@@ -7463,8 +7501,8 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
       ['描述标题', stage1Data.description_title || stage1Data.descriptionTitle || ''],
       ['描述正文', stage1Data.description_body || stage1Data.descriptionBody || ''],
       ['主产品图', stage1Data.product_image_1 ? 'ready' : 'missing'],
-      ['辅图 / 细节图', stage1Data.product_image_2 ? 'ready' : 'empty'],
-      ['材质图', `${materials.length} 项素材`],
+      ['辅图 / supporting detail', stage1Data.product_image_2 ? 'ready' : 'optional'],
+      ['辅图证据条', `${materials.length} 项素材`],
     ];
 
     entries.forEach(([term, description]) => {

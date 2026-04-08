@@ -80,11 +80,15 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     assert frontend_index == docs_index
     assert frontend_stage2 == docs_stage2
     assert "Bottom Support Copy" in frontend_index
+    assert 'id="s1-core-assets" class="card stage-card" data-variant-visible="all"' in frontend_index
+    assert 'id="stage1-product2-label"' in frontend_index
+    assert "配件 / 刀头 / 材质辅图" in frontend_index
     assert "Product Callouts / Selling Points" in frontend_index
     assert "data-secondary-image-clear" in frontend_index
     assert "preview-family-b" in frontend_index
     assert "preview-b-product-image" in frontend_index
-    assert "Bottom Support Copy" in frontend_stage2
+    assert "Materials Evidence Strip" in frontend_stage2
+    assert "Hero / Supporting Detail" in frontend_stage2
     assert "Product Callouts" in frontend_stage2
     assert "s2-template-b-summary" in frontend_stage2
     assert "s2-template-badge" in frontend_stage2
@@ -110,4 +114,5 @@ def test_template_b_independent_preview_and_generate_path_are_present():
     assert "Template B / Family B summary" in app_js
     assert "endpointPath = '/api/v2/generate-poster';" in app_js
     assert "gallery: (posterPayload.gallery_items || []).map" in app_js
-    assert "const rendererMode = requestedRenderer === 'puppeteer' ? 'auto' : requestedRenderer;" in app_js
+    assert "const rendererMode = stage2State.poster2.rendererMode || 'auto';" in app_js
+    assert "puppeteerOption.disabled" not in app_js
