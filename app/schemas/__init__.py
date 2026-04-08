@@ -121,12 +121,17 @@ class PosterGalleryItem(_CompatModel):
         return _reject_data_uri(value)
 
 
+_TEMPLATE_B_ID = "template_product_sheet_v1"
+
+
 class PosterInput(_CompatModel):
     """Data structure describing all poster inputs for the workflow."""
 
     brand_name: constr(strip_whitespace=True, min_length=1)
     agent_name: constr(strip_whitespace=True, min_length=1)
-    scenario_image: constr(strip_whitespace=True, min_length=1)
+    # scenario_image is required for Family A templates; optional for Template B
+    # (product-sheet layout has no background scene).
+    scenario_image: Optional[constr(strip_whitespace=True, min_length=1)] = None
     product_name: constr(strip_whitespace=True, min_length=1)
 
     template_id: constr(strip_whitespace=True, min_length=1) = Field(
@@ -134,9 +139,10 @@ class PosterInput(_CompatModel):
         description="Identifier of the locked layout template to use when rendering.",
     )
 
+    # features: min 3 enforced for Family A via model validator below.
     features: list[constr(strip_whitespace=True, min_length=1)] = Field(
-        ...,
-        min_length=3,
+        default_factory=list,
+        min_length=0,
         max_length=4,
     )
 
@@ -249,6 +255,42 @@ class PosterInput(_CompatModel):
         None,
         description="Prompt text used when generating the product asset via AI.",
     )
+
+    # ── Family A cross-field validation ──────────────────────────────────────
+    if model_validator is not None:  # pragma: no cover - pydantic v2
+
+        @model_validator(mode="after")
+        def _family_a_requirements(self) -> "PosterInput":
+            if self.template_id != _TEMPLATE_B_ID:
+                if not self.scenario_image:
+                    raise ValueError(
+                        "scenario_image is required for Family A templates "
+                        f"(template_id={self.template_id!r})"
+                    )
+                if len(self.features) < 3:
+                    raise ValueError(
+                        "features must have at least 3 items for Family A templates "
+                        f"(got {len(self.features)})"
+                    )
+            return self
+
+    else:  # pragma: no cover - pydantic v1
+
+        @root_validator(pre=False)  # type: ignore[misc]
+        @classmethod
+        def _family_a_requirements(cls, values: dict) -> dict:  # type: ignore[misc]
+            tid = values.get("template_id", "template_dual")
+            if tid != _TEMPLATE_B_ID:
+                if not values.get("scenario_image"):
+                    raise ValueError(
+                        f"scenario_image is required for Family A templates (template_id={tid!r})"
+                    )
+                features = values.get("features") or []
+                if len(features) < 3:
+                    raise ValueError(
+                        f"features must have at least 3 items for Family A templates (got {len(features)})"
+                    )
+            return values
 
     @field_validator("brand_logo", "scenario_asset", "product_asset", mode="before")
     @classmethod
