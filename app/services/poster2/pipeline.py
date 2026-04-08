@@ -1858,6 +1858,7 @@ def _build_header_contract_review(
         banner_rendered = bool(region_render_status.get("logo_banner_region", {}).get("rendered", False))
         return {
             "header_mode": resolved_behavior.header_policy.mode,
+            "header_visual_mode": resolved_behavior.header_policy.visual_mode,
             "requested_brand_text": requested_spec.brand_name,
             "requested_agent_text": requested_spec.agent_name,
             "sanitized_brand_text": effective_spec.brand_name,
@@ -1888,6 +1889,7 @@ def _build_header_contract_review(
             },
             "behavior_policy": {
                 "lane_layout_mode": resolved_behavior.header_policy.lane_layout_mode,
+                "header_visual_mode": resolved_behavior.header_policy.visual_mode,
                 "identity_zone_mode": resolved_behavior.header_policy.identity_zone_mode,
                 "agent_pill_collapse_condition": resolved_behavior.header_policy.agent_pill_collapse_condition,
                 "brand_text_policy": resolved_behavior.header_policy.brand_text_policy,
@@ -2083,6 +2085,7 @@ def _build_product_contract_review(
         return {
             "product_annotation_mode": product_policy.annotation_mode,
             "product_annotation_owner": "not_applicable_template_b",
+            "secondary_product_mode": product_policy.secondary_product_mode,
             "requested_product_source": requested_spec.product_image.url,
             "effective_product_source": effective_spec.product_image.url,
             "rendered_product_source": effective_spec.product_image.url,
@@ -2178,6 +2181,7 @@ def _build_product_contract_review(
                 "annotation_shell_policy": product_policy.annotation_shell_policy,
                 "annotation_bounds_policy": product_policy.annotation_bounds_policy,
                 "text_budget_policy": product_policy.text_budget_policy,
+                "secondary_product_mode": product_policy.secondary_product_mode,
                 "line_clamp": product_policy.line_clamp,
                 "char_budget": product_policy.char_budget,
                 "layout_metrics": layout_metrics,
@@ -2712,12 +2716,14 @@ def _build_top_copy_contract_review(
     subtitle_excerpt = _apply_text_budget(subtitle_sanitized, _TEMPLATE_B_SUBTITLE_CHAR_BUDGET) if subtitle_rendered else ""
     return {
         "top_copy_mode": resolved_behavior.top_copy_policy.mode if resolved_behavior.top_copy_policy else "title_subtitle_stack",
+        "top_copy_hierarchy_mode": resolved_behavior.top_copy_policy.hierarchy_mode if resolved_behavior.top_copy_policy else "sku_meta_title_subtitle_catalog",
         "top_copy_region": {
             "rendered": bool(region_render_status.get("top_copy_region", {}).get("rendered", False)),
             "bounds": _template_b_top_copy_region_bounds(template),
         },
         "behavior_policy": {
             "region_ownership_policy": "top_copy_region_owns_sku_title_subtitle",
+            "top_copy_hierarchy_mode": resolved_behavior.top_copy_policy.hierarchy_mode if resolved_behavior.top_copy_policy else "sku_meta_title_subtitle_catalog",
             "sku_char_budget": _TEMPLATE_B_SKU_CHAR_BUDGET,
             "title_char_budget": _TEMPLATE_B_TITLE_CHAR_BUDGET,
             "subtitle_char_budget": _TEMPLATE_B_SUBTITLE_CHAR_BUDGET,
@@ -2786,12 +2792,14 @@ def _build_description_contract_review(
     body_excerpt = _apply_text_budget(body_sanitized, _TEMPLATE_B_DESCRIPTION_BODY_CHAR_BUDGET) if body_rendered else ""
     return {
         "description_mode": resolved_behavior.description_policy.mode if resolved_behavior.description_policy else "description_block",
+        "description_density_mode": resolved_behavior.description_policy.density_mode if resolved_behavior.description_policy else "standard_block",
         "description_region": {
             "rendered": bool(region_render_status.get("description_region", {}).get("rendered", False)),
             "bounds": _template_b_description_region_bounds(template),
         },
         "behavior_policy": {
             "region_ownership_policy": "description_region_owns_description_title_and_body",
+            "description_density_mode": resolved_behavior.description_policy.density_mode if resolved_behavior.description_policy else "standard_block",
             "title_char_budget": _TEMPLATE_B_DESCRIPTION_TITLE_CHAR_BUDGET,
             "body_char_budget": _TEMPLATE_B_DESCRIPTION_BODY_CHAR_BUDGET,
             "title_line_clamp": 1,

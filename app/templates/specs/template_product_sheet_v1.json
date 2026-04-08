@@ -12,7 +12,12 @@
     "bottom_mode": "description_block",
     "gallery_mode": "none",
     "materials_mode": "strip_thumbnails",
-    "top_copy_mode": "title_subtitle_stack"
+    "top_copy_mode": "title_subtitle_stack",
+    "header_visual_mode": "subdued_catalog_strip",
+    "top_copy_hierarchy_mode": "sku_meta_title_subtitle_catalog",
+    "materials_emphasis_mode": "evidence_strip_subordinate",
+    "secondary_product_mode": "inset_optional",
+    "description_density_mode": "standard_block"
   },
   "beauty_tokens": {
     "shell_surface": "industrial_sheet_dark_strip",

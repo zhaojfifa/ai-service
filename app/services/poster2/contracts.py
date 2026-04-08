@@ -182,6 +182,11 @@ class TemplateBehaviorModesSpec:
     # Template B extensions
     materials_mode: Optional[str] = None
     top_copy_mode: Optional[str] = None
+    header_visual_mode: Optional[str] = None
+    top_copy_hierarchy_mode: Optional[str] = None
+    materials_emphasis_mode: Optional[str] = None
+    secondary_product_mode: Optional[str] = None
+    description_density_mode: Optional[str] = None
 
 
 @dataclass(frozen=True)

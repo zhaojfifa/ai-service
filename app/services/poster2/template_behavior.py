@@ -309,6 +309,7 @@ _TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
 @dataclass(frozen=True)
 class ResolvedHeaderBehavior:
     mode: str
+    visual_mode: str
     lane_layout_mode: str               # "single_line" | "two_line" | "brand_only"
     identity_zone_mode: str             # "logo_and_brand" | "brand_only"
     agent_pill_collapse_condition: str  # "always_collapse" | "collapse_when_empty"
@@ -330,6 +331,7 @@ class ResolvedHeaderBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
+            "visual_mode": self.visual_mode,
             "lane_layout_mode": self.lane_layout_mode,
             "identity_zone_mode": self.identity_zone_mode,
             "agent_pill_collapse_condition": self.agent_pill_collapse_condition,
@@ -393,6 +395,7 @@ class ResolvedProductBehavior:
     product_secondary_slot: dict[str, int] | None     # {x, y, w, h} of secondary product image region, or None
     product_secondary_slot_rendered: bool
     product_secondary_asset_policy: str
+    secondary_product_mode: str
     visible_annotation_count: int
     max_annotation_items: int
     annotation_count_policy: str
@@ -420,6 +423,7 @@ class ResolvedProductBehavior:
             "product_secondary_slot": dict(self.product_secondary_slot) if self.product_secondary_slot else None,
             "product_secondary_slot_rendered": self.product_secondary_slot_rendered,
             "product_secondary_asset_policy": self.product_secondary_asset_policy,
+            "secondary_product_mode": self.secondary_product_mode,
             "visible_annotation_count": self.visible_annotation_count,
             "max_annotation_items": self.max_annotation_items,
             "annotation_count_policy": self.annotation_count_policy,
@@ -597,6 +601,7 @@ class ResolvedTemplateLayoutPolicy:
 @dataclass(frozen=True)
 class ResolvedTopCopyBehavior:
     mode: str                              # "title_subtitle_stack"
+    hierarchy_mode: str
     sku_present: bool
     title_present: bool
     subtitle_present: bool
@@ -605,15 +610,18 @@ class ResolvedTopCopyBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
+            "hierarchy_mode": self.hierarchy_mode,
             "sku_present": self.sku_present,
             "title_present": self.title_present,
             "subtitle_present": self.subtitle_present,
+            "css_classes": list(self.css_classes),
         }
 
 
 @dataclass(frozen=True)
 class ResolvedMaterialsBehavior:
     mode: str                              # "strip_thumbnails" | "hidden"
+    emphasis_mode: str
     visible_item_count: int
     max_items: int
     collapse_policy: str                   # "collapse_when_empty"
@@ -623,16 +631,19 @@ class ResolvedMaterialsBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
+            "emphasis_mode": self.emphasis_mode,
             "visible_item_count": self.visible_item_count,
             "max_items": self.max_items,
             "collapse_policy": self.collapse_policy,
             "rendered": self.rendered,
+            "css_classes": list(self.css_classes),
         }
 
 
 @dataclass(frozen=True)
 class ResolvedDescriptionBehavior:
     mode: str                              # "description_block"
+    density_mode: str
     title_present: bool
     body_present: bool
     rendered: bool
@@ -641,9 +652,11 @@ class ResolvedDescriptionBehavior:
     def as_dict(self) -> dict[str, object]:
         return {
             "mode": self.mode,
+            "density_mode": self.density_mode,
             "title_present": self.title_present,
             "body_present": self.body_present,
             "rendered": self.rendered,
+            "css_classes": list(self.css_classes),
         }
 
 
@@ -691,9 +704,16 @@ class ResolvedTemplateBehavior:
                 "product_layout_mode": self.product_policy.product_layout_mode,
                 "product_geometry_mode": self.product_policy.product_geometry_mode,
                 "header_mode": self.header_mode,
+                "header_visual_mode": self.header_policy.visual_mode,
                 "bottom_mode": self.bottom_mode,
                 "bottom_layout_mode": self.bottom_policy.bottom_layout_mode,
                 "gallery_mode": self.gallery_mode,
+                **({"top_copy_mode": self.top_copy_policy.mode} if self.top_copy_policy else {}),
+                **({"top_copy_hierarchy_mode": self.top_copy_policy.hierarchy_mode} if self.top_copy_policy else {}),
+                **({"materials_mode": self.materials_policy.mode} if self.materials_policy else {}),
+                **({"materials_emphasis_mode": self.materials_policy.emphasis_mode} if self.materials_policy else {}),
+                **({"secondary_product_mode": self.product_policy.secondary_product_mode} if self.product_policy else {}),
+                **({"description_density_mode": self.description_policy.density_mode} if self.description_policy else {}),
             },
             "hero_policy": self.hero_policy.as_dict(),
             "product_policy": self.product_policy.as_dict(),
@@ -1176,6 +1196,11 @@ def resolve_product_behavior(
         product_secondary_slot=product_secondary_slot,
         product_secondary_slot_rendered=product_secondary_slot_rendered,
         product_secondary_asset_policy=product_secondary_asset_policy,
+        secondary_product_mode=(
+            "inset_visible_supporting_detail"
+            if product_secondary_slot_rendered
+            else "inset_hidden_no_reserve"
+        ),
         visible_annotation_count=visible_annotation_count,
         max_annotation_items=max_items,
         annotation_count_policy=annotation_count_policy,
@@ -1191,6 +1216,10 @@ def resolve_product_behavior(
         css_classes=(
             _css_mode_class("product-annotation", annotation_mode),
             _css_mode_class("product-annotation-count", str(visible_annotation_count)),
+            _css_mode_class(
+                "secondary-product-mode",
+                "inset_visible_supporting_detail" if product_secondary_slot_rendered else "inset_hidden_no_reserve",
+            ),
         ),
         product_text_shell_bounds=dict(product_text_shell),
     )
@@ -1362,6 +1391,7 @@ def _resolve_feature_char_budget(clamped_count: int, feature_mode: str) -> int:
 def resolve_header_behavior(
     header_mode: str,
     *,
+    header_visual_mode: str = "default",
     brand_name: str | None = None,
     agent_name: str | None = None,
 ) -> ResolvedHeaderBehavior:
@@ -1523,6 +1553,7 @@ def resolve_header_behavior(
 
     return ResolvedHeaderBehavior(
         mode=header_mode,
+        visual_mode=header_visual_mode,
         lane_layout_mode=lane_layout_mode,
         identity_zone_mode=identity_zone_mode,
         agent_pill_collapse_condition=agent_pill_collapse_condition,
@@ -2655,16 +2686,46 @@ def _resolve_product_sheet_behavior(
     sku_text: str | None,
 ) -> ResolvedTemplateBehavior:
     """Behavior resolver for template_product_sheet_v1 (Family B, vertical stack)."""
+    modes = spec.behavior_modes
     beauty = spec.beauty_tokens
     shell_surface = _validate_token(beauty.shell_surface, set(_SHELL_SURFACE_PRESETS), "shell_surface")
     shell_border = _validate_token(beauty.shell_border, set(_SHELL_BORDER_PRESETS), "shell_border")
     shell_shadow = _validate_token(beauty.shell_shadow, set(_SHELL_SHADOW_PRESETS), "shell_shadow")
     accent_tone = _validate_token(beauty.accent_tone, set(_ACCENT_TONE_PRESETS), "accent_tone")
     text_emphasis = _validate_token(beauty.text_emphasis, set(_TEXT_EMPHASIS_PRESETS), "text_emphasis")
+    header_visual_mode = _validate_token(
+        modes.header_visual_mode or "subdued_catalog_strip",
+        {"subdued_catalog_strip"},
+        "header_visual_mode",
+    )
+    top_copy_hierarchy_mode = _validate_token(
+        modes.top_copy_hierarchy_mode or "sku_meta_title_subtitle_catalog",
+        {"sku_meta_title_subtitle_catalog"},
+        "top_copy_hierarchy_mode",
+    )
+    materials_emphasis_mode = _validate_token(
+        modes.materials_emphasis_mode or "evidence_strip_subordinate",
+        {"evidence_strip_subordinate"},
+        "materials_emphasis_mode",
+    )
+    _validate_token(
+        modes.secondary_product_mode or "inset_optional",
+        {"inset_optional", "inset_hidden_no_reserve", "inset_visible_supporting_detail"},
+        "secondary_product_mode",
+    )
+    description_body_compact_source = (description_body or "").strip()
+    description_density_mode = (
+        "compact_short_copy"
+        if description_body_compact_source and len(description_body_compact_source) <= 96
+        else "standard_block"
+    )
+    if not description_body_compact_source and (description_title or "").strip():
+        description_density_mode = "compact_short_copy"
 
     hero_policy = resolve_hero_behavior("centered_product_focus")
     header_policy = resolve_header_behavior(
-        spec.behavior_modes.header_mode or "logo_banner_lockup",
+        modes.header_mode or "logo_banner_lockup",
+        header_visual_mode=header_visual_mode,
         brand_name=brand_name,
         agent_name=agent_name,
     )
@@ -2777,11 +2838,13 @@ def _resolve_product_sheet_behavior(
     # Template B specific policies
     top_copy_policy = ResolvedTopCopyBehavior(
         mode="title_subtitle_stack",
+        hierarchy_mode=top_copy_hierarchy_mode,
         sku_present=bool((sku_text or "").strip()),
         title_present=bool((title_text or "").strip()),
         subtitle_present=bool((subtitle_text or "").strip()),
         css_classes=(
             _css_mode_class("top-copy-mode", "title-subtitle-stack"),
+            _css_mode_class("top-copy-hierarchy", top_copy_hierarchy_mode),
             *(("sku-present",) if sku_text else ()),
         ),
     )
@@ -2790,23 +2853,27 @@ def _resolve_product_sheet_behavior(
     visible_materials = min(max(materials_count, 0), materials_max)
     materials_policy = ResolvedMaterialsBehavior(
         mode="strip_thumbnails" if visible_materials > 0 else "hidden",
+        emphasis_mode=materials_emphasis_mode,
         visible_item_count=visible_materials,
         max_items=materials_max,
         collapse_policy="collapse_when_empty",
         rendered=visible_materials > 0,
         css_classes=(
             _css_mode_class("materials-mode", "strip-thumbnails" if visible_materials > 0 else "hidden"),
+            _css_mode_class("materials-emphasis", materials_emphasis_mode),
             *(("materials-strip-visible",) if visible_materials > 0 else ("materials-strip-hidden",)),
         ),
     )
 
     description_policy = ResolvedDescriptionBehavior(
         mode="description_block",
+        density_mode=description_density_mode,
         title_present=bool((description_title or "").strip()),
         body_present=bool((description_body or "").strip()),
         rendered=bool((description_title or description_body or "").strip()),
         css_classes=(
             _css_mode_class("description-mode", "description-block"),
+            _css_mode_class("description-density", description_density_mode),
             *(("description-rendered",) if (description_title or description_body) else ("description-hidden",)),
         ),
     )
@@ -2868,6 +2935,8 @@ def _resolve_product_sheet_behavior(
             *product_policy.css_classes,
             *bottom_policy.css_classes,
             *header_policy.css_classes,
+            _css_mode_class("header-visual", header_visual_mode),
+            *top_copy_policy.css_classes,
             *materials_policy.css_classes,
             *description_policy.css_classes,
             "template-family-b",

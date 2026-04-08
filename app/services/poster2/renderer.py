@@ -1046,11 +1046,20 @@ class PuppeteerStructuredRenderer:
         top_copy_policy = behavior.top_copy_policy
         materials_policy = behavior.materials_policy
         description_policy = behavior.description_policy
-        top_copy_class = "state-show" if not is_template_b or (top_copy_policy and top_copy_policy.title_present) else "state-show"
+        top_copy_class = " ".join((
+            "state-show",
+            *(top_copy_policy.css_classes if top_copy_policy else ()),
+        )).strip()
         sku_class = "state-show" if (top_copy_policy and top_copy_policy.sku_present) else "state-hidden"
-        materials_class = "state-show materials-strip-visible" if (materials_policy and materials_policy.rendered) else "state-hidden materials-strip-hidden"
+        materials_class = " ".join((
+            "state-show materials-strip-visible" if (materials_policy and materials_policy.rendered) else "state-hidden materials-strip-hidden",
+            *(materials_policy.css_classes if materials_policy else ()),
+        )).strip()
         product_hero_class = "state-show"
-        description_class = "state-show" if (description_policy and description_policy.rendered) else "state-hidden"
+        description_class = " ".join((
+            "state-show" if (description_policy and description_policy.rendered) else "state-hidden",
+            *(description_policy.css_classes if description_policy else ()),
+        )).strip()
         description_title_class = "state-show" if (description_policy and description_policy.title_present) else "state-hidden"
         description_body_class = "state-show" if (description_policy and description_policy.body_present) else "state-hidden"
 
@@ -1105,9 +1114,9 @@ class PuppeteerStructuredRenderer:
             ),
             "__PRODUCT_URL__": asset_urls["product"],
             "__PRODUCT_SECONDARY_CLASS__": (
-                "state-show"
+                " ".join(("state-show", *behavior.product_policy.css_classes))
                 if behavior.product_policy.product_secondary_slot_rendered and asset_urls.get("product_secondary")
-                else "state-hidden"
+                else " ".join(("state-hidden", *behavior.product_policy.css_classes))
             ),
             "__PRODUCT_SECONDARY_STYLE__": _slot_style(
                 _localize_slot(_product_secondary_slot(slot_spec, behavior.product_policy), product_region)

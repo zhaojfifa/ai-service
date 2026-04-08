@@ -5085,6 +5085,8 @@ class TestTemplateBBackendGenerationFix:
         assert review["product_text_shell_layer"]["bounds"] == {"x": 0, "y": 0, "w": 0, "h": 0}
         assert review["product_text_shell_layer"]["reason_code"] == "not_used_in_template_b"
         assert review["product_layout_mode_reason"] == "single_hero_centered_without_secondary_asset"
+        assert review["secondary_product_mode"] == "inset_hidden_no_reserve"
+        assert manifest.template_behavior["behavior_modes"]["secondary_product_mode"] == "inset_hidden_no_reserve"
         assert manifest.geometry_evidence["region_bounds"]["product_hero_region"] == {
             "x": 112,
             "y": 348,
@@ -5112,6 +5114,8 @@ class TestTemplateBBackendGenerationFix:
         assert review["description_body_layer"]["rendered"] is True
         assert review["description_title_layer"]["owner_region"] == "description_region"
         assert review["description_body_layer"]["owner_region"] == "description_region"
+        assert review["description_density_mode"] == "compact_short_copy"
+        assert manifest.template_behavior["behavior_modes"]["description_density_mode"] == "compact_short_copy"
         assert manifest.bottom_contract_review["bottom_contract_scope"] == "description_region_only"
 
     def test_template_b_secondary_asset_reports_correct_layout_reason(self):
@@ -5136,6 +5140,34 @@ class TestTemplateBBackendGenerationFix:
         assert review["product_secondary_slot_rendered"] is True
         assert review["product_layout_mode_reason"] == "single_hero_centered_with_secondary_inset"
         assert review["product_secondary_asset_policy"] == "secondary_inset_bottom_right"
+        assert review["secondary_product_mode"] == "inset_visible_supporting_detail"
+        assert manifest.template_behavior["behavior_modes"]["secondary_product_mode"] == "inset_visible_supporting_detail"
+
+    def test_template_b_behavior_modes_surface_expression_closeout_truth(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            materials_images=(AssetRef(url="mock://mat-1"),),
+            description_title="Product Highlights",
+            description_body="Short copy block.",
+            sku_text="KW-212",
+        )
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            materials=[PILImage.new("RGBA", (140, 52), (120, 120, 120, 255))],
+        )
+        manifest = self._run_template_b(spec, assets)
+        modes = manifest.template_behavior["behavior_modes"]
+        assert modes["header_visual_mode"] == "subdued_catalog_strip"
+        assert modes["top_copy_hierarchy_mode"] == "sku_meta_title_subtitle_catalog"
+        assert modes["materials_emphasis_mode"] == "evidence_strip_subordinate"
+        assert modes["description_density_mode"] == "compact_short_copy"
+        assert manifest.top_copy_contract_review["top_copy_hierarchy_mode"] == "sku_meta_title_subtitle_catalog"
+        assert manifest.header_contract_review["header_visual_mode"] == "subdued_catalog_strip"
 
     def test_template_b_renderer_metadata_includes_visible_truth_and_parity_fields(self):
         spec = _make_spec(

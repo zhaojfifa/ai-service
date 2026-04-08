@@ -131,6 +131,21 @@ class TestTemplateSpecLoading:
         assert spec.beauty_tokens.shell_surface == "glass_light"
         assert spec.beauty_tokens.text_emphasis == "campaign_primary"
 
+    def test_real_template_product_sheet_loads_p0_expression_modes(self):
+        real_path = (
+            Path(__file__).resolve().parents[2]
+            / "app" / "templates" / "specs" / "template_product_sheet_v1.json"
+        )
+        assert real_path.exists(), f"template_product_sheet_v1.json missing at {real_path}"
+        spec = TemplateSpec.from_json(real_path)
+        assert spec.template_id == "template_product_sheet_v1"
+        assert spec.behavior_modes.header_mode == "logo_banner_lockup"
+        assert spec.behavior_modes.header_visual_mode == "subdued_catalog_strip"
+        assert spec.behavior_modes.top_copy_hierarchy_mode == "sku_meta_title_subtitle_catalog"
+        assert spec.behavior_modes.materials_emphasis_mode == "evidence_strip_subordinate"
+        assert spec.behavior_modes.secondary_product_mode == "inset_optional"
+        assert spec.behavior_modes.description_density_mode == "standard_block"
+
     def test_template_behavior_modes_accept_second_hero_mode(self):
         d = {**MINIMAL_TEMPLATE_DICT}
         d["behavior_modes"] = {
