@@ -29,6 +29,7 @@ from .contracts import (
     FeatureCalloutSpec,
     GalleryStripSpec,
     ImageSlotSpec,
+    MaterialsStripSpec,
     PosterSpec,
     RendererMode,
     ResolvedAssets,
@@ -273,6 +274,7 @@ class LayoutRenderer:
         layer_timings: dict[str, int] = {}
 
         t0 = _now()
+        self._draw_product_sheet_background(canvas)
         # Header shell
         header_box = _header_shell_bounds(spec, behavior.header_policy)
         self._draw_shell_box(
@@ -294,6 +296,15 @@ class LayoutRenderer:
                 border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
                 shadow=None,
             )
+        self._draw_shell_box(
+            canvas,
+            (112, 348, 800, 384),
+            radius=30,
+            fill=_pillow_shell_fill("product", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+            border=_pillow_border("hero", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
+            shadow=None,
+        )
+        self._draw_product_sheet_hero_plane(canvas)
         # Product hero image
         self._draw_product(
             canvas,
@@ -310,16 +321,15 @@ class LayoutRenderer:
         # Materials strip thumbnails
         mat_policy = behavior.materials_policy
         if mat_policy and mat_policy.rendered and assets.materials and spec.materials_slot:
-            ms = spec.materials_slot
-            for idx, mat_img in enumerate(assets.materials[: mat_policy.visible_item_count]):
-                item_x = ms.x + idx * (ms.thumb_w + ms.gap)
-                thumb_slot = ImageSlotSpec(
-                    x=item_x,
-                    y=ms.y,
-                    w=ms.thumb_w,
-                    h=ms.thumb_h,
-                    fit="contain",
-                    radius=ms.thumb_radius,
+            material_slots = _template_b_material_slots(spec.materials_slot, mat_policy.visible_item_count)
+            for thumb_slot, mat_img in zip(material_slots, assets.materials[: mat_policy.visible_item_count]):
+                self._draw_shell_box(
+                    canvas,
+                    (thumb_slot.x, thumb_slot.y, thumb_slot.w, thumb_slot.h),
+                    radius=thumb_slot.radius or 14,
+                    fill=(251, 247, 242, 236),
+                    border=(73, 62, 56, 28),
+                    shadow=(0, 8, 18, 0, 18),
                 )
                 self._draw_image(canvas, thumb_slot, mat_img.convert("RGBA"))
         # Logo (brand_only mode hides logo; identity_zone_mode drives this)
@@ -335,6 +345,36 @@ class LayoutRenderer:
             _apply_char_budget(poster.brand_name, behavior.header_policy.brand_char_budget),
             draw_background=False,
         )
+        if behavior.header_policy.agent_pill_visible and poster.agent_name:
+            self._draw_text(
+                canvas,
+                replace(
+                    _agent_text_slot(spec, behavior.header_policy, color="#D9C9BC"),
+                    bg_color="#3A3432",
+                    bg_radius=999,
+                ),
+                _apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget),
+                draw_background=True,
+            )
+        if poster.sku_text:
+            self._draw_text(
+                canvas,
+                TextSlotSpec(
+                    x=112,
+                    y=170,
+                    w=800,
+                    h=20,
+                    font_key="brand_regular",
+                    font_size=13,
+                    color=behavior.accent_color,
+                    align="left",
+                    max_lines=1,
+                    line_height=1.0,
+                    auto_shrink=False,
+                ),
+                _apply_char_budget(poster.sku_text, 32),
+                draw_background=False,
+            )
         # Top copy: title
         top_copy_policy = behavior.top_copy_policy
         if top_copy_policy and top_copy_policy.title_present and spec.title_slot:
@@ -491,6 +531,29 @@ class LayoutRenderer:
         draw = ImageDraw.Draw(box_layer)
         draw.rounded_rectangle([x, y, x + w, y + h], radius=radius, fill=fill, outline=border, width=1)
         canvas.alpha_composite(box_layer)
+
+    def _draw_product_sheet_background(self, canvas: PILImage.Image) -> None:
+        w, h = canvas.size
+        bg = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(bg)
+        top = (244, 239, 232, 255)
+        bottom = (230, 219, 207, 255)
+        for y in range(h):
+            t = y / max(h - 1, 1)
+            color = tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(4))
+            draw.line([(0, y), (w, y)], fill=color, width=1)
+        for y in range(0, h, 56):
+            draw.line([(0, y), (w, y)], fill=(82, 71, 63, 12), width=1)
+        draw.ellipse((120, 24, 904, 344), fill=(255, 255, 255, 80))
+        draw.ellipse((680, 760, 1020, 1020), fill=(255, 255, 255, 36))
+        canvas.alpha_composite(bg)
+
+    def _draw_product_sheet_hero_plane(self, canvas: PILImage.Image) -> None:
+        plane = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(plane)
+        draw.ellipse((216, 622, 808, 704), fill=(154, 136, 122, 36))
+        plane = plane.filter(ImageFilter.GaussianBlur(radius=16))
+        canvas.alpha_composite(plane)
 
     def _draw_feature_callout_structure(
         self,
@@ -1047,6 +1110,7 @@ class PuppeteerStructuredRenderer:
             "__SKU_STYLE__": _slot_style(sku_slot),
             "__SKU_TEXT__": html.escape(poster.sku_text or ""),
             "__MATERIALS_CLASS__": materials_class,
+            "__MATERIALS_COUNT_CLASS__": f"materials-count-{min(len(asset_urls.get('materials') or []), 5)}",
             "__MATERIALS_ITEMS__": materials_markup,
             "__PRODUCT_HERO_CLASS__": product_hero_class,
             "__DESCRIPTION_CLASS__": description_class,
@@ -1140,7 +1204,7 @@ class PuppeteerStructuredRenderer:
         """Build HTML markup for Template B materials thumbnail strip."""
         if not materials_urls:
             return ""
-        material_slots = slot_spec.get("slots", {}).get("materials", [])
+        material_slots = _template_b_material_layout_dicts(slot_spec, len(materials_urls))
         items: list[str] = []
         for idx, url in enumerate(materials_urls):
             if idx >= len(material_slots):
@@ -2258,6 +2322,57 @@ def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, 
     )
 
 
+def _template_b_material_dimensions(count: int) -> tuple[int, int]:
+    width_by_count = {1: 224, 2: 190, 3: 156, 4: 146}
+    return width_by_count.get(max(count, 0), 140), 52
+
+
+def _template_b_material_slots(materials_slot: MaterialsStripSpec, count: int) -> list[ImageSlotSpec]:
+    visible_count = max(min(count, materials_slot.count), 0)
+    if visible_count <= 0:
+        return []
+    thumb_w, thumb_h = _template_b_material_dimensions(visible_count)
+    gap = 16 if visible_count <= 3 else 14 if visible_count == 4 else materials_slot.gap
+    total_w = visible_count * thumb_w + max(visible_count - 1, 0) * gap
+    start_x = materials_slot.x + max((materials_slot.w - total_w) // 2, 0)
+    return [
+        ImageSlotSpec(
+            x=start_x + idx * (thumb_w + gap),
+            y=materials_slot.y,
+            w=thumb_w,
+            h=thumb_h,
+            fit="cover",
+            radius=materials_slot.thumb_radius,
+        )
+        for idx in range(visible_count)
+    ]
+
+
+def _template_b_material_layout_dicts(slot_spec: dict[str, Any], count: int) -> list[dict[str, int | str]]:
+    region = slot_spec.get("regions", {}).get("materials_strip_region")
+    material_slots = slot_spec.get("slots", {}).get("materials", [])
+    if region is None or not material_slots:
+        return material_slots
+    visible_count = max(min(count, len(material_slots)), 0)
+    if visible_count <= 0:
+        return []
+    thumb_w, thumb_h = _template_b_material_dimensions(visible_count)
+    gap = 16 if visible_count <= 3 else 14 if visible_count == 4 else 12
+    total_w = visible_count * thumb_w + max(visible_count - 1, 0) * gap
+    start_x = max((int(region["w"]) - total_w) // 2, 0)
+    return [
+        {
+            "x": start_x + idx * (thumb_w + gap),
+            "y": 0,
+            "w": thumb_w,
+            "h": thumb_h,
+            "fit": "cover",
+            "radius": int(material_slots[idx].get("radius", 14)),
+        }
+        for idx in range(visible_count)
+    ]
+
+
 def _scenario_shell_bounds(spec: TemplateSpec, hero_policy) -> tuple[int, int, int, int]:
     metrics = hero_policy.layout_metrics
     return (
@@ -2464,15 +2579,35 @@ def _pillow_shell_fill(role: str, shell_surface: str, *, accent: str) -> tuple[i
             "title_band": (255, 252, 250, 244),
             "gallery_strip": (255, 250, 247, 208),
         },
+        "industrial_sheet_dark_strip": {
+            "header": (31, 30, 31, 248),
+            "scenario_safe": (243, 236, 229, 120),
+            "scenario_real": (255, 255, 255, 18),
+            "product": (255, 255, 255, 74),
+            "bottom": (245, 239, 233, 238),
+            "title_band": (245, 239, 233, 238),
+            "gallery_strip": (245, 239, 233, 214),
+        },
+        "industrial_sheet_light_lockup": {
+            "header": (248, 241, 235, 248),
+            "scenario_safe": (245, 239, 232, 132),
+            "scenario_real": (255, 255, 255, 20),
+            "product": (255, 255, 255, 86),
+            "bottom": (248, 243, 237, 242),
+            "title_band": (248, 243, 237, 242),
+            "gallery_strip": (248, 243, 237, 220),
+        },
     }
     return presets[shell_surface][role]
 
 
 def _pillow_border(role: str, shell_border: str, *, accent: str) -> tuple[int, int, int, int]:
     accent_rgb = _hex_to_rgb(accent)
-    alpha_by_preset = {"soft_line": 26, "clean_frame": 52, "none": 0}
+    alpha_by_preset = {"soft_line": 26, "clean_frame": 52, "precision_frame": 36, "none": 0}
     if role in {"hero", "gallery"} and shell_border != "none":
-        white_alpha = {"soft_line": 60, "clean_frame": 88, "none": 0}[shell_border]
+        white_alpha = {"soft_line": 60, "clean_frame": 88, "precision_frame": 28, "none": 0}[shell_border]
+        if shell_border == "precision_frame":
+            return (89, 77, 69, white_alpha)
         return (255, 255, 255, white_alpha)
     return (*accent_rgb, alpha_by_preset[shell_border])
 
@@ -2484,6 +2619,8 @@ def _pillow_shadow(shell_shadow: str) -> tuple[int, int, int, int, int] | None:
         return (0, 12, 12, 0, 32)
     if shell_shadow == "medium":
         return (0, 14, 16, 0, 44)
+    if shell_shadow == "sheet_depth":
+        return (0, 16, 20, 0, 36)
     raise ValueError(f"Unsupported shell_shadow: {shell_shadow}")
 
 

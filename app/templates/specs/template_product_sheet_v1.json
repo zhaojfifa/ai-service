@@ -15,11 +15,11 @@
     "top_copy_mode": "title_subtitle_stack"
   },
   "beauty_tokens": {
-    "shell_surface": "glass_light",
-    "shell_border": "soft_line",
-    "shell_shadow": "soft",
-    "accent_tone": "warm_red",
-    "text_emphasis": "product_sheet_primary"
+    "shell_surface": "industrial_sheet_dark_strip",
+    "shell_border": "precision_frame",
+    "shell_shadow": "sheet_depth",
+    "accent_tone": "industrial_red",
+    "text_emphasis": "industrial_sheet_editorial"
   },
   "canvas_w": 1024,
   "canvas_h": 1024,
@@ -62,9 +62,9 @@
   "title_slot": {
     "x": 112, "y": 176, "w": 800, "h": 56,
     "font_key": "brand_bold",
-    "font_size": 36,
+    "font_size": 42,
     "color": "#1A1A1A",
-    "align": "center",
+    "align": "left",
     "max_lines": 2,
     "line_height": 1.15,
     "auto_shrink": true
@@ -73,9 +73,9 @@
   "subtitle_slot": {
     "x": 152, "y": 238, "w": 720, "h": 24,
     "font_key": "brand_regular",
-    "font_size": 18,
+    "font_size": 16,
     "color": "#555555",
-    "align": "center",
+    "align": "left",
     "max_lines": 1,
     "line_height": 1.2,
     "auto_shrink": true
@@ -87,7 +87,7 @@
     "gap": 12,
     "thumb_w": 140,
     "thumb_h": 52,
-    "thumb_radius": 8,
+    "thumb_radius": 14,
     "show_label": false
   },
 
@@ -101,7 +101,7 @@
     "pad_bottom": 16,
     "pad_left": 24,
     "bg_color": "transparent",
-    "shadow": false,
+    "shadow": true,
     "radius": 0
   },
 
@@ -123,9 +123,9 @@
   "description_title_slot": {
     "x": 112, "y": 756, "w": 800, "h": 40,
     "font_key": "brand_bold",
-    "font_size": 24,
+    "font_size": 21,
     "color": "#1A1A1A",
-    "align": "center",
+    "align": "left",
     "max_lines": 1,
     "line_height": 1.2,
     "auto_shrink": true
@@ -134,9 +134,9 @@
   "description_body_slot": {
     "x": 128, "y": 804, "w": 768, "h": 120,
     "font_key": "brand_regular",
-    "font_size": 16,
+    "font_size": 17,
     "color": "#444444",
-    "align": "center",
+    "align": "left",
     "max_lines": 5,
     "line_height": 1.4,
     "auto_shrink": true

@@ -1,5 +1,154 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-D1: establish Template B design baseline v1 as an Industrial Sheet
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-08
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/beautification_layer_plan_v1.md`
+- `docs/poster2/external_reference_poster_design_review_and_migration_v1.md`
+- latest local runtime metadata reproduction for `template_product_sheet_v1`
+
+### Branch / doc inspection notes
+
+- inspected first:
+  - `claude/flamboyant-mclaren`
+  - `claude/gracious-allen`
+- both branches were older Template B lines and did not contain a newer Family B design baseline worth replaying onto current `main`
+- a separate tracked "latest Template B design / product-sheet note" was not present in this workspace
+
+### Scope
+
+- Template B beauty-token and renderer presentation baseline only
+- no ownership / Family A reopen
+- no Template B region-order change
+- no Family A behavior / geometry change
+- docs + focused validation
+
+### Root rules followed
+
+- contract-first
+- behavior before beautification
+- renderer executes; renderer does not define template truth
+- no Template A regression
+- no Template B contract drift
+
+### Problem reproduced
+
+Template B ownership/evidence was corrected, but the page still looked like a pale scaffold:
+
+- empty / placeholder atmosphere
+- header shell existed but did not read as a brand entrance
+- top copy hierarchy was weak
+- materials strip read like leftover thumbnails
+- product hero lacked a true stage
+- description block felt generic
+
+### Root cause found
+
+1. Template B was still using a generic light-shell beauty preset
+2. header / materials / hero / description CSS treatment remained close to scaffold-level defaults
+3. Pillow fallback still lacked Family B-specific atmosphere, SKU drawing, agent rendering, and materials framing
+
+### Files changed
+
+- `app/templates/specs/template_product_sheet_v1.json`
+- `app/templates_html/template_product_sheet_v1.html`
+- `app/templates_html/template_product_sheet_v1.css`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_design_baseline_v1.md`
+- `docs/poster2/README.md`
+
+### Layer changed
+
+- beautification
+- renderer consumption
+- validation
+- docs
+
+### Exact design-baseline changes
+
+- switched Template B onto Family B-specific beauty tokens:
+  - `industrial_sheet_dark_strip`
+  - `precision_frame`
+  - `sheet_depth`
+  - `industrial_red`
+  - `industrial_sheet_editorial`
+- redesigned the banner as a dark brand strip with a separate logo plaque and subordinate agent chip
+- strengthened top-copy hierarchy:
+  - SKU chip
+  - stronger title
+  - quieter subtitle
+- restyled materials as framed sample cards and centered sparse counts within the same frozen region
+- added a restrained hero surface / halo / ground plane without changing product hero geometry
+- restyled the description block as a calmer product-sheet panel
+- aligned Pillow fallback with Family B baseline:
+  - background atmosphere
+  - SKU rendering
+  - agent chip rendering
+  - materials-card framing and sparse-count centering
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/renderer.py` -> `pass`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'TemplateBIndustrialSheet or pillow_beauty_tokens_change_shell_presentation'` -> `3 passed, 104 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix or test_template_a_regression_path_remains_unchanged'` -> `11 passed, 266 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'template_b'` -> `4 passed, 23 deselected`
+
+### Runtime verification payload / result
+
+- payload:
+  - `template_id = template_product_sheet_v1`
+  - logo present
+  - brand + agent present
+  - SKU / title / subtitle present
+  - 3 materials images
+  - primary + secondary product images
+  - description title + body present
+- result:
+  - `header_mode = logo_banner_lockup`
+  - `beauty_tokens.shell_surface = industrial_sheet_dark_strip`
+  - `beauty_tokens.shell_border = precision_frame`
+  - `beauty_tokens.shell_shadow = sheet_depth`
+  - `beauty_tokens.accent_tone = industrial_red`
+  - `beauty_tokens.text_emphasis = industrial_sheet_editorial`
+  - `brand_logo_slot.rendered = true`
+  - `title_owner_region = top_copy_region`
+  - `subtitle_owner_region = top_copy_region`
+  - `materials_strip_region.rendered = true`
+  - `product_layout_mode_reason = single_hero_centered_with_secondary_inset`
+  - `product_canvas_shell_bounds = {x:112, y:348, w:800, h:384}`
+  - `description_region.rendered = true`
+  - `deliverable = true`
+- artifact:
+  - `/tmp/template_b_design_manifest.json`
+
+### Screenshot artifacts
+
+- before: `/tmp/template_b_before.png`
+- after: `/tmp/template_b_after.png`
+
+### Remaining risks
+
+- local font assets are still missing, so typography in the local artifacts under-represents the intended hierarchy
+- local verification degraded to Pillow because Playwright is not installed in this workspace
+- this pass intentionally did not mutate Family B geometry or add new Template B schema
+
+---
+
 ## Entry — PR-TB-CONTRACT1: correct Template B ownership and evidence so Family B is contract-native
 
 **Branch:** `main`

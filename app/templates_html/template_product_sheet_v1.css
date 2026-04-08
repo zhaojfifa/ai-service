@@ -9,6 +9,7 @@ body {
 
 body {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  background: #ede4da;
 }
 
 #poster-root {
@@ -16,23 +17,42 @@ body {
   width: 1024px;
   height: 1024px;
   overflow: hidden;
-  background: #FFFFFF;
+  background: var(--poster-bg, linear-gradient(180deg, #f4efe8 0%, #eee6dc 58%, #e6dbcf 100%));
   color: #1a1a1a;
   /* Beauty token defaults — overridden by inline CSS vars from behavior resolver */
-  --shell-surface-header: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(252, 248, 246, 0.96));
+  --shell-surface-header: linear-gradient(180deg, rgba(40, 38, 37, 0.98), rgba(21, 21, 22, 0.96));
   --shell-surface-top-copy: rgba(255, 255, 255, 0.00);
   --shell-surface-materials: rgba(255, 255, 255, 0.00);
-  --shell-surface-product: rgba(255, 255, 255, 0.00);
-  --shell-surface-description: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 248, 246, 0.92));
-  --shell-border-header: 1px solid rgba(232, 0, 42, 0.08);
-  --shell-border-description: 1px solid rgba(232, 0, 42, 0.08);
-  --shell-shadow-main: 0 20px 40px rgba(30, 18, 18, 0.13);
-  --accent-tone: #e8002a;
-  --text-color-brand: #1a1a1a;
-  --text-color-agent: #6f5757;
+  --shell-surface-product: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.12));
+  --shell-surface-description: linear-gradient(180deg, rgba(248, 243, 237, 0.92), rgba(242, 235, 228, 0.96));
+  --shell-border-header: 1px solid rgba(255, 255, 255, 0.10);
+  --shell-border-description: 1px solid rgba(66, 56, 52, 0.12);
+  --shell-border-product: 1px solid rgba(72, 64, 60, 0.10);
+  --shell-shadow-main: 0 24px 48px rgba(49, 38, 30, 0.14);
+  --header-inset-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --materials-card-shadow: 0 12px 24px rgba(54, 44, 38, 0.10);
+  --product-primary-shadow: drop-shadow(0 26px 34px rgba(58, 46, 39, 0.18));
+  --accent-tone: #a4382d;
+  --text-color-brand: #f3eee8;
+  --text-color-agent: #c8b8ab;
   --text-color-title: #1a1a1a;
-  --text-color-subtitle: #555555;
+  --text-color-subtitle: #6d6259;
   --text-color-feature: #1a1a1a;
+  --safe-frame-line: rgba(255, 255, 255, 0.48);
+  --safe-frame-shadow: rgba(95, 78, 68, 0.12);
+  --poster-grid-line: rgba(77, 67, 60, 0.06);
+  --poster-glow: radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0) 52%);
+  --poster-side-wash: linear-gradient(90deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.04) 24%, rgba(255, 255, 255, 0.00) 72%, rgba(255, 255, 255, 0.22));
+  --header-logo-plaque: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(244, 236, 229, 0.06));
+  --header-logo-plaque-border: 1px solid rgba(255, 255, 255, 0.16);
+  --agent-chip-surface: rgba(255, 255, 255, 0.07);
+  --agent-chip-border: 1px solid rgba(255, 255, 255, 0.10);
+  --sku-chip-surface: rgba(166, 56, 45, 0.08);
+  --sku-chip-border: 1px solid rgba(166, 56, 45, 0.20);
+  --materials-card-surface: linear-gradient(180deg, rgba(255, 251, 247, 0.92), rgba(245, 238, 232, 0.98));
+  --materials-card-border: 1px solid rgba(73, 62, 56, 0.12);
+  --product-hero-halo: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.42) 32%, rgba(255, 255, 255, 0.00) 68%);
+  --product-hero-plane: linear-gradient(180deg, rgba(145, 125, 110, 0.00), rgba(145, 125, 110, 0.14));
   --header-banner-left: 72px;
   --header-banner-top: 56px;
   --header-banner-w: 880px;
@@ -43,6 +63,35 @@ body {
   --materials-strip-h: 52px;
   --product-hero-top: 348px;
   --product-hero-h: 384px;
+}
+
+#poster-root::before,
+#poster-root::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#poster-root::before {
+  background:
+    var(--poster-glow),
+    var(--poster-side-wash),
+    repeating-linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 55px,
+      var(--poster-grid-line) 55px,
+      var(--poster-grid-line) 56px
+    );
+  opacity: 0.9;
+}
+
+#poster-root::after {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0) 28%),
+    radial-gradient(circle at 84% 86%, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 24%);
+  mix-blend-mode: screen;
 }
 
 /* ── Base layer positioning ─────────────────────────────────────────── */
@@ -74,9 +123,13 @@ body {
 
 .safe-frame {
   position: absolute;
-  inset: 0;
+  inset: 20px;
   z-index: 1;
   pointer-events: none;
+  border: 1px solid var(--safe-frame-line);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), 0 18px 36px var(--safe-frame-shadow);
+  border-radius: 28px;
+  opacity: 0.7;
 }
 
 /* ── Region shells ──────────────────────────────────────────────────── */
@@ -101,6 +154,7 @@ body {
   background: var(--shell-surface-header);
   border: var(--shell-border-header);
   border-radius: 20px;
+  box-shadow: var(--shell-shadow-main), var(--header-inset-shadow);
 }
 
 /* Header layout */
@@ -114,8 +168,8 @@ body {
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding: 0 24px;
-  gap: 16px;
+  padding: 0 28px;
+  gap: 20px;
 }
 
 .layer-header-identity-zone {
@@ -131,6 +185,7 @@ body {
 .layer-header-agent-zone {
   position: relative;
   flex: 0 0 auto;
+  min-width: 180px;
 }
 
 .layer-brand-logo {
@@ -144,6 +199,10 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  border-radius: 18px;
+  background: var(--header-logo-plaque);
+  border: var(--header-logo-plaque-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
 .slot-logo img {
@@ -161,15 +220,31 @@ body {
 .text-brand {
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-color-brand, #1a1a1a);
 }
 
+.slot-agent-name-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--agent-chip-surface);
+  border: var(--agent-chip-border);
+}
+
 .text-agent-secondary {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
   color: var(--text-color-agent, #6f5757);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -215,10 +290,19 @@ body {
 
 .text-sku {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  font-size: 13px;
-  color: #888888;
-  letter-spacing: 0.04em;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: var(--sku-chip-border);
+  background: var(--sku-chip-surface);
+  font-size: 12px;
+  color: var(--accent-tone);
+  letter-spacing: 0.14em;
+  text-align: left;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -227,7 +311,9 @@ body {
 .text-title {
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-weight: 700;
-  text-align: center;
+  font-size: 46px;
+  letter-spacing: -0.02em;
+  text-align: left;
   color: var(--text-color-title, #1a1a1a);
   word-break: break-word;
   overflow: hidden;
@@ -238,7 +324,9 @@ body {
 
 .text-subtitle {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  text-align: center;
+  font-size: 16px;
+  letter-spacing: 0.02em;
+  text-align: left;
   color: var(--text-color-subtitle, #555555);
   white-space: nowrap;
   overflow: hidden;
@@ -279,23 +367,48 @@ body {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
   padding: 0 4px;
 }
 
 .materials-item {
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.80);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  background: var(--materials-card-surface);
+  border: var(--materials-card-border);
+  box-shadow: var(--materials-card-shadow);
 }
 
 .materials-item img {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
+}
+
+.materials-count-1 {
+  gap: 0;
+}
+
+.materials-count-1 .materials-item {
+  width: 224px !important;
+}
+
+.materials-count-2 .materials-item {
+  width: 190px !important;
+}
+
+.materials-count-3 .materials-item {
+  width: 156px !important;
+}
+
+.materials-count-4 {
+  gap: 14px;
+}
+
+.materials-count-4 .materials-item {
+  width: 146px !important;
 }
 
 /* 3b. Product hero region */
@@ -310,8 +423,34 @@ body {
 
 .region-shell-product-hero {
   background: var(--shell-surface-product, transparent);
-  border-radius: 0;
-  border: none;
+  border-radius: 30px;
+  border: var(--shell-border-product);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.40);
+}
+
+.layer-product-hero-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.product-hero-halo,
+.product-hero-plane {
+  position: absolute;
+  inset: 0;
+}
+
+.product-hero-halo {
+  background: var(--product-hero-halo);
+}
+
+.product-hero-plane {
+  inset: auto 72px 24px;
+  height: 72px;
+  border-radius: 999px;
+  background: var(--product-hero-plane);
+  filter: blur(16px);
 }
 
 .slot-product {
@@ -338,10 +477,10 @@ body {
 .slot-product-secondary {
   position: absolute;
   overflow: hidden;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 240, 234, 0.98));
   box-shadow: var(--shell-shadow-secondary, 0 8px 20px rgba(0,0,0,0.12));
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(82, 69, 62, 0.12);
 }
 
 .slot-product-secondary img {
@@ -369,22 +508,25 @@ body {
 .region-shell-description {
   background: var(--shell-surface-description);
   border: var(--shell-border-description, none);
-  border-radius: 20px;
+  border-radius: 24px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
 }
 
 .layer-description-content {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-start;
-  padding: 20px 32px 16px;
+  padding: 24px 40px 18px;
   gap: 8px;
 }
 
 .text-description-title {
   font-family: "Poster2BrandBold", "Noto Sans SC", sans-serif;
   font-weight: 700;
-  text-align: center;
+  font-size: 21px;
+  letter-spacing: 0.04em;
+  text-align: left;
   color: var(--text-color-title, #1a1a1a);
   white-space: nowrap;
   overflow: hidden;
@@ -393,13 +535,15 @@ body {
 
 .text-description-body {
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  text-align: center;
-  color: #444444;
+  font-size: 17px;
+  text-align: left;
+  color: #4e4540;
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 5;
   -webkit-box-orient: vertical;
-  line-height: 1.4;
+  line-height: 1.55;
+  max-width: 640px;
 }
 
 .layer-description-title.state-hidden,

@@ -158,6 +158,48 @@ _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
         "--shell-surface-gallery-strip": "rgba(255, 250, 247, 0.82)",
         "--feature-card-surface": "rgba(255, 252, 250, 0.96)",
     },
+    "industrial_sheet_dark_strip": {
+        "--poster-bg": "linear-gradient(180deg, #f4efe8 0%, #eee6dc 58%, #e6dbcf 100%)",
+        "--poster-grid-line": "rgba(77, 67, 60, 0.06)",
+        "--poster-glow": "radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0) 52%)",
+        "--poster-side-wash": "linear-gradient(90deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.04) 24%, rgba(255, 255, 255, 0.00) 72%, rgba(255, 255, 255, 0.22))",
+        "--shell-surface-header": "linear-gradient(180deg, rgba(40, 38, 37, 0.98), rgba(21, 21, 22, 0.96))",
+        "--shell-surface-top-copy": "rgba(255, 255, 255, 0)",
+        "--shell-surface-materials": "rgba(255, 255, 255, 0)",
+        "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.12))",
+        "--shell-surface-description": "linear-gradient(180deg, rgba(248, 243, 237, 0.92), rgba(242, 235, 228, 0.96))",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(248, 243, 237, 0.92), rgba(242, 235, 228, 0.96))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(248, 243, 237, 0.92), rgba(242, 235, 228, 0.96))",
+        "--shell-surface-gallery-strip": "rgba(248, 243, 237, 0.84)",
+        "--feature-card-surface": "rgba(250, 246, 242, 0.96)",
+        "--header-logo-plaque": "linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(244, 236, 229, 0.06))",
+        "--agent-chip-surface": "rgba(255, 255, 255, 0.07)",
+        "--sku-chip-surface": "rgba(166, 56, 45, 0.08)",
+        "--materials-card-surface": "linear-gradient(180deg, rgba(255, 251, 247, 0.92), rgba(245, 238, 232, 0.98))",
+        "--product-hero-halo": "radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.42) 32%, rgba(255, 255, 255, 0.00) 68%)",
+        "--product-hero-plane": "linear-gradient(180deg, rgba(145, 125, 110, 0.00), rgba(145, 125, 110, 0.14))",
+    },
+    "industrial_sheet_light_lockup": {
+        "--poster-bg": "linear-gradient(180deg, #f8f4ef 0%, #f0e9e1 60%, #e9ddd1 100%)",
+        "--poster-grid-line": "rgba(86, 75, 66, 0.05)",
+        "--poster-glow": "radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0) 56%)",
+        "--poster-side-wash": "linear-gradient(90deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08) 20%, rgba(255, 255, 255, 0.00) 76%, rgba(255, 255, 255, 0.20))",
+        "--shell-surface-header": "linear-gradient(180deg, rgba(255, 251, 248, 0.98), rgba(243, 235, 228, 0.96))",
+        "--shell-surface-top-copy": "rgba(255, 255, 255, 0)",
+        "--shell-surface-materials": "rgba(255, 255, 255, 0)",
+        "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(255, 255, 255, 0.18))",
+        "--shell-surface-description": "linear-gradient(180deg, rgba(251, 247, 243, 0.94), rgba(243, 236, 228, 0.98))",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(251, 247, 243, 0.94), rgba(243, 236, 228, 0.98))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(251, 247, 243, 0.94), rgba(243, 236, 228, 0.98))",
+        "--shell-surface-gallery-strip": "rgba(251, 247, 243, 0.88)",
+        "--feature-card-surface": "rgba(252, 248, 244, 0.98)",
+        "--header-logo-plaque": "linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 240, 232, 0.72))",
+        "--agent-chip-surface": "rgba(28, 26, 26, 0.04)",
+        "--sku-chip-surface": "rgba(166, 56, 45, 0.07)",
+        "--materials-card-surface": "linear-gradient(180deg, rgba(255, 252, 248, 0.94), rgba(246, 239, 233, 0.98))",
+        "--product-hero-halo": "radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.48) 32%, rgba(255, 255, 255, 0.00) 70%)",
+        "--product-hero-plane": "linear-gradient(180deg, rgba(133, 112, 98, 0.00), rgba(133, 112, 98, 0.12))",
+    },
 }
 _SHELL_BORDER_PRESETS: dict[str, dict[str, str]] = {
     "soft_line": {
@@ -177,6 +219,17 @@ _SHELL_BORDER_PRESETS: dict[str, dict[str, str]] = {
         "--shell-border-gallery": "1px solid rgba(255, 255, 255, 0.00)",
         "--shell-border-hero": "1px solid rgba(255, 255, 255, 0.00)",
         "--feature-card-border-alpha": "00",
+    },
+    "precision_frame": {
+        "--shell-border-accent-alpha": "24",
+        "--shell-border-gallery": "1px solid rgba(89, 77, 69, 0.10)",
+        "--shell-border-hero": "1px solid rgba(89, 77, 69, 0.10)",
+        "--feature-card-border-alpha": "20",
+        "--header-logo-plaque-border": "1px solid rgba(255, 255, 255, 0.16)",
+        "--agent-chip-border": "1px solid rgba(255, 255, 255, 0.10)",
+        "--sku-chip-border": "1px solid rgba(166, 56, 45, 0.20)",
+        "--materials-card-border": "1px solid rgba(73, 62, 56, 0.12)",
+        "--safe-frame-line": "rgba(255, 255, 255, 0.48)",
     },
 }
 _SHELL_SHADOW_PRESETS: dict[str, dict[str, str]] = {
@@ -198,11 +251,21 @@ _SHELL_SHADOW_PRESETS: dict[str, dict[str, str]] = {
         "--feature-card-shadow": "0 14px 28px rgba(24, 16, 16, 0.14)",
         "--gallery-item-shadow": "0 12px 24px rgba(31, 22, 22, 0.12)",
     },
+    "sheet_depth": {
+        "--shell-shadow-main": "0 24px 48px rgba(49, 38, 30, 0.14)",
+        "--shell-shadow-secondary": "0 18px 30px rgba(55, 44, 37, 0.12)",
+        "--feature-card-shadow": "0 14px 28px rgba(50, 41, 36, 0.12)",
+        "--gallery-item-shadow": "0 12px 24px rgba(49, 40, 34, 0.10)",
+        "--header-inset-shadow": "inset 0 1px 0 rgba(255, 255, 255, 0.06)",
+        "--materials-card-shadow": "0 12px 24px rgba(54, 44, 38, 0.10)",
+        "--safe-frame-shadow": "rgba(95, 78, 68, 0.12)",
+    },
 }
 _ACCENT_TONE_PRESETS: dict[str, str] = {
     "warm_red": "#E8002A",
     "brand_gold": "#C69214",
     "cool_blue": "#2D6CDF",
+    "industrial_red": "#A4382D",
 }
 _TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
     "campaign_primary": {
@@ -232,6 +295,13 @@ _TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
         "title": "#1A1A1A",
         "subtitle": "#555555",
         "feature": "#1A1A1A",
+    },
+    "industrial_sheet_editorial": {
+        "brand": "#F3EEE8",
+        "agent": "#C8B8AB",
+        "title": "#171411",
+        "subtitle": "#6D6259",
+        "feature": "#171411",
     },
 }
 
@@ -2525,7 +2595,7 @@ def _resolve_shell_border_vars(shell_border: str, accent_color: str) -> dict[str
     preset = _SHELL_BORDER_PRESETS[shell_border]
     accent_alpha = preset["--shell-border-accent-alpha"]
     feature_alpha = preset["--feature-card-border-alpha"]
-    return {
+    resolved = {
         "--shell-border-header": f"1px solid {accent_color}{accent_alpha}",
         "--shell-border-hero": preset["--shell-border-hero"],
         "--shell-border-product": f"1px solid {accent_color}{accent_alpha}",
@@ -2533,6 +2603,15 @@ def _resolve_shell_border_vars(shell_border: str, accent_color: str) -> dict[str
         "--shell-border-gallery": preset["--shell-border-gallery"],
         "--feature-card-border": f"1px solid {accent_color}{feature_alpha}",
     }
+    for key, value in preset.items():
+        if key not in {
+            "--shell-border-accent-alpha",
+            "--shell-border-gallery",
+            "--shell-border-hero",
+            "--feature-card-border-alpha",
+        }:
+            resolved[key] = value
+    return resolved
 
 
 def _resolve_shell_shadow_vars(shell_shadow: str) -> dict[str, str]:

@@ -56,7 +56,9 @@ __INLINE_CSS__
       </div>
       <div class="layer layer-top-copy-content">
         <div class="layer layer-sku __SKU_CLASS__">
-          <div class="slot slot-sku text-sku" style="__SKU_STYLE__">__SKU_TEXT__</div>
+          <div class="slot slot-sku" style="__SKU_STYLE__">
+            <span class="text-sku sku-chip">__SKU_TEXT__</span>
+          </div>
         </div>
         <div class="layer layer-title">
           <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
@@ -73,7 +75,7 @@ __INLINE_CSS__
         <div class="region-shell region-shell-materials-strip"></div>
       </div>
       <div class="layer layer-materials-items">
-        <div class="materials-strip" aria-hidden="true">__MATERIALS_ITEMS__</div>
+        <div class="materials-strip __MATERIALS_COUNT_CLASS__" aria-hidden="true">__MATERIALS_ITEMS__</div>
       </div>
     </div>
 
@@ -81,6 +83,10 @@ __INLINE_CSS__
     <div class="layer layer-product-hero __PRODUCT_HERO_CLASS__" data-region="product_hero_region">
       <div class="layer layer-product-hero-shell">
         <div class="region-shell region-shell-product-hero"></div>
+      </div>
+      <div class="layer layer-product-hero-atmosphere" aria-hidden="true">
+        <div class="product-hero-halo"></div>
+        <div class="product-hero-plane"></div>
       </div>
       <div class="layer layer-product-image">
         <div class="slot slot-product image-slot product-fit-contain" style="__PRODUCT_STYLE__">

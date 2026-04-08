@@ -48,6 +48,7 @@ from app.services.poster2.renderer import (
     _resolve_feature_callout_layout,
     _resolve_feature_callout_map,
     _safe_preset_scenario_data_url,
+    _template_b_material_slots,
     _visible_gallery_item_count,
     _prepare_gallery_urls,
 )
@@ -68,6 +69,14 @@ def _load_real_template() -> TemplateSpec:
     p = (
         Path(__file__).resolve().parents[2]
         / "app" / "templates" / "specs" / "template_dual_v2.json"
+    )
+    return TemplateSpec.from_json(p)
+
+
+def _load_template_b_template() -> TemplateSpec:
+    p = (
+        Path(__file__).resolve().parents[2]
+        / "app" / "templates" / "specs" / "template_product_sheet_v1.json"
     )
     return TemplateSpec.from_json(p)
 
@@ -160,6 +169,48 @@ class TestCanvasOutput:
         alternate = LayoutRenderer().render(template, _minimal_spec(), _minimal_assets())
 
         assert baseline.image.getpixel((80, 70)) != alternate.image.getpixel((80, 70))
+
+
+class TestTemplateBIndustrialSheet:
+
+    def test_template_b_pillow_renderer_draws_sheet_background_and_dark_header(self):
+        template = _load_template_b_template()
+        spec = _minimal_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Integrated Workstation Sink",
+            subtitle="Precision-fitted accessories",
+            features=(),
+            template_id="template_product_sheet_v1",
+            product_secondary_image=AssetRef(url="mock://product-secondary"),
+            logo=AssetRef(url="mock://logo"),
+            materials_images=(AssetRef(url="mock://mat-1"), AssetRef(url="mock://mat-2")),
+            description_title="Crafted for daily production kitchens",
+            description_body="Spec-sheet copy.",
+            sku_text="KW-2401",
+        )
+        assets = ResolvedAssets(
+            product=solid_image(400, 600, (220, 180, 150, 255)),
+            product_secondary=solid_image(320, 320, (160, 160, 160, 255)),
+            logo=solid_image(240, 128, (20, 20, 20, 255)),
+            materials=[solid_image(160, 80, (120, 120, 120, 255)), solid_image(160, 80, (180, 170, 160, 255))],
+        )
+
+        result = LayoutRenderer().render(template, spec, assets)
+
+        assert result.image.getpixel((8, 8))[3] == 255
+        assert sum(result.image.getpixel((120, 84))[:3]) < 120
+        assert result.image.getpixel((512, 520))[3] == 255
+
+    def test_template_b_material_slots_center_and_enlarge_sparse_materials(self):
+        template = _load_template_b_template()
+
+        slots = _template_b_material_slots(template.materials_slot, 2)
+
+        assert len(slots) == 2
+        assert slots[0].x > template.materials_slot.x
+        assert slots[0].w > template.materials_slot.thumb_w
+        assert slots[1].x + slots[1].w < template.materials_slot.x + template.materials_slot.w
 
 
 # ── Optional assets ───────────────────────────────────────────────────────────
