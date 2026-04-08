@@ -55,6 +55,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [stage1_operator_input_surface_bugfix_status_v1.md](stage1_operator_input_surface_bugfix_status_v1.md)
 - [template_b_line2_independent_flow_status_v1.md](template_b_line2_independent_flow_status_v1.md)
 - [template_b_backend_generation_fix_status_v1.md](template_b_backend_generation_fix_status_v1.md)
+- [template_b_contract_correction_status_v1.md](template_b_contract_correction_status_v1.md)
 - [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
 
 ### Plans

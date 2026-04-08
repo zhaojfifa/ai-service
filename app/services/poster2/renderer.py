@@ -1716,6 +1716,13 @@ def _build_renderer_layer_render_status(
     delegated_feature_rendering = annotation_active and feature_mode == "product_anchor_callouts"
     visible_feature_count = 0 if delegated_feature_rendering else feature_count
     return {
+        "header_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_product_sheet_v1.logo_banner_region",
+            "count": 1,
+            "collapsed": False,
+        },
         "brand_logo_layer": {
             "rendered": logo_rendered,
             "reason_code": (
@@ -1904,6 +1911,7 @@ def _build_template_b_layer_render_status(
 ) -> dict[str, dict[str, Any]]:
     logo_suppressed_by_mode = header_policy.identity_zone_mode == "brand_only"
     logo_rendered = has_logo and not logo_suppressed_by_mode
+    sku_rendered = bool(top_copy_policy and top_copy_policy.sku_present)
     title_rendered = bool(top_copy_policy and top_copy_policy.title_present)
     subtitle_rendered = bool(top_copy_policy and top_copy_policy.subtitle_present)
     materials_rendered = bool(materials_policy and materials_policy.rendered and has_materials)
@@ -1942,7 +1950,7 @@ def _build_template_b_layer_render_status(
         },
         "scenario_image_layer": {
             "rendered": False,
-            "reason_code": "scenario_missing",
+            "reason_code": "scenario_disabled_for_template_b",
             "source_binding": None,
             "count": 0,
             "collapsed": True,
@@ -1953,6 +1961,13 @@ def _build_template_b_layer_render_status(
             "source_binding": "title",
             "count": 1 if title_rendered else 0,
             "collapsed": not title_rendered,
+        },
+        "sku_text_layer": {
+            "rendered": sku_rendered,
+            "reason_code": None if sku_rendered else "sku_text_empty",
+            "source_binding": "sku_text",
+            "count": 1 if sku_rendered else 0,
+            "collapsed": not sku_rendered,
         },
         "top_copy_subtitle_layer": {
             "rendered": subtitle_rendered,
@@ -1967,6 +1982,27 @@ def _build_template_b_layer_render_status(
             "source_binding": "materials_images",
             "count": int(getattr(materials_policy, "visible_item_count", 0)) if materials_rendered else 0,
             "collapsed": not materials_rendered,
+        },
+        "product_card_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_product_sheet_v1.product_hero_region",
+            "count": 1,
+            "collapsed": False,
+        },
+        "product_canvas_shell_layer": {
+            "rendered": True,
+            "reason_code": None,
+            "source_binding": "template_product_sheet_v1.product_hero_region",
+            "count": 1,
+            "collapsed": False,
+        },
+        "product_text_shell_layer": {
+            "rendered": False,
+            "reason_code": "not_used_in_template_b",
+            "source_binding": None,
+            "count": 0,
+            "collapsed": True,
         },
         "product_image_layer": {
             "rendered": has_product,
@@ -1984,6 +2020,27 @@ def _build_template_b_layer_render_status(
             "source_binding": poster.product_secondary_image.url if poster.product_secondary_image else None,
             "count": 1 if secondary_rendered else 0,
             "collapsed": not secondary_rendered,
+        },
+        "product_annotation_shell_layer": {
+            "rendered": False,
+            "reason_code": "annotation_mode_none",
+            "source_binding": getattr(product_policy, "annotation_mode", "none"),
+            "count": 0,
+            "collapsed": True,
+        },
+        "product_annotation_items_layer": {
+            "rendered": False,
+            "reason_code": "annotation_mode_none",
+            "source_binding": "features",
+            "count": 0,
+            "collapsed": True,
+        },
+        "feature_callout_layer": {
+            "rendered": False,
+            "reason_code": "feature_mode_disabled_for_template_b",
+            "source_binding": "features",
+            "count": 0,
+            "collapsed": True,
         },
         "description_title_layer": {
             "rendered": description_title_rendered,
@@ -2077,7 +2134,7 @@ def _build_template_b_region_render_status(
     )
     top_copy_count = sum(
         int(layer_status.get(layer_name, {}).get("count", 0))
-        for layer_name in ("top_copy_title_layer", "top_copy_subtitle_layer")
+        for layer_name in ("sku_text_layer", "top_copy_title_layer", "top_copy_subtitle_layer")
     )
     materials_count = int(layer_status.get("materials_items_layer", {}).get("count", 0))
     hero_count = (

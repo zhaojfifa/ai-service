@@ -399,6 +399,8 @@ class RenderManifest:
     bottom_contract_review: dict = field(default_factory=dict)
     product_annotation_contract_review: dict = field(default_factory=dict)
     scenario_contract_review: dict = field(default_factory=dict)
+    top_copy_contract_review: dict = field(default_factory=dict)
+    description_contract_review: dict = field(default_factory=dict)
     # Text layer evidence — promoted to first-class layer evidence in structural closeout
     title_text_layer: dict = field(default_factory=dict)
     subtitle_text_layer: dict = field(default_factory=dict)

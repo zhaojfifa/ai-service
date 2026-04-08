@@ -8,7 +8,7 @@
     "feature_mode": "none",
     "product_annotation_mode": "none",
     "product_layout_mode": "single_hero_centered",
-    "header_mode": "brand_only",
+    "header_mode": "logo_banner_lockup",
     "bottom_mode": "description_block",
     "gallery_mode": "none",
     "materials_mode": "strip_thumbnails",
@@ -28,7 +28,7 @@
   "background_prompt_hint": "clean white studio background, soft diffused lighting, minimal shadow, product photography backdrop",
 
   "logo_slot": {
-    "x": 104, "y": 74, "w": 120, "h": 64,
+    "x": 104, "y": 68, "w": 120, "h": 64,
     "fit": "contain",
     "bg_color": "transparent",
     "shadow": false,
@@ -36,7 +36,7 @@
   },
 
   "brand_name_slot": {
-    "x": 244, "y": 80, "w": 536, "h": 36,
+    "x": 244, "y": 74, "w": 536, "h": 36,
     "font_key": "brand_bold",
     "font_size": 28,
     "color": "#1A1A1A",
@@ -47,7 +47,7 @@
   },
 
   "agent_name_slot": {
-    "x": 244, "y": 112, "w": 536, "h": 24,
+    "x": 244, "y": 108, "w": 536, "h": 24,
     "font_key": "brand_regular",
     "font_size": 14,
     "color": "#6F5757",

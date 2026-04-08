@@ -1,5 +1,143 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-CONTRACT1: correct Template B ownership and evidence so Family B is contract-native
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-08
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_family_region_matrix_v1.md`
+- `docs/poster2/template_family_slot_contract_baseline_v1.md`
+- latest local runtime metadata reproduction for `template_product_sheet_v1`
+
+### Scope
+
+- Template B header contract correction
+- Template B top-copy ownership correction
+- Template B product hero shell correction
+- Template B description ownership correction
+- Template B runtime evidence cleanup
+- focused tests + status docs
+
+### Root rules followed
+
+- contract-first
+- behavior before beautification
+- renderer executes; renderer does not define template truth
+- no Family A runtime behavior changes
+- no bottom SOP redesign
+- no email / storage / Stage3 changes
+
+### Problem reproduced
+
+The active Template B manifest still leaked Family A semantics even though Family B region routing already existed:
+
+- `header_mode = brand_only`
+- `brand_logo_slot.rendered = false`
+- `title_text_layer.owner_region = title_band_region`
+- `subtitle_text_layer.owner_region = title_band_region`
+- rendered title / subtitle excerpts were empty
+- `product_primary_slot.w = 800` while `product_canvas_shell_w = 300`
+- `bottom_contract_review` still carried title / subtitle semantics
+
+### Root cause found
+
+1. Template B behavior resolution still hard-coded a Family A-style header mode
+2. shared text-layer evidence builders still froze title / subtitle ownership to `title_band_region`
+3. shared product review builders still emitted Family A canvas-shell and text-shell geometry
+4. bottom review builders still assumed title-band ownership
+5. renderer-side Template B layer evidence was incomplete, so final payloads still inherited some Family A fallback assumptions
+
+### Files changed
+
+- `app/templates/specs/template_product_sheet_v1.json`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/slot_contracts.py`
+- `app/services/poster2/contracts.py`
+- `app/schemas/poster2.py`
+- `app/main.py`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_contract_correction_status_v1.md`
+- `docs/poster2/README.md`
+
+### Layer changed
+
+- contract
+- validation
+- resolver / behavior wiring
+- renderer consumption
+- evidence / metadata
+- docs
+
+### Exact contract corrections
+
+- Template B header now resolves to `logo_banner_lockup`
+- Template B logo slot remains renderable and no longer collapses under `brand_only`
+- Template B title / subtitle evidence now belongs to `top_copy_region`
+- added `top_copy_contract_review`:
+  - `sku_text_layer`
+  - `top_copy_title_layer`
+  - `top_copy_subtitle_layer`
+- Template B product canvas shell now matches the full-width hero geometry
+- Template B product text shell now resolves to zero bounds with `reason_code = not_used_in_template_b`
+- added `description_contract_review`:
+  - `description_title_layer`
+  - `description_body_layer`
+- Template B `bottom_contract_review` now scopes to description-only ownership and explicitly excludes title / subtitle / SKU semantics
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py app/main.py app/schemas/poster2.py app/services/poster2/slot_contracts.py` -> `pass`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix'` -> `11 passed, 266 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'template_b'` -> `4 passed, 23 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_slot_contracts.py` -> `2 failed, 4 passed`
+  - unrelated existing synthetic Family B expectations (`family_b_information_core`, `cta_slot`) remain out of sync with the real `template_product_sheet_v1` path
+
+### Runtime verification payload / result
+
+Representative local Template B metadata verification after the fix:
+
+- payload:
+  - `template_id = template_product_sheet_v1`
+  - `brand_name = KitchenWorks`
+  - `agent_name = Dealer Team`
+  - `title = Product Sheet`
+  - `subtitle = Kitchen center hero`
+  - `sku_text = KW-201`
+  - 2 materials images
+  - primary + secondary product images
+  - description title + body present
+- result:
+  - `header_mode = logo_banner_lockup`
+  - `brand_logo_slot.rendered = true`
+  - `title_owner_region = top_copy_region`
+  - `subtitle_owner_region = top_copy_region`
+  - `product_canvas_shell_bounds = {x:112, y:348, w:800, h:384}`
+  - `product_text_shell_bounds = {x:0, y:0, w:0, h:0}`
+  - `product_layout_mode_reason = single_hero_centered_with_secondary_inset`
+  - `bottom_contract_scope = description_region_only`
+  - `region_render_status` contains only Family B region ids
+
+### Remaining risks
+
+- no fresh live Puppeteer browser artifact bundle was generated in this workspace; local metadata verification used an injected Puppeteer failure and confirmed corrected fallback evidence
+- local font assets are still missing, so visual parity should be rechecked in an environment with the expected font pack
+- legacy synthetic Family B slot-contract tests remain a separate cleanup item
+
+---
+
 ## Entry — PR-TB-LINE2: make Template B an independent Stage1->Stage2 working line
 
 **Branch:** `main`

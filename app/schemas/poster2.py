@@ -133,6 +133,8 @@ class GeneratePosterV2Response(BaseModel):
     bottom_contract_review: dict = Field(default_factory=dict)
     product_annotation_contract_review: dict = Field(default_factory=dict)
     scenario_contract_review: dict = Field(default_factory=dict)
+    top_copy_contract_review: dict = Field(default_factory=dict)
+    description_contract_review: dict = Field(default_factory=dict)
     title_text_layer: dict = Field(default_factory=dict)
     subtitle_text_layer: dict = Field(default_factory=dict)
     header_text_layer: dict = Field(default_factory=dict)

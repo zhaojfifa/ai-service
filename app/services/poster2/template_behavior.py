@@ -111,7 +111,12 @@ _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
     "text_gallery_expanded": 640, # 384px capacity
 }
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots", "none"}
-_SUPPORTED_HEADER_MODES = {"identity_left_agent_right", "brand_block_two_line", "brand_only"}
+_SUPPORTED_HEADER_MODES = {
+    "identity_left_agent_right",
+    "brand_block_two_line",
+    "brand_only",
+    "logo_banner_lockup",
+}
 _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
     "glass_light": {
         "--shell-surface-header": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 245, 243, 0.92))",
@@ -907,11 +912,20 @@ def resolve_product_behavior(
         product_layout_mode_reason = "auto_promoted_by_secondary_asset"
     elif product_layout_mode == "primary_secondary_dual":
         product_layout_mode_reason = "template_mode_primary_secondary_dual"
+    elif product_layout_mode == "single_hero_centered":
+        product_layout_mode_reason = (
+            "single_hero_centered_with_secondary_inset"
+            if has_product_secondary_asset
+            else "single_hero_centered_without_secondary_asset"
+        )
     else:
         product_layout_mode_reason = "single_primary_without_secondary_asset"
     if effective_product_layout_mode == "primary_secondary_dual":
         product_geometry_mode = "primary_secondary_dual_v2"
         product_geometry_mode_reason = "dual_image_geometry_v2_selected"
+    elif effective_product_layout_mode == "single_hero_centered":
+        product_geometry_mode = "single_hero_centered_full_width_v1"
+        product_geometry_mode_reason = "full_width_hero_geometry_selected"
     else:
         product_geometry_mode = "single_primary_v1"
         product_geometry_mode_reason = "single_image_geometry_baseline"
@@ -970,7 +984,11 @@ def resolve_product_behavior(
         line_clamp = 0
         char_budget = 0
         annotation_items: list[dict[str, object]] = []
-        annotation_shell = {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
+        annotation_shell = (
+            {"x": 0, "y": 0, "w": 0, "h": 0}
+            if effective_product_layout_mode == "single_hero_centered"
+            else {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
+        )
     else:
         char_budget = {1: 52, 2: 46, 3: 44}.get(max(visible_annotation_count, 1), 44)
         line_clamp = 2
@@ -1028,15 +1046,37 @@ def resolve_product_behavior(
             "h": int((bottom - top) if top is not None and bottom is not None else 0),
         }
 
+    if effective_product_layout_mode == "single_hero_centered":
+        product_canvas_shell = {
+            "x": product_region["x"],
+            "y": product_region["y"],
+            "w": product_region["w"],
+            "h": product_region["h"],
+        }
+        product_text_shell = {"x": 0, "y": 0, "w": 0, "h": 0}
+    else:
+        product_canvas_shell = {
+            "x": product_region["x"],
+            "y": product_region["y"],
+            "w": _PRODUCT_CANVAS_SHELL_W,
+            "h": product_region["h"],
+        }
+        product_text_shell = {
+            "x": _PRODUCT_TEXT_SHELL_X,
+            "y": _PRODUCT_TEXT_SHELL_Y,
+            "w": _PRODUCT_TEXT_SHELL_W,
+            "h": _PRODUCT_TEXT_SHELL_H,
+        }
+
     layout_metrics = {
         "product_region_x": product_region["x"],
         "product_region_y": product_region["y"],
         "product_region_w": product_region["w"],
         "product_region_h": product_region["h"],
-        "product_canvas_shell_x": product_region["x"],
-        "product_canvas_shell_y": product_region["y"],
-        "product_canvas_shell_w": _PRODUCT_CANVAS_SHELL_W,
-        "product_canvas_shell_h": product_region["h"],
+        "product_canvas_shell_x": product_canvas_shell["x"],
+        "product_canvas_shell_y": product_canvas_shell["y"],
+        "product_canvas_shell_w": product_canvas_shell["w"],
+        "product_canvas_shell_h": product_canvas_shell["h"],
         "product_primary_slot_x": product_primary_slot["x"],
         "product_primary_slot_y": product_primary_slot["y"],
         "product_primary_slot_w": product_primary_slot["w"],
@@ -1049,10 +1089,10 @@ def resolve_product_behavior(
         "annotation_shell_y": int(annotation_shell["y"]),
         "annotation_shell_w": int(annotation_shell["w"]),
         "annotation_shell_h": int(annotation_shell["h"]),
-        "product_text_shell_x": _PRODUCT_TEXT_SHELL_X,
-        "product_text_shell_y": _PRODUCT_TEXT_SHELL_Y,
-        "product_text_shell_w": _PRODUCT_TEXT_SHELL_W,
-        "product_text_shell_h": _PRODUCT_TEXT_SHELL_H,
+        "product_text_shell_x": product_text_shell["x"],
+        "product_text_shell_y": product_text_shell["y"],
+        "product_text_shell_w": product_text_shell["w"],
+        "product_text_shell_h": product_text_shell["h"],
     }
 
     return ResolvedProductBehavior(
@@ -1082,12 +1122,7 @@ def resolve_product_behavior(
             _css_mode_class("product-annotation", annotation_mode),
             _css_mode_class("product-annotation-count", str(visible_annotation_count)),
         ),
-        product_text_shell_bounds={
-            "x": _PRODUCT_TEXT_SHELL_X,
-            "y": _PRODUCT_TEXT_SHELL_Y,
-            "w": _PRODUCT_TEXT_SHELL_W,
-            "h": _PRODUCT_TEXT_SHELL_H,
-        },
+        product_text_shell_bounds=dict(product_text_shell),
     )
 
 
@@ -1361,6 +1396,38 @@ def resolve_header_behavior(
             "brand_slot_h": 32,
             "agent_slot_x": 912,
             "agent_slot_y": 96,
+            "agent_slot_w": 0,
+            "agent_slot_h": 0,
+        }
+    elif header_mode == "logo_banner_lockup":
+        lane_layout_mode = "single_line"
+        identity_zone_mode = "logo_and_brand"
+        agent_pill_collapse_condition = "always_collapse"
+        brand_text_policy = "logo_banner_lockup_single_line"
+        content_priority_policy = "logo_banner_identity_priority"
+        brand_line_clamp = 1
+        brand_char_budget = 52
+        agent_line_clamp = 1
+        agent_char_budget = 0
+        layout_metrics = {
+            "header_banner_left": 72,
+            "header_banner_top": 56,
+            "header_banner_width": 880,
+            "header_banner_height": 88,
+            "header_inner_left": 104,
+            "header_inner_right": 112,
+            "header_inner_top": 68,
+            "header_inner_height": 64,
+            "header_side_width": 0,
+            "header_logo_width": 120,
+            "header_logo_height": 64,
+            "header_logo_gap": 20,
+            "brand_slot_x": 244,
+            "brand_slot_y": 74,
+            "brand_slot_w": 536,
+            "brand_slot_h": 36,
+            "agent_slot_x": 0,
+            "agent_slot_y": 0,
             "agent_slot_w": 0,
             "agent_slot_h": 0,
         }
@@ -2518,7 +2585,7 @@ def _resolve_product_sheet_behavior(
 
     hero_policy = resolve_hero_behavior("centered_product_focus")
     header_policy = resolve_header_behavior(
-        "brand_only",
+        spec.behavior_modes.header_mode or "logo_banner_lockup",
         brand_name=brand_name,
         agent_name=agent_name,
     )
@@ -2694,7 +2761,7 @@ def _resolve_product_sheet_behavior(
         hero_mode="centered_product_focus",
         feature_mode="none",
         product_annotation_mode="none",
-        header_mode="brand_only",
+        header_mode=header_policy.mode,
         bottom_mode="description_block",
         gallery_mode="none",
         beauty_tokens=TemplateBeautyTokensSpec(

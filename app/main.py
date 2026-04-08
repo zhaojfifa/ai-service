@@ -1572,6 +1572,8 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             bottom_contract_review=manifest.bottom_contract_review,
             product_annotation_contract_review=manifest.product_annotation_contract_review,
             scenario_contract_review=manifest.scenario_contract_review,
+            top_copy_contract_review=manifest.top_copy_contract_review,
+            description_contract_review=manifest.description_contract_review,
             title_text_layer=manifest.title_text_layer,
             subtitle_text_layer=manifest.subtitle_text_layer,
             header_text_layer=manifest.header_text_layer,

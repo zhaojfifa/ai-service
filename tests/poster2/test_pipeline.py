@@ -4947,6 +4947,128 @@ class TestTemplateBBackendGenerationFix:
         assert manifest.deliverable is True
         assert manifest.region_render_status["description_region"]["rendered"] is False
 
+    def test_template_b_header_keeps_logo_slot_active(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-205",
+        )
+        assets = ResolvedAssets(
+            logo=PILImage.new("RGBA", (240, 128), (20, 20, 20, 255)),
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+        )
+        manifest = self._run_template_b(spec, assets)
+        review = manifest.header_contract_review
+        assert manifest.template_behavior["behavior_modes"]["header_mode"] == "logo_banner_lockup"
+        assert review["header_mode"] == "logo_banner_lockup"
+        assert review["brand_logo_slot"]["rendered"] is True
+        assert review["header_region"]["rendered"] is True
+        assert review["logo_banner_region"]["rendered"] is True
+
+    def test_template_b_title_subtitle_owned_by_top_copy_region(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-206",
+        )
+        manifest = self._run_template_b(spec, _make_assets())
+        assert manifest.title_text_layer["owner_region"] == "top_copy_region"
+        assert manifest.subtitle_text_layer["owner_region"] == "top_copy_region"
+        assert manifest.title_text_layer["rendered_excerpt"] == "Product Sheet"
+        assert manifest.subtitle_text_layer["rendered_excerpt"] == "Kitchen center hero"
+        review = manifest.top_copy_contract_review
+        assert review["top_copy_region"]["rendered"] is True
+        assert review["sku_text_layer"]["rendered"] is True
+        assert review["top_copy_title_layer"]["owner_region"] == "top_copy_region"
+        assert review["top_copy_subtitle_layer"]["owner_region"] == "top_copy_region"
+        assert manifest.bottom_contract_review["requested_title_text"] is None
+        assert manifest.bottom_contract_review["semantic_owner_exclusions"]["title"] == "top_copy_region"
+
+    def test_template_b_product_hero_evidence_uses_consistent_full_width_owner_geometry(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-207",
+        )
+        manifest = self._run_template_b(spec, _make_assets())
+        review = manifest.product_contract_review
+        layout = review["behavior_policy"]["layout_metrics"]
+        assert review["product_canvas_shell_layer"]["bounds"]["w"] == 800
+        assert review["product_primary_slot"]["w"] == 800
+        assert layout["product_canvas_shell_w"] == 800
+        assert review["product_text_shell_layer"]["bounds"] == {"x": 0, "y": 0, "w": 0, "h": 0}
+        assert review["product_text_shell_layer"]["reason_code"] == "not_used_in_template_b"
+        assert review["product_layout_mode_reason"] == "single_hero_centered_without_secondary_asset"
+        assert manifest.geometry_evidence["region_bounds"]["product_hero_region"] == {
+            "x": 112,
+            "y": 348,
+            "w": 800,
+            "h": 384,
+        }
+        assert "title_band_region" not in manifest.geometry_evidence["region_bounds"]
+
+    def test_template_b_description_evidence_emitted_when_description_fields_exist(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Product Highlights",
+            description_body="Compact body with clean countertop fit.",
+            sku_text="KW-208",
+        )
+        manifest = self._run_template_b(spec, _make_assets())
+        review = manifest.description_contract_review
+        assert review["description_region"]["rendered"] is True
+        assert review["description_title_layer"]["rendered"] is True
+        assert review["description_body_layer"]["rendered"] is True
+        assert review["description_title_layer"]["owner_region"] == "description_region"
+        assert review["description_body_layer"]["owner_region"] == "description_region"
+        assert manifest.bottom_contract_review["bottom_contract_scope"] == "description_region_only"
+
+    def test_template_b_secondary_asset_reports_correct_layout_reason(self):
+        spec = _make_spec(
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            title="Product Sheet",
+            subtitle="Kitchen center hero",
+            features=(),
+            template_id="template_product_sheet_v1",
+            product_secondary_image=AssetRef(url="mock://product-secondary"),
+            description_title="Product Highlights",
+            description_body="Two-image product sheet.",
+            sku_text="KW-209",
+        )
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 320), (50, 120, 220, 255)),
+        )
+        manifest = self._run_template_b(spec, assets)
+        review = manifest.product_contract_review
+        assert review["product_secondary_slot_rendered"] is True
+        assert review["product_layout_mode_reason"] == "single_hero_centered_with_secondary_inset"
+        assert review["product_secondary_asset_policy"] == "secondary_inset_bottom_right"
+
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector
 
@@ -4965,3 +5087,5 @@ class TestTemplateBBackendGenerationFix:
         manifest = asyncio.run(pipe.run(spec, _load_template()))
         assert manifest.template_id == "template_dual_v2"
         assert manifest.deliverable is True
+        assert manifest.title_text_layer["owner_region"] == "title_band_region"
+        assert manifest.subtitle_text_layer["owner_region"] == "title_band_region"
