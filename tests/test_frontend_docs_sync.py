@@ -82,8 +82,12 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     assert "Bottom Support Copy" in frontend_index
     assert "Product Callouts / Selling Points" in frontend_index
     assert "data-secondary-image-clear" in frontend_index
+    assert "preview-family-b" in frontend_index
+    assert "preview-b-product-image" in frontend_index
     assert "Bottom Support Copy" in frontend_stage2
     assert "Product Callouts" in frontend_stage2
+    assert "s2-template-b-summary" in frontend_stage2
+    assert "s2-template-badge" in frontend_stage2
 
 
 def test_stage1_request_mapping_prefers_dedicated_product_callouts_and_secondary_clear_path_exists():
@@ -96,3 +100,14 @@ def test_stage1_request_mapping_prefers_dedicated_product_callouts_and_secondary
     assert "stage1Data.product_callouts" in app_js
     assert "state.productImage2 = null;" in app_js
     assert "input.value = '';" in app_js
+
+
+def test_template_b_independent_preview_and_generate_path_are_present():
+    app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    assert "function buildTemplateBStage2State" in app_js
+    assert "function buildTemplateBPosterPayload" in app_js
+    assert "Template B / Family B summary" in app_js
+    assert "endpointPath = '/api/v2/generate-poster';" in app_js
+    assert "gallery: (posterPayload.gallery_items || []).map" in app_js
+    assert "const rendererMode = requestedRenderer === 'puppeteer' ? 'auto' : requestedRenderer;" in app_js

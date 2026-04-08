@@ -251,17 +251,49 @@
           <div class="s2-panel">
             <div class="s2-panel-hd"><span>Copy</span></div>
             <div class="s2-panel-bd">
-              <label class="s2-field">
-                <span>Title</span>
-                <input type="text" id="poster2-bottom-title" maxlength="120" placeholder="Poster title" />
-              </label>
-              <label id="s2-bottom-support-copy-field" class="s2-field">
-                <span>Bottom Support Copy</span>
-                <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Bottom support copy / 底部辅助文案"></textarea>
-              </label>
-              <div class="s2-field" id="s2-features-section" style="display:none">
-                <span>Product Callouts</span>
-                <div id="s2-feature-list-display" class="s2-feature-list"></div>
+              <div id="s2-family-a-copy-fields">
+                <label class="s2-field">
+                  <span>Title</span>
+                  <input type="text" id="poster2-bottom-title" maxlength="120" placeholder="Poster title" />
+                </label>
+                <label id="s2-bottom-support-copy-field" class="s2-field">
+                  <span>Bottom Support Copy</span>
+                  <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Bottom support copy / 底部辅助文案"></textarea>
+                </label>
+                <div class="s2-field" id="s2-features-section" style="display:none">
+                  <span>Product Callouts</span>
+                  <div id="s2-feature-list-display" class="s2-feature-list"></div>
+                </div>
+              </div>
+              <div id="s2-template-b-summary" class="hidden">
+                <label class="s2-field">
+                  <span>Title</span>
+                  <input id="s2-b-title" type="text" readonly />
+                </label>
+                <label class="s2-field">
+                  <span>Subtitle</span>
+                  <input id="s2-b-subtitle" type="text" readonly />
+                </label>
+                <label class="s2-field">
+                  <span>SKU</span>
+                  <input id="s2-b-sku" type="text" readonly />
+                </label>
+                <label class="s2-field">
+                  <span>Description Title</span>
+                  <input id="s2-b-description-title" type="text" readonly />
+                </label>
+                <label class="s2-field">
+                  <span>Description Body</span>
+                  <textarea id="s2-b-description-body" rows="4" readonly></textarea>
+                </label>
+                <label class="s2-field">
+                  <span>Materials Preview State</span>
+                  <input id="s2-b-materials-state" type="text" readonly />
+                </label>
+                <label class="s2-field">
+                  <span>Product Images</span>
+                  <input id="s2-b-image-state" type="text" readonly />
+                </label>
               </div>
             </div>
           </div>
@@ -395,7 +427,7 @@
             <div class="s2-panel-hd">
               <span>Resolver Layout</span>
               <div class="s2-badge-row">
-                <code class="s2-badge">template_dual_v2</code>
+                <code id="s2-template-badge" class="s2-badge">template_dual_v2</code>
                 <code id="poster2-render-engine-used" class="s2-badge">—</code>
               </div>
             </div>

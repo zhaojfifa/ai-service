@@ -131,9 +131,9 @@
               <small class="hint">If too long, system will shrink text or add ellipsis.</small>
             </label>
             <label class="field optional">
-              <span>Bottom Support Copy (optional)</span>
+              <span id="stage1-subtitle-label">Bottom Support Copy (optional)</span>
               <input type="text" name="subtitle" placeholder="底部辅助文案 / short support copy" />
-              <small class="hint">This stays bottom-owned support copy. It does not feed product callouts.</small>
+              <small id="stage1-subtitle-hint" class="hint">This stays bottom-owned support copy. It does not feed product callouts.</small>
             </label>
           </div>
 
@@ -244,7 +244,7 @@
           <h3>Material Preview / Layout Preview</h3>
           <p class="hint">Live preview uses safe areas. Text will shrink or truncate as needed.</p>
           <div id="preview-container" class="preview">
-            <div class="poster-preview">
+            <div id="preview-family-a" class="poster-preview">
               <div class="poster-header">
                 <div class="poster-logo">
                   <div class="poster-logo-image">
@@ -272,6 +272,37 @@
               <div id="preview-title" class="poster-title">Title</div>
               <div id="preview-gallery" class="poster-gallery"></div>
               <div id="preview-subtitle" class="poster-subtitle">Bottom Support Copy</div>
+            </div>
+            <div id="preview-family-b" class="template-b-preview hidden" aria-label="Template B preview">
+              <div class="template-b-preview__banner">
+                <div class="template-b-preview__brand">
+                  <div class="template-b-preview__logo">
+                    <img id="preview-b-brand-logo" alt="Brand logo" />
+                  </div>
+                  <div>
+                    <div id="preview-b-brand-name" class="template-b-preview__brand-name">Brand</div>
+                    <div id="preview-b-agent-name" class="template-b-preview__agent-name">Agent</div>
+                  </div>
+                </div>
+                <div id="preview-b-sku" class="template-b-preview__sku">SKU</div>
+              </div>
+              <div class="template-b-preview__copy">
+                <div id="preview-b-title" class="template-b-preview__title">Title</div>
+                <div id="preview-b-subtitle" class="template-b-preview__subtitle">Subtitle</div>
+              </div>
+              <div id="preview-b-materials" class="template-b-preview__materials"></div>
+              <div class="template-b-preview__hero-row">
+                <div class="template-b-preview__hero">
+                  <img id="preview-b-product-image" alt="Primary product" />
+                </div>
+                <div id="preview-b-secondary-wrap" class="template-b-preview__secondary hidden">
+                  <img id="preview-b-secondary-image" alt="Secondary detail" />
+                </div>
+              </div>
+              <div id="preview-b-description" class="template-b-preview__description">
+                <div id="preview-b-description-title" class="template-b-preview__description-title">Description title</div>
+                <div id="preview-b-description-body" class="template-b-preview__description-body">Description body</div>
+              </div>
             </div>
           </div>
         </section>

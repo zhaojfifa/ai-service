@@ -331,6 +331,64 @@ def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
     assert body["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
 
 
+def test_generate_poster_v2_accepts_template_b_single_primary_without_materials(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-template-b-1"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "KitchenWorks",
+            "agent_name": "Dealer Team",
+            "title": "Product Sheet",
+            "subtitle": "Kitchen center hero",
+            "features": [],
+            "product_image": {"url": "https://example.com/product-sheet-primary.png"},
+            "template_id": "template_product_sheet_v1",
+            "materials_images": [],
+            "sku_text": "KW-200",
+            "description_title": "Product Highlights",
+            "description_body": "Compact body with clean countertop fit.",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_id"] == "template_product_sheet_v1"
+
+
+def test_generate_poster_v2_accepts_template_b_two_image_and_materials_path(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-template-b-2"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "KitchenWorks",
+            "agent_name": "Dealer Team",
+            "title": "Product Sheet",
+            "subtitle": "Kitchen center hero",
+            "features": [],
+            "product_image": {"url": "https://example.com/product-sheet-primary.png"},
+            "product_secondary_image": {"url": "https://example.com/product-sheet-detail.png"},
+            "template_id": "template_product_sheet_v1",
+            "materials_images": [
+                {"url": "https://example.com/material-1.png"},
+                {"url": "https://example.com/material-2.png"},
+            ],
+            "sku_text": "KW-201",
+            "description_title": "Product Highlights",
+            "description_body": "Two-image product sheet with materials strip.",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["template_id"] == "template_product_sheet_v1"
+
+
 def test_generate_poster_v2_accepts_text_gallery_expanded_with_runtime_diagnostics(monkeypatch):
     monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
     monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-4"))

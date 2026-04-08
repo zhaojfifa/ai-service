@@ -1,5 +1,112 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-LINE2: make Template B an independent Stage1->Stage2 working line
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-08
+
+### What was read first
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+
+Additional read / inspection notes:
+- `docs/poster2/template_b_kitchen_center_hero_status_v1.md` is missing in this workspace
+- no tracked latest Stage2 screenshots / console / network payload artifact bundle was present in the workspace
+- inspected first:
+  - `claude/flamboyant-mclaren`
+  - `claude/gracious-allen`
+
+### Scope
+- make Template B independent across:
+  - Stage1 asset entry
+  - Stage1 preview
+  - Stage2 family-aware panel state
+  - Template B serializer
+  - `/api/v2/generate-poster` request path
+- remove Family A piggyback assumptions from the active Template B line
+- frontend/docs mirror sync
+- targeted validation only
+
+### Root rules followed
+- contract-first
+- no poster contract drift
+- no geometry drift
+- no ownership drift
+- no Resend / Stage3 / email closure changes
+- no Family A runtime behavior changes
+- no bottom SOP baseline changes
+
+### Problem reproduced
+- Stage1 Material Preview / Layout Preview still rendered Family A dual-column composition for Template B
+- Stage2 still exposed Family A copy/bottom assumptions for Template B
+- generate could fail with `Cannot read properties of undefined (reading 'map')`
+- Template B fields were collected, but not carried through a clean independent family path
+
+### Root cause found
+1. Template B had only a partial split from Family A
+2. `updatePosterPreview()` and `buildLayoutPreview()` still rendered Family A scenario/gallery assumptions
+3. `applyStage2TemplateFamilyVisibility()` hid only part of the Family A UI, but did not swap in a Template B summary model
+4. Template B generate flow still fed later audit code that expected `posterPayload.gallery_items`
+5. The prior Template B path still leaned on the older `/api/generate-poster` shape instead of using the already-compatible `/api/v2/generate-poster` contract
+
+### Files changed
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/styles.css`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/styles.css`
+- `docs/app.js`
+- `tests/poster2/test_api.py`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/template_b_line2_independent_flow_status_v1.md`
+- `docs/poster2/README.md`
+
+### Layer changed
+- behavior
+- docs
+- validation
+
+### Exact independent-flow fixes
+- added dedicated Template B Stage1 preview surface instead of reusing Family A dual-column preview
+- added dedicated Template B Stage2 summary block and hid Family A copy/bottom surfaces when `template_id == template_product_sheet_v1`
+- disabled `puppeteer` selection for Template B at the Stage2 panel layer
+- added `buildTemplateBPosterPayload(...)` and moved Template B generation onto `/api/v2/generate-poster`
+- limited Template B payload to B-relevant fields only
+- defaulted optional collections before `.map()` / count usage
+- removed active `posterPayload.gallery_items.map(...)` crash path by guarding with `|| []`
+
+### Validation run
+- `node --check frontend/app.js` -> `pass`
+- `bash scripts/sync_frontend_to_docs.sh` -> `synced index.html, stage2.html, app.js, styles.css`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` -> `5 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py` -> `25 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'single_primary'` -> `3 passed, 263 deselected`
+
+### Remaining risks
+- no tracked browser-console/network artifact bundle existed in the workspace, so this pass validated by code-path reproduction plus targeted tests rather than imported screenshot evidence
+- this closes the independent-flow bug, not a broad Template B visual polish pass
+
+### Exact acceptance
+- Stage1 preview for Template B no longer uses Family A layout
+- Stage2 no longer shows Family A copy/bottom controls for Template B
+- no `undefined.map` crash remains in the Template B generate path
+- Template B generate payload now contains only B-relevant fields
+- backend acceptance verified through `/api/v2/generate-poster`
+- 1-image path works
+- 2-image path works
+- `materials_images = []` path works
+- Template A remains unchanged
+
+---
+
 ## Entry — PR-TB-UI2: fix Template B preview path and wire Stage2 generate path
 
 **Branch:** `claude/flamboyant-mclaren`

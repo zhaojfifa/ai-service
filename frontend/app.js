@@ -481,20 +481,79 @@ function updatePoster2BottomRequestPreview(stage1Data) {
 // ── Template-family visibility: hide Family A controls for Template B ──────
 const TEMPLATE_B_ID = 'template_product_sheet_v1';
 
+function isTemplateBTemplateId(templateId) {
+  return (templateId || '').trim() === TEMPLATE_B_ID;
+}
+
+function isTemplateBStage1Data(stage1Data) {
+  if (!stage1Data || typeof stage1Data !== 'object') return false;
+  if (isTemplateBTemplateId(stage1Data.template_id)) return true;
+  return (stage1Data.template_variant || '') === 'b';
+}
+
+function normaliseTemplateBMaterials(stage1Data) {
+  const rawMaterials = Array.isArray(stage1Data?.materials_images)
+    ? stage1Data.materials_images
+    : Array.isArray(stage1Data?.materialsImages)
+    ? stage1Data.materialsImages
+    : [];
+  return rawMaterials.filter((entry) => entry && (entry.url || entry.key || entry.dataUrl));
+}
+
+function buildTemplateBStage2State(stage1Data) {
+  const materials = normaliseTemplateBMaterials(stage1Data);
+  return {
+    template_display: 'template_product_sheet_v1 · Family B',
+    title: stage1Data?.title || '',
+    subtitle: stage1Data?.subtitle || '',
+    sku_text: stage1Data?.sku_text || '',
+    description_title: stage1Data?.description_title || stage1Data?.descriptionTitle || '',
+    description_body: stage1Data?.description_body || stage1Data?.descriptionBody || '',
+    materials_count: materials.length,
+    materials_state: materials.length ? `${materials.length} material image(s) ready` : '0 material images',
+    primary_product_state: stage1Data?.product_image_1 ? 'primary ready' : 'primary missing',
+    secondary_product_state: stage1Data?.product_image_2 ? 'secondary ready' : 'secondary empty',
+  };
+}
+
+function renderTemplateBStage2Summary(stage1Data) {
+  const summary = buildTemplateBStage2State(stage1Data);
+  const setValue = (id, value, fallback = '—') => {
+    const el = document.getElementById(id);
+    if (el) el.value = value || fallback;
+  };
+  setValue('s2-b-title', summary.title);
+  setValue('s2-b-subtitle', summary.subtitle);
+  setValue('s2-b-sku', summary.sku_text);
+  setValue('s2-b-description-title', summary.description_title);
+  setValue('s2-b-description-body', summary.description_body);
+  setValue('s2-b-materials-state', summary.materials_state);
+  setValue(
+    's2-b-image-state',
+    `${summary.primary_product_state}; ${summary.secondary_product_state}`
+  );
+}
+
 function applyStage2TemplateFamilyVisibility(stage1Data) {
-  const isTemplateB = (stage1Data?.template_id || '') === TEMPLATE_B_ID;
+  const isTemplateB = isTemplateBStage1Data(stage1Data);
 
   // Bottom Region panel (gallery/mode controls) — Family A only
   const bottomPanel = document.getElementById('s2-bottom-region-panel');
   if (bottomPanel) bottomPanel.style.display = isTemplateB ? 'none' : '';
 
+  const familyACopyFields = document.getElementById('s2-family-a-copy-fields');
+  if (familyACopyFields) familyACopyFields.style.display = isTemplateB ? 'none' : '';
+
+  const templateBSummary = document.getElementById('s2-template-b-summary');
+  if (templateBSummary) templateBSummary.classList.toggle('hidden', !isTemplateB);
+
   // "Bottom Support Copy" textarea — Family A only (maps to bottom subtitle band)
   const bottomCopyField = document.getElementById('s2-bottom-support-copy-field');
   if (bottomCopyField) bottomCopyField.style.display = isTemplateB ? 'none' : '';
 
-  // Product Callouts — show for Template B, hide for Family A (shown via wireFeatureDisplay for A)
+  // Product Callouts display is Family A-oriented; Template B uses dedicated summary.
   const featuresSection = document.getElementById('s2-features-section');
-  if (featuresSection && isTemplateB) featuresSection.style.display = '';
+  if (featuresSection) featuresSection.style.display = isTemplateB ? 'none' : '';
 
   // Template display label
   const templateDisplay = document.getElementById('s2-template-display');
@@ -502,6 +561,25 @@ function applyStage2TemplateFamilyVisibility(stage1Data) {
     templateDisplay.value = isTemplateB
       ? 'template_product_sheet_v1 · Family B'
       : 'template_dual_v2 · Family A';
+  }
+
+  const templateBadge = document.getElementById('s2-template-badge');
+  if (templateBadge) {
+    templateBadge.textContent = isTemplateB ? 'template_product_sheet_v1' : 'template_dual_v2';
+  }
+
+  const rendererModeSelect = document.getElementById('poster2-renderer-mode');
+  if (rendererModeSelect) {
+    const puppeteerOption = rendererModeSelect.querySelector('option[value="puppeteer"]');
+    if (puppeteerOption) puppeteerOption.disabled = isTemplateB;
+    if (isTemplateB && rendererModeSelect.value === 'puppeteer') {
+      rendererModeSelect.value = 'auto';
+      stage2State.poster2.rendererMode = 'auto';
+    }
+  }
+
+  if (isTemplateB) {
+    renderTemplateBStage2Summary(stage1Data);
   }
 }
 
@@ -3518,6 +3596,7 @@ function initStage1ModeS() {
         templateVariantStage1.value = state.templateVariant || 'a';
       }
       applyVariantFieldVisibility(state.templateVariant || 'a');
+      updateStage1TemplateVariantLabels(state.templateVariant || 'a');
       refreshVariantTemplateMeta(state.templateVariant || 'a');
       renderMaterialsSlots();
       refreshPreview();
@@ -3525,6 +3604,7 @@ function initStage1ModeS() {
   } else {
     applyStage1Defaults(form);
     updateInlinePlaceholders(inlinePreviews);
+    updateStage1TemplateVariantLabels(state.templateVariant || 'a');
     refreshPreview();
   }
 
@@ -3620,7 +3700,7 @@ function initStage1ModeS() {
 
   void mountTemplateChooserStage1();
 
-  const applyVariantFieldVisibility = (variant) => {
+  function applyVariantFieldVisibility(variant) {
     document.querySelectorAll('[data-variant-visible]').forEach((el) => {
       const v = el.dataset.variantVisible;
       el.hidden = v !== 'all' && v !== variant;
@@ -3631,19 +3711,35 @@ function initStage1ModeS() {
         ? (templateSelectStage1.closest('label').hidden = variant === 'b')
         : (templateSelectStage1.hidden = variant === 'b');
     }
-  };
+  }
 
-  const refreshVariantTemplateMeta = (variant) => {
+  function updateStage1TemplateVariantLabels(variant) {
+    const subtitleLabel = document.getElementById('stage1-subtitle-label');
+    const subtitleHint = document.getElementById('stage1-subtitle-hint');
+    if (subtitleLabel) {
+      subtitleLabel.textContent = variant === 'b'
+        ? 'Subtitle / Secondary Heading (optional)'
+        : 'Bottom Support Copy (optional)';
+    }
+    if (subtitleHint) {
+      subtitleHint.textContent = variant === 'b'
+        ? 'For Template B this stays in the top title/subtitle/SKU block. It does not feed product callouts.'
+        : 'This stays bottom-owned support copy. It does not feed product callouts.';
+    }
+  }
+
+  function refreshVariantTemplateMeta(variant) {
     const effectiveId =
       variant === 'b' ? 'template_product_sheet_v1' : state.templateId;
     void refreshTemplatePreviewStage1(effectiveId);
-  };
+  }
 
   if (templateVariantStage1) {
     templateVariantStage1.addEventListener('change', () => {
       state.templateVariant = templateVariantStage1.value || 'a';
       state.previewBuilt = false;
       applyVariantFieldVisibility(state.templateVariant);
+      updateStage1TemplateVariantLabels(state.templateVariant);
       refreshVariantTemplateMeta(state.templateVariant);
       refreshPreview();
     });
@@ -3731,6 +3827,7 @@ function initStage1ModeS() {
   }
 
   renderMaterialsSlots();
+  updateStage1TemplateVariantLabels(state.templateVariant || 'a');
   // ── end materials slots ────────────────────────────────────────────────────
 
   attachSingleImageHandler(
@@ -4983,6 +5080,9 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
   } = elements;
 
   const layoutText = buildLayoutPreview(payload);
+  const isTemplateB = isTemplateBStage1Data(payload);
+  const familyAPreview = document.getElementById('preview-family-a');
+  const familyBPreview = document.getElementById('preview-family-b');
 
   if (layoutStructure) {
     layoutStructure.textContent = layoutText;
@@ -4990,6 +5090,13 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 
   if (previewContainer) {
     previewContainer.classList.remove('hidden');
+    previewContainer.dataset.templateFamily = isTemplateB ? 'b' : 'a';
+  }
+  if (familyAPreview) {
+    familyAPreview.classList.toggle('hidden', isTemplateB);
+  }
+  if (familyBPreview) {
+    familyBPreview.classList.toggle('hidden', !isTemplateB);
   }
 
   const assetSrc = (asset) => {
@@ -5004,6 +5111,73 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
       (value) => typeof value === 'string' && (HTTP_URL_RX.test(value) || value.startsWith('data:'))
     ) || null;
   };
+
+  if (isTemplateB) {
+    const materials = normaliseTemplateBMaterials(payload)
+      .map((entry) => assetSrc(entry))
+      .filter(Boolean);
+    const brandLogoEl = document.getElementById('preview-b-brand-logo');
+    const brandNameEl = document.getElementById('preview-b-brand-name');
+    const agentNameEl = document.getElementById('preview-b-agent-name');
+    const skuEl = document.getElementById('preview-b-sku');
+    const titleEl = document.getElementById('preview-b-title');
+    const subtitleEl = document.getElementById('preview-b-subtitle');
+    const productEl = document.getElementById('preview-b-product-image');
+    const secondaryWrap = document.getElementById('preview-b-secondary-wrap');
+    const secondaryEl = document.getElementById('preview-b-secondary-image');
+    const materialsEl = document.getElementById('preview-b-materials');
+    const descriptionWrap = document.getElementById('preview-b-description');
+    const descriptionTitleEl = document.getElementById('preview-b-description-title');
+    const descriptionBodyEl = document.getElementById('preview-b-description-body');
+
+    const primarySrc = assetSrc(payload.product_asset || payload.product_image_1) || placeholderImages.product;
+    const secondarySrc = assetSrc(payload.product_image_2);
+    const logoSrc = assetSrc(payload.brand_logo) || placeholderImages.brandLogo;
+    const descriptionTitle = payload.description_title || '';
+    const descriptionBody = payload.description_body || '';
+
+    if (brandLogoEl) brandLogoEl.src = logoSrc;
+    if (brandNameEl) brandNameEl.textContent = payload.brand_name || 'Brand';
+    if (agentNameEl) agentNameEl.textContent = payload.agent_name || 'Agent';
+    if (skuEl) {
+      skuEl.textContent = payload.sku_text || 'SKU optional';
+      skuEl.classList.toggle('hidden', !payload.sku_text);
+    }
+    if (titleEl) titleEl.textContent = payload.title || 'Title';
+    if (subtitleEl) subtitleEl.textContent = payload.subtitle || 'Subtitle';
+    if (productEl) productEl.src = primarySrc;
+    if (secondaryWrap) secondaryWrap.classList.toggle('hidden', !secondarySrc);
+    if (secondaryEl) {
+      if (secondarySrc) {
+        secondaryEl.src = secondarySrc;
+      } else {
+        secondaryEl.removeAttribute('src');
+      }
+    }
+    if (materialsEl) {
+      materialsEl.innerHTML = '';
+      materialsEl.classList.toggle('hidden', materials.length === 0);
+      materials.forEach((src, index) => {
+        const item = document.createElement('div');
+        item.className = 'template-b-preview__material-item';
+        const image = document.createElement('img');
+        image.src = src;
+        image.alt = `Material ${index + 1}`;
+        item.appendChild(image);
+        materialsEl.appendChild(item);
+      });
+    }
+    if (descriptionWrap) {
+      descriptionWrap.classList.toggle('hidden', !(descriptionTitle || descriptionBody));
+    }
+    if (descriptionTitleEl) {
+      descriptionTitleEl.textContent = descriptionTitle || 'Description title';
+    }
+    if (descriptionBodyEl) {
+      descriptionBodyEl.textContent = descriptionBody || 'Description body';
+    }
+    return layoutText;
+  }
 
   const logoFallback = assetSrc(state.brandLogo) || placeholderImages.brandLogo;
 
@@ -5065,6 +5239,25 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
 
 function buildLayoutPreview(payload) {
   if (MODE_S) {
+    if (isTemplateBStage1Data(payload)) {
+      const materials = normaliseTemplateBMaterials(payload);
+      const lines = [
+        'Template B / Family B summary',
+        `Template: ${payload.template_id || TEMPLATE_B_ID}`,
+        `Title: ${payload.title || 'missing'}`,
+        `Subtitle: ${payload.subtitle || 'optional'}`,
+        `SKU: ${payload.sku_text || 'optional'}`,
+        `Brand: ${payload.brand_name || 'n/a'}`,
+        `Agent: ${payload.agent_name || 'n/a'}`,
+        `Primary product: ${payload.product_image_1 ? 'ready' : 'missing'}`,
+        `Secondary detail: ${payload.product_image_2 ? 'ready' : 'empty'}`,
+        `Materials strip: ${materials.length} image(s)`,
+        `Description title: ${payload.description_title || 'optional'}`,
+        `Description body: ${payload.description_body ? 'present' : 'optional'}`,
+      ];
+      return lines.join('\n');
+    }
+
     const callouts = resolveStage1ProductCallouts(payload);
     const lines = [
       'Mode S summary',
@@ -5396,12 +5589,34 @@ function buildGeneratePosterPayload(draft) {
   const core = draft?.core || {};
   const messaging = draft?.messaging || {};
   const posterSource = draft?.poster || {};
+  const stage1Snapshot = loadStage1Data();
+  const draftSource = stage1Snapshot || core || posterSource;
+  if (isTemplateBStage1Data(draftSource)) {
+    return {
+      template_id: TEMPLATE_B_ID,
+      renderer_mode: 'auto',
+      brand_name: draftSource.brand_name || '',
+      agent_name: draftSource.agent_name || '',
+      title: draftSource.title || '',
+      subtitle: draftSource.subtitle || '',
+      sku_text: draftSource.sku_text || '',
+      description_title: draftSource.description_title || draftSource.descriptionTitle || '',
+      description_body: draftSource.description_body || draftSource.descriptionBody || '',
+      product_image_1: pickDraftImageRef(draftSource.product_image_1),
+      product_image_2: pickDraftImageRef(draftSource.product_image_2),
+      materials_images: normaliseTemplateBMaterials(draftSource).map((entry) => ({
+        url: entry.url || entry.dataUrl || null,
+        key: entry.key || null,
+      })),
+      features: [],
+      gallery_images: [],
+    };
+  }
+
   const bullets = normaliseStage1ProductCallouts(core.product_callouts || core.bullets);
   const title = core.title || posterSource.title || '';
   const showBullets = stage2State.adjustments?.showBullets !== false;
   const renderMode = stage2State.renderMode || 'kitposter1_a';
-  const stage1Snapshot = loadStage1Data();
-  const draftSource = stage1Snapshot || core || posterSource;
   const draftPayload = buildKitPosterDraftFromSource(
     draftSource,
     stage2State.adjustments,
@@ -5610,6 +5825,126 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
       logoRef,
       scenarioRef,
       galleryRefs,
+    },
+  };
+}
+
+async function buildTemplateBPosterPayload(stage1Data, apiCandidates) {
+  const safeText = (value, fallback = '') => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    return text || fallback;
+  };
+
+  const brandName = safeText(stage1Data.brand_name, 'Brand');
+  const agentName = sanitizeAgentName(stage1Data.agent_name || '', brandName);
+  const title = safeText(stage1Data.title, 'Product Sheet');
+  const subtitle = safeText(stage1Data.subtitle, '');
+  const skuText = safeText(stage1Data.sku_text, '');
+  const descriptionTitle = safeText(
+    stage1Data.description_title || stage1Data.descriptionTitle,
+    ''
+  );
+  const descriptionBody = safeText(
+    stage1Data.description_body || stage1Data.descriptionBody,
+    ''
+  );
+
+  const productRef = await normaliseAssetReference(
+    stage1Data.product_image_1 || stage1Data.product_asset,
+    {
+      field: 'poster2.template_b.product_image',
+      required: true,
+      apiCandidates,
+      folder: 'product',
+    },
+    null
+  );
+  const productSecondaryRef = await normaliseAssetReference(
+    stage1Data.product_image_2,
+    {
+      field: 'poster2.template_b.product_secondary_image',
+      required: false,
+      apiCandidates,
+      folder: 'product',
+    },
+    null
+  );
+  const logoRef = await normaliseAssetReference(
+    stage1Data.brand_logo,
+    {
+      field: 'poster2.template_b.logo',
+      required: false,
+      apiCandidates,
+      folder: 'logo',
+    },
+    null
+  );
+
+  const materials = [];
+  for (const entry of normaliseTemplateBMaterials(stage1Data).slice(0, 5)) {
+    // eslint-disable-next-line no-await-in-loop
+    const ref = await normaliseAssetReference(
+      entry,
+      {
+        field: 'poster2.template_b.materials_images',
+        required: false,
+        apiCandidates,
+        folder: 'materials',
+      },
+      null
+    );
+    if (ref?.url) {
+      materials.push({
+        url: ref.url,
+        key: ref.key || null,
+      });
+    }
+  }
+
+  const requestedRenderer = stage2State.poster2.rendererMode || 'auto';
+  const rendererMode = requestedRenderer === 'puppeteer' ? 'auto' : requestedRenderer;
+  const payload = {
+    template_id: TEMPLATE_B_ID,
+    renderer_mode: rendererMode,
+    brand_name: brandName,
+    agent_name: agentName,
+    title,
+    subtitle,
+    features: [],
+    product_image: {
+      url: productRef?.url || '',
+      key: productRef?.key || null,
+    },
+    product_secondary_image: productSecondaryRef?.url
+      ? {
+          url: productSecondaryRef.url,
+          key: productSecondaryRef.key || null,
+        }
+      : null,
+    logo: logoRef?.url
+      ? {
+          url: logoRef.url,
+          key: logoRef.key || null,
+        }
+      : null,
+    scenario_image: null,
+    gallery_images: [],
+    materials_images: materials,
+    description_title: descriptionTitle,
+    description_body: descriptionBody,
+    sku_text: skuText,
+    style: {
+      prompt: safeText(stage1Data.title || stage1Data.description_title, 'clean studio background, soft diffused light'),
+    },
+  };
+
+  return {
+    payload,
+    refs: {
+      logoRef,
+      productRef,
+      productSecondaryRef,
+      materials,
     },
   };
 }
@@ -7112,6 +7447,32 @@ function populateStage1Summary(stage1Data, overviewList, templateName) {
   if (!overviewList) return;
   overviewList.innerHTML = '';
 
+  if (isTemplateBStage1Data(stage1Data)) {
+    const materials = normaliseTemplateBMaterials(stage1Data);
+    const entries = [
+      ['模板', templateName || TEMPLATE_B_ID],
+      ['品牌 / 代理', `${stage1Data.brand_name || ''} ｜ ${stage1Data.agent_name || ''}`],
+      ['标题', stage1Data.title || ''],
+      ['副标题', stage1Data.subtitle || ''],
+      ['SKU', stage1Data.sku_text || ''],
+      ['描述标题', stage1Data.description_title || stage1Data.descriptionTitle || ''],
+      ['描述正文', stage1Data.description_body || stage1Data.descriptionBody || ''],
+      ['主产品图', stage1Data.product_image_1 ? 'ready' : 'missing'],
+      ['辅图 / 细节图', stage1Data.product_image_2 ? 'ready' : 'empty'],
+      ['材质图', `${materials.length} 项素材`],
+    ];
+
+    entries.forEach(([term, description]) => {
+      const dt = document.createElement('dt');
+      dt.textContent = term;
+      const dd = document.createElement('dd');
+      dd.textContent = description;
+      overviewList.appendChild(dt);
+      overviewList.appendChild(dd);
+    });
+    return;
+  }
+
   const entries = [
     [
       '模板',
@@ -7914,7 +8275,30 @@ async function triggerGeneration(opts) {
   let productImage2Ref;
   let payload;
   try {
-    if (usePoster2Pilot) {
+    if (MODE_S && templateId === TEMPLATE_B_ID) {
+      const templateBRequest = await buildTemplateBPosterPayload(stage1Data, apiCandidates);
+      payload = templateBRequest.payload;
+      brandLogoRef = templateBRequest.refs.logoRef;
+      productImage1Ref = templateBRequest.refs.productRef;
+      productImage2Ref = templateBRequest.refs.productSecondaryRef;
+      galleryItems = [];
+      endpointPath = '/api/v2/generate-poster';
+      posterPayload = {
+        template_id: payload.template_id,
+        scenario_mode: null,
+        product_mode: 'upload',
+        features: [],
+        gallery_items: [],
+        brand_logo: payload.logo?.url || null,
+        scenario_asset: null,
+        product_asset: payload.product_image?.url || null,
+        product_key: payload.product_image?.key || null,
+        sku_text: payload.sku_text || null,
+        description_title: payload.description_title || null,
+        description_body: payload.description_body || null,
+        materials_images: payload.materials_images || [],
+      };
+    } else if (usePoster2Pilot) {
       const poster2Request = await buildPoster2GeneratePayload(stage1Data, apiCandidates);
       payload = poster2Request.payload;
       brandLogoRef = poster2Request.refs.logoRef;
@@ -7938,78 +8322,6 @@ async function triggerGeneration(opts) {
         product_asset: payload.product_image?.url || null,
         product_key: payload.product_image?.key || null,
       };
-    } else if (MODE_S && templateId === TEMPLATE_B_ID) {
-      // ── Template B (product_sheet) serializer ──────────────────────────────
-      // Sends only Template B fields. Excludes Family A scenario/gallery/bottom fields.
-      const safeText = (value, fallback) => {
-        const text = typeof value === 'string' ? value.trim() : '';
-        return text || fallback;
-      };
-
-      productImage1Ref = await normaliseAssetReference(stage1Data.product_image_1, {
-        field: 'poster.product_image_1',
-        required: true,
-        apiCandidates,
-        folder: 'product',
-      });
-      productImage2Ref = await normaliseAssetReference(stage1Data.product_image_2, {
-        field: 'poster.product_image_2',
-        required: false,
-        apiCandidates,
-        folder: 'product',
-      }, productImage1Ref);
-
-      const brandName = safeText(stage1Data.brand_name, 'Brand');
-      const agentName = sanitizeAgentName(stage1Data.agent_name || '', brandName);
-      const title = safeText(stage1Data.title, '');
-      const productName = safeText(stage1Data.product_name, title);
-      const subtitle = safeText(stage1Data.subtitle || '', '');
-      const seriesDescription = safeText(stage1Data.series_description || stage1Data.subtitle || title, title);
-
-      const callouts = Array.isArray(stage1Data.product_callouts) && stage1Data.product_callouts.length
-        ? stage1Data.product_callouts
-        : Array.isArray(stage1Data.features) ? stage1Data.features : [];
-      const features = callouts.filter(Boolean);
-
-      const rawMaterials = Array.isArray(stage1Data.materialsImages) ? stage1Data.materialsImages : [];
-      const materialsImages = rawMaterials
-        .filter(m => m && (m.url || m.key))
-        .map(m => ({ url: m.url || null, key: m.key || null }));
-
-      if (productImage1Ref?.url) {
-        assertAssetUrl('product_image_1', productImage1Ref.url);
-      }
-
-      posterPayload = {
-        brand_name: brandName,
-        agent_name: agentName,
-        template_id: TEMPLATE_B_ID,
-        product_name: productName,
-        title,
-        subtitle,
-        series_description: seriesDescription,
-        features,
-        // Template B specific fields
-        sku_text: stage1Data.sku_text || null,
-        description_title: stage1Data.descriptionTitle || stage1Data.description_title || null,
-        description_body: stage1Data.descriptionBody || stage1Data.description_body || null,
-        materials_images: materialsImages,
-        // Product images only — no scenario for Template B
-        product_image_1: productImage1Ref?.url || null,
-        product_image_1_key: productImage1Ref?.key || null,
-        product_image_2: productImage2Ref?.url || null,
-        product_image_2_key: productImage2Ref?.key || null,
-        product_key: productImage1Ref?.key || null,
-        product_asset: productImage1Ref?.url || null,
-        product_mode: 'upload',
-      };
-      console.log('[stage2] Template B poster payload', {
-        template_id: posterPayload.template_id,
-        product_image_1_key: posterPayload.product_image_1_key,
-        sku_text: posterPayload.sku_text,
-        materials_count: materialsImages.length,
-        feature_count: features.length,
-      });
     } else if (MODE_S) {
       const safeText = (value, fallback) => {
         const text = typeof value === 'string' ? value.trim() : '';
@@ -8265,7 +8577,7 @@ async function triggerGeneration(opts) {
       key: posterPayload.product_key || null,
       url: posterPayload.product_asset || null,
     },
-    gallery: posterPayload.gallery_items.map((item, index) => ({
+    gallery: (posterPayload.gallery_items || []).map((item, index) => ({
       index,
       mode: item.mode,
       key: item.key || null,
