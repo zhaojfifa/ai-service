@@ -38,6 +38,15 @@ class StyleSpec:
 
 
 @dataclass(frozen=True)
+class CopyOptimizationSpec:
+    mode: Literal["off", "suggest", "apply"] = "off"
+    decision: Literal["pending", "accepted", "rejected"] = "pending"
+    accepted_title: str = ""
+    accepted_subtitle: str = ""
+    accepted_features: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
 class PosterSpec:
     # --- Text content ---
     brand_name: str
@@ -67,6 +76,7 @@ class PosterSpec:
 
     # --- Style (only for background generation) ---
     style: StyleSpec = field(default_factory=StyleSpec)
+    copy_optimization: CopyOptimizationSpec = field(default_factory=CopyOptimizationSpec)
 
     # --- Rendering ---
     template_id: str = "template_dual_v2"
@@ -410,6 +420,7 @@ class RenderManifest:
     title_text_layer: dict = field(default_factory=dict)
     subtitle_text_layer: dict = field(default_factory=dict)
     header_text_layer: dict = field(default_factory=dict)
+    copy_optimization_review: dict = field(default_factory=dict)
     visible_truth_evidence: dict = field(default_factory=dict)
     template_b_parity_review: Optional[dict] = None
 

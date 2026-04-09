@@ -312,6 +312,25 @@
             </div>
           </div>
 
+          <div id="poster2-copy-optimization-panel" class="s2-panel hidden">
+            <div class="s2-panel-hd"><span>Copy Optimization</span></div>
+            <div class="s2-panel-bd">
+              <label class="s2-field">
+                <span>Mode</span>
+                <select id="poster2-copy-optimization-mode">
+                  <option value="off">off</option>
+                  <option value="suggest">suggest</option>
+                  <option value="apply">apply</option>
+                </select>
+              </label>
+              <div class="s2-actions">
+                <button id="poster2-copy-optimization-accept" type="button" class="secondary-button">Accept</button>
+                <button id="poster2-copy-optimization-reject" type="button" class="secondary-button">Reject</button>
+              </div>
+              <div id="poster2-copy-optimization-summary"></div>
+            </div>
+          </div>
+
           <!-- Renderer -->
           <div class="s2-panel">
             <div class="s2-panel-hd">
@@ -522,6 +541,7 @@
         <pre id="poster2-feature-contract-review">{}</pre>
         <pre id="poster2-product-annotation-contract-review">{}</pre>
         <pre id="poster2-scenario-contract-review">{}</pre>
+        <pre id="poster2-copy-optimization-review">{}</pre>
         <pre id="poster2-visible-truth-evidence">{}</pre>
         <pre id="poster2-template-b-parity-review">{}</pre>
       </div>

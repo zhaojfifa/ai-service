@@ -31,6 +31,14 @@ class StyleInput(BaseModel):
     palette: Optional[list[str]] = Field(default=None, max_length=5)
 
 
+class Poster2CopyOptimizationInput(BaseModel):
+    mode: Literal["off", "suggest", "apply"] = "off"
+    decision: Literal["pending", "accepted", "rejected"] = "pending"
+    accepted_title: str = Field(default="", max_length=120)
+    accepted_subtitle: str = Field(default="", max_length=120)
+    accepted_features: list[str] = Field(default_factory=list, max_length=4)
+
+
 class GeneratePosterV2Request(BaseModel):
     # Text content
     brand_name: str = Field(..., min_length=1, max_length=80)
@@ -60,6 +68,7 @@ class GeneratePosterV2Request(BaseModel):
 
     # Style (background only)
     style: StyleInput = Field(default_factory=StyleInput)
+    copy_optimization: Poster2CopyOptimizationInput = Field(default_factory=Poster2CopyOptimizationInput)
 
     # Rendering
     template_id: str = Field(default="template_dual_v2", max_length=80)
@@ -138,6 +147,7 @@ class GeneratePosterV2Response(BaseModel):
     title_text_layer: dict = Field(default_factory=dict)
     subtitle_text_layer: dict = Field(default_factory=dict)
     header_text_layer: dict = Field(default_factory=dict)
+    copy_optimization_review: dict = Field(default_factory=dict)
     visible_truth_evidence: dict = Field(default_factory=dict)
     template_b_parity_review: Optional[dict] = None
 

@@ -143,6 +143,14 @@ const stage2State = {
     rendererMode: 'auto',
     history: [],
     latestResult: null,
+    copyOptimization: {
+      mode: 'off',
+      decision: 'pending',
+      acceptedTitle: '',
+      acceptedSubtitle: '',
+      acceptedFeatures: [],
+      latestReview: null,
+    },
     bottomContract: {
       title: '',
       subtitle: '',
@@ -557,6 +565,9 @@ function applyStage2TemplateFamilyVisibility(stage1Data) {
   const templateBSummary = document.getElementById('s2-template-b-summary');
   if (templateBSummary) templateBSummary.classList.toggle('hidden', !isTemplateB);
 
+  const copyOptimizationPanel = document.getElementById('poster2-copy-optimization-panel');
+  if (copyOptimizationPanel) copyOptimizationPanel.classList.toggle('hidden', isTemplateB);
+
   // "Bottom Support Copy" textarea — Family A only (maps to bottom subtitle band)
   const bottomCopyField = document.getElementById('s2-bottom-support-copy-field');
   if (bottomCopyField) bottomCopyField.style.display = isTemplateB ? 'none' : '';
@@ -586,6 +597,113 @@ function applyStage2TemplateFamilyVisibility(stage1Data) {
   if (isTemplateB) {
     renderTemplateBStage2Summary(stage1Data);
   }
+}
+
+function ensurePoster2CopyOptimizationState() {
+  const current = stage2State.poster2?.copyOptimization || {};
+  stage2State.poster2.copyOptimization = {
+    mode: current.mode || 'off',
+    decision: current.decision || 'pending',
+    acceptedTitle: current.acceptedTitle || '',
+    acceptedSubtitle: current.acceptedSubtitle || '',
+    acceptedFeatures: Array.isArray(current.acceptedFeatures) ? current.acceptedFeatures.filter(Boolean).slice(0, 4) : [],
+    latestReview: current.latestReview || null,
+  };
+  return stage2State.poster2.copyOptimization;
+}
+
+function renderPoster2CopyOptimizationReview(review) {
+  const state = ensurePoster2CopyOptimizationState();
+  state.latestReview = review || null;
+
+  const summary = document.getElementById('poster2-copy-optimization-summary');
+  const acceptBtn = document.getElementById('poster2-copy-optimization-accept');
+  const rejectBtn = document.getElementById('poster2-copy-optimization-reject');
+  const modeSelect = document.getElementById('poster2-copy-optimization-mode');
+  if (modeSelect) modeSelect.value = state.mode || 'off';
+
+  const changedFields = Array.isArray(review?.changed_fields) ? review.changed_fields : [];
+  const optimizerUsed = review?.optimizer_used || 'off';
+  const decision = state.decision || review?.decision || 'pending';
+  if (summary) {
+    if (!review || state.mode === 'off') {
+      summary.innerHTML = '<div class="s2-slot-note">copy optimization disabled</div>';
+    } else {
+      const titleLine = review?.title
+        ? `<div class="s2-slot-note">title: ${review.title.sanitized_text || '—'} → ${review.title.optimized_text || '—'} → ${review.title.rendered_text || '—'}</div>`
+        : '';
+      const subtitleLine = review?.subtitle
+        ? `<div class="s2-slot-note">subtitle: ${review.subtitle.sanitized_text || '—'} → ${review.subtitle.optimized_text || '—'} → ${review.subtitle.rendered_text || '—'}</div>`
+        : '';
+      const annotationLine = Array.isArray(review?.annotation_items) && review.annotation_items.length
+        ? `<div class="s2-slot-note">annotation: ${review.annotation_items.map((item) => `${item.sanitized_text || '—'} → ${item.optimized_text || '—'} → ${item.rendered_text || '—'}`).join(' · ')}</div>`
+        : '';
+      summary.innerHTML = `
+        <div class="s2-diagnostics-grid">
+          <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">mode</div><div class="s2-diagnostic-val">${state.mode}</div></div>
+          <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">decision</div><div class="s2-diagnostic-val">${decision}</div></div>
+          <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">optimizer_used</div><div class="s2-diagnostic-val">${optimizerUsed}</div></div>
+          <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">applied</div><div class="s2-diagnostic-val">${review?.applied_to_rendered_output ? 'true' : 'false'}</div></div>
+        </div>
+        <div class="s2-slot-note">changed_fields: ${changedFields.length ? changedFields.join(', ') : 'none'}</div>
+        ${titleLine}
+        ${subtitleLine}
+        ${annotationLine}
+      `;
+    }
+  }
+
+  const canAct = Boolean(review?.operator_controls?.can_accept);
+  if (acceptBtn) acceptBtn.disabled = !canAct || state.mode === 'off';
+  if (rejectBtn) rejectBtn.disabled = !canAct || state.mode === 'off';
+}
+
+function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
+  const panel = document.getElementById('poster2-copy-optimization-panel');
+  const modeSelect = document.getElementById('poster2-copy-optimization-mode');
+  const acceptBtn = document.getElementById('poster2-copy-optimization-accept');
+  const rejectBtn = document.getElementById('poster2-copy-optimization-reject');
+  if (!panel || !modeSelect || !acceptBtn || !rejectBtn) return;
+
+  const state = ensurePoster2CopyOptimizationState();
+  const eligible = shouldUsePoster2Pilot(stage1Data) && !isTemplateBStage1Data(stage1Data);
+  panel.classList.toggle('hidden', !eligible);
+  modeSelect.value = state.mode || 'off';
+
+  modeSelect.onchange = () => {
+    state.mode = modeSelect.value || 'off';
+    if (state.mode === 'off') {
+      state.decision = 'pending';
+      state.acceptedTitle = '';
+      state.acceptedSubtitle = '';
+      state.acceptedFeatures = [];
+    }
+    renderPoster2CopyOptimizationReview(state.latestReview);
+  };
+
+  acceptBtn.onclick = () => {
+    const review = state.latestReview;
+    if (!review) return;
+    state.decision = 'accepted';
+    state.acceptedTitle = review?.title?.optimized_text || '';
+    state.acceptedSubtitle = review?.subtitle?.optimized_text || '';
+    state.acceptedFeatures = Array.isArray(review?.annotation_items)
+      ? review.annotation_items.map((item) => item?.optimized_text || '').filter(Boolean).slice(0, 4)
+      : [];
+    renderPoster2CopyOptimizationReview(review);
+    if (statusElement) setStatus(statusElement, 'Poster2 copy optimization accepted for the next generate run.', 'info');
+  };
+
+  rejectBtn.onclick = () => {
+    state.decision = 'rejected';
+    state.acceptedTitle = '';
+    state.acceptedSubtitle = '';
+    state.acceptedFeatures = [];
+    renderPoster2CopyOptimizationReview(state.latestReview);
+    if (statusElement) setStatus(statusElement, 'Poster2 copy optimization rejected; base Family A copy remains active.', 'info');
+  };
+
+  renderPoster2CopyOptimizationReview(state.latestReview);
 }
 
 function initPoster2BottomContractControls(stage1Data, statusElement) {
@@ -5712,6 +5830,7 @@ function buildGeneratePosterPayload(draft) {
 
 async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   syncPoster2BottomContractFromControls(stage1Data);
+  const copyOptimizationState = ensurePoster2CopyOptimizationState();
   const safeText = (value, fallback = '') => {
     const text = typeof value === 'string' ? value.trim() : '';
     return text || fallback;
@@ -5870,6 +5989,15 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     gallery_mode: bottomRequestState.gallery_mode,
     style: {
       prompt: pickPoster2StylePrompt(),
+    },
+    copy_optimization: {
+      mode: copyOptimizationState.mode || 'off',
+      decision: copyOptimizationState.decision || 'pending',
+      accepted_title: copyOptimizationState.acceptedTitle || '',
+      accepted_subtitle: copyOptimizationState.acceptedSubtitle || '',
+      accepted_features: Array.isArray(copyOptimizationState.acceptedFeatures)
+        ? copyOptimizationState.acceptedFeatures.filter(Boolean).slice(0, 4)
+        : [],
     },
   };
 
@@ -6853,6 +6981,7 @@ function initStage2() {
 
     initStage2Poster2PilotControls(stage1Data, statusElement);
     initPoster2BottomContractControls(stage1Data, statusElement);
+    initPoster2CopyOptimizationControls(stage1Data, statusElement);
     applyStage2TemplateFamilyVisibility(stage1Data);
 
     refreshStage2Wireframe();
@@ -7721,6 +7850,7 @@ function updatePoster2DiagnosticsPanel(data) {
   setJson('poster2-feature-contract-review', data?.feature_contract_review, '{}');
   setJson('poster2-product-annotation-contract-review', data?.product_annotation_contract_review, '{}');
   setJson('poster2-scenario-contract-review', data?.scenario_contract_review, '{}');
+  setJson('poster2-copy-optimization-review', data?.copy_optimization_review, '{}');
   setJson('poster2-visible-truth-evidence', data?.visible_truth_evidence, '{}');
   setJson('poster2-template-b-parity-review', data?.template_b_parity_review, '{}');
 
@@ -8174,6 +8304,8 @@ function updateStage2Warnings(data) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
   stage2State.poster2.latestResult = data || null;
+  ensurePoster2CopyOptimizationState().latestReview = data?.copy_optimization_review || null;
+  renderPoster2CopyOptimizationReview(data?.copy_optimization_review || null);
 
   if (typeof updateStage2Warnings === 'function') {
     updateStage2Warnings(data);

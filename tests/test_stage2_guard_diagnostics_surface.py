@@ -29,6 +29,7 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "poster2-gallery-count",
         "poster2-bottom-request-preview",
         "poster2-product-contract-review",
+        "poster2-copy-optimization-review",
         "poster2-visible-truth-evidence",
         "poster2-template-b-parity-review",
         'maxlength="120"',
@@ -50,6 +51,7 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "subtitle_text_layer",
         "header_text_layer",
         "product_contract_review",
+        "copy_optimization_review",
         "visible_truth_evidence",
         "template_b_parity_review",
         "bottom_mode",
@@ -197,6 +199,33 @@ def test_frontend_stage2_surfaces_family_a_bottom_region_observability_cards():
     assert docs_html == html
 
 
+def test_frontend_stage2_surfaces_family_a_copy_optimization_controls_and_trace():
+    html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    docs_html = (ROOT / "docs" / "stage2.html").read_text(encoding="utf-8")
+    docs_js = (ROOT / "docs" / "app.js").read_text(encoding="utf-8")
+
+    assert "poster2-copy-optimization-panel" in html
+    assert "poster2-copy-optimization-mode" in html
+    assert "poster2-copy-optimization-accept" in html
+    assert "poster2-copy-optimization-reject" in html
+    assert "poster2-copy-optimization-summary" in html
+    assert "poster2-copy-optimization-review" in html
+
+    assert "function ensurePoster2CopyOptimizationState" in js
+    assert "function renderPoster2CopyOptimizationReview" in js
+    assert "function initPoster2CopyOptimizationControls" in js
+    assert "copy_optimization:" in js
+    assert "accepted_title" in js
+    assert "accepted_subtitle" in js
+    assert "accepted_features" in js
+    assert "optimizer_used" in js
+    assert "changed_fields" in js
+
+    assert docs_html == html
+    assert docs_js == js
+
+
 def test_docs_publish_mirror_contains_same_guard_diagnostics():
     frontend_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
     frontend_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
@@ -290,5 +319,7 @@ def test_api_response_schema_exposes_scenario_and_annotation_contract_review():
     assert "product_annotation_contract_review=manifest.product_annotation_contract_review" in main_src
     assert "visible_truth_evidence" in schema_src
     assert "template_b_parity_review" in schema_src
+    assert "copy_optimization_review" in schema_src
     assert "visible_truth_evidence=manifest.visible_truth_evidence" in main_src
     assert "template_b_parity_review=manifest.template_b_parity_review" in main_src
+    assert "copy_optimization_review=manifest.copy_optimization_review" in main_src

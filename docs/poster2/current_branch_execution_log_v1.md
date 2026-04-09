@@ -3201,3 +3201,81 @@ Remaining risks:
   - `gallery_distribution_policy`
 - Family A bottom shell/title-band/gallery visual polish landed without changing geometry or ownership
 - structured HTML visual smoke fixture was refreshed for the bounded bottom practical-closure pass
+
+---
+
+## Entry — PR-A-PRACTICAL-3: Family A Gemini copy optimizer integration with observability
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/05_validation/family_a/bottom_region_practical_closure_status_v1.md`
+- `docs/poster2/03_engineering/family_a/product_region_practical_beautification_observability_v1.md`
+
+### Scope
+
+- Template A only
+- Gemini copy optimizer integration for:
+  - `title`
+  - `subtitle`
+  - `annotation`
+- operator accept / reject trace
+- backend metadata + Stage2 diagnostics visibility
+- no geometry / ownership / control-truth changes
+
+### Root cause
+
+Family A practical closure had product and bottom observability, but copy optimization was still opaque:
+
+- no Family A-scoped `copy_optimization_review`
+- no operator accept / reject state in Stage2
+- no raw → sanitized → optimized → rendered lineage in poster2 metadata
+
+### Files changed
+
+- `app/schemas/poster2.py`
+- `app/services/poster2/contracts.py`
+- `app/services/poster2/gemini_copy_optimizer.py`
+- `app/services/poster2/copy_optimizer.py`
+- `app/services/poster2/pipeline.py`
+- `app/main.py`
+- `frontend/app.js`
+- `frontend/stage2.html`
+- `docs/app.js`
+- `docs/stage2.html`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_api.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/03_engineering/family_a/gemini_copy_optimizer_integration_v1.md`
+- `docs/poster2/05_validation/family_a/gemini_copy_optimizer_closure_status_v1.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/schemas/poster2.py app/services/poster2/contracts.py app/services/poster2/gemini_copy_optimizer.py app/services/poster2/copy_optimizer.py app/services/poster2/pipeline.py app/main.py tests/poster2/test_pipeline.py tests/poster2/test_api.py tests/test_stage2_guard_diagnostics_surface.py` -> pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'copy_optimization or family_a or accepted_output_keys'` -> `5 passed, 287 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'copy_optimization or generate_poster_v2_route_is_backward_compatible'` -> `2 passed, 26 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py` -> `116 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py` -> `17 passed`
+- broad command `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'bottom or family_a or accepted_output_keys'` still surfaces the existing legacy bottom geometry/history failures outside this PR-3 scope
+
+### Remaining risks
+
+- Gemini live-network optimization was not exercised in this workspace; the integration path is implemented and test-covered through deterministic / fallback-safe surfaces
+- broad legacy bottom geometry/history failures remain out of scope and unchanged
+- validation closeout PR still remains after this step
+
+### Exact acceptance
+
+- Family A now emits backend-owned `copy_optimization_review`
+- Stage2 can expose optimization mode / decision / optimizer used / changed fields
+- operator can accept or reject optimization without changing geometry or ownership
+- annotation optimization is count-preserving and cannot create new control truth

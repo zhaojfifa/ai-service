@@ -29,6 +29,7 @@ from app.services.poster2.background import BackgroundResult, FireflyBackgroundS
 from app.services.poster2.composer import Composer
 from app.services.poster2.contracts import (
     AssetRef,
+    CopyOptimizationSpec,
     PosterSpec,
     ResolvedAssets,
     StyleSpec,
@@ -5444,6 +5445,58 @@ class TestTemplateBBackendGenerationFix:
         assert manifest.subtitle_text_layer["owner_region"] == fixture["expected_subtitle_owner_region"]
         assert manifest.bottom_contract_review["bottom_mode"] == fixture["expected_bottom_mode"]
         assert manifest.bottom_contract_review["gallery_mode"] == fixture["expected_gallery_mode"]
+
+    def test_template_a_copy_optimization_review_surfaces_lineage_without_applying_pending_suggestion(self):
+        spec = _make_spec(
+            title="Cook smarter every day",
+            subtitle="Steam, bake, and roast with guided presets!!!",
+            features=("Fast preheat for weeknights", "Easy-clean chamber"),
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["enabled"] is True
+        assert review["mode"] == "suggest"
+        assert review["decision"] == "pending"
+        assert review["optimizer_scope"] == "title_subtitle_annotation_only"
+        assert review["title"]["requested_text"] == spec.title
+        assert review["title"]["sanitized_text"] == spec.title
+        assert review["title"]["rendered_text"] == manifest.title_text_layer["sanitized_text"]
+        assert review["subtitle"]["requested_text"] == spec.subtitle
+        assert review["subtitle"]["rendered_text"] == manifest.subtitle_text_layer["sanitized_text"]
+        assert len(review["annotation_items"]) == len(spec.features)
+        assert manifest.title_text_layer["sanitized_text"] == spec.title
+        assert manifest.subtitle_text_layer["sanitized_text"] == spec.subtitle
+
+    def test_template_a_copy_optimization_accepts_optimized_copy_without_changing_annotation_count(self):
+        spec = _make_spec(
+            title="Cook smarter every day",
+            subtitle="Steam, bake, and roast with guided presets!!!",
+            features=("Fast preheat for weeknights", "Easy-clean chamber"),
+            copy_optimization=CopyOptimizationSpec(
+                mode="apply",
+                decision="accepted",
+                accepted_title="Smart cooking for daily service",
+                accepted_subtitle="Steam, bake, roast with cleaner control",
+                accepted_features=(
+                    "Weeknight-ready preheat",
+                    "Quick-clean chamber",
+                    "Should be ignored",
+                ),
+            ),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["applied_to_rendered_output"] is True
+        assert review["title"]["rendered_text"] == "Smart cooking for daily service"
+        assert review["subtitle"]["rendered_text"] == "Steam, bake, roast with cleaner control"
+        assert manifest.title_text_layer["sanitized_text"] == "Smart cooking for daily service"
+        assert manifest.subtitle_text_layer["sanitized_text"] == "Steam, bake, roast with cleaner control"
+        assert len([item for item in review["annotation_items"] if item["rendered_text"]]) == len(spec.features)
+        assert review["annotation_items"][0]["rendered_text"] == "Weeknight-ready preheat"
+        assert review["annotation_items"][1]["rendered_text"] == "Quick-clean chamber"
 
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector

@@ -199,6 +199,28 @@ class _BoomPoster2Pipeline:
         raise RuntimeError("simulated poster2 failure")
 
 
+class _CapturePoster2Pipeline:
+    def __init__(self) -> None:
+        self.last_spec = None
+
+    async def run(self, spec, template=None) -> RenderManifest:
+        self.last_spec = spec
+        manifest = await _FakePoster2Pipeline().run(spec, template)
+        manifest.copy_optimization_review = {
+            "enabled": True,
+            "mode": spec.copy_optimization.mode,
+            "decision": spec.copy_optimization.decision,
+            "optimizer_used": "deterministic",
+            "title": {
+                "requested_text": spec.title,
+                "sanitized_text": spec.title,
+                "optimized_text": "Optimized title",
+                "rendered_text": spec.title,
+            },
+        }
+        return manifest
+
+
 def _tiny_png_bytes() -> bytes:
     image = Image.new("RGB", (4, 4), color=(255, 255, 255))
     buffer = io.BytesIO()
@@ -296,6 +318,45 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert record_body["poster_key"] == body["poster_key"]
     assert record_body["render_result"]["final_hash"] == body["final_hash"]
     assert record_body["final_poster"]["url"] == "https://example.com/final.png"
+
+
+def test_generate_poster_v2_accepts_template_a_copy_optimization_payload(monkeypatch):
+    pipeline = _CapturePoster2Pipeline()
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: pipeline)
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-copy-opt"))
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "copy_optimization": {
+                "mode": "suggest",
+                "decision": "accepted",
+                "accepted_title": "优化标题",
+                "accepted_subtitle": "优化副标题",
+                "accepted_features": ["优化特性A", "优化特性B"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["copy_optimization_review"]["enabled"] is True
+    assert body["copy_optimization_review"]["mode"] == "suggest"
+    assert body["copy_optimization_review"]["decision"] == "accepted"
+    assert pipeline.last_spec is not None
+    assert pipeline.last_spec.copy_optimization.mode == "suggest"
+    assert pipeline.last_spec.copy_optimization.decision == "accepted"
+    assert pipeline.last_spec.copy_optimization.accepted_title == "优化标题"
+    assert pipeline.last_spec.copy_optimization.accepted_subtitle == "优化副标题"
+    assert pipeline.last_spec.copy_optimization.accepted_features == ("优化特性A", "优化特性B")
 
 
 def test_generate_poster_v2_accepts_explicit_puppeteer_for_pilot_template(monkeypatch):

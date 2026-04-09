@@ -1388,6 +1388,7 @@ from app.schemas.poster2 import (
 )
 from app.services.poster2.contracts import (
     AssetRef as P2AssetRef,
+    CopyOptimizationSpec as P2CopyOptimizationSpec,
     PosterSpec as P2PosterSpec,
     StyleSpec as P2StyleSpec,
 )
@@ -1433,6 +1434,8 @@ def _poster2_request_log_fields(request: Request, payload: GeneratePosterV2Reque
         "gallery_input_count_normalized": payload.gallery_input_count_normalized,
         "gallery_requested_count": payload.gallery_requested_count,
         "gallery_autofill_applied": payload.gallery_autofill_applied,
+        "copy_optimization_mode": payload.copy_optimization.mode,
+        "copy_optimization_decision": payload.copy_optimization.decision,
         "has_logo": payload.logo is not None,
         "has_scenario_image": payload.scenario_image is not None,
         "has_product_key": bool(payload.product_image.key),
@@ -1498,6 +1501,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                 negative_prompt=payload.style.negative_prompt,
                 seed=payload.style.seed,
                 palette=tuple(payload.style.palette) if payload.style.palette else None,
+            ),
+            copy_optimization=P2CopyOptimizationSpec(
+                mode=payload.copy_optimization.mode,
+                decision=payload.copy_optimization.decision,
+                accepted_title=payload.copy_optimization.accepted_title or "",
+                accepted_subtitle=payload.copy_optimization.accepted_subtitle or "",
+                accepted_features=tuple(payload.copy_optimization.accepted_features or []),
             ),
             template_id=payload.template_id,
             export_format=payload.export_format,
@@ -1577,6 +1587,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             title_text_layer=manifest.title_text_layer,
             subtitle_text_layer=manifest.subtitle_text_layer,
             header_text_layer=manifest.header_text_layer,
+            copy_optimization_review=manifest.copy_optimization_review,
             visible_truth_evidence=manifest.visible_truth_evidence,
             template_b_parity_review=manifest.template_b_parity_review,
         )

@@ -33,6 +33,7 @@ from .background import (
 )
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
+from .copy_optimizer import resolve_copy_optimization
 from .font_registry import FontRegistry
 from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .region_matrix import _BOTTOM_MODE_COLLAPSED_BY_DESIGN
@@ -156,12 +157,17 @@ class PosterPipeline:
         trace_id = str(uuid.uuid4())
         timings: dict[str, int] = {}
         requested_spec = spec
-        effective_spec = _normalize_contract_text_spec(spec, template)
 
         if template is None:
-            template = load_template(effective_spec.template_id)
+            template = load_template(spec.template_id)
         else:
             validate_template_registration(template)
+        effective_spec = _normalize_contract_text_spec(spec, template)
+        effective_spec, copy_optimization_review = resolve_copy_optimization(
+            template,
+            requested_spec=requested_spec,
+            effective_spec=effective_spec,
+        )
         run_preflight_guard(template, effective_spec)
 
         spec_hash = _hash_spec(effective_spec)
@@ -502,6 +508,7 @@ class PosterPipeline:
                 resolved_behavior=resolved_behavior,
                 layer_render_status=layer_render_status,
             ),
+            "copy_optimization_review": copy_optimization_review,
             "visible_truth_evidence": visible_truth_evidence,
             **(
                 {"template_b_parity_review": template_b_parity_review}
@@ -589,6 +596,7 @@ class PosterPipeline:
             title_text_layer=renderer_metadata_payload["title_text_layer"],
             subtitle_text_layer=renderer_metadata_payload["subtitle_text_layer"],
             header_text_layer=renderer_metadata_payload["header_text_layer"],
+            copy_optimization_review=copy_optimization_review,
             visible_truth_evidence=visible_truth_evidence,
             template_b_parity_review=template_b_parity_review,
         )
