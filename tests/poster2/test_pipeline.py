@@ -662,6 +662,8 @@ class TestPosterPipelineRun:
         product_review = metadata["product_contract_review"]
         assert product_review["product_annotation_owner"] == "product_region"
         assert product_review["product_geometry_mode"] == "single_primary_v1"
+        assert product_review["secondary_product_mode"] == "inset_hidden_no_reserve"
+        assert product_review["visible_annotation_count"] == 2
         header_review = metadata["header_contract_review"]
         assert header_review["requested_brand_text"] == "厨厨房"
         assert header_review["requested_agent_text"] == "智能顾问"
@@ -1382,6 +1384,7 @@ class TestPosterPipelineRun:
         assert product_review["requested_product_source"] == "mock://product"
         assert product_review["product_canvas_shell_layer"]["rendered"] is True
         assert product_review["product_annotation_shell_layer"]["rendered"] is True
+        assert product_review["visible_annotation_count"] == 3
         assert product_review["product_annotation_items_layer"]["visible_item_count"] == 3
         assert product_review["behavior_policy"]["annotation_count_policy"] == "fixed_3_product_anchor_annotations"
         assert product_review["behavior_policy"]["annotation_connector_policy"] == "product_anchor_leader_line"
@@ -5357,6 +5360,16 @@ class TestTemplateBBackendGenerationFix:
         }
         assert control_surface["ownership_guards"]["product_annotation_owner_region"] == "product_region"
         assert control_surface["ownership_guards"]["title_owner_region"] == "title_band_region"
+
+    def test_template_a_product_contract_review_surfaces_practical_observability_fields(self):
+        spec = _make_spec(features=("Feature A", "Feature B", "Feature C"))
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.product_contract_review
+        assert review["product_layout_mode"] == "single_primary"
+        assert review["secondary_product_mode"] == "inset_hidden_no_reserve"
+        assert review["product_annotation_owner"] == "product_region"
+        assert review["visible_annotation_count"] == 3
 
     def test_template_a_geometry_evidence_surfaces_family_structure_entry(self):
         spec = _make_spec()

@@ -973,6 +973,36 @@ main {
   font-weight: 500;
 }
 
+.s2-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(164px, 1fr));
+  gap: 0.45rem;
+  padding: 0.1rem 0 0.4rem;
+}
+
+.s2-diagnostic-card {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #eadfd8;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 252, 250, 0.96), rgba(250, 245, 241, 0.92));
+}
+
+.s2-diagnostic-key {
+  font-size: 0.67rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8a6c67;
+}
+
+.s2-diagnostic-val {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: #351f1f;
+  word-break: break-word;
+}
+
 .poster2-run-entry {
   display: grid;
   gap: 0.35rem;

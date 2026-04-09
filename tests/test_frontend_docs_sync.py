@@ -120,8 +120,8 @@ def test_template_b_independent_preview_and_generate_path_are_present():
 
 def test_poster2_readme_indexes_family_isolation_rules():
     readme = (ROOT / "docs" / "poster2" / "README.md").read_text(encoding="utf-8")
-    rules_doc = (ROOT / "docs" / "poster2" / "family_isolation_rules_v1.md").read_text(encoding="utf-8")
-    rebaseline_doc = (ROOT / "docs" / "poster2" / "template_a_isolation_rebaseline_status_v1.md").read_text(encoding="utf-8")
+    rules_doc = (ROOT / "docs" / "poster2" / "02_architecture" / "family_isolation_rules_v1.md").read_text(encoding="utf-8")
+    rebaseline_doc = (ROOT / "docs" / "poster2" / "05_validation" / "template_a_isolation_rebaseline_status_v1.md").read_text(encoding="utf-8")
 
     assert "family_isolation_rules_v1.md" in readme
     assert "template_a_isolation_rebaseline_status_v1.md" in readme

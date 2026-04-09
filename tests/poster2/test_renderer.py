@@ -1664,6 +1664,22 @@ class TestStructuredScenarioLayer:
         assert "--gallery-shell-left: 96px;" in css_template
         assert "--title-band-width: 800px;" in css_template
 
+    def test_template_css_exposes_family_a_product_region_observability_freeze_tokens(self):
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+        assert "--product-shell-outline:" in css_template
+        assert "--product-shell-glow:" in css_template
+        assert "--annotation-card-inset:" in css_template
+        assert "--annotation-leader-gradient:" in css_template
+        assert "--annotation-marker-core-shadow:" in css_template
+        assert "--annotation-label-letter-spacing:" in css_template
+        assert "var(--product-shell-outline)," in css_template
+        assert "var(--product-shell-glow);" in css_template
+        assert "background: var(--annotation-leader-gradient);" in css_template
+        assert "var(--annotation-marker-core-shadow);" in css_template
+
 
 class TestHeaderAndTitleBandLayoutControl:
 

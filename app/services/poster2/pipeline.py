@@ -2280,6 +2280,8 @@ def _build_product_contract_review(
     return {
         "product_annotation_mode": product_policy.annotation_mode,
         "product_annotation_owner": "product_region" if product_policy.annotation_mode == "product_anchor_callouts" else "feature_region",
+        "secondary_product_mode": product_policy.secondary_product_mode,
+        "visible_annotation_count": product_policy.visible_annotation_count,
         "requested_product_source": requested_spec.product_image.url,
         "effective_product_source": effective_spec.product_image.url,
         "rendered_product_source": effective_spec.product_image.url,

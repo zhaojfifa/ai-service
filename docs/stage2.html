@@ -822,13 +822,21 @@
           if (!productReview) return '';
           let html = '';
           const layoutMode = productReview.product_layout_mode || '';
+          const secondaryMode = productReview.secondary_product_mode || '';
+          const annotationOwner = productReview.product_annotation_owner || '';
           const geometryMode = productReview.product_geometry_mode || '';
           const mode = productReview.product_annotation_mode || '';
-          const visibleCount = productReview.product_annotation_items_layer?.visible_item_count;
+          const visibleCount = productReview.visible_annotation_count ?? productReview.product_annotation_items_layer?.visible_item_count;
           const layoutReason = productReview.product_layout_mode_reason || '';
           const geometryReason = productReview.product_geometry_mode_reason || '';
+          html += `<div class="s2-diagnostics-grid">`;
+          html += `<div class="s2-diagnostic-card"><span class="s2-diagnostic-key">product_layout_mode</span><span class="s2-diagnostic-val">${layoutMode || 'single_primary'}</span></div>`;
+          html += `<div class="s2-diagnostic-card"><span class="s2-diagnostic-key">secondary_product_mode</span><span class="s2-diagnostic-val">${secondaryMode || 'N/A'}</span></div>`;
+          html += `<div class="s2-diagnostic-card"><span class="s2-diagnostic-key">product_annotation_owner</span><span class="s2-diagnostic-val">${annotationOwner || 'N/A'}</span></div>`;
+          html += `<div class="s2-diagnostic-card"><span class="s2-diagnostic-key">visible_annotation_count</span><span class="s2-diagnostic-val">${visibleCount != null ? visibleCount : '0'}</span></div>`;
+          html += `</div>`;
           if (layoutMode || mode) {
-            html += `<div class="s2-slot-note">layout: ${layoutMode || 'single_primary'}${layoutReason ? ' · ' + layoutReason : ''}${geometryMode ? ` · geometry: ${geometryMode}${geometryReason ? ' · ' + geometryReason : ''}` : ''}${mode ? ` · annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}` : ''}</div>`;
+            html += `<div class="s2-slot-note">layout: ${layoutMode || 'single_primary'}${layoutReason ? ' · ' + layoutReason : ''}${secondaryMode ? ` · secondary: ${secondaryMode}` : ''}${geometryMode ? ` · geometry: ${geometryMode}${geometryReason ? ' · ' + geometryReason : ''}` : ''}${mode ? ` · annotation: ${mode}${visibleCount != null ? ' · ' + visibleCount + ' items' : ''}` : ''}</div>`;
           }
           if (productReview.requested_product_source) {
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;

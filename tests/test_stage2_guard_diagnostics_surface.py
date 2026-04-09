@@ -235,6 +235,26 @@ def test_frontend_stage2_surfaces_product_text_shell_evidence():
     assert docs_html == html
 
 
+def test_frontend_stage2_surfaces_family_a_product_region_observability_cards():
+    html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    css = (ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
+    docs_html = (ROOT / "docs" / "stage2.html").read_text(encoding="utf-8")
+    docs_css = (ROOT / "docs" / "styles.css").read_text(encoding="utf-8")
+
+    assert "secondary_product_mode" in html
+    assert "product_annotation_owner" in html
+    assert "visible_annotation_count" in html
+    assert "const secondaryMode = productReview.secondary_product_mode || '';" in html
+    assert "const annotationOwner = productReview.product_annotation_owner || '';" in html
+    assert "const visibleCount =" in html
+    assert "s2-diagnostics-grid" in html
+    assert "s2-diagnostic-card" in css
+    assert "s2-diagnostic-key" in css
+    assert "s2-diagnostic-val" in css
+    assert docs_html == html
+    assert docs_css == css
+
+
 def test_api_response_schema_exposes_scenario_and_annotation_contract_review():
     """Prove that GeneratePosterV2Response schema and main.py both surface
     scenario_contract_review and product_annotation_contract_review.

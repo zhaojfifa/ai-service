@@ -3079,3 +3079,66 @@ Remaining risks:
 - the first migration batch is landed
 - `CLAUDE.md` now aligns shared state with doc-governance-first before the next Family A practical closure step
 - Family A now has a formal four-layer verification matrix skeleton bound to the accepted live sample
+
+## Family A practical closure PR1 — product region beautification + observability
+
+### Read state
+- Template A remains the active oracle line
+- structure / control / evidence / beautification skill adoption already exist for Family A
+- this step is limited to product-region practical closure and observability
+
+### Problem reproduced
+- Family A product-region polish was still effectively blind from the operator side
+- backend already knew `product_layout_mode`, `secondary_product_mode`, `product_annotation_owner`, and annotation visibility truth
+- Stage2 did not surface those product-region facts as explicit diagnostics cards
+- Family A product shell and annotation shell had frozen baseline semantics but still lacked the practical closure pass for shell / leader / marker expression
+
+### Root cause
+- product-region backend truth existed in resolver and contract review, but not all fields were surfaced clearly for operator review
+- Family A visual freeze pack did not yet carry the small product/annotation token refinements needed for practical closure
+- Pillow product annotation polish had a missing helper after the local visual pass, which broke the renderer regression suite until restored
+
+### Files changed
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/skills/beautification/family_a_beautification_freeze_pack_v1.py`
+- `app/templates_html/template_dual_v2.css`
+- `frontend/stage2.html`
+- `docs/stage2.html`
+- `frontend/styles.css`
+- `docs/styles.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `tests/test_frontend_docs_sync.py`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `docs/poster2/03_engineering/family_a/product_region_practical_beautification_observability_v1.md`
+- `docs/poster2/05_validation/family_a/product_region_practical_closure_status_v1.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+
+### Layer changed
+- Family A product-region beautification only
+- product-region metadata observability
+- Stage2 diagnostics visibility
+- Family A practical-closure docs / validation anchor
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'product or family_a or accepted_output_keys'`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+
+### Remaining risks
+- Family A live Chromium acceptance was not re-run in this step; the refresh anchor is the visual smoke fixture plus existing accepted live sample
+- bottom-region observability remains a separate PR and is not included here
+- Gemini copy optimizer integration remains out of scope for this product-region pass
+
+### Exact acceptance
+- `product_contract_review` now surfaces `secondary_product_mode` and `visible_annotation_count`
+- Stage2 product diagnostics now surface:
+  - `product_layout_mode`
+  - `secondary_product_mode`
+  - `product_annotation_owner`
+  - `visible_annotation_count`
+- Family A product shell / annotation shell / leader line / marker polish landed without geometry or ownership drift
+- Family A visual smoke fixture was refreshed to the new practical-closure baseline

@@ -105,6 +105,22 @@ def _is_template_b_template_id(template_id: str) -> bool:
     return template_id.startswith("template_product_sheet")
 
 
+def _hex_to_rgba(color: str, alpha: int) -> tuple[int, int, int, int]:
+    color = (color or "").strip()
+    if color.startswith("#"):
+        color = color[1:]
+    if len(color) == 3:
+        color = "".join(ch * 2 for ch in color)
+    if len(color) != 6:
+        raise ValueError(f"Unsupported hex color: {color!r}")
+    return (
+        int(color[0:2], 16),
+        int(color[2:4], 16),
+        int(color[4:6], 16),
+        max(0, min(alpha, 255)),
+    )
+
+
 def apply_family_a_beautification_freeze_pack(
     beauty_tokens: dict[str, object] | None,
     *,
@@ -632,20 +648,24 @@ class LayoutRenderer:
         canvas: PILImage.Image,
         callouts: list[tuple[FeatureCalloutSpec, str]],
     ) -> None:
-        draw = ImageDraw.Draw(canvas)
         for callout, text in callouts:
             if not text or callout.anchor_radius <= 0:
                 continue
             r = callout.anchor_radius
             ax, ay = callout.anchor_x, callout.anchor_y
-            draw.ellipse([ax - r - 2, ay - r - 2, ax + r + 2, ay + r + 2], fill=(255, 255, 255, 200))
-            draw.ellipse([ax - r, ay - r, ax + r, ay + r], fill=callout.anchor_color)
             lb = callout.label_box
-            draw.line(
+            overlay = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            overlay_draw.line(
                 [(ax, ay), (lb.x, lb.y + lb.h // 2)],
-                fill=callout.leader_color,
-                width=callout.leader_width,
+                fill=_hex_to_rgba(callout.leader_color, 210),
+                width=max(callout.leader_width + 1, 2),
             )
+            overlay_draw.ellipse([ax - r - 5, ay - r - 5, ax + r + 5, ay + r + 5], fill=(255, 255, 255, 210))
+            overlay_draw.ellipse([ax - r - 2, ay - r - 2, ax + r + 2, ay + r + 2], fill=_hex_to_rgba(callout.anchor_color, 44))
+            overlay_draw.ellipse([ax - r, ay - r, ax + r, ay + r], fill=_hex_to_rgba(callout.anchor_color, 255))
+            overlay = overlay.filter(ImageFilter.GaussianBlur(radius=0.35))
+            canvas.alpha_composite(overlay)
 
     def _draw_feature_callout_labels(
         self,
@@ -700,12 +720,15 @@ class LayoutRenderer:
         y0 = bounds["y"] - pad
         x1 = bounds["x"] + bounds["w"] + pad
         y1 = bounds["y"] + bounds["h"] + pad
-        draw = ImageDraw.Draw(canvas)
+        overlay = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
         # Subtle gray tint over text shell zone — visible on white shell background
-        draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(0, 0, 0, 18))
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(250, 244, 241, 138), outline=(232, 0, 42, 24), width=1)
         # Thin vertical separator line in the 28px gap between canvas right (756) and text shell (784)
         sep_x = bounds["x"] - 14  # midpoint of gap: 784 - 14 = 770
-        draw.line([(sep_x, y0 + 8), (sep_x, y1 - 8)], fill=(0, 0, 0, 35), width=1)
+        draw.line([(sep_x, y0 + 10), (sep_x, y1 - 10)], fill=(232, 0, 42, 52), width=1)
+        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=0.4))
+        canvas.alpha_composite(overlay)
 
     def _draw_image(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
         inner_x = slot.x + slot.pad_left

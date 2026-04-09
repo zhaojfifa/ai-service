@@ -48,11 +48,20 @@ body {
   --header-agent-chip-border: 1px solid rgba(232, 0, 42, 0.08);
   --product-canvas-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.00) 48%);
   --product-shell-inset: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  --product-shell-outline: inset 0 0 0 1px rgba(232, 0, 42, 0.06);
+  --product-shell-glow: 0 16px 32px rgba(232, 0, 42, 0.06);
   --annotation-card-surface: var(--feature-card-surface);
   --annotation-card-border: 1px solid rgba(232, 0, 42, 0.18);
   --annotation-card-shadow: 0 8px 20px rgba(22, 14, 14, 0.08);
+  --annotation-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.90);
   --annotation-leader-opacity: 0.88;
+  --annotation-leader-gradient: linear-gradient(90deg, rgba(232, 0, 42, 0.24), var(--accent-tone));
+  --annotation-leader-height: 2px;
   --annotation-marker-ring: rgba(232, 0, 42, 0.16);
+  --annotation-marker-core-shadow: 0 4px 12px rgba(232, 0, 42, 0.28);
+  --annotation-marker-size: 14px;
+  --annotation-marker-size-anchored: 16px;
+  --annotation-label-letter-spacing: 0.005em;
   --title-band-top-rule: linear-gradient(90deg, rgba(232, 0, 42, 0.16), rgba(232, 0, 42, 0.00));
   --gallery-item-surface: rgba(255, 255, 255, 0.76);
   --gallery-item-border: 1px solid rgba(255, 255, 255, 0.56);
@@ -476,7 +485,9 @@ body {
   background: var(--shell-surface-product);
   box-shadow:
     var(--shell-shadow-main),
-    var(--product-shell-inset);
+    var(--product-shell-inset),
+    var(--product-shell-outline),
+    var(--product-shell-glow);
 }
 
 .region-shell-product-canvas {
@@ -489,7 +500,8 @@ body {
   overflow: hidden;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.48),
-    inset 0 -20px 32px rgba(255, 255, 255, 0.18);
+    inset 0 -20px 32px rgba(255, 255, 255, 0.18),
+    inset 0 24px 48px rgba(255, 255, 255, 0.12);
 }
 
 .region-shell-product-canvas::after {
@@ -685,25 +697,24 @@ body {
   border: var(--annotation-card-border);
   box-shadow:
     var(--annotation-card-shadow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.90);
-  letter-spacing: 0.005em;
+    var(--annotation-card-inset);
+  letter-spacing: var(--annotation-label-letter-spacing);
   text-wrap: balance;
   hyphens: none;
 }
 
 .feature-callout-connector {
   position: absolute;
-  height: 2px;
+  height: var(--annotation-leader-height);
   transform: translateY(-50%);
-  background: linear-gradient(90deg, rgba(232, 0, 42, 0.24), var(--accent-tone));
+  background: var(--annotation-leader-gradient);
   border-radius: 1px;
   opacity: 0.72;
 }
 
 .product-annotation-mode-product_anchor_callouts .feature-callout-connector {
-  background: var(--accent-tone);
   opacity: var(--annotation-leader-opacity);
-  height: 1.5px;
+  height: var(--annotation-leader-height);
 }
 
 .layer-feature-callouts.feature-mode-4 .feature-callout-connector {
@@ -712,8 +723,8 @@ body {
 
 .feature-callout-marker {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: var(--annotation-marker-size);
+  height: var(--annotation-marker-size);
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: var(--accent-tone);
@@ -723,12 +734,12 @@ body {
 }
 
 .product-annotation-mode-product_anchor_callouts .feature-callout-marker {
-  width: 16px;
-  height: 16px;
+  width: var(--annotation-marker-size-anchored);
+  height: var(--annotation-marker-size-anchored);
   box-shadow:
     0 0 0 3px rgba(255, 255, 255, 0.90),
     0 0 0 5px var(--annotation-marker-ring),
-    0 4px 12px rgba(232, 0, 42, 0.28);
+    var(--annotation-marker-core-shadow);
 }
 
 .layer-bottom-region {

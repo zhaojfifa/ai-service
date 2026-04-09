@@ -66,6 +66,10 @@ Then read only the task-relevant status / plan / validation documents.
 - [copy_quality_phase1_status_v1.md](03_engineering/copy_quality_phase1_status_v1.md)
 - [stage1_operator_input_surface_bugfix_status_v1.md](03_engineering/stage1_operator_input_surface_bugfix_status_v1.md)
 
+Family A practical closure:
+
+- [product_region_practical_beautification_observability_v1.md](03_engineering/family_a/product_region_practical_beautification_observability_v1.md)
+
 ### 04 Skills
 
 - [skill_rules_and_storage_v1.md](04_skills/skill_rules_and_storage_v1.md)
@@ -78,6 +82,7 @@ Core verification anchors:
 - [template_a_rebaseline_status_v1.md](05_validation/template_a_rebaseline_status_v1.md)
 - [template_a_beautification_freeze_status_v1.md](05_validation/template_a_beautification_freeze_status_v1.md)
 - [template_a_isolation_rebaseline_status_v1.md](05_validation/template_a_isolation_rebaseline_status_v1.md)
+- [product_region_practical_closure_status_v1.md](05_validation/family_a/product_region_practical_closure_status_v1.md)
 - [bottom_behavior_contract_status_v1.md](05_validation/bottom_behavior_contract_status_v1.md)
 - [product_region_annotation_contract_status_v1.md](05_validation/product_region_annotation_contract_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](05_validation/scenario_region_resolver_and_renderer_parity_status_v1.md)
@@ -120,6 +125,6 @@ The formal doc path is defined only by:
 
 ## Current Mainline
 
-- current temporary priority override = poster2 doc path and naming governance, then Family A four-layer practical closure
+- current temporary priority override = Family A practical beautification closure with observability and verification
 - Template A remains the active oracle line for shared-skill and freeze verification
-- Template B remains unchanged during the current document-governance pass
+- Template B remains unchanged during the current practical-closure pass
