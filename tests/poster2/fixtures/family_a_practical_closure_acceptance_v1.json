@@ -1,0 +1,35 @@
+{
+  "template_id": "template_dual_v2",
+  "canonical_sample_name": "annotation_triplet_gallery_triplet_subtitle_present",
+  "final_hash": "194a61c2df4638038e0b61effd5c63b70a17fcb53bf404d4c68e0b03cd4f04b0",
+  "foreground_hash": "e6caf28f449511751014934745a59e4a5094ce2c17caf3a9554d0d4c42e9320e",
+  "metadata_sha256": "3698cb8da09c5ecda05eaacfc33e1669201e1a85598787b6942253357ea575ae",
+  "render_engine_used": "puppeteer",
+  "degraded": false,
+  "structure_complete": true,
+  "deliverable": true,
+  "product_layout_mode": "single_primary",
+  "secondary_product_mode": "inset_hidden_no_reserve",
+  "subtitle_state": "present_rendered",
+  "required_contract_reviews": [
+    "hero_contract_review",
+    "product_contract_review",
+    "header_contract_review",
+    "feature_contract_review",
+    "bottom_contract_review",
+    "product_annotation_contract_review"
+  ],
+  "required_ui_diagnostics": [
+    "product_layout_mode",
+    "secondary_product_mode",
+    "product_annotation_owner",
+    "visible_annotation_count",
+    "bottom_mode",
+    "subtitle_slot.state",
+    "title_rendered",
+    "subtitle_rendered",
+    "gallery_distribution_policy",
+    "optimizer_used",
+    "changed_fields"
+  ]
+}

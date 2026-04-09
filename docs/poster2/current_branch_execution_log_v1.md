@@ -3279,3 +3279,63 @@ Family A practical closure had product and bottom observability, but copy optimi
 - Stage2 can expose optimization mode / decision / optimizer used / changed fields
 - operator can accept or reject optimization without changing geometry or ownership
 - annotation optimization is count-preserving and cannot create new control truth
+
+---
+
+## Entry — PR-A-PRACTICAL-4: Family A validation closeout
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/05_validation/family_a_four_layer_verification_matrix_v1.md`
+- `docs/poster2/05_validation/template_a_beautification_freeze_status_v1.md`
+- `docs/poster2/05_validation/template_a_rebaseline_status_v1.md`
+
+### Scope
+
+- Template A only
+- validation closeout only
+- bind final image + metadata + contract review + UI diagnostics
+- no new renderer / behavior / geometry work
+
+### Root cause
+
+The Family A practical-closure sequence was implemented step by step, but the final acceptance binding still lived across multiple separate docs and log entries.
+
+That made the accepted sample, hashes, diagnostics set, and contract-review set harder to verify as one closure pack.
+
+### Files changed
+
+- `tests/poster2/fixtures/family_a_practical_closure_acceptance_v1.json`
+- `tests/poster2/test_validation_docs.py`
+- `docs/poster2/05_validation/family_a/family_a_practical_closure_status_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_practical_closure_verification_matrix_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Validation run
+
+- `./.venv/bin/python -m pytest -q tests/poster2/test_validation_docs.py` -> pass
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py tests/test_stage2_guard_diagnostics_surface.py` -> pass
+- no Family A runtime logic was reopened in this step
+
+### Remaining risks
+
+- the acceptance artifact bundle remains referenced from the existing execution log rather than stored in repo
+- this closeout pass does not resolve the older out-of-scope bottom geometry/history failures already documented elsewhere
+
+### Exact acceptance
+
+- Family A practical closure now has:
+  - a dedicated acceptance fixture
+  - a dedicated practical-closure status doc
+  - a dedicated practical-closure verification matrix
+- canonical sample name, hashes, frozen modes, and UI diagnostics are now tied together in one formal validation set
