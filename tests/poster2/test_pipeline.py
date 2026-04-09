@@ -5532,6 +5532,41 @@ class TestTemplateBBackendGenerationFix:
         assert review["annotation_items"][2]["optimized_text"] != "Smart controls"
         assert review["annotation_items"][2]["optimized_text"] != review["annotation_items"][2]["sanitized_text"]
 
+    def test_template_a_annotation_sanitization_remains_hygiene_only(self):
+        spec = _make_spec(
+            features=(
+                "Fast preheat for busy weeknight cooking",
+                "Easy cleanup after family dinners",
+                "Smart controls for daily convenience",
+            ),
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["annotation_items"][2]["requested_text"] == "Smart controls for daily convenience"
+        assert review["annotation_items"][2]["sanitized_text"] == "Smart controls for daily convenience"
+        assert review["annotation_items"][2]["fit_rewrite_text"] == "Daily smart controls"
+        assert review["annotation_items"][2]["fit_rewrite_applied"] is True
+        assert review["annotation_items"][2]["fit_rewrite_reason"] == "annotation_slot_budget_fit_required"
+
+    def test_template_a_subtitle_cleanup_and_fit_rewrite_flow_are_visible(self):
+        spec = _make_spec(
+            title="Smart steam oven for open kitchens",
+            subtitle="The immersive experience of smart steam-and-bake combos in modern open kitchens describe!!!",
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["subtitle"]["cleanup_text"].endswith("modern open kitchens")
+        assert "describe" not in review["subtitle"]["cleanup_text"].casefold()
+        assert review["subtitle"]["fit_rewrite_applied"] is True
+        assert review["subtitle"]["fit_rewrite_reason"] == "subtitle_budget_fit_required"
+        assert review["subtitle"]["rendered_text_source"] == "fit_rewrite_text"
+        assert manifest.subtitle_text_layer["rendered_text_source"] == "fit_rewrite_text"
+        assert manifest.subtitle_text_layer["truncation_applied"] is False
+
     def test_template_a_copy_optimization_accepts_optimized_copy_without_changing_annotation_count(self):
         spec = _make_spec(
             title="Cook smarter every day",
@@ -5578,8 +5613,10 @@ class TestTemplateBBackendGenerationFix:
         assert review["applied_to_rendered_output"] is True
         assert review["subtitle"]["optimized_text"] == "Revamp kitchen efficiency · daily-use controls"
         assert review["subtitle"]["rendered_text"] == review["subtitle"]["optimized_text"]
+        assert review["subtitle"]["rendered_text_source"] == "optimized_text"
         assert review["annotation_items"][2]["optimized_text"] == "Daily smart controls"
         assert review["annotation_items"][2]["rendered_text"] == review["annotation_items"][2]["optimized_text"]
+        assert review["annotation_items"][2]["rendered_text_source"] == "optimized_text"
         assert manifest.subtitle_text_layer["sanitized_text"] == review["subtitle"]["optimized_text"]
 
     def test_template_a_product_annotation_slots_surface_fixed_budget_and_truncation_fields(self):

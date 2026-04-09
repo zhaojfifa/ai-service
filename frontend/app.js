@@ -616,15 +616,23 @@ function buildPoster2CopyLineageRow(label, fieldReview) {
   if (!fieldReview) return '';
   const requestedText = fieldReview.requested_text || '—';
   const sanitizedText = fieldReview.sanitized_text || '—';
+  const cleanupText = fieldReview.cleanup_text || '—';
+  const fitRewriteText = fieldReview.fit_rewrite_text || '—';
   const optimizedText = fieldReview.optimized_text || '—';
+  const acceptedText = fieldReview.accepted_text || '—';
   const renderedText = fieldReview.rendered_text || '—';
+  const renderedSource = fieldReview.rendered_text_source || 'sanitized_text';
   const changed = optimizedText !== '—' && optimizedText !== sanitizedText;
   return `
     <div class="s2-slot-note"><strong>${label}</strong> ${changed ? '[diff]' : '[same]'}</div>
     <div class="s2-slot-note">requested_text -> ${requestedText}</div>
     <div class="s2-slot-note">sanitized_text -> ${sanitizedText}</div>
+    <div class="s2-slot-note">cleanup_text -> ${cleanupText}</div>
+    <div class="s2-slot-note">fit_rewrite_text -> ${fitRewriteText}</div>
     <div class="s2-slot-note">optimized_text -> ${optimizedText}</div>
+    <div class="s2-slot-note">accepted_text -> ${acceptedText}</div>
     <div class="s2-slot-note">rendered_text -> ${renderedText}</div>
+    <div class="s2-slot-note">rendered_text_source -> ${renderedSource}</div>
   `;
 }
 

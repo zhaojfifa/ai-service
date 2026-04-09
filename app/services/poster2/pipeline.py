@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import asdict, replace
@@ -20,7 +21,6 @@ from typing import Optional
 
 from PIL import Image as PILImage
 from app.services.email.copy_safety import (
-    compress_marketing_point,
     normalize_marketing_subtitle,
     normalize_marketing_title,
 )
@@ -420,6 +420,7 @@ class PosterPipeline:
                 resolved_behavior=resolved_behavior,
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
+                copy_optimization_review=copy_optimization_review,
             ),
             "header_contract_review": _build_header_contract_review(
                 template,
@@ -464,6 +465,7 @@ class PosterPipeline:
                 effective_spec=effective_spec,
                 resolved_behavior=resolved_behavior,
                 region_render_status=quality_guard_report.region_render_status,
+                copy_optimization_review=copy_optimization_review,
             ),
             "scenario_contract_review": _build_scenario_contract_review(
                 template,
@@ -494,12 +496,14 @@ class PosterPipeline:
                 requested_spec=requested_spec,
                 effective_spec=effective_spec,
                 resolved_behavior=resolved_behavior,
+                copy_optimization_review=copy_optimization_review,
             ),
             "subtitle_text_layer": _build_subtitle_text_layer_evidence(
                 template,
                 requested_spec=requested_spec,
                 effective_spec=effective_spec,
                 resolved_behavior=resolved_behavior,
+                copy_optimization_review=copy_optimization_review,
             ),
             "header_text_layer": _build_header_text_layer_evidence(
                 template,
@@ -639,6 +643,22 @@ def _normalize_requested_text(value: str) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+_INVALID_TEXT_CHAR_RE = re.compile(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]")
+
+
+def _normalize_hygiene_only_text(value: str) -> str:
+    text = _normalize_requested_text(value)
+    if not text:
+        return ""
+    text = _INVALID_TEXT_CHAR_RE.sub("", text)
+    text = text.replace("\u00a0", " ")
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\s*\n\s*", " ", text)
+    text = re.sub(r"\s+([,;:!?])", r"\1", text)
+    text = re.sub(r"([!?.,;:]){2,}", r"\1", text)
+    return text.strip()
+
+
 def _is_template_b_template(template: TemplateSpec) -> bool:
     return template.template_id.startswith("template_product_sheet")
 
@@ -685,11 +705,18 @@ def _normalize_contract_text_spec(spec: PosterSpec, template=None) -> PosterSpec
     sku_text = _normalize_requested_text(spec.sku_text)
     description_title = normalize_marketing_title(_normalize_requested_text(spec.description_title))
     description_body = _normalize_requested_text(spec.description_body)
-    features = tuple(
-        normalized
-        for item in spec.features
-        if (normalized := compress_marketing_point(_normalize_requested_text(item)))
-    )
+    if (template.template_id if template else spec.template_id) == "template_dual_v2":
+        features = tuple(
+            normalized
+            for item in spec.features
+            if (normalized := _normalize_hygiene_only_text(item))
+        )
+    else:
+        features = tuple(
+            normalized
+            for item in spec.features
+            if (normalized := _normalize_requested_text(item))
+        )
     if not brand_name:
         raise ValueError("brand_name must not be empty after normalization")
     # gallery_only collapses the title band by design; title is not required for this mode.
@@ -2110,6 +2137,7 @@ def _build_product_contract_review(
     resolved_behavior,
     layer_render_status: dict[str, dict[str, object]],
     region_render_status: dict[str, dict[str, object]],
+    copy_optimization_review: dict[str, object] | None = None,
 ) -> dict[str, object]:
     product_policy = resolved_behavior.product_policy
     if effective_spec.template_id.startswith("template_product_sheet"):
@@ -2236,6 +2264,11 @@ def _build_product_contract_review(
     for index in range(product_policy.max_annotation_items):
         requested_text = requested_items[index] if index < len(requested_items) else ""
         sanitized_text = sanitized_items[index] if index < len(sanitized_items) else ""
+        optimization_item = (
+            copy_optimization_review.get("annotation_items", [])[index]
+            if copy_optimization_review and index < len(copy_optimization_review.get("annotation_items", []))
+            else {}
+        )
         rendered = (
             product_policy.annotation_mode != "none"
             and index < product_policy.visible_annotation_count
@@ -2257,6 +2290,14 @@ def _build_product_contract_review(
                 "slot_fixed": True,
                 "requested_text": requested_text,
                 "sanitized_text": sanitized_text,
+                "cleanup_text": optimization_item.get("cleanup_text", sanitized_text),
+                "fit_rewrite_text": optimization_item.get("fit_rewrite_text", sanitized_text),
+                "fit_rewrite_applied": bool(optimization_item.get("fit_rewrite_applied", False)),
+                "fit_rewrite_reason": optimization_item.get("fit_rewrite_reason", ""),
+                "optimized_text": optimization_item.get("optimized_text", ""),
+                "accepted_text": optimization_item.get("accepted_text", ""),
+                "rendered_text": optimization_item.get("rendered_text", rendered_excerpt),
+                "rendered_text_source": optimization_item.get("rendered_text_source", "sanitized_text"),
                 "rendered_excerpt": rendered_excerpt,
                 "char_budget": product_policy.char_budget,
                 "line_clamp": product_policy.line_clamp,
@@ -2548,6 +2589,7 @@ def _build_product_annotation_contract_review(
     effective_spec: PosterSpec,
     resolved_behavior,
     region_render_status: dict[str, dict[str, object]],
+    copy_optimization_review: dict[str, object] | None = None,
 ) -> dict[str, object]:
     feature_policy = resolved_behavior.feature_policy
     product_policy = resolved_behavior.product_policy
@@ -2576,6 +2618,11 @@ def _build_product_annotation_contract_review(
             if i < len(effective_spec.features)
             else ""
         )
+        optimization_item = (
+            copy_optimization_review.get("annotation_items", [])[i]
+            if copy_optimization_review and i < len(copy_optimization_review.get("annotation_items", []))
+            else {}
+        )
         is_visible = i < product_policy.visible_annotation_count and bool(sanitized_text)
         rendered_excerpt = (
             _apply_text_budget_word_safe(sanitized_text, product_policy.char_budget)
@@ -2601,6 +2648,14 @@ def _build_product_annotation_contract_review(
             "rendered": is_visible,
             "requested_text": requested_text,
             "sanitized_text": sanitized_text,
+            "cleanup_text": optimization_item.get("cleanup_text", sanitized_text),
+            "fit_rewrite_text": optimization_item.get("fit_rewrite_text", sanitized_text),
+            "fit_rewrite_applied": bool(optimization_item.get("fit_rewrite_applied", False)),
+            "fit_rewrite_reason": optimization_item.get("fit_rewrite_reason", ""),
+            "optimized_text": optimization_item.get("optimized_text", ""),
+            "accepted_text": optimization_item.get("accepted_text", ""),
+            "rendered_text": optimization_item.get("rendered_text", rendered_excerpt),
+            "rendered_text_source": optimization_item.get("rendered_text_source", "sanitized_text"),
             "rendered_excerpt": rendered_excerpt,
             "char_budget": product_policy.char_budget,
             "line_clamp": product_policy.line_clamp,
@@ -2889,6 +2944,7 @@ def _build_title_text_layer_evidence(
     requested_spec: PosterSpec,
     effective_spec: PosterSpec,
     resolved_behavior,
+    copy_optimization_review: dict[str, object] | None = None,
 ) -> dict[str, object]:
     if _is_template_b_template(template):
         rendered = bool(resolved_behavior.top_copy_policy and resolved_behavior.top_copy_policy.title_present)
@@ -2929,6 +2985,13 @@ def _build_title_text_layer_evidence(
         "slot_bounds": slot_bounds,
         "requested_text": requested_spec.title,
         "sanitized_text": sanitized,
+        "cleanup_text": (copy_optimization_review or {}).get("title", {}).get("cleanup_text", sanitized),
+        "fit_rewrite_text": (copy_optimization_review or {}).get("title", {}).get("fit_rewrite_text", sanitized),
+        "fit_rewrite_applied": bool((copy_optimization_review or {}).get("title", {}).get("fit_rewrite_applied", False)),
+        "fit_rewrite_reason": (copy_optimization_review or {}).get("title", {}).get("fit_rewrite_reason", ""),
+        "optimized_text": (copy_optimization_review or {}).get("title", {}).get("optimized_text", ""),
+        "accepted_text": (copy_optimization_review or {}).get("title", {}).get("accepted_text", ""),
+        "rendered_text_source": (copy_optimization_review or {}).get("title", {}).get("rendered_text_source", "sanitized_text"),
         "rendered_excerpt": rendered_excerpt,
         "truncation_applied": truncation_applied,
         "line_clamp": line_clamp,
@@ -2946,6 +3009,7 @@ def _build_subtitle_text_layer_evidence(
     requested_spec: PosterSpec,
     effective_spec: PosterSpec,
     resolved_behavior,
+    copy_optimization_review: dict[str, object] | None = None,
 ) -> dict[str, object]:
     if _is_template_b_template(template):
         rendered = bool(resolved_behavior.top_copy_policy and resolved_behavior.top_copy_policy.subtitle_present)
@@ -2986,6 +3050,13 @@ def _build_subtitle_text_layer_evidence(
         "slot_bounds": slot_bounds,
         "requested_text": requested_spec.subtitle,
         "sanitized_text": sanitized,
+        "cleanup_text": (copy_optimization_review or {}).get("subtitle", {}).get("cleanup_text", sanitized),
+        "fit_rewrite_text": (copy_optimization_review or {}).get("subtitle", {}).get("fit_rewrite_text", sanitized),
+        "fit_rewrite_applied": bool((copy_optimization_review or {}).get("subtitle", {}).get("fit_rewrite_applied", False)),
+        "fit_rewrite_reason": (copy_optimization_review or {}).get("subtitle", {}).get("fit_rewrite_reason", ""),
+        "optimized_text": (copy_optimization_review or {}).get("subtitle", {}).get("optimized_text", ""),
+        "accepted_text": (copy_optimization_review or {}).get("subtitle", {}).get("accepted_text", ""),
+        "rendered_text_source": (copy_optimization_review or {}).get("subtitle", {}).get("rendered_text_source", "sanitized_text"),
         "rendered_excerpt": rendered_excerpt,
         "truncation_applied": truncation_applied,
         "line_clamp": line_clamp,

@@ -232,8 +232,12 @@ def test_frontend_stage2_surfaces_family_a_copy_optimization_controls_and_trace(
     assert "mode: 'suggest'" in js
     assert "requested_text ->" in js
     assert "sanitized_text ->" in js
+    assert "cleanup_text ->" in js
+    assert "fit_rewrite_text ->" in js
     assert "optimized_text ->" in js
+    assert "accepted_text ->" in js
     assert "rendered_text ->" in js
+    assert "rendered_text_source ->" in js
     assert "Show lineage" in js
     assert "Hide lineage" in js
     assert "toggleBtn.textContent = 'Show lineage';" in js
@@ -314,6 +318,10 @@ def test_frontend_stage2_surfaces_family_a_product_region_observability_cards():
     assert "char_budget" in html
     assert "line_clamp" in html
     assert "rendered_excerpt:" in html
+    assert "cleanup:" in html
+    assert "fit_rewrite:" in html
+    assert "accepted:" in html
+    assert "rendered_source:" in html
     assert "truncation_applied:" in html
     assert "optimized:" in html
     assert "s2-diagnostics-grid" in html

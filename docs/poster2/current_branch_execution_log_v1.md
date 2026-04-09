@@ -1,5 +1,108 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-A-TEXT1..4: Template A text contract repair and product-region text closure
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-09
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+- `docs/poster2/05_validation/template_a_beautification_freeze_status_v1.md`
+- `docs/poster2/05_validation/template_a_rebaseline_status_v1.md`
+
+### Scope
+
+- Template A text contract repair only
+- no geometry changes
+- no ownership changes
+- no Template B work
+- feature_region remains delegated diagnostic
+
+### Root rules followed
+
+- contract-first
+- renderer executes truth; renderer does not define truth
+- no geometry drift
+- no ownership drift
+- no Template B expansion
+
+### Problem reproduced
+
+Template A text lifecycle still had three practical failures:
+
+1. annotation `sanitized_text` was destructive for slot 3
+2. accepted optimization did not fully and explicitly drive final rendered text
+3. subtitle cleanup / fit handling still allowed clipped or noisy output
+
+### Root cause found
+
+1. `pipeline._normalize_contract_text_spec()` still compressed Template A annotation inputs during sanitization
+2. `copy_optimizer.resolve_copy_optimization()` did not model cleanup / fit rewrite as explicit pre-render stages
+3. metadata/UI lineage stopped too early and did not expose final render source clearly
+
+### Files changed
+
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/copy_optimizer.py`
+- `frontend/app.js`
+- `frontend/stage2.html`
+- `docs/app.js`
+- `docs/stage2.html`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/03_engineering/family_a/template_a_text_contract_repair_and_product_region_text_closure_v1.md`
+- `docs/poster2/05_validation/family_a/template_a_text_contract_repair_and_product_region_text_closure_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- contract
+- validation
+- resolver / behavior wiring
+- evidence / metadata
+- Stage2 renderer consumption
+- docs
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/pipeline.py app/services/poster2/copy_optimizer.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py` -> `pass`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'copy_optimization or annotation_sanitization or subtitle_cleanup_and_fit_rewrite'` -> `8 passed, 291 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py` -> `116 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'copy_optimization or generate_poster_v2_route_is_backward_compatible'` -> `2 passed, 26 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py` -> `17 passed`
+
+### Exact acceptance
+
+- annotation slot 3 no longer collapses from `Smart controls for daily convenience` to `Smart controls` during sanitize
+- Template A subtitle and annotation now expose:
+  - `cleanup_text`
+  - `fit_rewrite_text`
+  - `fit_rewrite_applied`
+  - `fit_rewrite_reason`
+  - `accepted_text`
+  - `rendered_text_source`
+- accepted optimization can become the actual rendered candidate
+- Stage2 now shows the final text-source chain without reopening layout or geometry
+
+### Remaining risks
+
+- this pass did not reopen Family A bottom structure or geometry backlog
+- old root-level poster2 doc deletions remain unstaged workspace residue and were intentionally left untouched
+
+---
+
 ## Entry — PR-TB-D1: establish Template B design baseline v1 as an Industrial Sheet
 
 **Branch:** `main`

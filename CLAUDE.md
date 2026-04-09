@@ -9,7 +9,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 ## Current poster2 baseline
 
 - Product baseline: `docs/poster2/poster_generation_product_design_baseline_v1.md`
-- Family A architecture anchor: `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- Family A architecture anchor: `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
 - Branch execution log: `docs/poster2/current_branch_execution_log_v1.md`
 
 ## Current established state
@@ -77,12 +77,12 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current temporary priority override = Family A copy quality closure under the practical freeze line
+- current temporary priority override = Template A text contract repair and product-region text closure
 - Family A isolation repair + anti-crossline hardening remains the repaired baseline under this freeze pass
 - current narrow insertion before further A-freeze work: Template A bottom support-copy mapping alignment (`Bottom Support Copy` UI label -> canonical backend `subtitle`) is complete
 - fresh Family A live Chromium acceptance has now been captured on a non-degraded Puppeteer path
-- current poster2 priority: Template A copy quality closure for subtitle + annotation rendered quality
-- current active practical-closure step: Template A copy optimization UI fold + apply-to-render closure
+- current poster2 priority: Template A text lifecycle closure for subtitle + product annotation render truth
+- current active practical-closure step: non-destructive sanitize + fit rewrite + accepted optimization render source alignment
 - current priority after the Template A freeze pass: resume deployed-environment validation for Gemini quality and Resend live closure behavior
 - next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
