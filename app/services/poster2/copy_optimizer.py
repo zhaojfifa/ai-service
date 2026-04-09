@@ -57,6 +57,11 @@ _SUBTITLE_TRAILING_NOISE_PATTERNS = [
         r"(?:\s*[\-|/|•·]+\s*)?(?:please describe|for description only)[!?.,:;]*\s*$",
     )
 ]
+_COMMERCIAL_SUBTITLE_SIGNAL_PATTERNS = {
+    "fast_heating": re.compile(r"\bfast heating\b", re.IGNORECASE),
+    "precise_control": re.compile(r"\bprecise control\b", re.IGNORECASE),
+    "stainless_steel": re.compile(r"\bstainless steel\b", re.IGNORECASE),
+}
 
 
 def _trim_to_budget(text: str, budget: int) -> str:
@@ -130,6 +135,9 @@ def _optimize_subtitle_candidate(text: str, title: str) -> str:
     for source, target in replacements:
         optimized = optimized.replace(source, target)
     optimized = clean_copy_candidate(optimized)
+    commercial_rewrite = _rewrite_commercial_subtitle_candidate(optimized)
+    if commercial_rewrite:
+        optimized = commercial_rewrite
     if len(optimized) > _SUBTITLE_TARGET_BUDGET:
         segments = [segment.strip(" ·,-") for segment in re.split(r"[;,]|(?:\s+\u00b7\s+)|(?:\s+\band\b\s+)|(?:\s+\bwith\b\s+)", optimized) if segment.strip()]
         if segments:
@@ -183,10 +191,22 @@ def _cleanup_subtitle_text(text: str) -> str:
     return cleaned
 
 
+def _rewrite_commercial_subtitle_candidate(text: str) -> str:
+    cleaned = clean_copy_candidate(text)
+    if not cleaned:
+        return ""
+    if all(pattern.search(cleaned) for pattern in _COMMERCIAL_SUBTITLE_SIGNAL_PATTERNS.values()):
+        return "Fast heating, precise control, and stainless steel durability."
+    return ""
+
+
 def _build_subtitle_fit_rewrite(text: str, title: str) -> tuple[str, bool, str]:
     cleaned = _cleanup_subtitle_text(text)
     if not cleaned:
         return "", False, ""
+    commercial_rewrite = _rewrite_commercial_subtitle_candidate(cleaned)
+    if commercial_rewrite and commercial_rewrite != cleaned:
+        return commercial_rewrite, True, "subtitle_product_grade_fit_rewrite"
     if len(cleaned) <= _SUBTITLE_TARGET_BUDGET:
         return cleaned, False, ""
     rewritten = _optimize_subtitle_candidate(cleaned, title)

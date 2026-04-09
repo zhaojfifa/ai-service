@@ -3226,6 +3226,12 @@ class TestProductTextCapacityPRC:
         policy = resolve_feature_behavior("product_anchor_callouts", requested_count=3, max_items=3)
         assert policy.line_clamp == 3
 
+    def test_feature_behavior_char_budget_raised_three_items(self):
+        """Family A fryer micro-structure: delegated feature diagnostics mirror the 3-slot budget increase."""
+        from app.services.poster2.template_behavior import resolve_feature_behavior
+        policy = resolve_feature_behavior("product_anchor_callouts", requested_count=3, max_items=3)
+        assert policy.char_budget == 48
+
     def test_feature_behavior_truncation_policy_is_three_line_clamp(self):
         """PR-C: product_anchor_callouts truncation_policy must be 'three_line_clamp'."""
         from app.services.poster2.template_behavior import resolve_feature_behavior
@@ -3233,7 +3239,7 @@ class TestProductTextCapacityPRC:
         assert policy.truncation_policy == "three_line_clamp"
 
     def test_char_budget_raised_three_items(self):
-        """PR-11: char_budget for 3 annotation items must be 44 (widened from 32 with label w 144→176)."""
+        """Family A fryer micro-structure: 3 fixed annotation slots keep geometry but raise budget to 48."""
         from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
         template = _load_template()
         hero = resolve_hero_behavior("scenario_cover_product_contain")
@@ -3245,10 +3251,10 @@ class TestProductTextCapacityPRC:
             requested_feature_count=3,
             hero_policy=hero,
         )
-        assert policy.char_budget == 44
+        assert policy.char_budget == 48
 
     def test_char_budget_raised_two_items(self):
-        """PR-11: char_budget for 2 annotation items must be 46 (widened from 38 with label w 144→176)."""
+        """Family A fryer micro-structure: 2 fixed annotation slots raise budget to 52."""
         from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
         template = _load_template()
         hero = resolve_hero_behavior("scenario_cover_product_contain")
@@ -3260,10 +3266,10 @@ class TestProductTextCapacityPRC:
             requested_feature_count=2,
             hero_policy=hero,
         )
-        assert policy.char_budget == 46
+        assert policy.char_budget == 52
 
     def test_char_budget_raised_one_item(self):
-        """PR-11: char_budget for 1 annotation item must be 52 (widened from 44 with label w 144→176)."""
+        """Family A fryer micro-structure: 1 fixed annotation slot raises budget to 56."""
         from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
         template = _load_template()
         hero = resolve_hero_behavior("scenario_cover_product_contain")
@@ -3275,7 +3281,7 @@ class TestProductTextCapacityPRC:
             requested_feature_count=1,
             hero_policy=hero,
         )
-        assert policy.char_budget == 52
+        assert policy.char_budget == 56
 
     def test_text_budget_policy_is_three_line_label(self):
         """PR-C: product annotation text_budget_policy must be 'fixed_3_anchor_three_line_budget'."""
@@ -5571,6 +5577,26 @@ class TestTemplateBBackendGenerationFix:
         assert review["subtitle"]["rendered_text_source"] == "fit_rewrite_text"
         assert manifest.subtitle_text_layer["rendered_text_source"] == "fit_rewrite_text"
         assert manifest.subtitle_text_layer["truncation_applied"] is False
+
+    def test_template_a_fryer_dense_quad_split_keeps_product_grade_subtitle_in_render(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+            copy_optimization=CopyOptimizationSpec(mode="off", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        bottom_review = manifest.bottom_contract_review
+        assert review["subtitle"]["fit_rewrite_applied"] is True
+        assert review["subtitle"]["fit_rewrite_reason"] == "subtitle_product_grade_fit_rewrite"
+        assert review["subtitle"]["fit_rewrite_text"] == "Fast heating, precise control, and stainless steel durability."
+        assert review["subtitle"]["rendered_text"] == review["subtitle"]["fit_rewrite_text"]
+        assert review["subtitle"]["rendered_text_source"] == "fit_rewrite_text"
+        assert bottom_review["behavior_policy"]["subtitle_line_clamp"] == 2
+        assert bottom_review["rendered_subtitle_excerpt"] == review["subtitle"]["fit_rewrite_text"]
+        assert bottom_review["subtitle_truncation_applied"] is False
 
     def test_template_a_copy_optimization_accepts_optimized_copy_without_changing_annotation_count(self):
         spec = _make_spec(

@@ -3949,3 +3949,105 @@ After
 - product annotation remains fixed-slot and product-owned, but structured render now respects the current slot contract
 - bottom remains `title_gallery_split`
 - 4-item strip keeps gallery ownership while reading less crowded through bounded dense-quad spacing changes
+
+## 2026-04-10 — Family A fryer product annotation shell micro-structure
+
+### Root rules followed
+
+- Template A only
+- contract-first
+- no geometry changes
+- no ownership drift
+- no Template B work
+
+### Problem reproduced
+
+- the latest fryer live result was contract-safe but the fixed-width product benefit cards still read cramped
+- slot geometry and anchor positions were healthy; the issue was shell text capacity, not placement
+
+### Root cause
+
+- Family A fixed-slot product annotations still used the older `56/46/44`-era text consumption balance inside unchanged `176x76` cards
+- inner padding and line-height left too little usable room for short commercial benefit phrases
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `docs/poster2/03_engineering/family_a/family_a_product_annotation_shell_micro_structure_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_product_annotation_shell_micro_structure_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Family A fixed-slot product annotation shell consumption only
+
+### Validation run
+
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'char_budget_raised or annotation_sanitization_remains_hygiene_only or product_annotation_slots_surface_fixed_budget_and_truncation_fields'` -> passed
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'family_a_visual_smoke_hashes_match_fixture or four_item_positions'` -> passed after fixture refresh
+
+### Remaining risks
+
+- this is a fixed-card capacity refinement only, not a product-region redesign
+- live Chromium fryer verification remains separate
+
+### Exact acceptance
+
+- annotation remains fixed-slot and product-owned
+- slot geometry remains unchanged
+- `char_budget` now resolves to `56 / 52 / 48`
+- structured HTML smoke updated without Pillow geometry drift
+
+## 2026-04-10 — Family A fryer bottom text finalization
+
+### Root rules followed
+
+- Template A only
+- contract-first
+- no geometry changes
+- no ownership drift
+- no Template B work
+
+### Problem reproduced
+
+- fryer bottom subtitle was present again, but the final rendered sentence still collapsed into an under-finished support-copy fragment
+- metadata lineage existed, but the rendered candidate was not yet product-grade enough for freeze
+
+### Root cause
+
+- subtitle cleanup already worked, but the fit rewrite path did not preserve the three fryer benefits as a complete short sentence
+
+### Files changed
+
+- `app/services/poster2/copy_optimizer.py`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/03_engineering/family_a/family_a_bottom_text_finalization_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_bottom_text_finalization_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Family A subtitle cleanup / fit rewrite / rendered-source selection
+
+### Validation run
+
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_dense_quad_split_keeps_product_grade_subtitle_in_render or subtitle_cleanup_and_fit_rewrite_flow_are_visible'` -> passed
+
+### Remaining risks
+
+- this closes the current fryer subtitle path only
+- broader bottom backlog remains unchanged and out of scope
+
+### Exact acceptance
+
+- fryer subtitle fit rewrite now resolves to:
+  - `Fast heating, precise control, and stainless steel durability.`
+- `rendered_text_source = fit_rewrite_text`
+- `subtitle_truncation_applied = false` for the tested fryer path

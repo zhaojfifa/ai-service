@@ -712,7 +712,7 @@ body {
   -webkit-line-clamp: 3;
   line-clamp: 3;
   min-height: 76px;
-  padding: 10px 14px 10px 14px;
+  padding: 8px 12px 8px 12px;
   border-radius: 12px;
   background: var(--annotation-card-surface);
   border: var(--annotation-card-border);
@@ -720,6 +720,7 @@ body {
     var(--annotation-card-shadow),
     var(--annotation-card-inset);
   letter-spacing: var(--annotation-label-letter-spacing);
+  line-height: 1.24;
   text-wrap: balance;
   hyphens: none;
 }

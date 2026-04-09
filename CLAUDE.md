@@ -77,7 +77,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current temporary priority override = Family A fryer live-diagnosis micro-refinement
+- current temporary priority override = Family A fryer product-shell micro-structure + bottom text finalization
 - Template A remains the active oracle line for shared-skill and commercial acceptance verification
 - pre-change rollback tag for this pass:
   - `Poster2-FamilyA-MinDelta-PreCommercialRefine`
@@ -88,10 +88,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - no Template B work
   - UI layout and 3-column header stay unchanged
 - current refinement focus:
-  - fryer right-column header semantics must carry into live render
-  - fryer subtitle default must survive bottom-contract consumption and render
-  - fixed product annotation slots stay fixed, but structured render must consume the current slot contract
-  - dense-quad bottom strip keeps ownership/structure but gains bounded semantic breathing
+  - fixed product annotation slots stay fixed, but fixed-card text capacity must read less cramped
+  - fryer bottom subtitle must reach render as a finalized product-grade sentence
 - not yet: Family A redesign
 - not yet: Template B reopen
 - not yet: editor-first drift

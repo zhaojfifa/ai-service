@@ -77,6 +77,8 @@ Family A practical closure:
 - [template_a_text_contract_repair_and_product_region_text_closure_v1.md](03_engineering/family_a/template_a_text_contract_repair_and_product_region_text_closure_v1.md)
 - [family_a_commercial_fryer_min_delta_refinement_v1.md](03_engineering/family_a/family_a_commercial_fryer_min_delta_refinement_v1.md)
 - [family_a_fryer_live_diagnosis_micro_refinement_v1.md](03_engineering/family_a/family_a_fryer_live_diagnosis_micro_refinement_v1.md)
+- [family_a_product_annotation_shell_micro_structure_v1.md](03_engineering/family_a/family_a_product_annotation_shell_micro_structure_v1.md)
+- [family_a_bottom_text_finalization_v1.md](03_engineering/family_a/family_a_bottom_text_finalization_v1.md)
 
 ### 04 Skills
 
@@ -101,6 +103,8 @@ Core verification anchors:
 - [family_a_practical_closure_verification_matrix_v1.md](05_validation/family_a/family_a_practical_closure_verification_matrix_v1.md)
 - [family_a_commercial_fryer_min_delta_refinement_status_v1.md](05_validation/family_a/family_a_commercial_fryer_min_delta_refinement_status_v1.md)
 - [family_a_fryer_live_diagnosis_micro_refinement_status_v1.md](05_validation/family_a/family_a_fryer_live_diagnosis_micro_refinement_status_v1.md)
+- [family_a_product_annotation_shell_micro_structure_status_v1.md](05_validation/family_a/family_a_product_annotation_shell_micro_structure_status_v1.md)
+- [family_a_bottom_text_finalization_status_v1.md](05_validation/family_a/family_a_bottom_text_finalization_status_v1.md)
 - [bottom_behavior_contract_status_v1.md](05_validation/bottom_behavior_contract_status_v1.md)
 - [product_region_annotation_contract_status_v1.md](05_validation/product_region_annotation_contract_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](05_validation/scenario_region_resolver_and_renderer_parity_status_v1.md)
@@ -143,6 +147,6 @@ The formal doc path is defined only by:
 
 ## Current Mainline
 
-- current temporary priority override = Family A fryer live-diagnosis micro-refinement
+- current temporary priority override = Family A fryer product-shell micro-structure + bottom text finalization
 - Template A remains the active oracle line for shared-skill and commercial acceptance verification
 - Template B remains unchanged during the current Family A-only refinement pass

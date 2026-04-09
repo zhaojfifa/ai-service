@@ -1106,7 +1106,7 @@ def resolve_product_behavior(
             else {"x": product_region["x"], "y": product_region["y"], "w": 0, "h": 0}
         )
     else:
-        char_budget = {1: 52, 2: 46, 3: 44}.get(max(visible_annotation_count, 1), 44)
+        char_budget = {1: 56, 2: 52, 3: 48}.get(max(visible_annotation_count, 1), 48)
         line_clamp = 2
         if annotation_mode == "right_stack_mirror":
             annotation_count_policy = "fixed_3_right_stack_annotations"
@@ -1302,7 +1302,7 @@ def resolve_feature_behavior(
         # No drag-and-drop, no dynamic slot count beyond 3.
         anchor_visible = min(max(requested_count, 0), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
         anchor_clamped = min(max(anchor_visible, 1), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
-        anchor_char_budgets = {1: 52, 2: 46, 3: 44}
+        anchor_char_budgets = {1: 56, 2: 52, 3: 48}
         anchor_box_h = _FEATURE_MODE_LAYOUT_SPECS[anchor_clamped]["box_h"]
         return ResolvedFeatureBehavior(
             mode=feature_mode,
