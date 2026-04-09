@@ -75,6 +75,11 @@ def _load_template() -> TemplateSpec:
     return TemplateSpec.from_json(p)
 
 
+def _load_fixture(name: str) -> dict:
+    path = Path(__file__).resolve().parent / "fixtures" / name
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def _load_template_b() -> TemplateSpec:
     p = (
         Path(__file__).resolve().parents[2]
@@ -315,9 +320,16 @@ class _FakeTemplateAIsolatedPuppeteerRenderer:
             "product_canvas_shell_layer": {"rendered": True, "count": 1},
             "product_image_layer": {"rendered": bool(assets.product), "count": 1 if assets.product is not None else 0},
             "product_secondary_image_layer": {"rendered": False, "count": 0},
+            "feature_callout_layer": {"rendered": True, "count": 4},
             "feature_items_layer": {"rendered": True, "count": 4},
+            "title_layer": {"rendered": True, "count": 1},
             "title_text_layer": {"rendered": True, "count": 1},
+            "subtitle_layer": {"rendered": True, "count": 1},
             "subtitle_text_layer": {"rendered": True, "count": 1},
+            "title_band_region_shell_layer": {"rendered": True, "count": 1, "collapsed": False},
+            "bottom_gallery_shell_layer": {"rendered": True, "count": 1, "collapsed": False},
+            "gallery_strip_region_shell_layer": {"rendered": True, "count": 1, "collapsed": False},
+            "bottom_gallery_items_layer": {"rendered": True, "count": 2},
             "gallery_items_layer": {"rendered": True, "count": 2},
         }
         region_render_status = {
@@ -5300,6 +5312,28 @@ class TestTemplateBBackendGenerationFix:
             "title_text_layer",
             "gallery_strip_region",
         }
+
+    def test_family_a_runtime_rebaseline_matches_fixture(self):
+        fixture = _load_fixture("family_a_runtime_rebaseline_smoke.json")
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        assert manifest.template_id == fixture["template_id"]
+        assert manifest.render_engine_used == fixture["expected_render_engine_used"]
+        assert manifest.degraded is fixture["expected_degraded"]
+        assert manifest.structure_complete is fixture["expected_structure_complete"]
+        assert manifest.deliverable is fixture["expected_deliverable"]
+        assert manifest.missing_mandatory_regions == fixture["expected_missing_mandatory_regions"]
+        assert manifest.template_behavior["behavior_modes"] == fixture["expected_behavior_modes"]
+        assert sorted(manifest.region_render_status.keys()) == fixture["expected_region_render_status_keys"]
+        assert sorted(manifest.visible_truth_evidence.keys()) == fixture["expected_visible_truth_keys"]
+        for key in fixture["forbidden_visible_truth_keys"]:
+            assert key not in manifest.visible_truth_evidence
+        assert manifest.template_b_parity_review == {}
+        assert manifest.title_text_layer["owner_region"] == fixture["expected_title_owner_region"]
+        assert manifest.subtitle_text_layer["owner_region"] == fixture["expected_subtitle_owner_region"]
+        assert manifest.bottom_contract_review["bottom_mode"] == fixture["expected_bottom_mode"]
+        assert manifest.bottom_contract_review["gallery_mode"] == fixture["expected_gallery_mode"]
 
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector

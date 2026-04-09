@@ -77,8 +77,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current priority: temporary override to Family A isolation repair + family anti-crossline hardening
-- deferred while isolation repair is active: deployed-environment validation for Gemini quality and Resend live closure behavior
+- Family A isolation repair + anti-crossline hardening is now the active repaired baseline
+- current priority after rebaseline: resume deployed-environment validation for Gemini quality and Resend live closure behavior
 - next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
 - not yet: bottom beautification reopen

@@ -14,6 +14,7 @@ No network, no AI, no R2 calls.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -100,6 +101,11 @@ def _minimal_assets(**overrides) -> ResolvedAssets:
     )
     defaults.update(overrides)
     return ResolvedAssets(**defaults)
+
+
+def _load_fixture(name: str) -> dict:
+    path = Path(__file__).resolve().parent / "fixtures" / name
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 # ── Determinism ───────────────────────────────────────────────────────────────
@@ -211,6 +217,61 @@ class TestTemplateBIndustrialSheet:
         assert slots[0].x > template.materials_slot.x
         assert slots[0].w > template.materials_slot.thumb_w
         assert slots[1].x + slots[1].w < template.materials_slot.x + template.materials_slot.w
+
+
+class TestFamilyAVisualRebaseline:
+
+    def test_family_a_visual_smoke_hashes_match_fixture(self):
+        fixture = _load_fixture("family_a_visual_smoke.json")
+        template = _load_real_template()
+        spec = _minimal_spec()
+        assets = _minimal_assets()
+
+        result = LayoutRenderer().render(template, spec, assets)
+        assert result.sha256 == fixture["pillow_sha256"]
+
+        renderer = PuppeteerStructuredRenderer()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=spec,
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "product_secondary": "",
+                "gallery": [],
+                "materials": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+        assert hashlib.sha256(html_payload.encode("utf-8")).hexdigest() == fixture["structured_html_sha256"]
 
 
 # ── Optional assets ───────────────────────────────────────────────────────────

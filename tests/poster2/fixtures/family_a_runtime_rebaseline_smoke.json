@@ -1,0 +1,47 @@
+{
+  "template_id": "template_dual_v2",
+  "expected_render_engine_used": "puppeteer",
+  "expected_degraded": false,
+  "expected_structure_complete": true,
+  "expected_deliverable": true,
+  "expected_missing_mandatory_regions": [],
+  "expected_behavior_modes": {
+    "hero_mode": "scenario_cover_product_contain",
+    "feature_mode": "product_anchor_callouts",
+    "product_annotation_mode": "product_anchor_callouts",
+    "product_layout_mode": "single_primary",
+    "product_geometry_mode": "single_primary_v1",
+    "header_mode": "identity_left_agent_right",
+    "header_visual_mode": "default",
+    "bottom_mode": "title_gallery_split",
+    "bottom_layout_mode": "title_gallery_split",
+    "gallery_mode": "strip_local_visible_only",
+    "secondary_product_mode": "inset_hidden_no_reserve"
+  },
+  "expected_region_render_status_keys": [
+    "bottom_region",
+    "feature_region",
+    "gallery_strip_region",
+    "header_region",
+    "product_region",
+    "scenario_region",
+    "title_band_region"
+  ],
+  "expected_visible_truth_keys": [
+    "gallery_strip_region",
+    "header_region",
+    "product_region",
+    "title_text_layer"
+  ],
+  "forbidden_visible_truth_keys": [
+    "logo_banner_region",
+    "top_copy_region",
+    "materials_strip_region",
+    "product_hero_region",
+    "description_region"
+  ],
+  "expected_title_owner_region": "title_band_region",
+  "expected_subtitle_owner_region": "title_band_region",
+  "expected_bottom_mode": "title_gallery_split",
+  "expected_gallery_mode": "strip_local_visible_only"
+}

@@ -2297,3 +2297,48 @@ Remaining risks:
 ### Remaining risks
 - the API/schema surface still keeps `template_b_parity_review` for compatibility, so Family A protection remains “empty field + family-scoped content” rather than response-field removal
 - Family A re-baseline artifacts and canonical runtime note still belong in the next PR
+
+## PR-AR4 — Family A re-baseline
+
+### Root rules followed
+- contract-first
+- Family A frozen behavior truth preserved
+- Family A rebaseline recorded after isolation repair, not before
+- README remained index-only; shared-state update stayed in `CLAUDE.md`
+
+### Problem reproduced
+- after AR1/AR2/AR3, Family A isolation was repaired, but the repo still lacked a formal current-good Family A runtime note, accepted output-key fixture, and deterministic smoke anchors for future freeze-gate work
+
+### Root cause found
+- Family A “current good” state still lived only in tests and branch knowledge, not as a named rebaseline artifact set
+
+### Files changed
+- `tests/poster2/fixtures/family_a_runtime_rebaseline_smoke.json`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/template_a_isolation_rebaseline_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+- Family A runtime baseline fixtures
+- deterministic visual/runtime smoke regression
+- formal baseline documentation
+- shared state
+
+### Validation run
+- `./.venv/bin/python -m py_compile tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_frontend_docs_sync.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'family_a_runtime_rebaseline_matches_fixture or test_template_a_regression_path_remains_unchanged or test_template_a_visible_truth_keys_match_family_a_whitelist'`
+  - `3 passed, 280 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'FamilyAVisualRebaseline or FamilyAwareStructuredHtmlRouting'`
+  - `5 passed, 107 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - `6 passed`
+
+### Remaining risks
+- the deterministic visual smoke uses local fallback fonts in this workspace, so future font-install changes may require fixture refresh
+- no fresh live Chromium artifact bundle was stored in-repo; this rebaseline uses deterministic smoke fixtures plus repaired routing/tests as the acceptance anchor

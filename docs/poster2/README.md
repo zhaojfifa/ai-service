@@ -60,6 +60,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [template_b_contract_correction_status_v1.md](template_b_contract_correction_status_v1.md)
 - [template_b_design_baseline_v1.md](template_b_design_baseline_v1.md)
 - [template_b_parity_and_visual_contract_status_v1.md](template_b_parity_and_visual_contract_status_v1.md)
+- [template_a_isolation_rebaseline_status_v1.md](template_a_isolation_rebaseline_status_v1.md)
 - [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
 
 ### Plans
