@@ -1,5 +1,53 @@
 # Current Branch Execution Log v1
 
+## Entry — poster2 doc path cleanup: finalize legacy root-level markdown removals
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-09
+
+### Scope
+
+- docs path governance only
+- no poster runtime changes
+- no Template A or Template B behavior changes
+
+### Problem reproduced
+
+Legacy root-level `docs/poster2/*.md` files had already been migrated into layered directories, but the root deletions were still left unstaged in the working tree.
+
+That caused repeated noisy scans on every `git status` / task pass.
+
+### Root cause found
+
+The formal doc path migration had been applied in content and indexing, but the repository state had not yet been cleaned up by committing the corresponding root-level removals.
+
+### Files changed
+
+- root-level legacy `docs/poster2/*.md` entries removed from git tracking
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- docs housekeeping only
+
+### Validation run
+
+- verified all migrated formal docs already exist under:
+  - `01_product/`
+  - `02_architecture/`
+  - `03_engineering/`
+  - `04_skills/`
+  - `05_validation/`
+  - `99_archive/`
+- verified `docs/poster2/README.md` already points to layered formal paths
+
+### Remaining risks
+
+- `docs/.DS_Store` remains separate workspace noise and is not part of this poster2 root markdown cleanup
+
+---
+
 ## Entry — PR-A-TEXT1..4: Template A text contract repair and product-region text closure
 
 **Branch:** `main`
