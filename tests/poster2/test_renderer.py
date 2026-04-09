@@ -640,8 +640,8 @@ class TestGalleryPositions:
 
         assert resolved.bottom_policy.gallery_distribution_policy == "dense_quad"
         assert resolved.bottom_policy.content_priority_policy == "expanded_balanced_text_and_gallery_priority"
-        assert [item["x"] for item in gallery_layouts] == [96, 308, 520, 732]
-        assert [item["w"] for item in gallery_layouts] == [196, 196, 196, 196]
+        assert [item["x"] for item in gallery_layouts] == [106, 314, 522, 730]
+        assert [item["w"] for item in gallery_layouts] == [188, 188, 188, 188]
         assert [item["h"] for item in gallery_layouts] == [60, 60, 60, 60]  # PR-7C: item height 52→60
 
     def test_two_item_distribution_recenters_gallery_strip(self):
@@ -1054,6 +1054,29 @@ class TestStructuredGalleryMarkup:
         assert len(resolved) == 3
         assert [item[0]["label_box"]["y"] for item in resolved] == [272, 360, 448]
         assert [item[0]["anchor_y"] for item in resolved] == [308, 396, 484]
+
+    def test_resolve_feature_callout_map_keeps_fixed_product_anchor_geometry(self):
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 764, "anchor_y": 250, "label_box": {"x": 784, "y": 216, "w": 176, "h": 76}},
+                {"anchor_x": 764, "anchor_y": 350, "label_box": {"x": 784, "y": 316, "w": 176, "h": 76}},
+                {"anchor_x": 764, "anchor_y": 450, "label_box": {"x": 784, "y": 416, "w": 176, "h": 76}},
+                {"anchor_x": 764, "anchor_y": 550, "label_box": {"x": 784, "y": 516, "w": 144, "h": 60}},
+            ]
+        }
+        feature_policy = resolve_feature_behavior(
+            "product_anchor_callouts",
+            requested_count=3,
+            max_items=4,
+        )
+
+        resolved = _resolve_feature_callout_map(anchor_map, ("Fast Heat-Up", "Precise Thermostat Control", "Stainless Steel Body"), feature_policy=feature_policy)
+
+        assert len(resolved) == 3
+        assert [item[0]["label_box"]["y"] for item in resolved] == [216, 316, 416]
+        assert [item[0]["label_box"]["w"] for item in resolved] == [176, 176, 176]
+        assert [item[0]["label_box"]["h"] for item in resolved] == [76, 76, 76]
+        assert [item[0]["anchor_y"] for item in resolved] == [250, 350, 450]
 
     def test_resolve_feature_behavior_supports_second_feature_mode(self):
         resolved = resolve_feature_behavior(
@@ -2218,8 +2241,8 @@ class TestBottomSplitBehavior:
         assert "--title-stack-gap: 8px" in html_payload  # PR-7C: 6→8
         assert "--gallery-shell-left: 96px" in html_payload
         assert "--gallery-shell-width: 832px" in html_payload
-        assert "left:0px;top:8px;width:196px;height:60px;" in html_payload  # PR-7C: height 52→60
-        assert "left:636px;top:8px;width:196px;height:60px;" in html_payload  # PR-7C: height 52→60
+        assert "left:10px;top:8px;width:188px;height:60px;" in html_payload
+        assert "left:634px;top:8px;width:188px;height:60px;" in html_payload
 
     def test_text_only_expanded_html_keeps_full_width_text_layer_vars(self):
         html_payload = self._render_html_payload(

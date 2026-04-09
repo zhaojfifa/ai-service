@@ -121,6 +121,8 @@ def test_template_a_family_a_fryer_defaults_and_gallery_semantics_are_wired():
     assert "Basket Detail" in app_js
     assert "function buildModeSDefaultGalleryEntries" in app_js
     assert "function buildModeSFamilyAGalleryFallbackPlan" in app_js
+    assert "function resolveModeSAgentName" in app_js
+    assert "function isModeSGenericAgentText" in app_js
     assert "product_primary_fallback" in app_js
     assert "product_secondary_fallback" in app_js
 

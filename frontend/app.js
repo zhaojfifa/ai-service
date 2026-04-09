@@ -336,11 +336,39 @@ function normalisePoster2BottomText(value, maxChars) {
   return text.slice(0, maxChars);
 }
 
+function isModeSTemplateAFamilyPath(source) {
+  const variant = typeof source?.template_variant === 'string' ? source.template_variant.trim().toLowerCase() : 'a';
+  return MODE_S && variant !== 'b';
+}
+
+function isModeSGenericAgentText(value) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return true;
+  const lower = text.toLowerCase();
+  if (AGENT_NAME_PLACEHOLDERS.has(lower)) return true;
+  return (
+    text.includes('渠道服务中心') ||
+    lower.includes('service center') ||
+    lower.includes('channel service')
+  );
+}
+
+function resolveModeSAgentName(candidate, brandName = '') {
+  const text = typeof candidate === 'string' ? candidate.trim() : '';
+  if (MODE_S && isModeSGenericAgentText(text)) {
+    return MODE_S_DEFAULT_STAGE1.agent_name;
+  }
+  return sanitizeAgentName(text, brandName);
+}
+
 function resolveTemplateABottomSupportCopy(source, fallback = '') {
   const subtitle = typeof source?.subtitle === 'string' ? source.subtitle.trim() : '';
   if (subtitle) return subtitle;
   const legacyTagline = typeof source?.tagline === 'string' ? source.tagline.trim() : '';
   if (legacyTagline) return legacyTagline;
+  if (isModeSTemplateAFamilyPath(source)) {
+    return MODE_S_DEFAULT_STAGE1.subtitle || fallback;
+  }
   return fallback;
 }
 
@@ -352,11 +380,13 @@ function resolvePoster2BottomFallbackText(stage1Data, field) {
   const candidates = field === 'title'
     ? [
         [stage1Data?.title, 'stage1.title'],
+        [isModeSTemplateAFamilyPath(stage1Data) ? MODE_S_DEFAULT_STAGE1.title : '', 'mode_s.default_title'],
         ['Poster', 'literal.default_title'],
       ]
     : [
         [stage1Data?.subtitle, 'stage1.subtitle'],
         [stage1Data?.tagline, 'stage1.tagline'],
+        [isModeSTemplateAFamilyPath(stage1Data) ? MODE_S_DEFAULT_STAGE1.subtitle : '', 'mode_s.default_subtitle'],
         [stage1Data?.promo, 'stage1.promo'],
         [stage1Data?.price, 'stage1.price'],
         ['', 'literal.empty'],
@@ -398,14 +428,17 @@ function ensurePoster2BottomContractState(stage1Data) {
     Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries.length : 0,
     4
   );
+  const modeSTemplateA = isModeSTemplateAFamilyPath(stage1Data);
+  const resolvedTitle = hasPoster2BottomField(bottom, 'title')
+    ? normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS)
+    : normalisePoster2BottomText(defaultTitle.text, POSTER2_BOTTOM_TITLE_MAX_CHARS);
+  const resolvedSubtitle = hasPoster2BottomField(bottom, 'subtitle')
+    ? normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS)
+    : normalisePoster2BottomText(defaultSubtitle.text, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
 
   stage2State.poster2.bottomContract = {
-    title: hasPoster2BottomField(bottom, 'title')
-      ? normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS)
-      : normalisePoster2BottomText(defaultTitle.text, POSTER2_BOTTOM_TITLE_MAX_CHARS),
-    subtitle: hasPoster2BottomField(bottom, 'subtitle')
-      ? normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS)
-      : normalisePoster2BottomText(defaultSubtitle.text, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS),
+    title: modeSTemplateA ? (resolvedTitle || normalisePoster2BottomText(defaultTitle.text, POSTER2_BOTTOM_TITLE_MAX_CHARS)) : resolvedTitle,
+    subtitle: modeSTemplateA ? (resolvedSubtitle || normalisePoster2BottomText(defaultSubtitle.text, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS)) : resolvedSubtitle,
     titleSource: hasPoster2BottomField(bottom, 'titleSource')
       ? bottom.titleSource
       : defaultTitle.source,
@@ -4953,7 +4986,7 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       const modeSGalleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
       state.galleryEntries = modeSGalleryEntries;
       const modeSBrandName = resolveModeSDefaultText(formData.get('brand_name')?.toString(), 'brand_name');
-      const modeSAgentName = sanitizeAgentName(
+      const modeSAgentName = resolveModeSAgentName(
         resolveModeSDefaultText(formData.get('agent_name')?.toString(), 'agent_name'),
         modeSBrandName
       );
@@ -5799,8 +5832,8 @@ function buildDraftFromStage1Data(stage1Data) {
       price: stage1Data.price || '',
       promo: stage1Data.promo || '',
       title: stage1Data.title || '',
-      subtitle: stage1Data.subtitle || stage1Data.tagline || '',
-      tagline: stage1Data.tagline || stage1Data.subtitle || '',
+      subtitle: resolveTemplateABottomSupportCopy(stage1Data, ''),
+      tagline: resolveTemplateABottomSupportCopy(stage1Data, stage1Data.promo || ''),
       bullets: productCallouts.length ? productCallouts : bullets,
       product_callouts: productCallouts,
       product_image_1: stage1Data.product_image_1 || null,
@@ -5916,7 +5949,7 @@ function buildGeneratePosterPayload(draft) {
   return {
     poster: {
       brand_name: core.brand_name || posterSource.brand_name || '',
-      agent_name: sanitizeAgentName(
+      agent_name: resolveModeSAgentName(
         posterSource.agent_name || messaging.channel || '',
         core.brand_name || posterSource.brand_name || ''
       ),
@@ -5972,7 +6005,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   const brandName = safeText(stage1Data.brand_name, MODE_S_DEFAULT_STAGE1.brand_name || 'Brand');
   const bottomRequestState = buildPoster2BottomRequestState(stage1Data);
   const title = bottomRequestState.sanitized_title_text;
-  const agentName = sanitizeAgentName(
+  const agentName = resolveModeSAgentName(
     stage1Data.agent_name || MODE_S_DEFAULT_STAGE1.agent_name || stage1Data.channel || '',
     brandName
   );
@@ -8781,7 +8814,7 @@ async function triggerGeneration(opts) {
         stage1Data.promo || stage1Data.price || stage1Data.intent,
         title
       );
-      const agentName = sanitizeAgentName(stage1Data.agent_name || channel, brandName);
+      const agentName = resolveModeSAgentName(stage1Data.agent_name || channel, brandName);
 
       if (productImage1Ref?.url) {
         assertAssetUrl('product_image_1', productImage1Ref.url);

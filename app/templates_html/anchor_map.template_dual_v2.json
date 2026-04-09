@@ -6,19 +6,19 @@
       "feature_index": 0,
       "anchor_x": 764,
       "anchor_y": 250,
-      "label_box": { "x": 784, "y": 216, "w": 144, "h": 60 }
+      "label_box": { "x": 784, "y": 216, "w": 176, "h": 76 }
     },
     {
       "feature_index": 1,
       "anchor_x": 764,
       "anchor_y": 350,
-      "label_box": { "x": 784, "y": 316, "w": 144, "h": 60 }
+      "label_box": { "x": 784, "y": 316, "w": 176, "h": 76 }
     },
     {
       "feature_index": 2,
       "anchor_x": 764,
       "anchor_y": 450,
-      "label_box": { "x": 784, "y": 416, "w": 144, "h": 60 }
+      "label_box": { "x": 784, "y": 416, "w": 176, "h": 76 }
     },
     {
       "feature_index": 3,

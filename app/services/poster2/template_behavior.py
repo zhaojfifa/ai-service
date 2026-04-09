@@ -2407,13 +2407,13 @@ def _resolve_gallery_distribution_layout(
             1: ("single_center_focus", "single_showcase_frame", "single_gallery_focus_aspect", "centered_single_spacing", 288, 0),
             2: ("balanced_pair", "pair_showcase_frame", "spacious_pair_aspect", "relaxed_pair_spacing", 280, 16),
             3: ("balanced_triplet", "triplet_balanced_frame", "balanced_triplet_aspect", "balanced_triplet_spacing", 220, 12),
-            4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 196, 16),
+            4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 188, 20),
         },
         "supporting_packshots": {
             1: ("single_packshot_focus", "single_showcase_frame", "single_packshot_aspect", "centered_single_spacing", 240, 0),
             2: ("supporting_pair", "pair_showcase_frame", "supporting_pair_aspect", "supporting_pair_spacing", 220, 18),
             3: ("supporting_triplet", "triplet_balanced_frame", "supporting_triplet_aspect", "supporting_triplet_spacing", 196, 12),
-            4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 196, 16),
+            4: ("dense_quad", "quad_strip_frame", "compact_quad_aspect", "compact_quad_spacing", 188, 20),
         },
     }
     mode_table = layout_table.get(gallery_mode, layout_table["strip_local_visible_only"])
@@ -2511,7 +2511,7 @@ def _resolve_gallery_shell_frame_metrics(
         "supporting_pair": (14, 22),
         "balanced_triplet": (14, 22),
         "supporting_triplet": (12, 20),
-        "dense_quad": (0, 20),
+        "dense_quad": (8, 20),
     }
     item_radius_by_policy: dict[str, int] = {
         "single_center_focus": 18,

@@ -950,6 +950,11 @@ class TestPosterPipelineRun:
         assert geometry["region_bounds"]["title_band_region"] == {"x": 112, "y": 728, "w": 800, "h": 176}  # PR-7C: h 168→176
         assert geometry["region_bounds"]["gallery_strip_region"] == {"x": 96, "y": 904, "w": 832, "h": 76}  # PR-7C: y 896→904, h 68→76
         assert geometry["slot_bounds"]["subtitle_slot"] == {"x": 152, "y": 836, "w": 720, "h": 44}  # PR-7C: y 831→836
+        layouts = behavior["layout_metrics"]["gallery_item_layouts"]
+        assert layouts[0]["x"] == 106
+        assert layouts[0]["w"] == 188
+        assert layouts[-1]["x"] == 730
+        assert layouts[-1]["w"] == 188
 
     def test_renderer_metadata_dense_quad_split_keeps_two_line_subtitle_and_longer_excerpt(self):
         stored_payloads: dict[str, bytes] = {}

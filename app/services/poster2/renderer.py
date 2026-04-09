@@ -1948,6 +1948,43 @@ def _resolve_feature_callout_map(
     normalized_features = _normalized_feature_texts(features)
     if not normalized_features:
         return []
+    if feature_policy is not None and feature_policy.mode == "product_anchor_callouts":
+        from .template_behavior import (
+            _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS,
+            _PRODUCT_TEXT_SHELL_H,
+            _PRODUCT_TEXT_SHELL_Y,
+        )
+
+        max_visible = min(feature_policy.visible_item_count, len(raw_callouts))
+        limited_features = normalized_features[:max_visible]
+        source = raw_callouts[:max_visible]
+        if not source:
+            return []
+
+        n = len(source)
+        if n > 0 and n < _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS:
+            slot_h = int(source[0]["label_box"]["h"])
+            total_label_h = n * slot_h
+            pad = (_PRODUCT_TEXT_SHELL_H - total_label_h) // (n + 1)
+            label_ys = [_PRODUCT_TEXT_SHELL_Y + pad + i * (slot_h + pad) for i in range(n)]
+        else:
+            label_ys = None
+
+        resolved: list[tuple[dict[str, Any], str]] = []
+        for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
+            label_box = dict(base["label_box"])
+            if label_ys is not None:
+                label_box["y"] = label_ys[idx]
+                anchor_y = int(label_box["y"]) + int(label_box["h"]) // 2
+            else:
+                anchor_y = int(base["anchor_y"])
+            callout = dict(base)
+            callout["anchor_y"] = anchor_y
+            callout["mode_connector_policy"] = str(feature_policy.connector_policy)
+            callout["label_box"] = label_box
+            resolved.append((callout, feature_text))
+        return resolved
+
     limited_features = normalized_features[: min(len(normalized_features), len(raw_callouts))]
     count = len(limited_features)
     if feature_policy is None:

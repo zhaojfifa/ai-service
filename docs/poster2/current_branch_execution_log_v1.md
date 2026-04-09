@@ -3831,3 +3831,121 @@ The repaired Family A runtime was structurally healthy, but the commercial elect
 - bottom remains `title_gallery_split`
 - bottom gallery semantics no longer default toward repeated logo fallback
 - Family A token language is more neutral/commercial without changing layout structure
+
+---
+
+## Entry — Family A fryer live-diagnosis micro-refinement
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/03_engineering/family_a/family_a_commercial_fryer_min_delta_refinement_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_commercial_fryer_min_delta_refinement_status_v1.md`
+- `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+
+### Scope
+
+- Template A / Family A only
+- contract-first
+- 3-column header unchanged
+- Stage1 / Stage2 UI structure unchanged
+- no geometry changes
+- no ownership changes
+- no Template B work
+
+### Problem reproduced
+
+The latest fryer live diagnosis showed that the previous pass mostly changed token tone and gallery asset preference, but the poster still read too close to the old Family A baseline:
+
+- live header still carried service-center semantics in the right column
+- subtitle could stay empty/collapsed through the persisted bottom-contract path
+- fixed product annotation was traceable but still too cramped for commercial benefit cards
+- 4-image bottom strip still read as a dense repeated row
+
+### Root cause
+
+- Family A fryer right-column text was defaulted in Stage1, but generic service-center strings could still survive through existing stored state and request consumption
+- bottom-contract state treated a persisted blank subtitle as canonical, so the fryer default support copy could remain collapsed
+- structured HTML annotation consumption still used the stale Family A `anchor_map` dimensions (`144x60`) instead of the current fixed-slot contract (`176x76`)
+- dense-quad strip distribution used full-width `196x4 + 16x3`, leaving no outer breathing
+
+### Files changed
+
+- `frontend/app.js`
+- `docs/app.js`
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/template_behavior.py`
+- `app/templates_html/anchor_map.template_dual_v2.json`
+- `tests/poster2/test_renderer.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_frontend_docs_sync.py`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `docs/poster2/03_engineering/family_a/family_a_fryer_live_diagnosis_micro_refinement_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_fryer_live_diagnosis_micro_refinement_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Family A request/default carry-through
+- Family A structured-render annotation consumption
+- Family A dense-quad bottom strip distribution policy
+- Family A validation fixture baseline
+
+### Validation run
+
+- `bash scripts/sync_frontend_to_docs.sh`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py` -> `117 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'test_metadata_dense_quad_split_uses_expanded_quad_policies or test_template_a_payload_filters_out_template_b_visible_truth_and_parity_keys or family_a_runtime_rebaseline_matches_fixture or test_template_a_product_annotation_slots_surface_fixed_budget_and_truncation_fields'` -> `3 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py` -> `18 passed`
+
+### Before / after runtime evidence
+
+Before
+
+- live diagnosis still showed old service-center carry-through in the right header lane
+- subtitle could remain collapsed under a blank persisted bottom-contract state
+- structured HTML annotation path still consumed old `144x60` anchor-map boxes
+- dense-quad strip used a full-width `196/16` layout with no side breathing
+
+After
+
+- `header_mode = identity_left_agent_right`
+- `header_requested_agent_text = Commercial Electric Fryer Series`
+- `header_rendered_agent_excerpt = Commercial Electric Fryer Series`
+- `subtitle_slot.state = rendered`
+- `rendered_subtitle_excerpt = Fast heating · precise control`
+- `product_annotation_owner = product_region`
+- annotation slot bounds now remain `176x76` for the 3 active fixed slots
+- `gallery_distribution_policy = dense_quad`
+- dense-quad item layouts now resolve to:
+  - `x = 106 / 314 / 522 / 730`
+  - `w = 188`
+  - `h = 60`
+- `structure_complete = true`
+- `deliverable = true`
+
+### Remaining risks
+
+- this is still a bounded micro-refinement, not a reopened Family A redesign track
+- a fresh external live artifact bundle is still separate from this local runtime verification
+- local non-poster2 noise remains:
+  - `docs/.DS_Store`
+
+### Exact acceptance
+
+- header remains 3-column and now carries the fryer right-column semantics into render
+- subtitle is rendered instead of collapsing empty in the fryer path
+- product annotation remains fixed-slot and product-owned, but structured render now respects the current slot contract
+- bottom remains `title_gallery_split`
+- 4-item strip keeps gallery ownership while reading less crowded through bounded dense-quad spacing changes
