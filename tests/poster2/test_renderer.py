@@ -1747,6 +1747,117 @@ class TestHeaderAndTitleBandLayoutControl:
         assert 'class="layer layer-agent-name-text state-hidden"' in html_payload
 
 
+class TestFamilyAwareStructuredHtmlRouting:
+
+    def test_template_a_html_dispatch_does_not_emit_template_b_region_shells(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(),
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "product_secondary": "",
+                "gallery": [],
+                "materials": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+        )
+
+        assert 'data-region="title_band_region"' in html_payload
+        assert 'data-region="gallery_strip_region"' in html_payload
+        assert 'data-region="logo_banner_region"' not in html_payload
+        assert 'data-region="top_copy_region"' not in html_payload
+        assert 'data-region="description_region"' not in html_payload
+
+    def test_template_b_html_dispatch_does_not_emit_template_a_bottom_or_feature_regions(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_template_b_template()
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_product_sheet_v1.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_product_sheet_v1.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_product_sheet_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(
+                brand_name="KitchenWorks",
+                agent_name="Dealer Team",
+                title="Integrated Workstation Sink",
+                subtitle="Precision-fitted accessories",
+                features=(),
+                template_id="template_product_sheet_v1",
+                sku_text="KW-2401",
+                description_title="Spec block",
+                description_body="Short body",
+            ),
+            asset_urls={
+                "logo": "data:image/png;base64,logo",
+                "scenario": "",
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "product_secondary": "",
+                "gallery": ["data:image/png;base64,wrong"],
+                "materials": ["data:image/png;base64,mat"],
+            },
+            slot_spec=slot_spec,
+            anchor_map={},
+            spec=template,
+        )
+
+        assert 'data-region="logo_banner_region"' in html_payload
+        assert 'data-region="top_copy_region"' in html_payload
+        assert 'data-region="materials_strip_region"' in html_payload
+        assert 'data-region="product_hero_region"' in html_payload
+        assert 'data-region="description_region"' in html_payload
+        assert 'data-region="feature_region"' not in html_payload
+        assert 'data-region="title_band_region"' not in html_payload
+        assert 'data-region="gallery_strip_region"' not in html_payload
+        assert "data:image/png;base64,wrong" not in html_payload
+
+
 class TestBottomSplitBehavior:
 
     def _render_html_payload(self, *, title: str, subtitle: str, gallery: list[str]) -> str:

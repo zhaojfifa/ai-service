@@ -2214,3 +2214,42 @@ Remaining risks:
 - `template_b_parity_review` is still part of the API/schema surface; this PR keeps it empty for Family A rather than removing the response field entirely
 - Family A visible-truth evidence is now family-scoped, but AR2 still needs to verify A’s Puppeteer material/selector routing is independently clean end-to-end
 - anti-crossline repo rules and stronger family routing gates still need the dedicated follow-up PRs
+
+## PR-AR2 — Family-aware renderer/material isolation
+
+### Root rules followed
+- contract-first
+- family routing must be explicit at renderer consumption boundaries
+- no Family A geometry/header/bottom/annotation baseline changes
+- no Template B five-region geometry changes
+- no beautification used to mask routing drift
+
+### Problem reproduced
+- Family A and Family B were already loading different template files, but Puppeteer HTML/material assembly still ran through one mixed `_build_html(...)` path gated by `is_template_b`
+- that meant one builder still owned both A bottom/title-band/gallery semantics and B top-copy/materials/description semantics, which kept the renderer consumption boundary vulnerable to future crossline regressions
+
+### Root cause found
+- HTML material assembly and asset-url preparation were sharing semantics instead of only sharing tools
+- renderer family routing was implicit in local `if is_template_b` branches inside one builder, rather than explicit family-scoped dispatch with separate A/B material assembly surfaces
+
+### Files changed
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+- renderer consumption
+- family-aware asset/material routing
+- renderer routing regression tests
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/renderer.py tests/poster2/test_renderer.py tests/poster2/test_pipeline.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'TestStructuredScenarioLayer or TestHeaderAndTitleBandLayoutControl or FamilyAwareStructuredHtmlRouting'`
+  - `26 passed, 83 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix or test_template_a_regression_path_remains_unchanged'`
+  - `15 passed, 266 deselected`
+
+### Remaining risks
+- this PR hardens family-scoped render-material dispatch and HTML routing, but it does not yet re-baseline fresh Family A live Chromium artifacts
+- formal anti-crossline repo rules and broader family routing gates still belong in the next rules-and-test PR
