@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .contracts import TemplateBeautyTokensSpec, TemplateBehaviorModesSpec, TemplateSpec
+from .skills.beautification.family_a_beautification_freeze_pack_v1 import (
+    build_beautification_freeze_pack as build_family_a_beautification_freeze_pack,
+)
 from .skills.control.family_a_control_surface_v1 import build_control_surface as build_family_a_control_surface
 
 _FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
@@ -873,22 +876,16 @@ def resolve_template_behavior(
         agent_name=agent_name,
     )
 
-    accent_color = _resolve_accent_color(accent_tone)
-    text_colors = _resolve_text_colors(text_emphasis, accent_color)
-    css_vars = {}
-    css_vars.update(_resolve_shell_surface_vars(shell_surface))
-    css_vars.update(_resolve_shell_border_vars(shell_border, accent_color))
-    css_vars.update(_resolve_shell_shadow_vars(shell_shadow))
-    css_vars.update(
-        {
-            "--accent-tone": accent_color,
-            "--text-color-brand": text_colors["brand"],
-            "--text-color-agent": text_colors["agent"],
-            "--text-color-title": text_colors["title"],
-            "--text-color-subtitle": text_colors["subtitle"],
-            "--text-color-feature": text_colors["feature"],
-        }
+    beauty_pack = build_family_a_beautification_freeze_pack(
+        shell_surface=shell_surface,
+        shell_border=shell_border,
+        shell_shadow=shell_shadow,
+        accent_tone=accent_tone,
+        text_emphasis=text_emphasis,
     )
+    accent_color = str(beauty_pack["accent_color"])
+    text_colors = dict(beauty_pack["text_colors"])
+    css_vars = dict(beauty_pack["css_vars"])
     css_vars.update(_resolve_bottom_behavior_vars(bottom_policy))
     css_vars.update(_resolve_header_behavior_vars(header_policy))
     return ResolvedTemplateBehavior(
@@ -898,13 +895,7 @@ def resolve_template_behavior(
         header_mode=header_policy.mode,
         bottom_mode=resolved_bottom_mode,
         gallery_mode=resolved_gallery_mode,
-        beauty_tokens=TemplateBeautyTokensSpec(
-            shell_surface=shell_surface,
-            shell_border=shell_border,
-            shell_shadow=shell_shadow,
-            accent_tone=accent_tone,
-            text_emphasis=text_emphasis,
-        ),
+        beauty_tokens=beauty_pack["beauty_tokens"],
         hero_policy=hero_policy,
         product_policy=product_policy,
         feature_policy=feature_policy,

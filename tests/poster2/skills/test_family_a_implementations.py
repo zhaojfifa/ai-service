@@ -9,6 +9,9 @@ from app.services.poster2.family_a_runtime import (
     filter_family_a_visible_truth_evidence,
 )
 from app.services.poster2.skills.control.family_a_control_surface_v1 import build_control_surface
+from app.services.poster2.skills.beautification.family_a_beautification_freeze_pack_v1 import (
+    build_beautification_freeze_pack,
+)
 from app.services.poster2.skills.evidence.family_a_evidence_surface_v1 import build_evidence_surface
 from app.services.poster2.skills.registry import load_skill_implementation
 from app.services.poster2.skills.structure.family_a_structure_surface_v1 import build_structure_surface
@@ -135,3 +138,36 @@ def test_family_a_evidence_skill_filters_visible_truth_and_carries_family_a_guar
     assert sorted(actual["filtered_visible_truth_evidence"].keys()) == ["header_region", "product_region"]
     assert "logo_banner_region" in actual["forbidden_cross_family_keys"]
     assert actual["canonical_sample_variants"][0]["sample_id"] == "annotation_triplet_gallery_triplet_subtitle_present"
+
+
+def test_family_a_beautification_skill_matches_frozen_pack_and_resolver_consumption():
+    implementation = load_skill_implementation("family_a_beautification_freeze_pack_v1")
+    pack = implementation(
+        shell_surface="campaign_frozen_panel",
+        shell_border="clean_frame",
+        shell_shadow="medium",
+        accent_tone="warm_red",
+        text_emphasis="campaign_frozen",
+    )
+
+    assert pack == build_beautification_freeze_pack(
+        shell_surface="campaign_frozen_panel",
+        shell_border="clean_frame",
+        shell_shadow="medium",
+        accent_tone="warm_red",
+        text_emphasis="campaign_frozen",
+    )
+    assert pack["beauty_tokens"].shell_surface == "campaign_frozen_panel"
+    assert pack["accent_color"] == "#E8002A"
+    assert pack["text_colors"]["subtitle"] == "#705C66"
+    assert pack["css_vars"]["--annotation-card-surface"].startswith("linear-gradient")
+    assert pack["css_vars"]["--gallery-item-border"] == "1px solid rgba(232, 0, 42, 0.08)"
+
+    template = _load_template()
+    spec = _make_spec(product_secondary_image=None)
+    resolved_behavior = _resolve_behavior(template, spec)
+
+    assert resolved_behavior.beauty_tokens == pack["beauty_tokens"]
+    assert resolved_behavior.accent_color == pack["accent_color"]
+    assert resolved_behavior.css_vars["--annotation-card-surface"] == pack["css_vars"]["--annotation-card-surface"]
+    assert resolved_behavior.css_vars["--title-band-top-rule"] == pack["css_vars"]["--title-band-top-rule"]
