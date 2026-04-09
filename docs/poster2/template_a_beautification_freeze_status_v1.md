@@ -65,3 +65,48 @@ A narrow post-freeze follow-up repaired Stage2 preview consumption for Template 
 
 This did not change Template A geometry, ownership, or bottom behavior truth.
 It only aligned the preview bottom text stack with the already-correct backend/final render state.
+
+Another narrow follow-up aligned Template A `title_gallery_split` support-copy mapping:
+
+- UI label remains `Bottom Support Copy`
+- canonical backend field remains `subtitle`
+- Template A bottom support copy now preserves `requested_subtitle_text` and `sanitized_subtitle_text`
+
+This also did not change geometry, ownership, or bottom behavior truth.
+
+## Follow-up Acceptance Note
+
+After the two narrow Template A bottom follow-ups, a fresh local acceptance run was attempted
+against the canonical Family A sample `annotation_triplet_gallery_triplet_subtitle_present`.
+
+The resulting runtime truth stayed aligned with the frozen Family A baseline:
+
+- `hero_mode = scenario_cover_product_contain`
+- `feature_mode = product_anchor_callouts`
+- `product_annotation_mode = product_anchor_callouts`
+- `header_mode = identity_left_agent_right`
+- `bottom_mode = title_gallery_split`
+- `gallery_mode = strip_local_visible_only`
+- `secondary_product_mode = inset_hidden_no_reserve`
+- `structure_complete = true`
+- `deliverable = true`
+
+However, local Chromium launch was unavailable in this workspace, so the attempted Puppeteer run
+fell back with:
+
+- `render_engine_used = pillow`
+- `degraded = true`
+- `degraded_reason = puppeteer_missing_chromium`
+
+So the freeze remains contract/control-accepted, but a fresh live Chromium artifact must still be
+re-run in a Chromium-ready environment to fully refresh the live acceptance bundle.
+
+That Chromium-ready acceptance has now been refreshed on a non-degraded Puppeteer path, so the
+Family A freeze is accepted as both code-complete and acceptance-complete.
+
+For the refreshed canonical acceptance sample, fixture / summary / attached metadata are aligned on:
+
+- canonical sample: `annotation_triplet_gallery_triplet_subtitle_present`
+- `product_layout_mode = single_primary`
+- `secondary_product_mode = inset_hidden_no_reserve`
+- subtitle present and rendered, not collapsed

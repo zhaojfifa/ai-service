@@ -2723,3 +2723,139 @@ Remaining risks:
 - Stage1 -> Stage2 -> preview -> generate now prefer canonical `subtitle` truth for Template A bottom support copy
 - `title_gallery_split` with support copy present preserves `requested_subtitle_text` and `sanitized_subtitle_text`
 - `subtitle_slot` remains rendered instead of being mis-collapsed
+
+## Template A freeze continuation — follow-up local acceptance attempt
+
+### Read state
+- after the two narrow Template A bottom follow-ups, the task returned to the existing Family A freeze sequence
+- scope remained Template A only
+- no Template B, geometry, ownership, or bottom structure changes were introduced in this continuation step
+
+### Objective
+- refresh the Family A freeze acceptance with a fresh local canonical sample run
+- verify that the inserted bottom follow-ups did not disturb frozen Family A control truth
+
+### Runtime command shape
+- local `PosterPipeline` run with real `PuppeteerStructuredRenderer`
+- mocked background service, mocked asset loader, local artifact bundle
+- canonical sample: `annotation_triplet_gallery_triplet_subtitle_present`
+
+### Artifact bundle
+- artifact root: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-s2z18xnv`
+- final image: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-s2z18xnv/poster2__final__0bdbe781-3a96-4e3e-a57f-6da8e52d8bb2.png`
+- foreground image: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-s2z18xnv/poster2__fg__0bdbe781-3a96-4e3e-a57f-6da8e52d8bb2.png`
+- metadata: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-s2z18xnv/poster2__debug__metadata__0bdbe781-3a96-4e3e-a57f-6da8e52d8bb2.json`
+- summary: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-s2z18xnv/acceptance_summary.json`
+
+### Hashes
+- final hash: `a192147df0c0b5802e302054900e67b63cab31882a105525ac1e78bdfbc9ced6`
+- foreground hash: `097791436fa582611343344bb4c0f7b89a3034090e738d6bd7337bafac3aeb24`
+- metadata sha256: `4f7acd6eea8cbbca0897af14eae9e35cd8f36a1995456a32716bd2f8586136f6`
+
+### Result
+- frozen Family A control truth remained aligned:
+  - `hero_mode = scenario_cover_product_contain`
+  - `feature_mode = product_anchor_callouts`
+  - `product_annotation_mode = product_anchor_callouts`
+  - `header_mode = identity_left_agent_right`
+  - `bottom_mode = title_gallery_split`
+  - `gallery_mode = strip_local_visible_only`
+  - `product_layout_mode = single_primary`
+  - `secondary_product_mode = inset_hidden_no_reserve`
+- `structure_complete = true`
+- `deliverable = true`
+- `template_b_parity_review` remained absent
+
+### Chromium acceptance blocker
+- local Chromium launch failed in this workspace
+- runtime therefore degraded with:
+  - `render_engine_used = pillow`
+  - `degraded = true`
+  - `degraded_reason = puppeteer_missing_chromium`
+
+### Validation run
+- local canonical acceptance command completed and produced the artifact bundle above
+- existing regression status from the narrow bottom follow-ups remains:
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'title_gallery_split_preserves_support_copy_in_requested_and_sanitized_subtitle_fields or family_a_runtime_rebaseline_matches_fixture or accepted_output_keys'`
+    - `3 passed, 285 deselected`
+  - `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+    - `8 passed`
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+    - `6 passed`
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+    - `114 passed`
+
+### Remaining risks
+- this step refreshed local acceptance evidence for Family A control truth, but did not produce a fresh non-degraded live Chromium artifact
+- a Chromium-ready environment is still required for the full live acceptance refresh
+
+### Exact acceptance
+- the inserted Template A bottom follow-ups did not disturb frozen Family A control truth
+- Family A freeze remains valid at the contract/control layer
+- fresh live Chromium acceptance remains pending only because of the local browser environment
+
+## Template A freeze continuation — Chromium-ready non-degraded acceptance
+
+### Read state
+- this step moved the canonical Template A acceptance run into a Chromium-available environment
+- no Template A logic, Template B logic, geometry, ownership, or bottom structure was reopened
+- scope was environment verification only
+
+### Objective
+- replace the local environment-blocked acceptance attempt with a fresh non-degraded Puppeteer acceptance bundle
+- confirm the frozen Family A baseline still holds after the narrow bottom follow-ups
+
+### Runtime command shape
+- canonical `PosterPipeline` run for `template_dual_v2`
+- real `PuppeteerStructuredRenderer`
+- mocked background service, mocked asset loader, local artifact bundle
+- canonical sample: `annotation_triplet_gallery_triplet_subtitle_present`
+
+### Artifact bundle
+- artifact root: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-ge_l0dts`
+- final image: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-ge_l0dts/poster2__final__9e228b8c-3fd2-49b3-a70b-1758d9b9603f.png`
+- foreground image: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-ge_l0dts/poster2__fg__9e228b8c-3fd2-49b3-a70b-1758d9b9603f.png`
+- metadata: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-ge_l0dts/poster2__debug__metadata__9e228b8c-3fd2-49b3-a70b-1758d9b9603f.json`
+- summary: `/var/folders/yx/bczfw6c57yn9sz87824v9ts40000gn/T/poster2-family-a-live-acceptance-ge_l0dts/acceptance_summary.json`
+
+### Hashes
+- final hash: `194a61c2df4638038e0b61effd5c63b70a17fcb53bf404d4c68e0b03cd4f04b0`
+- foreground hash: `e6caf28f449511751014934745a59e4a5094ce2c17caf3a9554d0d4c42e9320e`
+- metadata sha256: `3698cb8da09c5ecda05eaacfc33e1669201e1a85598787b6942253357ea575ae`
+
+### Acceptance result
+- `render_engine_used = puppeteer`
+- `degraded = false`
+- `degraded_reason = null`
+- `structure_complete = true`
+- `deliverable = true`
+- frozen Family A behavior modes remained aligned:
+  - `hero_mode = scenario_cover_product_contain`
+  - `feature_mode = product_anchor_callouts`
+  - `product_annotation_mode = product_anchor_callouts`
+  - `header_mode = identity_left_agent_right`
+  - `bottom_mode = title_gallery_split`
+  - `gallery_mode = strip_local_visible_only`
+  - `product_layout_mode = single_primary`
+  - `secondary_product_mode = inset_hidden_no_reserve`
+
+### Fixture / baseline comparison
+- canonical sample still matches golden-matrix case `annotation_triplet_gallery_triplet_subtitle_present`
+- sample semantics are aligned across fixture / summary / attached metadata:
+  - canonical sample name = `annotation_triplet_gallery_triplet_subtitle_present`
+  - `product_layout_mode = single_primary`
+  - `secondary_product_mode = inset_hidden_no_reserve`
+  - subtitle is present and rendered, not collapsed:
+    - `requested_subtitle_text` non-empty
+    - `sanitized_subtitle_text` non-empty
+    - `subtitle_slot.state = rendered`
+- no Template B residue present; `template_b_parity_review` absent
+- acceptance refreshed on a non-degraded Puppeteer path after the narrow Template A bottom follow-ups
+
+### Remaining risks
+- artifact bundle is local-environment output under `/tmp`/temp storage and is not persisted to remote object storage
+- no new contract/control debt was introduced in this verification step
+
+### Exact acceptance
+- Family A freeze is now both code-complete and acceptance-complete on a non-degraded Puppeteer path
+- next sequence can proceed to Family A anchored shared-skill extraction
