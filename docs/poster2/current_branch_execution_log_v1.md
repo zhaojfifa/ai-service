@@ -3507,3 +3507,76 @@ The remaining issue was quality logic, not structure or control:
 - annotation slot 3 preserves more meaning than `Smart controls`
 - Stage2 now treats `suggest` as the default Family A operator path
 - final image, metadata, and `copy_optimization_review` remain aligned through accept / reject
+
+---
+
+## Entry — PR-A-CO3 + PR-A-AR3: Template A copy optimization UI fold + apply-to-render closure
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/03_engineering/family_a/copy_quality_closure_v1.md`
+
+### Scope
+
+- Template A only
+- copy optimization UI fold
+- apply-to-render closure for accepted optimized copy
+- no geometry / ownership changes
+- no Template B work
+
+### Problem reproduced
+
+Two narrow follow-ups remained after copy-quality closure:
+
+- Stage2 copy optimization still occupied too much vertical space by default
+- accepted optimized subtitle could fail to fall back to the suggested candidate when no explicit accepted subtitle was provided
+
+### Root cause
+
+- the UI still rendered full lineage in the primary panel instead of summary-first with on-demand expansion
+- backend `_pick_applied_candidate(...)` fell back for title and features, but not for subtitle
+- docs mirror also needed to stay aligned after the Stage2 fold change
+
+### Files changed
+
+- `app/services/poster2/copy_optimizer.py`
+- `frontend/app.js`
+- `frontend/stage2.html`
+- `docs/app.js`
+- `docs/stage2.html`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Stage2 diagnostics consumption
+- copy optimization apply path
+
+### Validation run
+
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'copy_optimization'` -> `6 passed, 291 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py` -> `17 passed`
+
+### Remaining risks
+
+- this step folds the UI and closes accept/render parity, but does not create a new live artifact bundle
+- old unrelated root doc deletions in the working tree remain out of scope
+
+### Exact acceptance
+
+- copy optimization panel is summary-first and default-folded
+- full lineage is on-demand only
+- no-actionable state no longer consumes the main operator path with dead controls
+- accepted optimized subtitle / annotation text now closes into `rendered_text`

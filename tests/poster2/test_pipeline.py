@@ -5561,6 +5561,27 @@ class TestTemplateBBackendGenerationFix:
         assert review["annotation_items"][0]["rendered_text"] == "Weeknight-ready preheat"
         assert review["annotation_items"][1]["rendered_text"] == "Quick-clean chamber"
 
+    def test_template_a_copy_optimization_accepts_suggested_candidate_into_rendered_text(self):
+        spec = _make_spec(
+            title="Upgrade your kitchen with ChefCraft",
+            subtitle="Revamp kitchen efficiency, create chef-level deliciousness with guided presets and smart daily convenience",
+            features=(
+                "Fast preheat for busy weeknight cooking",
+                "Easy cleanup after family dinners",
+                "Smart controls for daily convenience",
+            ),
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="accepted"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["applied_to_rendered_output"] is True
+        assert review["subtitle"]["optimized_text"] == "Revamp kitchen efficiency · daily-use controls"
+        assert review["subtitle"]["rendered_text"] == review["subtitle"]["optimized_text"]
+        assert review["annotation_items"][2]["optimized_text"] == "Daily smart controls"
+        assert review["annotation_items"][2]["rendered_text"] == review["annotation_items"][2]["optimized_text"]
+        assert manifest.subtitle_text_layer["sanitized_text"] == review["subtitle"]["optimized_text"]
+
     def test_template_a_product_annotation_slots_surface_fixed_budget_and_truncation_fields(self):
         spec = _make_spec(
             features=(

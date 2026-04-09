@@ -291,7 +291,7 @@ def _pick_applied_candidate(
     subtitle = normalize_marketing_subtitle(
         optimization.accepted_subtitle.strip(),
         title=title or suggested["title"],
-    )
+    ) or suggested["subtitle"]
     max_feature_count = len(effective_spec.features)
     features = _normalize_feature_items(optimization.accepted_features)[:max_feature_count] or suggested["features"]
     return {

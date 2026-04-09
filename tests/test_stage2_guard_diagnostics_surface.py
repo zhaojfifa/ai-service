@@ -210,26 +210,34 @@ def test_frontend_stage2_surfaces_family_a_copy_optimization_controls_and_trace(
     assert "poster2-copy-optimization-accept" in html
     assert "poster2-copy-optimization-reject" in html
     assert "poster2-copy-optimization-actions" in html
+    assert "poster2-copy-optimization-toggle" in html
+    assert "poster2-copy-optimization-lineage" in html
     assert "poster2-copy-optimization-summary" in html
     assert "poster2-copy-optimization-review" in html
 
     assert "function ensurePoster2CopyOptimizationState" in js
     assert "function buildPoster2CopyLineageRow" in js
     assert "function buildPoster2AnnotationOptimizationRows" in js
+    assert "function buildPoster2CopyOptimizationSummary" in js
+    assert "function buildPoster2CopyOptimizationLineage" in js
     assert "function renderPoster2CopyOptimizationReview" in js
     assert "function initPoster2CopyOptimizationControls" in js
     assert "copy_optimization:" in js
     assert "accepted_title" in js
     assert "accepted_subtitle" in js
     assert "accepted_features" in js
-    assert "optimizer_used" in js
     assert "changed_fields" in js
     assert "disabled_reason" in js
+    assert "actionable" in js
     assert "mode: 'suggest'" in js
     assert "requested_text ->" in js
     assert "sanitized_text ->" in js
     assert "optimized_text ->" in js
     assert "rendered_text ->" in js
+    assert "Show lineage" in js
+    assert "Hide lineage" in js
+    assert "toggleBtn.textContent = 'Show lineage';" in js
+    assert "lineage.classList.toggle('hidden'" in js
     assert "actions.classList.toggle('hidden', !showActions);" in js
 
     assert docs_html == html

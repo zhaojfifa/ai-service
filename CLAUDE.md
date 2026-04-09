@@ -82,7 +82,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - current narrow insertion before further A-freeze work: Template A bottom support-copy mapping alignment (`Bottom Support Copy` UI label -> canonical backend `subtitle`) is complete
 - fresh Family A live Chromium acceptance has now been captured on a non-degraded Puppeteer path
 - current poster2 priority: Template A copy quality closure for subtitle + annotation rendered quality
-- current active practical-closure step: Family A copy quality closure
+- current active practical-closure step: Template A copy optimization UI fold + apply-to-render closure
 - current priority after the Template A freeze pass: resume deployed-environment validation for Gemini quality and Resend live closure behavior
 - next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
