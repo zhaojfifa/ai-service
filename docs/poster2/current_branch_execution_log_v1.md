@@ -3339,3 +3339,91 @@ That made the accepted sample, hashes, diagnostics set, and contract-review set 
   - a dedicated practical-closure status doc
   - a dedicated practical-closure verification matrix
 - canonical sample name, hashes, frozen modes, and UI diagnostics are now tied together in one formal validation set
+
+---
+
+## Entry — PR-A-CO2 + PR-A-PA2: Template A copy optimization value closure + product annotation text closure
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/03_engineering/family_a/gemini_copy_optimizer_integration_v1.md`
+- `docs/poster2/05_validation/family_a/gemini_copy_optimizer_closure_status_v1.md`
+
+### Scope
+
+- Template A only
+- PR-A-CO2: copy optimization value closure
+- PR-A-PA2: product annotation text closure
+- no geometry / ownership / control-truth changes
+- no Template B work
+
+### Problem reproduced
+
+Family A practical closure still had two operator-blind gaps:
+
+- copy optimization could still read like an empty shell:
+  - mode-off showed dead accept / reject controls
+  - mode-on lineage and diffs were too thin
+- product annotation text stayed fixed and product-owned, but slot-level truncation / budget / rendered state were not directly operator-visible
+
+### Root cause
+
+The remaining gap was consumption and review structure, not contract truth:
+
+- backend review for copy optimization did not always emit a meaningful disabled or diff surface
+- Stage2 summary rendered a compact summary instead of full lineage
+- product annotation slot review kept most useful fields, but not as a direct fixed-slot practical surface
+
+### Files changed
+
+- `app/services/poster2/copy_optimizer.py`
+- `app/services/poster2/pipeline.py`
+- `frontend/app.js`
+- `frontend/stage2.html`
+- `docs/app.js`
+- `docs/stage2.html`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/03_engineering/family_a/copy_optimization_value_closure_v1.md`
+- `docs/poster2/03_engineering/family_a/product_annotation_text_closure_v1.md`
+- `docs/poster2/05_validation/family_a/copy_optimization_value_closure_status_v1.md`
+- `docs/poster2/05_validation/family_a/product_annotation_text_closure_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- metadata / review structure
+- Stage2 diagnostics consumption
+- Family A practical validation docs
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/copy_optimizer.py app/services/poster2/pipeline.py tests/poster2/test_pipeline.py tests/test_stage2_guard_diagnostics_surface.py` -> pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'copy_optimization or annotation_slots_surface_fixed_budget_and_truncation_fields'` -> `5 passed, 290 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'copy_optimization or generate_poster_v2_route_is_backward_compatible'` -> `2 passed, 26 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py` -> `116 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py` -> `17 passed`
+
+### Remaining risks
+
+- live Gemini output was not exercised in this workspace; suggestion quality still depends on deployed-optimizer availability
+- broader out-of-scope bottom geometry/history failures remain unchanged
+
+### Exact acceptance
+
+- mode-off copy optimization now surfaces a disabled reason and no dead controls
+- mode-on copy optimization now surfaces full lineage and changed-field evidence
+- annotation optimization remains wording-only and count-preserving
+- fixed 3-slot product annotation surface now exposes requested / sanitized / rendered / truncation / char_budget / line_clamp directly in Stage2
+- feature region remains delegated diagnostic only

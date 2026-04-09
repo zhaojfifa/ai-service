@@ -110,7 +110,7 @@ def test_frontend_stage2_surfaces_scenario_contract_review():
     # 6. renderResolverLayout receives scenarioReview and product/text-layer payloads
     #    as parameters (not relying on outer-scope access which would be undefined)
     assert "renderResolverLayout(" in html
-    assert "annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview)" in html
+    assert "annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview, copyOptimizationReview)" in html
     assert "parityReview" in html
 
 
@@ -126,7 +126,7 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "poster2-title-text-layer" in html
     assert "poster2-subtitle-text-layer" in html
     assert "poster2-header-text-layer" in html
-    assert "buildProductDetail(productReview, annotationReview)" in html
+    assert "buildProductDetail(productReview, annotationReview, copyOptimizationReview)" in html
     assert "header in-banner" in html
     assert "top-copy in-region" in html
     assert "hero in-region" in html
@@ -209,10 +209,13 @@ def test_frontend_stage2_surfaces_family_a_copy_optimization_controls_and_trace(
     assert "poster2-copy-optimization-mode" in html
     assert "poster2-copy-optimization-accept" in html
     assert "poster2-copy-optimization-reject" in html
+    assert "poster2-copy-optimization-actions" in html
     assert "poster2-copy-optimization-summary" in html
     assert "poster2-copy-optimization-review" in html
 
     assert "function ensurePoster2CopyOptimizationState" in js
+    assert "function buildPoster2CopyLineageRow" in js
+    assert "function buildPoster2AnnotationOptimizationRows" in js
     assert "function renderPoster2CopyOptimizationReview" in js
     assert "function initPoster2CopyOptimizationControls" in js
     assert "copy_optimization:" in js
@@ -221,6 +224,12 @@ def test_frontend_stage2_surfaces_family_a_copy_optimization_controls_and_trace(
     assert "accepted_features" in js
     assert "optimizer_used" in js
     assert "changed_fields" in js
+    assert "disabled_reason" in js
+    assert "requested_text ->" in js
+    assert "sanitized_text ->" in js
+    assert "optimized_text ->" in js
+    assert "rendered_text ->" in js
+    assert "actions.classList.toggle('hidden', !showActions);" in js
 
     assert docs_html == html
     assert docs_js == js
@@ -291,6 +300,13 @@ def test_frontend_stage2_surfaces_family_a_product_region_observability_cards():
     assert "const secondaryMode = productReview.secondary_product_mode || '';" in html
     assert "const annotationOwner = productReview.product_annotation_owner || '';" in html
     assert "const visibleCount =" in html
+    assert "function buildAnnotationLineageCard" in html
+    assert "slot_fixed" in html
+    assert "char_budget" in html
+    assert "line_clamp" in html
+    assert "rendered_excerpt:" in html
+    assert "truncation_applied:" in html
+    assert "optimized:" in html
     assert "s2-diagnostics-grid" in html
     assert "s2-diagnostic-card" in css
     assert "s2-diagnostic-key" in css

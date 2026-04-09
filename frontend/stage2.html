@@ -323,7 +323,7 @@
                   <option value="apply">apply</option>
                 </select>
               </label>
-              <div class="s2-actions">
+              <div id="poster2-copy-optimization-actions" class="s2-actions">
                 <button id="poster2-copy-optimization-accept" type="button" class="secondary-button">Accept</button>
                 <button id="poster2-copy-optimization-reject" type="button" class="secondary-button">Reject</button>
               </div>
@@ -838,7 +838,24 @@
           return html;
         }
 
-        function buildProductDetail(productReview, annotationReview) {
+        function buildAnnotationLineageCard(slot, optimizationItem) {
+          const budget = slot?.char_budget;
+          const clamp = slot?.line_clamp;
+          const optimizedText = optimizationItem?.optimized_text || '';
+          let html = `<div class="s2-diagnostic-card" style="min-width:240px;align-items:flex-start;">`;
+          html += `<div class="s2-diagnostic-key">${slot?.slot_id || 'annotation_slot'}${slot?.slot_fixed ? ' · fixed' : ''}</div>`;
+          html += `<div class="s2-slot-note">requested: ${slot?.requested_text || '—'}</div>`;
+          html += `<div class="s2-slot-note">sanitized: ${slot?.sanitized_text || '—'}</div>`;
+          if (optimizationItem) html += `<div class="s2-slot-note">optimized: ${optimizedText || '—'}</div>`;
+          html += `<div class="s2-slot-note">rendered_excerpt: ${slot?.rendered_excerpt || '—'}</div>`;
+          html += `<div class="s2-slot-note">truncation_applied: ${slot?.truncation_applied ? 'true' : 'false'}</div>`;
+          html += `<div class="s2-slot-note">char_budget: ${budget != null ? budget : '—'}</div>`;
+          html += `<div class="s2-slot-note">line_clamp: ${clamp != null ? clamp : '—'}</div>`;
+          html += `</div>`;
+          return html;
+        }
+
+        function buildProductDetail(productReview, annotationReview, copyOptimizationReview) {
           if (!productReview) return '';
           let html = '';
           const layoutMode = productReview.product_layout_mode || '';
@@ -890,6 +907,7 @@
           }
           const slots = productReview.annotation_slots || [];
           if (slots.length) {
+            const optimizedItems = Array.isArray(copyOptimizationReview?.annotation_items) ? copyOptimizationReview.annotation_items : [];
             html += `<div class="s2-copy-info" style="border:none;padding:4px 0;background:none;">`;
             const charBudget = productReview.behavior_policy?.char_budget;
             const lineClamp = productReview.behavior_policy?.line_clamp;
@@ -911,6 +929,11 @@
               }
             }
             html += '</div>';
+            html += `<div class="s2-diagnostics-grid">`;
+            for (const [index, slot] of slots.entries()) {
+              html += buildAnnotationLineageCard(slot, optimizedItems[index]);
+            }
+            html += `</div>`;
           }
           if (annotationReview?.annotation_active && annotationReview?.feature_suppression?.feature_right_stack_suppressed) {
             html += `<div style="padding-top:4px;"><span class="s2-region-status s2-status-ok" style="font-size:10px;padding:1px 5px;">feature_right_stack suppressed</span></div>`;
@@ -1094,7 +1117,7 @@
             </div>`;
         }
 
-        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview) {
+        function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview, copyOptimizationReview) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
           if (modesStrip && templateBehavior) {
@@ -1183,7 +1206,7 @@
             } else if (key === 'product_hero_region') {
               modeLabel = templateBehavior?.behavior_modes?.secondary_product_mode || productReview?.product_layout_mode || templateBehavior?.behavior_modes?.product_layout_mode || '';
               detailHtml = productReview
-                ? buildProductDetail(productReview, annotationReview)
+                ? buildProductDetail(productReview, annotationReview, copyOptimizationReview)
                 : buildHeroDetail(heroReview, 'product_region');
             } else if (isBottom) {
               modeLabel = templateBehavior?.behavior_modes?.bottom_mode || bottomReview?.bottom_mode || '';
@@ -1200,7 +1223,7 @@
                 ? annotMode
                 : (productReview?.product_layout_mode || heroReview?.hero_mode || templateBehavior?.behavior_modes?.hero_mode || '');
               detailHtml = productReview
-                ? buildProductDetail(productReview, annotationReview)
+                ? buildProductDetail(productReview, annotationReview, copyOptimizationReview)
                 : ((annotationReview?.annotation_active)
                   ? buildProductAnnotationDetail(annotationReview)
                   : buildHeroDetail(heroReview, 'product_region'));
@@ -1244,6 +1267,7 @@
           let subtitleTextLayer = null;
           let headerTextLayer = null;
           let parityReview = null;
+          let copyOptimizationReview = null;
           try { regionStatus = JSON.parse(regionEl?.textContent || '{}'); } catch (_) {}
           try { templateBehavior = JSON.parse(behaviorEl?.textContent || '{}'); } catch (_) {}
           try { bottomReview = JSON.parse(bottomEl?.textContent || 'null'); } catch (_) {}
@@ -1259,6 +1283,7 @@
           let scenarioReview = null;
           try { scenarioReview = JSON.parse(document.getElementById('poster2-scenario-contract-review')?.textContent || 'null'); } catch (_) {}
           try { parityReview = JSON.parse(document.getElementById('poster2-template-b-parity-review')?.textContent || 'null'); } catch (_) {}
+          try { copyOptimizationReview = JSON.parse(document.getElementById('poster2-copy-optimization-review')?.textContent || 'null'); } catch (_) {}
 
           if (!Object.keys(regionStatus).length) return;
 
@@ -1283,7 +1308,7 @@
           // Update render engine badge
           if (engEl) engEl.className = 's2-badge ok';
 
-          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview);
+          renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview, copyOptimizationReview);
         }
 
         /* Sync s2-out-url from final-poster-link.href */

@@ -612,6 +612,27 @@ function ensurePoster2CopyOptimizationState() {
   return stage2State.poster2.copyOptimization;
 }
 
+function buildPoster2CopyLineageRow(label, fieldReview) {
+  if (!fieldReview) return '';
+  const requestedText = fieldReview.requested_text || '—';
+  const sanitizedText = fieldReview.sanitized_text || '—';
+  const optimizedText = fieldReview.optimized_text || '—';
+  const renderedText = fieldReview.rendered_text || '—';
+  const changed = optimizedText !== '—' && optimizedText !== sanitizedText;
+  return `
+    <div class="s2-slot-note"><strong>${label}</strong> ${changed ? '[diff]' : '[same]'}</div>
+    <div class="s2-slot-note">requested_text -> ${requestedText}</div>
+    <div class="s2-slot-note">sanitized_text -> ${sanitizedText}</div>
+    <div class="s2-slot-note">optimized_text -> ${optimizedText}</div>
+    <div class="s2-slot-note">rendered_text -> ${renderedText}</div>
+  `;
+}
+
+function buildPoster2AnnotationOptimizationRows(items) {
+  if (!Array.isArray(items) || !items.length) return '';
+  return items.map((item, index) => buildPoster2CopyLineageRow(`annotation_${index + 1}`, item)).join('');
+}
+
 function renderPoster2CopyOptimizationReview(review) {
   const state = ensurePoster2CopyOptimizationState();
   state.latestReview = review || null;
@@ -619,32 +640,31 @@ function renderPoster2CopyOptimizationReview(review) {
   const summary = document.getElementById('poster2-copy-optimization-summary');
   const acceptBtn = document.getElementById('poster2-copy-optimization-accept');
   const rejectBtn = document.getElementById('poster2-copy-optimization-reject');
+  const actions = document.getElementById('poster2-copy-optimization-actions');
   const modeSelect = document.getElementById('poster2-copy-optimization-mode');
   if (modeSelect) modeSelect.value = state.mode || 'off';
 
   const changedFields = Array.isArray(review?.changed_fields) ? review.changed_fields : [];
   const optimizerUsed = review?.optimizer_used || 'off';
   const decision = state.decision || review?.decision || 'pending';
+  const operatorControls = review?.operator_controls || {};
+  const disabledReason = review?.disabled_reason || operatorControls.disabled_reason || 'no_backend_review_available';
+  const showActions = Boolean(operatorControls.visible) && changedFields.length > 0 && state.mode !== 'off';
   if (summary) {
-    if (!review || state.mode === 'off') {
-      summary.innerHTML = '<div class="s2-slot-note">copy optimization disabled</div>';
+    if (!review) {
+      summary.innerHTML = '<div class="s2-slot-note">copy optimization review unavailable</div>';
     } else {
-      const titleLine = review?.title
-        ? `<div class="s2-slot-note">title: ${review.title.sanitized_text || '—'} → ${review.title.optimized_text || '—'} → ${review.title.rendered_text || '—'}</div>`
-        : '';
-      const subtitleLine = review?.subtitle
-        ? `<div class="s2-slot-note">subtitle: ${review.subtitle.sanitized_text || '—'} → ${review.subtitle.optimized_text || '—'} → ${review.subtitle.rendered_text || '—'}</div>`
-        : '';
-      const annotationLine = Array.isArray(review?.annotation_items) && review.annotation_items.length
-        ? `<div class="s2-slot-note">annotation: ${review.annotation_items.map((item) => `${item.sanitized_text || '—'} → ${item.optimized_text || '—'} → ${item.rendered_text || '—'}`).join(' · ')}</div>`
-        : '';
+      const titleLine = buildPoster2CopyLineageRow('title', review?.title);
+      const subtitleLine = buildPoster2CopyLineageRow('subtitle', review?.subtitle);
+      const annotationLine = buildPoster2AnnotationOptimizationRows(review?.annotation_items);
       summary.innerHTML = `
         <div class="s2-diagnostics-grid">
-          <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">mode</div><div class="s2-diagnostic-val">${state.mode}</div></div>
+          <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">mode</div><div class="s2-diagnostic-val">${review?.mode || state.mode}</div></div>
           <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">decision</div><div class="s2-diagnostic-val">${decision}</div></div>
           <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">optimizer_used</div><div class="s2-diagnostic-val">${optimizerUsed}</div></div>
           <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">applied</div><div class="s2-diagnostic-val">${review?.applied_to_rendered_output ? 'true' : 'false'}</div></div>
         </div>
+        <div class="s2-slot-note">disabled_reason: ${disabledReason || 'none'}</div>
         <div class="s2-slot-note">changed_fields: ${changedFields.length ? changedFields.join(', ') : 'none'}</div>
         ${titleLine}
         ${subtitleLine}
@@ -653,9 +673,10 @@ function renderPoster2CopyOptimizationReview(review) {
     }
   }
 
-  const canAct = Boolean(review?.operator_controls?.can_accept);
-  if (acceptBtn) acceptBtn.disabled = !canAct || state.mode === 'off';
-  if (rejectBtn) rejectBtn.disabled = !canAct || state.mode === 'off';
+  if (actions) actions.classList.toggle('hidden', !showActions);
+  const canAct = Boolean(operatorControls.can_accept) && showActions;
+  if (acceptBtn) acceptBtn.disabled = !canAct;
+  if (rejectBtn) rejectBtn.disabled = !canAct;
 }
 
 function initPoster2CopyOptimizationControls(stage1Data, statusElement) {

@@ -2254,9 +2254,12 @@ def _build_product_contract_review(
         annotation_slots.append(
             {
                 "slot_id": f"product_annotation_slot_{index + 1}",
+                "slot_fixed": True,
                 "requested_text": requested_text,
                 "sanitized_text": sanitized_text,
                 "rendered_excerpt": rendered_excerpt,
+                "char_budget": product_policy.char_budget,
+                "line_clamp": product_policy.line_clamp,
                 "rendered": rendered,
                 "truncation_applied": rendered_excerpt != sanitized_text,
                 "reason_code": (
@@ -2594,10 +2597,13 @@ def _build_product_annotation_contract_review(
         slot_reviews.append({
             "slot_index": i,
             "slot_id": f"annotation_slot_{i + 1}",
+            "slot_fixed": True,
             "rendered": is_visible,
             "requested_text": requested_text,
             "sanitized_text": sanitized_text,
             "rendered_excerpt": rendered_excerpt,
+            "char_budget": product_policy.char_budget,
+            "line_clamp": product_policy.line_clamp,
             "truncation_applied": rendered_excerpt != sanitized_text,
             "anchor_x": anchor_x,
             "anchor_y": anchor_y,

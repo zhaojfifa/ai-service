@@ -81,8 +81,8 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - Family A isolation repair + anti-crossline hardening remains the repaired baseline under this freeze pass
 - current narrow insertion before further A-freeze work: Template A bottom support-copy mapping alignment (`Bottom Support Copy` UI label -> canonical backend `subtitle`) is complete
 - fresh Family A live Chromium acceptance has now been captured on a non-degraded Puppeteer path
-- current poster2 priority: product region practical closure first, then bottom-region observability, then Gemini copy optimizer integration, then validation closeout
-- current active practical-closure step: Family A validation closeout
+- current poster2 priority: Template A practical follow-ups on copy optimization value closure and product annotation text closure
+- current active practical-closure step: Family A copy optimization value closure + product annotation text closure
 - current priority after the Template A freeze pass: resume deployed-environment validation for Gemini quality and Resend live closure behavior
 - next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds

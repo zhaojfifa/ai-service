@@ -5469,6 +5469,49 @@ class TestTemplateBBackendGenerationFix:
         assert manifest.title_text_layer["sanitized_text"] == spec.title
         assert manifest.subtitle_text_layer["sanitized_text"] == spec.subtitle
 
+    def test_template_a_copy_optimization_review_surfaces_disabled_reason_when_mode_off(self):
+        spec = _make_spec(
+            title="Cook smarter every day",
+            subtitle="Steam, bake, and roast with guided presets!!!",
+            features=("Fast preheat for weeknights", "Easy-clean chamber"),
+            copy_optimization=CopyOptimizationSpec(mode="off", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["enabled"] is False
+        assert review["mode"] == "off"
+        assert review["disabled_reason"] == "mode_off_no_copy_optimization_requested"
+        assert review["operator_controls"]["visible"] is False
+        assert review["title"]["requested_text"] == spec.title
+        assert review["title"]["optimized_text"] == ""
+        assert review["title"]["rendered_text"] == spec.title
+        assert review["subtitle"]["requested_text"] == spec.subtitle
+        assert review["subtitle"]["optimized_text"] == ""
+        assert len(review["annotation_items"]) == len(spec.features)
+
+    def test_template_a_copy_optimization_review_surfaces_material_suggestion_when_mode_on(self):
+        spec = _make_spec(
+            title="Cook smarter every day",
+            subtitle="Steam, bake, and roast with guided presets!!!",
+            features=("Fast preheat for weeknights", "Easy-clean chamber", "Smart controls for daily service"),
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["enabled"] is True
+        assert review["mode"] == "suggest"
+        assert review["disabled_reason"] in ("", "no_material_copy_diff_available")
+        assert review["changed_fields"]
+        assert review["operator_controls"]["visible"] is True
+        assert review["title"]["optimized_text"]
+        assert (
+            review["title"]["optimized_text"] != review["title"]["sanitized_text"]
+            or review["subtitle"]["optimized_text"] != review["subtitle"]["sanitized_text"]
+            or any(item["optimized_text"] != item["sanitized_text"] for item in review["annotation_items"])
+        )
+
     def test_template_a_copy_optimization_accepts_optimized_copy_without_changing_annotation_count(self):
         spec = _make_spec(
             title="Cook smarter every day",
@@ -5497,6 +5540,34 @@ class TestTemplateBBackendGenerationFix:
         assert len([item for item in review["annotation_items"] if item["rendered_text"]]) == len(spec.features)
         assert review["annotation_items"][0]["rendered_text"] == "Weeknight-ready preheat"
         assert review["annotation_items"][1]["rendered_text"] == "Quick-clean chamber"
+
+    def test_template_a_product_annotation_slots_surface_fixed_budget_and_truncation_fields(self):
+        spec = _make_spec(
+            features=(
+                "Fast preheat for weeknight service",
+                "Easy-clean chamber for daily turnover",
+                "Smart controls with preset memory and guided cooking modes",
+            ),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        product_review = manifest.product_contract_review
+        annotation_review = manifest.product_annotation_contract_review
+        assert len(product_review["annotation_slots"]) == 3
+        assert len(annotation_review["annotation_slots"]) == 3
+        for slot in product_review["annotation_slots"]:
+            assert slot["slot_fixed"] is True
+            assert slot["char_budget"] == product_review["behavior_policy"]["char_budget"]
+            assert slot["line_clamp"] == product_review["behavior_policy"]["line_clamp"]
+            assert "requested_text" in slot
+            assert "sanitized_text" in slot
+            assert "rendered_excerpt" in slot
+            assert "truncation_applied" in slot
+        for slot in annotation_review["annotation_slots"]:
+            assert slot["slot_fixed"] is True
+            assert slot["char_budget"] == product_review["behavior_policy"]["char_budget"]
+            assert slot["line_clamp"] == product_review["behavior_policy"]["line_clamp"]
+            assert slot["annotation_owner"] == "product_region"
 
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector

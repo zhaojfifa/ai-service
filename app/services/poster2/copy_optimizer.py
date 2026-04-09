@@ -30,11 +30,43 @@ def _build_deterministic_candidate(effective_spec: PosterSpec) -> dict[str, Any]
         title=title or effective_spec.title,
     )
     features = _normalize_feature_items(effective_spec.features)
+    suggestion_title = title
+    suggestion_subtitle = subtitle
+    suggestion_features = features
+
+    if features:
+        first_feature = features[0]
+        if first_feature and first_feature.casefold() not in title.casefold():
+            suggestion_title = normalize_marketing_title(f"{title} · {first_feature}") or suggestion_title
+        if len(features) >= 2:
+            joined = " · ".join(item for item in features[:2] if item)
+            if joined:
+                suggestion_subtitle = normalize_marketing_subtitle(joined, title=suggestion_title or title)
+        elif first_feature:
+            suggestion_subtitle = normalize_marketing_subtitle(first_feature, title=suggestion_title or title)
+
+        tightened_features: list[str] = []
+        for index, item in enumerate(features):
+            compact = compress_marketing_point(item)
+            if compact and compact != item:
+                tightened_features.append(compact)
+                continue
+            if index == 0 and compact:
+                tightened_features.append(compact.replace(" for ", " · "))
+            else:
+                tightened_features.append(compact)
+        suggestion_features = tuple(tightened_features[: len(features)])
+
+    if suggestion_title == title and suggestion_subtitle == subtitle and suggestion_features == features:
+        if subtitle and subtitle.casefold() not in title.casefold():
+            suggestion_title = normalize_marketing_title(f"{title} · {subtitle}") or title
+        elif title:
+            suggestion_subtitle = normalize_marketing_subtitle(f"Optimized: {title}", title=title)
     return {
-        "title": title,
-        "subtitle": subtitle,
-        "features": features,
-        "generated_from": "deterministic",
+        "title": suggestion_title,
+        "subtitle": suggestion_subtitle,
+        "features": suggestion_features,
+        "generated_from": "deterministic_suggestion",
     }
 
 
@@ -120,7 +152,54 @@ def resolve_copy_optimization(
 
     optimization = requested_spec.copy_optimization
     if optimization.mode == "off":
-        return effective_spec, {}
+        return effective_spec, {
+            "enabled": False,
+            "template_scope": "family_a_only",
+            "optimizer_scope": "title_subtitle_annotation_only",
+            "mode": "off",
+            "decision": "pending",
+            "disabled_reason": "mode_off_no_copy_optimization_requested",
+            "optimizer_requested": get_settings().email_copy.optimizer,
+            "optimizer_used": "off",
+            "applied_to_rendered_output": False,
+            "changed_fields": [],
+            "operator_controls": {
+                "visible": False,
+                "can_accept": False,
+                "can_reject": False,
+                "disabled_reason": "mode_off_no_copy_optimization_requested",
+            },
+            "truth_guard": {
+                "renderer_executes_truth": True,
+                "gemini_may_not_define_layout_or_control": True,
+                "template_a_only": True,
+            },
+            "title": {
+                "requested_text": requested_spec.title,
+                "sanitized_text": effective_spec.title,
+                "optimized_text": "",
+                "rendered_text": effective_spec.title,
+                "optimization_applied": False,
+            },
+            "subtitle": {
+                "requested_text": requested_spec.subtitle,
+                "sanitized_text": effective_spec.subtitle,
+                "optimized_text": "",
+                "rendered_text": effective_spec.subtitle,
+                "optimization_applied": False,
+            },
+            "annotation_items": [
+                {
+                    "index": index,
+                    "requested_text": requested_spec.features[index] if index < len(requested_spec.features) else "",
+                    "sanitized_text": effective_spec.features[index] if index < len(effective_spec.features) else "",
+                    "optimized_text": "",
+                    "rendered_text": effective_spec.features[index] if index < len(effective_spec.features) else "",
+                    "optimization_applied": False,
+                }
+                for index in range(len(effective_spec.features))
+            ],
+        }
 
     suggested = _build_candidate(effective_spec)
     apply_optimized = optimization.mode == "apply" or optimization.decision == "accepted"
@@ -175,9 +254,12 @@ def resolve_copy_optimization(
         "optimizer_used": suggested["generated_from"],
         "applied_to_rendered_output": apply_optimized,
         "changed_fields": changed_fields,
+        "disabled_reason": "" if changed_fields else "no_material_copy_diff_available",
         "operator_controls": {
+            "visible": True,
             "can_accept": bool(changed_fields),
             "can_reject": bool(changed_fields),
+            "disabled_reason": "" if changed_fields else "no_material_copy_diff_available",
         },
         "truth_guard": {
             "renderer_executes_truth": True,
