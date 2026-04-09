@@ -2619,3 +2619,107 @@ Remaining risks:
 ### Remaining limits
 - this acceptance run is local and artifact-rooted under `/tmp`, not persisted to remote storage
 - full `tests/poster2/test_pipeline.py` still contains the existing bottom/text-only failures outside this A-freeze scope
+
+## Template A narrow follow-up — bottom support copy alignment fix
+
+### Read state
+- Template A freeze and live acceptance were already complete before this task
+- scope stayed on `template_dual_v2` only
+- no Template B, geometry, ownership, or bottom-family redesign work was reopened
+
+### Problem reproduced
+- Stage2 diagnostics showed `bottom_mode = text_only_expanded` with subtitle/support copy present
+- `gallery_strip` was correctly collapsed by mode
+- final Template A structured renderer still kept subtitle visibility logic intact
+- but the Stage2 preview continued to render the old static bottom/gallery composition, so support copy was missing or visually misaligned
+
+### Root cause
+- the legacy Stage2 preview path did not consume backend `bottom_contract_review` / `template_behavior.bottom_policy` for Template A
+- preview bottom rendering stayed hard-wired to gallery-era assumptions:
+  - gallery row stayed visible
+  - gallery subtitle node stayed active
+  - bottom support copy did not key off `subtitle_slot.rendered`
+- this was a preview/render-consumption mismatch, not a resolver or ownership failure
+
+### Files changed
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/app.js`
+- `docs/styles.css`
+- `tests/poster2/test_renderer.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+
+### Layer changed
+- Template A Stage2 preview render-consumption only
+- preview/docs mirror alignment
+- focused regression coverage for `text_only_expanded`
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+  - `114 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'bottom or family_a or accepted_output_keys'`
+  - existing failures remain in the repo's older Template A bottom/text-only assertions; no new failure signature from this preview-only fix
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+  - `7 passed`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - `6 passed`
+
+### Remaining risks
+- this fix is intentionally local to Stage2 preview consumption; it does not attempt to resolve the older `tests/poster2/test_pipeline.py` bottom/text-only backlog
+- no fresh Chromium artifact bundle was generated because the final render path was already structurally correct and unchanged in this task
+
+### Exact acceptance
+- when Template A uses `text_only_expanded` and support copy is present, Stage2 preview now keeps title + subtitle/support copy visible and aligned as a centered text stack
+- gallery strip stays collapsed by mode in preview
+- preview uses the same backend bottom truth already shown in diagnostics
+- Template B remained untouched
+
+## Template A narrow follow-up — title_gallery_split support-copy field mapping alignment
+
+### Read state
+- this was inserted after the preview alignment fix and before any new freeze-sequence work
+- scope remained Template A only
+- no geometry, ownership, bottom-mode structure, or Template B path was reopened
+
+### Problem reproduced
+- UI copy remained correct as `Bottom Support Copy`
+- backend canonical field stayed `subtitle`
+- but the Stage1 -> Stage2 -> preview state chain still carried a legacy `tagline` alias in parallel
+- this made Template A bottom support copy mapping harder to reason about and risked misalignment between preview state and `requested_subtitle_text` / `sanitized_subtitle_text`
+
+### Root cause
+- front-end state hydration and preview state still treated `subtitle` and `tagline` as near-equivalent inputs
+- Template A preview/runtime orchestration had no explicit helper that says "bottom support copy is canonically `subtitle`; `tagline` is legacy fallback only"
+- Template A pipeline normalization also still ran support copy through the generic marketing-subtitle sanitizer, which stripped valid trailing punctuation in this bottom-owned field
+
+### Files changed
+- `frontend/app.js`
+- `docs/app.js`
+- `app/services/poster2/pipeline.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+
+### Layer changed
+- Template A field mapping / normalization alignment
+- narrow backend subtitle normalization for A bottom support copy
+- regression coverage
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'title_gallery_split_preserves_support_copy_in_requested_and_sanitized_subtitle_fields or family_a_runtime_rebaseline_matches_fixture or accepted_output_keys'`
+  - `3 passed, 285 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+  - `8 passed`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - `6 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+  - `114 passed`
+
+### Remaining risks
+- this does not attempt to clean up every historical `tagline` alias outside the bounded Template A poster2 path
+- the broader existing bottom/text-only pipeline backlog remains separate from this support-copy mapping closure
+
+### Exact acceptance
+- Template A keeps `Bottom Support Copy` as the UI label while `subtitle` remains the canonical backend field
+- Stage1 -> Stage2 -> preview -> generate now prefer canonical `subtitle` truth for Template A bottom support copy
+- `title_gallery_split` with support copy present preserves `requested_subtitle_text` and `sanitized_subtitle_text`
+- `subtitle_slot` remains rendered instead of being mis-collapsed

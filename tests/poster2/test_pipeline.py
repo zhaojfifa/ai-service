@@ -1796,6 +1796,22 @@ class TestBottomStructuralExpansion:
         assert review["bottom_layout_mode"] == "title_gallery_split"
         assert review["bottom_mode"] == "title_gallery_split"
 
+    def test_title_gallery_split_preserves_support_copy_in_requested_and_sanitized_subtitle_fields(self):
+        template = _load_template()
+        template.behavior_modes = replace(template.behavior_modes, bottom_mode="title_gallery_split")
+        support_copy = "Bottom support copy stays on the canonical subtitle field."
+        spec = _make_spec(title="Short title", subtitle=support_copy)
+        _, metadata = _run_pipeline_with_stored_metadata(template, spec)
+        review = metadata["bottom_contract_review"]
+
+        assert review["requested_subtitle_text"] == support_copy
+        assert review["sanitized_subtitle_text"] == support_copy
+        assert review["subtitle_source"] == "request.subtitle"
+        assert review["subtitle_slot"]["rendered"] is True
+        assert review["subtitle_slot"]["reason_code"] is None
+        assert metadata["subtitle_text_layer"]["requested_text"] == support_copy
+        assert metadata["subtitle_text_layer"]["rendered"] is True
+
     def test_bottom_contract_review_exposes_requested_effective_and_override_reason(self):
         template = _load_template()
         spec = _make_spec(bottom_mode="title_only")

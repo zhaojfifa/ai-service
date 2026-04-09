@@ -2199,6 +2199,18 @@ class TestBottomSplitBehavior:
         assert "--title-band-left: 96px" in html_payload
         assert "--title-band-width: 832px" in html_payload
 
+    def test_text_only_expanded_html_keeps_subtitle_visible_while_gallery_stays_collapsed(self):
+        html_payload = self._render_html_payload(
+            title="Main title",
+            subtitle="Supporting subtitle copy",
+            gallery=[],
+        )
+
+        assert "layer-title-subtitle state-show" in html_payload
+        assert "layer-subtitle state-show" in html_payload
+        assert "layer-gallery-strip-region-shell state-hidden" in html_payload
+        assert "layer-bottom-gallery-items state-hidden" in html_payload
+
     def test_template_css_exposes_independent_bottom_split_state_tokens(self):
         css_template = (
             Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"

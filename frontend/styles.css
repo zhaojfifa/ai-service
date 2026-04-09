@@ -1121,6 +1121,17 @@ main {
   color: #64748b;
 }
 
+.poster-preview--text-only-expanded .poster-tagline {
+  padding: 12px 80px 22px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.poster-preview--text-only-expanded .poster-title {
+  margin-bottom: 6px;
+}
+
 .poster-bottom-subtitle {
   margin-top: 10px;
   font-weight: 500;

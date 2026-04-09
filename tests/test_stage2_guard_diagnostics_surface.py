@@ -154,6 +154,34 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "bottom_mode: canonicalBottomMode" in js
 
 
+def test_frontend_stage2_template_a_text_only_expanded_preview_uses_backend_bottom_truth():
+    js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
+
+    assert "function resolvePoster2PreviewBottomState" in js
+    assert "stage2State.poster2.latestResult = data || null;" in js
+    assert "review?.effective_bottom_mode" in js
+    assert "review?.subtitle_slot?.rendered" in js
+    assert "review?.gallery_strip_region?.rendered" in js
+    assert "root.classList.toggle('poster-preview--text-only-expanded', isTextOnlyExpanded);" in js
+    assert "galleryRow.classList.toggle('hidden', galleryCollapsed);" in js
+    assert "gallerySubtitleEl.classList.toggle('hidden', galleryCollapsed);" in js
+    assert "bottomSubtitleEl.classList.toggle('hidden', !subtitleVisible);" in js
+    assert ".poster-preview--text-only-expanded .poster-tagline" in css
+
+
+def test_frontend_stage2_template_a_support_copy_mapping_stays_on_canonical_subtitle():
+    js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    assert "function resolveTemplateABottomSupportCopy" in js
+    assert "const subtitle = typeof source?.subtitle === 'string' ? source.subtitle.trim() : '';" in js
+    assert "const legacyTagline = typeof source?.tagline === 'string' ? source.tagline.trim() : '';" in js
+    assert "subtitle: resolveTemplateABottomSupportCopy(stage1Data, '')," in js
+    assert "poster.subtitle = resolveTemplateABottomSupportCopy(snapshot, '');" in js
+    assert "requested_subtitle_text" in js
+    assert "sanitized_subtitle_text" in js
+
+
 def test_docs_publish_mirror_contains_same_guard_diagnostics():
     frontend_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
     frontend_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")

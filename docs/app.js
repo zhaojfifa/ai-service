@@ -142,6 +142,7 @@ const stage2State = {
   poster2: {
     rendererMode: 'auto',
     history: [],
+    latestResult: null,
     bottomContract: {
       title: '',
       subtitle: '',
@@ -325,6 +326,14 @@ function normalisePoster2BottomText(value, maxChars) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text) return '';
   return text.slice(0, maxChars);
+}
+
+function resolveTemplateABottomSupportCopy(source, fallback = '') {
+  const subtitle = typeof source?.subtitle === 'string' ? source.subtitle.trim() : '';
+  if (subtitle) return subtitle;
+  const legacyTagline = typeof source?.tagline === 'string' ? source.tagline.trim() : '';
+  if (legacyTagline) return legacyTagline;
+  return fallback;
 }
 
 function hasPoster2BottomField(bottom, key) {
@@ -886,8 +895,11 @@ function rehydrateStage2PosterFromStage1() {
   if (!poster.brand_name) poster.brand_name = snapshot.brand_name || '';
   if (!poster.agent_name) poster.agent_name = snapshot.agent_name || '';
   if (!poster.headline) poster.headline = snapshot.title || '';
+  if (!poster.subtitle) {
+    poster.subtitle = resolveTemplateABottomSupportCopy(snapshot, '');
+  }
   if (!poster.tagline) {
-    poster.tagline = snapshot.subtitle || snapshot.tagline || snapshot.slogan || '';
+    poster.tagline = resolveTemplateABottomSupportCopy(snapshot, snapshot.slogan || '');
   }
   if (!Array.isArray(poster.features) || poster.features.length === 0) {
     const fromFeatures = Array.isArray(snapshot.features) ? snapshot.features : [];
@@ -6892,7 +6904,8 @@ function initStage2() {
       brand_name: stage1Data.brand_name || '',
       agent_name: stage1Data.agent_name || '',
       headline: stage1Data.title || '',
-      tagline: stage1Data.subtitle || stage1Data.tagline || '',
+      subtitle: resolveTemplateABottomSupportCopy(stage1Data, ''),
+      tagline: resolveTemplateABottomSupportCopy(stage1Data, ''),
       features: stage2Features,
       series: Array.isArray(stage1Data.gallery_entries)
         ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
@@ -7987,8 +8000,66 @@ function renderPosterResult() {
     '';
   setTextIfNonEmpty(gallerySubtitleEl, subheadline, ' ');
   setTextIfNonEmpty(bottomSubtitleEl, subheadline, ' ');
+  applyPoster2PreviewBottomState(root, {
+    gallerySubtitleEl,
+    bottomSubtitleEl,
+    subheadline,
+  });
 
   renderGalleryCaptions();
+}
+
+function resolvePoster2PreviewBottomState(subheadline) {
+  const latestResult = stage2State.poster2?.latestResult;
+  const review = latestResult?.bottom_contract_review || null;
+  const bottomPolicy = latestResult?.template_behavior?.bottom_policy || null;
+  const behaviorModes = latestResult?.template_behavior?.behavior_modes || null;
+  const effectiveBottomMode = canonicalizePoster2BottomMode(
+    review?.effective_bottom_mode ||
+    review?.bottom_mode ||
+    behaviorModes?.bottom_mode ||
+    stage2State.poster2?.bottomContract?.bottomMode ||
+    'title_gallery_split'
+  );
+  const subtitleRendered =
+    review?.subtitle_slot?.rendered ??
+    bottomPolicy?.subtitle_slot_rendered ??
+    latestResult?.subtitle_text_layer?.rendered ??
+    Boolean(typeof subheadline === 'string' && subheadline.trim());
+  const galleryRendered =
+    review?.gallery_strip_region?.rendered ??
+    bottomPolicy?.gallery_strip_rendered ??
+    (effectiveBottomMode !== 'text_only_expanded');
+
+  return {
+    templateId: latestResult?.template_id || POSTER2_PILOT_TEMPLATE_ID,
+    effectiveBottomMode,
+    subtitleRendered: Boolean(subtitleRendered),
+    galleryRendered: Boolean(galleryRendered),
+  };
+}
+
+function applyPoster2PreviewBottomState(root, { gallerySubtitleEl, bottomSubtitleEl, subheadline }) {
+  const galleryRow = root.querySelector('.poster-gallery-row');
+  const bottomState = resolvePoster2PreviewBottomState(subheadline);
+  const isTemplateA = bottomState.templateId === POSTER2_PILOT_TEMPLATE_ID;
+  const isTextOnlyExpanded = isTemplateA && bottomState.effectiveBottomMode === 'text_only_expanded';
+  const galleryCollapsed = isTemplateA && !bottomState.galleryRendered;
+  const subtitleVisible = !isTemplateA || bottomState.subtitleRendered;
+
+  root.dataset.poster2BottomMode = bottomState.effectiveBottomMode || '';
+  root.classList.toggle('poster-preview--text-only-expanded', isTextOnlyExpanded);
+  root.classList.toggle('poster-preview--gallery-collapsed', galleryCollapsed);
+
+  if (galleryRow) {
+    galleryRow.classList.toggle('hidden', galleryCollapsed);
+  }
+  if (gallerySubtitleEl) {
+    gallerySubtitleEl.classList.toggle('hidden', galleryCollapsed);
+  }
+  if (bottomSubtitleEl) {
+    bottomSubtitleEl.classList.toggle('hidden', !subtitleVisible);
+  }
 }
 
 function renderGalleryCaptions() {
@@ -8102,6 +8173,7 @@ function updateStage2Warnings(data) {
 
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
+  stage2State.poster2.latestResult = data || null;
 
   if (typeof updateStage2Warnings === 'function') {
     updateStage2Warnings(data);
@@ -8159,6 +8231,7 @@ function applyVertexPosterResult(data) {
   if (data?.template_id === POSTER2_PILOT_TEMPLATE_ID) {
     recordPoster2PilotRun(data);
   }
+  renderPosterResult();
 }
 
 

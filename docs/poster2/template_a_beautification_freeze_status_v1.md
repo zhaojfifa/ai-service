@@ -57,3 +57,11 @@ Family A beautification freeze is accepted when:
 3. Family A visual smoke hashes match the frozen fixture
 4. diagnostics remain backend-truth-driven
 5. Template B remains untouched
+
+## Follow-up Maintenance Note
+
+A narrow post-freeze follow-up repaired Stage2 preview consumption for Template A
+`bottom_mode = text_only_expanded` when support copy is present.
+
+This did not change Template A geometry, ownership, or bottom behavior truth.
+It only aligned the preview bottom text stack with the already-correct backend/final render state.

@@ -664,10 +664,14 @@ def _normalize_contract_text_spec(spec: PosterSpec, template=None) -> PosterSpec
     brand_name = _normalize_requested_text(spec.brand_name)
     agent_name = _normalize_requested_text(spec.agent_name)
     title = normalize_marketing_title(_normalize_requested_text(spec.title))
-    subtitle = normalize_marketing_subtitle(
-        _normalize_requested_text(spec.subtitle),
-        title=title,
-    )
+    subtitle_requested = _normalize_requested_text(spec.subtitle)
+    if (template.template_id if template else spec.template_id) == "template_dual_v2":
+        subtitle = subtitle_requested
+    else:
+        subtitle = normalize_marketing_subtitle(
+            subtitle_requested,
+            title=title,
+        )
     sku_text = _normalize_requested_text(spec.sku_text)
     description_title = normalize_marketing_title(_normalize_requested_text(spec.description_title))
     description_body = _normalize_requested_text(spec.description_body)
