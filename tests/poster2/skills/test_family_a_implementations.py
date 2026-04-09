@@ -158,10 +158,10 @@ def test_family_a_beautification_skill_matches_frozen_pack_and_resolver_consumpt
         text_emphasis="campaign_frozen",
     )
     assert pack["beauty_tokens"].shell_surface == "campaign_frozen_panel"
-    assert pack["accent_color"] == "#E8002A"
-    assert pack["text_colors"]["subtitle"] == "#705C66"
+    assert pack["accent_color"] == "#C63A2D"
+    assert pack["text_colors"]["subtitle"] == "#5A6168"
     assert pack["css_vars"]["--annotation-card-surface"].startswith("linear-gradient")
-    assert pack["css_vars"]["--gallery-item-border"] == "1px solid rgba(232, 0, 42, 0.08)"
+    assert pack["css_vars"]["--gallery-item-border"] == "1px solid rgba(214, 218, 221, 0.86)"
 
     template = _load_template()
     spec = _make_spec(product_secondary_image=None)

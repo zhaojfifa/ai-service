@@ -77,15 +77,21 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current temporary priority override = Template A text contract repair and product-region text closure
-- Family A isolation repair + anti-crossline hardening remains the repaired baseline under this freeze pass
-- current narrow insertion before further A-freeze work: Template A bottom support-copy mapping alignment (`Bottom Support Copy` UI label -> canonical backend `subtitle`) is complete
-- fresh Family A live Chromium acceptance has now been captured on a non-degraded Puppeteer path
-- current poster2 priority: Template A text lifecycle closure for subtitle + product annotation render truth
-- current active practical-closure step: non-destructive sanitize + fit rewrite + accepted optimization render source alignment
-- current priority after the Template A freeze pass: resume deployed-environment validation for Gemini quality and Resend live closure behavior
-- next after backend closure: review live-output quality and closure metrics, not poster contract redesign
-- bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
-- not yet: bottom beautification reopen
-- not yet: poster contract redesign
+- current temporary priority override = Family A minimal-delta commercial fryer refinement
+- Template A remains the active oracle line for shared-skill and commercial acceptance verification
+- pre-change rollback tag for this pass:
+  - `Poster2-FamilyA-MinDelta-PreCommercialRefine`
+  - `cdb3216cbb1b95630c9afbb27a9ada9c90af37a7`
+- hard boundaries remain:
+  - no geometry changes
+  - no ownership drift
+  - no Template B work
+  - UI layout and 3-column header stay unchanged
+- current refinement focus:
+  - default English fryer copy in the existing input flow
+  - minimal product-region readability improvement through existing fixed-slot callouts
+  - bottom gallery semantic ordering and lower repetition using existing assets only
+  - smallest Family A token shift toward neutral commercial product language
+- not yet: Family A redesign
+- not yet: Template B reopen
 - not yet: editor-first drift

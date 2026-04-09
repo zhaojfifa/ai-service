@@ -3731,3 +3731,103 @@ Two narrow follow-ups remained after copy-quality closure:
 - full lineage is on-demand only
 - no-actionable state no longer consumes the main operator path with dead controls
 - accepted optimized subtitle / annotation text now closes into `rendered_text`
+
+---
+
+## Entry — Family A minimal-delta commercial fryer refinement
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/03_engineering/beautification_layer_plan_v1.md`
+- current Family A practical-closure and validation docs
+
+### Scope
+
+- Template A / Family A only
+- contract-first
+- minimal-delta only
+- UI structure unchanged
+- 3-column header unchanged
+- no geometry changes
+- no ownership changes
+- no Template B work
+
+### Rollback anchor
+
+- pre-change rollback tag created and pushed before code changes:
+  - `Poster2-FamilyA-MinDelta-PreCommercialRefine`
+  - sha `cdb3216cbb1b95630c9afbb27a9ada9c90af37a7`
+
+### Problem reproduced
+
+The repaired Family A runtime was structurally healthy, but the commercial electric fryer sample still read like a generic kitchen poster:
+
+- default copy was not the fryer-specific English set
+- product callout reading was more cramped than necessary for the commercial case
+- bottom strip semantics still encouraged repetitive fallback behavior
+- Family A token bias still leaned too warm/pink for a stainless commercial appliance
+
+### Root cause
+
+- Stage1 defaults still carried generic kitchen copy
+- Family A Mode S payload fallback only lived at the UI-display layer, not cleanly in the request path
+- Family A poster2 gallery fallback did not use semantic product-asset ordering for sparse bottom strips
+- Family A frozen token pack had not been minimally shifted from warm campaign tones toward a neutral fryer language
+
+### Files changed
+
+- `frontend/app.js`
+- `docs/app.js`
+- `app/services/poster2/skills/beautification/family_a_beautification_freeze_pack_v1.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/test_frontend_docs_sync.py`
+- `tests/poster2/skills/test_family_a_implementations.py`
+- `tests/poster2/test_renderer.py`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `docs/poster2/03_engineering/family_a/family_a_commercial_fryer_min_delta_refinement_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_commercial_fryer_min_delta_refinement_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Stage1 default input wiring
+- Family A request/consumption path
+- Family A minimal beautification token pack
+- Family A validation fixture baseline
+
+### Validation run
+
+- `bash scripts/sync_frontend_to_docs.sh`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` -> `7 passed`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py` -> `11 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/skills/test_family_a_implementations.py` -> `4 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'TestFamilyAVisualRebaseline or test_template_behavior_resolver_uses_template_metadata or test_template_a_html_keeps_product_slots_in_absolute_product_region_coordinates'` -> `3 passed`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'family_a_runtime_rebaseline_matches_fixture or accepted_output_keys or test_template_a_payload_filters_out_template_b_visible_truth_and_parity_keys or test_template_a_regression_path_remains_unchanged'` -> `4 passed`
+
+### Remaining risks
+
+- this remains a minimal-delta commercial refinement, not a reopened Family A redesign track
+- a fresh live fryer artifact bundle has not yet been captured in this pass
+- local non-poster2 noise remains:
+  - `docs/.DS_Store`
+
+### Exact acceptance
+
+- default Family A fryer copy is injected through the existing input flow
+- header remains the same 3-column layout
+- product annotation remains fixed-slot and product-owned
+- bottom remains `title_gallery_split`
+- bottom gallery semantics no longer default toward repeated logo fallback
+- Family A token language is more neutral/commercial without changing layout structure

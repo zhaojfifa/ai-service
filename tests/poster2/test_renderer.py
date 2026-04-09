@@ -1149,7 +1149,7 @@ class TestStructuredScenarioLayer:
         assert resolved.hero_mode == "scenario_cover_product_contain"
         assert resolved.feature_mode == "product_anchor_callouts"
         assert resolved.beauty_tokens.shell_surface == "campaign_frozen_panel"
-        assert resolved.css_vars["--accent-tone"] == "#E8002A"
+        assert resolved.css_vars["--accent-tone"] == "#C63A2D"
         assert resolved.hero_policy.scenario_enabled is True
         assert resolved.feature_policy.mode == "product_anchor_callouts"
         assert resolved.bottom_policy.mode == "title_gallery_split"
@@ -1408,7 +1408,7 @@ class TestStructuredScenarioLayer:
 
         assert "state-safe-fill" in html_payload
         assert "hero-mode-scenario-cover-product-contain" in html_payload
-        assert "--accent-tone: #E8002A" in html_payload
+        assert "--accent-tone: #C63A2D" in html_payload
         assert "layer-hero-peer-region state-safe-fill state-fit-cover state-anchor-center hero-mode-scenario-cover-product-contain" in html_payload
         assert "scenario-fit-cover" in html_payload
         assert "layer layer-product-content state-fit-contain state-anchor-center hero-mode-scenario-cover-product-contain" in html_payload
