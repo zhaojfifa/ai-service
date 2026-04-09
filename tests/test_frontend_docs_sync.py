@@ -116,3 +116,12 @@ def test_template_b_independent_preview_and_generate_path_are_present():
     assert "gallery: (posterPayload.gallery_items || []).map" in app_js
     assert "const rendererMode = stage2State.poster2.rendererMode || 'auto';" in app_js
     assert "puppeteerOption.disabled" not in app_js
+
+
+def test_poster2_readme_indexes_family_isolation_rules():
+    readme = (ROOT / "docs" / "poster2" / "README.md").read_text(encoding="utf-8")
+    rules_doc = (ROOT / "docs" / "poster2" / "family_isolation_rules_v1.md").read_text(encoding="utf-8")
+
+    assert "family_isolation_rules_v1.md" in readme
+    assert "one family, one evidence schema" in rules_doc
+    assert "one family, one render material builder" in rules_doc

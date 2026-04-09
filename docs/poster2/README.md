@@ -14,6 +14,7 @@ Read in this order for poster2 work:
 4. [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
 5. [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
 6. [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
+7. [family_isolation_rules_v1.md](family_isolation_rules_v1.md)
 
 Then read only the task-relevant status / plan / progress documents.
 
@@ -30,6 +31,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
 - [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
 - [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
+- [family_isolation_rules_v1.md](family_isolation_rules_v1.md)
 
 ### Engineering Baseline And Progress
 

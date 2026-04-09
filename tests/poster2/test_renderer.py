@@ -1749,6 +1749,91 @@ class TestHeaderAndTitleBandLayoutControl:
 
 class TestFamilyAwareStructuredHtmlRouting:
 
+    def test_family_a_render_asset_builder_keeps_a_semantics_only(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        behavior = resolve_template_behavior(
+            template,
+            feature_count=3,
+            brand_name="厨厨房",
+            agent_name="智能厨房顾问",
+            gallery_requested_count=2,
+            gallery_input_count_normalized=2,
+            gallery_resolved_count=2,
+        )
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        assets = ResolvedAssets(
+            product=solid_image(400, 600),
+            scenario=solid_image(320, 600),
+            gallery=[solid_image(176, 104), solid_image(176, 104)],
+            gallery_status=[{"resolved": True}, {"resolved": True}],
+            materials=[solid_image(160, 80)],
+        )
+
+        asset_urls, gallery_items_status = renderer._build_render_asset_urls(
+            spec=template,
+            assets=assets,
+            slot_spec=slot_spec,
+            behavior=behavior,
+        )
+
+        assert asset_urls["scenario"]
+        assert asset_urls["gallery"]
+        assert asset_urls["materials"] == []
+        assert len(gallery_items_status) == 2
+
+    def test_family_b_render_asset_builder_keeps_b_semantics_only(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_template_b_template()
+        behavior = resolve_template_behavior(
+            template,
+            feature_count=0,
+            brand_name="KitchenWorks",
+            agent_name="Dealer Team",
+            has_product_secondary_asset=True,
+            materials_count=2,
+            title_text="Integrated Workstation Sink",
+            subtitle_text="Precision-fitted accessories",
+            description_title="Spec block",
+            description_body="Short body",
+            sku_text="KW-2401",
+        )
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_product_sheet_v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        assets = ResolvedAssets(
+            product=solid_image(400, 600),
+            product_secondary=solid_image(320, 320),
+            scenario=solid_image(320, 600),
+            gallery=[solid_image(176, 104)],
+            gallery_status=[{"resolved": True}],
+            materials=[solid_image(160, 80), solid_image(160, 80)],
+        )
+
+        asset_urls, gallery_items_status = renderer._build_render_asset_urls(
+            spec=template,
+            assets=assets,
+            slot_spec=slot_spec,
+            behavior=behavior,
+        )
+
+        assert asset_urls["scenario"] == ""
+        assert asset_urls["gallery"] == []
+        assert len(asset_urls["materials"]) == 2
+        assert gallery_items_status == []
+
     def test_template_a_html_dispatch_does_not_emit_template_b_region_shells(self):
         renderer = PuppeteerStructuredRenderer()
         template = _load_real_template()

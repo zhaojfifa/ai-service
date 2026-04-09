@@ -2253,3 +2253,47 @@ Remaining risks:
 ### Remaining risks
 - this PR hardens family-scoped render-material dispatch and HTML routing, but it does not yet re-baseline fresh Family A live Chromium artifacts
 - formal anti-crossline repo rules and broader family routing gates still belong in the next rules-and-test PR
+
+## PR-AR3 — Family anti-crossline rules + test gates
+
+### Root rules followed
+- contract-first
+- family branch must be explicit at every boundary
+- shared code may share tools, not semantics
+- README remained index-only and only changed to register a new formal document
+
+### Problem reproduced
+- isolation repair existed in code, but the repo still lacked a formal family-isolation baseline and broad regression gates
+- without whitelist/routing tests and a formal rule document, future PRs could reintroduce cross-family evidence or renderer drift without an explicit stop sign
+
+### Root cause found
+- anti-crossline guidance was implicit in recent PR language, not encoded as a formal architecture rule and test gate set
+- family routing tests existed only for the exact bugs just fixed, not yet as a durable engineering baseline
+
+### Files changed
+- `docs/poster2/family_isolation_rules_v1.md`
+- `docs/poster2/README.md`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+- formal architecture guidance
+- manifest whitelist regression tests
+- renderer family routing tests
+- docs/readme index coverage
+
+### Validation run
+- `./.venv/bin/python -m py_compile tests/poster2/test_pipeline.py tests/poster2/test_renderer.py tests/test_frontend_docs_sync.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix or test_template_a_regression_path_remains_unchanged'`
+  - `16 passed, 266 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'FamilyAwareStructuredHtmlRouting or TestStructuredScenarioLayer or TestHeaderAndTitleBandLayoutControl'`
+  - `28 passed, 83 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+  - pass
+
+### Remaining risks
+- the API/schema surface still keeps `template_b_parity_review` for compatibility, so Family A protection remains “empty field + family-scoped content” rather than response-field removal
+- Family A re-baseline artifacts and canonical runtime note still belong in the next PR

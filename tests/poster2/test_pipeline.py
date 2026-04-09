@@ -5291,6 +5291,16 @@ class TestTemplateBBackendGenerationFix:
         assert "top_copy_title_layer" not in manifest.visible_truth_evidence
         assert manifest.template_b_parity_review == {}
 
+    def test_template_a_visible_truth_keys_match_family_a_whitelist(self):
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+        assert set(manifest.visible_truth_evidence.keys()) == {
+            "header_region",
+            "product_region",
+            "title_text_layer",
+            "gallery_strip_region",
+        }
+
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector
 
