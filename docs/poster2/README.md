@@ -4,93 +4,112 @@
 It defines the reading path and the formal doc path.
 It does not carry branch history, pasted progress logs, or one-off process notes.
 
+## Root-Level Exceptions
+
+The following three files remain at `docs/poster2/` root by rule:
+
+1. [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
+2. [README.md](README.md)
+3. [current_branch_execution_log_v1.md](current_branch_execution_log_v1.md)
+
+All other formal poster2 documents now belong under the layered directories:
+
+- `01_product/`
+- `02_architecture/`
+- `03_engineering/`
+- `04_skills/`
+- `05_validation/`
+- `99_archive/`
+
 ## Entry Order
 
 Read in this order for poster2 work:
 
 1. [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
-2. [template_dual_v2_architecture_business_definition.md](template_dual_v2_architecture_business_definition.md)
-3. [template_family_region_matrix_v1.md](template_family_region_matrix_v1.md)
-4. [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
-5. [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
-6. [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
-7. [family_isolation_rules_v1.md](family_isolation_rules_v1.md)
-8. [skill_rules_and_storage_v1.md](skill_rules_and_storage_v1.md)
+2. [template_dual_v2_architecture_business_definition.md](02_architecture/template_dual_v2_architecture_business_definition.md)
+3. [template_family_region_matrix_v1.md](02_architecture/template_family_region_matrix_v1.md)
+4. [template_family_slot_contract_baseline_v1.md](02_architecture/template_family_slot_contract_baseline_v1.md)
+5. [renderer_routing_and_fallback_rules_v1.md](02_architecture/renderer_routing_and_fallback_rules_v1.md)
+6. [quality_guard_and_structure_completeness_v1.md](02_architecture/quality_guard_and_structure_completeness_v1.md)
+7. [family_isolation_rules_v1.md](02_architecture/family_isolation_rules_v1.md)
+8. [skill_rules_and_storage_v1.md](04_skills/skill_rules_and_storage_v1.md)
+9. [family_a_four_layer_verification_matrix_v1.md](05_validation/family_a_four_layer_verification_matrix_v1.md)
 
-Then read only the task-relevant status / plan / progress documents.
+Then read only the task-relevant status / plan / validation documents.
 
 ## Formal Document Path
 
-### Product Baseline
+### 01 Product
 
-- [poster_generation_product_design_baseline_v1.md](poster_generation_product_design_baseline_v1.md)
+- [external_reference_poster_design_review_and_migration_v1.md](01_product/external_reference_poster_design_review_and_migration_v1.md)
+- [poster2_product_flow_reviewable_v1.md](01_product/poster2_product_flow_reviewable_v1.md)
 
-### Architecture Guidance
+### 02 Architecture
 
-- [template_dual_v2_architecture_business_definition.md](template_dual_v2_architecture_business_definition.md)
-- [template_family_region_matrix_v1.md](template_family_region_matrix_v1.md)
-- [template_family_slot_contract_baseline_v1.md](template_family_slot_contract_baseline_v1.md)
-- [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
-- [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
-- [family_isolation_rules_v1.md](family_isolation_rules_v1.md)
-- [skill_rules_and_storage_v1.md](skill_rules_and_storage_v1.md)
+- [template_dual_v2_architecture_business_definition.md](02_architecture/template_dual_v2_architecture_business_definition.md)
+- [template_dual_v2_structural_rebuild_baseline_v1.md](02_architecture/template_dual_v2_structural_rebuild_baseline_v1.md)
+- [template_family_region_matrix_v1.md](02_architecture/template_family_region_matrix_v1.md)
+- [template_family_slot_contract_baseline_v1.md](02_architecture/template_family_slot_contract_baseline_v1.md)
+- [renderer_routing_and_fallback_rules_v1.md](02_architecture/renderer_routing_and_fallback_rules_v1.md)
+- [quality_guard_and_structure_completeness_v1.md](02_architecture/quality_guard_and_structure_completeness_v1.md)
+- [family_isolation_rules_v1.md](02_architecture/family_isolation_rules_v1.md)
 
-### Engineering Baseline And Progress
+### 03 Engineering
 
-- [template_dual_v2_structural_rebuild_baseline_v1.md](template_dual_v2_structural_rebuild_baseline_v1.md)
-- [template_dual_v2_engineering_implementation_and_acceptance.md](template_dual_v2_engineering_implementation_and_acceptance.md)
-- [current_stage_assessment_and_engineering_path_update_v1.md](current_stage_assessment_and_engineering_path_update_v1.md)
-- [index_update_stage_transition_v1.md](index_update_stage_transition_v1.md)
-- [poster2_product_flow_reviewable_v1.md](poster2_product_flow_reviewable_v1.md)
-- [bottom_behavior_contract_status_v1.md](bottom_behavior_contract_status_v1.md)
-- [bottom_vertical_anchoring_closure_status_v1.md](bottom_vertical_anchoring_closure_status_v1.md)
-- [bottom_mode_family_contract_closure_status_v1.md](bottom_mode_family_contract_closure_status_v1.md)
-- [feature_anchor_callouts_contract_status_v1.md](feature_anchor_callouts_contract_status_v1.md)
-- [product_region_annotation_contract_status_v1.md](product_region_annotation_contract_status_v1.md)
-- [product_region_contract_closure_status_v1.md](product_region_contract_closure_status_v1.md)
-- [product_region_container_and_annotation_text_contract_status_v1.md](product_region_container_and_annotation_text_contract_status_v1.md)
-- [text_layer_contract_closure_status_v1.md](text_layer_contract_closure_status_v1.md)
-- [scenario_region_resolver_and_renderer_parity_status_v1.md](scenario_region_resolver_and_renderer_parity_status_v1.md)
-- [beautification_phase1_status_v1.md](beautification_phase1_status_v1.md)
-- [bottom_mode_switch_closure_status_v1.md](bottom_mode_switch_closure_status_v1.md)
-- [email_copy_optimizer_and_optional_attachment_status_v1.md](email_copy_optimizer_and_optional_attachment_status_v1.md)
-- [generation_quality_and_copy_optimization_status_v1.md](generation_quality_and_copy_optimization_status_v1.md)
-- [copy_quality_phase1_status_v1.md](copy_quality_phase1_status_v1.md)
-- [stage1_operator_input_surface_bugfix_status_v1.md](stage1_operator_input_surface_bugfix_status_v1.md)
-- [template_b_line2_independent_flow_status_v1.md](template_b_line2_independent_flow_status_v1.md)
-- [template_b_backend_generation_fix_status_v1.md](template_b_backend_generation_fix_status_v1.md)
-- [template_b_contract_correction_status_v1.md](template_b_contract_correction_status_v1.md)
-- [template_b_design_baseline_v1.md](template_b_design_baseline_v1.md)
-- [template_b_parity_and_visual_contract_status_v1.md](template_b_parity_and_visual_contract_status_v1.md)
-- [template_a_isolation_rebaseline_status_v1.md](template_a_isolation_rebaseline_status_v1.md)
-- [template_a_rebaseline_status_v1.md](template_a_rebaseline_status_v1.md)
-- [template_a_beautification_freeze_status_v1.md](template_a_beautification_freeze_status_v1.md)
-- [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
+- [template_dual_v2_engineering_implementation_and_acceptance.md](03_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
+- [template_behavior_layer_plan_v1.md](03_engineering/template_behavior_layer_plan_v1.md)
+- [beautification_layer_plan_v1.md](03_engineering/beautification_layer_plan_v1.md)
+- [poster_generation_project_restructure_checklist_v1.md](03_engineering/poster_generation_project_restructure_checklist_v1.md)
+- [storage_copy_email_closure_status_v1.md](03_engineering/storage_copy_email_closure_status_v1.md)
+- [email_copy_optimizer_and_optional_attachment_status_v1.md](03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md)
+- [generation_quality_and_copy_optimization_status_v1.md](03_engineering/generation_quality_and_copy_optimization_status_v1.md)
+- [copy_quality_phase1_status_v1.md](03_engineering/copy_quality_phase1_status_v1.md)
+- [stage1_operator_input_surface_bugfix_status_v1.md](03_engineering/stage1_operator_input_surface_bugfix_status_v1.md)
 
-### Plans
+### 04 Skills
 
-- [template_behavior_layer_plan_v1.md](template_behavior_layer_plan_v1.md)
-- [beautification_layer_plan_v1.md](beautification_layer_plan_v1.md)
+- [skill_rules_and_storage_v1.md](04_skills/skill_rules_and_storage_v1.md)
 
-### Working State
+### 05 Validation
+
+Core verification anchors:
+
+- [family_a_four_layer_verification_matrix_v1.md](05_validation/family_a_four_layer_verification_matrix_v1.md)
+- [template_a_rebaseline_status_v1.md](05_validation/template_a_rebaseline_status_v1.md)
+- [template_a_beautification_freeze_status_v1.md](05_validation/template_a_beautification_freeze_status_v1.md)
+- [template_a_isolation_rebaseline_status_v1.md](05_validation/template_a_isolation_rebaseline_status_v1.md)
+- [bottom_behavior_contract_status_v1.md](05_validation/bottom_behavior_contract_status_v1.md)
+- [product_region_annotation_contract_status_v1.md](05_validation/product_region_annotation_contract_status_v1.md)
+- [scenario_region_resolver_and_renderer_parity_status_v1.md](05_validation/scenario_region_resolver_and_renderer_parity_status_v1.md)
+- [text_layer_contract_closure_status_v1.md](05_validation/text_layer_contract_closure_status_v1.md)
+
+Family B historical validation remains under the same validation path and is not reopened by current Family A work:
+
+- [template_b_backend_generation_fix_status_v1.md](05_validation/template_b_backend_generation_fix_status_v1.md)
+- [template_b_contract_correction_status_v1.md](05_validation/template_b_contract_correction_status_v1.md)
+- [template_b_design_baseline_v1.md](05_validation/template_b_design_baseline_v1.md)
+- [template_b_parity_and_visual_contract_status_v1.md](05_validation/template_b_parity_and_visual_contract_status_v1.md)
+
+### 99 Archive
+
+- [session_state_2026-03-31.md](99_archive/session_state_2026-03-31.md)
+
+## Active Working State
 
 - [current_branch_execution_log_v1.md](current_branch_execution_log_v1.md)
-  Branch execution/state log. This is the active state file for current branch progress, merge-path notes, and short-lived working facts.
-- [document_alignment_status_note_v1.md](document_alignment_status_note_v1.md)
-  Current document-path alignment note.
-- [bottom_region_contract_skill_v1.md](bottom_region_contract_skill_v1.md)
-  Proposed reusable bottom-region contract-to-implementation skill distilled from the successful bottom SOP path.
+  Branch execution/state log. This is the active state file for current branch progress, merge-path notes, migration notes, and short-lived working facts.
 
-## What Is Not Formal Doc Path
+## Legacy Nonformal Paths
 
-The following should not be treated as the formal doc path:
+Older grouped directories such as `01_architecture/`, `02_engineering/`, `03_stage_assessment/`, `04_external_reference/`, and `05_next_phase_plan/` may still exist as historical material in this workspace.
 
-- grouped copy folders such as `01_architecture/`, `02_engineering/`, `03_stage_assessment/`, `04_external_reference/`, `05_next_phase_plan/`
-- one-off session notes
-- pasted branch-local materials
-- external reference dumps
+They are no longer the formal doc path.
+The formal doc path is defined only by:
 
-These may remain as branch-local history or reference material, but the formal path is defined only by the root-level documents listed above.
+- this root index
+- the root product baseline
+- the root execution log
+- the layered directories listed above
 
 ## Current Alignment
 
@@ -99,25 +118,8 @@ These may remain as branch-local history or reference material, but the formal p
 - this file is index only
 - branch-local progress belongs in `current_branch_execution_log_v1.md`
 
-## Current Engineering Phase
+## Current Mainline
 
-- poster2 has entered Storage / Copy / Email Closure engineering
-- Stage3 is backend-driven through `poster_key` and `poster_record`
-- bottom remains maintenance-only; PR-S2 closed the Stage2 bottom mode switch canonicalization/parity bug
-- copy quality tightening is now complete on top of the frozen poster contract baseline
-- copy quality phase 1 tightened poster-facing text normalization, annotation compression, and Gemini quality gates without changing contract or transport
-- Stage1 operator input surfaces now match frozen contract truth: secondary image is removable, bottom support copy is explicit, and product callouts have a dedicated input surface
-- Template B now has an independent Stage1 -> Stage2 -> generate working line and backend generation succeeds end-to-end through the Family B path
-- current temporary priority override is Template A re-baseline -> structure/control abstraction -> beautification freeze
-- Family A freeze acceptance is complete, and the next extraction step is Family A anchored shared-skill work
-- deployed-environment validation for Gemini quality and Resend live closure behavior resumes after the Template A freeze pass
-
-## Next Steps
-
-- finish Template A re-baseline / abstraction / beautification freeze without reopening Template B
-- define and keep the shared-skill rules/storage baseline family-scoped before implementing the first extracted Family A skills
-- operator validation for Template B 1-image / 2-image / empty-materials / empty-description flows
-- deployed-environment validation for Gemini optimizer output quality
-- deployed-environment validation for Resend attachments and live closure behavior
-- keep bottom in maintenance mode only unless a request-state / parity regression appears
-- keep poster contract, bottom truth, product annotation truth, renderer routing, and beautification frozen during closure work
+- current temporary priority override = poster2 doc path and naming governance, then Family A four-layer practical closure
+- Template A remains the active oracle line for shared-skill and freeze verification
+- Template B remains unchanged during the current document-governance pass

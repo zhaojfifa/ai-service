@@ -2966,3 +2966,116 @@ Remaining risks:
 - `family_a_evidence_surface_v1` now exposes actual helper behavior for visible-truth filtering and Family A evidence guards
 - `registry.py` now binds Family A skills to explicit implementation modules/symbols
 - Template A runtime continues to consume Family A structure/control/evidence through Family A-scoped skill entrypoints without changing Family A behavior truth
+
+## Family A anchored shared-skill extraction — beautification skill implementation
+
+### Read state
+- Family A structure/control/evidence skill implementations are already landed
+- Family A runtime remains the oracle
+- beautification was still only registry/preset-consumption and had not yet been extracted into a Family A skill implementation
+- scope remains Family A only
+
+### Problem reproduced
+- `family_a_beautification_freeze_pack_v1` existed in the registry, but it did not point to a formal Family A skill module
+- Template A beautification resolution still lived as scattered token preset/constants inside `template_behavior.py`
+- renderer consumed resolved Family A beauty output, but runtime did not yet consume it through a Family A beautification skill entrypoint
+
+### Root cause
+- the first shared-skill extraction wave deliberately stopped at structure/control/evidence
+- Family A beautification presets had not yet been wrapped into a family-scoped callable implementation with registry binding and runtime consumption
+
+### Files changed
+- `app/services/poster2/skills/registry.py`
+- `app/services/poster2/skills/beautification/family_a_beautification_freeze_pack_v1.py`
+- `app/services/poster2/template_behavior.py`
+- `tests/poster2/skills/test_family_a_implementations.py`
+
+### Layer changed
+- Family A beautification skill implementation
+- registry binding for the frozen Family A beautification pack
+- Template A resolver consumption path for Family A freeze tokens
+- focused beautification skill closure tests
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/skills/beautification/family_a_beautification_freeze_pack_v1.py app/services/poster2/skills/registry.py app/services/poster2/template_behavior.py tests/poster2/skills/test_family_a_implementations.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/skills/test_registry.py tests/poster2/skills/test_family_a_implementations.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'family_a or accepted_output_keys or visible_truth_keys_match_family_a_whitelist or family_control_surface or geometry_evidence_surfaces_family_structure_entry'`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py`
+
+### Remaining risks
+- Family A oracle still retains non-beautification control/geometry logic in `template_behavior.py`; this step extracts the frozen beauty pack consumption path, not the full oracle
+- Template B remains intentionally outside beautification skill adoption
+- no new visual exploration was done; only the existing Family A freeze pack and supported A token variants were wrapped into the skill layer
+
+### Exact acceptance
+- `family_a_beautification_freeze_pack_v1` is now a formal callable Family A skill implementation
+- registry now resolves Family A beautification to `app/services/poster2/skills/beautification/`
+- Template A resolver consumes the Family A beautification freeze pack through the skill entrypoint
+- Family A accepted output/evidence keys remain unchanged
+- Family A frozen visual semantics remain stable without geometry, ownership, or control truth changes
+
+## poster2 documentation path and naming governance — first migration batch
+
+### Read state
+- `poster_generation_product_design_baseline_v1.md` remains the single product anchor at `docs/poster2/` root
+- `README.md` remains index only
+- `current_branch_execution_log_v1.md` remains the active log only
+- current code mainline remains Family A four-layer closure; no new engineering implementation is in scope for this doc pass
+
+### Problem reproduced
+- formal poster2 docs were still mixed at `docs/poster2/` root
+- formal path and actual storage no longer matched the intended layered governance model
+- `README.md` still indexed root-level paths instead of the layered storage target
+- there was no formal Family A four-layer verification matrix bound to the accepted live sample
+
+### Root cause
+- document growth had outpaced path governance
+- the repo had already established product / architecture / engineering / skills / validation concepts, but the formal doc path was not yet normalized to those layers
+
+### Files changed
+- `docs/poster2/README.md`
+- `docs/poster2/01_product/*`
+- `docs/poster2/02_architecture/*`
+- `docs/poster2/03_engineering/*`
+- `docs/poster2/04_skills/*`
+- `docs/poster2/05_validation/*`
+- `docs/poster2/99_archive/*`
+- `docs/poster2/05_validation/family_a_four_layer_verification_matrix_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+- documentation path governance only
+- formal README index path correction
+- first migration batch into layered directories
+- Family A four-layer verification matrix skeleton
+- shared-state alignment
+
+### Validation run
+- verified the first migration batch landed under:
+  - `01_product/`
+  - `02_architecture/`
+  - `03_engineering/`
+  - `04_skills/`
+  - `05_validation/`
+  - `99_archive/`
+- verified root-level exceptions remain:
+  - `poster_generation_product_design_baseline_v1.md`
+  - `README.md`
+  - `current_branch_execution_log_v1.md`
+- verified the Family A verification matrix binds the accepted canonical sample:
+  - `annotation_triplet_gallery_triplet_subtitle_present`
+  - final hash `194a61c2df4638038e0b61effd5c63b70a17fcb53bf404d4c68e0b03cd4f04b0`
+  - metadata sha256 `3698cb8da09c5ecda05eaacfc33e1669201e1a85598787b6942253357ea575ae`
+
+### Remaining risks
+- this pass does not rewrite cross-doc relative links inside every migrated historical document
+- older legacy grouped directories may still exist as nonformal historical material in this workspace
+- no engineering implementation changed in this pass, so any future Family A practical closure still depends on the already accepted code baseline
+
+### Exact acceptance
+- poster2 now has a layered formal doc path while keeping the product baseline, index, and active log at root
+- `README.md` now points to the layered formal paths
+- the first migration batch is landed
+- `CLAUDE.md` now aligns shared state with doc-governance-first before the next Family A practical closure step
+- Family A now has a formal four-layer verification matrix skeleton bound to the accepted live sample
