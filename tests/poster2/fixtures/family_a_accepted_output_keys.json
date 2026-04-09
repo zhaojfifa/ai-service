@@ -1,0 +1,41 @@
+{
+  "template_id": "template_dual_v2",
+  "accepted_region_keys": [
+    "bottom_region",
+    "feature_region",
+    "gallery_strip_region",
+    "header_region",
+    "product_region",
+    "scenario_region",
+    "title_band_region"
+  ],
+  "accepted_visible_truth_keys": [
+    "bottom_region",
+    "brand_logo_slot",
+    "brand_name_slot",
+    "gallery_strip_region",
+    "header_agent_zone_slot",
+    "header_identity_zone_slot",
+    "header_region",
+    "product_canvas_shell_layer",
+    "product_image_layer",
+    "product_region",
+    "product_secondary_image_layer",
+    "scenario_image",
+    "scenario_region",
+    "subtitle_text_layer",
+    "title_band_region",
+    "title_text_layer"
+  ],
+  "forbidden_template_b_keys": [
+    "description_body_layer",
+    "description_region",
+    "description_title_layer",
+    "logo_banner_region",
+    "materials_strip_region",
+    "product_hero_region",
+    "top_copy_region",
+    "top_copy_subtitle_layer",
+    "top_copy_title_layer"
+  ]
+}

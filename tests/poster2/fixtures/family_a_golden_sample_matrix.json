@@ -1,0 +1,35 @@
+{
+  "template_id": "template_dual_v2",
+  "samples": [
+    {
+      "sample_id": "annotation_triplet_gallery_triplet_subtitle_present",
+      "feature_count": 3,
+      "gallery_count": 3,
+      "subtitle_present": true,
+      "expected_feature_mode": "product_anchor_callouts",
+      "expected_bottom_mode": "title_gallery_split",
+      "expected_gallery_mode": "strip_local_visible_only",
+      "expected_product_annotation_owner": "product_region"
+    },
+    {
+      "sample_id": "annotation_triplet_gallery_dense_quad_subtitle_present",
+      "feature_count": 3,
+      "gallery_count": 4,
+      "subtitle_present": true,
+      "expected_feature_mode": "product_anchor_callouts",
+      "expected_bottom_mode": "title_gallery_split",
+      "expected_gallery_mode": "strip_local_visible_only",
+      "expected_product_annotation_owner": "product_region"
+    },
+    {
+      "sample_id": "annotation_triplet_gallery_triplet_subtitle_empty",
+      "feature_count": 3,
+      "gallery_count": 3,
+      "subtitle_present": false,
+      "expected_feature_mode": "product_anchor_callouts",
+      "expected_bottom_mode": "title_gallery_split",
+      "expected_gallery_mode": "strip_local_visible_only",
+      "expected_product_annotation_owner": "product_region"
+    }
+  ]
+}

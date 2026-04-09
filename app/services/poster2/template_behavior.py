@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .contracts import TemplateBeautyTokensSpec, TemplateBehaviorModesSpec, TemplateSpec
+from .family_a_runtime import build_family_a_control_surface
 
 _FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
     1: {"box_h": 80, "gap": 0, "connector_policy": "single_center"},
@@ -158,6 +159,28 @@ _SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
         "--shell-surface-gallery-strip": "rgba(255, 250, 247, 0.82)",
         "--feature-card-surface": "rgba(255, 252, 250, 0.96)",
     },
+    "campaign_frozen_panel": {
+        "--shell-surface-header": "linear-gradient(180deg, rgba(255, 253, 251, 0.98), rgba(246, 241, 238, 0.96))",
+        "--shell-surface-scenario-safe": "linear-gradient(180deg, rgba(249, 244, 240, 0.90), rgba(241, 233, 228, 0.94))",
+        "--shell-surface-scenario-real": "linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.04))",
+        "--shell-surface-product": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 238, 235, 0.95))",
+        "--shell-surface-bottom": "linear-gradient(180deg, rgba(255, 252, 250, 0.90), rgba(247, 241, 238, 0.82))",
+        "--shell-surface-title-band": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 241, 238, 0.92))",
+        "--shell-surface-gallery-strip": "rgba(255, 251, 248, 0.82)",
+        "--feature-card-surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 243, 239, 0.96))",
+        "--header-logo-plaque": "linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(249, 243, 239, 0.86))",
+        "--header-agent-chip-surface": "linear-gradient(180deg, rgba(255, 246, 244, 0.96), rgba(246, 237, 234, 0.86))",
+        "--product-canvas-highlight": "linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.00) 46%)",
+        "--product-shell-inset": "inset 0 1px 0 rgba(255, 255, 255, 0.84)",
+        "--annotation-card-surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 243, 239, 0.94))",
+        "--annotation-card-border": "1px solid rgba(232, 0, 42, 0.14)",
+        "--annotation-card-shadow": "0 10px 24px rgba(24, 16, 16, 0.10)",
+        "--annotation-leader-opacity": "0.82",
+        "--annotation-marker-ring": "rgba(232, 0, 42, 0.14)",
+        "--title-band-top-rule": "linear-gradient(90deg, rgba(232, 0, 42, 0.18), rgba(232, 0, 42, 0.00))",
+        "--gallery-item-surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 242, 239, 0.84))",
+        "--gallery-item-border": "1px solid rgba(232, 0, 42, 0.08)",
+    },
     "industrial_sheet_dark_strip": {
         "--poster-bg": "linear-gradient(180deg, #f4efe8 0%, #eee6dc 58%, #e6dbcf 100%)",
         "--poster-grid-line": "rgba(77, 67, 60, 0.06)",
@@ -274,6 +297,13 @@ _TEXT_EMPHASIS_PRESETS: dict[str, dict[str, str]] = {
         "title": "{accent}",
         "subtitle": "{accent}",
         "feature": "#1A1A1A",
+    },
+    "campaign_frozen": {
+        "brand": "#171313",
+        "agent": "#735E61",
+        "title": "{accent}",
+        "subtitle": "#705C66",
+        "feature": "#1E191C",
     },
     "editorial_soft": {
         "brand": "#242124",
@@ -729,6 +759,11 @@ class ResolvedTemplateBehavior:
                 "text_emphasis": self.beauty_tokens.text_emphasis,
             },
             "css_vars": dict(self.css_vars),
+            **(
+                {"family_control_surface": build_family_a_control_surface(self)}
+                if self.bottom_mode != "description_block"
+                else {}
+            ),
             **({"top_copy_policy": self.top_copy_policy.as_dict()} if self.top_copy_policy else {}),
             **({"materials_policy": self.materials_policy.as_dict()} if self.materials_policy else {}),
             **({"description_policy": self.description_policy.as_dict()} if self.description_policy else {}),

@@ -1148,7 +1148,7 @@ class TestStructuredScenarioLayer:
 
         assert resolved.hero_mode == "scenario_cover_product_contain"
         assert resolved.feature_mode == "product_anchor_callouts"
-        assert resolved.beauty_tokens.shell_surface == "glass_light"
+        assert resolved.beauty_tokens.shell_surface == "campaign_frozen_panel"
         assert resolved.css_vars["--accent-tone"] == "#E8002A"
         assert resolved.hero_policy.scenario_enabled is True
         assert resolved.feature_policy.mode == "product_anchor_callouts"

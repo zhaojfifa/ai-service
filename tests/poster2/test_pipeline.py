@@ -5313,6 +5313,71 @@ class TestTemplateBBackendGenerationFix:
             "gallery_strip_region",
         }
 
+    def test_template_a_accepted_output_keys_match_fixture(self):
+        fixture = _load_fixture("family_a_accepted_output_keys.json")
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        assert manifest.template_id == fixture["template_id"]
+        assert sorted(manifest.region_render_status.keys()) == fixture["accepted_region_keys"]
+        for key in fixture["forbidden_template_b_keys"]:
+            assert key not in manifest.visible_truth_evidence
+
+    def test_template_a_family_control_surface_is_explicit_and_frozen(self):
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        control_surface = manifest.template_behavior["family_control_surface"]
+        assert control_surface["family_id"] == "family_a_campaign_explainer"
+        assert control_surface["mode_surface"] == {
+            "header_mode": "identity_left_agent_right",
+            "hero_mode": "scenario_cover_product_contain",
+            "feature_mode": "product_anchor_callouts",
+            "product_annotation_mode": "product_anchor_callouts",
+            "bottom_mode": "title_gallery_split",
+            "gallery_mode": "strip_local_visible_only",
+            "product_layout_mode": "single_primary",
+            "secondary_product_mode": "inset_hidden_no_reserve",
+        }
+        assert control_surface["ownership_guards"]["product_annotation_owner_region"] == "product_region"
+        assert control_surface["ownership_guards"]["title_owner_region"] == "title_band_region"
+
+    def test_template_a_geometry_evidence_surfaces_family_structure_entry(self):
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        structure_surface = manifest.geometry_evidence
+        assert structure_surface["family_id"] == "family_a_campaign_explainer"
+        assert structure_surface["template_id"] == "template_dual_v2"
+        assert structure_surface["region_order"] == [
+            "header_region",
+            "scenario_region",
+            "product_region",
+            "feature_region",
+            "bottom_region",
+            "title_band_region",
+            "gallery_strip_region",
+        ]
+        assert structure_surface["region_bounds"]["product_region"]["w"] > 0
+        assert structure_surface["slot_bounds"]["product_primary_slot"]["w"] > 0
+
+    def test_template_a_golden_sample_matrix_matches_frozen_control_truth(self):
+        fixture = _load_fixture("family_a_golden_sample_matrix.json")
+
+        for sample in fixture["samples"]:
+            spec = _make_spec(
+                features=tuple(f"Feature {index}" for index in range(sample["feature_count"])),
+                gallery_images=tuple(
+                    AssetRef(url=f"mock://gallery-{index}") for index in range(sample["gallery_count"])
+                ),
+                subtitle="" if not sample["subtitle_present"] else "Series subtitle",
+            )
+            manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+            assert manifest.feature_contract_review["feature_mode"] == sample["expected_feature_mode"]
+            assert manifest.bottom_contract_review["bottom_mode"] == sample["expected_bottom_mode"]
+            assert manifest.bottom_contract_review["gallery_mode"] == sample["expected_gallery_mode"]
+            assert manifest.product_contract_review["product_annotation_owner"] == sample["expected_product_annotation_owner"]
+
     def test_family_a_runtime_rebaseline_matches_fixture(self):
         fixture = _load_fixture("family_a_runtime_rebaseline_smoke.json")
         spec = _make_spec()

@@ -68,7 +68,7 @@ Family B-only keys must not appear in Family A runtime payloads:
 - `product_hero_region`
 - `description_region`
 
-`template_b_parity_review` may remain on the HTTP/schema surface for compatibility, but Family A must keep it empty.
+`template_b_parity_review` must not appear in Family A payloads.
 
 ## Golden Smoke Anchors
 

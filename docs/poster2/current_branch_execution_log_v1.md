@@ -2468,3 +2468,154 @@ Remaining risks:
 ### Exact acceptance
 - Family A deterministic structured HTML smoke now matches the repaired parity path
 - shared state reflects `Template A repair only` as the temporary priority override
+
+## PR-A0 — Template A re-baseline freeze
+
+### Read state
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/beautification_layer_plan_v1.md`
+- `docs/poster2/external_reference_poster_design_review_and_migration_v1.md`
+
+### Scope
+- freeze the repaired Template A runtime before abstraction
+- record canonical output keys and golden matrix
+- keep A contract/control truth unchanged
+
+### Root cause
+- Template A had a repaired runtime but no explicit accepted output surface for the next abstraction step
+- the branch needed a family-scoped baseline that operators and tests could anchor to before any freeze work
+
+### Files changed
+- `app/services/poster2/family_a_runtime.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/template_behavior.py`
+- `tests/poster2/fixtures/family_a_accepted_output_keys.json`
+- `tests/poster2/fixtures/family_a_golden_sample_matrix.json`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/template_a_rebaseline_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+- Family A baseline artifacts
+- family-scoped structure/control abstraction entry points
+- canonical whitelist and golden-matrix regression coverage
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/family_a_runtime.py app/services/poster2/pipeline.py app/services/poster2/template_behavior.py tests/poster2/test_pipeline.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'family_a_runtime_rebaseline_matches_fixture or accepted_output_keys or family_control_surface or geometry_evidence_surfaces_family_structure_entry or golden_sample_matrix'`
+  - `5 passed, 282 deselected`
+
+### Remaining risks
+- the baseline is deterministic-fixture anchored; no fresh live Chromium artifact bundle was stored in this step
+- the broader full-file `tests/poster2/test_pipeline.py` suite still contains pre-existing bottom-related failures outside this A-only scope
+
+### Exact acceptance
+- Template A canonical output/evidence keys are frozen
+- Family A structure/control entry points are explicit and family-scoped
+- no Template B residue appears in the accepted Template A baseline surface
+
+## PR-A4 — Template A beautification freeze
+
+### Read state
+- reused the same Template A baseline and freeze-plan read set from PR-A0
+
+### Scope
+- complete a bounded Family A beauty freeze on top of the repaired runtime
+- keep geometry, ownership, and behavior unchanged
+
+### Root cause
+- Family A had a repaired runtime and explicit abstraction entry points, but the frozen A visual pack was still defined by older token families and incomplete token consumption across Puppeteer/Pillow paths
+
+### Files changed
+- `app/templates/specs/template_dual_v2.json`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `docs/poster2/template_a_beautification_freeze_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+- Family A beauty-token freeze pack
+- Puppeteer shell/text token consumption
+- Pillow shell-surface consumption
+- deterministic visual smoke rebaseline
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/renderer.py app/templates/specs/template_dual_v2.json tests/poster2/test_renderer.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'FamilyAVisualRebaseline or test_template_a_html_keeps_product_slots_in_absolute_product_region_coordinates'`
+  - `2 passed, 111 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+  - `6 passed`
+
+### Remaining risks
+- no fresh live Chromium artifact bundle was committed; the freeze is anchored by deterministic Pillow/structured HTML smoke
+- the full `tests/poster2/test_renderer.py` and `tests/poster2/test_pipeline.py` files still include pre-existing failures outside this bounded Template A freeze scope
+
+### Exact acceptance
+- Template A now resolves to a frozen Family A beauty pack without changing geometry or behavior
+- Puppeteer and Pillow both recognize the new Family A shell/text token family
+- Template B remained untouched during the A-only freeze pass
+
+## PR-A4A — Template A live acceptance note
+
+### Scope
+- one fresh local Chromium acceptance run for the frozen Family A baseline
+- no contract/control/geometry changes
+- evidence only
+
+### Runtime command shape
+- local `PosterPipeline` run with real `PuppeteerStructuredRenderer`
+- mocked background builder and in-memory assets
+- artifact bundle written to `/tmp/poster2-family-a-live-acceptance-afea38cb`
+
+### Artifact bundle
+- artifact root: `/tmp/poster2-family-a-live-acceptance-afea38cb`
+- final image: `/tmp/poster2-family-a-live-acceptance-afea38cb/poster2__final__831ac09f-3bd7-43a7-ba93-c21d4c43ffc1.png`
+- foreground image: `/tmp/poster2-family-a-live-acceptance-afea38cb/poster2__fg__831ac09f-3bd7-43a7-ba93-c21d4c43ffc1.png`
+- metadata: `/tmp/poster2-family-a-live-acceptance-afea38cb/poster2__debug__metadata__831ac09f-3bd7-43a7-ba93-c21d4c43ffc1.json`
+- summary: `/tmp/poster2-family-a-live-acceptance-afea38cb/acceptance_summary.json`
+
+### Hashes
+- final hash: `43dfd8f09ef5c771a2adf48c8f1ea663d8e9ba5002eddf561f1ce7eee812255c`
+- foreground hash: `0b383ef6cfc56eb2cbc166458ff28457c73f5e0a92967a60c77174d75f75f7c1`
+- metadata sha256: `7ef9854afc08802777d000bb2d986dbacc006c55d611aa1ad3e0fec32a7b933b`
+
+### Acceptance result
+- `render_engine_used = puppeteer`
+- `degraded = false`
+- `structure_complete = true`
+- `deliverable = true`
+- behavior modes remained frozen:
+  - `hero_mode = scenario_cover_product_contain`
+  - `feature_mode = product_anchor_callouts`
+  - `product_annotation_mode = product_anchor_callouts`
+  - `header_mode = identity_left_agent_right`
+  - `bottom_mode = title_gallery_split`
+  - `gallery_mode = strip_local_visible_only`
+  - `product_layout_mode = single_primary`
+  - `secondary_product_mode = inset_hidden_no_reserve`
+
+### Fixture / golden-matrix comparison
+- matches `family_a_runtime_rebaseline_smoke.json` expected engine/degraded/structure/deliverable truth
+- matches `family_a_accepted_output_keys.json` Family A region whitelist
+- no Template B residue present; `template_b_parity_review` absent
+- live sample corresponds to golden-matrix case `annotation_triplet_gallery_triplet_subtitle_present`
+- title/subtitle ownership remains `title_band_region`
+
+### Remaining limits
+- this acceptance run is local and artifact-rooted under `/tmp`, not persisted to remote storage
+- full `tests/poster2/test_pipeline.py` still contains the existing bottom/text-only failures outside this A-freeze scope

@@ -2919,6 +2919,15 @@ def _pillow_shell_fill(role: str, shell_surface: str, *, accent: str) -> tuple[i
             "title_band": (255, 252, 250, 244),
             "gallery_strip": (255, 250, 247, 208),
         },
+        "campaign_frozen_panel": {
+            "header": (255, 250, 248, 244),
+            "scenario_safe": (247, 238, 234, 66),
+            "scenario_real": (255, 255, 255, 12),
+            "product": (255, 248, 246, 242),
+            "bottom": (255, 249, 247, 194),
+            "title_band": (255, 249, 247, 244),
+            "gallery_strip": (255, 249, 247, 194),
+        },
         "industrial_sheet_dark_strip": {
             "header": (31, 30, 31, 248),
             "scenario_safe": (243, 236, 229, 120),

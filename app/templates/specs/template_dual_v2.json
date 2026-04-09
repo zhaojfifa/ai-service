@@ -11,11 +11,11 @@
     "gallery_mode": "strip_local_visible_only"
   },
   "beauty_tokens": {
-    "shell_surface": "glass_light",
-    "shell_border": "soft_line",
-    "shell_shadow": "soft",
+    "shell_surface": "campaign_frozen_panel",
+    "shell_border": "clean_frame",
+    "shell_shadow": "medium",
     "accent_tone": "warm_red",
-    "text_emphasis": "campaign_primary"
+    "text_emphasis": "campaign_frozen"
   },
   "canvas_w": 1024,
   "canvas_h": 1024,

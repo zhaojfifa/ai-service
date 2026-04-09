@@ -33,6 +33,11 @@ from .background import (
 )
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
+from .family_a_runtime import (
+    FAMILY_A_VISIBLE_TRUTH_KEYS,
+    build_family_a_structure_surface,
+    filter_family_a_visible_truth_evidence,
+)
 from .font_registry import FontRegistry
 from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .region_matrix import _BOTTOM_MODE_COLLAPSED_BY_DESIGN
@@ -56,26 +61,7 @@ _TEMPLATE_B_TITLE_CHAR_BUDGET = 120
 _TEMPLATE_B_SUBTITLE_CHAR_BUDGET = 80
 _TEMPLATE_B_DESCRIPTION_TITLE_CHAR_BUDGET = 80
 _TEMPLATE_B_DESCRIPTION_BODY_CHAR_BUDGET = 400
-_TEMPLATE_A_VISIBLE_TRUTH_KEYS = {
-    "header_region",
-    "header_identity_zone_slot",
-    "header_agent_zone_slot",
-    "brand_logo_slot",
-    "brand_name_slot",
-    "agent_name_slot",
-    "scenario_region",
-    "scenario_image",
-    "product_region",
-    "product_canvas_shell_layer",
-    "product_image_layer",
-    "product_secondary_image_layer",
-    "feature_region",
-    "bottom_region",
-    "title_band_region",
-    "gallery_strip_region",
-    "title_text_layer",
-    "subtitle_text_layer",
-}
+_TEMPLATE_A_VISIBLE_TRUTH_KEYS = set(FAMILY_A_VISIBLE_TRUTH_KEYS)
 _TEMPLATE_B_VISIBLE_TRUTH_KEYS = {
     "logo_banner_region",
     "brand_logo_slot",
@@ -118,16 +104,13 @@ def load_template(template_id: str) -> TemplateSpec:
 def _filter_visible_truth_evidence(template: TemplateSpec, evidence: dict[str, object]) -> dict[str, object]:
     if not evidence:
         return {}
-    allowed_keys = (
-        _TEMPLATE_B_VISIBLE_TRUTH_KEYS
-        if template.template_id == "template_product_sheet_v1"
-        else _TEMPLATE_A_VISIBLE_TRUTH_KEYS
-    )
-    return {
-        key: value
-        for key, value in evidence.items()
-        if key in allowed_keys
-    }
+    if template.template_id == "template_product_sheet_v1":
+        return {
+            key: value
+            for key, value in evidence.items()
+            if key in _TEMPLATE_B_VISIBLE_TRUTH_KEYS
+        }
+    return filter_family_a_visible_truth_evidence(evidence)
 
 
 class PosterPipeline:
@@ -1356,38 +1339,12 @@ def _build_geometry_evidence(
             },
         }
 
-    return {
-        "region_bounds": {
-            "header_region": _header_region_bounds(template, resolved_behavior),
-            "scenario_region": _scenario_region_bounds(template, resolved_behavior),
-            "bottom_region": _bottom_region_bounds(template, resolved_behavior),
-            "title_band_region": _title_band_region_bounds(template, resolved_behavior),
-            "product_region": _product_region_bounds(template, resolved_behavior),
-            "gallery_strip_region": _gallery_strip_region_bounds(template, resolved_behavior),
-        },
-        "slot_bounds": {
-            "brand_logo_slot": _header_logo_slot_bounds(template, resolved_behavior),
-            "brand_name_slot": _brand_name_slot_bounds(template, resolved_behavior),
-            "agent_name_slot": _agent_name_slot_bounds(template, resolved_behavior),
-            "title_slot": _title_slot_bounds(template, resolved_behavior),
-            "subtitle_slot": _subtitle_slot_bounds(template, resolved_behavior),
-            "scenario_slot": _scenario_slot_bounds(template, resolved_behavior),
-            "product_slot": _product_slot_bounds(template, resolved_behavior),
-            "product_primary_slot": _product_primary_slot_bounds(resolved_behavior),
-            "product_secondary_slot": _product_secondary_slot_bounds(resolved_behavior),
-            "gallery_slot": _gallery_item_slot_bounds(template, resolved_behavior),
-        },
-        "visible_item_count": {
-            "header_region": int(region_render_status.get("header_region", {}).get("count", 0)),
-            "scenario_region": int(region_render_status.get("scenario_region", {}).get("count", 0)),
-            "title_band_region": int(region_render_status.get("title_band_region", {}).get("count", 0)),
-            "product_region": int(region_render_status.get("product_region", {}).get("count", 0)),
-            "gallery_strip_region": int(
-                layer_render_status.get("bottom_gallery_items_layer", {}).get("count_visible", 0)
-            ),
-            "bottom_region": int(region_render_status.get("bottom_region", {}).get("count", 0)),
-        },
-    }
+    return build_family_a_structure_surface(
+        template,
+        resolved_behavior=resolved_behavior,
+        layer_render_status=layer_render_status,
+        region_render_status=region_render_status,
+    )
 
 
 def _bounds_contains(container: dict[str, int], child: dict[str, int] | None) -> bool:

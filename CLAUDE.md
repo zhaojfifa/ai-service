@@ -77,9 +77,9 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current temporary priority override = Template A repair only
-- Family A isolation repair + anti-crossline hardening remains the repaired baseline under this repair pass
-- current priority after Template A repair: resume deployed-environment validation for Gemini quality and Resend live closure behavior
+- current temporary priority override = Template A re-baseline -> structure/control abstraction -> beautification freeze
+- Family A isolation repair + anti-crossline hardening remains the repaired baseline under this freeze pass
+- current priority after the Template A freeze pass: resume deployed-environment validation for Gemini quality and Resend live closure behavior
 - next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds
 - not yet: bottom beautification reopen

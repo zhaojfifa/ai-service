@@ -61,6 +61,8 @@ Then read only the task-relevant status / plan / progress documents.
 - [template_b_design_baseline_v1.md](template_b_design_baseline_v1.md)
 - [template_b_parity_and_visual_contract_status_v1.md](template_b_parity_and_visual_contract_status_v1.md)
 - [template_a_isolation_rebaseline_status_v1.md](template_a_isolation_rebaseline_status_v1.md)
+- [template_a_rebaseline_status_v1.md](template_a_rebaseline_status_v1.md)
+- [template_a_beautification_freeze_status_v1.md](template_a_beautification_freeze_status_v1.md)
 - [visual_polish_phase1_status_v1.md](visual_polish_phase1_status_v1.md)
 
 ### Plans
@@ -104,10 +106,12 @@ These may remain as branch-local history or reference material, but the formal p
 - copy quality phase 1 tightened poster-facing text normalization, annotation compression, and Gemini quality gates without changing contract or transport
 - Stage1 operator input surfaces now match frozen contract truth: secondary image is removable, bottom support copy is explicit, and product callouts have a dedicated input surface
 - Template B now has an independent Stage1 -> Stage2 -> generate working line and backend generation succeeds end-to-end through the Family B path
-- current priority is Template B operator validation, then deployed-environment validation for Gemini quality and Resend live closure behavior
+- current temporary priority override is Template A re-baseline -> structure/control abstraction -> beautification freeze
+- deployed-environment validation for Gemini quality and Resend live closure behavior resumes after the Template A freeze pass
 
 ## Next Steps
 
+- finish Template A re-baseline / abstraction / beautification freeze without reopening Template B
 - operator validation for Template B 1-image / 2-image / empty-materials / empty-description flows
 - deployed-environment validation for Gemini optimizer output quality
 - deployed-environment validation for Resend attachments and live closure behavior

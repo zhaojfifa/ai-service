@@ -42,6 +42,20 @@ body {
   --text-color-title: #e8002a;
   --text-color-subtitle: #8c5e63;
   --text-color-feature: #1a1a1a;
+  --header-logo-plaque: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(248, 240, 236, 0.72));
+  --header-logo-plaque-border: 1px solid rgba(232, 0, 42, 0.10);
+  --header-agent-chip-surface: linear-gradient(180deg, rgba(255, 247, 245, 0.94), rgba(247, 239, 236, 0.84));
+  --header-agent-chip-border: 1px solid rgba(232, 0, 42, 0.08);
+  --product-canvas-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.00) 48%);
+  --product-shell-inset: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  --annotation-card-surface: var(--feature-card-surface);
+  --annotation-card-border: 1px solid rgba(232, 0, 42, 0.18);
+  --annotation-card-shadow: 0 8px 20px rgba(22, 14, 14, 0.08);
+  --annotation-leader-opacity: 0.88;
+  --annotation-marker-ring: rgba(232, 0, 42, 0.16);
+  --title-band-top-rule: linear-gradient(90deg, rgba(232, 0, 42, 0.16), rgba(232, 0, 42, 0.00));
+  --gallery-item-surface: rgba(255, 255, 255, 0.76);
+  --gallery-item-border: 1px solid rgba(255, 255, 255, 0.56);
   --scenario-image-treatment: saturate(0.88) brightness(0.94);
   --product-primary-shadow: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.20));
   --product-secondary-opacity: 0.72;
@@ -215,6 +229,10 @@ body {
   display: flex;
   align-items: center;
   overflow: hidden;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: var(--header-agent-chip-surface);
+  border: var(--header-agent-chip-border);
 }
 
 .text-agent-secondary {
@@ -287,6 +305,17 @@ body {
   height: var(--header-logo-height);
 }
 
+.layer-brand-logo::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 18px;
+  background: var(--header-logo-plaque);
+  border: var(--header-logo-plaque-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
 .layer-brand-text {
   position: relative;
   inset: auto;
@@ -347,6 +376,17 @@ body {
   border: var(--shell-border-header);
   box-shadow: var(--shell-shadow-main);
   backdrop-filter: blur(8px);
+}
+
+.region-shell-header::after {
+  content: "";
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(232, 0, 42, 0.20), rgba(232, 0, 42, 0.00));
+  pointer-events: none;
 }
 
 .layer-hero-peer-region {
@@ -436,7 +476,7 @@ body {
   background: var(--shell-surface-product);
   box-shadow:
     var(--shell-shadow-main),
-    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    var(--product-shell-inset);
 }
 
 .region-shell-product-canvas {
@@ -450,6 +490,14 @@ body {
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.48),
     inset 0 -20px 32px rgba(255, 255, 255, 0.18);
+}
+
+.region-shell-product-canvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--product-canvas-highlight);
+  pointer-events: none;
 }
 
 .slot-scenario,
@@ -633,10 +681,10 @@ body {
   min-height: 76px;
   padding: 10px 14px 10px 14px;
   border-radius: 12px;
-  border: 1px solid rgba(232, 0, 42, 0.18);
+  background: var(--annotation-card-surface);
+  border: var(--annotation-card-border);
   box-shadow:
-    0 2px 8px rgba(22, 14, 14, 0.10),
-    0 8px 20px rgba(22, 14, 14, 0.08),
+    var(--annotation-card-shadow),
     inset 0 1px 0 rgba(255, 255, 255, 0.90);
   letter-spacing: 0.005em;
   text-wrap: balance;
@@ -654,7 +702,7 @@ body {
 
 .product-annotation-mode-product_anchor_callouts .feature-callout-connector {
   background: var(--accent-tone);
-  opacity: 0.88;
+  opacity: var(--annotation-leader-opacity);
   height: 1.5px;
 }
 
@@ -679,7 +727,7 @@ body {
   height: 16px;
   box-shadow:
     0 0 0 3px rgba(255, 255, 255, 0.90),
-    0 0 0 5px rgba(232, 0, 42, 0.16),
+    0 0 0 5px var(--annotation-marker-ring),
     0 4px 12px rgba(232, 0, 42, 0.28);
 }
 
@@ -722,6 +770,19 @@ body {
   box-shadow: var(--shell-shadow-secondary);
 }
 
+.layer-bottom-region.state-title-only {
+  --bottom-shell-top: 728px;
+  --bottom-shell-height: 144px;
+  --title-band-left: 96px;
+  --title-band-width: 832px;
+}
+
+.layer-bottom-region.state-title-gallery {
+  --bottom-shell-top: 728px;
+  --bottom-shell-height: 232px;
+  --title-band-left: 112px;
+  --title-band-width: 800px;
+}
 
 .layer-bottom-region.state-gallery-only .region-shell-bottom {
   top: 880px;
@@ -749,6 +810,17 @@ body {
   border: var(--shell-border-bottom);
   box-shadow: var(--shell-shadow-secondary);
   backdrop-filter: blur(10px);
+}
+
+.region-shell-title-band::before {
+  content: "";
+  position: absolute;
+  left: 28px;
+  top: 0;
+  width: 200px;
+  height: 1px;
+  background: var(--title-band-top-rule);
+  pointer-events: none;
 }
 
 .slot-title,
@@ -825,9 +897,9 @@ body {
   z-index: 5;
   overflow: hidden;
   border-radius: var(--gallery-item-radius);
-  background: rgba(255, 255, 255, 0.76);
+  background: var(--gallery-item-surface);
   box-shadow: var(--gallery-item-shadow);
-  border: 1px solid rgba(255, 255, 255, 0.56);
+  border: var(--gallery-item-border);
 }
 
 .gallery-item img {
