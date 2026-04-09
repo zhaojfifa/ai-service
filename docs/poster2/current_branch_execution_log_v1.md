@@ -2859,3 +2859,53 @@ Remaining risks:
 ### Exact acceptance
 - Family A freeze is now both code-complete and acceptance-complete on a non-degraded Puppeteer path
 - next sequence can proceed to Family A anchored shared-skill extraction
+
+## Family A anchored shared-skill extraction — rules and storage baseline
+
+### Read state
+- Family A freeze acceptance is complete
+- this step defines only the formal skill rules and storage baseline
+- no shared-skill implementation extraction is done in this step
+- scope remains Family A anchored only
+
+### Problem reproduced
+- the repo had accepted Family A runtime truth but no formal shared-skill registration/storage system
+- there was no canonical rules document for layer classification, registry fields, admission gates, or forbidden mutations
+- there was no dedicated poster2 shared-skill code/test/fixture storage root
+
+### Root cause
+- shared-skill extraction had not yet been formalized into repo governance and storage layout
+- without a formal baseline, future extraction work could drift across docs, fixtures, family scope, and registration shape
+
+### Files changed
+- `docs/poster2/skill_rules_and_storage_v1.md`
+- `docs/poster2/README.md`
+- `app/services/poster2/skills/__init__.py`
+- `app/services/poster2/skills/structure/__init__.py`
+- `app/services/poster2/skills/control/__init__.py`
+- `app/services/poster2/skills/beautification/__init__.py`
+- `app/services/poster2/skills/evidence/__init__.py`
+- `app/services/poster2/skills/registry.py`
+- `tests/poster2/skills/__init__.py`
+- `tests/poster2/skills/test_registry.py`
+- `tests/poster2/fixtures/skills/family_a_skills_registry_v1.json`
+
+### Layer changed
+- formal skill rules
+- formal skill storage baseline
+- Family A-only registration baseline
+- fixture-backed registry gate
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/skills/test_registry.py`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+
+### Remaining risks
+- this step only registers the Family A anchored skill baseline; it does not yet extract shared skill implementation
+- Template B is intentionally not registered in the shared-skill system yet
+
+### Exact acceptance
+- poster2 now has a formal skill-rules document and formal storage path
+- `app/services/poster2/skills/` and matching test/fixture roots now exist
+- the initial skill registry is Family A-only across structure / control / beautification / evidence
+- the repo is ready for the first Family A anchored shared-skill implementation step

@@ -1,0 +1,35 @@
+{
+  "family_id": "family_a_campaign_explainer",
+  "anchor_template_id": "template_dual_v2",
+  "allowed_layers": [
+    "beautification",
+    "control",
+    "evidence",
+    "structure"
+  ],
+  "skills": [
+    {
+      "skill_id": "family_a_structure_surface_v1",
+      "layer": "structure",
+      "status": "anchored"
+    },
+    {
+      "skill_id": "family_a_control_surface_v1",
+      "layer": "control",
+      "status": "anchored"
+    },
+    {
+      "skill_id": "family_a_beautification_freeze_pack_v1",
+      "layer": "beautification",
+      "status": "frozen"
+    },
+    {
+      "skill_id": "family_a_evidence_surface_v1",
+      "layer": "evidence",
+      "status": "anchored"
+    }
+  ],
+  "forbidden_family_ids": [
+    "family_b_product_sheet_story"
+  ]
+}

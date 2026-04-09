@@ -81,7 +81,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - Family A isolation repair + anti-crossline hardening remains the repaired baseline under this freeze pass
 - current narrow insertion before further A-freeze work: Template A bottom support-copy mapping alignment (`Bottom Support Copy` UI label -> canonical backend `subtitle`) is complete
 - fresh Family A live Chromium acceptance has now been captured on a non-degraded Puppeteer path
-- next poster2 priority after A freeze acceptance: Family A anchored shared-skill extraction
+- current poster2 priority: define Family A anchored shared-skill rules/storage baseline, then implement the first extracted Family A shared skills
 - current priority after the Template A freeze pass: resume deployed-environment validation for Gemini quality and Resend live closure behavior
 - next after backend closure: review live-output quality and closure metrics, not poster contract redesign
 - bottom text/layout follow-up should remain a known maintenance issue while storage / email work proceeds

@@ -1,0 +1,2 @@
+"""Structure-layer shared skills."""
+

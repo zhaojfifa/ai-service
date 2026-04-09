@@ -15,6 +15,7 @@ Read in this order for poster2 work:
 5. [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
 6. [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
 7. [family_isolation_rules_v1.md](family_isolation_rules_v1.md)
+8. [skill_rules_and_storage_v1.md](skill_rules_and_storage_v1.md)
 
 Then read only the task-relevant status / plan / progress documents.
 
@@ -32,6 +33,7 @@ Then read only the task-relevant status / plan / progress documents.
 - [renderer_routing_and_fallback_rules_v1.md](renderer_routing_and_fallback_rules_v1.md)
 - [quality_guard_and_structure_completeness_v1.md](quality_guard_and_structure_completeness_v1.md)
 - [family_isolation_rules_v1.md](family_isolation_rules_v1.md)
+- [skill_rules_and_storage_v1.md](skill_rules_and_storage_v1.md)
 
 ### Engineering Baseline And Progress
 
@@ -107,11 +109,13 @@ These may remain as branch-local history or reference material, but the formal p
 - Stage1 operator input surfaces now match frozen contract truth: secondary image is removable, bottom support copy is explicit, and product callouts have a dedicated input surface
 - Template B now has an independent Stage1 -> Stage2 -> generate working line and backend generation succeeds end-to-end through the Family B path
 - current temporary priority override is Template A re-baseline -> structure/control abstraction -> beautification freeze
+- Family A freeze acceptance is complete, and the next extraction step is Family A anchored shared-skill work
 - deployed-environment validation for Gemini quality and Resend live closure behavior resumes after the Template A freeze pass
 
 ## Next Steps
 
 - finish Template A re-baseline / abstraction / beautification freeze without reopening Template B
+- define and keep the shared-skill rules/storage baseline family-scoped before implementing the first extracted Family A skills
 - operator validation for Template B 1-image / 2-image / empty-materials / empty-description flows
 - deployed-environment validation for Gemini optimizer output quality
 - deployed-environment validation for Resend attachments and live closure behavior
