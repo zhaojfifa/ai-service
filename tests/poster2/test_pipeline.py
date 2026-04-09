@@ -690,6 +690,9 @@ class TestPosterPipelineRun:
         assert bottom_review["subtitle_truncation_applied"] is False
         assert bottom_review["title_source"] == "request.title"
         assert bottom_review["subtitle_source"] == "request.subtitle"
+        assert bottom_review["title_slot_rendered"] is True
+        assert bottom_review["subtitle_slot_rendered"] is True
+        assert bottom_review["gallery_distribution_policy"] == "none"
         assert bottom_review["subtitle_slot"]["rendered"] is True
         assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is False
         assert bottom_review["behavior_policy"]["title_band_sizing_mode"] == "standard"
@@ -877,6 +880,7 @@ class TestPosterPipelineRun:
         assert metadata["bottom_contract_review"]["behavior_policy"]["peer_balance_policy"] == "gallery_strip_only"
         assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_peer_balance_policy"] == "gallery_only_bottom_rebalance"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
+        assert metadata["bottom_contract_review"]["gallery_distribution_policy"] == "single_packshot_focus"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_shell_frame_policy"] == "single_showcase_frame"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "single_gallery_centered_shift"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_aspect_policy"] == "single_packshot_aspect"
@@ -938,6 +942,7 @@ class TestPosterPipelineRun:
         assert behavior["gallery_strip_shift_policy"] == "tight_quad_shift"
         assert behavior["gallery_aspect_policy"] == "compact_quad_aspect"
         assert behavior["bottom_text_emphasis_policy"] == "expanded_quad_text_emphasis"
+        assert metadata["bottom_contract_review"]["gallery_distribution_policy"] == "dense_quad"
         assert behavior["subtitle_line_clamp"] == 2
         assert behavior["subtitle_char_budget"] == 120  # PR-bottom-final: 80→120
         assert behavior["layout_metrics"]["title_stack_gap"] == 8  # PR-7C: 6→8
@@ -5370,6 +5375,17 @@ class TestTemplateBBackendGenerationFix:
         assert review["secondary_product_mode"] == "inset_hidden_no_reserve"
         assert review["product_annotation_owner"] == "product_region"
         assert review["visible_annotation_count"] == 3
+
+    def test_template_a_bottom_contract_review_surfaces_practical_observability_fields(self):
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.bottom_contract_review
+        assert review["bottom_mode"] == "title_gallery_split"
+        assert review["subtitle_slot"]["state"] == "rendered"
+        assert review["title_slot_rendered"] is True
+        assert review["subtitle_slot_rendered"] is True
+        assert review["gallery_distribution_policy"] == "gallery_collapsed"
 
     def test_template_a_geometry_evidence_surfaces_family_structure_entry(self):
         spec = _make_spec()

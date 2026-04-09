@@ -182,6 +182,21 @@ def test_frontend_stage2_template_a_support_copy_mapping_stays_on_canonical_subt
     assert "sanitized_subtitle_text" in js
 
 
+def test_frontend_stage2_surfaces_family_a_bottom_region_observability_cards():
+    html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    docs_html = (ROOT / "docs" / "stage2.html").read_text(encoding="utf-8")
+
+    assert "subtitle_slot.state" in html
+    assert "title_rendered" in html
+    assert "subtitle_rendered" in html
+    assert "gallery_distribution_policy" in html
+    assert "const titleRendered = bottomReview?.title_slot_rendered" in html
+    assert "const subtitleRendered = bottomReview?.subtitle_slot_rendered" in html
+    assert "const subtitleState = bottomReview?.subtitle_slot?.state" in html
+    assert "const galleryDistribution = bottomReview?.gallery_distribution_policy" in html
+    assert docs_html == html
+
+
 def test_docs_publish_mirror_contains_same_guard_diagnostics():
     frontend_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
     frontend_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")

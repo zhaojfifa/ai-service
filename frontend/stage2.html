@@ -975,6 +975,20 @@
         function buildBottomDetail(bottomReview, templateBehavior, titleTextLayer, subtitleTextLayer) {
           let html = '';
           const metrics = bottomReview?.behavior_policy?.layout_metrics || {};
+          const tb = templateBehavior?.behavior_modes || {};
+          const titleRendered = bottomReview?.title_slot_rendered ?? templateBehavior?.bottom_policy?.title_slot_rendered;
+          const subtitleRendered = bottomReview?.subtitle_slot_rendered ?? templateBehavior?.bottom_policy?.subtitle_slot_rendered;
+          const subtitleState = bottomReview?.subtitle_slot?.state || (subtitleRendered ? 'rendered' : 'collapsed');
+          const galleryDistribution = bottomReview?.gallery_distribution_policy || bottomReview?.behavior_policy?.gallery_distribution_policy || 'n/a';
+          const bottomMode = bottomReview?.bottom_mode || tb.bottom_mode || 'n/a';
+          html += `
+            <div class="s2-diagnostics-grid">
+              <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">bottom_mode</div><div class="s2-diagnostic-val">${bottomMode}</div></div>
+              <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">subtitle_slot.state</div><div class="s2-diagnostic-val">${subtitleState}</div></div>
+              <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">title_rendered</div><div class="s2-diagnostic-val">${titleRendered ? 'true' : 'false'}</div></div>
+              <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">subtitle_rendered</div><div class="s2-diagnostic-val">${subtitleRendered ? 'true' : 'false'}</div></div>
+              <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">gallery_distribution_policy</div><div class="s2-diagnostic-val">${galleryDistribution}</div></div>
+            </div>`;
           if (metrics.bottom_shell_height) {
             html += `<div class="s2-slot-note">height: ${metrics.bottom_shell_height}px</div>`;
           }

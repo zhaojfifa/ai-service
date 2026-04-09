@@ -3142,3 +3142,62 @@ Remaining risks:
   - `visible_annotation_count`
 - Family A product shell / annotation shell / leader line / marker polish landed without geometry or ownership drift
 - Family A visual smoke fixture was refreshed to the new practical-closure baseline
+
+## Family A practical closure PR2 — bottom region beautification + observability
+
+### Read state
+- Family A product-region practical closure is already landed
+- bottom contract remains frozen and in maintenance mode
+- this step is limited to title/subtitle hierarchy, gallery-shell polish, and bottom diagnostics visibility
+
+### Problem reproduced
+- Stage2 already carried bottom metadata, but bottom-region truth was not surfaced as operator-readable diagnostics cards
+- title/subtitle hierarchy still read too flat for a practical closure pass
+- title-band and dense-quad gallery shell/items still needed bounded polish inside the frozen geometry
+
+### Root cause
+- bottom runtime truth existed in backend review and behavior policy, but was still presented mostly as raw prose rows
+- Family A freeze pack did not yet carry bottom-specific inset / outline / support-copy accent tokens
+- broad bottom regression tests still include older geometry/history assertions outside this practical-closure scope
+
+### Files changed
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/skills/beautification/family_a_beautification_freeze_pack_v1.py`
+- `app/templates_html/template_dual_v2.css`
+- `frontend/stage2.html`
+- `docs/stage2.html`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `docs/poster2/03_engineering/family_a/bottom_region_practical_beautification_observability_v1.md`
+- `docs/poster2/05_validation/family_a/bottom_region_practical_closure_status_v1.md`
+- `docs/poster2/README.md`
+- `CLAUDE.md`
+
+### Layer changed
+- Family A bottom-region beautification only
+- bottom-region observability surface
+- Stage2 bottom diagnostics visibility
+- Family A bottom practical-closure docs / validation anchor
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py`
+- focused Family A bottom observability tests passed
+- broad command `tests/poster2/test_pipeline.py -k 'bottom or family_a or accepted_output_keys'` still includes pre-existing bottom geometry/history failures outside this step
+
+### Remaining risks
+- this step intentionally does not reopen legacy bottom geometry/history failures
+- live Chromium acceptance was not rerun in this PR
+- Gemini copy optimizer and validation closeout remain separate next steps
+
+### Exact acceptance
+- Stage2 bottom diagnostics now surface:
+  - `bottom_mode`
+  - `subtitle_slot.state`
+  - `title_rendered`
+  - `subtitle_rendered`
+  - `gallery_distribution_policy`
+- Family A bottom shell/title-band/gallery visual polish landed without changing geometry or ownership
+- structured HTML visual smoke fixture was refreshed for the bounded bottom practical-closure pass

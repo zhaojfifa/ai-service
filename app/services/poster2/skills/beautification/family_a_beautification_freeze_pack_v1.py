@@ -73,9 +73,17 @@ _FAMILY_A_SHELL_SURFACE_PRESETS: dict[str, dict[str, str]] = {
         "--annotation-marker-size": "14px",
         "--annotation-marker-size-anchored": "16px",
         "--annotation-label-letter-spacing": "0.005em",
+        "--bottom-shell-outline": "inset 0 0 0 1px rgba(232, 0, 42, 0.06)",
+        "--bottom-shell-glow": "0 16px 34px rgba(104, 64, 72, 0.10)",
+        "--title-band-inset": "inset 0 1px 0 rgba(255, 255, 255, 0.92)",
+        "--title-band-outline": "inset 0 0 0 1px rgba(232, 0, 42, 0.08)",
         "--title-band-top-rule": "linear-gradient(90deg, rgba(232, 0, 42, 0.18), rgba(232, 0, 42, 0.00))",
+        "--subtitle-support-kicker": "rgba(232, 0, 42, 0.72)",
+        "--gallery-shell-inset": "inset 0 1px 0 rgba(255, 255, 255, 0.88)",
+        "--gallery-shell-outline": "inset 0 0 0 1px rgba(232, 0, 42, 0.06)",
         "--gallery-item-surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 242, 239, 0.84))",
         "--gallery-item-border": "1px solid rgba(232, 0, 42, 0.08)",
+        "--gallery-item-inset": "inset 0 1px 0 rgba(255, 255, 255, 0.84)",
     },
 }
 

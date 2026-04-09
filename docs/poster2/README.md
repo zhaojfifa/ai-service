@@ -69,6 +69,7 @@ Then read only the task-relevant status / plan / validation documents.
 Family A practical closure:
 
 - [product_region_practical_beautification_observability_v1.md](03_engineering/family_a/product_region_practical_beautification_observability_v1.md)
+- [bottom_region_practical_beautification_observability_v1.md](03_engineering/family_a/bottom_region_practical_beautification_observability_v1.md)
 
 ### 04 Skills
 
@@ -83,6 +84,7 @@ Core verification anchors:
 - [template_a_beautification_freeze_status_v1.md](05_validation/template_a_beautification_freeze_status_v1.md)
 - [template_a_isolation_rebaseline_status_v1.md](05_validation/template_a_isolation_rebaseline_status_v1.md)
 - [product_region_practical_closure_status_v1.md](05_validation/family_a/product_region_practical_closure_status_v1.md)
+- [bottom_region_practical_closure_status_v1.md](05_validation/family_a/bottom_region_practical_closure_status_v1.md)
 - [bottom_behavior_contract_status_v1.md](05_validation/bottom_behavior_contract_status_v1.md)
 - [product_region_annotation_contract_status_v1.md](05_validation/product_region_annotation_contract_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](05_validation/scenario_region_resolver_and_renderer_parity_status_v1.md)

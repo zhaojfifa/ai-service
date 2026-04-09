@@ -1680,6 +1680,23 @@ class TestStructuredScenarioLayer:
         assert "background: var(--annotation-leader-gradient);" in css_template
         assert "var(--annotation-marker-core-shadow);" in css_template
 
+    def test_template_css_exposes_family_a_bottom_region_practical_closure_tokens(self):
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+
+        assert "--bottom-shell-outline:" in css_template
+        assert "--bottom-shell-glow:" in css_template
+        assert "--title-band-inset:" in css_template
+        assert "--title-band-outline:" in css_template
+        assert "--subtitle-support-kicker:" in css_template
+        assert "--gallery-shell-inset:" in css_template
+        assert "--gallery-shell-outline:" in css_template
+        assert "--gallery-item-inset:" in css_template
+        assert ".text-subtitle::before" in css_template
+        assert "var(--bottom-shell-outline)" in css_template
+        assert "var(--gallery-shell-outline)" in css_template
+
 
 class TestHeaderAndTitleBandLayoutControl:
 

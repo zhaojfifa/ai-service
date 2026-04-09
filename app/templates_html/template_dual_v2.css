@@ -62,9 +62,17 @@ body {
   --annotation-marker-size: 14px;
   --annotation-marker-size-anchored: 16px;
   --annotation-label-letter-spacing: 0.005em;
+  --bottom-shell-outline: inset 0 0 0 1px rgba(232, 0, 42, 0.05);
+  --bottom-shell-glow: 0 14px 30px rgba(104, 64, 72, 0.08);
+  --title-band-inset: inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  --title-band-outline: inset 0 0 0 1px rgba(232, 0, 42, 0.06);
   --title-band-top-rule: linear-gradient(90deg, rgba(232, 0, 42, 0.16), rgba(232, 0, 42, 0.00));
+  --subtitle-support-kicker: rgba(232, 0, 42, 0.68);
+  --gallery-shell-inset: inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  --gallery-shell-outline: inset 0 0 0 1px rgba(232, 0, 42, 0.05);
   --gallery-item-surface: rgba(255, 255, 255, 0.76);
   --gallery-item-border: 1px solid rgba(255, 255, 255, 0.56);
+  --gallery-item-inset: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   --scenario-image-treatment: saturate(0.88) brightness(0.94);
   --product-primary-shadow: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.20));
   --product-secondary-opacity: 0.72;
@@ -598,22 +606,35 @@ body {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: var(--title-line-clamp);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
 .text-subtitle {
   display: -webkit-box;
-  padding: 6px 22px 0;
+  padding: 10px 28px 0;
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  font-size: 18px;
-  line-height: 1.28;
-  letter-spacing: 0.006em;
+  font-size: 17px;
+  line-height: 1.34;
+  letter-spacing: 0.012em;
   text-align: center;
   color: var(--text-color-subtitle);
-  opacity: 0.82;
+  opacity: 0.88;
   overflow: hidden;
   white-space: normal;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: var(--subtitle-line-clamp);
+  position: relative;
+}
+
+.text-subtitle::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 2px;
+  margin: 0 auto 8px;
+  border-radius: 999px;
+  background: var(--subtitle-support-kicker);
+  opacity: 0.5;
 }
 
 .layer-bottom-tagline {
@@ -778,7 +799,7 @@ body {
   border-radius: 28px;
   background: var(--shell-surface-bottom);
   border: var(--shell-border-bottom);
-  box-shadow: var(--shell-shadow-secondary);
+  box-shadow: var(--shell-shadow-secondary), var(--bottom-shell-outline), var(--bottom-shell-glow);
 }
 
 .layer-bottom-region.state-title-only {
@@ -819,7 +840,7 @@ body {
   border-radius: 28px;
   background: var(--shell-surface-title-band);
   border: var(--shell-border-bottom);
-  box-shadow: var(--shell-shadow-secondary);
+  box-shadow: var(--shell-shadow-secondary), var(--title-band-inset), var(--title-band-outline);
   backdrop-filter: blur(10px);
 }
 
@@ -886,7 +907,7 @@ body {
   border-radius: var(--gallery-shell-radius);
   background: var(--shell-surface-gallery-strip);
   border: var(--shell-border-gallery);
-  box-shadow: var(--shell-shadow-secondary);
+  box-shadow: var(--shell-shadow-secondary), var(--gallery-shell-inset), var(--gallery-shell-outline);
   backdrop-filter: var(--gallery-shell-backdrop-blur);
 }
 
@@ -909,7 +930,7 @@ body {
   overflow: hidden;
   border-radius: var(--gallery-item-radius);
   background: var(--gallery-item-surface);
-  box-shadow: var(--gallery-item-shadow);
+  box-shadow: var(--gallery-item-shadow), var(--gallery-item-inset);
   border: var(--gallery-item-border);
 }
 
