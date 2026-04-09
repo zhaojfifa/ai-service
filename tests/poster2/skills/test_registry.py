@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import importlib
 import json
 from pathlib import Path
 
-from app.services.poster2.skills.registry import get_family_skills, get_poster2_skill_registry
+from app.services.poster2.skills.registry import (
+    get_family_skills,
+    get_poster2_skill_registry,
+    load_skill_implementation,
+)
 from app.services.poster2.template_registry import FAMILY_A_CAMPAIGN_EXPLAINER, FAMILY_B_PRODUCT_SHEET_STORY
 
 
@@ -59,3 +64,12 @@ def test_get_family_skills_returns_registered_family_a_only():
 
     assert family_skills == get_poster2_skill_registry()
     assert get_family_skills(FAMILY_B_PRODUCT_SHEET_STORY) == ()
+
+
+def test_registry_entries_resolve_to_callable_implementations():
+    for skill in get_poster2_skill_registry():
+        module = importlib.import_module(skill.entry_module)
+        implementation = load_skill_implementation(skill.skill_id)
+
+        assert hasattr(module, skill.entry_symbol)
+        assert callable(implementation)

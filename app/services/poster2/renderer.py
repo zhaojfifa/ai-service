@@ -105,6 +105,23 @@ def _is_template_b_template_id(template_id: str) -> bool:
     return template_id.startswith("template_product_sheet")
 
 
+def apply_family_a_beautification_freeze_pack(
+    beauty_tokens: dict[str, object] | None,
+    *,
+    css_vars: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Expose the frozen Family A beauty pack through the skill registry.
+
+    Renderer consumption remains downstream; this helper only returns the
+    already-resolved beauty surfaces so the registry can point at a concrete,
+    callable implementation without making renderer the truth source.
+    """
+    return {
+        "beauty_tokens": dict(beauty_tokens or {}),
+        "css_vars": dict(css_vars or {}),
+    }
+
+
 class RendererUnavailableError(RuntimeError):
     """Raised when a requested renderer is not available in the runtime."""
 

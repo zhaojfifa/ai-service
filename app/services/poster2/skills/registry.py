@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass, asdict
-from typing import Literal
+from typing import Any, Literal
 
 from app.services.poster2.template_registry import FAMILY_A_CAMPAIGN_EXPLAINER
 
@@ -18,6 +19,7 @@ class Poster2SkillRegistration:
     anchor_template_id: str
     status: SkillStatus
     entry_module: str
+    entry_symbol: str
     doc_path: str
     tests_path: str
     fixtures_path: str
@@ -38,7 +40,8 @@ _FAMILY_A_ANCHORED_SKILLS: tuple[Poster2SkillRegistration, ...] = (
         layer="structure",
         anchor_template_id="template_dual_v2",
         status="anchored",
-        entry_module="app.services.poster2.family_a_runtime",
+        entry_module="app.services.poster2.skills.structure.family_a_structure_surface_v1",
+        entry_symbol="build_structure_surface",
         doc_path="docs/poster2/skill_rules_and_storage_v1.md",
         tests_path="tests/poster2/skills",
         fixtures_path="tests/poster2/fixtures/skills/family_a_skills_registry_v1.json",
@@ -57,7 +60,8 @@ _FAMILY_A_ANCHORED_SKILLS: tuple[Poster2SkillRegistration, ...] = (
         layer="control",
         anchor_template_id="template_dual_v2",
         status="anchored",
-        entry_module="app.services.poster2.family_a_runtime",
+        entry_module="app.services.poster2.skills.control.family_a_control_surface_v1",
+        entry_symbol="build_control_surface",
         doc_path="docs/poster2/skill_rules_and_storage_v1.md",
         tests_path="tests/poster2/skills",
         fixtures_path="tests/poster2/fixtures/skills/family_a_skills_registry_v1.json",
@@ -78,6 +82,7 @@ _FAMILY_A_ANCHORED_SKILLS: tuple[Poster2SkillRegistration, ...] = (
         anchor_template_id="template_dual_v2",
         status="frozen",
         entry_module="app.services.poster2.renderer",
+        entry_symbol="apply_family_a_beautification_freeze_pack",
         doc_path="docs/poster2/template_a_beautification_freeze_status_v1.md",
         tests_path="tests/poster2/skills",
         fixtures_path="tests/poster2/fixtures/skills/family_a_skills_registry_v1.json",
@@ -97,7 +102,8 @@ _FAMILY_A_ANCHORED_SKILLS: tuple[Poster2SkillRegistration, ...] = (
         layer="evidence",
         anchor_template_id="template_dual_v2",
         status="anchored",
-        entry_module="app.services.poster2.family_a_runtime",
+        entry_module="app.services.poster2.skills.evidence.family_a_evidence_surface_v1",
+        entry_symbol="build_evidence_surface",
         doc_path="docs/poster2/family_isolation_rules_v1.md",
         tests_path="tests/poster2/skills",
         fixtures_path="tests/poster2/fixtures/skills/family_a_skills_registry_v1.json",
@@ -119,6 +125,19 @@ def get_poster2_skill_registry() -> tuple[Poster2SkillRegistration, ...]:
 
 def get_family_skills(family_id: str) -> tuple[Poster2SkillRegistration, ...]:
     return tuple(skill for skill in _FAMILY_A_ANCHORED_SKILLS if skill.family_id == family_id)
+
+
+def get_skill_registration(skill_id: str) -> Poster2SkillRegistration:
+    for skill in _FAMILY_A_ANCHORED_SKILLS:
+        if skill.skill_id == skill_id:
+            return skill
+    raise KeyError(f"Unknown poster2 skill: {skill_id}")
+
+
+def load_skill_implementation(skill_id: str) -> Any:
+    skill = get_skill_registration(skill_id)
+    module = importlib.import_module(skill.entry_module)
+    return getattr(module, skill.entry_symbol)
 
 
 def get_skill_registry_payload() -> list[dict[str, object]]:

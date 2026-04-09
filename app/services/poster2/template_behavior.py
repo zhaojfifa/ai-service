@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .contracts import TemplateBeautyTokensSpec, TemplateBehaviorModesSpec, TemplateSpec
-from .family_a_runtime import build_family_a_control_surface
+from .skills.control.family_a_control_surface_v1 import build_control_surface as build_family_a_control_surface
 
 _FEATURE_MODE_LAYOUT_SPECS: dict[int, dict[str, int | str]] = {
     1: {"box_h": 80, "gap": 0, "connector_policy": "single_center"},

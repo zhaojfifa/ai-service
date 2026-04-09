@@ -33,16 +33,18 @@ from .background import (
 )
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
-from .family_a_runtime import (
-    FAMILY_A_VISIBLE_TRUTH_KEYS,
-    build_family_a_structure_surface,
-    filter_family_a_visible_truth_evidence,
-)
 from .font_registry import FontRegistry
 from .quality_guard import evaluate_deliverability, run_preflight_guard
 from .region_matrix import _BOTTOM_MODE_COLLAPSED_BY_DESIGN
 from .renderer import LayoutRenderer, RendererSelector, render_product_material_debug_layer
 from .renderer_routing import assert_quality_guard_deliverable
+from .skills.evidence.family_a_evidence_surface_v1 import (
+    filter_visible_truth_evidence as filter_family_a_visible_truth_evidence,
+    get_visible_truth_keys as get_family_a_visible_truth_keys,
+)
+from .skills.structure.family_a_structure_surface_v1 import (
+    build_structure_surface as build_family_a_structure_surface,
+)
 from .template_behavior import (
     _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS,
     _FROZEN_PRODUCT_OWNER_SURFACES,
@@ -61,7 +63,7 @@ _TEMPLATE_B_TITLE_CHAR_BUDGET = 120
 _TEMPLATE_B_SUBTITLE_CHAR_BUDGET = 80
 _TEMPLATE_B_DESCRIPTION_TITLE_CHAR_BUDGET = 80
 _TEMPLATE_B_DESCRIPTION_BODY_CHAR_BUDGET = 400
-_TEMPLATE_A_VISIBLE_TRUTH_KEYS = set(FAMILY_A_VISIBLE_TRUTH_KEYS)
+_TEMPLATE_A_VISIBLE_TRUTH_KEYS = set(get_family_a_visible_truth_keys())
 _TEMPLATE_B_VISIBLE_TRUTH_KEYS = {
     "logo_banner_region",
     "brand_logo_slot",

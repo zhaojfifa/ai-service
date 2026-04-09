@@ -2909,3 +2909,60 @@ Remaining risks:
 - `app/services/poster2/skills/` and matching test/fixture roots now exist
 - the initial skill registry is Family A-only across structure / control / beautification / evidence
 - the repo is ready for the first Family A anchored shared-skill implementation step
+
+## Family A anchored shared-skill extraction — first implementation batch
+
+### Read state
+- the skill rules/storage baseline is already landed
+- scope remains Family A only
+- this step extracts only the first callable shared-skill implementations:
+  - structure
+  - control
+  - evidence
+- beautification remains registry/preset consumption only; no broad shared beautification refactor is included
+
+### Problem reproduced
+- the shared-skill registry existed, but the Family A entries were still registration-only pointers
+- structure/control/evidence were still consumed straight from `family_a_runtime.py`
+- there was no registry -> implementation -> Family A runtime closure test
+
+### Root cause
+- the first extraction step had not yet created family-scoped implementation modules under `app/services/poster2/skills/`
+- runtime consumption had not yet been rewired to take the extracted Family A skill entrypoints
+
+### Files changed
+- `app/services/poster2/skills/registry.py`
+- `app/services/poster2/skills/structure/family_a_structure_surface_v1.py`
+- `app/services/poster2/skills/control/family_a_control_surface_v1.py`
+- `app/services/poster2/skills/evidence/family_a_evidence_surface_v1.py`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `tests/poster2/skills/test_registry.py`
+- `tests/poster2/skills/test_family_a_implementations.py`
+
+### Layer changed
+- Family A shared structure skill implementation
+- Family A shared control skill implementation
+- Family A shared evidence helper implementation
+- registry implementation binding
+- focused extraction closure tests
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/skills/registry.py app/services/poster2/skills/structure/family_a_structure_surface_v1.py app/services/poster2/skills/control/family_a_control_surface_v1.py app/services/poster2/skills/evidence/family_a_evidence_surface_v1.py app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py tests/poster2/skills/test_registry.py tests/poster2/skills/test_family_a_implementations.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/skills/test_registry.py tests/poster2/skills/test_family_a_implementations.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'family_a or accepted_output_keys or visible_truth_keys_match_family_a_whitelist or family_control_surface or geometry_evidence_surfaces_family_structure_entry'`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+
+### Remaining risks
+- `family_a_runtime.py` still remains the Family A oracle; this step wraps and binds it, but does not yet decompose that oracle into finer shared helpers
+- beautification is intentionally still registry/preset-consumption only and is not yet extracted into a shared implementation surface
+- Template B remains intentionally outside this extraction wave
+
+### Exact acceptance
+- `family_a_structure_surface_v1` is now a callable Family A skill implementation
+- `family_a_control_surface_v1` is now a callable Family A skill implementation
+- `family_a_evidence_surface_v1` now exposes actual helper behavior for visible-truth filtering and Family A evidence guards
+- `registry.py` now binds Family A skills to explicit implementation modules/symbols
+- Template A runtime continues to consume Family A structure/control/evidence through Family A-scoped skill entrypoints without changing Family A behavior truth
