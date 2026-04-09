@@ -73,6 +73,7 @@ Family A practical closure:
 - [gemini_copy_optimizer_integration_v1.md](03_engineering/family_a/gemini_copy_optimizer_integration_v1.md)
 - [copy_optimization_value_closure_v1.md](03_engineering/family_a/copy_optimization_value_closure_v1.md)
 - [product_annotation_text_closure_v1.md](03_engineering/family_a/product_annotation_text_closure_v1.md)
+- [copy_quality_closure_v1.md](03_engineering/family_a/copy_quality_closure_v1.md)
 
 ### 04 Skills
 
@@ -91,6 +92,7 @@ Core verification anchors:
 - [gemini_copy_optimizer_closure_status_v1.md](05_validation/family_a/gemini_copy_optimizer_closure_status_v1.md)
 - [copy_optimization_value_closure_status_v1.md](05_validation/family_a/copy_optimization_value_closure_status_v1.md)
 - [product_annotation_text_closure_status_v1.md](05_validation/family_a/product_annotation_text_closure_status_v1.md)
+- [copy_quality_closure_status_v1.md](05_validation/family_a/copy_quality_closure_status_v1.md)
 - [family_a_practical_closure_status_v1.md](05_validation/family_a/family_a_practical_closure_status_v1.md)
 - [family_a_practical_closure_verification_matrix_v1.md](05_validation/family_a/family_a_practical_closure_verification_matrix_v1.md)
 - [bottom_behavior_contract_status_v1.md](05_validation/bottom_behavior_contract_status_v1.md)

@@ -5512,6 +5512,26 @@ class TestTemplateBBackendGenerationFix:
             or any(item["optimized_text"] != item["sanitized_text"] for item in review["annotation_items"])
         )
 
+    def test_template_a_copy_optimization_improves_subtitle_and_annotation_candidates_for_quality(self):
+        spec = _make_spec(
+            title="Upgrade your kitchen with ChefCraft",
+            subtitle="Revamp kitchen efficiency, create chef-level deliciousness with guided presets and smart daily convenience",
+            features=(
+                "Fast preheat for busy weeknight cooking",
+                "Easy cleanup after family dinners",
+                "Smart controls for daily convenience",
+            ),
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["subtitle"]["optimized_text"] == "Revamp kitchen efficiency · daily-use controls"
+        assert review["subtitle"]["optimized_text"] != review["subtitle"]["sanitized_text"]
+        assert review["annotation_items"][2]["optimized_text"] == "Daily smart controls"
+        assert review["annotation_items"][2]["optimized_text"] != "Smart controls"
+        assert review["annotation_items"][2]["optimized_text"] != review["annotation_items"][2]["sanitized_text"]
+
     def test_template_a_copy_optimization_accepts_optimized_copy_without_changing_annotation_count(self):
         spec = _make_spec(
             title="Cook smarter every day",

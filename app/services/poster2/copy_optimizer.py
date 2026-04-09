@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import re
 from typing import Any
 
 from app.config import get_settings
@@ -8,10 +9,179 @@ from app.services.email.copy_safety import (
     compress_marketing_point,
     normalize_marketing_subtitle,
     normalize_marketing_title,
+    sanitize_marketing_text,
 )
 
 from .contracts import CopyOptimizationSpec, PosterSpec, TemplateSpec
 from .gemini_copy_optimizer import GeminiPoster2CopyOptimizer
+
+
+_SUBTITLE_TARGET_BUDGET = 72
+_ANNOTATION_TARGET_BUDGET = 24
+_SUBTITLE_REDUNDANT_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"\bwith guided presets\b",
+        r"\bwith smart presets\b",
+        r"\bfor daily convenience\b",
+        r"\bfor daily use\b",
+        r"\bfor busy weeknight cooking\b",
+        r"\bwith less guesswork\b",
+    )
+]
+_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "after",
+    "for",
+    "from",
+    "less",
+    "more",
+    "of",
+    "the",
+    "to",
+    "with",
+}
+_ANNOTATION_PHRASE_REWRITES = (
+    (re.compile(r"\bsmart controls?\s+for\s+daily\s+convenience\b", re.IGNORECASE), "Daily smart controls"),
+    (re.compile(r"\bsmart controls?\s+for\s+daily\s+use\b", re.IGNORECASE), "Daily smart controls"),
+    (re.compile(r"\bfast preheat\s+for\s+busy\s+weeknight\s+cooking\b", re.IGNORECASE), "Weeknight-ready preheat"),
+    (re.compile(r"\beven cooking\s+with\s+less\s+guesswork\b", re.IGNORECASE), "More even cooking"),
+    (re.compile(r"\beasy cleanup\s+after\s+family\s+dinners\b", re.IGNORECASE), "Easy cleanup"),
+)
+
+
+def _trim_to_budget(text: str, budget: int) -> str:
+    if not text or budget <= 0 or len(text) <= budget:
+        return text
+    truncated = text[:budget]
+    last_break = max(truncated.rfind(" "), truncated.rfind("·"))
+    if last_break >= int(budget * 0.6):
+        truncated = truncated[:last_break]
+    return truncated.strip(" ·,-")
+
+
+def _contains_subtitle_redundancy(text: str, title: str) -> bool:
+    if not text:
+        return False
+    title_tokens = {
+        token.casefold()
+        for token in re.findall(r"[A-Za-z0-9]+", title or "")
+        if len(token) >= 4
+    }
+    text_tokens = [
+        token.casefold()
+        for token in re.findall(r"[A-Za-z0-9]+", text)
+        if len(token) >= 4
+    ]
+    overlap = [token for token in text_tokens if token in title_tokens]
+    if overlap:
+        return True
+    return any(pattern.search(text) for pattern in _SUBTITLE_REDUNDANT_PATTERNS)
+
+
+def _dedupe_title_terms(text: str, title: str) -> str:
+    if not text:
+        return ""
+    title_terms = {
+        token.casefold()
+        for token in re.findall(r"[A-Za-z0-9]+", title or "")
+        if len(token) >= 4
+    }
+    if not title_terms:
+        return text
+    words = text.split()
+    kept: list[str] = []
+    for word in words:
+        key = re.sub(r"[^A-Za-z0-9]+", "", word).casefold()
+        if key and key in title_terms:
+            continue
+        kept.append(word)
+    return " ".join(kept).strip(" ·,-")
+
+
+def _optimize_subtitle_candidate(text: str, title: str) -> str:
+    subtitle = normalize_marketing_subtitle(text, title=title)
+    if not subtitle:
+        return ""
+    optimized = subtitle
+    title_clean = clean_copy_candidate(title)
+    if title_clean and title_clean.casefold() in optimized.casefold():
+        optimized = re.sub(re.escape(title_clean), "", optimized, flags=re.IGNORECASE).strip(" ·,-")
+    replacements = (
+        ("Steam, bake, and roast", "Steam, bake, roast"),
+        ("steam, bake, and roast", "steam, bake, roast"),
+        ("with guided presets", "guided presets"),
+        ("with smart presets", "smart presets"),
+        ("smart daily convenience", "daily-use controls"),
+        ("for daily convenience", "for daily use"),
+        ("for busy weeknight cooking", "for weeknight cooking"),
+        ("create chef-level deliciousness", "chef-level results"),
+        ("with less guesswork", "with guided results"),
+    )
+    for source, target in replacements:
+        optimized = optimized.replace(source, target)
+    optimized = clean_copy_candidate(optimized)
+    if len(optimized) > _SUBTITLE_TARGET_BUDGET:
+        segments = [segment.strip(" ·,-") for segment in re.split(r"[;,]|(?:\s+\u00b7\s+)|(?:\s+\band\b\s+)|(?:\s+\bwith\b\s+)", optimized) if segment.strip()]
+        if segments:
+            first_segment = segments[0]
+            trailing = next(
+                (
+                    segment for segment in segments[1:]
+                    if re.search(r"\b(preset|control|result|cleanup|preheat|steam|bake|roast)\b", segment, re.IGNORECASE)
+                ),
+                segments[-1],
+            )
+            optimized = f"{first_segment} · {trailing}" if trailing != first_segment else first_segment
+    optimized = clean_copy_candidate(_trim_to_budget(optimized, _SUBTITLE_TARGET_BUDGET))
+    return optimized or subtitle
+
+
+def _keyword_compress_annotation(text: str) -> str:
+    raw_tokens = re.findall(r"[A-Za-z0-9]+(?:-[A-Za-z0-9]+)?", text)
+    if not raw_tokens:
+        return text
+    kept: list[str] = []
+    for token in raw_tokens:
+        key = token.casefold()
+        if key in _STOPWORDS:
+            continue
+        if key == "convenience":
+            token = "use"
+        elif key == "dinners":
+            token = "dinner"
+        kept.append(token)
+    if not kept:
+        return text
+    if len(kept) >= 3 and kept[1].casefold() == "controls" and kept[2].casefold() in {"daily", "use"}:
+        kept = [kept[2], kept[0], kept[1]]
+    candidate = " ".join(kept[:3]).strip()
+    return clean_copy_candidate(candidate)
+
+
+def clean_copy_candidate(text: str) -> str:
+    return " ".join((text or "").strip().split()).strip(" ·,-")
+
+
+def _optimize_annotation_candidate(text: str) -> str:
+    point = compress_marketing_point(text)
+    if not point:
+        return ""
+    original = clean_copy_candidate(text)
+    for pattern, replacement in _ANNOTATION_PHRASE_REWRITES:
+        if pattern.search(original):
+            return clean_copy_candidate(_trim_to_budget(replacement, _ANNOTATION_TARGET_BUDGET))
+
+    candidate = point
+    if len(candidate) > _ANNOTATION_TARGET_BUDGET or len(candidate.split()) <= 2:
+        keyword_candidate = _keyword_compress_annotation(original)
+        if keyword_candidate and keyword_candidate != candidate:
+            candidate = keyword_candidate
+    if len(candidate) > _ANNOTATION_TARGET_BUDGET:
+        candidate = _trim_to_budget(candidate, _ANNOTATION_TARGET_BUDGET)
+    return clean_copy_candidate(candidate) or point
 
 
 def _normalize_feature_items(items: tuple[str, ...] | list[str]) -> tuple[str, ...]:
@@ -29,39 +199,25 @@ def _build_deterministic_candidate(effective_spec: PosterSpec) -> dict[str, Any]
         effective_spec.subtitle,
         title=title or effective_spec.title,
     )
-    features = _normalize_feature_items(effective_spec.features)
+    features = tuple(str(item or "").strip() for item in effective_spec.features if str(item or "").strip())
     suggestion_title = title
     suggestion_subtitle = subtitle
     suggestion_features = features
 
+    if subtitle and (len(subtitle) > _SUBTITLE_TARGET_BUDGET or _contains_subtitle_redundancy(subtitle, title)):
+        suggestion_subtitle = _optimize_subtitle_candidate(subtitle, suggestion_title or title)
+
     if features:
-        first_feature = features[0]
-        if first_feature and first_feature.casefold() not in title.casefold():
-            suggestion_title = normalize_marketing_title(f"{title} · {first_feature}") or suggestion_title
-        if len(features) >= 2:
-            joined = " · ".join(item for item in features[:2] if item)
-            if joined:
-                suggestion_subtitle = normalize_marketing_subtitle(joined, title=suggestion_title or title)
-        elif first_feature:
-            suggestion_subtitle = normalize_marketing_subtitle(first_feature, title=suggestion_title or title)
+        tightened_features = tuple(_optimize_annotation_candidate(item) for item in features)
+        suggestion_features = tightened_features[: len(features)]
 
-        tightened_features: list[str] = []
-        for index, item in enumerate(features):
-            compact = compress_marketing_point(item)
-            if compact and compact != item:
-                tightened_features.append(compact)
-                continue
-            if index == 0 and compact:
-                tightened_features.append(compact.replace(" for ", " · "))
-            else:
-                tightened_features.append(compact)
-        suggestion_features = tuple(tightened_features[: len(features)])
+    if suggestion_subtitle == subtitle and len(features) >= 2 and not subtitle:
+        joined = " · ".join(item for item in suggestion_features[:2] if item)
+        if joined:
+            suggestion_subtitle = _optimize_subtitle_candidate(joined, suggestion_title or title)
 
-    if suggestion_title == title and suggestion_subtitle == subtitle and suggestion_features == features:
-        if subtitle and subtitle.casefold() not in title.casefold():
-            suggestion_title = normalize_marketing_title(f"{title} · {subtitle}") or title
-        elif title:
-            suggestion_subtitle = normalize_marketing_subtitle(f"Optimized: {title}", title=title)
+    if suggestion_title == title and suggestion_subtitle == subtitle and suggestion_features == features and subtitle:
+        suggestion_subtitle = _optimize_subtitle_candidate(subtitle, title)
     return {
         "title": suggestion_title,
         "subtitle": suggestion_subtitle,
@@ -80,7 +236,12 @@ def _sanitize_candidate(
         title=title or effective_spec.title,
     )
     max_feature_count = len(effective_spec.features)
-    features = _normalize_feature_items(candidate.get("features") or effective_spec.features)[:max_feature_count]
+    raw_features = tuple(candidate.get("features") or effective_spec.features)
+    features = tuple(
+        clean_copy_candidate(_trim_to_budget(sanitize_marketing_text(item), _ANNOTATION_TARGET_BUDGET))
+        or effective_spec.features[index]
+        for index, item in enumerate(raw_features[:max_feature_count])
+    )
     return {
         "title": title,
         "subtitle": subtitle,
@@ -201,7 +362,12 @@ def resolve_copy_optimization(
             ],
         }
 
-    suggested = _build_candidate(effective_spec)
+    candidate_source_spec = replace(
+        effective_spec,
+        subtitle=requested_spec.subtitle or effective_spec.subtitle,
+        features=tuple(requested_spec.features) or effective_spec.features,
+    )
+    suggested = _sanitize_candidate(_build_candidate(candidate_source_spec), effective_spec)
     apply_optimized = optimization.mode == "apply" or optimization.decision == "accepted"
     if optimization.decision == "rejected":
         apply_optimized = False

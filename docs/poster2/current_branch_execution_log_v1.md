@@ -3427,3 +3427,83 @@ The remaining gap was consumption and review structure, not contract truth:
 - annotation optimization remains wording-only and count-preserving
 - fixed 3-slot product annotation surface now exposes requested / sanitized / rendered / truncation / char_budget / line_clamp directly in Stage2
 - feature region remains delegated diagnostic only
+
+---
+
+## Entry — PR-A-CQ1: Template A copy quality closure
+
+**Branch:** `main`
+**Status:** In progress
+**Last updated:** 2026-04-09
+
+### Read state
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/03_engineering/family_a/gemini_copy_optimizer_integration_v1.md`
+- `docs/poster2/05_validation/family_a/copy_optimization_value_closure_status_v1.md`
+
+### Scope
+
+- Template A only
+- subtitle quality closure
+- product annotation text quality closure
+- no geometry / ownership / control-truth changes
+- no Template B work
+
+### Problem reproduced
+
+Family A observability was already closed, but copy quality still lagged:
+
+- subtitle candidates were often verbose and still truncation-prone
+- annotation compression could collapse into weak phrases like `Smart controls`
+- copy optimization still defaulted to `off`, so suggest flow was not the main operator path
+
+### Root cause
+
+The remaining issue was quality logic, not structure or control:
+
+- deterministic optimization did not understand the practical subtitle / annotation budget well enough
+- candidate sanitization could wash out better annotation rewrites
+- Stage2 still treated `off` as the initial path
+
+### Files changed
+
+- `app/services/poster2/copy_optimizer.py`
+- `frontend/app.js`
+- `docs/app.js`
+- `tests/poster2/test_pipeline.py`
+- `tests/test_stage2_guard_diagnostics_surface.py`
+- `docs/poster2/03_engineering/family_a/copy_quality_closure_v1.md`
+- `docs/poster2/05_validation/family_a/copy_quality_closure_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Family A copy optimization quality logic
+- Stage2 default suggestion path
+- Family A quality-validation docs
+
+### Validation run
+
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'copy_optimization or product_annotation_copy_compression_reduces_truncation_for_verbose_sell_points'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py tests/test_frontend_docs_sync.py`
+
+### Remaining risks
+
+- live Gemini quality still depends on deployed optimizer availability
+- this step improves candidate quality and operator path, but does not reopen layout or budget contracts
+
+### Exact acceptance
+
+- subtitle optimized candidate is materially shorter and more usable
+- annotation slot 3 preserves more meaning than `Smart controls`
+- Stage2 now treats `suggest` as the default Family A operator path
+- final image, metadata, and `copy_optimization_review` remain aligned through accept / reject

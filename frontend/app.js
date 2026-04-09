@@ -144,7 +144,7 @@ const stage2State = {
     history: [],
     latestResult: null,
     copyOptimization: {
-      mode: 'off',
+      mode: 'suggest',
       decision: 'pending',
       acceptedTitle: '',
       acceptedSubtitle: '',
@@ -602,7 +602,7 @@ function applyStage2TemplateFamilyVisibility(stage1Data) {
 function ensurePoster2CopyOptimizationState() {
   const current = stage2State.poster2?.copyOptimization || {};
   stage2State.poster2.copyOptimization = {
-    mode: current.mode || 'off',
+    mode: current.mode || 'suggest',
     decision: current.decision || 'pending',
     acceptedTitle: current.acceptedTitle || '',
     acceptedSubtitle: current.acceptedSubtitle || '',
@@ -689,7 +689,7 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
   const state = ensurePoster2CopyOptimizationState();
   const eligible = shouldUsePoster2Pilot(stage1Data) && !isTemplateBStage1Data(stage1Data);
   panel.classList.toggle('hidden', !eligible);
-  modeSelect.value = state.mode || 'off';
+  modeSelect.value = state.mode || 'suggest';
 
   modeSelect.onchange = () => {
     state.mode = modeSelect.value || 'off';

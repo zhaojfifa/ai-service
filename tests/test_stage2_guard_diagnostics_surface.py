@@ -225,6 +225,7 @@ def test_frontend_stage2_surfaces_family_a_copy_optimization_controls_and_trace(
     assert "optimizer_used" in js
     assert "changed_fields" in js
     assert "disabled_reason" in js
+    assert "mode: 'suggest'" in js
     assert "requested_text ->" in js
     assert "sanitized_text ->" in js
     assert "optimized_text ->" in js
