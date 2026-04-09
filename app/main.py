@@ -1580,13 +1580,16 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             visible_truth_evidence=manifest.visible_truth_evidence,
             template_b_parity_review=manifest.template_b_parity_review,
         )
+        response_payload_dict = _model_dump(response_payload)
+        if manifest.template_b_parity_review is None:
+            response_payload_dict.pop("template_b_parity_review", None)
         create_poster_record(
             poster_key=poster_key,
             request_snapshot=_model_dump(payload),
-            render_result=_model_dump(response_payload),
+            render_result=response_payload_dict,
             final_poster=_poster2_final_poster_payload(manifest),
         )
-        return response_payload
+        return JSONResponse(content=response_payload_dict)
 
     except FileNotFoundError as exc:
         logger.warning("poster2: request file error %s detail=%s", request_log, exc)

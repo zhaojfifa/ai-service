@@ -139,7 +139,7 @@ class GeneratePosterV2Response(BaseModel):
     subtitle_text_layer: dict = Field(default_factory=dict)
     header_text_layer: dict = Field(default_factory=dict)
     visible_truth_evidence: dict = Field(default_factory=dict)
-    template_b_parity_review: dict = Field(default_factory=dict)
+    template_b_parity_review: Optional[dict] = None
 
 
 class PosterRecordPoster(BaseModel):

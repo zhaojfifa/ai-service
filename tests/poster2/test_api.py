@@ -288,6 +288,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     assert body["feature_contract_review"]["feature_mode"] == "count_driven_callout_stack"
     assert body["bottom_contract_review"]["bottom_mode"] == "title_gallery_split"
     assert body["geometry_evidence"]["region_bounds"]["bottom_region"] == {"x": 96, "y": 728, "w": 832, "h": 232}
+    assert "template_b_parity_review" not in body
 
     record = client.get(f"/api/v2/posters/{body['poster_key']}")
     assert record.status_code == 200

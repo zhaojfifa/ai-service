@@ -1159,7 +1159,6 @@ class PuppeteerStructuredRenderer:
         bottom_tagline_text = ""
         bottom_tagline_class = "state-hidden"
         header_region = _header_region_bounds_local(slot_spec, behavior.header_policy)
-        product_region = _template_b_region_slot(slot_spec, "product")
 
         replacements = {
             "__INLINE_CSS__": css_template,
@@ -1198,7 +1197,7 @@ class PuppeteerStructuredRenderer:
             "__PRODUCT_LAYER_CLASS__": product_layer_class,
             "__PRODUCT_CONTENT_CLASS__": product_content_class,
             "__PRODUCT_STYLE__": _slot_style(
-                _localize_slot(_product_slot(slot_spec, behavior.hero_policy, behavior.product_policy), product_region)
+                _product_slot(slot_spec, behavior.hero_policy, behavior.product_policy)
             ),
             "__PRODUCT_URL__": asset_urls["product"],
             "__PRODUCT_SECONDARY_CLASS__": (
@@ -1207,7 +1206,7 @@ class PuppeteerStructuredRenderer:
                 else " ".join(("state-hidden", *behavior.product_policy.css_classes))
             ),
             "__PRODUCT_SECONDARY_STYLE__": _slot_style(
-                _localize_slot(_product_secondary_slot(slot_spec, behavior.product_policy), product_region)
+                _product_secondary_slot(slot_spec, behavior.product_policy)
             ),
             "__PRODUCT_SECONDARY_URL__": asset_urls.get("product_secondary", ""),
             "__FEATURE_LAYER_CLASS__": feature_layer_class,

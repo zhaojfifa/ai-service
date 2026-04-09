@@ -5301,7 +5301,7 @@ class TestTemplateBBackendGenerationFix:
         assert "product_region" in manifest.visible_truth_evidence
         assert "logo_banner_region" not in manifest.visible_truth_evidence
         assert "top_copy_title_layer" not in manifest.visible_truth_evidence
-        assert manifest.template_b_parity_review == {}
+        assert manifest.template_b_parity_review is None
 
     def test_template_a_visible_truth_keys_match_family_a_whitelist(self):
         spec = _make_spec()
@@ -5329,7 +5329,7 @@ class TestTemplateBBackendGenerationFix:
         assert sorted(manifest.visible_truth_evidence.keys()) == fixture["expected_visible_truth_keys"]
         for key in fixture["forbidden_visible_truth_keys"]:
             assert key not in manifest.visible_truth_evidence
-        assert manifest.template_b_parity_review == {}
+        assert manifest.template_b_parity_review is None
         assert manifest.title_text_layer["owner_region"] == fixture["expected_title_owner_region"]
         assert manifest.subtitle_text_layer["owner_region"] == fixture["expected_subtitle_owner_region"]
         assert manifest.bottom_contract_review["bottom_mode"] == fixture["expected_bottom_mode"]

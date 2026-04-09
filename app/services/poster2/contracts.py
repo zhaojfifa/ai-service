@@ -411,7 +411,10 @@ class RenderManifest:
     subtitle_text_layer: dict = field(default_factory=dict)
     header_text_layer: dict = field(default_factory=dict)
     visible_truth_evidence: dict = field(default_factory=dict)
-    template_b_parity_review: dict = field(default_factory=dict)
+    template_b_parity_review: Optional[dict] = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        payload = asdict(self)
+        if payload.get("template_b_parity_review") is None:
+            payload.pop("template_b_parity_review", None)
+        return payload

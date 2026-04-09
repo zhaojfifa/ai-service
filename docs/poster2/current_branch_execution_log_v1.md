@@ -2342,3 +2342,129 @@ Remaining risks:
 ### Remaining risks
 - the deterministic visual smoke uses local fallback fonts in this workspace, so future font-install changes may require fixture refresh
 - no fresh live Chromium artifact bundle was stored in-repo; this rebaseline uses deterministic smoke fixtures plus repaired routing/tests as the acceptance anchor
+
+## PR-TA-R1 — Template A renderer/material parity repair
+
+### Read state
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/template_dual_v2_structural_rebuild_baseline_v1.md`
+- `docs/poster2/product_region_annotation_contract_status_v1.md`
+- `docs/poster2/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/beautification_layer_plan_v1.md`
+- `docs/poster2/external_reference_poster_design_review_and_migration_v1.md`
+
+### Scope
+- Template A repair only
+- repair Family A renderer/material parity without changing frozen A contract/control truth
+- no Template B expansion
+- no beautification reopen
+
+### Root cause
+- current Family A structured HTML builder localized `product` and `product_secondary` against a pseudo region root
+- Template A product slots are already authored in poster-root absolute coordinates, so this extra localization broke image/material parity while leaving resolver truth intact
+
+### Files changed
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_renderer.py`
+
+### Layer changed
+- renderer consumption
+- Family A structured HTML parity regression coverage
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/renderer.py tests/poster2/test_renderer.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'FamilyAwareStructuredHtmlRouting or FamilyAVisualRebaseline'`
+  - pass
+
+### Remaining risks
+- this repaired the concrete Family A product slot drift in structured HTML, but does not by itself prove a fresh live Chromium artifact bundle
+- Family A route/output cleanup still needed to remove B-family residue from the response surface
+
+### Exact acceptance
+- Template A product slot is consumed in absolute Family A coordinates again
+- secondary/supporting product slot remains product-owned and family-correct
+- no Template B geometry or behavior was touched
+
+## PR-TA-R2 — Template A family output cleanup
+
+### Read state
+- reused the same Template A repair read set from PR-TA-R1
+
+### Scope
+- remove B-family parity residue from Template A payload/output surface
+- keep Family A/TB behavior and quality-guard truth otherwise unchanged
+
+### Root cause
+- `template_b_parity_review` was still modeled as an always-present dict field, so Family A responses could carry an empty B-family residue even after family filtering
+
+### Files changed
+- `app/services/poster2/contracts.py`
+- `app/schemas/poster2.py`
+- `app/services/poster2/pipeline.py`
+- `app/main.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_api.py`
+
+### Layer changed
+- manifest/output schema
+- family-aware parity dispatch
+- API response shaping
+- Family A residue regression tests
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/contracts.py app/schemas/poster2.py app/services/poster2/pipeline.py app/main.py tests/poster2/test_pipeline.py tests/poster2/test_api.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'test_template_a_payload_filters_out_template_b_visible_truth_and_parity_keys or test_family_a_runtime_rebaseline_matches_fixture or test_template_a_regression_path_remains_unchanged'`
+  - `3 passed, 280 deselected`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_api.py -k 'test_generate_poster_v2_route_is_backward_compatible'`
+  - `1 passed, 26 deselected`
+
+### Remaining risks
+- API output is now clean for Template A, but broader live render revalidation still depends on a fresh canonical sample run
+- Stage2/backend diagnostics still depend on the existing Family A evidence schema; this PR did not reopen those surfaces
+
+### Exact acceptance
+- `template_dual_v2` payload no longer carries `template_b_parity_review`
+- Family A visible-truth output remains family-scoped
+- Template B parity path remains available only on Family B
+
+## PR-TA-R3 — Template A re-baseline refresh
+
+### Read state
+- reused the same Template A repair baseline and Family A fixtures from the prior rebaseline pass
+
+### Scope
+- refresh deterministic Family A smoke anchor after the renderer/material parity repair
+- keep A frozen contract/control truth unchanged
+
+### Root cause
+- structured HTML changed intentionally as part of the Family A parity repair, so the stored deterministic smoke hash needed to be rebaselined to the repaired A shell
+
+### Files changed
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `tests/poster2/test_renderer.py`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+- deterministic A smoke baseline
+- shared state
+- execution log
+
+### Validation run
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'FamilyAwareStructuredHtmlRouting or FamilyAVisualRebaseline'`
+  - pass
+
+### Remaining risks
+- no fresh live Chromium output artifact was committed; the rebaseline remains deterministic-test anchored
+- README index was unchanged because no new formal document path was introduced in this repair-only pass
+
+### Exact acceptance
+- Family A deterministic structured HTML smoke now matches the repaired parity path
+- shared state reflects `Template A repair only` as the temporary priority override

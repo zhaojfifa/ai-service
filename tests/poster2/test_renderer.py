@@ -48,6 +48,8 @@ from app.services.poster2.renderer import (
     _resolve_feature_mode,
     _resolve_feature_callout_layout,
     _resolve_feature_callout_map,
+    _product_slot,
+    _product_secondary_slot,
     _safe_preset_scenario_data_url,
     _template_b_material_slots,
     _visible_gallery_item_count,
@@ -1945,6 +1947,75 @@ class TestFamilyAwareStructuredHtmlRouting:
         assert 'data-region="logo_banner_region"' not in html_payload
         assert 'data-region="top_copy_region"' not in html_payload
         assert 'data-region="description_region"' not in html_payload
+
+    def test_template_a_html_keeps_product_slots_in_absolute_product_region_coordinates(self):
+        renderer = PuppeteerStructuredRenderer()
+        template = _load_real_template()
+        behavior = resolve_template_behavior(
+            template,
+            feature_count=3,
+            title_text="烹饪更智慧，生活更美味",
+            subtitle_text="系列产品",
+            brand_name="厨厨房",
+            gallery_requested_count=0,
+            gallery_input_count_normalized=0,
+            gallery_resolved_count=0,
+            agent_name="智能厨房顾问",
+            has_product_secondary_asset=True,
+        )
+        html_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.html"
+        ).read_text(encoding="utf-8")
+        css_template = (
+            Path(__file__).resolve().parents[2] / "app" / "templates_html" / "template_dual_v2.css"
+        ).read_text(encoding="utf-8")
+        slot_spec = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "slot_spec.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+        anchor_map = json.loads(
+            (
+                Path(__file__).resolve().parents[2]
+                / "app"
+                / "templates_html"
+                / "anchor_map.template_dual_v2.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        html_payload = renderer._build_html(
+            html_template=html_template,
+            css_template=css_template,
+            svg_overlay="",
+            poster=_minimal_spec(product_secondary_image=AssetRef(url="mock://product-secondary")),
+            asset_urls={
+                "logo": "",
+                "scenario": _safe_preset_scenario_data_url(),
+                "scenario_is_real": False,
+                "product": "data:image/png;base64,abc",
+                "product_secondary": "data:image/png;base64,def",
+                "gallery": [],
+                "materials": [],
+            },
+            slot_spec=slot_spec,
+            anchor_map=anchor_map,
+            spec=template,
+            behavior=behavior,
+        )
+
+        product_slot = _product_slot(slot_spec, behavior.hero_policy, behavior.product_policy)
+        secondary_slot = _product_secondary_slot(slot_spec, behavior.product_policy)
+        assert (
+            f"left:{product_slot['x']}px;top:{product_slot['y']}px;"
+            f"width:{product_slot['w']}px;height:{product_slot['h']}px"
+        ) in html_payload
+        assert (
+            f"left:{secondary_slot['x']}px;top:{secondary_slot['y']}px;"
+            f"width:{secondary_slot['w']}px;height:{secondary_slot['h']}px"
+        ) in html_payload
 
     def test_template_b_html_dispatch_does_not_emit_template_a_bottom_or_feature_regions(self):
         renderer = PuppeteerStructuredRenderer()

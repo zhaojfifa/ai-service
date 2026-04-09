@@ -317,8 +317,8 @@ class PosterPipeline:
                     region_render_status=quality_guard_report.region_render_status,
                 ),
             )
-            if fg_result.render_engine_used == "puppeteer"
-            else {}
+            if fg_result.render_engine_used == "puppeteer" and template.template_id == "template_product_sheet_v1"
+            else None
         )
         quality_guard_report = _apply_template_b_parity_to_quality_guard(
             quality_guard_report,
@@ -518,7 +518,11 @@ class PosterPipeline:
                 layer_render_status=layer_render_status,
             ),
             "visible_truth_evidence": visible_truth_evidence,
-            "template_b_parity_review": template_b_parity_review,
+            **(
+                {"template_b_parity_review": template_b_parity_review}
+                if template_b_parity_review is not None
+                else {}
+            ),
             "gallery_items_status": fg_result.gallery_items_status,
             "artifact_urls": {
                 "background_layer_url": bg_result.url,
@@ -1540,8 +1544,10 @@ def _build_template_b_parity_review(
 def _apply_template_b_parity_to_quality_guard(
     report,
     *,
-    template_b_parity_review: dict[str, object],
+    template_b_parity_review: dict[str, object] | None,
 ):
+    if not template_b_parity_review:
+        return report
     failures = list(template_b_parity_review.get("parity_failure_reasons") or [])
     if not failures:
         return report
