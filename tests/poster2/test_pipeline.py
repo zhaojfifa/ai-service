@@ -252,6 +252,7 @@ class _FakeTemplateBPuppeteerRenderer:
             "product_secondary_inset": {"rendered": bool(assets.product_secondary is not None), "visible_bounds": {"x": 744, "y": 564, "w": 160, "h": 160} if assets.product_secondary is not None else None, "layout_bounds": {"x": 744, "y": 564, "w": 160, "h": 160}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "3"}, "transform_summary": {"transform": "none"}},
             "description_title_layer": {"rendered": True, "visible_bounds": {"x": 112, "y": 756, "w": 500, "h": 40}, "layout_bounds": {"x": 112, "y": 756, "w": 500, "h": 40}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
             "description_body_layer": {"rendered": True, "visible_bounds": {"x": 128, "y": 804, "w": 540, "h": 88}, "layout_bounds": {"x": 128, "y": 804, "w": 540, "h": 88}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "product_region": {"rendered": True, "visible_bounds": {"x": 300, "y": 300, "w": 1, "h": 1}, "layout_bounds": {"x": 300, "y": 300, "w": 1, "h": 1}, "overflow_state": {"x": "visible", "y": "visible", "shorthand": "visible"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
         }
         if self._parity_fail:
             visible_truth_evidence["top_copy_title_layer"]["visible_bounds"] = {"x": 112, "y": 332, "w": 640, "h": 56}
@@ -285,6 +286,53 @@ class _FakeTemplateBPuppeteerRenderer:
             image=image,
             png_bytes=_solid_png(),
             sha256="1" * 64,
+            render_engine_used="puppeteer",
+            foreground_renderer="poster2.puppeteer_structured",
+            template_contract_version=spec.contract_version,
+            layer_render_status=layer_render_status,
+            region_render_status=region_render_status,
+            visible_truth_evidence=visible_truth_evidence,
+        )
+
+
+class _FakeTemplateAIsolatedPuppeteerRenderer:
+    async def render(self, spec, poster, assets):
+        image = PILImage.new("RGBA", (spec.canvas_w, spec.canvas_h), (0, 0, 0, 0))
+        visible_truth_evidence = {
+            "header_region": {"rendered": True, "visible_bounds": {"x": 72, "y": 56, "w": 880, "h": 120}, "layout_bounds": {"x": 72, "y": 56, "w": 880, "h": 120}, "overflow_state": {"x": "visible", "y": "visible", "shorthand": "visible"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "product_region": {"rendered": True, "visible_bounds": {"x": 384, "y": 164, "w": 560, "h": 520}, "layout_bounds": {"x": 384, "y": 164, "w": 560, "h": 520}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "2"}, "transform_summary": {"transform": "none"}},
+            "title_text_layer": {"rendered": True, "visible_bounds": {"x": 80, "y": 726, "w": 380, "h": 72}, "layout_bounds": {"x": 80, "y": 726, "w": 380, "h": 72}, "overflow_state": {"x": "hidden", "y": "hidden", "shorthand": "hidden"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "gallery_strip_region": {"rendered": True, "visible_bounds": {"x": 484, "y": 720, "w": 460, "h": 120}, "layout_bounds": {"x": 484, "y": 720, "w": 460, "h": 120}, "overflow_state": {"x": "visible", "y": "visible", "shorthand": "visible"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "logo_banner_region": {"rendered": True, "visible_bounds": {"x": 10, "y": 10, "w": 10, "h": 10}, "layout_bounds": {"x": 10, "y": 10, "w": 10, "h": 10}, "overflow_state": {"x": "visible", "y": "visible", "shorthand": "visible"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+            "top_copy_title_layer": {"rendered": True, "visible_bounds": {"x": 20, "y": 20, "w": 10, "h": 10}, "layout_bounds": {"x": 20, "y": 20, "w": 10, "h": 10}, "overflow_state": {"x": "visible", "y": "visible", "shorthand": "visible"}, "clipping_state": {"clipped_by_root": False}, "computed_opacity": 1, "stacking_context": {"z_index": "auto"}, "transform_summary": {"transform": "none"}},
+        }
+        layer_render_status = {
+            "brand_logo_layer": {"rendered": assets.logo is not None, "count": 1 if assets.logo is not None else 0},
+            "brand_text_layer": {"rendered": True, "count": 1},
+            "agent_name_text_layer": {"rendered": True, "count": 1},
+            "scenario_image_layer": {"rendered": bool(assets.scenario), "count": 1 if assets.scenario is not None else 0},
+            "product_card_shell_layer": {"rendered": True, "count": 1},
+            "product_canvas_shell_layer": {"rendered": True, "count": 1},
+            "product_image_layer": {"rendered": bool(assets.product), "count": 1 if assets.product is not None else 0},
+            "product_secondary_image_layer": {"rendered": False, "count": 0},
+            "feature_items_layer": {"rendered": True, "count": 4},
+            "title_text_layer": {"rendered": True, "count": 1},
+            "subtitle_text_layer": {"rendered": True, "count": 1},
+            "gallery_items_layer": {"rendered": True, "count": 2},
+        }
+        region_render_status = {
+            "header_region": {"rendered": True, "count": 3, "collapsed": False},
+            "scenario_region": {"rendered": True, "count": 1, "collapsed": False},
+            "product_region": {"rendered": True, "count": 2, "collapsed": False},
+            "feature_region": {"rendered": True, "count": 4, "collapsed": False},
+            "title_band_region": {"rendered": True, "count": 2, "collapsed": False},
+            "gallery_strip_region": {"rendered": True, "count": 2, "collapsed": False},
+            "bottom_region": {"rendered": True, "count": 4, "collapsed": False},
+        }
+        return ForegroundResult(
+            image=image,
+            png_bytes=_solid_png(),
+            sha256="2" * 64,
             render_engine_used="puppeteer",
             foreground_renderer="poster2.puppeteer_structured",
             template_contract_version=spec.contract_version,
@@ -4892,6 +4940,16 @@ def test_email_attachment_builder_surfaces_poster_png_and_pdf(monkeypatch):
 
 class TestTemplateBBackendGenerationFix:
 
+    def _run_template_a_with_renderer(self, spec: PosterSpec, renderer):
+        pipe = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=renderer,
+            composer=Composer(),
+            asset_loader=_mock_loader(),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        return asyncio.run(pipe.run(spec, _load_template()))
+
     def _run_template_b(self, spec: PosterSpec, assets: ResolvedAssets):
         from app.services.poster2.renderer import RendererSelector
 
@@ -5197,6 +5255,7 @@ class TestTemplateBBackendGenerationFix:
         assert manifest.template_b_parity_review["header_in_banner"] is True
         assert manifest.template_b_parity_review["top_copy_in_region"] is True
         assert manifest.structure_complete is True
+        assert "product_region" not in manifest.visible_truth_evidence
 
     def test_template_b_parity_failure_surfaces_and_breaks_clean_structure_truth(self):
         spec = _make_spec(
@@ -5221,6 +5280,16 @@ class TestTemplateBBackendGenerationFix:
         assert manifest.incomplete_structure is True
         assert manifest.deliverable is False
         assert "template_b_visual_parity" in manifest.missing_mandatory_regions
+
+    def test_template_a_payload_filters_out_template_b_visible_truth_and_parity_keys(self):
+        spec = _make_spec()
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+        assert manifest.template_id == "template_dual_v2"
+        assert "header_region" in manifest.visible_truth_evidence
+        assert "product_region" in manifest.visible_truth_evidence
+        assert "logo_banner_region" not in manifest.visible_truth_evidence
+        assert "top_copy_title_layer" not in manifest.visible_truth_evidence
+        assert manifest.template_b_parity_review == {}
 
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector

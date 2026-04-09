@@ -56,6 +56,48 @@ _TEMPLATE_B_TITLE_CHAR_BUDGET = 120
 _TEMPLATE_B_SUBTITLE_CHAR_BUDGET = 80
 _TEMPLATE_B_DESCRIPTION_TITLE_CHAR_BUDGET = 80
 _TEMPLATE_B_DESCRIPTION_BODY_CHAR_BUDGET = 400
+_TEMPLATE_A_VISIBLE_TRUTH_KEYS = {
+    "header_region",
+    "header_identity_zone_slot",
+    "header_agent_zone_slot",
+    "brand_logo_slot",
+    "brand_name_slot",
+    "agent_name_slot",
+    "scenario_region",
+    "scenario_image",
+    "product_region",
+    "product_canvas_shell_layer",
+    "product_image_layer",
+    "product_secondary_image_layer",
+    "feature_region",
+    "bottom_region",
+    "title_band_region",
+    "gallery_strip_region",
+    "title_text_layer",
+    "subtitle_text_layer",
+}
+_TEMPLATE_B_VISIBLE_TRUTH_KEYS = {
+    "logo_banner_region",
+    "brand_logo_slot",
+    "brand_name_slot",
+    "agent_name_slot",
+    "top_copy_region",
+    "sku_text_layer",
+    "top_copy_title_layer",
+    "top_copy_subtitle_layer",
+    "materials_strip_region",
+    "materials_item_0",
+    "materials_item_1",
+    "materials_item_2",
+    "materials_item_3",
+    "materials_item_4",
+    "product_hero_region",
+    "product_primary_image",
+    "product_secondary_inset",
+    "description_region",
+    "description_title_layer",
+    "description_body_layer",
+}
 
 _SPECS_DIR = Path(__file__).resolve().parents[3] / "app" / "templates" / "specs"
 
@@ -71,6 +113,21 @@ def load_template(template_id: str) -> TemplateSpec:
     template = TemplateSpec.from_json(path)
     validate_template_registration(template)
     return template
+
+
+def _filter_visible_truth_evidence(template: TemplateSpec, evidence: dict[str, object]) -> dict[str, object]:
+    if not evidence:
+        return {}
+    allowed_keys = (
+        _TEMPLATE_B_VISIBLE_TRUTH_KEYS
+        if template.template_id == "template_product_sheet_v1"
+        else _TEMPLATE_A_VISIBLE_TRUTH_KEYS
+    )
+    return {
+        key: value
+        for key, value in evidence.items()
+        if key in allowed_keys
+    }
 
 
 class PosterPipeline:
@@ -245,7 +302,10 @@ class PosterPipeline:
                 "product_image_present": assets.product is not None,
             },
         )
-        visible_truth_evidence = fg_result.visible_truth_evidence or {}
+        visible_truth_evidence = _filter_visible_truth_evidence(
+            template,
+            fg_result.visible_truth_evidence or {},
+        )
         template_b_parity_review = (
             _build_template_b_parity_review(
                 template,

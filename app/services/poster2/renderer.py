@@ -51,6 +51,56 @@ from .template_registry import resolve_template_metadata
 logger = logging.getLogger("ai-service.poster2")
 
 _HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
+_TEMPLATE_B_VISIBLE_TRUTH_SELECTORS: dict[str, str] = {
+    "logo_banner_region": '[data-parity-key="logo_banner_region"]',
+    "brand_logo_slot": '[data-parity-key="brand_logo_slot"]',
+    "brand_name_slot": '[data-parity-key="brand_name_slot"]',
+    "agent_name_slot": '[data-parity-key="agent_name_slot"]',
+    "top_copy_region": '[data-parity-key="top_copy_region"]',
+    "sku_text_layer": '[data-parity-key="sku_text_layer"]',
+    "top_copy_title_layer": '[data-parity-key="top_copy_title_layer"]',
+    "top_copy_subtitle_layer": '[data-parity-key="top_copy_subtitle_layer"]',
+    "materials_strip_region": '[data-parity-key="materials_strip_region"]',
+    "materials_item_0": '[data-parity-key="materials_item_0"]',
+    "materials_item_1": '[data-parity-key="materials_item_1"]',
+    "materials_item_2": '[data-parity-key="materials_item_2"]',
+    "materials_item_3": '[data-parity-key="materials_item_3"]',
+    "materials_item_4": '[data-parity-key="materials_item_4"]',
+    "product_hero_region": '[data-parity-key="product_hero_region"]',
+    "product_primary_image": '[data-parity-key="product_primary_image"]',
+    "product_secondary_inset": '[data-parity-key="product_secondary_inset"]',
+    "description_region": '[data-parity-key="description_region"]',
+    "description_title_layer": '[data-parity-key="description_title_layer"]',
+    "description_body_layer": '[data-parity-key="description_body_layer"]',
+}
+_TEMPLATE_A_VISIBLE_TRUTH_SELECTORS: dict[str, str] = {
+    "header_region": '[data-region="header_region"]',
+    "header_identity_zone_slot": '[data-slot="header_identity_zone_slot"]',
+    "header_agent_zone_slot": '[data-slot="header_agent_zone_slot"]',
+    "brand_logo_slot": '.layer-header-banner .slot-logo',
+    "brand_name_slot": '.layer-header-banner .slot-brand',
+    "agent_name_slot": '.layer-header-banner .slot-agent-name-text',
+    "scenario_region": '[data-region="scenario_region"]',
+    "scenario_image": '.layer-scenario .slot-scenario',
+    "product_region": '[data-region="product_region"]',
+    "product_canvas_shell_layer": '[data-layer="product_canvas_shell_layer"]',
+    "product_image_layer": '.layer-product .slot-product',
+    "product_secondary_image_layer": '.layer-product .slot-product-secondary',
+    "feature_region": '[data-region="feature_region"]',
+    "bottom_region": '[data-region="bottom_region"]',
+    "title_band_region": '[data-region="title_band_region"]',
+    "gallery_strip_region": '[data-region="gallery_strip_region"]',
+    "title_text_layer": '.layer-bottom-region .slot-title',
+    "subtitle_text_layer": '.layer-bottom-region .slot-subtitle',
+}
+
+
+def _visible_truth_selector_map(template_id: str) -> dict[str, str]:
+    if template_id == "template_product_sheet_v1":
+        return _TEMPLATE_B_VISIBLE_TRUTH_SELECTORS
+    return _TEMPLATE_A_VISIBLE_TRUTH_SELECTORS
+
+
 class RendererUnavailableError(RuntimeError):
     """Raised when a requested renderer is not available in the runtime."""
 
@@ -880,6 +930,7 @@ class PuppeteerStructuredRenderer:
             html_payload,
             spec.canvas_w,
             spec.canvas_h,
+            spec.template_id,
         )
         image = PILImage.open(BytesIO(png_bytes)).convert("RGBA")
         gallery_items_status = _annotate_gallery_items_status(gallery_items_status, behavior.bottom_policy)
@@ -1254,6 +1305,7 @@ class PuppeteerStructuredRenderer:
         html_payload: str,
         width: int,
         height: int,
+        template_id: str,
     ) -> tuple[bytes, dict[str, Any]]:
         try:
             from playwright.async_api import async_playwright
@@ -1295,7 +1347,10 @@ class PuppeteerStructuredRenderer:
                 logger.info("poster2.puppeteer: navigation_done")
                 logger.info("poster2.puppeteer: screenshot_start")
                 try:
-                    visible_truth_evidence = await self._collect_visible_truth_evidence(page)
+                    visible_truth_evidence = await self._collect_visible_truth_evidence(
+                        page,
+                        template_id=template_id,
+                    )
                     png_bytes = await page.locator("#poster-root").screenshot(
                         type="png",
                         omit_background=True,
@@ -1328,35 +1383,14 @@ class PuppeteerStructuredRenderer:
         )
         await page.wait_for_timeout(32)
 
-    async def _collect_visible_truth_evidence(self, page: Any) -> dict[str, Any]:
+    async def _collect_visible_truth_evidence(self, page: Any, *, template_id: str) -> dict[str, Any]:
+        selector_map = _visible_truth_selector_map(template_id)
         return await page.evaluate(
             """
-            () => {
+            (selectorMap) => {
               const root = document.getElementById('poster-root');
               if (!root) return {};
               const rootRect = root.getBoundingClientRect();
-              const keys = [
-                'logo_banner_region',
-                'brand_logo_slot',
-                'brand_name_slot',
-                'agent_name_slot',
-                'top_copy_region',
-                'sku_text_layer',
-                'top_copy_title_layer',
-                'top_copy_subtitle_layer',
-                'materials_strip_region',
-                'materials_item_0',
-                'materials_item_1',
-                'materials_item_2',
-                'materials_item_3',
-                'materials_item_4',
-                'product_hero_region',
-                'product_primary_image',
-                'product_secondary_inset',
-                'description_region',
-                'description_title_layer',
-                'description_body_layer',
-              ];
 
               const relRect = (rect) => ({
                 x: Math.round(rect.left - rootRect.left),
@@ -1409,8 +1443,8 @@ class PuppeteerStructuredRenderer:
                 || style.filter !== 'none'
               );
 
-              const collect = (key) => {
-                const el = root.querySelector(`[data-parity-key="${key}"]`);
+              const collect = (selector) => {
+                const el = root.querySelector(selector);
                 if (!el) {
                   return {
                     rendered: false,
@@ -1455,12 +1489,13 @@ class PuppeteerStructuredRenderer:
               };
 
               const evidence = {};
-              for (const key of keys) {
-                evidence[key] = collect(key);
+              for (const [key, selector] of Object.entries(selectorMap || {})) {
+                evidence[key] = collect(selector);
               }
               return evidence;
             }
-            """
+            """,
+            selector_map,
         )
 
     def _font_faces_css(self) -> str:

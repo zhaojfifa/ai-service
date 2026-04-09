@@ -2167,3 +2167,50 @@ Remaining risks:
 - no fresh live Chromium screenshot pair was generated in this closeout step, so the visual pass is still code/test validated rather than screenshot-validated
 - Template B now allows explicit `puppeteer` selection again, but one live operator pass should still confirm that Stage2 and final generation visually align on real assets
 - further palette exploration is intentionally deferred; this pass only tightened hierarchy and operator/runtime parity
+
+## PR-AR1 — Family-aware evidence/parity isolation
+
+### Root rules followed
+- contract-first
+- renderer executes family truth; renderer does not define cross-family truth
+- isolation repair before beautification
+- no Family A behavior/geometry changes
+- no Template B contract/geometry changes
+
+### Temporary priority override
+- current temporary priority override = Family A isolation repair + family anti-crossline hardening
+
+### Problem reproduced
+- `template_dual_v2` runtime payload still carried Template B-only visible-truth keys such as `logo_banner_region`, `top_copy_region`, `materials_strip_region`, `product_hero_region`, and `description_region`
+- Family A payload also surfaced `template_b_parity_review`, which made Stage2/runtime diagnostics look like A/B had a shared parity surface even while Family A behavior truth remained frozen
+
+### Root cause found
+- Puppeteer visible-truth collection was hard-coded to a Template B parity-key list and ran for every template
+- pipeline manifest assembly forwarded raw `visible_truth_evidence` into the manifest without a family whitelist pass, so a mixed renderer payload could leak cross-family evidence keys
+
+### Files changed
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/pipeline.py`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+- evidence / metadata
+- renderer consumption guardrail
+- pipeline family dispatch
+- regression tests
+- shared state
+
+### Validation run
+- `./.venv/bin/python -m py_compile app/services/poster2/renderer.py app/services/poster2/pipeline.py tests/poster2/test_pipeline.py`
+  - pass
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'TemplateBBackendGenerationFix or test_template_a_regression_path_remains_unchanged'`
+  - `15 passed, 266 deselected`
+- `./.venv/bin/python -m pytest -q tests/test_stage2_guard_diagnostics_surface.py`
+  - `6 passed`
+
+### Remaining risks
+- `template_b_parity_review` is still part of the API/schema surface; this PR keeps it empty for Family A rather than removing the response field entirely
+- Family A visible-truth evidence is now family-scoped, but AR2 still needs to verify A’s Puppeteer material/selector routing is independently clean end-to-end
+- anti-crossline repo rules and stronger family routing gates still need the dedicated follow-up PRs
