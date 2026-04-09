@@ -1648,6 +1648,13 @@ function normaliseStage1ProductCallouts(values) {
     .slice(0, STAGE1_PRODUCT_CALLOUT_MAX_ITEMS);
 }
 
+function resolveModeSDefaultText(value, fallbackKey) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (text) return text;
+  const fallback = MODE_S_DEFAULT_STAGE1[fallbackKey];
+  return typeof fallback === 'string' ? fallback.trim() : '';
+}
+
 function resolveStage1ProductCallouts(stage1Data) {
   return normaliseStage1ProductCallouts(
     stage1Data?.product_callouts && stage1Data.product_callouts.length
@@ -2276,30 +2283,69 @@ const LEGACY_DEFAULT_STAGE1 = {
 
 const MODE_S_DEFAULT_STAGE1 = {
   brand_name: 'ChefCraft',
-  agent_name: '',
+  agent_name: 'Commercial Electric Fryer Series',
   scenario_image: 'default',
   brand_color: '#ef4c54',
   price: '',
   promo: '',
   channel: 'email',
   intent: 'default',
-  title: 'Upgrade your kitchen with ChefCraft',
+  title: 'Power Up Your Fry Station',
   bullets: [
-    'Fast preheat and even cooking',
-    'Stainless steel finish with easy cleaning',
-    'Smart controls for daily convenience',
+    'Fast Heat-Up',
+    'Precise Thermostat Control',
+    'Stainless Steel Body',
   ],
   product_callouts: [
-    'Fast preheat and even cooking',
-    'Stainless steel finish with easy cleaning',
-    'Smart controls for daily convenience',
+    'Fast Heat-Up',
+    'Precise Thermostat Control',
+    'Stainless Steel Body',
   ],
-  subtitle: '',
-  tagline: '',
+  subtitle: 'Fast heating, precise control, and durable stainless steel construction for everyday commercial use.',
+  tagline: 'Fast heating, precise control, and durable stainless steel construction for everyday commercial use.',
   product_name: '',
   allow_auto_fill: true,
   template_id: 'template_dual',
 };
+
+const MODE_S_DEFAULT_GALLERY_CAPTIONS = [
+  'Single Tank',
+  'Dual Tank',
+  'Lid Detail',
+  'Basket Detail',
+];
+
+function getModeSDefaultGalleryCaption(index) {
+  return MODE_S_DEFAULT_GALLERY_CAPTIONS[index] || `Series ${index + 1}`;
+}
+
+function buildModeSDefaultGalleryEntries(entries = [], limit = 4) {
+  const seeded = [];
+  for (let index = 0; index < limit; index += 1) {
+    const existing = Array.isArray(entries) ? entries[index] : null;
+    seeded.push({
+      id: existing?.id || createId(),
+      caption: (typeof existing?.caption === 'string' && existing.caption.trim()) || getModeSDefaultGalleryCaption(index),
+      asset: existing?.asset || null,
+      mode: existing?.mode === 'prompt' ? 'prompt' : 'upload',
+      prompt: existing?.prompt || null,
+    });
+  }
+  return seeded;
+}
+
+function buildModeSFamilyAGalleryFallbackPlan({
+  productPrimaryRef,
+  productSecondaryRef,
+  logoRef,
+}) {
+  return [
+    [productPrimaryRef, productSecondaryRef, logoRef],
+    [productSecondaryRef, productPrimaryRef, logoRef],
+    [productSecondaryRef, productPrimaryRef, logoRef],
+    [productPrimaryRef, productSecondaryRef, logoRef],
+  ];
+}
 
 const DEFAULT_STAGE1 = MODE_S ? MODE_S_DEFAULT_STAGE1 : LEGACY_DEFAULT_STAGE1;
 const AGENT_NAME_PLACEHOLDERS = new Set([
@@ -3651,7 +3697,7 @@ function initStage1ModeS() {
     scenario: null,
     productImage1: null,
     productImage2: null,
-    galleryEntries: [],
+    galleryEntries: buildModeSDefaultGalleryEntries([], 4),
     galleryLimit: 4,
     previewBuilt: false,
     templateId: DEFAULT_STAGE1.template_id,
@@ -3771,6 +3817,7 @@ function initStage1ModeS() {
   if (stored) {
     void (async () => {
       await applyStage1DataToForm(stored, form, state, inlinePreviews);
+      state.galleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
       state.previewBuilt = Boolean(stored.preview_built);
       if (layoutStructure && stored.layout_preview) {
         layoutStructure.textContent = stored.layout_preview;
@@ -3786,6 +3833,7 @@ function initStage1ModeS() {
     })();
   } else {
     applyStage1Defaults(form);
+    state.galleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
     updateInlinePlaceholders(inlinePreviews);
     updateStage1TemplateVariantLabels(state.templateVariant || 'a');
     refreshPreview();
@@ -4240,9 +4288,9 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
       const element = form.elements.namedItem(key);
       const nextValue =
         typeof data[key] === 'string'
-          ? data[key]
+          ? (data[key].trim() || (typeof DEFAULT_STAGE1[key] === 'string' ? DEFAULT_STAGE1[key] : ''))
           : key === 'subtitle' && typeof data.tagline === 'string'
-          ? data.tagline
+          ? (data.tagline.trim() || DEFAULT_STAGE1.subtitle || '')
           : '';
       if (element && typeof nextValue === 'string') {
         element.value = nextValue;
@@ -4277,6 +4325,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
           prompt: null,
         }))
       );
+      state.galleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
       ensureGalleryEntries(state, 4);
     state.templateId = data.template_id || DEFAULT_STAGE1.template_id;
     state.templateLabel = data.template_label || '';
@@ -4890,20 +4939,22 @@ function buildModeSGalleryEntries(state) {
 function collectStage1Data(form, state, { strict = false } = {}) {
   const formData = new FormData(form);
   if (MODE_S) {
-    const productCallouts = normaliseStage1ProductCallouts(
+    const rawProductCallouts = normaliseStage1ProductCallouts(
       formData.getAll('product_callouts').map((value) => value.toString())
     );
+    const productCallouts = rawProductCallouts.length
+      ? rawProductCallouts
+      : [...(DEFAULT_STAGE1.product_callouts || DEFAULT_STAGE1.bullets || [])];
 
     const channel =
       formData.get('channel')?.toString().trim() || MODE_S_DEFAULT_STAGE1.channel || '';
     const intent =
       formData.get('intent')?.toString().trim() || MODE_S_DEFAULT_STAGE1.intent || '';
-      const modeSGalleryEntries = Array.isArray(state.galleryEntries)
-        ? state.galleryEntries.filter((entry) => entry && entry.asset)
-        : [];
-      const modeSBrandName = formData.get('brand_name')?.toString().trim() || '';
+      const modeSGalleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
+      state.galleryEntries = modeSGalleryEntries;
+      const modeSBrandName = resolveModeSDefaultText(formData.get('brand_name')?.toString(), 'brand_name');
       const modeSAgentName = sanitizeAgentName(
-        formData.get('agent_name')?.toString().trim() || '',
+        resolveModeSDefaultText(formData.get('agent_name')?.toString(), 'agent_name'),
         modeSBrandName
       );
       const payload = {
@@ -4919,9 +4970,9 @@ function collectStage1Data(form, state, { strict = false } = {}) {
         MODE_S_DEFAULT_STAGE1.scenario_image ||
         'default',
       product_name: formData.get('product_name')?.toString().trim() || '',
-      title: formData.get('title')?.toString().trim() || '',
-      subtitle: formData.get('subtitle')?.toString().trim() || '',
-      tagline: formData.get('subtitle')?.toString().trim() || '',
+      title: resolveModeSDefaultText(formData.get('title')?.toString(), 'title'),
+      subtitle: resolveModeSDefaultText(formData.get('subtitle')?.toString(), 'subtitle'),
+      tagline: resolveModeSDefaultText(formData.get('subtitle')?.toString(), 'subtitle'),
       allow_auto_fill: formData.get('allow_auto_fill') === 'on',
       product_callouts: productCallouts,
       bullets: productCallouts,
@@ -4931,9 +4982,9 @@ function collectStage1Data(form, state, { strict = false } = {}) {
         product_asset: state.productImage1 || null,
         product_image_1: state.productImage1,
         product_image_2: state.productImage2,
-        gallery_entries: modeSGalleryEntries.map((entry) => ({
+        gallery_entries: modeSGalleryEntries.map((entry, index) => ({
           id: entry.id,
-          caption: entry.caption || '',
+          caption: entry.caption || getModeSDefaultGalleryCaption(index),
           asset: entry.asset || null,
           mode: 'upload',
           prompt: null,
@@ -5445,19 +5496,27 @@ function updatePosterPreview(payload, state, elements, layoutStructure, previewC
   if (gallery) {
     gallery.innerHTML = '';
     const limit = state.galleryLimit || 4;
-    const entries = state.galleryEntries.slice(0, limit);
+    const entries = buildModeSDefaultGalleryEntries(state.galleryEntries, limit).slice(0, limit);
     const galleryLabel = state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery;
     const total = Math.max(entries.length, limit);
+    const galleryFallbackPlan = buildModeSFamilyAGalleryFallbackPlan({
+      productPrimaryRef: state.productImage1,
+      productSecondaryRef: state.productImage2,
+      logoRef: state.brandLogo,
+    });
     for (let index = 0; index < total; index += 1) {
       const entry = entries[index];
       const figure = document.createElement('figure');
       figure.dataset.galleryIndex = String(index);
       const img = document.createElement('img');
       const caption = document.createElement('figcaption');
-      const gallerySrc = assetSrc(entry?.asset) || logoFallback;
+      const fallbackSources = (galleryFallbackPlan[index] || [state.productImage1, state.productImage2, state.brandLogo])
+        .map((asset) => assetSrc(asset))
+        .filter(Boolean);
+      const gallerySrc = assetSrc(entry?.asset) || fallbackSources[0] || logoFallback;
       img.src = gallerySrc || getGalleryPlaceholder(index, galleryLabel);
       img.alt = `${galleryLabel} ${index + 1} 预览`;
-      caption.textContent = entry?.caption || `${galleryLabel} ${index + 1}`;
+      caption.textContent = entry?.caption || getModeSDefaultGalleryCaption(index);
       figure.appendChild(img);
       figure.appendChild(caption);
       gallery.appendChild(figure);
@@ -5910,11 +5969,11 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     return 'clean studio background, soft diffused light';
   };
 
-  const brandName = safeText(stage1Data.brand_name, 'Brand');
+  const brandName = safeText(stage1Data.brand_name, MODE_S_DEFAULT_STAGE1.brand_name || 'Brand');
   const bottomRequestState = buildPoster2BottomRequestState(stage1Data);
   const title = bottomRequestState.sanitized_title_text;
   const agentName = sanitizeAgentName(
-    stage1Data.agent_name || stage1Data.channel || '',
+    stage1Data.agent_name || MODE_S_DEFAULT_STAGE1.agent_name || stage1Data.channel || '',
     brandName
   );
   const subtitle = bottomRequestState.sanitized_subtitle_text;
@@ -5979,28 +6038,70 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   );
 
   const galleryRefs = [];
-  const galleryEntries = Array.isArray(stage1Data.gallery_entries)
-    ? stage1Data.gallery_entries
-    : [];
-  for (const entry of galleryEntries.slice(0, requestedGalleryCount)) {
-    if (!entry?.asset) continue;
-    // eslint-disable-next-line no-await-in-loop
-    const ref = await normaliseAssetReference(
-      entry.asset,
-      {
-        field: 'poster2.gallery_images',
-        required: false,
-        apiCandidates,
-        folder: 'gallery',
-      },
-      null
-    );
-    if (ref?.url) galleryRefs.push(ref);
+  const galleryEntries = buildModeSDefaultGalleryEntries(stage1Data.gallery_entries, Math.max(requestedGalleryCount, 4));
+  const galleryFallbackPlan = buildModeSFamilyAGalleryFallbackPlan({
+    productPrimaryRef: productRef,
+    productSecondaryRef: productSecondaryRef,
+    logoRef: logoRef,
+  });
+  for (let index = 0; index < galleryEntries.slice(0, requestedGalleryCount).length; index += 1) {
+    const entry = galleryEntries[index];
+    if (entry?.asset) {
+      // eslint-disable-next-line no-await-in-loop
+      const ref = await normaliseAssetReference(
+        entry.asset,
+        {
+          field: 'poster2.gallery_images',
+          required: false,
+          apiCandidates,
+          folder: 'gallery',
+        },
+        null
+      );
+      if (ref?.url) {
+        galleryRefs.push({
+          url: ref.url,
+          key: ref.key || null,
+          caption: entry.caption || getModeSDefaultGalleryCaption(index),
+          source_role: 'gallery_entry',
+        });
+        continue;
+      }
+    }
+
+    const fallbackCandidates = galleryFallbackPlan[index] || [productRef, productSecondaryRef, logoRef];
+    const fallbackRef = fallbackCandidates.find((candidate) => candidate?.url) || null;
+    if (fallbackRef?.url) {
+      galleryRefs.push({
+        url: fallbackRef.url,
+        key: fallbackRef.key || null,
+        caption: entry.caption || getModeSDefaultGalleryCaption(index),
+        source_role:
+          fallbackRef === productSecondaryRef
+            ? 'product_secondary_fallback'
+            : fallbackRef === productRef
+            ? 'product_primary_fallback'
+            : 'logo_fallback',
+      });
+    }
   }
   while (autoFillGallery && galleryRefs.length < requestedGalleryCount && productRef?.url) {
+    const index = galleryRefs.length;
+    const fallbackCaption = getModeSDefaultGalleryCaption(index);
+    const fallbackCandidates = (galleryFallbackPlan[index] || [productRef, productSecondaryRef, logoRef]).filter(
+      (candidate) => candidate?.url
+    );
+    const fallbackRef = fallbackCandidates[0] || productRef;
     galleryRefs.push({
-      url: productRef.url,
-      key: productRef.key || null,
+      url: fallbackRef.url,
+      key: fallbackRef.key || null,
+      caption: fallbackCaption,
+      source_role:
+        fallbackRef === productSecondaryRef
+          ? 'product_secondary_fallback'
+          : fallbackRef === productRef
+          ? 'product_primary_fallback'
+          : 'logo_fallback',
     });
   }
 
@@ -6037,6 +6138,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     gallery_images: galleryRefs.map((ref) => ({
       url: ref.url,
       key: ref.key || null,
+      caption: ref.caption || null,
     })),
     gallery_input_count_raw: bottomRequestState.gallery_input_count_raw,
     gallery_input_count_normalized: bottomRequestState.gallery_input_count_normalized,

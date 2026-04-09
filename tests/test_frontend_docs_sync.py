@@ -106,6 +106,25 @@ def test_stage1_request_mapping_prefers_dedicated_product_callouts_and_secondary
     assert "input.value = '';" in app_js
 
 
+def test_template_a_family_a_fryer_defaults_and_gallery_semantics_are_wired():
+    app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+
+    assert "Commercial Electric Fryer Series" in app_js
+    assert "Power Up Your Fry Station" in app_js
+    assert "Fast heating, precise control, and durable stainless steel construction for everyday commercial use." in app_js
+    assert "Fast Heat-Up" in app_js
+    assert "Precise Thermostat Control" in app_js
+    assert "Stainless Steel Body" in app_js
+    assert "Single Tank" in app_js
+    assert "Dual Tank" in app_js
+    assert "Lid Detail" in app_js
+    assert "Basket Detail" in app_js
+    assert "function buildModeSDefaultGalleryEntries" in app_js
+    assert "function buildModeSFamilyAGalleryFallbackPlan" in app_js
+    assert "product_primary_fallback" in app_js
+    assert "product_secondary_fallback" in app_js
+
+
 def test_template_b_independent_preview_and_generate_path_are_present():
     app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
 
