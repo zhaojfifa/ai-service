@@ -164,6 +164,14 @@ body {
   --product-content-pad-right: 18px;
   --product-content-pad-bottom: 10px;
   --product-content-pad-left: 18px;
+  --product-shell-left: 456px;
+  --product-shell-top: 188px;
+  --product-shell-width: 472px;
+  --product-shell-height: 540px;
+  --product-canvas-left: 456px;
+  --product-canvas-top: 188px;
+  --product-canvas-width: 300px;
+  --product-canvas-height: 540px;
   --bottom-shell-top: 728px;
   --bottom-shell-height: 232px;
   --title-band-top: 728px;
@@ -486,9 +494,10 @@ body {
 }
 
 .region-shell-product {
-  left: 456px;
-  width: 472px;
-  height: 540px;
+  left: var(--product-shell-left);
+  top: var(--product-shell-top);
+  width: var(--product-shell-width);
+  height: var(--product-shell-height);
   border: var(--shell-border-product);
   background: var(--shell-surface-product);
   box-shadow:
@@ -500,10 +509,10 @@ body {
 
 .region-shell-product-canvas {
   position: absolute;
-  left: 456px;
-  top: 188px;
-  width: 300px;
-  height: 540px;
+  left: var(--product-canvas-left);
+  top: var(--product-canvas-top);
+  width: var(--product-canvas-width);
+  height: var(--product-canvas-height);
   border-radius: 24px;
   overflow: hidden;
   box-shadow:
@@ -566,8 +575,28 @@ body {
   opacity: var(--product-secondary-opacity);
 }
 
+.slot-product-secondary {
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
 .product-secondary-fit-contain img {
   filter: var(--product-secondary-treatment);
+}
+
+.product-geometry-mode-family_a_fryer_hero_supporting_inset_v1 .layer-product-secondary-image {
+  opacity: 0.94;
+}
+
+.product-geometry-mode-family_a_fryer_hero_supporting_inset_v1 .slot-product-secondary {
+  padding: 10px 10px 12px;
+  background: var(--gallery-item-surface);
+  border: var(--gallery-item-border);
+  box-shadow: var(--shell-shadow-secondary), var(--gallery-item-inset);
 }
 
 .layer-feature-callouts {

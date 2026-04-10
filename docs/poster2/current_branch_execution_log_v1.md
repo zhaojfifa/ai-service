@@ -4163,3 +4163,100 @@ Measured deltas:
 - final fryer bottom copy now renders the required commercial sentence
 - accepted optimization still changes rendered subtitle truth when explicitly selected
 - 4-item strip remains in `title_gallery_split` but now reads as a semantic detail row with breathing room
+
+## 2026-04-10 — Family A fryer hero/footer blocker removal
+
+### Root rules followed
+
+- Template A only
+- contract-first
+- header remains 3-column
+- product annotations remain fixed-slot and product-owned
+- `bottom_mode = title_gallery_split`
+- renderer executes truth
+- no Template B work
+
+### Problem reproduced
+
+- the fryer poster was structurally healthy, but the main fryer image still read too weakly because the stage was split into a dual-stack composition
+- the footer still felt compressed because the title band dominated while the 4-item strip stayed too shallow
+
+### Root cause
+
+- the fryer path still inherited the generic `single_primary -> primary_secondary_dual` auto-promotion, which turned the supporting model into a second full-width tray
+- the fryer canvas shell stayed too narrow relative to the annotation lane, so the product image never became the dominant poster hero
+- the fryer footer used the earlier detail-row tuning, but the strip height and item height were still too small for a premium detail band
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/family_a_runtime.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/03_engineering/family_a/family_a_fryer_hero_footer_blocker_removal_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_fryer_hero_footer_blocker_removal_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Family A fryer product-region resolver geometry
+- Family A fryer structured/Pillow shell parity
+- Family A fryer footer strip balance inside `title_gallery_split`
+
+### Validation run
+
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_dense_quad_detail_row_adds_breathing or fryer_variant_expands_product_text_shell_and_annotation_capacity or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset or annotation_contract_review_product_region_bounds_from_product_policy'` -> passed
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'fryer_variant_annotation_bounds or product_shell_boundary_closure or resolve_feature_callout_map_uses_fryer_variant_annotation_bounds'` -> passed
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_dense_quad_split_keeps_product_grade_subtitle_in_render or fryer_accepted_subtitle_candidate_enters_rendered_output or fryer_product_annotation_keeps_short_commercial_phrase_without_fit_rewrite or fryer_variant_expands_product_text_shell_and_annotation_capacity or fryer_dense_quad_detail_row_adds_breathing or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset'` -> passed
+
+### Before / after runtime evidence
+
+Before bundle:
+
+- summary: `/tmp/fryer_blocker_before/before_fryer_summary.json`
+- image: `/tmp/fryer_blocker_before/before_fryer_pillow.png`
+
+After bundle:
+
+- summary: `/tmp/fryer_blocker_after/after_fryer_summary.json`
+- image: `/tmp/fryer_blocker_after/after_fryer_pillow.png`
+- comparison: `/tmp/fryer_blocker_after/fryer_before_after_comparison.png`
+
+### Measured deltas
+
+- `structure_complete = true` before and after
+- `deliverable = true` before and after
+- `header_mode = identity_left_agent_right` before and after
+- `product_annotation_owner = product_region` before and after
+- hero stage:
+  - before `product_layout_mode = primary_secondary_dual`
+  - after `product_layout_mode = single_primary`
+  - before `product_geometry_mode = primary_secondary_dual_v2`
+  - after `product_geometry_mode = family_a_fryer_hero_supporting_inset_v1`
+  - before primary slot `300x360`
+  - after primary slot `324x540`
+  - before secondary slot `300x144`
+  - after secondary slot `120x120`
+- annotation lane:
+  - before `x=776,w=192`
+  - after `x=792,w=184`
+- footer strip:
+  - before `title_band_height = 184`
+  - after `title_band_height = 172`
+  - before `gallery_shell_height = 84`
+  - after `gallery_shell_height = 90`
+  - before `gallery_items_height = 56`
+  - after `gallery_items_height = 66`
+  - before `peer_gap = 12`
+  - after `peer_gap = 14`
+
+### Remaining risks
+
+- this closes the current fryer hero/footer blockers only inside the existing Family A system
+- it is still not a Family A redesign track
+- live commercial acceptance should still be rechecked with the full current fryer asset pack if external signoff is needed

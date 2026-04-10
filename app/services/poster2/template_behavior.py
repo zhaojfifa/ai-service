@@ -43,8 +43,10 @@ _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h":
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 564, "w": 300, "h": 144}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
 _PRODUCT_REGION_OUTER_W = 504
-_PRODUCT_REGION_OUTER_W_FRYER = 512
+_PRODUCT_REGION_OUTER_W_FRYER = 520
 _PRODUCT_CANVAS_SHELL_W = 300
+_PRODUCT_CANVAS_SHELL_W_FRYER = 324
+_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 472, "y": 580, "w": 120, "h": 120}
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
 # This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
@@ -59,11 +61,11 @@ _PRODUCT_TEXT_SHELL_X = 784
 _PRODUCT_TEXT_SHELL_Y = 216
 _PRODUCT_TEXT_SHELL_W = 176
 _PRODUCT_TEXT_SHELL_H = 276
-_PRODUCT_TEXT_SHELL_FRYER = {"x": 776, "y": 212, "w": 192, "h": 286}
+_PRODUCT_TEXT_SHELL_FRYER = {"x": 792, "y": 212, "w": 184, "h": 286}
 _PRODUCT_ANNOTATION_LABEL_BOUNDS_FRYER: tuple[dict[str, int], ...] = (
-    {"x": 776, "y": 212, "w": 192, "h": 82},
-    {"x": 776, "y": 314, "w": 192, "h": 82},
-    {"x": 776, "y": 416, "w": 192, "h": 82},
+    {"x": 792, "y": 212, "w": 184, "h": 82},
+    {"x": 792, "y": 314, "w": 184, "h": 82},
+    {"x": 792, "y": 416, "w": 184, "h": 82},
 )
 
 # Frozen owner surfaces for product_region.
@@ -940,6 +942,8 @@ def resolve_template_behavior(
     css_vars = dict(beauty_pack["css_vars"])
     css_vars.update(_resolve_bottom_behavior_vars(bottom_policy))
     css_vars.update(_resolve_header_behavior_vars(header_policy))
+    if commercial_fryer_variant:
+        css_vars.update(_resolve_product_behavior_vars(product_policy))
     return ResolvedTemplateBehavior(
         hero_mode=hero_mode,
         feature_mode=feature_mode,
@@ -1077,10 +1081,19 @@ def resolve_product_behavior(
     agent_name: str | None = None,
 ) -> ResolvedProductBehavior:
     _validate_token(product_layout_mode, _SUPPORTED_PRODUCT_LAYOUT_MODES, "product_layout_mode")
+    commercial_fryer_variant = _is_family_a_commercial_fryer_variant(
+        title_text=title_text,
+        subtitle_text=subtitle_text,
+        agent_name=agent_name,
+        feature_texts=(),
+    )
     effective_product_layout_mode = product_layout_mode
     if product_layout_mode == "single_primary" and has_product_secondary_asset:
-        effective_product_layout_mode = "primary_secondary_dual"
-        product_layout_mode_reason = "auto_promoted_by_secondary_asset"
+        if commercial_fryer_variant:
+            product_layout_mode_reason = "family_a_fryer_primary_stage_kept_with_supporting_inset"
+        else:
+            effective_product_layout_mode = "primary_secondary_dual"
+            product_layout_mode_reason = "auto_promoted_by_secondary_asset"
     elif product_layout_mode == "primary_secondary_dual":
         product_layout_mode_reason = "template_mode_primary_secondary_dual"
     elif product_layout_mode == "single_hero_centered":
@@ -1091,7 +1104,13 @@ def resolve_product_behavior(
         )
     else:
         product_layout_mode_reason = "single_primary_without_secondary_asset"
-    if effective_product_layout_mode == "primary_secondary_dual":
+    if commercial_fryer_variant and has_product_secondary_asset and effective_product_layout_mode == "single_primary":
+        product_geometry_mode = "family_a_fryer_hero_supporting_inset_v1"
+        product_geometry_mode_reason = "family_a_fryer_supporting_inset_geometry_selected"
+    elif commercial_fryer_variant and effective_product_layout_mode == "single_primary":
+        product_geometry_mode = "family_a_fryer_hero_stage_v1"
+        product_geometry_mode_reason = "family_a_fryer_hero_stage_geometry_selected"
+    elif effective_product_layout_mode == "primary_secondary_dual":
         product_geometry_mode = "primary_secondary_dual_v2"
         product_geometry_mode_reason = "dual_image_geometry_v2_selected"
     elif effective_product_layout_mode == "single_hero_centered":
@@ -1102,12 +1121,6 @@ def resolve_product_behavior(
         product_geometry_mode_reason = "single_image_geometry_baseline"
     max_items = min(len(spec.feature_callouts), _PRODUCT_ANCHOR_CALLOUTS_MAX_ITEMS)
     visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
-    commercial_fryer_variant = _is_family_a_commercial_fryer_variant(
-        title_text=title_text,
-        subtitle_text=subtitle_text,
-        agent_name=agent_name,
-        feature_texts=(),
-    )
     hero_metrics = hero_policy.layout_metrics
     product_region = {
         "x": int(hero_metrics["product_region_x"]),
@@ -1146,10 +1159,26 @@ def resolve_product_behavior(
             product_secondary_slot_rendered = False
             product_secondary_asset_policy = "hide_no_reserve"
     else:
-        product_primary_slot = dict(_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT)
-        product_secondary_slot = None
-        product_secondary_slot_rendered = False
-        product_secondary_asset_policy = "secondary_absent_collapsed"
+        if commercial_fryer_variant:
+            product_primary_slot = {
+                "x": int(product_region["x"]),
+                "y": int(product_region["y"]),
+                "w": int(_PRODUCT_CANVAS_SHELL_W_FRYER),
+                "h": int(product_region["h"]),
+            }
+            if has_product_secondary_asset:
+                product_secondary_slot = dict(_PRODUCT_FRYER_SUPPORTING_INSET_SLOT)
+                product_secondary_slot_rendered = True
+                product_secondary_asset_policy = "secondary_supporting_inset_reserved"
+            else:
+                product_secondary_slot = None
+                product_secondary_slot_rendered = False
+                product_secondary_asset_policy = "secondary_absent_collapsed"
+        else:
+            product_primary_slot = dict(_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT)
+            product_secondary_slot = None
+            product_secondary_slot_rendered = False
+            product_secondary_asset_policy = "secondary_absent_collapsed"
 
     if annotation_mode == "none":
         annotation_count_policy = "annotations_disabled"
@@ -1259,7 +1288,7 @@ def resolve_product_behavior(
         product_canvas_shell = {
             "x": product_region["x"],
             "y": product_region["y"],
-            "w": _PRODUCT_CANVAS_SHELL_W,
+            "w": int(_PRODUCT_CANVAS_SHELL_W_FRYER if commercial_fryer_variant else _PRODUCT_CANVAS_SHELL_W),
             "h": product_region["h"],
         }
         product_text_shell = (
@@ -1333,6 +1362,7 @@ def resolve_product_behavior(
         css_classes=(
             _css_mode_class("product-annotation", annotation_mode),
             _css_mode_class("product-annotation-count", str(visible_annotation_count)),
+            _css_mode_class("product-geometry-mode", product_geometry_mode),
             _css_mode_class("product-text-shell-variant", text_shell_variant),
             _css_mode_class(
                 "secondary-product-mode",
@@ -2130,9 +2160,9 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 2
             title_char_budget = 52
             subtitle_char_budget = 120  # PR-bottom-final: raise to 2-line CSS capacity; CSS line-clamp:2 handles overflow
-            title_band_height = 184 if commercial_fryer_variant else 176
+            title_band_height = 172 if commercial_fryer_variant else 176
             title_content_pad_top = 18 if commercial_fryer_variant else 20
-            title_content_pad_bottom = 14 if commercial_fryer_variant else 16
+            title_content_pad_bottom = 12 if commercial_fryer_variant else 16
             title_stack_gap = 8  # PR-7C: +2 from 6; matched to triplet/light-gallery branches
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
@@ -2574,11 +2604,11 @@ def _resolve_bottom_peer_gap(
     if visible_item_count <= 0:
         return 0
     if bottom_mode == "text_gallery_expanded":
-        return 12 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
+        return 14 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
     if bottom_mode != "title_gallery_split":
         return 0
     if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance":
-        return 12
+        return 14
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         return 10
     if peer_balance_policy == "balanced_dense_copy_with_triplet_gallery":
@@ -2619,8 +2649,8 @@ def _resolve_gallery_strip_vertical_metrics(
     ]
     if commercial_fryer_variant and visible_item_count >= 4:
         shift_policy = "detail_row_quad_shift"
-        shell_height = 84
-        item_height = 56
+        shell_height = 90
+        item_height = 66
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)
@@ -2644,7 +2674,7 @@ def _resolve_gallery_shell_frame_metrics(
         "balanced_triplet": (14, 22),
         "supporting_triplet": (12, 20),
         "dense_quad": (8, 20),
-        "dense_quad_detail_row": (16, 22),
+        "dense_quad_detail_row": (18, 24),
     }
     item_radius_by_policy: dict[str, int] = {
         "single_center_focus": 18,
@@ -2654,7 +2684,7 @@ def _resolve_gallery_shell_frame_metrics(
         "balanced_triplet": 16,
         "supporting_triplet": 16,
         "dense_quad": 14,
-        "dense_quad_detail_row": 14,
+        "dense_quad_detail_row": 16,
     }
     frame_pad_x, shell_radius = frame_by_policy.get(gallery_distribution_policy, (0, 20))
     first = gallery_items[0]
@@ -2721,6 +2751,20 @@ def _resolve_bottom_behavior_vars(policy: ResolvedBottomBehavior) -> dict[str, s
         "--subtitle-line-clamp": str(subtitle_line_clamp),
         "--title-band-left": f"{int(layout['title_band_x'])}px",
         "--title-band-width": f"{int(layout['title_band_w'])}px",
+    }
+
+
+def _resolve_product_behavior_vars(policy: ResolvedProductBehavior) -> dict[str, str]:
+    layout = policy.layout_metrics
+    return {
+        "--product-shell-left": f"{int(layout['product_region_x'])}px",
+        "--product-shell-top": f"{int(layout['product_region_y'])}px",
+        "--product-shell-width": f"{int(layout['product_region_w'])}px",
+        "--product-shell-height": f"{int(layout['product_region_h'])}px",
+        "--product-canvas-left": f"{int(layout['product_canvas_shell_x'])}px",
+        "--product-canvas-top": f"{int(layout['product_canvas_shell_y'])}px",
+        "--product-canvas-width": f"{int(layout['product_canvas_shell_w'])}px",
+        "--product-canvas-height": f"{int(layout['product_canvas_shell_h'])}px",
     }
 
 

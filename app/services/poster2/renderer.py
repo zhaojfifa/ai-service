@@ -3250,7 +3250,7 @@ def _product_slot(slot_spec: dict[str, Any], hero_policy, product_policy=None) -
                 "y": int(primary["y"]),
                 "w": int(primary["w"]),
                 "h": int(primary["h"]),
-                "fit": hero_policy.product_fit,
+                "fit": getattr(product_policy, "product_primary_image_fit", hero_policy.product_fit),
                 "pad_top": 16,
                 "pad_right": 12,
                 "pad_bottom": 8,

@@ -1629,7 +1629,8 @@ def _scenario_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[s
 
 
 def _product_region_bounds(template: TemplateSpec, resolved_behavior) -> dict[str, int]:
-    metrics = resolved_behavior.hero_policy.layout_metrics
+    product_policy = getattr(resolved_behavior, "product_policy", None)
+    metrics = getattr(product_policy, "layout_metrics", None) or resolved_behavior.hero_policy.layout_metrics
     return {
         "x": int(metrics["product_region_x"]),
         "y": int(metrics["product_region_y"]),

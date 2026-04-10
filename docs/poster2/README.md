@@ -79,6 +79,7 @@ Family A practical closure:
 - [family_a_fryer_live_diagnosis_micro_refinement_v1.md](03_engineering/family_a/family_a_fryer_live_diagnosis_micro_refinement_v1.md)
 - [family_a_product_annotation_shell_micro_structure_v1.md](03_engineering/family_a/family_a_product_annotation_shell_micro_structure_v1.md)
 - [family_a_bottom_text_finalization_v1.md](03_engineering/family_a/family_a_bottom_text_finalization_v1.md)
+- [family_a_fryer_hero_footer_blocker_removal_v1.md](03_engineering/family_a/family_a_fryer_hero_footer_blocker_removal_v1.md)
 
 ### 04 Skills
 
@@ -105,6 +106,7 @@ Core verification anchors:
 - [family_a_fryer_live_diagnosis_micro_refinement_status_v1.md](05_validation/family_a/family_a_fryer_live_diagnosis_micro_refinement_status_v1.md)
 - [family_a_product_annotation_shell_micro_structure_status_v1.md](05_validation/family_a/family_a_product_annotation_shell_micro_structure_status_v1.md)
 - [family_a_bottom_text_finalization_status_v1.md](05_validation/family_a/family_a_bottom_text_finalization_status_v1.md)
+- [family_a_fryer_hero_footer_blocker_removal_status_v1.md](05_validation/family_a/family_a_fryer_hero_footer_blocker_removal_status_v1.md)
 - [bottom_behavior_contract_status_v1.md](05_validation/bottom_behavior_contract_status_v1.md)
 - [product_region_annotation_contract_status_v1.md](05_validation/product_region_annotation_contract_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](05_validation/scenario_region_resolver_and_renderer_parity_status_v1.md)

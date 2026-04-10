@@ -71,6 +71,11 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - fryer default bottom subtitle now renders the required commercial sentence without forced fit rewrite
   - fryer accepted optimization still switches rendered output and metadata truth together
   - fryer bottom strip now uses the bounded detail-row distribution inside `title_gallery_split`
+- Family A fryer hero/footer blocker removal complete:
+  - fryer secondary asset no longer auto-promotes the hero into the generic dual split
+  - fryer hero now resolves through a bounded single-primary + supporting-inset geometry variant
+  - fryer product region now uses `w=520`, `primary=324x540`, `secondary=120x120`, `text lane x=792 w=184`
+  - fryer footer remains `title_gallery_split` but now uses `title=172`, `strip=90`, `items=66`, `peer_gap=14`
 
 ## Current document alignment target
 
@@ -87,7 +92,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - `Poster2-FamilyA-MinDelta-PreCommercialRefine`
   - `cdb3216cbb1b95630c9afbb27a9ada9c90af37a7`
 - hard boundaries remain:
-  - no freeform geometry changes
+  - no freeform geometry editing
   - no ownership drift
   - no Template B work
   - UI layout and 3-column header stay unchanged
@@ -95,6 +100,7 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - fixed product annotation slots stayed fixed while fryer card capacity was widened in a bounded variant
   - fryer bottom subtitle now reaches render as finalized product-grade copy
   - fryer bottom strip now reads as a semantic detail row with breathing room
+  - fryer hero stage now reads as a single dominant product stage with a supporting inset
 - not yet: Family A redesign
 - not yet: Template B reopen
 - not yet: editor-first drift

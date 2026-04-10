@@ -1111,8 +1111,8 @@ class TestStructuredGalleryMarkup:
         )
 
         assert len(resolved) == 3
-        assert [item[0]["label_box"]["x"] for item in resolved] == [776, 776, 776]
-        assert [item[0]["label_box"]["w"] for item in resolved] == [192, 192, 192]
+        assert [item[0]["label_box"]["x"] for item in resolved] == [792, 792, 792]
+        assert [item[0]["label_box"]["w"] for item in resolved] == [184, 184, 184]
         assert [item[0]["label_box"]["h"] for item in resolved] == [82, 82, 82]
 
     def test_resolve_feature_behavior_supports_second_feature_mode(self):
@@ -2437,7 +2437,9 @@ class _FakePage:
 
     async def evaluate(self, expr):
         self.evaluations.append(expr)
-        return True
+        assert hero.product_policy.annotation_items[0]["label_bounds"] == {"x": 792, "y": 212, "w": 184, "h": 82}
+        assert hero.product_policy.annotation_items[1]["label_bounds"] == {"x": 792, "y": 314, "w": 184, "h": 82}
+        assert hero.product_policy.annotation_items[2]["label_bounds"] == {"x": 792, "y": 416, "w": 184, "h": 82}
 
     async def wait_for_function(self, expr, **kwargs):
         self.ready_checks.append((expr, kwargs))
@@ -2467,38 +2469,30 @@ class TestProductShellBoundaryClosure:
             / "template_dual_v2.css"
         ).read_text(encoding="utf-8")
 
-    def test_product_card_shell_css_height_is_540(self):
-        """region-shell-product override must declare height: 540px (not inherited 520px)."""
+    def test_product_card_shell_css_uses_product_shell_vars(self):
+        """region-shell-product override must bind to product shell CSS vars."""
         import re
         css = self._read_css()
-        # Find the .region-shell-product override block (not the shared rule)
-        # Match the block that follows only .region-shell-product { (single selector)
         match = re.search(
             r"\.region-shell-product\s*\{([^}]*)\}",
             css,
         )
         assert match, ".region-shell-product override block not found in CSS"
-        # Collect all such blocks (shared rule uses comma, override uses single selector)
-        blocks = re.findall(
-            r"(?<![,\w\-])\.region-shell-product\s*\{([^}]*)\}",
-            css,
-        )
-        # At least one block must contain height: 540px
-        heights_540 = [b for b in blocks if "540px" in b]
-        assert heights_540, (
-            ".region-shell-product CSS block must contain height: 540px to override the "
-            "shared rule's height: 520px. Found blocks: " + str(blocks)
-        )
+        block = match.group(1)
+        assert "left: var(--product-shell-left);" in block
+        assert "width: var(--product-shell-width);" in block
+        assert "height: var(--product-shell-height);" in block
 
-    def test_product_canvas_shell_css_height_is_540(self):
-        """region-shell-product-canvas must declare height: 540px."""
+    def test_product_canvas_shell_css_uses_product_canvas_vars(self):
+        """region-shell-product-canvas must bind to product canvas CSS vars."""
         import re
         css = self._read_css()
         match = re.search(r"\.region-shell-product-canvas\s*\{([^}]*)\}", css)
         assert match, ".region-shell-product-canvas block not found in CSS"
-        assert "540px" in match.group(1), (
-            ".region-shell-product-canvas must have height: 540px"
-        )
+        block = match.group(1)
+        assert "left: var(--product-canvas-left);" in block
+        assert "width: var(--product-canvas-width);" in block
+        assert "height: var(--product-canvas-height);" in block
 
     def test_product_card_shell_layer_present_in_html(self):
         """HTML must mark the outer product shell with data-layer=product_card_shell_layer."""
@@ -2511,34 +2505,19 @@ class TestProductShellBoundaryClosure:
         assert 'data-layer="product_card_shell_layer"' in html
         assert 'data-layer="product_canvas_shell_layer"' in html
 
-    def test_outer_shell_and_canvas_shell_have_same_top_and_height(self):
-        """Both shells must start at top=188 and span height=540 (bottom=728)."""
+    def test_root_css_declares_default_product_shell_metrics(self):
+        """Template CSS must declare fallback product shell metrics for non-fryer renders."""
         import re
         css = self._read_css()
-        # Shared rule for both .region-shell-scenario and .region-shell-product
-        shared_match = re.search(
-            r"\.region-shell-scenario,\s*\.region-shell-product\s*\{([^}]*)\}",
-            css,
-        )
-        assert shared_match, "Shared region-shell rule not found"
-        assert "top: 188px" in shared_match.group(1)
-
-        # Product override adds height: 540px
-        override_blocks = re.findall(
-            r"(?<![,\w\-])\.region-shell-product\s*\{([^}]*)\}",
-            css,
-        )
-        assert any("540px" in b for b in override_blocks), (
-            "Product override must set height: 540px"
-        )
-
-        # Canvas shell also top=188, height=540
-        canvas_match = re.search(
-            r"\.region-shell-product-canvas\s*\{([^}]*)\}", css
-        )
-        assert canvas_match
-        assert "top: 188px" in canvas_match.group(1)
-        assert "540px" in canvas_match.group(1)
+        root_match = re.search(r"#poster-root\s*\{([^}]*)\}", css)
+        assert root_match, "#poster-root block not found"
+        root_block = root_match.group(1)
+        assert "--product-shell-left: 456px;" in root_block
+        assert "--product-shell-top: 188px;" in root_block
+        assert "--product-shell-height: 540px;" in root_block
+        assert "--product-canvas-left: 456px;" in root_block
+        assert "--product-canvas-top: 188px;" in root_block
+        assert "--product-canvas-height: 540px;" in root_block
 
 
 class TestPuppeteerHardening:

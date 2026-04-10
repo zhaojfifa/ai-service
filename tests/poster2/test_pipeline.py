@@ -2936,9 +2936,10 @@ class TestPostFreezeTextCapacity:
         )
 
         assert policy.gallery_distribution_policy == "dense_quad_detail_row"
-        assert policy.layout_metrics["peer_gap"] == 12
-        assert policy.layout_metrics["title_band_height"] == 184
-        assert policy.layout_metrics["gallery_shell_height"] == 84
+        assert policy.layout_metrics["peer_gap"] == 14
+        assert policy.layout_metrics["title_band_height"] == 172
+        assert policy.layout_metrics["gallery_shell_height"] == 90
+        assert policy.layout_metrics["gallery_items_height"] == 66
         assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [180, 180, 180, 180]
 
     def test_title_gallery_split_triplet_title_budget_raised(self):
@@ -3339,9 +3340,33 @@ class TestProductTextCapacityPRC:
         assert policy.text_shell_variant == "family_a_fryer_extended_right_lane"
         assert policy.annotation_capacity_variant == "family_a_fryer_extended_card_capacity"
         assert policy.char_budget == 54
-        assert policy.product_text_shell_bounds == {"x": 776, "y": 212, "w": 192, "h": 286}
-        assert policy.annotation_items[0]["label_bounds"] == {"x": 776, "y": 212, "w": 192, "h": 82}
-        assert policy.layout_metrics["product_region_w"] == 512
+        assert policy.product_text_shell_bounds == {"x": 792, "y": 212, "w": 184, "h": 286}
+        assert policy.annotation_items[0]["label_bounds"] == {"x": 792, "y": 212, "w": 184, "h": 82}
+        assert policy.layout_metrics["product_region_w"] == 520
+        assert policy.layout_metrics["product_canvas_shell_w"] == 324
+
+    def test_fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset(self):
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=True,
+            requested_feature_count=3,
+            hero_policy=hero,
+            title_text="Power Up Your Fry Station",
+            subtitle_text="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            agent_name="Commercial Electric Fryer Series",
+        )
+
+        assert policy.product_layout_mode == "single_primary"
+        assert policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
+        assert policy.product_primary_slot == {"x": 456, "y": 188, "w": 324, "h": 540}
+        assert policy.product_secondary_slot == {"x": 472, "y": 580, "w": 120, "h": 120}
+        assert policy.product_secondary_slot_rendered is True
 
     def test_inter_slot_gaps_are_clear_after_h76(self):
         """PR-C: with label_box h=76, slot gaps must be ≥ 16px (slot_1 bottom 292, slot_2 top 316)."""
