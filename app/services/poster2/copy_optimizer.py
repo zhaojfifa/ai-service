@@ -16,8 +16,8 @@ from .contracts import CopyOptimizationSpec, PosterSpec, TemplateSpec
 from .gemini_copy_optimizer import GeminiPoster2CopyOptimizer
 
 
-_SUBTITLE_TARGET_BUDGET = 72
-_ANNOTATION_TARGET_BUDGET = 24
+_SUBTITLE_OPTIMIZE_TARGET_BUDGET = 72
+_ANNOTATION_OPTIMIZE_TARGET_BUDGET = 24
 _SUBTITLE_REDUNDANT_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in (
@@ -138,7 +138,7 @@ def _optimize_subtitle_candidate(text: str, title: str) -> str:
     commercial_rewrite = _rewrite_commercial_subtitle_candidate(optimized)
     if commercial_rewrite:
         optimized = commercial_rewrite
-    if len(optimized) > _SUBTITLE_TARGET_BUDGET:
+    if len(optimized) > _SUBTITLE_OPTIMIZE_TARGET_BUDGET:
         segments = [segment.strip(" ·,-") for segment in re.split(r"[;,]|(?:\s+\u00b7\s+)|(?:\s+\band\b\s+)|(?:\s+\bwith\b\s+)", optimized) if segment.strip()]
         if segments:
             first_segment = segments[0]
@@ -150,7 +150,7 @@ def _optimize_subtitle_candidate(text: str, title: str) -> str:
                 segments[-1],
             )
             optimized = f"{first_segment} · {trailing}" if trailing != first_segment else first_segment
-    optimized = clean_copy_candidate(_trim_to_budget(optimized, _SUBTITLE_TARGET_BUDGET))
+    optimized = clean_copy_candidate(_trim_to_budget(optimized, _SUBTITLE_OPTIMIZE_TARGET_BUDGET))
     return optimized or subtitle
 
 
@@ -200,14 +200,11 @@ def _rewrite_commercial_subtitle_candidate(text: str) -> str:
     return ""
 
 
-def _build_subtitle_fit_rewrite(text: str, title: str) -> tuple[str, bool, str]:
+def _build_subtitle_fit_rewrite(text: str, title: str, *, render_budget: int) -> tuple[str, bool, str]:
     cleaned = _cleanup_subtitle_text(text)
     if not cleaned:
         return "", False, ""
-    commercial_rewrite = _rewrite_commercial_subtitle_candidate(cleaned)
-    if commercial_rewrite and commercial_rewrite != cleaned:
-        return commercial_rewrite, True, "subtitle_product_grade_fit_rewrite"
-    if len(cleaned) <= _SUBTITLE_TARGET_BUDGET:
+    if len(cleaned) <= render_budget:
         return cleaned, False, ""
     rewritten = _optimize_subtitle_candidate(cleaned, title)
     if rewritten and rewritten != cleaned:
@@ -215,11 +212,11 @@ def _build_subtitle_fit_rewrite(text: str, title: str) -> tuple[str, bool, str]:
     return cleaned, False, ""
 
 
-def _build_annotation_fit_rewrite(text: str) -> tuple[str, bool, str]:
+def _build_annotation_fit_rewrite(text: str, *, render_budget: int) -> tuple[str, bool, str]:
     cleaned = clean_copy_candidate(sanitize_marketing_text(text))
     if not cleaned:
         return "", False, ""
-    if len(cleaned) <= _ANNOTATION_TARGET_BUDGET:
+    if len(cleaned) <= render_budget:
         return cleaned, False, ""
     rewritten = _optimize_annotation_candidate(cleaned)
     if rewritten and rewritten != cleaned:
@@ -234,15 +231,15 @@ def _optimize_annotation_candidate(text: str) -> str:
     original = clean_copy_candidate(text)
     for pattern, replacement in _ANNOTATION_PHRASE_REWRITES:
         if pattern.search(original):
-            return clean_copy_candidate(_trim_to_budget(replacement, _ANNOTATION_TARGET_BUDGET))
+            return clean_copy_candidate(_trim_to_budget(replacement, _ANNOTATION_OPTIMIZE_TARGET_BUDGET))
 
     candidate = point
-    if len(candidate) > _ANNOTATION_TARGET_BUDGET or len(candidate.split()) <= 2:
+    if len(candidate) > _ANNOTATION_OPTIMIZE_TARGET_BUDGET or len(candidate.split()) <= 2:
         keyword_candidate = _keyword_compress_annotation(original)
         if keyword_candidate and keyword_candidate != candidate:
             candidate = keyword_candidate
-    if len(candidate) > _ANNOTATION_TARGET_BUDGET:
-        candidate = _trim_to_budget(candidate, _ANNOTATION_TARGET_BUDGET)
+    if len(candidate) > _ANNOTATION_OPTIMIZE_TARGET_BUDGET:
+        candidate = _trim_to_budget(candidate, _ANNOTATION_OPTIMIZE_TARGET_BUDGET)
     return clean_copy_candidate(candidate) or point
 
 
@@ -266,7 +263,7 @@ def _build_deterministic_candidate(effective_spec: PosterSpec) -> dict[str, Any]
     suggestion_subtitle = subtitle
     suggestion_features = features
 
-    if subtitle and (len(subtitle) > _SUBTITLE_TARGET_BUDGET or _contains_subtitle_redundancy(subtitle, title)):
+    if subtitle and (len(subtitle) > _SUBTITLE_OPTIMIZE_TARGET_BUDGET or _contains_subtitle_redundancy(subtitle, title)):
         suggestion_subtitle = _optimize_subtitle_candidate(subtitle, suggestion_title or title)
 
     if features:
@@ -300,7 +297,7 @@ def _sanitize_candidate(
     max_feature_count = len(effective_spec.features)
     raw_features = tuple(candidate.get("features") or effective_spec.features)
     features = tuple(
-        clean_copy_candidate(_trim_to_budget(sanitize_marketing_text(item), _ANNOTATION_TARGET_BUDGET))
+        clean_copy_candidate(_trim_to_budget(sanitize_marketing_text(item), _ANNOTATION_OPTIMIZE_TARGET_BUDGET))
         or effective_spec.features[index]
         for index, item in enumerate(raw_features[:max_feature_count])
     )
@@ -402,13 +399,50 @@ def resolve_copy_optimization(
     if template.template_id != "template_dual_v2":
         return effective_spec, {}
 
+    from .template_behavior import resolve_bottom_behavior
+
     optimization = requested_spec.copy_optimization
     title_cleanup = effective_spec.title
     title_fit = effective_spec.title
+    bottom_mode = effective_spec.bottom_mode or requested_spec.bottom_mode or template.behavior_modes.bottom_mode
+    gallery_mode = effective_spec.gallery_mode or requested_spec.gallery_mode or template.behavior_modes.gallery_mode
+    requested_gallery_count = int(
+        effective_spec.gallery_requested_count
+        if effective_spec.gallery_requested_count is not None
+        else (
+            requested_spec.gallery_requested_count
+            if requested_spec.gallery_requested_count is not None
+            else len(effective_spec.gallery_images or requested_spec.gallery_images or ())
+        )
+    )
+    normalized_gallery_count = int(
+        effective_spec.gallery_input_count_normalized
+        if effective_spec.gallery_input_count_normalized is not None
+        else (
+            requested_spec.gallery_input_count_normalized
+            if requested_spec.gallery_input_count_normalized is not None
+            else requested_gallery_count
+        )
+    )
+    resolved_gallery_count = min(len(effective_spec.gallery_images or requested_spec.gallery_images or ()), template.gallery_slot.count)
+    render_bottom_policy = resolve_bottom_behavior(
+        bottom_mode,
+        requested_bottom_mode=effective_spec.bottom_mode or requested_spec.bottom_mode,
+        template_bottom_mode=template.behavior_modes.bottom_mode,
+        gallery_mode=gallery_mode,
+        title_text=effective_spec.title,
+        subtitle_text=effective_spec.subtitle or requested_spec.subtitle,
+        requested_gallery_count=requested_gallery_count,
+        normalized_gallery_count=normalized_gallery_count,
+        resolved_gallery_count=resolved_gallery_count,
+        max_items=template.gallery_slot.count,
+    )
+    subtitle_render_budget = max(int(render_bottom_policy.subtitle_char_budget), _SUBTITLE_OPTIMIZE_TARGET_BUDGET)
     subtitle_cleanup = _cleanup_subtitle_text(effective_spec.subtitle or requested_spec.subtitle)
     subtitle_fit, subtitle_fit_applied, subtitle_fit_reason = _build_subtitle_fit_rewrite(
         subtitle_cleanup,
         effective_spec.title,
+        render_budget=subtitle_render_budget,
     )
 
     base_requested_features = tuple(requested_spec.features)
@@ -417,10 +451,15 @@ def resolve_copy_optimization(
     base_fit_features: list[str] = []
     base_fit_flags: list[bool] = []
     base_fit_reasons: list[str] = []
+    visible_feature_count = max(1, min(max(len(base_requested_features), len(base_sanitized_features), 1), 3))
+    annotation_render_budget = {1: 56, 2: 52, 3: 48}.get(visible_feature_count, 48)
     for index in range(max(len(base_requested_features), len(base_sanitized_features))):
         requested_text = base_requested_features[index] if index < len(base_requested_features) else ""
         sanitized_text = base_sanitized_features[index] if index < len(base_sanitized_features) else ""
-        fit_text, fit_applied, fit_reason = _build_annotation_fit_rewrite(requested_text or sanitized_text)
+        fit_text, fit_applied, fit_reason = _build_annotation_fit_rewrite(
+            requested_text or sanitized_text,
+            render_budget=annotation_render_budget,
+        )
         base_fit_features.append(fit_text or sanitized_text)
         base_fit_flags.append(fit_applied)
         base_fit_reasons.append(fit_reason)

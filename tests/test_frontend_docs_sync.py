@@ -117,8 +117,9 @@ def test_template_a_family_a_fryer_defaults_and_gallery_semantics_are_wired():
     assert "Stainless Steel Body" in app_js
     assert "Single Tank" in app_js
     assert "Dual Tank" in app_js
-    assert "Lid Detail" in app_js
     assert "Basket Detail" in app_js
+    assert "Lid Detail" in app_js
+    assert app_js.index("Basket Detail") < app_js.index("Lid Detail")
     assert "function buildModeSDefaultGalleryEntries" in app_js
     assert "function buildModeSFamilyAGalleryFallbackPlan" in app_js
     assert "function resolveModeSAgentName" in app_js

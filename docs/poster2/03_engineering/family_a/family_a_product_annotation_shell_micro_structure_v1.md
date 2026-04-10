@@ -9,24 +9,26 @@ This pass keeps:
 - fixed 3 annotation slots
 - product-owned annotation responsibility
 - existing anchor positions
-- existing outer geometry
+- renderer-executes-truth ownership flow
 
-It only increases the usable text capacity of the fixed product benefit cards.
+It only adds a bounded fryer-only variant to the fixed product text shell so commercial benefit phrases stay readable.
 
 ## Change
 
-The annotation shell remains `176x76` per fixed slot, but the text consumption layer is loosened inside that shell:
+The fryer Family A path now resolves through a bounded right-lane variant under `product_policy`:
 
-- annotation char budget raised to `56 / 52 / 48` for `1 / 2 / 3` visible slots
-- product-anchor callout delegated feature diagnostics use the same raised budgets
-- card inner padding tightened from `10/14` to `8/12`
-- annotation line-height tightened to `1.24`
+- product region width grows from `504` to `512`
+- product text shell grows from `176x276` at `x=784,y=216` to `192x286` at `x=776,y=212`
+- fixed label bounds grow from `176x76` to `192x82` for all 3 slots
+- product slot contract resolves `char_budget = 54` with `line_clamp = 3` for the 3-slot fryer state
+- copy-optimization fit pressure is raised so short commercial phrases like `Precise Thermostat Control` stay on the sanitized path
+- both Pillow and structured HTML now consume the same fryer variant bounds from `product_policy`
 
 ## Intent
 
 The goal is not to restyle Family A.
 
-The goal is to stop short commercial benefit phrases from reading cramped in the fixed-width right-side cards while preserving:
+The goal is to stop short commercial benefit phrases from reading like emergency labels while preserving:
 
 - slot identity
 - slot bounds
@@ -35,7 +37,7 @@ The goal is to stop short commercial benefit phrases from reading cramped in the
 
 ## Non-Goals
 
-- no geometry expansion
+- no freeform positioning
 - no ownership changes
-- no freeform product text layout
+- no whole-template redesign
 - no Template B adoption

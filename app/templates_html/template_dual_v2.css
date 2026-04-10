@@ -725,6 +725,15 @@ body {
   hyphens: none;
 }
 
+.product-text-shell-variant-family_a_fryer_extended_right_lane .feature-callout {
+  min-height: 82px;
+  padding: 10px 14px;
+  font-size: 16px;
+  line-height: 1.26;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
 .feature-callout-connector {
   position: absolute;
   height: var(--annotation-leader-height);

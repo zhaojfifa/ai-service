@@ -147,6 +147,6 @@ The formal doc path is defined only by:
 
 ## Current Mainline
 
-- current temporary priority override = Family A fryer product-shell micro-structure + bottom text finalization
+- current temporary priority override = none; Family A fryer blocker closeout is merged into the current baseline
 - Template A remains the active oracle line for shared-skill and commercial acceptance verification
 - Template B remains unchanged during the current Family A-only refinement pass

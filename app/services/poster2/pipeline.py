@@ -2434,6 +2434,8 @@ def _build_product_contract_review(
             "annotation_marker_policy": product_policy.annotation_marker_policy,
             "annotation_shell_policy": product_policy.annotation_shell_policy,
             "annotation_bounds_policy": product_policy.annotation_bounds_policy,
+            "text_shell_variant": product_policy.text_shell_variant,
+            "annotation_capacity_variant": product_policy.annotation_capacity_variant,
             "text_budget_policy": product_policy.text_budget_policy,
             "line_clamp": product_policy.line_clamp,
             "char_budget": product_policy.char_budget,

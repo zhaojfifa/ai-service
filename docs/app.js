@@ -2344,8 +2344,8 @@ const MODE_S_DEFAULT_STAGE1 = {
 const MODE_S_DEFAULT_GALLERY_CAPTIONS = [
   'Single Tank',
   'Dual Tank',
-  'Lid Detail',
   'Basket Detail',
+  'Lid Detail',
 ];
 
 function getModeSDefaultGalleryCaption(index) {

@@ -1078,6 +1078,43 @@ class TestStructuredGalleryMarkup:
         assert [item[0]["label_box"]["h"] for item in resolved] == [76, 76, 76]
         assert [item[0]["anchor_y"] for item in resolved] == [250, 350, 450]
 
+    def test_resolve_feature_callout_map_uses_fryer_variant_annotation_bounds(self):
+        anchor_map = {
+            "feature_callouts": [
+                {"anchor_x": 764, "anchor_y": 250, "label_box": {"x": 784, "y": 216, "w": 176, "h": 76}},
+                {"anchor_x": 764, "anchor_y": 350, "label_box": {"x": 784, "y": 316, "w": 176, "h": 76}},
+                {"anchor_x": 764, "anchor_y": 450, "label_box": {"x": 784, "y": 416, "w": 176, "h": 76}},
+                {"anchor_x": 764, "anchor_y": 550, "label_box": {"x": 784, "y": 516, "w": 144, "h": 60}},
+            ]
+        }
+        template = _load_real_template()
+        hero = resolve_template_behavior(
+            template,
+            feature_count=3,
+            title_text="Power Up Your Fry Station",
+            subtitle_text="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            brand_name="ChefCraft",
+            gallery_requested_count=4,
+            gallery_input_count_normalized=4,
+            gallery_resolved_count=4,
+            bottom_mode="title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            agent_name="Commercial Electric Fryer Series",
+            has_product_secondary_asset=False,
+        )
+
+        resolved = _resolve_feature_callout_map(
+            anchor_map,
+            ("Fast Heat-Up", "Precise Thermostat Control", "Stainless Steel Body"),
+            feature_policy=hero.feature_policy,
+            product_policy=hero.product_policy,
+        )
+
+        assert len(resolved) == 3
+        assert [item[0]["label_box"]["x"] for item in resolved] == [776, 776, 776]
+        assert [item[0]["label_box"]["w"] for item in resolved] == [192, 192, 192]
+        assert [item[0]["label_box"]["h"] for item in resolved] == [82, 82, 82]
+
     def test_resolve_feature_behavior_supports_second_feature_mode(self):
         resolved = resolve_feature_behavior(
             "uniform_callout_stack",

@@ -275,6 +275,7 @@ class LayoutRenderer:
             spec.feature_callouts,
             poster.features,
             feature_policy=behavior.feature_policy,
+            product_policy=behavior.product_policy,
             accent_color=behavior.accent_color,
             text_color=behavior.text_colors["feature"],
         )
@@ -1162,6 +1163,7 @@ class PuppeteerStructuredRenderer:
             anchor_map,
             poster.features,
             feature_policy=behavior.feature_policy,
+            product_policy=behavior.product_policy,
         )
         logo_suppressed_by_mode = behavior.header_policy.identity_zone_mode == "brand_only"
         header_logo_class = "state-logo-empty" if (not asset_urls["logo"] or logo_suppressed_by_mode) else "state-logo-show"
@@ -1423,8 +1425,14 @@ class PuppeteerStructuredRenderer:
         features: tuple[str, ...],
         *,
         feature_policy: ResolvedFeatureBehavior,
+        product_policy=None,
     ) -> tuple[str, str]:
-        callouts = _resolve_feature_callout_map(anchor_map, features, feature_policy=feature_policy)
+        callouts = _resolve_feature_callout_map(
+            anchor_map,
+            features,
+            feature_policy=feature_policy,
+            product_policy=product_policy,
+        )
         if not callouts:
             return "", "state-hidden feature-mode-0"
         mode, mode_spec = resolve_feature_layout_mode(feature_policy.visible_item_count, feature_policy.mode)
@@ -1843,6 +1851,7 @@ def _resolve_feature_callout_layout(
     features: tuple[str, ...] | list[str],
     *,
     feature_policy: ResolvedFeatureBehavior | None = None,
+    product_policy=None,
     accent_color: str | None = None,
     text_color: str | None = None,
 ) -> list[tuple[FeatureCalloutSpec, str]]:
@@ -1877,16 +1886,33 @@ def _resolve_feature_callout_layout(
 
         resolved: list[tuple[FeatureCalloutSpec, str]] = []
         for i, (base, feature_text) in enumerate(zip(source, limited_features)):
-            new_label_y = label_ys[i] if label_ys is not None else base.label_box.y
-            new_anchor_y = new_label_y + base.label_box.h // 2 if label_ys is not None else base.anchor_y
+            annotation_item = (
+                product_policy.annotation_items[i]
+                if product_policy is not None and i < len(getattr(product_policy, "annotation_items", ()))
+                else None
+            )
+            label_bounds = dict(annotation_item.get("label_bounds") or {}) if annotation_item else {}
+            resolved_label_x = int(label_bounds.get("x", base.label_box.x))
+            resolved_label_w = int(label_bounds.get("w", base.label_box.w))
+            resolved_label_h = int(label_bounds.get("h", base.label_box.h))
+            new_label_y = (
+                int(label_bounds["y"])
+                if label_bounds.get("y") is not None
+                else (label_ys[i] if label_ys is not None else base.label_box.y)
+            )
+            new_anchor_y = new_label_y + resolved_label_h // 2 if label_ys is not None else base.anchor_y
             resolved_callout = replace(
                 base,
-                anchor_y=new_anchor_y,
-                anchor_color=accent_color or base.anchor_color,
+                anchor_x=int(annotation_item.get("anchor_x", base.anchor_x)) if annotation_item else base.anchor_x,
+                anchor_y=int(annotation_item.get("anchor_y", new_anchor_y)) if annotation_item else new_anchor_y,
+                anchor_color=(annotation_item.get("anchor_color") if annotation_item else None) or accent_color or base.anchor_color,
                 leader_color=accent_color or base.leader_color,
                 label_box=replace(
                     base.label_box,
+                    x=resolved_label_x,
                     y=new_label_y,
+                    w=resolved_label_w,
+                    h=resolved_label_h,
                     color=text_color or base.label_box.color,
                     max_lines=3,
                 ),
@@ -1941,6 +1967,7 @@ def _resolve_feature_callout_map(
     features: tuple[str, ...] | list[str],
     *,
     feature_policy: ResolvedFeatureBehavior | None = None,
+    product_policy=None,
 ) -> list[tuple[dict[str, Any], str]]:
     raw_callouts = anchor_map.get("feature_callouts", [])
     if not raw_callouts:
@@ -1972,14 +1999,29 @@ def _resolve_feature_callout_map(
 
         resolved: list[tuple[dict[str, Any], str]] = []
         for idx, (base, feature_text) in enumerate(zip(source, limited_features)):
+            annotation_item = (
+                product_policy.annotation_items[idx]
+                if product_policy is not None and idx < len(getattr(product_policy, "annotation_items", ()))
+                else None
+            )
+            label_bounds = dict(annotation_item.get("label_bounds") or {}) if annotation_item else {}
             label_box = dict(base["label_box"])
-            if label_ys is not None:
+            label_box["x"] = int(label_bounds.get("x", label_box["x"]))
+            label_box["w"] = int(label_bounds.get("w", label_box["w"]))
+            label_box["h"] = int(label_bounds.get("h", label_box["h"]))
+            if label_bounds.get("y") is not None:
+                label_box["y"] = int(label_bounds["y"])
+                anchor_y = int(annotation_item.get("anchor_y", int(label_box["y"]) + int(label_box["h"]) // 2)) if annotation_item else int(label_box["y"]) + int(label_box["h"]) // 2
+            elif label_ys is not None:
                 label_box["y"] = label_ys[idx]
                 anchor_y = int(label_box["y"]) + int(label_box["h"]) // 2
             else:
-                anchor_y = int(base["anchor_y"])
+                anchor_y = int(annotation_item.get("anchor_y", base["anchor_y"])) if annotation_item else int(base["anchor_y"])
             callout = dict(base)
+            callout["anchor_x"] = int(annotation_item.get("anchor_x", base["anchor_x"])) if annotation_item else int(base["anchor_x"])
             callout["anchor_y"] = anchor_y
+            if annotation_item and annotation_item.get("anchor_color"):
+                callout["anchor_color"] = annotation_item["anchor_color"]
             callout["mode_connector_policy"] = str(feature_policy.connector_policy)
             callout["label_box"] = label_box
             resolved.append((callout, feature_text))

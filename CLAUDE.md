@@ -66,7 +66,11 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - stale `title_only_expand -> text_only_expanded`
   - preview and final generate now use the same canonical `bottom_mode` truth
 - no poster structure contract changes were made in this closure pass
-- no bottom / product annotation truth changes were made in this closure pass
+- Family A fryer blocker closeout complete:
+  - product-region text shell now uses a bounded fryer-only fixed-slot capacity variant
+  - fryer default bottom subtitle now renders the required commercial sentence without forced fit rewrite
+  - fryer accepted optimization still switches rendered output and metadata truth together
+  - fryer bottom strip now uses the bounded detail-row distribution inside `title_gallery_split`
 
 ## Current document alignment target
 
@@ -77,19 +81,20 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 ## Next code priority
 
-- current temporary priority override = Family A fryer product-shell micro-structure + bottom text finalization
+- current temporary priority override = none
 - Template A remains the active oracle line for shared-skill and commercial acceptance verification
 - pre-change rollback tag for this pass:
   - `Poster2-FamilyA-MinDelta-PreCommercialRefine`
   - `cdb3216cbb1b95630c9afbb27a9ada9c90af37a7`
 - hard boundaries remain:
-  - no geometry changes
+  - no freeform geometry changes
   - no ownership drift
   - no Template B work
   - UI layout and 3-column header stay unchanged
-- current refinement focus:
-  - fixed product annotation slots stay fixed, but fixed-card text capacity must read less cramped
-  - fryer bottom subtitle must reach render as a finalized product-grade sentence
+- last closed refinement focus:
+  - fixed product annotation slots stayed fixed while fryer card capacity was widened in a bounded variant
+  - fryer bottom subtitle now reaches render as finalized product-grade copy
+  - fryer bottom strip now reads as a semantic detail row with breathing room
 - not yet: Family A redesign
 - not yet: Template B reopen
 - not yet: editor-first drift

@@ -2920,6 +2920,27 @@ class TestPostFreezeTextCapacity:
         assert policy.title_char_budget >= 52
         assert policy.subtitle_char_budget >= 44
 
+    def test_title_gallery_split_fryer_dense_quad_detail_row_adds_breathing(self):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+
+        policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Power Up Your Fry Station",
+            subtitle_text="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+            commercial_fryer_variant=True,
+        )
+
+        assert policy.gallery_distribution_policy == "dense_quad_detail_row"
+        assert policy.layout_metrics["peer_gap"] == 12
+        assert policy.layout_metrics["title_band_height"] == 184
+        assert policy.layout_metrics["gallery_shell_height"] == 84
+        assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [180, 180, 180, 180]
+
     def test_title_gallery_split_triplet_title_budget_raised(self):
         """Triplet title_gallery_split must reach title_char_budget >= 60."""
         from app.services.poster2.template_behavior import resolve_bottom_behavior
@@ -3297,6 +3318,30 @@ class TestProductTextCapacityPRC:
             hero_policy=hero,
         )
         assert policy.text_budget_policy == "fixed_3_anchor_three_line_budget"
+
+    def test_fryer_variant_expands_product_text_shell_and_annotation_capacity(self):
+        from app.services.poster2.template_behavior import resolve_product_behavior, resolve_hero_behavior
+
+        template = _load_template()
+        hero = resolve_hero_behavior("scenario_cover_product_contain")
+        policy = resolve_product_behavior(
+            template,
+            annotation_mode="product_anchor_callouts",
+            product_layout_mode="single_primary",
+            has_product_secondary_asset=False,
+            requested_feature_count=3,
+            hero_policy=hero,
+            title_text="Power Up Your Fry Station",
+            subtitle_text="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            agent_name="Commercial Electric Fryer Series",
+        )
+
+        assert policy.text_shell_variant == "family_a_fryer_extended_right_lane"
+        assert policy.annotation_capacity_variant == "family_a_fryer_extended_card_capacity"
+        assert policy.char_budget == 54
+        assert policy.product_text_shell_bounds == {"x": 776, "y": 212, "w": 192, "h": 286}
+        assert policy.annotation_items[0]["label_bounds"] == {"x": 776, "y": 212, "w": 192, "h": 82}
+        assert policy.layout_metrics["product_region_w"] == 512
 
     def test_inter_slot_gaps_are_clear_after_h76(self):
         """PR-C: with label_box h=76, slot gaps must be ≥ 16px (slot_1 bottom 292, slot_2 top 316)."""
@@ -5589,14 +5634,43 @@ class TestTemplateBBackendGenerationFix:
 
         review = manifest.copy_optimization_review
         bottom_review = manifest.bottom_contract_review
-        assert review["subtitle"]["fit_rewrite_applied"] is True
-        assert review["subtitle"]["fit_rewrite_reason"] == "subtitle_product_grade_fit_rewrite"
-        assert review["subtitle"]["fit_rewrite_text"] == "Fast heating, precise control, and stainless steel durability."
-        assert review["subtitle"]["rendered_text"] == review["subtitle"]["fit_rewrite_text"]
-        assert review["subtitle"]["rendered_text_source"] == "fit_rewrite_text"
+        assert review["subtitle"]["fit_rewrite_applied"] is False
+        assert review["subtitle"]["fit_rewrite_reason"] == ""
+        assert review["subtitle"]["fit_rewrite_text"] == spec.subtitle
+        assert review["subtitle"]["rendered_text"] == spec.subtitle
+        assert review["subtitle"]["rendered_text_source"] == "sanitized_text"
+        assert manifest.subtitle_text_layer["rendered_text_source"] == "sanitized_text"
         assert bottom_review["behavior_policy"]["subtitle_line_clamp"] == 2
-        assert bottom_review["rendered_subtitle_excerpt"] == review["subtitle"]["fit_rewrite_text"]
-        assert bottom_review["subtitle_truncation_applied"] is False
+
+    def test_template_a_fryer_accepted_subtitle_candidate_enters_rendered_output(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+            copy_optimization=CopyOptimizationSpec(mode="suggest", decision="accepted"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        review = manifest.copy_optimization_review
+        assert review["subtitle"]["optimized_text"] == "Fast heating, precise control, and stainless steel durability"
+        assert review["subtitle"]["rendered_text"] == review["subtitle"]["optimized_text"]
+        assert review["subtitle"]["rendered_text_source"] == "optimized_text"
+        assert manifest.subtitle_text_layer["sanitized_text"] == review["subtitle"]["optimized_text"]
+
+    def test_template_a_fryer_product_annotation_keeps_short_commercial_phrase_without_fit_rewrite(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            features=("Fast Heat-Up", "Precise Thermostat Control", "Stainless Steel Body"),
+            copy_optimization=CopyOptimizationSpec(mode="off", decision="pending"),
+        )
+        manifest = self._run_template_a_with_renderer(spec, _FakeTemplateAIsolatedPuppeteerRenderer())
+
+        slot = manifest.product_contract_review["annotation_slots"][1]
+        assert slot["requested_text"] == "Precise Thermostat Control"
+        assert slot["fit_rewrite_applied"] is False
+        assert slot["rendered_text"] == "Precise Thermostat Control"
+        assert slot["rendered_text_source"] == "sanitized_text"
 
     def test_template_a_copy_optimization_accepts_optimized_copy_without_changing_annotation_count(self):
         spec = _make_spec(

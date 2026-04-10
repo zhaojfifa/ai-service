@@ -4051,3 +4051,115 @@ After
   - `Fast heating, precise control, and stainless steel durability.`
 - `rendered_text_source = fit_rewrite_text`
 - `subtitle_truncation_applied = false` for the tested fryer path
+
+## 2026-04-10 — Family A fryer blocker closeout
+
+### Root rules followed
+
+- Template A only
+- contract-first
+- header remains 3-column
+- product annotations remain fixed-slot and product-owned
+- `bottom_mode = title_gallery_split`
+- renderer executes truth
+- no Template B work
+
+### Problem reproduced
+
+- the right-side fryer benefit cards were still too narrow for commercial phrases and slot 2 could collapse to `Precise Thermostat`
+- the fryer bottom still rendered the weaker compact subtitle path instead of the required commercial sentence
+- the 4-item strip still read like a dense thumbnail row with no breathing room between the title band and the strip
+
+### Root cause
+
+- product-region fixed-slot truth still used the old default right-lane shell and default structured-HTML anchor-map bounds instead of a fryer-specific bounded capacity variant
+- copy optimization still computed subtitle/render budgets without a true fryer-only closeout path, so the commercial default sentence fell back to the older compact rewrite lineage
+- the expanded dense-quad strip had no fryer-specific peer-gap or detail-row distribution policy, so the bottom stayed visually crowded even when structurally valid
+
+### Files changed
+
+- `app/services/poster2/copy_optimizer.py`
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/renderer.py`
+- `app/services/poster2/pipeline.py`
+- `app/templates_html/template_dual_v2.css`
+- `frontend/app.js`
+- `docs/app.js`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `tests/poster2/fixtures/family_a_visual_smoke.json`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/03_engineering/family_a/family_a_product_annotation_shell_micro_structure_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_product_annotation_shell_micro_structure_status_v1.md`
+- `docs/poster2/03_engineering/family_a/family_a_bottom_text_finalization_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_bottom_text_finalization_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- Family A product-region fixed-slot shell contract
+- Family A subtitle truth selection
+- Family A bottom detail-row distribution only
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/copy_optimizer.py app/services/poster2/template_behavior.py app/services/poster2/renderer.py app/services/poster2/pipeline.py` -> passed
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_dense_quad_split_keeps_product_grade_subtitle_in_render or fryer_accepted_subtitle_candidate_enters_rendered_output or fryer_product_annotation_keeps_short_commercial_phrase_without_fit_rewrite or fryer_variant_expands_product_text_shell_and_annotation_capacity or fryer_dense_quad_detail_row_adds_breathing'` -> passed
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'fryer_variant_annotation_bounds or family_a_visual_smoke_hashes_match_fixture'` -> passed after fixture refresh
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py -k 'template_a_family_a_fryer_defaults_and_gallery_semantics_are_wired'` -> passed
+
+### Before / after runtime evidence
+
+Before bundle:
+
+- summary: `/tmp/fryer_before/before_fryer_summary.json`
+- image: `/tmp/fryer_before/before_fryer_pillow.png`
+
+After bundle:
+
+- summary: `/tmp/fryer_after/after_fryer_summary.json`
+- image: `/tmp/fryer_after/after_fryer_pillow.png`
+
+Measured deltas:
+
+- `structure_complete = true` before and after
+- `deliverable = true` before and after
+- `header_mode = identity_left_agent_right` before and after
+- `product_annotation_owner = product_region` before and after
+- product text shell:
+  - before `x=784,y=216,w=176,h=276`
+  - after `x=776,y=212,w=192,h=286`
+- slot 2 text:
+  - before `Precise Thermostat` from `fit_rewrite_text`
+  - after `Precise Thermostat Control` from `sanitized_text`
+- rendered subtitle:
+  - before `Fast heating, precise control, and stainless steel durability.`
+  - after `Fast heating, precise control, and durable stainless steel construction for everyday commercial use.`
+- rendered subtitle source:
+  - before `fit_rewrite_text`
+  - after `sanitized_text`
+- bottom strip:
+  - before `gallery_distribution_policy = dense_quad`
+  - after `gallery_distribution_policy = dense_quad_detail_row`
+  - before `peer_gap = 0`
+  - after `peer_gap = 12`
+  - before item geometry `188x60`
+  - after item geometry `180x56`
+
+### Remaining risks
+
+- this closes the current fryer blockers only inside the existing Family A system; it is not a Family A redesign track
+- local runtime evidence used deterministic local assets for repeatability; external commercial acceptance should still use the live fryer asset pack
+- local non-poster2 noise remains:
+  - `docs/.DS_Store`
+
+### Exact acceptance
+
+- header remains 3-column
+- product annotation remains fixed-slot and product-owned
+- fryer benefit cards now render with the bounded Family-A-only wider shell and no longer collapse to emergency-label copy
+- final fryer bottom copy now renders the required commercial sentence
+- accepted optimization still changes rendered subtitle truth when explicitly selected
+- 4-item strip remains in `title_gallery_split` but now reads as a semantic detail row with breathing room

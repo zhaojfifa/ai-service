@@ -8,18 +8,26 @@ Accepted for Template A only.
 
 - annotation remains fixed-slot
 - annotation remains product-owned
-- slot bounds remain unchanged
-- delegated feature diagnostics mirror the same raised budgets
-- fixed card shell reads less cramped through budget and padding changes only
+- renderer truth is shared by Pillow and structured HTML
+- fryer slot 2 now keeps `Precise Thermostat Control` without fit rewrite
+- fixed cards read less cramped through bounded shell-capacity expansion only
 
 ## Runtime Evidence
 
-- product annotation `char_budget` now resolves to `56 / 52 / 48`
-- line clamp remains `3`
-- anchor bounds remain `176x76`
-- structured HTML smoke hash updated without Pillow geometry drift
+Before:
+
+- `product_text_shell_bounds = {x:784,y:216,w:176,h:276}`
+- slot bounds = `176x76`
+- slot 2 rendered `Precise Thermostat` from `fit_rewrite_text`
+
+After:
+
+- `product_text_shell_bounds = {x:776,y:212,w:192,h:286}`
+- slot bounds = `192x82`
+- slot 2 rendered `Precise Thermostat Control` from `sanitized_text`
+- product slot `char_budget = 54`
 
 ## Remaining Risks
 
-- this is a shell-capacity refinement only, not a reopened product-region redesign
-- live Chromium commercial sample verification remains a separate run
+- this is still a bounded Family A fryer variant, not a reopened product-region redesign
+- live acceptance still depends on the current fryer sample asset pack staying representative
