@@ -212,6 +212,7 @@ class PosterPipeline:
         resolved_behavior = resolve_template_behavior(
             template,
             feature_count=len([item for item in effective_spec.features if item and item.strip()]),
+            product_image_size=assets.product.size,
             title_text=effective_spec.title,
             subtitle_text=effective_spec.subtitle,
             brand_name=effective_spec.brand_name,

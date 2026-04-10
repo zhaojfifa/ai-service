@@ -46,7 +46,7 @@ _PRODUCT_REGION_OUTER_W = 504
 _PRODUCT_REGION_OUTER_W_FRYER = 516
 _PRODUCT_CANVAS_SHELL_W = 300
 _PRODUCT_CANVAS_SHELL_W_FRYER = 316
-_PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 460, "y": 214, "w": 312, "h": 496}
+_PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 460, "y": 192, "w": 312, "h": 384}
 _PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 486, "y": 596, "w": 104, "h": 104}
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
@@ -68,6 +68,7 @@ _PRODUCT_ANNOTATION_LABEL_BOUNDS_FRYER: tuple[dict[str, int], ...] = (
     {"x": 796, "y": 316, "w": 176, "h": 76},
     {"x": 796, "y": 412, "w": 176, "h": 76},
 )
+_PRODUCT_ANNOTATION_ANCHOR_INSET_FRYER = 36
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -828,6 +829,7 @@ def resolve_template_behavior(
     spec: TemplateSpec,
     *,
     feature_count: int | None = None,
+    product_image_size: tuple[int, int] | None = None,
     title_text: str | None = None,
     subtitle_text: str | None = None,
     brand_name: str | None = None,
@@ -922,6 +924,7 @@ def resolve_template_behavior(
         has_product_secondary_asset=has_product_secondary_asset,
         requested_feature_count=feature_count or 0,
         hero_policy=hero_policy,
+        product_image_size=product_image_size,
         title_text=title_text,
         subtitle_text=subtitle_text,
         agent_name=agent_name,
@@ -1075,6 +1078,30 @@ def resolve_hero_behavior(hero_mode: str) -> ResolvedHeroBehavior:
     raise ValueError(f"Unsupported hero_mode: {hero_mode}")
 
 
+def _resolve_contained_image_bounds(
+    slot: dict[str, int],
+    image_size: tuple[int, int] | None,
+) -> dict[str, int]:
+    if not image_size or image_size[0] <= 0 or image_size[1] <= 0:
+        return dict(slot)
+    slot_w = max(int(slot["w"]), 1)
+    slot_h = max(int(slot["h"]), 1)
+    image_w, image_h = image_size
+    scale = min(slot_w / image_w, slot_h / image_h)
+    fitted_w = max(1, int(round(image_w * scale)))
+    fitted_h = max(1, int(round(image_h * scale)))
+    return {
+        "x": int(slot["x"] + (slot_w - fitted_w) // 2),
+        "y": int(slot["y"] + (slot_h - fitted_h) // 2),
+        "w": int(fitted_w),
+        "h": int(fitted_h),
+    }
+
+
+def _clamp(value: int, minimum: int, maximum: int) -> int:
+    return max(minimum, min(value, maximum))
+
+
 def resolve_product_behavior(
     spec: TemplateSpec,
     *,
@@ -1083,6 +1110,7 @@ def resolve_product_behavior(
     has_product_secondary_asset: bool = False,
     requested_feature_count: int,
     hero_policy: ResolvedHeroBehavior,
+    product_image_size: tuple[int, int] | None = None,
     title_text: str | None = None,
     subtitle_text: str | None = None,
     agent_name: str | None = None,
@@ -1182,6 +1210,12 @@ def resolve_product_behavior(
             product_secondary_slot_rendered = False
             product_secondary_asset_policy = "secondary_absent_collapsed"
 
+    primary_visible_box = (
+        _resolve_contained_image_bounds(product_primary_slot, product_image_size)
+        if commercial_fryer_variant and annotation_mode == "product_anchor_callouts"
+        else dict(product_primary_slot)
+    )
+
     if annotation_mode == "none":
         annotation_count_policy = "annotations_disabled"
         annotation_connector_policy = "annotation_connectors_disabled"
@@ -1253,8 +1287,24 @@ def resolve_product_behavior(
                 {
                     "slot_id": f"product_annotation_slot_{index}",
                     "anchor_index": index - 1,
-                    "anchor_x": int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None,
-                    "anchor_y": int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None,
+                    "anchor_x": (
+                        int(
+                            primary_visible_box["x"]
+                            + primary_visible_box["w"]
+                            - _PRODUCT_ANNOTATION_ANCHOR_INSET_FRYER
+                        )
+                        if commercial_fryer_variant and annotation_mode == "product_anchor_callouts"
+                        else (int(callout.anchor_x) if annotation_mode == "product_anchor_callouts" else None)
+                    ),
+                    "anchor_y": (
+                        _clamp(
+                            int(label_box["y"] + label_box["h"] // 2),
+                            int(primary_visible_box["y"] + 24),
+                            int(primary_visible_box["y"] + primary_visible_box["h"] - 24),
+                        )
+                        if commercial_fryer_variant and annotation_mode == "product_anchor_callouts"
+                        else (int(callout.anchor_y) if annotation_mode == "product_anchor_callouts" else None)
+                    ),
                     "anchor_color": callout.anchor_color if annotation_mode == "product_anchor_callouts" else None,
                     "label_bounds": {
                         "x": int(label_box["x"]),
@@ -1264,7 +1314,7 @@ def resolve_product_behavior(
                     },
                     "connector_policy": annotation_connector_policy,
                     "marker_policy": annotation_marker_policy,
-                    "positions_source": "family_a_fryer_fixed_variant" if commercial_fryer_variant else "template_spec_fixed",
+                    "positions_source": "family_a_fryer_visible_box_derived" if commercial_fryer_variant else "template_spec_fixed",
                 }
             )
             left = int(label_box["x"]) if left is None else min(left, int(label_box["x"]))

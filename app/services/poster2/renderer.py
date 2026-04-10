@@ -215,6 +215,7 @@ class LayoutRenderer:
         behavior = resolve_template_behavior(
             spec,
             feature_count=feature_count,
+            product_image_size=assets.product.size,
             title_text=poster.title,
             subtitle_text=poster.subtitle,
             brand_name=poster.brand_name,
@@ -998,6 +999,7 @@ class PuppeteerStructuredRenderer:
         behavior = resolve_template_behavior(
             spec,
             feature_count=feature_count,
+            product_image_size=assets.product.size,
             title_text=poster.title,
             subtitle_text=poster.subtitle,
             brand_name=poster.brand_name,
@@ -2855,6 +2857,7 @@ def render_product_material_debug_layer(
     gallery_resolved = min(len(assets.gallery), spec.gallery_slot.count)
     behavior = resolve_template_behavior(
         spec,
+        product_image_size=assets.product.size,
         brand_name=None,
         gallery_resolved_count=gallery_resolved,
         gallery_requested_count=gallery_resolved,

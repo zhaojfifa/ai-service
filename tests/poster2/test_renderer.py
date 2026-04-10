@@ -1119,6 +1119,7 @@ class TestStructuredGalleryMarkup:
         assert [item[0]["label_box"]["x"] for item in resolved] == [796, 796, 796]
         assert [item[0]["label_box"]["w"] for item in resolved] == [176, 176, 176]
         assert [item[0]["label_box"]["h"] for item in resolved] == [76, 76, 76]
+        assert [item[0]["anchor_x"] for item in resolved] == [736, 736, 736]
 
     def test_resolve_feature_behavior_supports_second_feature_mode(self):
         resolved = resolve_feature_behavior(

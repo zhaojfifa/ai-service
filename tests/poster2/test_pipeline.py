@@ -3174,14 +3174,16 @@ class TestProductImageContract:
         annotation_review = metadata["product_annotation_contract_review"]
 
         assert [slot["positions_source"] for slot in annotation_review["annotation_slots"]] == [
-            "family_a_fryer_fixed_variant",
-            "family_a_fryer_fixed_variant",
-            "family_a_fryer_fixed_variant",
+            "family_a_fryer_visible_box_derived",
+            "family_a_fryer_visible_box_derived",
+            "family_a_fryer_visible_box_derived",
         ]
         assert [slot["label_bounds"] for slot in annotation_review["annotation_slots"]] == [
             slot["label_bounds"] for slot in product_review["annotation_slots"]
         ]
-        assert annotation_review["behavior_policy"]["positions_source"] == "family_a_fryer_fixed_variant"
+        assert [slot["anchor_x"] for slot in annotation_review["annotation_slots"]] == [708, 708, 708]
+        assert [slot["anchor_y"] for slot in annotation_review["annotation_slots"]] == [258, 354, 450]
+        assert annotation_review["behavior_policy"]["positions_source"] == "family_a_fryer_visible_box_derived"
 
     def test_product_primary_slot_bounds_match_single_primary_constant(self):
         """In single_primary mode, product_primary_slot must match _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT."""
@@ -3390,6 +3392,8 @@ class TestProductTextCapacityPRC:
         assert policy.char_budget == 54
         assert policy.product_text_shell_bounds == {"x": 796, "y": 220, "w": 176, "h": 268}
         assert policy.annotation_items[0]["label_bounds"] == {"x": 796, "y": 220, "w": 176, "h": 76}
+        assert policy.annotation_items[0]["anchor_x"] == 736
+        assert policy.layout_metrics["product_region_x"] == 456
         assert policy.layout_metrics["product_region_w"] == 516
         assert policy.layout_metrics["product_canvas_shell_w"] == 316
 
@@ -3412,8 +3416,9 @@ class TestProductTextCapacityPRC:
 
         assert policy.product_layout_mode == "single_primary"
         assert policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
-        assert policy.product_primary_slot == {"x": 460, "y": 214, "w": 312, "h": 496}
+        assert policy.product_primary_slot == {"x": 460, "y": 192, "w": 312, "h": 384}
         assert policy.product_secondary_slot == {"x": 486, "y": 596, "w": 104, "h": 104}
+        assert policy.product_primary_slot["y"] + policy.product_primary_slot["h"] < policy.product_secondary_slot["y"]
         assert policy.product_secondary_slot_rendered is True
 
     def test_inter_slot_gaps_are_clear_after_h76(self):
