@@ -118,6 +118,10 @@ let posterGeneratedLayout = null;
 
 // stage2：缓存最近一次生成结果与提示词，便于预览与回放
 let lastPromptBundle = null;
+const stage2RequestHelpers = globalThis.Stage2RequestHelpers || {};
+let stage2ActiveRequestId = 0;
+let stage2ActiveAbortController = null;
+let stage2LastSourceSignatures = null;
 
 const stage2State = {
   poster: {
@@ -1099,37 +1103,7 @@ function bindStage2GenerateButtonsOnce() {
 function rehydrateStage2PosterFromStage1() {
   const snapshot = loadStage1Data() || lastStage1Data || null;
   if (!snapshot) return;
-  const poster = stage2State.poster;
-  if (!poster.brand_name) poster.brand_name = snapshot.brand_name || '';
-  if (!poster.agent_name) poster.agent_name = snapshot.agent_name || '';
-  if (!poster.headline) poster.headline = snapshot.title || '';
-  if (!poster.subtitle) {
-    poster.subtitle = resolveTemplateABottomSupportCopy(snapshot, '');
-  }
-  if (!poster.tagline) {
-    poster.tagline = resolveTemplateABottomSupportCopy(snapshot, snapshot.slogan || '');
-  }
-  if (!Array.isArray(poster.features) || poster.features.length === 0) {
-    const fromFeatures = Array.isArray(snapshot.features) ? snapshot.features : [];
-    const fromBullets = Array.isArray(snapshot.bullets) ? snapshot.bullets : [];
-    const merged = (fromFeatures.length ? fromFeatures : fromBullets)
-      .map((value) => (typeof value === 'string' ? value.trim() : value))
-      .filter(Boolean);
-    poster.features = merged;
-  }
-  if (!poster.price && snapshot.price) poster.price = snapshot.price;
-  if (!poster.promo && snapshot.promo) poster.promo = snapshot.promo;
-  if (!poster.brand_color && snapshot.brand_color) poster.brand_color = snapshot.brand_color;
-  if (!Array.isArray(poster.series) || poster.series.length === 0) {
-    poster.series = Array.isArray(snapshot.gallery_entries)
-      ? snapshot.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
-      : [];
-  }
-  if (!Array.isArray(poster.gallery_entries) || poster.gallery_entries.length === 0) {
-    poster.gallery_entries = Array.isArray(snapshot.gallery_entries)
-      ? snapshot.gallery_entries.filter(Boolean)
-      : [];
-  }
+  syncStage2PreviewStateFromStage1(snapshot);
 }
 // 双列功能模板的归一化布局（随容器等比缩放）
 const TEMPLATE_DUAL_LAYOUT = {
@@ -2136,7 +2110,7 @@ function ensureUploadedAndLog(path, payload, rawPayload) {
 // 完整替换 app.js 里的 postJsonWithRetry
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
 // 发送请求：始终 JSON/UTF-8，支持多基址与重试
-async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload) {
+async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPayload, options = {}) {
   // 1) 规范化候选基址
   const bases = (window.resolveApiBases?.(apiBaseOrBases))
     ?? (Array.isArray(apiBaseOrBases) ? apiBaseOrBases
@@ -2166,12 +2140,31 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   let base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
   const urlFor = (b) => `${String(b).replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
   let lastErr = null;
+  const externalSignal = options?.signal || null;
+
+  const throwIfAborted = () => {
+    if (externalSignal?.aborted) {
+      const abortError = new Error(typeof externalSignal.reason === 'string' ? externalSignal.reason : 'Request aborted');
+      abortError.name = 'AbortError';
+      throw abortError;
+    }
+  };
 
   for (let attempt = 0; attempt <= retry; attempt += 1) {
+    throwIfAborted();
     const order = base ? [base, ...bases.filter(x => x !== base)] : bases;
 
     for (const b of order) {
+      throwIfAborted();
       const ctrl = new AbortController();
+      const relayAbort = () => ctrl.abort(externalSignal?.reason || 'Request aborted');
+      if (externalSignal) {
+        if (externalSignal.aborted) {
+          relayAbort();
+        } else {
+          externalSignal.addEventListener('abort', relayAbort, { once: true });
+        }
+      }
       const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
       const url = urlFor(b);                               // ← 定义 url
       try {
@@ -2215,6 +2208,9 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
         return json ?? {}; // 保持旧版语义：返回 JSON 对象
       } catch (e) {
+        if (e?.name === 'AbortError' && externalSignal?.aborted) {
+          throwIfAborted();
+        }
         console.warn(`${logPrefix} failed`, {
           attempt: attempt + 1,
           url,
@@ -2226,11 +2222,15 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
         base = null; // 该轮失败，下一轮重新挑
       } finally {
+        if (externalSignal) {
+          externalSignal.removeEventListener?.('abort', relayAbort);
+        }
         clearTimeout(timer);
       }
     }
 
     // 整轮失败后：热身 + 等待 + 重选
+    throwIfAborted();
     try { await window.warmUp?.(bases, { timeoutMs: 2500 }); } catch {}
     await new Promise(r => setTimeout(r, 800));
     base = await (window.pickHealthyBase?.(bases, { timeoutMs: 2500 })) ?? bases[0];
@@ -5878,6 +5878,204 @@ function pickDraftImageRef(asset) {
   );
 }
 
+function cloneStage2Value(value) {
+  if (typeof stage2RequestHelpers.cloneValue === 'function') {
+    return stage2RequestHelpers.cloneValue(value);
+  }
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch (error) {
+      console.warn('[stage2] structuredClone failed, falling back to JSON clone', error);
+    }
+  }
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function buildStage2SourceSignatures(stage1Data) {
+  if (typeof stage2RequestHelpers.buildStage2SourceSignatures === 'function') {
+    return stage2RequestHelpers.buildStage2SourceSignatures(stage1Data);
+  }
+  const galleryEntries = Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries : [];
+  return {
+    assetSignature: JSON.stringify({
+      brand_logo: pickDraftImageRef(stage1Data?.brand_logo),
+      scenario_asset: pickDraftImageRef(stage1Data?.scenario_asset),
+      product_image_1: pickDraftImageRef(stage1Data?.product_image_1 || stage1Data?.product_asset),
+      product_image_2: pickDraftImageRef(stage1Data?.product_image_2),
+      gallery_entries: galleryEntries.map((entry) => ({
+        asset: pickDraftImageRef(entry?.asset),
+        caption: entry?.caption || '',
+      })),
+    }),
+    copySignature: JSON.stringify({
+      title: stage1Data?.title || '',
+      subtitle: stage1Data?.subtitle || stage1Data?.tagline || stage1Data?.promo || '',
+      features: resolveStage1ProductCallouts(stage1Data),
+    }),
+  };
+}
+
+function buildPoster2PayloadFromNormalisedInputs(input) {
+  if (typeof stage2RequestHelpers.buildPoster2PayloadFromNormalisedInputs === 'function') {
+    return stage2RequestHelpers.buildPoster2PayloadFromNormalisedInputs(input);
+  }
+  return {
+    template_id: input.templateId,
+    renderer_mode: input.rendererMode || 'auto',
+    brand_name: input.brandName || '',
+    agent_name: input.agentName || '',
+    title: input.title || '',
+    subtitle: input.subtitle || '',
+    features: Array.isArray(input.features) ? input.features.slice(0, 4) : [],
+    product_image: input.productImage || { url: '', key: null },
+    product_secondary_image: input.productSecondaryImage || null,
+    logo: input.logo || null,
+    scenario_image: input.scenarioImage || null,
+    gallery_images: Array.isArray(input.galleryImages)
+      ? input.galleryImages.map((entry) => ({
+          url: entry.url || '',
+          key: entry.key || null,
+          caption: entry.caption || null,
+        }))
+      : [],
+    gallery_input_count_raw: input.bottomRequestState?.gallery_input_count_raw ?? 0,
+    gallery_input_count_normalized: input.bottomRequestState?.gallery_input_count_normalized ?? 0,
+    gallery_requested_count: input.bottomRequestState?.requested_gallery_count ?? 0,
+    gallery_autofill_applied: Boolean(input.bottomRequestState?.gallery_autofill_applied),
+    bottom_mode: input.bottomRequestState?.bottom_mode || 'title_gallery_split',
+    gallery_mode: input.bottomRequestState?.gallery_mode || 'strip_local_visible_only',
+    style: {
+      prompt: input.stylePrompt || '',
+    },
+    copy_optimization: {
+      mode: input.copyOptimization?.mode || 'off',
+      decision: input.copyOptimization?.decision || 'pending',
+      accepted_title: input.copyOptimization?.accepted_title || input.copyOptimization?.acceptedTitle || '',
+      accepted_subtitle: input.copyOptimization?.accepted_subtitle || input.copyOptimization?.acceptedSubtitle || '',
+      accepted_features: Array.isArray(input.copyOptimization?.accepted_features)
+        ? input.copyOptimization.accepted_features.filter(Boolean).slice(0, 4)
+        : Array.isArray(input.copyOptimization?.acceptedFeatures)
+        ? input.copyOptimization.acceptedFeatures.filter(Boolean).slice(0, 4)
+        : [],
+    },
+  };
+}
+
+function buildPoster2RequestSummary(payload) {
+  if (typeof stage2RequestHelpers.buildPoster2RequestSummary === 'function') {
+    return stage2RequestHelpers.buildPoster2RequestSummary(payload);
+  }
+  return {
+    template_id: payload?.template_id || null,
+    renderer_mode: payload?.renderer_mode || null,
+    bottom_mode: payload?.bottom_mode || null,
+    gallery_mode: payload?.gallery_mode || null,
+    feature_count: Array.isArray(payload?.features) ? payload.features.length : 0,
+    gallery_count: Array.isArray(payload?.gallery_images) ? payload.gallery_images.length : 0,
+  };
+}
+
+function isCurrentStage2Request(requestId) {
+  return stage2ActiveRequestId === requestId;
+}
+
+function abortActiveStage2Request(reason = 'superseded') {
+  if (!stage2ActiveAbortController) return;
+  try {
+    stage2ActiveAbortController.abort(reason);
+  } catch (error) {
+    console.warn('[stage2] abort request failed', error);
+  }
+}
+
+function clearStage2RuntimeRequestCache() {
+  const stage2Raw = sessionStorage.getItem(STORAGE_KEYS.stage2);
+  if (stage2Raw) {
+    try {
+      const stage2Meta = JSON.parse(stage2Raw);
+      const key = stage2Meta?.final_poster?.storage_key;
+      if (key) {
+        void assetStore.delete(key);
+      }
+    } catch (error) {
+      console.warn('[stage2] unable to clear cached stage2 result', error);
+    }
+  }
+  sessionStorage.removeItem(STORAGE_KEYS.stage2);
+  lastPosterResult = null;
+  lastPromptBundle = null;
+  posterGenerationState.promptBundle = null;
+  posterGenerationState.rawResult = null;
+  stage2State.poster2.latestResult = null;
+  stage2State.poster2.history = [];
+  stage2State.generated.lastSuccessPosterUrl = null;
+  renderPoster2RunHistory();
+  updateDebugPanels({ response: null });
+}
+
+function resetPoster2DerivedCopyOptimization(reason = 'source_changed') {
+  const state = ensurePoster2CopyOptimizationState();
+  state.decision = 'pending';
+  state.acceptedTitle = '';
+  state.acceptedSubtitle = '';
+  state.acceptedFeatures = [];
+  state.latestReview = null;
+  renderPoster2CopyOptimizationReview(null);
+  console.info('[stage2][poster2] cleared copy optimization state', { reason });
+}
+
+function invalidateStage2DerivedStateForSnapshot(stage1Data) {
+  const next = buildStage2SourceSignatures(stage1Data);
+  const previous = stage2LastSourceSignatures;
+  const assetsChanged = Boolean(previous && previous.assetSignature !== next.assetSignature);
+  const copyChanged = Boolean(previous && previous.copySignature !== next.copySignature);
+  if (assetsChanged) {
+    clearStage2RuntimeRequestCache();
+  }
+  if (assetsChanged || copyChanged) {
+    resetPoster2DerivedCopyOptimization(assetsChanged ? 'asset_changed' : 'copy_changed');
+  }
+  stage2LastSourceSignatures = next;
+  return { assetsChanged, copyChanged, signatures: next };
+}
+
+function syncStage2PreviewStateFromStage1(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  const stage1Features = Array.isArray(snapshot.features)
+    ? snapshot.features.filter(Boolean)
+    : [];
+  const stage1Bullets = Array.isArray(snapshot.bullets)
+    ? snapshot.bullets.filter(Boolean)
+    : [];
+  const stage2Features = stage1Features.length ? stage1Features : stage1Bullets;
+  stage2State.poster = {
+    brand_name: snapshot.brand_name || '',
+    agent_name: snapshot.agent_name || '',
+    headline: snapshot.title || '',
+    subtitle: resolveTemplateABottomSupportCopy(snapshot, ''),
+    tagline: resolveTemplateABottomSupportCopy(snapshot, ''),
+    features: stage2Features,
+    series: Array.isArray(snapshot.gallery_entries)
+      ? snapshot.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
+      : [],
+    gallery_entries: Array.isArray(snapshot.gallery_entries)
+      ? snapshot.gallery_entries.filter(Boolean)
+      : [],
+  };
+  stage2State.assets = {
+    brand_logo_url: pickImageSrc(snapshot.brand_logo) || '',
+    scenario_url: pickImageSrc(snapshot.scenario_asset) || '',
+    product_url: pickImageSrc(snapshot.product_asset || snapshot.product_image_1) || '',
+    gallery_urls: Array.isArray(snapshot.gallery_entries)
+      ? snapshot.gallery_entries
+          .map((entry) => pickImageSrc(entry?.asset))
+          .filter(Boolean)
+      : [],
+    composite_poster_url: '',
+  };
+}
+
 function getKitPosterVariant(renderMode) {
   if (renderMode === 'kitposter1_b') return 'b';
   return 'a';
@@ -5977,9 +6175,13 @@ function buildGeneratePosterPayload(draft) {
   };
 }
 
-async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
-  syncPoster2BottomContractFromControls(stage1Data);
-  const copyOptimizationState = ensurePoster2CopyOptimizationState();
+async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = {}) {
+  const copyOptimizationState = cloneStage2Value(options.copyOptimizationState || ensurePoster2CopyOptimizationState());
+  const bottomRequestState = cloneStage2Value(
+    options.bottomRequestState || buildPoster2BottomRequestState(stage1Data)
+  );
+  const adjustments = cloneStage2Value(options.adjustments || stage2State.adjustments || {});
+  const rendererMode = options.rendererMode || stage2State.poster2.rendererMode || 'auto';
   const safeText = (value, fallback = '') => {
     const text = typeof value === 'string' ? value.trim() : '';
     return text || fallback;
@@ -6003,7 +6205,6 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   };
 
   const brandName = safeText(stage1Data.brand_name, MODE_S_DEFAULT_STAGE1.brand_name || 'Brand');
-  const bottomRequestState = buildPoster2BottomRequestState(stage1Data);
   const title = bottomRequestState.sanitized_title_text;
   const agentName = resolveModeSAgentName(
     stage1Data.agent_name || MODE_S_DEFAULT_STAGE1.agent_name || stage1Data.channel || '',
@@ -6019,7 +6220,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     : Array.isArray(stage1Data.bullets)
     ? stage1Data.bullets
     : [];
-  const features = (stage2State.adjustments?.showBullets !== false
+  const features = (adjustments?.showBullets !== false
     ? featureSource
     : []
   )
@@ -6138,19 +6339,19 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
     });
   }
 
-  const payload = {
-    template_id: POSTER2_PILOT_TEMPLATE_ID,
-    renderer_mode: stage2State.poster2.rendererMode || 'auto',
-    brand_name: brandName,
-    agent_name: agentName,
+  const payload = buildPoster2PayloadFromNormalisedInputs({
+    templateId: POSTER2_PILOT_TEMPLATE_ID,
+    rendererMode,
+    brandName,
+    agentName,
     title,
     subtitle,
     features,
-    product_image: {
+    productImage: {
       url: productRef?.url || '',
       key: productRef?.key || null,
     },
-    product_secondary_image: productSecondaryRef?.url
+    productSecondaryImage: productSecondaryRef?.url
       ? {
           url: productSecondaryRef.url,
           key: productSecondaryRef.key || null,
@@ -6162,36 +6363,29 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
           key: logoRef.key || null,
         }
       : null,
-    scenario_image: scenarioRef?.url
+    scenarioImage: scenarioRef?.url
       ? {
           url: scenarioRef.url,
           key: scenarioRef.key || null,
         }
       : null,
-    gallery_images: galleryRefs.map((ref) => ({
+    galleryImages: galleryRefs.map((ref) => ({
       url: ref.url,
       key: ref.key || null,
       caption: ref.caption || null,
     })),
-    gallery_input_count_raw: bottomRequestState.gallery_input_count_raw,
-    gallery_input_count_normalized: bottomRequestState.gallery_input_count_normalized,
-    gallery_requested_count: bottomRequestState.requested_gallery_count,
-    gallery_autofill_applied: bottomRequestState.gallery_autofill_applied,
-    bottom_mode: bottomRequestState.bottom_mode,
-    gallery_mode: bottomRequestState.gallery_mode,
-    style: {
-      prompt: pickPoster2StylePrompt(),
-    },
-    copy_optimization: {
+    bottomRequestState,
+    stylePrompt: pickPoster2StylePrompt(),
+    copyOptimization: {
       mode: copyOptimizationState.mode || 'off',
       decision: copyOptimizationState.decision || 'pending',
-      accepted_title: copyOptimizationState.acceptedTitle || '',
-      accepted_subtitle: copyOptimizationState.acceptedSubtitle || '',
-      accepted_features: Array.isArray(copyOptimizationState.acceptedFeatures)
+      acceptedTitle: copyOptimizationState.acceptedTitle || '',
+      acceptedSubtitle: copyOptimizationState.acceptedSubtitle || '',
+      acceptedFeatures: Array.isArray(copyOptimizationState.acceptedFeatures)
         ? copyOptimizationState.acceptedFeatures.filter(Boolean).slice(0, 4)
         : [],
     },
-  };
+  });
 
   return {
     payload,
@@ -6205,7 +6399,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates) {
   };
 }
 
-async function buildTemplateBPosterPayload(stage1Data, apiCandidates) {
+async function buildTemplateBPosterPayload(stage1Data, apiCandidates, options = {}) {
   const safeText = (value, fallback = '') => {
     const text = typeof value === 'string' ? value.trim() : '';
     return text || fallback;
@@ -6277,7 +6471,7 @@ async function buildTemplateBPosterPayload(stage1Data, apiCandidates) {
     }
   }
 
-  const rendererMode = stage2State.poster2.rendererMode || 'auto';
+  const rendererMode = options.rendererMode || stage2State.poster2.rendererMode || 'auto';
   const payload = {
     template_id: TEMPLATE_B_ID,
     renderer_mode: rendererMode,
@@ -7213,40 +7407,8 @@ function initStage2() {
       console.warn('[initStage2] unable to deep copy stage1Data, using fallback reference', error);
     }
 
-    const stage1Features = Array.isArray(stage1Data.features)
-      ? stage1Data.features.filter(Boolean)
-      : [];
-    const stage1Bullets = Array.isArray(stage1Data.bullets)
-      ? stage1Data.bullets.filter(Boolean)
-      : [];
-    const stage2Features = stage1Features.length ? stage1Features : stage1Bullets;
-
-    stage2State.poster = {
-      brand_name: stage1Data.brand_name || '',
-      agent_name: stage1Data.agent_name || '',
-      headline: stage1Data.title || '',
-      subtitle: resolveTemplateABottomSupportCopy(stage1Data, ''),
-      tagline: resolveTemplateABottomSupportCopy(stage1Data, ''),
-      features: stage2Features,
-      series: Array.isArray(stage1Data.gallery_entries)
-        ? stage1Data.gallery_entries.filter(Boolean).map((entry) => ({ name: entry.caption || '' }))
-        : [],
-      gallery_entries: Array.isArray(stage1Data.gallery_entries)
-        ? stage1Data.gallery_entries.filter(Boolean)
-        : [],
-    };
-
-    stage2State.assets = {
-      brand_logo_url: pickImageSrc(stage1Data.brand_logo) || '',
-      scenario_url: pickImageSrc(stage1Data.scenario_asset) || '',
-      product_url: pickImageSrc(stage1Data.product_asset) || '',
-      gallery_urls: Array.isArray(stage1Data.gallery_entries)
-        ? stage1Data.gallery_entries
-            .map((entry) => pickImageSrc(entry?.asset))
-            .filter(Boolean)
-        : [],
-      composite_poster_url: '',
-    };
+    syncStage2PreviewStateFromStage1(stage1Data);
+    stage2LastSourceSignatures = buildStage2SourceSignatures(stage1Data);
 
     renderPosterResult();
 
@@ -8668,7 +8830,15 @@ async function triggerGeneration(opts) {
     forceVariants = null, abTest = false,
   } = opts;
   const { disablePosterImage = false } = opts;
-  rehydrateStage2PosterFromStage1();
+  const liveStage1Data = loadStage1Data() || stage1Data || lastStage1Data || {};
+  const requestStage1Data = cloneStage2Value(liveStage1Data) || {};
+  syncPoster2BottomContractFromControls(requestStage1Data);
+  const bottomRequestState = cloneStage2Value(buildPoster2BottomRequestState(requestStage1Data));
+  const copyOptimizationState = cloneStage2Value(ensurePoster2CopyOptimizationState());
+  const adjustments = cloneStage2Value(stage2State.adjustments || {});
+  const rendererMode = stage2State.poster2.rendererMode || 'auto';
+  syncStage2PreviewStateFromStage1(requestStage1Data);
+  renderPosterResult();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
   let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
@@ -8676,37 +8846,48 @@ async function triggerGeneration(opts) {
   stage2State.regenPolicy = isRegenerate
     ? { updateScenario: true, updateGallery: true, updateProduct: false }
     : { updateScenario: false, updateGallery: false, updateProduct: false };
-  if (stage2InFlight) {
-    setStatus(statusElement, '生成中，请稍候…', 'info');
-    return null;
+  if (stage2InFlight && stage2ActiveAbortController) {
+    abortActiveStage2Request('superseded_by_new_generate');
+    console.info('[stage2] aborted prior in-flight generate request');
   }
   const mySeq = ++stage2GenerationSeq;
+  stage2ActiveRequestId = mySeq;
+  stage2ActiveAbortController = new AbortController();
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
-  
+  const sourceInvalidation = invalidateStage2DerivedStateForSnapshot(requestStage1Data);
+  console.info('[stage2] request source signatures', {
+    request_id: mySeq,
+    assets_changed: sourceInvalidation.assetsChanged,
+    copy_changed: sourceInvalidation.copyChanged,
+  });
 
   // 1) 选可用 API 基址
   const apiCandidates = getApiCandidates(document.getElementById('api-base')?.value || null);
   if (!apiCandidates.length) {
-    stage2InFlight = false;
-    setStage2ButtonsDisabled(false);
+    if (isCurrentStage2Request(mySeq)) {
+      stage2InFlight = false;
+      stage2ActiveAbortController = null;
+      setStage2ButtonsDisabled(false);
+    }
     setStatus(statusElement, '未找到可用后端，请先填写 API 基址。', 'warning');
     return null;
   }
 
   // 2) 资产“再水化”确保 dataUrl 就绪（仅用于画布预览；发送给后端使用 r2Key）
-  await hydrateStage1DataAssets(stage1Data);
+  await hydrateStage1DataAssets(requestStage1Data);
+  if (!isCurrentStage2Request(mySeq)) return null;
 
-  const usePoster2Pilot = shouldUsePoster2Pilot(stage1Data);
+  const usePoster2Pilot = shouldUsePoster2Pilot(requestStage1Data);
   let endpointPath = '/api/generate-poster';
 
   // 3) 主体 poster（素材必须已上云，仅传 URL/Key）
-  const templateId = stage1Data.template_id;
-  const sc = stage1Data.scenario_asset || null;
-  const pd = stage1Data.product_asset || null;
+  const templateId = requestStage1Data.template_id;
+  const sc = requestStage1Data.scenario_asset || null;
+  const pd = requestStage1Data.product_asset || null;
 
-  const scenarioMode = stage1Data.scenario_mode || 'upload';
-  const productMode = stage1Data.product_mode || 'upload';
+  const scenarioMode = requestStage1Data.scenario_mode || 'upload';
+  const productMode = requestStage1Data.product_mode || 'upload';
 
   let posterPayload;
   let brandLogoRef;
@@ -8718,7 +8899,7 @@ async function triggerGeneration(opts) {
   let payload;
   try {
     if (MODE_S && templateId === TEMPLATE_B_ID) {
-      const templateBRequest = await buildTemplateBPosterPayload(stage1Data, apiCandidates);
+      const templateBRequest = await buildTemplateBPosterPayload(requestStage1Data, apiCandidates, { rendererMode });
       payload = templateBRequest.payload;
       brandLogoRef = templateBRequest.refs.logoRef;
       productImage1Ref = templateBRequest.refs.productRef;
@@ -8741,7 +8922,12 @@ async function triggerGeneration(opts) {
         materials_images: payload.materials_images || [],
       };
     } else if (usePoster2Pilot) {
-      const poster2Request = await buildPoster2GeneratePayload(stage1Data, apiCandidates);
+      const poster2Request = await buildPoster2GeneratePayload(requestStage1Data, apiCandidates, {
+        bottomRequestState,
+        copyOptimizationState,
+        adjustments,
+        rendererMode,
+      });
       payload = poster2Request.payload;
       brandLogoRef = poster2Request.refs.logoRef;
       productImage1Ref = poster2Request.refs.productRef;
@@ -8770,26 +8956,26 @@ async function triggerGeneration(opts) {
         return text || fallback;
       };
 
-      productImage1Ref = await normaliseAssetReference(stage1Data.product_image_1, {
+      productImage1Ref = await normaliseAssetReference(requestStage1Data.product_image_1, {
         field: 'poster.product_image_1',
         required: true,
         apiCandidates,
         folder: 'product',
       });
-      productImage2Ref = await normaliseAssetReference(stage1Data.product_image_2, {
+      productImage2Ref = await normaliseAssetReference(requestStage1Data.product_image_2, {
         field: 'poster.product_image_2',
         required: false,
         apiCandidates,
         folder: 'product',
       }, productImage1Ref);
-      scenarioRef = await normaliseAssetReference(stage1Data.scenario_asset, {
+      scenarioRef = await normaliseAssetReference(requestStage1Data.scenario_asset, {
         field: 'poster.scenario_asset',
         required: false,
         apiCandidates,
         folder: 'scenario',
       }, productImage1Ref);
 
-      const scenarioCandidate = stage1Data.scenario_asset || stage1Data.scenario_image;
+      const scenarioCandidate = requestStage1Data.scenario_asset || requestStage1Data.scenario_image;
       scenarioRef = await normaliseAssetReference(scenarioCandidate, {
         field: 'poster.scenario_asset',
         required: false,
@@ -8797,24 +8983,24 @@ async function triggerGeneration(opts) {
         folder: 'scenario',
       }, productImage1Ref);
 
-      const showBullets = stage2State.adjustments?.showBullets !== false;
-      const bullets = Array.isArray(stage1Data.bullets)
-        ? stage1Data.bullets.filter(Boolean)
+      const showBullets = adjustments?.showBullets !== false;
+      const bullets = Array.isArray(requestStage1Data.bullets)
+        ? requestStage1Data.bullets.filter(Boolean)
         : [];
-      const title = safeText(stage1Data.title, 'Poster');
-      const channel = safeText(stage1Data.channel, 'direct');
-      const intent = safeText(stage1Data.intent, 'default');
-      const brandName = safeText(stage1Data.brand_name, 'Brand');
-      const productName = safeText(stage1Data.product_name, title);
-      const promo = safeText(stage1Data.promo, '');
-      const price = safeText(stage1Data.price, '');
-      const tagline = safeText(stage1Data.tagline || stage1Data.promo || stage1Data.price, '');
+      const title = safeText(requestStage1Data.title, 'Poster');
+      const channel = safeText(requestStage1Data.channel, 'direct');
+      const intent = safeText(requestStage1Data.intent, 'default');
+      const brandName = safeText(requestStage1Data.brand_name, 'Brand');
+      const productName = safeText(requestStage1Data.product_name, title);
+      const promo = safeText(requestStage1Data.promo, '');
+      const price = safeText(requestStage1Data.price, '');
+      const tagline = safeText(requestStage1Data.tagline || requestStage1Data.promo || requestStage1Data.price, '');
       const subtitle = safeText(tagline, title);
       const seriesDescription = safeText(
-        stage1Data.promo || stage1Data.price || stage1Data.intent,
+        requestStage1Data.promo || requestStage1Data.price || requestStage1Data.intent,
         title
       );
-      const agentName = resolveModeSAgentName(stage1Data.agent_name || channel, brandName);
+      const agentName = resolveModeSAgentName(requestStage1Data.agent_name || channel, brandName);
 
       if (productImage1Ref?.url) {
         assertAssetUrl('product_image_1', productImage1Ref.url);
@@ -8827,7 +9013,7 @@ async function triggerGeneration(opts) {
         product_name: productName,
         channel,
         intent,
-        brand_color: stage1Data.brand_color || null,
+        brand_color: requestStage1Data.brand_color || null,
         price: price || null,
         promo: promo || null,
         template_id: templateId || DEFAULT_STAGE1.template_id,
@@ -8863,7 +9049,7 @@ async function triggerGeneration(opts) {
         product_image_2_key: posterPayload?.product_image_2_key,
       });
     } else {
-    brandLogoRef = await normaliseAssetReference(stage1Data.brand_logo, {
+    brandLogoRef = await normaliseAssetReference(requestStage1Data.brand_logo, {
       field: 'poster.brand_logo',
       required: true,
       apiCandidates,
@@ -8884,10 +9070,10 @@ async function triggerGeneration(opts) {
       folder: 'product',
     }, brandLogoRef);
 
-    galleryItems = await buildGalleryItemsWithFallback(stage1Data, brandLogoRef, apiCandidates, 4);
+    galleryItems = await buildGalleryItemsWithFallback(requestStage1Data, brandLogoRef, apiCandidates, 4);
 
-    const features = Array.isArray(stage1Data.features)
-      ? stage1Data.features.filter(Boolean)
+    const features = Array.isArray(requestStage1Data.features)
+      ? requestStage1Data.features.filter(Boolean)
       : [];
 
     const brandLogoUrl = brandLogoRef.url || null;
@@ -8905,17 +9091,17 @@ async function triggerGeneration(opts) {
     }
 
     posterPayload = {
-      brand_name: stage1Data.brand_name,
-      agent_name: stage1Data.agent_name,
+      brand_name: requestStage1Data.brand_name,
+      agent_name: requestStage1Data.agent_name,
       scenario_image: scenarioUrl,
-      product_name: stage1Data.product_name,
-      channel: stage1Data.channel || null,
-      intent: stage1Data.intent || null,
+      product_name: requestStage1Data.product_name,
+      channel: requestStage1Data.channel || null,
+      intent: requestStage1Data.intent || null,
       template_id: templateId,
       features,
-      title: stage1Data.title,
-      subtitle: stage1Data.subtitle,
-      series_description: stage1Data.series_description,
+      title: requestStage1Data.title,
+      subtitle: requestStage1Data.subtitle,
+      series_description: requestStage1Data.series_description,
 
       brand_logo: brandLogoUrl,
       brand_logo_key: brandLogoRef.key,
@@ -8929,27 +9115,30 @@ async function triggerGeneration(opts) {
       scenario_mode: scenarioMode,
       scenario_prompt:
         scenarioMode === 'prompt'
-          ? stage1Data.scenario_prompt || stage1Data.scenario_image || null
+          ? requestStage1Data.scenario_prompt || requestStage1Data.scenario_image || null
           : null,
       product_mode: productMode,
-      product_prompt: productMode === 'prompt' ? stage1Data.product_prompt || null : null,
+      product_prompt: productMode === 'prompt' ? requestStage1Data.product_prompt || null : null,
 
       gallery_items: galleryItems,
-      gallery_label: stage1Data.gallery_label || null,
-      gallery_limit: stage1Data.gallery_limit ?? null,
-      gallery_allows_prompt: stage1Data.gallery_allows_prompt !== false,
-      gallery_allows_upload: stage1Data.gallery_allows_upload !== false,
+      gallery_label: requestStage1Data.gallery_label || null,
+      gallery_limit: requestStage1Data.gallery_limit ?? null,
+      gallery_allows_prompt: requestStage1Data.gallery_allows_prompt !== false,
+      gallery_allows_upload: requestStage1Data.gallery_allows_upload !== false,
     };
     }
   } catch (error) {
     console.error('[triggerGeneration] asset normalisation failed', error);
-    setStatus(
-      statusElement,
-      error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
-      'error',
-    );
-    stage2InFlight = false;
-    setStage2ButtonsDisabled(false);
+    if (isCurrentStage2Request(mySeq)) {
+      setStatus(
+        statusElement,
+        error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+        'error',
+      );
+      stage2InFlight = false;
+      stage2ActiveAbortController = null;
+      setStage2ButtonsDisabled(false);
+    }
     return null;
   }
   // 4) Prompt bundle (Mode S presets only)
@@ -8957,18 +9146,19 @@ async function triggerGeneration(opts) {
   if (!MODE_S && forceVariants != null) reqFromInspector.variants = forceVariants;
 
   // Template B does not use Family A prompt slots — skip bundle to avoid sending A-family prompts.
-  const isTemplateBRequest = MODE_S && stage1Data.template_id === TEMPLATE_B_ID;
+  const isTemplateBRequest = MODE_S && requestStage1Data.template_id === TEMPLATE_B_ID;
   let promptBundleStrings = isTemplateBRequest
     ? null
     : MODE_S
-      ? await buildModeSPromptBundle(stage1Data)
+      ? await buildModeSPromptBundle(requestStage1Data)
       : buildPromptBundleStrings(reqFromInspector.prompts || {});
   if (!MODE_S && isPromptBundleEmpty(promptBundleStrings)) {
     const fallbackState = latestPromptState?.slots
       ? latestPromptState
-      : createPromptState(stage1Data, promptPresets || { presets: {}, defaultAssignments: {} });
+      : createPromptState(requestStage1Data, promptPresets || { presets: {}, defaultAssignments: {} });
     promptBundleStrings = serialisePromptState(fallbackState);
   }
+  if (!isCurrentStage2Request(mySeq)) return null;
 
   if (!payload) {
     const renderMode = MODE_S ? MODE_S_RENDER_MODE : (stage2State.renderMode || 'kitposter1_a');
@@ -8980,22 +9170,23 @@ async function triggerGeneration(opts) {
       lock_seed: MODE_S ? true : !!reqFromInspector.lockSeed,
     };
 
-    payload = { ...requestBase };
+      payload = { ...requestBase };
     if (promptBundleStrings) {
       payload.prompt_bundle = promptBundleStrings;
     }
     // Template B (template_product_sheet_v1) does not use KitPosterDraft — omit draft
     // to avoid backend schema rejection (KitPosterDraft.template_id is Literal family-A only).
-    if (MODE_S && stage1Data.template_id !== TEMPLATE_B_ID) {
+    if (MODE_S && requestStage1Data.template_id !== TEMPLATE_B_ID) {
       payload.draft = buildKitPosterDraftFromSource(
-        stage1Data,
-        stage2State.adjustments,
+        requestStage1Data,
+        adjustments,
         renderMode
       );
     }
   }
 
-  updateDebugPanels({ draft: stage2State.draft, payload });
+  if (!isCurrentStage2Request(mySeq)) return null;
+  updateDebugPanels({ draft: stage2State.draft, payload: cloneStage2Value(payload) });
 
   const posterSummary = {
     template_id: posterPayload.template_id,
@@ -9038,14 +9229,8 @@ async function triggerGeneration(opts) {
   });
   if (endpointPath === '/api/v2/generate-poster') {
     console.info('[stage2][poster2] request summary', {
-      template_id: payload?.template_id,
-      renderer_mode: payload?.renderer_mode,
-      bottom_mode: payload?.bottom_mode,
-      gallery_mode: payload?.gallery_mode,
-      has_logo: Boolean(payload?.logo),
-      has_scenario_image: Boolean(payload?.scenario_image),
-      gallery_count: Array.isArray(payload?.gallery_images) ? payload.gallery_images.length : 0,
-      style_prompt: payload?.style?.prompt || '',
+      request_id: mySeq,
+      ...buildPoster2RequestSummary(payload),
       content_type: 'application/json; charset=UTF-8',
     });
   }
@@ -9059,9 +9244,12 @@ async function triggerGeneration(opts) {
   // 5) 体积守护
   const rawPayload = JSON.stringify(payload);
   try { validatePayloadSize(rawPayload); } catch (e) {
-    setStatus(statusElement, e.message, 'error');
-    stage2InFlight = false;
-    setStage2ButtonsDisabled(false);
+    if (isCurrentStage2Request(mySeq)) {
+      setStatus(statusElement, e.message, 'error');
+      stage2InFlight = false;
+      stage2ActiveAbortController = null;
+      setStage2ButtonsDisabled(false);
+    }
     return null;
   }
   
@@ -9102,7 +9290,7 @@ async function triggerGeneration(opts) {
     const nextPrompt = typeof options.prompt === 'string' ? options.prompt : '';
     const nextEmail = typeof options.email === 'string' ? options.email : '';
     const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
-    const canProceed = MODE_S ? Boolean(data?.final_poster) : hasCopy;
+    const canProceed = MODE_S ? Boolean(templatePoster) : hasCopy;
     if (nextButton) nextButton.disabled = !canProceed;
 
     if (templatePoster && hasCopy) {
@@ -9120,7 +9308,7 @@ async function triggerGeneration(opts) {
           seed: null,
           lock_seed: false,
           template_fallback: true,
-          template_id: stage1Data.template_id || null,
+          template_id: requestStage1Data.template_id || null,
         });
       } catch (error) {
         console.error('save template fallback failed', error);
@@ -9143,9 +9331,12 @@ async function triggerGeneration(opts) {
   try {
     didAttempt = true;
     await warmUp(apiCandidates);
-    const resp = await postJsonWithRetry(apiCandidates, endpointPath, payload, 1, rawPayload);
+    if (!isCurrentStage2Request(mySeq)) return null;
+    const resp = await postJsonWithRetry(apiCandidates, endpointPath, payload, 1, rawPayload, {
+      signal: stage2ActiveAbortController?.signal,
+    });
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
-    if (mySeq !== stage2GenerationSeq) return null;
+    if (!isCurrentStage2Request(mySeq)) return null;
 
     lastPosterResult = data || null;
     updateDebugPanels({ response: data });
@@ -9232,7 +9423,7 @@ async function triggerGeneration(opts) {
         poster: { ...stage2State.poster },
         template_poster: null,
         template_fallback: Boolean(data?.fallback_used),
-        template_id: stage1Data.template_id || null,
+        template_id: requestStage1Data.template_id || null,
         seed: data?.seed ?? null,
         lock_seed: data?.lock_seed ?? null,
       });
@@ -9253,11 +9444,18 @@ async function triggerGeneration(opts) {
 
     return data;
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      console.info('[generatePoster] request aborted', { request_id: mySeq, message: error?.message || 'aborted' });
+      return null;
+    }
+    if (!isCurrentStage2Request(mySeq)) return null;
     console.error('[generatePoster] request failed', {
       error,
       status: error?.status,
       responseJson: error?.responseJson,
       responseText: error?.responseText,
+      request_id: mySeq,
+      request_summary: endpointPath === '/api/v2/generate-poster' ? buildPoster2RequestSummary(payload) : null,
     });
     const detail = error?.responseJson?.detail || null;
     const quotaExceeded =
@@ -9294,9 +9492,12 @@ async function triggerGeneration(opts) {
     updateRegenerateButtonState();
     return null;
   } finally {
-    stage2InFlight = false;
-    setStage2ButtonsDisabled(false);
-    updateRegenerateButtonState();
+    if (isCurrentStage2Request(mySeq)) {
+      stage2InFlight = false;
+      stage2ActiveAbortController = null;
+      setStage2ButtonsDisabled(false);
+      updateRegenerateButtonState();
+    }
   }
 }
 
