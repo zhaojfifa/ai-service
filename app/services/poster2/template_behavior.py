@@ -43,10 +43,11 @@ _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h":
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 564, "w": 300, "h": 144}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
 _PRODUCT_REGION_OUTER_W = 504
-_PRODUCT_REGION_OUTER_W_FRYER = 520
+_PRODUCT_REGION_OUTER_W_FRYER = 516
 _PRODUCT_CANVAS_SHELL_W = 300
-_PRODUCT_CANVAS_SHELL_W_FRYER = 324
-_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 472, "y": 580, "w": 120, "h": 120}
+_PRODUCT_CANVAS_SHELL_W_FRYER = 316
+_PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 460, "y": 214, "w": 312, "h": 496}
+_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 486, "y": 596, "w": 104, "h": 104}
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
 # This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
@@ -61,11 +62,11 @@ _PRODUCT_TEXT_SHELL_X = 784
 _PRODUCT_TEXT_SHELL_Y = 216
 _PRODUCT_TEXT_SHELL_W = 176
 _PRODUCT_TEXT_SHELL_H = 276
-_PRODUCT_TEXT_SHELL_FRYER = {"x": 792, "y": 212, "w": 184, "h": 286}
+_PRODUCT_TEXT_SHELL_FRYER = {"x": 796, "y": 220, "w": 176, "h": 268}
 _PRODUCT_ANNOTATION_LABEL_BOUNDS_FRYER: tuple[dict[str, int], ...] = (
-    {"x": 792, "y": 212, "w": 184, "h": 82},
-    {"x": 792, "y": 314, "w": 184, "h": 82},
-    {"x": 792, "y": 416, "w": 184, "h": 82},
+    {"x": 796, "y": 220, "w": 176, "h": 76},
+    {"x": 796, "y": 316, "w": 176, "h": 76},
+    {"x": 796, "y": 412, "w": 176, "h": 76},
 )
 
 # Frozen owner surfaces for product_region.
@@ -1160,12 +1161,7 @@ def resolve_product_behavior(
             product_secondary_asset_policy = "hide_no_reserve"
     else:
         if commercial_fryer_variant:
-            product_primary_slot = {
-                "x": int(product_region["x"]),
-                "y": int(product_region["y"]),
-                "w": int(_PRODUCT_CANVAS_SHELL_W_FRYER),
-                "h": int(product_region["h"]),
-            }
+            product_primary_slot = dict(_PRODUCT_FRYER_PRIMARY_STAGE_SLOT)
             if has_product_secondary_asset:
                 product_secondary_slot = dict(_PRODUCT_FRYER_SUPPORTING_INSET_SLOT)
                 product_secondary_slot_rendered = True
@@ -2160,9 +2156,9 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 2
             title_char_budget = 52
             subtitle_char_budget = 120  # PR-bottom-final: raise to 2-line CSS capacity; CSS line-clamp:2 handles overflow
-            title_band_height = 172 if commercial_fryer_variant else 176
-            title_content_pad_top = 18 if commercial_fryer_variant else 20
-            title_content_pad_bottom = 12 if commercial_fryer_variant else 16
+            title_band_height = 176 if commercial_fryer_variant else 176
+            title_content_pad_top = 20 if commercial_fryer_variant else 20
+            title_content_pad_bottom = 14 if commercial_fryer_variant else 16
             title_stack_gap = 8  # PR-7C: +2 from 6; matched to triplet/light-gallery branches
         elif subtitle_slot_rendered:
             title_band_sizing_mode = "standard"
@@ -2567,8 +2563,8 @@ def _resolve_gallery_distribution_layout(
         gallery_shell_frame_policy = "quad_detail_row_frame"
         gallery_aspect_policy = "detail_row_quad_aspect"
         gallery_spacing_policy = "detail_row_quad_spacing"
-        item_width = 180
-        gap = 24
+        item_width = 172
+        gap = 18
     strip_width = 832
     strip_left = 96
     used_width = item_width * visible_item_count + gap * max(visible_item_count - 1, 0)
@@ -2604,11 +2600,11 @@ def _resolve_bottom_peer_gap(
     if visible_item_count <= 0:
         return 0
     if bottom_mode == "text_gallery_expanded":
-        return 14 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
+        return 12 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
     if bottom_mode != "title_gallery_split":
         return 0
     if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance":
-        return 14
+        return 12
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         return 10
     if peer_balance_policy == "balanced_dense_copy_with_triplet_gallery":
@@ -2649,8 +2645,8 @@ def _resolve_gallery_strip_vertical_metrics(
     ]
     if commercial_fryer_variant and visible_item_count >= 4:
         shift_policy = "detail_row_quad_shift"
-        shell_height = 90
-        item_height = 66
+        shell_height = 108
+        item_height = 80
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)

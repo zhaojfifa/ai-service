@@ -942,6 +942,7 @@ class PuppeteerStructuredRenderer:
                 svg_overlay=svg_overlay,
                 poster=poster,
                 asset_urls=asset_urls,
+                gallery_items_status=gallery_items_status,
                 slot_spec=slot_spec,
                 anchor_map=anchor_map,
                 spec=spec,
@@ -1059,6 +1060,10 @@ class PuppeteerStructuredRenderer:
             assets.gallery_status,
             slot_spec,
         )
+        gallery_items_status = _apply_family_a_fryer_gallery_captions(
+            gallery_items_status,
+            behavior.bottom_policy,
+        )
         return {
             "logo": _image_to_data_url(assets.logo) if assets.logo else "",
             "scenario": scenario_url,
@@ -1093,6 +1098,7 @@ class PuppeteerStructuredRenderer:
         svg_overlay: str,
         poster: PosterSpec,
         asset_urls: dict[str, Any],
+        gallery_items_status: list[dict[str, Any]] | None,
         slot_spec: dict[str, Any],
         anchor_map: dict[str, Any],
         spec: TemplateSpec,
@@ -1123,6 +1129,7 @@ class PuppeteerStructuredRenderer:
                 svg_overlay=svg_overlay,
                 poster=poster,
                 asset_urls=asset_urls,
+                gallery_items_status=gallery_items_status,
                 slot_spec=slot_spec,
                 spec=spec,
                 behavior=behavior,
@@ -1133,6 +1140,7 @@ class PuppeteerStructuredRenderer:
             svg_overlay=svg_overlay,
             poster=poster,
             asset_urls=asset_urls,
+            gallery_items_status=gallery_items_status,
             slot_spec=slot_spec,
             anchor_map=anchor_map,
             spec=spec,
@@ -1147,6 +1155,7 @@ class PuppeteerStructuredRenderer:
         svg_overlay: str,
         poster: PosterSpec,
         asset_urls: dict[str, Any],
+        gallery_items_status: list[dict[str, Any]] | None,
         slot_spec: dict[str, Any],
         anchor_map: dict[str, Any],
         spec: TemplateSpec,
@@ -1157,6 +1166,7 @@ class PuppeteerStructuredRenderer:
         gallery_markup, gallery_layer_class = self._gallery_markup(
             slot_spec,
             asset_urls["gallery"][: behavior.bottom_policy.visible_item_count],
+            gallery_items_status or [],
             behavior.bottom_policy,
         )
         feature_markup, feature_layer_class = self._feature_markup(
@@ -1276,6 +1286,7 @@ class PuppeteerStructuredRenderer:
         svg_overlay: str,
         poster: PosterSpec,
         asset_urls: dict[str, Any],
+        gallery_items_status: list[dict[str, Any]] | None,
         slot_spec: dict[str, Any],
         spec: TemplateSpec,
         behavior: Any,
@@ -1387,6 +1398,7 @@ class PuppeteerStructuredRenderer:
         self,
         slot_spec: dict[str, Any],
         gallery_urls: list[str],
+        gallery_items_status: list[dict[str, Any]],
         bottom_policy: ResolvedBottomBehavior,
     ) -> tuple[str, str]:
         gallery_slots = list(bottom_policy.layout_metrics.get("gallery_item_layouts", []))
@@ -1401,15 +1413,25 @@ class PuppeteerStructuredRenderer:
         items: list[str] = []
         for idx, gallery_slot in enumerate(gallery_slots[: len(gallery_urls)]):
             url = gallery_urls[idx]
+            item_status = gallery_items_status[idx] if idx < len(gallery_items_status) else {}
+            caption_text = html.escape(str(item_status.get("caption") or ""))
             local_slot = {
                 "x": int(gallery_slot["local_x"]),
                 "y": int(gallery_slot["local_y"]),
                 "w": int(gallery_slot["w"]),
                 "h": int(gallery_slot["h"]),
             }
+            item_classes = "gallery-item"
+            caption_markup = ""
+            if caption_text:
+                item_classes += " gallery-item-with-caption"
+                caption_markup = f'<div class="gallery-item-caption">{caption_text}</div>'
             items.append(
-                f'<div class="gallery-item" style="{_slot_style(local_slot)}">'
+                f'<div class="{item_classes}" style="{_slot_style(local_slot)}">'
+                '<div class="gallery-item-media">'
                 f'<img src="{url}" alt="" loading="eager" />'
+                "</div>"
+                f"{caption_markup}"
                 "</div>"
             )
         logger.info(
@@ -3329,6 +3351,7 @@ def _prepare_gallery_urls(
             "prepared": False,
             "rendered": False,
             "error_code": item.get("error_code"),
+            "caption": item.get("caption"),
         }
         if status["resolved"]:
             if img_idx < len(gallery):
@@ -3345,6 +3368,25 @@ def _prepare_gallery_urls(
                 status["error_code"] = "gallery_item_missing"
         status_out.append(status)
     return urls, status_out
+
+
+def _apply_family_a_fryer_gallery_captions(
+    gallery_items_status: list[dict[str, Any]],
+    bottom_policy: ResolvedBottomBehavior,
+) -> list[dict[str, Any]]:
+    if (
+        bottom_policy.gallery_distribution_policy != "dense_quad_detail_row"
+        or bottom_policy.visible_item_count < 4
+    ):
+        return gallery_items_status
+    captions = ("Basket Detail", "Single Tank", "Lid Detail", "Dual Tank")
+    annotated: list[dict[str, Any]] = []
+    for idx, item in enumerate(gallery_items_status):
+        row = dict(item)
+        if idx < len(captions) and not row.get("caption"):
+            row["caption"] = captions[idx]
+        annotated.append(row)
+    return annotated
 
 
 def _safe_preset_scenario_data_url() -> str:

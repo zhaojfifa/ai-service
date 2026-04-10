@@ -51,9 +51,9 @@ body {
   --product-shell-outline: inset 0 0 0 1px rgba(198, 58, 45, 0.06);
   --product-shell-glow: 0 16px 32px rgba(64, 68, 74, 0.06);
   --annotation-card-surface: var(--feature-card-surface);
-  --annotation-card-border: 1px solid rgba(198, 58, 45, 0.18);
-  --annotation-card-shadow: 0 8px 20px rgba(24, 24, 24, 0.08);
-  --annotation-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  --annotation-card-border: 1px solid rgba(198, 58, 45, 0.12);
+  --annotation-card-shadow: 0 8px 18px rgba(24, 24, 24, 0.05);
+  --annotation-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.72);
   --annotation-leader-opacity: 0.88;
   --annotation-leader-gradient: linear-gradient(90deg, rgba(198, 58, 45, 0.24), var(--accent-tone));
   --annotation-leader-height: 2px;
@@ -70,8 +70,8 @@ body {
   --subtitle-support-kicker: rgba(198, 58, 45, 0.68);
   --gallery-shell-inset: inset 0 1px 0 rgba(255, 255, 255, 0.86);
   --gallery-shell-outline: inset 0 0 0 1px rgba(198, 58, 45, 0.05);
-  --gallery-item-surface: rgba(250, 251, 251, 0.82);
-  --gallery-item-border: 1px solid rgba(214, 218, 221, 0.86);
+  --gallery-item-surface: rgba(250, 251, 251, 0.76);
+  --gallery-item-border: 1px solid rgba(214, 218, 221, 0.72);
   --gallery-item-inset: inset 0 1px 0 rgba(255, 255, 255, 0.82);
   --scenario-image-treatment: saturate(0.88) brightness(0.94);
   --product-primary-shadow: drop-shadow(0 18px 30px rgba(0, 0, 0, 0.20));
@@ -589,14 +589,14 @@ body {
 }
 
 .product-geometry-mode-family_a_fryer_hero_supporting_inset_v1 .layer-product-secondary-image {
-  opacity: 0.94;
+  opacity: 0.86;
 }
 
 .product-geometry-mode-family_a_fryer_hero_supporting_inset_v1 .slot-product-secondary {
-  padding: 10px 10px 12px;
-  background: var(--gallery-item-surface);
-  border: var(--gallery-item-border);
-  box-shadow: var(--shell-shadow-secondary), var(--gallery-item-inset);
+  padding: 8px 8px 10px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(214, 218, 221, 0.64);
+  box-shadow: 0 10px 18px rgba(36, 40, 44, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .layer-feature-callouts {
@@ -755,12 +755,18 @@ body {
 }
 
 .product-text-shell-variant-family_a_fryer_extended_right_lane .feature-callout {
-  min-height: 82px;
-  padding: 10px 14px;
-  font-size: 16px;
-  line-height: 1.26;
+  min-height: 76px;
+  padding: 9px 12px;
+  font-size: 15px;
+  line-height: 1.24;
   word-break: normal;
   overflow-wrap: normal;
+}
+
+.product-geometry-mode-family_a_fryer_hero_supporting_inset_v1 .feature-callout {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(248, 242, 239, 0.54));
+  border: 1px solid rgba(198, 58, 45, 0.10);
+  box-shadow: 0 8px 16px rgba(24, 24, 24, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
 .feature-callout-connector {
@@ -973,8 +979,40 @@ body {
   border: var(--gallery-item-border);
 }
 
+.gallery-item-media {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--gallery-item-radius) - 4px);
+}
+
 .gallery-item img {
   object-fit: cover;
+}
+
+.gallery-item-with-caption {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.gallery-item-with-caption .gallery-item-media {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+.gallery-item-caption {
+  margin-top: 6px;
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 12px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: rgba(90, 97, 104, 0.92);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .structured-overlay svg {

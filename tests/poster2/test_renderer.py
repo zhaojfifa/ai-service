@@ -53,10 +53,15 @@ from app.services.poster2.renderer import (
     _safe_preset_scenario_data_url,
     _template_b_material_slots,
     _visible_gallery_item_count,
+    _apply_family_a_fryer_gallery_captions,
     _prepare_gallery_urls,
 )
 from app.services.poster2.renderer_routing import RendererRoutingError, resolve_renderer_routing
-from app.services.poster2.template_behavior import resolve_feature_behavior, resolve_template_behavior
+from app.services.poster2.template_behavior import (
+    resolve_bottom_behavior,
+    resolve_feature_behavior,
+    resolve_template_behavior,
+)
 from app.services.poster2.template_registry import FAMILY_B_PRODUCT_SHEET_STORY, TemplateMetadata
 
 
@@ -1111,9 +1116,9 @@ class TestStructuredGalleryMarkup:
         )
 
         assert len(resolved) == 3
-        assert [item[0]["label_box"]["x"] for item in resolved] == [792, 792, 792]
-        assert [item[0]["label_box"]["w"] for item in resolved] == [184, 184, 184]
-        assert [item[0]["label_box"]["h"] for item in resolved] == [82, 82, 82]
+        assert [item[0]["label_box"]["x"] for item in resolved] == [796, 796, 796]
+        assert [item[0]["label_box"]["w"] for item in resolved] == [176, 176, 176]
+        assert [item[0]["label_box"]["h"] for item in resolved] == [76, 76, 76]
 
     def test_resolve_feature_behavior_supports_second_feature_mode(self):
         resolved = resolve_feature_behavior(
@@ -1945,6 +1950,36 @@ class TestFamilyAwareStructuredHtmlRouting:
         assert asset_urls["materials"] == []
         assert len(gallery_items_status) == 2
 
+    def test_fryer_dense_quad_gallery_markup_emits_semantic_captions(self):
+        renderer = PuppeteerStructuredRenderer()
+        bottom_policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Power Up Your Fry Station",
+            subtitle_text="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+            commercial_fryer_variant=True,
+        )
+
+        markup, layer_class = renderer._gallery_markup(
+            {},
+            ["mock://g0", "mock://g1", "mock://g2", "mock://g3"],
+            _apply_family_a_fryer_gallery_captions(
+                [{"index": idx, "caption": ""} for idx in range(4)],
+                bottom_policy,
+            ),
+            bottom_policy,
+        )
+
+        assert layer_class == "state-show"
+        assert "Basket Detail" in markup
+        assert "Single Tank" in markup
+        assert "Lid Detail" in markup
+        assert "Dual Tank" in markup
+
     def test_family_b_render_asset_builder_keeps_b_semantics_only(self):
         renderer = PuppeteerStructuredRenderer()
         template = _load_template_b_template()
@@ -2437,9 +2472,9 @@ class _FakePage:
 
     async def evaluate(self, expr):
         self.evaluations.append(expr)
-        assert hero.product_policy.annotation_items[0]["label_bounds"] == {"x": 792, "y": 212, "w": 184, "h": 82}
-        assert hero.product_policy.annotation_items[1]["label_bounds"] == {"x": 792, "y": 314, "w": 184, "h": 82}
-        assert hero.product_policy.annotation_items[2]["label_bounds"] == {"x": 792, "y": 416, "w": 184, "h": 82}
+        assert hero.product_policy.annotation_items[0]["label_bounds"] == {"x": 796, "y": 220, "w": 176, "h": 76}
+        assert hero.product_policy.annotation_items[1]["label_bounds"] == {"x": 796, "y": 316, "w": 176, "h": 76}
+        assert hero.product_policy.annotation_items[2]["label_bounds"] == {"x": 796, "y": 412, "w": 176, "h": 76}
 
     async def wait_for_function(self, expr, **kwargs):
         self.ready_checks.append((expr, kwargs))
