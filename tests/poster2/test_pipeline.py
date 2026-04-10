@@ -2936,11 +2936,38 @@ class TestPostFreezeTextCapacity:
         )
 
         assert policy.gallery_distribution_policy == "dense_quad_detail_row"
+        assert policy.gallery_caption_mode == "semantic_detail_caption_row"
+        assert policy.gallery_caption_owner == "gallery_strip_region"
         assert policy.layout_metrics["peer_gap"] == 12
         assert policy.layout_metrics["title_band_height"] == 176
         assert policy.layout_metrics["gallery_shell_height"] == 108
         assert policy.layout_metrics["gallery_items_height"] == 80
         assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [172, 172, 172, 172]
+        assert [item["caption_text"] for item in policy.gallery_caption_slots] == [
+            "Basket Detail",
+            "Single Tank",
+            "Lid Detail",
+            "Dual Tank",
+        ]
+
+    def test_non_fryer_bottom_keeps_caption_mode_none(self):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+
+        policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Upgrade your kitchen with ChefCraft Pro",
+            subtitle_text="Available in stores from April 24th",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+            commercial_fryer_variant=False,
+        )
+
+        assert policy.gallery_distribution_policy == "dense_quad"
+        assert policy.gallery_caption_mode == "none"
+        assert policy.gallery_caption_slots == ()
 
     def test_title_gallery_split_triplet_title_budget_raised(self):
         """Triplet title_gallery_split must reach title_char_budget >= 60."""
@@ -3134,6 +3161,27 @@ class TestProductImageContract:
             "w": int(product_policy.layout_metrics["product_region_w"]),
             "h": int(product_policy.layout_metrics["product_region_h"]),
         }
+
+    def test_fryer_annotation_contract_review_uses_resolved_positions_source(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            agent_name="Commercial Electric Fryer Series",
+            features=("Fast Heat-Up", "Precise Thermostat Control", "Stainless Steel Body"),
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(_load_template(), spec)
+        product_review = metadata["product_contract_review"]
+        annotation_review = metadata["product_annotation_contract_review"]
+
+        assert [slot["positions_source"] for slot in annotation_review["annotation_slots"]] == [
+            "family_a_fryer_fixed_variant",
+            "family_a_fryer_fixed_variant",
+            "family_a_fryer_fixed_variant",
+        ]
+        assert [slot["label_bounds"] for slot in annotation_review["annotation_slots"]] == [
+            slot["label_bounds"] for slot in product_review["annotation_slots"]
+        ]
+        assert annotation_review["behavior_policy"]["positions_source"] == "family_a_fryer_fixed_variant"
 
     def test_product_primary_slot_bounds_match_single_primary_constant(self):
         """In single_primary mode, product_primary_slot must match _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT."""
@@ -5776,6 +5824,46 @@ class TestTemplateBBackendGenerationFix:
             assert slot["char_budget"] == product_review["behavior_policy"]["char_budget"]
             assert slot["line_clamp"] == product_review["behavior_policy"]["line_clamp"]
             assert slot["annotation_owner"] == "product_region"
+
+    def test_template_a_fryer_bottom_contract_review_exposes_caption_truth(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            agent_name="Commercial Electric Fryer Series",
+            gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+        )
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (320, 240), (50, 100, 200, 255)) for _ in range(4)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(4)
+            ],
+        )
+        pipe = PosterPipeline(
+            background_svc=_mock_bg_service(),
+            renderer=_FakeTemplateAIsolatedPuppeteerRenderer(),
+            composer=Composer(),
+            asset_loader=_mock_loader(assets),
+            put_bytes_fn=_mock_r2_put(),
+        )
+        manifest = asyncio.run(pipe.run(spec, _load_template()))
+
+        review = manifest.bottom_contract_review
+        assert review["gallery_caption_mode"] == "semantic_detail_caption_row"
+        assert review["caption_owner"] == "gallery_strip_region"
+        assert list(review["gallery_caption_slots"].keys()) == [
+            "gallery_caption_slot_1",
+            "gallery_caption_slot_2",
+            "gallery_caption_slot_3",
+            "gallery_caption_slot_4",
+        ]
+        assert [slot["caption_text"] for slot in review["gallery_caption_slots"].values()] == [
+            "Basket Detail",
+            "Single Tank",
+            "Lid Detail",
+            "Dual Tank",
+        ]
 
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector

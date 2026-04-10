@@ -1980,6 +1980,26 @@ class TestFamilyAwareStructuredHtmlRouting:
         assert "Lid Detail" in markup
         assert "Dual Tank" in markup
 
+    def test_fryer_caption_helper_leaves_non_fryer_gallery_status_unchanged(self):
+        bottom_policy = resolve_bottom_behavior(
+            "title_gallery_split",
+            gallery_mode="strip_local_visible_only",
+            title_text="Upgrade your kitchen with ChefCraft Pro",
+            subtitle_text="Available in stores from April 24th",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+            commercial_fryer_variant=False,
+        )
+
+        status = _apply_family_a_fryer_gallery_captions(
+            [{"index": idx, "caption": ""} for idx in range(4)],
+            bottom_policy,
+        )
+
+        assert all(not item.get("caption") for item in status)
+
     def test_family_b_render_asset_builder_keeps_b_semantics_only(self):
         renderer = PuppeteerStructuredRenderer()
         template = _load_template_b_template()

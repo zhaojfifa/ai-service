@@ -1775,14 +1775,19 @@ def _build_bottom_contract_review(
                 "rendered": bool(region_render_status.get("description_region", {}).get("rendered", False)),
                 "bounds": _template_b_description_region_bounds(template),
             },
+            "gallery_caption_mode": "none",
+            "caption_owner": "gallery_strip_region",
             "behavior_policy": {
                 "content_priority_policy": resolved_behavior.bottom_policy.content_priority_policy,
                 "peer_balance_policy": resolved_behavior.bottom_policy.peer_balance_policy,
                 "bottom_peer_balance_policy": resolved_behavior.bottom_policy.bottom_peer_balance_policy,
+                "gallery_caption_mode": "none",
+                "gallery_caption_owner": "gallery_strip_region",
                 "layout_metrics": dict(resolved_behavior.bottom_policy.layout_metrics),
             },
             "collapsed_optional_slots": list(resolved_behavior.bottom_policy.collapsed_optional_slots),
             "gallery_slots": {},
+            "gallery_caption_slots": {},
             "semantic_owner_exclusions": {
                 "sku_text": "top_copy_region",
                 "title": "top_copy_region",
@@ -1808,6 +1813,21 @@ def _build_bottom_contract_review(
             "local_bounds": slot_state.get("local_bounds"),
         }
         for slot_state in resolved_behavior.bottom_policy.gallery_slot_states
+    }
+    gallery_caption_slots = {
+        slot_state["slot_id"]: {
+            "rendered": bool(slot_state.get("rendered", False)),
+            "caption_text": slot_state.get("caption_text", ""),
+            "owner_region": slot_state.get("owner_region"),
+            "item_slot_id": slot_state.get("item_slot_id"),
+            "bounds": slot_state.get("bounds"),
+            "local_bounds": slot_state.get("local_bounds"),
+            "media_bounds": slot_state.get("media_bounds"),
+            "media_local_bounds": slot_state.get("media_local_bounds"),
+            "card_bounds": slot_state.get("card_bounds"),
+            "card_local_bounds": slot_state.get("card_local_bounds"),
+        }
+        for slot_state in resolved_behavior.bottom_policy.gallery_caption_slots
     }
     rendered_title_excerpt = (
         _apply_text_budget(effective_spec.title, resolved_behavior.bottom_policy.title_char_budget)
@@ -1869,6 +1889,8 @@ def _build_bottom_contract_review(
             "visible_item_count": resolved_behavior.bottom_policy.visible_item_count,
             "bounds": _gallery_strip_region_bounds(template, resolved_behavior),
         },
+        "gallery_caption_mode": resolved_behavior.bottom_policy.gallery_caption_mode,
+        "caption_owner": resolved_behavior.bottom_policy.gallery_caption_owner,
         "behavior_policy": {
             "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
             "title_band_growth_policy": resolved_behavior.bottom_policy.title_band_growth_policy,
@@ -1883,6 +1905,8 @@ def _build_bottom_contract_review(
             "gallery_strip_shift_policy": resolved_behavior.bottom_policy.gallery_strip_shift_policy,
             "gallery_aspect_policy": resolved_behavior.bottom_policy.gallery_aspect_policy,
             "gallery_spacing_policy": resolved_behavior.bottom_policy.gallery_spacing_policy,
+            "gallery_caption_mode": resolved_behavior.bottom_policy.gallery_caption_mode,
+            "gallery_caption_owner": resolved_behavior.bottom_policy.gallery_caption_owner,
             "bottom_text_emphasis_policy": resolved_behavior.bottom_policy.bottom_text_emphasis_policy,
             "title_line_clamp": resolved_behavior.bottom_policy.title_line_clamp,
             "subtitle_line_clamp": resolved_behavior.bottom_policy.subtitle_line_clamp,
@@ -1896,6 +1920,7 @@ def _build_bottom_contract_review(
         "gallery_distribution_policy": resolved_behavior.bottom_policy.gallery_distribution_policy,
         "subtitle_slot": dict(resolved_behavior.bottom_policy.subtitle_slot_state),
         "gallery_slots": gallery_slots,
+        "gallery_caption_slots": gallery_caption_slots,
         "bottom_mode_region_contract": bottom_mode_region_contract,
     }
 
@@ -2632,21 +2657,14 @@ def _build_product_annotation_contract_review(
             if is_visible
             else ""
         )
-        if i < len(template.feature_callouts):
-            fc = template.feature_callouts[i]
-            lb = fc.label_box
-            anchor_x = int(fc.anchor_x)
-            anchor_y = int(fc.anchor_y)
-            label_bounds = {"x": int(lb.x), "y": int(lb.y), "w": int(lb.w), "h": int(lb.h)}
-            anchor_color = fc.anchor_color
-        else:
-            anchor_x = None
-            anchor_y = None
-            label_bounds = None
-            anchor_color = None
+        annotation_meta = (
+            product_policy.annotation_items[i]
+            if i < len(product_policy.annotation_items)
+            else {}
+        )
         slot_reviews.append({
             "slot_index": i,
-            "slot_id": f"annotation_slot_{i + 1}",
+            "slot_id": f"product_annotation_slot_{i + 1}",
             "slot_fixed": True,
             "rendered": is_visible,
             "requested_text": requested_text,
@@ -2663,14 +2681,14 @@ def _build_product_annotation_contract_review(
             "char_budget": product_policy.char_budget,
             "line_clamp": product_policy.line_clamp,
             "truncation_applied": rendered_excerpt != sanitized_text,
-            "anchor_x": anchor_x,
-            "anchor_y": anchor_y,
-            "label_bounds": label_bounds,
-            "connector_policy": feature_policy.connector_policy,
+            "anchor_x": annotation_meta.get("anchor_x"),
+            "anchor_y": annotation_meta.get("anchor_y"),
+            "label_bounds": annotation_meta.get("label_bounds"),
+            "connector_policy": annotation_meta.get("connector_policy", product_policy.annotation_connector_policy),
             "annotation_owner": "product_region",
-            "marker_policy": "dot_marker_accent_color",
-            "positions_source": "template_spec_fixed",
-            "anchor_color": anchor_color,
+            "marker_policy": annotation_meta.get("marker_policy", product_policy.annotation_marker_policy),
+            "positions_source": annotation_meta.get("positions_source"),
+            "anchor_color": annotation_meta.get("anchor_color"),
         })
 
     return {
@@ -2694,11 +2712,18 @@ def _build_product_annotation_contract_review(
         "behavior_policy": {
             "visible_item_count_policy": feature_policy.visible_item_count_policy,
             "connector_policy": product_policy.annotation_connector_policy,
-            "marker_policy": "dot_marker_accent_color",
+            "marker_policy": product_policy.annotation_marker_policy,
             "box_policy": feature_policy.box_policy,
             "start_strategy": feature_policy.start_strategy,
             "char_budget": product_policy.char_budget,
             "line_clamp": product_policy.line_clamp,
+            "annotation_bounds_policy": product_policy.annotation_bounds_policy,
+            "positions_source": (
+                product_policy.annotation_items[0].get("positions_source")
+                if product_policy.annotation_items
+                else None
+            ),
+            "layout_metrics": dict(product_policy.layout_metrics),
         },
         "feature_suppression": {
             "feature_right_stack_suppressed": True,

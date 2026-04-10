@@ -244,6 +244,8 @@ class LayoutRenderer:
             behavior,
             has_scenario=behavior.hero_policy.scenario_enabled and assets.scenario is not None,
         )
+        if behavior.product_policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1":
+            self._draw_family_a_fryer_hero_plane(canvas, behavior.product_policy)
         if behavior.hero_policy.scenario_enabled and spec.scenario_slot and assets.scenario:
             self._draw_image(canvas, _scenario_image_slot(spec, behavior.hero_policy), assets.scenario)
         self._draw_product(
@@ -252,15 +254,22 @@ class LayoutRenderer:
             assets.product,
         )
         if behavior.product_policy.product_secondary_slot_rendered and assets.product_secondary is not None:
+            if behavior.product_policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1":
+                self._draw_family_a_fryer_supporting_inset_shell(canvas, behavior.product_policy)
             self._draw_product(
                 canvas,
                 _product_secondary_image_slot(spec, behavior.product_policy),
                 assets.product_secondary,
             )
+        gallery_items_status = _apply_family_a_fryer_gallery_captions(
+            list(assets.gallery_status),
+            behavior.bottom_policy,
+        )
         self._draw_gallery(
             canvas,
             spec.gallery_slot,
             assets.gallery,
+            gallery_items_status=gallery_items_status,
             bottom_policy=behavior.bottom_policy,
             visible_count=behavior.bottom_policy.visible_item_count if behavior.bottom_policy.gallery_strip_rendered else 0,
         )
@@ -270,7 +279,11 @@ class LayoutRenderer:
 
         t1 = _now()
         if behavior.product_policy.annotation_mode == "product_anchor_callouts":
-            self._draw_text_shell_panel(canvas, behavior.product_policy.product_text_shell_bounds)
+            self._draw_text_shell_panel(
+                canvas,
+                behavior.product_policy.product_text_shell_bounds,
+                product_policy=behavior.product_policy,
+            )
         resolved_callouts = _resolve_feature_callout_layout(
             spec.feature_callouts,
             poster.features,
@@ -283,7 +296,11 @@ class LayoutRenderer:
         layer_timings["foreground_structure_layer_ms"] = _elapsed(t1)
 
         t2 = _now()
-        self._draw_feature_callout_labels(canvas, resolved_callouts)
+        self._draw_feature_callout_labels(
+            canvas,
+            resolved_callouts,
+            product_policy=behavior.product_policy,
+        )
         self._draw_text(
             canvas,
             _brand_text_slot(spec, behavior.header_policy, color=behavior.text_colors["brand"]),
@@ -314,7 +331,7 @@ class LayoutRenderer:
         layer_timings["text_layer_ms"] = _elapsed(t2)
 
         png_bytes = _to_png(canvas)
-        gallery_items_status = _annotate_gallery_items_status_from_spec(assets.gallery_status, spec, behavior.bottom_policy)
+        gallery_items_status = _annotate_gallery_items_status_from_spec(gallery_items_status, spec, behavior.bottom_policy)
         layer_render_status = _build_renderer_layer_render_status(
             poster=poster,
             has_logo=assets.logo is not None,
@@ -672,11 +689,21 @@ class LayoutRenderer:
         self,
         canvas: PILImage.Image,
         callouts: list[tuple[FeatureCalloutSpec, str]],
+        *,
+        product_policy=None,
     ) -> None:
         for callout, text in callouts:
             if not text:
                 continue
-            self._draw_text(canvas, callout.label_box, text, draw_background=True)
+            if (
+                product_policy is not None
+                and getattr(product_policy, "product_geometry_mode", "") == "family_a_fryer_hero_supporting_inset_v1"
+                and getattr(product_policy, "annotation_mode", "") == "product_anchor_callouts"
+            ):
+                self._draw_family_a_fryer_annotation_card(canvas, callout.label_box)
+                self._draw_text(canvas, replace(callout.label_box, bg_color=None), text, draw_background=False)
+            else:
+                self._draw_text(canvas, callout.label_box, text, draw_background=True)
 
     def _draw_feature_callout(
         self,
@@ -706,6 +733,8 @@ class LayoutRenderer:
         self,
         canvas: PILImage.Image,
         bounds: dict[str, int],
+        *,
+        product_policy=None,
     ) -> None:
         """Draw a visual separator and tint behind the annotation text shell zone.
 
@@ -724,11 +753,57 @@ class LayoutRenderer:
         overlay = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
         # Subtle gray tint over text shell zone — visible on white shell background
-        draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(250, 244, 241, 138), outline=(232, 0, 42, 24), width=1)
+        if (
+            product_policy is not None
+            and getattr(product_policy, "product_geometry_mode", "") == "family_a_fryer_hero_supporting_inset_v1"
+        ):
+            draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(252, 246, 243, 92), outline=(232, 0, 42, 18), width=1)
+            sep_fill = (232, 0, 42, 34)
+        else:
+            draw.rounded_rectangle([x0, y0, x1, y1], radius=12, fill=(250, 244, 241, 138), outline=(232, 0, 42, 24), width=1)
+            sep_fill = (232, 0, 42, 52)
         # Thin vertical separator line in the 28px gap between canvas right (756) and text shell (784)
         sep_x = bounds["x"] - 14  # midpoint of gap: 784 - 14 = 770
-        draw.line([(sep_x, y0 + 10), (sep_x, y1 - 10)], fill=(232, 0, 42, 52), width=1)
+        draw.line([(sep_x, y0 + 10), (sep_x, y1 - 10)], fill=sep_fill, width=1)
         overlay = overlay.filter(ImageFilter.GaussianBlur(radius=0.4))
+        canvas.alpha_composite(overlay)
+
+    def _draw_family_a_fryer_hero_plane(self, canvas: PILImage.Image, product_policy) -> None:
+        primary = product_policy.product_primary_slot
+        plane = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(plane)
+        left = int(primary["x"]) + 20
+        right = int(primary["x"] + primary["w"]) - 20
+        top = int(primary["y"] + primary["h"]) - 34
+        bottom = int(primary["y"] + primary["h"]) + 10
+        draw.ellipse((left, top, right, bottom), fill=(118, 108, 100, 34))
+        plane = plane.filter(ImageFilter.GaussianBlur(radius=12))
+        canvas.alpha_composite(plane)
+
+    def _draw_family_a_fryer_supporting_inset_shell(self, canvas: PILImage.Image, product_policy) -> None:
+        secondary = product_policy.product_secondary_slot
+        if not secondary:
+            return
+        self._draw_shell_box(
+            canvas,
+            (int(secondary["x"]), int(secondary["y"]), int(secondary["w"]), int(secondary["h"])),
+            radius=20,
+            fill=(255, 255, 255, 164),
+            border=(214, 218, 221, 150),
+            shadow=None,
+        )
+
+    def _draw_family_a_fryer_annotation_card(self, canvas: PILImage.Image, slot: TextSlotSpec) -> None:
+        overlay = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        draw.rounded_rectangle(
+            [slot.x, slot.y, slot.x + slot.w, slot.y + slot.h],
+            radius=12,
+            fill=(255, 255, 255, 178),
+            outline=(198, 58, 45, 28),
+            width=1,
+        )
+        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=0.25))
         canvas.alpha_composite(overlay)
 
     def _draw_image(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
@@ -764,12 +839,17 @@ class LayoutRenderer:
         strip: GalleryStripSpec,
         images: list[PILImage.Image],
         *,
+        gallery_items_status: list[dict[str, Any]],
         bottom_policy: ResolvedBottomBehavior,
         visible_count: int,
     ) -> None:
         if not images or visible_count <= 0:
             return
         gallery_item_layouts = list(bottom_policy.layout_metrics.get("gallery_item_layouts", []))
+        caption_slots = {
+            str(slot.get("item_slot_id")): dict(slot)
+            for slot in getattr(bottom_policy, "gallery_caption_slots", ())
+        }
         if not gallery_item_layouts:
             raise AssertionError(
                 "gallery_item_layouts must be populated by the behavior resolver before "
@@ -784,10 +864,51 @@ class LayoutRenderer:
                     "not exceed len(gallery_item_layouts)."
                 )
             slot_layout = gallery_item_layouts[i]
+            caption_slot = caption_slots.get(str(slot_layout["slot_id"]))
             x = int(slot_layout["x"])
             y = int(slot_layout["y"])
             w = int(slot_layout["w"])
             h = int(slot_layout["h"])
+            if caption_slot and caption_slot.get("rendered") and caption_slot.get("caption_text"):
+                card_radius = int(bottom_policy.layout_metrics.get("gallery_item_radius", strip.thumb_radius))
+                self._draw_shell_box(
+                    canvas,
+                    (x, y, w, h),
+                    radius=card_radius,
+                    fill=(250, 251, 251, 196),
+                    border=(214, 218, 221, 170),
+                    shadow=None,
+                )
+                media_bounds = dict(caption_slot.get("media_bounds") or {})
+                thumb_slot = ImageSlotSpec(
+                    x=int(media_bounds.get("x", x)),
+                    y=int(media_bounds.get("y", y)),
+                    w=int(media_bounds.get("w", w)),
+                    h=int(media_bounds.get("h", h)),
+                    fit="contain",
+                    radius=max(card_radius - 4, 8),
+                )
+                self._draw_image(canvas, thumb_slot, img)
+                caption_bounds = dict(caption_slot.get("bounds") or {})
+                self._draw_text(
+                    canvas,
+                    TextSlotSpec(
+                        x=int(caption_bounds.get("x", x)),
+                        y=int(caption_bounds.get("y", y + h - 18)),
+                        w=int(caption_bounds.get("w", w)),
+                        h=int(caption_bounds.get("h", 14)),
+                        font_key="label",
+                        font_size=12,
+                        color="#5A6168",
+                        align="center",
+                        max_lines=1,
+                        line_height=1.15,
+                        auto_shrink=False,
+                    ),
+                    str(caption_slot["caption_text"]),
+                    draw_background=False,
+                )
+                continue
             thumb_slot = ImageSlotSpec(
                 x=x,
                 y=y,
@@ -2750,6 +2871,7 @@ def render_product_material_debug_layer(
         canvas,
         spec.gallery_slot,
         assets.gallery,
+        gallery_items_status=[],
         bottom_policy=behavior.bottom_policy,
         visible_count=behavior.bottom_policy.visible_item_count,
     )

@@ -1,5 +1,109 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-FA-WYSIWYG-1: Family A fryer truth-parity and footer-caption closeout
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-10
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+- `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+
+### Scope
+
+- Template A / Family A only
+- fryer-only closeout
+- no Template B work
+- no Stage1/Stage2 request-state reopen
+- no bottom redesign
+
+### Root rules followed
+
+- contract-first
+- renderer consumes truth; renderer does not define truth
+- product annotations stayed fixed-slot and product-owned
+- bottom stayed `title_gallery_split`
+- gallery stayed `strip_local_visible_only`
+
+### Problem reproduced
+
+Two WYSIWYG gaps remained open after the parity fix:
+
+1. fryer annotation evidence was still split between resolved product truth and stale review-time `template_spec_fixed` evidence
+2. HTML preview already expressed fryer footer as thumbnail + caption, but Pillow final still rendered an image-only strip
+
+### Root cause found
+
+1. `product_annotation_contract_review` still rebuilt slot evidence from template defaults instead of resolved `product_policy.annotation_items`
+2. fryer footer caption semantics existed in HTML markup flow but were not formalized in bottom behavior or consumed by Pillow `_draw_gallery`
+3. Pillow fryer callout card treatment was still visually heavier than the approved preview treatment
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/03_engineering/family_a/family_a_fryer_truth_parity_and_footer_caption_closeout_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_fryer_truth_parity_and_footer_caption_closeout_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Layer changed
+
+- contract / resolver truth
+- evidence / metadata
+- renderer consumption
+- bounded fryer-only presentation
+- docs
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_annotation_contract_review_uses_resolved_positions_source or fryer_dense_quad_detail_row_adds_breathing or non_fryer_bottom_keeps_caption_mode_none or template_a_fryer_bottom_contract_review_exposes_caption_truth or annotation_contract_review_product_region_bounds_from_product_policy or fryer_variant_expands_product_text_shell_and_annotation_capacity or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'fryer_dense_quad_gallery_markup_emits_semantic_captions or fryer_caption_helper_leaves_non_fryer_gallery_status_unchanged or resolve_feature_callout_map_uses_fryer_variant_annotation_bounds or fryer_variant_annotation_bounds or product_shell_boundary_closure'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'template_a_regression_path_remains_unchanged or non_fryer_bottom_keeps_caption_mode_none'`
+- identical-input before/after runtime capture:
+  - before: `/tmp/pr_fa_wysiwyg_before/*`
+  - after: `/tmp/pr_fa_wysiwyg_after/*`
+
+### Exact runtime delta
+
+- `structure_complete = true`
+- `deliverable = true`
+- `header_mode = identity_left_agent_right`
+- `product_annotation_owner = product_region`
+- `bottom_mode = title_gallery_split`
+- `gallery_mode = strip_local_visible_only`
+- fryer annotation `positions_source`:
+  - before: `template_spec_fixed`
+  - after: `family_a_fryer_fixed_variant`
+- fryer footer caption truth:
+  - before: `gallery_caption_mode = none`
+  - after: `gallery_caption_mode = semantic_detail_caption_row`
+- final footer now renders real thumbnail + caption cards in fryer order:
+  - `Basket Detail`
+  - `Single Tank`
+  - `Lid Detail`
+  - `Dual Tank`
+
+### Remaining risks
+
+- local screenshot generation used fallback system fonts because `NotoSansSC` is not installed in this workspace
+- this pass closes fryer-only truth/parity gaps and does not reopen broader Family A redesign
+
+---
+
 ## Entry — poster2 doc path cleanup: finalize legacy root-level markdown removals
 
 **Branch:** `main`

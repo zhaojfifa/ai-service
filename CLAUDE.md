@@ -76,6 +76,12 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - fryer hero now resolves through a bounded single-primary + supporting-inset geometry variant
   - fryer product region now uses `w=520`, `primary=324x540`, `secondary=120x120`, `text lane x=792 w=184`
   - fryer footer remains `title_gallery_split` but now uses `title=172`, `strip=90`, `items=66`, `peer_gap=14`
+- Family A fryer truth/parity closeout complete:
+  - fryer annotation contract review now reads resolved slot truth from `product_policy`
+  - fryer-only stale `template_spec_fixed` evidence is removed from annotation review paths
+  - fryer bottom behavior now exposes `gallery_caption_mode`, `gallery_caption_owner`, and `gallery_caption_slots`
+  - Pillow final footer now renders bounded thumbnail + caption cards for fryer detail rows
+  - non-fryer Family A footer caption mode remains `none`
 
 ## Current document alignment target
 
@@ -101,6 +107,9 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - fryer bottom subtitle now reaches render as finalized product-grade copy
   - fryer bottom strip now reads as a semantic detail row with breathing room
   - fryer hero stage now reads as a single dominant product stage with a supporting inset
+- latest bounded closeout:
+  - fryer annotation evidence now matches resolved runtime slot truth
+  - fryer final footer now matches preview semantics as a thumbnail + caption row
 - not yet: Family A redesign
 - not yet: Template B reopen
 - not yet: editor-first drift

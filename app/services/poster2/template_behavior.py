@@ -593,6 +593,9 @@ class ResolvedBottomBehavior:
     gallery_strip_shift_policy: str
     gallery_aspect_policy: str
     gallery_spacing_policy: str
+    gallery_caption_mode: str
+    gallery_caption_owner: str
+    gallery_caption_slots: tuple[dict[str, object], ...]
     bottom_text_emphasis_policy: str
     title_band_expansion_policy: str
     title_line_clamp: int
@@ -642,6 +645,9 @@ class ResolvedBottomBehavior:
             "gallery_strip_shift_policy": self.gallery_strip_shift_policy,
             "gallery_aspect_policy": self.gallery_aspect_policy,
             "gallery_spacing_policy": self.gallery_spacing_policy,
+            "gallery_caption_mode": self.gallery_caption_mode,
+            "gallery_caption_owner": self.gallery_caption_owner,
+            "gallery_caption_slots": [dict(item) for item in self.gallery_caption_slots],
             "bottom_text_emphasis_policy": self.bottom_text_emphasis_policy,
             "title_band_expansion_policy": self.title_band_expansion_policy,
             "title_line_clamp": self.title_line_clamp,
@@ -1855,6 +1861,11 @@ def resolve_bottom_behavior(
     }
 
     gallery_slot_states: list[dict[str, object]] = []
+    gallery_caption_mode, gallery_caption_owner, gallery_caption_slots = _resolve_gallery_caption_truth(
+        gallery_distribution_policy=gallery_distribution_policy,
+        gallery_items=list(layout_metrics["gallery_item_layouts"]),
+        visible_item_count=visible_item_count if gallery_strip_rendered else 0,
+    )
     collapsed_optional_slots: list[str] = []
     if not subtitle_slot_rendered:
         collapsed_optional_slots.append("subtitle_slot")
@@ -1947,6 +1958,9 @@ def resolve_bottom_behavior(
         gallery_strip_shift_policy=gallery_strip_shift_policy,
         gallery_aspect_policy=gallery_aspect_policy,
         gallery_spacing_policy=gallery_spacing_policy,
+        gallery_caption_mode=gallery_caption_mode,
+        gallery_caption_owner=gallery_caption_owner,
+        gallery_caption_slots=tuple(gallery_caption_slots),
         bottom_text_emphasis_policy=bottom_text_emphasis_policy,
         title_band_expansion_policy=title_band_expansion_policy,
         title_line_clamp=title_line_clamp,
@@ -2691,6 +2705,78 @@ def _resolve_gallery_shell_frame_metrics(
     return left, width, shell_radius, item_radius_by_policy.get(gallery_distribution_policy, 14)
 
 
+def _resolve_gallery_caption_truth(
+    *,
+    gallery_distribution_policy: str,
+    gallery_items: list[dict[str, int | str]],
+    visible_item_count: int,
+) -> tuple[str, str, list[dict[str, object]]]:
+    if gallery_distribution_policy != "dense_quad_detail_row" or visible_item_count < 4 or not gallery_items:
+        return "none", "gallery_strip_region", []
+    captions = ("Basket Detail", "Single Tank", "Lid Detail", "Dual Tank")
+    slots: list[dict[str, object]] = []
+    for index, item in enumerate(gallery_items[:visible_item_count]):
+        x = int(item["x"])
+        y = int(item["y"])
+        w = int(item["w"])
+        h = int(item["h"])
+        inner_pad = 8
+        caption_gap = 4
+        caption_h = 14
+        media_h = max(h - (inner_pad * 2) - caption_gap - caption_h, 20)
+        local_x = int(item["local_x"])
+        local_y = int(item["local_y"])
+        media_local_y = local_y + inner_pad
+        caption_local_y = media_local_y + media_h + caption_gap
+        slots.append(
+            {
+                "slot_id": f"gallery_caption_slot_{index + 1}",
+                "item_slot_id": str(item["slot_id"]),
+                "index": index,
+                "rendered": True,
+                "owner_region": "gallery_strip_region",
+                "caption_text": captions[index],
+                "bounds": {
+                    "x": x + inner_pad,
+                    "y": y + inner_pad + media_h + caption_gap,
+                    "w": max(w - (inner_pad * 2), 0),
+                    "h": caption_h,
+                },
+                "local_bounds": {
+                    "x": local_x + inner_pad,
+                    "y": caption_local_y,
+                    "w": max(w - (inner_pad * 2), 0),
+                    "h": caption_h,
+                },
+                "media_bounds": {
+                    "x": x + inner_pad,
+                    "y": y + inner_pad,
+                    "w": max(w - (inner_pad * 2), 0),
+                    "h": media_h,
+                },
+                "media_local_bounds": {
+                    "x": local_x + inner_pad,
+                    "y": media_local_y,
+                    "w": max(w - (inner_pad * 2), 0),
+                    "h": media_h,
+                },
+                "card_bounds": {
+                    "x": x,
+                    "y": y,
+                    "w": w,
+                    "h": h,
+                },
+                "card_local_bounds": {
+                    "x": local_x,
+                    "y": local_y,
+                    "w": w,
+                    "h": h,
+                },
+            }
+        )
+    return "semantic_detail_caption_row", "gallery_strip_region", slots
+
+
 def _resolve_bottom_shell_height(
     *,
     bottom_mode: str,
@@ -2995,6 +3081,9 @@ def _resolve_product_sheet_behavior(
         gallery_strip_shift_policy="none",
         gallery_aspect_policy="none",
         gallery_spacing_policy="none",
+        gallery_caption_mode="none",
+        gallery_caption_owner="gallery_strip_region",
+        gallery_caption_slots=(),
         bottom_text_emphasis_policy="none",
         title_band_expansion_policy="none",
         title_line_clamp=0,
