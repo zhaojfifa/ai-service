@@ -259,19 +259,24 @@
                   <img id="preview-scenario-image" alt="Scenario" />
                 </div>
                 <div class="poster-right">
-                  <div class="poster-product-wrapper">
-                    <img id="preview-product-image" alt="Product" />
-                    <ul id="preview-feature-list" class="feature-tags">
-                      <li class="feature-tag feature-tag--top"><span></span></li>
-                      <li class="feature-tag feature-tag--middle"><span></span></li>
-                      <li class="feature-tag feature-tag--bottom"><span></span></li>
-                    </ul>
+                <div class="poster-product-wrapper">
+                  <img id="preview-product-image" alt="Product" />
+                  <div id="preview-product-secondary-wrap" class="poster-product-secondary-wrap hidden">
+                    <img id="preview-product-secondary-image" alt="Supporting detail" />
                   </div>
+                  <ul id="preview-feature-list" class="feature-tags">
+                    <li class="feature-tag feature-tag--top"><span></span></li>
+                    <li class="feature-tag feature-tag--middle"><span></span></li>
+                    <li class="feature-tag feature-tag--bottom"><span></span></li>
+                  </ul>
                 </div>
               </div>
-              <div id="preview-title" class="poster-title">Title</div>
+            </div>
+              <div class="poster-title-block">
+                <div id="preview-title" class="poster-title">Title</div>
+                <div id="preview-subtitle" class="poster-subtitle">Bottom Support Copy</div>
+              </div>
               <div id="preview-gallery" class="poster-gallery"></div>
-              <div id="preview-subtitle" class="poster-subtitle">Bottom Support Copy</div>
             </div>
             <div id="preview-family-b" class="template-b-preview hidden" aria-label="Template B preview">
               <div class="template-b-preview__banner">
@@ -319,6 +324,7 @@
       <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
     <script defer src="./placeholder.js?v=3"></script>
+    <script defer src="./stage2_request_helpers.js?v=2"></script>
     <script defer src="./app.js?v=0cbaf65"></script>
   </body>
 </html>

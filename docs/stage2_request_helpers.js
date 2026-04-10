@@ -168,6 +168,92 @@
     };
   }
 
+  function containsFamilyAFryerSignal(text) {
+    const value = normalizeText(text).toLowerCase();
+    if (!value) return false;
+    return [
+      'fryer',
+      'fry station',
+      'thermostat',
+      'stainless steel',
+      'fast heat',
+      'fast heating',
+    ].some((signal) => value.includes(signal));
+  }
+
+  function isFamilyACommercialFryerVariant({
+    titleText,
+    subtitleText,
+    agentName,
+    featureTexts,
+  } = {}) {
+    if (containsFamilyAFryerSignal(titleText) || containsFamilyAFryerSignal(subtitleText)) {
+      return true;
+    }
+    if (containsFamilyAFryerSignal(agentName)) {
+      return true;
+    }
+    return Array.isArray(featureTexts) && featureTexts.some((entry) => containsFamilyAFryerSignal(entry));
+  }
+
+  function resolveTemplateAPreviewTruth({
+    titleText,
+    subtitleText,
+    agentName,
+    featureTexts,
+    hasSecondaryAsset,
+    galleryCount,
+    bottomMode,
+    galleryMode,
+    latestResult,
+  } = {}) {
+    const templateBehavior = latestResult?.template_behavior || {};
+    const productPolicy = templateBehavior?.product_policy || {};
+    const bottomReview = latestResult?.bottom_contract_review || {};
+    const fryerVariant = isFamilyACommercialFryerVariant({
+      titleText,
+      subtitleText,
+      agentName,
+      featureTexts,
+    });
+    const resolvedBottomMode =
+      bottomReview?.effective_bottom_mode ||
+      bottomReview?.bottom_mode ||
+      bottomMode ||
+      'title_gallery_split';
+    const resolvedGalleryMode =
+      bottomReview?.gallery_mode ||
+      galleryMode ||
+      'strip_local_visible_only';
+    const productGeometryMode =
+      productPolicy?.product_geometry_mode ||
+      (fryerVariant
+        ? hasSecondaryAsset
+          ? 'family_a_fryer_hero_supporting_inset_v1'
+          : 'family_a_fryer_hero_stage_v1'
+        : hasSecondaryAsset
+        ? 'primary_secondary_dual_v2'
+        : 'single_primary_v1');
+    const showSecondaryInset =
+      typeof productPolicy?.product_secondary_slot_rendered === 'boolean'
+        ? productPolicy.product_secondary_slot_rendered
+        : Boolean(fryerVariant && hasSecondaryAsset);
+    return {
+      headerMode: 'identity_left_agent_right',
+      featureMode: 'product_anchor_callouts',
+      annotationOwner: 'product_region',
+      bottomMode: resolvedBottomMode,
+      galleryMode: resolvedGalleryMode,
+      footerOrdering: 'title_subtitle_above_gallery',
+      productComposition: showSecondaryInset ? 'single_primary_supporting_inset' : 'single_primary',
+      productGeometryMode,
+      fryerVariant,
+      showSecondaryInset,
+      subtitleVisible: resolvedBottomMode !== 'gallery_only' && Boolean(normalizeText(subtitleText)),
+      galleryVisible: resolvedBottomMode !== 'text_only_expanded' && Number(galleryCount || 0) > 0,
+    };
+  }
+
   function diffPayloadPaths(before, after, prefix = '') {
     if (stableStringify(before) === stableStringify(after)) return [];
     const currentPath = prefix || '$';
@@ -220,6 +306,9 @@
     buildStage2SourceSignatures,
     buildPoster2PayloadFromNormalisedInputs,
     buildPoster2RequestSummary,
+    containsFamilyAFryerSignal,
+    isFamilyACommercialFryerVariant,
+    resolveTemplateAPreviewTruth,
     diffPayloadPaths,
     createRequestCoordinator,
   };

@@ -10,6 +10,7 @@ FILES=(
   "stage2.html"
   "app.js"
   "styles.css"
+  "stage2_request_helpers.js"
 )
 
 stale=0

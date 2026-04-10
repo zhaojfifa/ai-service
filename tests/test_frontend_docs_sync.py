@@ -10,7 +10,15 @@ SYNC_SCRIPT = ROOT / "scripts" / "sync_frontend_to_docs.sh"
 CHECK_SCRIPT = ROOT / "scripts" / "check_frontend_docs_sync.sh"
 
 
-def _write_asset_tree(base: Path, *, index: str = "index", stage2: str, app: str, styles: str) -> None:
+def _write_asset_tree(
+    base: Path,
+    *,
+    index: str = "index",
+    stage2: str,
+    app: str,
+    styles: str,
+    helpers: str = "window.stage2RequestHelpers = {};",
+) -> None:
     frontend = base / "frontend"
     docs = base / "docs"
     frontend.mkdir()
@@ -19,10 +27,12 @@ def _write_asset_tree(base: Path, *, index: str = "index", stage2: str, app: str
     (frontend / "stage2.html").write_text(stage2, encoding="utf-8")
     (frontend / "app.js").write_text(app, encoding="utf-8")
     (frontend / "styles.css").write_text(styles, encoding="utf-8")
+    (frontend / "stage2_request_helpers.js").write_text(helpers, encoding="utf-8")
     (docs / "index.html").write_text(index, encoding="utf-8")
     (docs / "stage2.html").write_text(stage2, encoding="utf-8")
     (docs / "app.js").write_text(app, encoding="utf-8")
     (docs / "styles.css").write_text(styles, encoding="utf-8")
+    (docs / "stage2_request_helpers.js").write_text(helpers, encoding="utf-8")
 
 
 def _env(tmp_path: Path) -> dict[str, str]:
@@ -76,9 +86,12 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     docs_index = (root / "docs" / "index.html").read_text(encoding="utf-8")
     frontend_stage2 = (root / "frontend" / "stage2.html").read_text(encoding="utf-8")
     docs_stage2 = (root / "docs" / "stage2.html").read_text(encoding="utf-8")
+    frontend_helpers = (root / "frontend" / "stage2_request_helpers.js").read_text(encoding="utf-8")
+    docs_helpers = (root / "docs" / "stage2_request_helpers.js").read_text(encoding="utf-8")
 
     assert frontend_index == docs_index
     assert frontend_stage2 == docs_stage2
+    assert frontend_helpers == docs_helpers
     assert "Bottom Support Copy" in frontend_index
     assert 'id="s1-core-assets" class="card stage-card" data-variant-visible="all"' in frontend_index
     assert 'id="stage1-product2-label"' in frontend_index
@@ -109,23 +122,41 @@ def test_stage1_request_mapping_prefers_dedicated_product_callouts_and_secondary
 def test_template_a_family_a_fryer_defaults_and_gallery_semantics_are_wired():
     app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
 
-    assert "Commercial Electric Fryer Series" in app_js
+    assert "Electric Fryer Series" in app_js
     assert "Power Up Your Fry Station" in app_js
     assert "Fast heating, precise control, and durable stainless steel construction for everyday commercial use." in app_js
-    assert "Fast Heat-Up" in app_js
-    assert "Precise Thermostat Control" in app_js
-    assert "Stainless Steel Body" in app_js
-    assert "Single Tank" in app_js
-    assert "Dual Tank" in app_js
+    assert "Fast Heating" in app_js
+    assert "Precise Temperature Control" in app_js
+    assert "Easy-Clean Stainless Steel" in app_js
     assert "Basket Detail" in app_js
+    assert "Single Tank" in app_js
     assert "Lid Detail" in app_js
-    assert app_js.index("Basket Detail") < app_js.index("Lid Detail")
+    assert "Dual Tank" in app_js
+    assert app_js.index("Basket Detail") < app_js.index("Single Tank") < app_js.index("Lid Detail") < app_js.index("Dual Tank")
     assert "function buildModeSDefaultGalleryEntries" in app_js
     assert "function buildModeSFamilyAGalleryFallbackPlan" in app_js
     assert "function resolveModeSAgentName" in app_js
     assert "function isModeSGenericAgentText" in app_js
     assert "product_primary_fallback" in app_js
     assert "product_secondary_fallback" in app_js
+
+
+def test_template_a_preview_parity_uses_shared_helpers_and_supporting_inset():
+    app_js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
+    index_html = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
+    stage2_html = (ROOT / "frontend" / "stage2.html").read_text(encoding="utf-8")
+    helpers_js = (ROOT / "frontend" / "stage2_request_helpers.js").read_text(encoding="utf-8")
+
+    assert "function buildTemplateAPreviewModel" in app_js
+    assert "function applyTemplateAPreviewModel" in app_js
+    assert "resolveTemplateAPreviewTruthLocal" in app_js
+    assert 'id="preview-product-secondary-wrap"' in index_html
+    assert 'id="poster-result-product-secondary-wrap"' in stage2_html
+    assert 'id="preview-gallery" class="poster-gallery"' in index_html
+    assert 'id="poster-result-gallery" class="poster-gallery"' in stage2_html
+    assert 'src="./stage2_request_helpers.js' in index_html
+    assert 'src="./stage2_request_helpers.js' in stage2_html
+    assert "function resolveTemplateAPreviewTruth" in helpers_js
 
 
 def test_template_b_independent_preview_and_generate_path_are_present():
