@@ -241,9 +241,15 @@
           </label>
         </fieldset>
 <section class="card wireframe-card">
-          <h3>Material Preview / Layout Preview</h3>
-          <p class="hint">Live preview uses safe areas. Text will shrink or truncate as needed.</p>
-          <div id="preview-container" class="preview">
+          <div class="section-heading-row">
+            <div>
+              <h3>Material Preview / Layout Preview</h3>
+              <p class="hint">Open the WYSIWYG preview when you need to review safe areas.</p>
+              <p id="preview-stale-status" class="hint">Preview is closed. Open it when ready.</p>
+            </div>
+            <button id="open-stage1-preview" class="secondary" type="button" aria-expanded="false" aria-controls="preview-container">Open Preview</button>
+          </div>
+          <div id="preview-container" class="preview hidden">
             <div id="preview-family-a" class="poster-preview">
               <div class="poster-header">
                 <div class="poster-logo">

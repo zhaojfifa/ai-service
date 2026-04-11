@@ -141,7 +141,7 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "product_secondary_image_layer" in html
     assert "product_secondary_slot" in html
     assert "syncPoster2BottomContractFromControls(stage1Data)" in js
-    assert "bottom_mode: bottomRequestState.bottom_mode" in js
+    assert "bottomRequestState," in js
     assert "product_secondary_image:" in js
     assert "layout mode:" in html
     assert "bottom_layout_mode" in html
@@ -160,16 +160,15 @@ def test_frontend_stage2_template_a_text_only_expanded_preview_uses_backend_bott
     js = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
     css = (ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
 
-    assert "function resolvePoster2PreviewBottomState" in js
+    assert "function resolveTemplateAPreviewTruthLocal" in js
     assert "stage2State.poster2.latestResult = data || null;" in js
-    assert "review?.effective_bottom_mode" in js
-    assert "review?.subtitle_slot?.rendered" in js
-    assert "review?.gallery_strip_region?.rendered" in js
-    assert "root.classList.toggle('poster-preview--text-only-expanded', isTextOnlyExpanded);" in js
-    assert "galleryRow.classList.toggle('hidden', galleryCollapsed);" in js
-    assert "gallerySubtitleEl.classList.toggle('hidden', galleryCollapsed);" in js
-    assert "bottomSubtitleEl.classList.toggle('hidden', !subtitleVisible);" in js
-    assert ".poster-preview--text-only-expanded .poster-tagline" in css
+    assert "latestResult?.bottom_contract_review?.effective_bottom_mode" in js
+    assert "latestResult?.bottom_contract_review?.bottom_mode" in js
+    assert "root.dataset.previewBottomMode = truth.bottomMode || '';" in js
+    assert "root.classList.toggle('poster-preview--gallery-hidden', !truth.galleryVisible);" in js
+    assert "galleryEl.classList.toggle('hidden', !truth.galleryVisible);" in js
+    assert "subtitleEl.classList.toggle('hidden', !truth.subtitleVisible);" in js
+    assert ".poster-gallery" in css
 
 
 def test_frontend_stage2_template_a_support_copy_mapping_stays_on_canonical_subtitle():
@@ -179,7 +178,7 @@ def test_frontend_stage2_template_a_support_copy_mapping_stays_on_canonical_subt
     assert "const subtitle = typeof source?.subtitle === 'string' ? source.subtitle.trim() : '';" in js
     assert "const legacyTagline = typeof source?.tagline === 'string' ? source.tagline.trim() : '';" in js
     assert "subtitle: resolveTemplateABottomSupportCopy(stage1Data, '')," in js
-    assert "poster.subtitle = resolveTemplateABottomSupportCopy(snapshot, '');" in js
+    assert "subtitle: resolveTemplateABottomSupportCopy(snapshot, '')," in js
     assert "requested_subtitle_text" in js
     assert "sanitized_subtitle_text" in js
 
@@ -325,6 +324,9 @@ def test_frontend_stage2_surfaces_family_a_product_region_observability_cards():
     assert "truncation_applied:" in html
     assert "optimized:" in html
     assert "s2-diagnostics-grid" in html
+    assert 'id="s2-show-diagnostics"' in html
+    assert 'id="s2-diagnostics-body" class="s2-diagnostics-body" hidden' in html
+    assert "function wireDiagnosticsToggle" in html
     assert "s2-diagnostic-card" in css
     assert "s2-diagnostic-key" in css
     assert "s2-diagnostic-val" in css

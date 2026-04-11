@@ -34,6 +34,7 @@
         font-size: 11px; font-weight: 600; text-transform: uppercase;
         letter-spacing: 0.06em; color: #6B6762;
       }
+      .s2-panel-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .s2-panel-bd { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
 
       /* Fields */
@@ -117,6 +118,19 @@
       }
       .s2-badge.ok { background: #F0FAF5; color: #1A7A4A; border-color: #B6E8CE; }
       .s2-badge.warn { background: #FFF8EC; color: #92650A; border-color: #F5D99A; }
+      .s2-diagnostics-toggle {
+        border: 1px solid #E4E2DE;
+        background: #fff;
+        border-radius: 6px;
+        color: #6B6762;
+        cursor: pointer;
+        font: inherit;
+        font-size: 10.5px;
+        padding: 3px 8px;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .s2-diagnostics-body[hidden] { display: none; }
 
       /* Resolver Layout */
       .s2-modes-strip {
@@ -460,7 +474,10 @@
           <!-- Resolver Layout -->
           <div class="s2-panel" id="poster2-resolver-layout-preview">
             <div class="s2-panel-hd">
-              <span>Resolver Layout</span>
+              <div class="s2-panel-title">
+                <span>Diagnostics</span>
+                <button id="s2-show-diagnostics" class="s2-diagnostics-toggle" type="button" aria-expanded="false" aria-controls="s2-diagnostics-body">Show Diagnostics</button>
+              </div>
               <div class="s2-badge-row">
                 <code id="s2-template-badge" class="s2-badge">template_dual_v2</code>
                 <code id="poster2-render-engine-used" class="s2-badge">—</code>
@@ -470,28 +487,30 @@
             <!-- Modes strip -->
             <div id="s2-modes-strip" class="s2-modes-strip" style="display:none"></div>
 
-            <!-- Engine / contract info -->
-            <div id="s2-copy-info" class="s2-copy-info" style="display:none">
-              <div class="s2-info-row">
-                <span class="s2-copy-label">engine</span>
-                <span id="s2-engine-val" class="s2-copy-val">—</span>
+            <div id="s2-diagnostics-body" class="s2-diagnostics-body" hidden>
+              <!-- Engine / contract info -->
+              <div id="s2-copy-info" class="s2-copy-info" style="display:none">
+                <div class="s2-info-row">
+                  <span class="s2-copy-label">engine</span>
+                  <span id="s2-engine-val" class="s2-copy-val">—</span>
+                </div>
+                <div class="s2-info-row">
+                  <span class="s2-copy-label">contract</span>
+                  <span id="s2-contract-val" class="s2-copy-val">—</span>
+                </div>
               </div>
-              <div class="s2-info-row">
-                <span class="s2-copy-label">contract</span>
-                <span id="s2-contract-val" class="s2-copy-val">—</span>
+
+              <!-- Region rows -->
+              <div id="s2-resolver-regions" class="s2-resolver-regions">
+                <div class="s2-resolver-empty">Generate a poster to see resolver layout</div>
               </div>
-            </div>
 
-            <!-- Region rows -->
-            <div id="s2-resolver-regions" class="s2-resolver-regions">
-              <div class="s2-resolver-empty">Generate a poster to see resolver layout</div>
-            </div>
-
-            <!-- Timing -->
-            <div id="s2-timing-row" class="s2-timing-row" style="display:none">
-              <div class="s2-timing-chip">
-                <span class="s2-timing-label">total</span>
-                <span id="s2-timing-total" class="s2-timing-val">—</span>
+              <!-- Timing -->
+              <div id="s2-timing-row" class="s2-timing-row" style="display:none">
+                <div class="s2-timing-chip">
+                  <span class="s2-timing-label">total</span>
+                  <span id="s2-timing-total" class="s2-timing-val">—</span>
+                </div>
               </div>
             </div>
 
@@ -1332,6 +1351,18 @@
           }
         }
 
+        function wireDiagnosticsToggle() {
+          const toggleBtn = document.getElementById('s2-show-diagnostics');
+          const body = document.getElementById('s2-diagnostics-body');
+          if (!toggleBtn || !body) return;
+          toggleBtn.addEventListener('click', () => {
+            const nextOpen = body.hasAttribute('hidden');
+            body.toggleAttribute('hidden', !nextOpen);
+            toggleBtn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+            toggleBtn.textContent = nextOpen ? 'Hide Diagnostics' : 'Show Diagnostics';
+          });
+        }
+
         /* Mirror feature tags from hidden poster-result into visible left panel */
         function wireFeatureDisplay() {
           const featureList = document.getElementById('poster-result-feature-list');
@@ -1372,6 +1403,7 @@
           }
           syncOutputUrl();
           wirePreviewButtons();
+          wireDiagnosticsToggle();
           wireFeatureDisplay();
         }
 

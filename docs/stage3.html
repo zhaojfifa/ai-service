@@ -77,18 +77,22 @@
             <input type="text" id="email-preview-text" />
           </label>
           <label class="field">
-            <span>Plain Text</span>
+            <span>Body Copy</span>
             <textarea id="email-text" rows="8" required></textarea>
           </label>
-          <label class="field">
-            <span>HTML</span>
-            <textarea id="email-html" rows="10" required></textarea>
-          </label>
+          <details class="source-details" id="email-source-details">
+            <summary>Show HTML Source</summary>
+            <label class="field">
+              <span>HTML Source</span>
+              <textarea id="email-html" rows="10" required></textarea>
+            </label>
+          </details>
         </form>
 
         <div class="output-group">
           <h3>Email Preview</h3>
           <p id="email-draft-source" class="hint"></p>
+          <p class="hint">Gemini refreshes email copy only. Poster truth and send truth stay with the backend.</p>
           <div id="email-html-preview" class="prompt-wrapper"></div>
         </div>
 
@@ -116,6 +120,8 @@
         <div class="actions">
           <a class="secondary" href="stage2.html">Back to Stage 2</a>
           <button id="refresh-email-preview" class="secondary" type="button" disabled>Refresh Draft</button>
+          <button id="accept-email-copy" class="secondary" type="button" disabled>Accept Copy</button>
+          <button id="reject-email-copy" class="secondary" type="button" disabled>Reject Copy</button>
           <button id="send-email" class="primary" type="button" disabled>Send Email</button>
         </div>
         <p id="stage3-status" role="status" aria-live="polite"></p>

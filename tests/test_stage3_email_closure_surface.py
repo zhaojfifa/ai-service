@@ -13,9 +13,14 @@ def test_stage3_consumes_live_backend_poster_and_email_payloads():
     assert "email-preview-text" in html
     assert "email-text" in html
     assert "email-html" in html
+    assert "email-source-details" in html
+    assert "Show HTML Source" in html
     assert "refresh-email-preview" in html
+    assert "accept-email-copy" in html
+    assert "reject-email-copy" in html
     assert "email-html-preview" in html
     assert "email-draft-source" in html
+    assert "Gemini refreshes email copy only" in html
     assert "email-delivery-mode" in html
     assert "attachment-poster-png" in html
     assert "attachment-poster-pdf" in html
@@ -28,6 +33,8 @@ def test_stage3_consumes_live_backend_poster_and_email_payloads():
     assert "delivery_mode: deliveryMode?.value || 'inline_only'" in js
     assert "available_attachment_types" in js
     assert "generated_from" in js
+    assert "Email copy source:" in js
+    assert "emailCopyDecision" in js
     assert "/api/send-email" not in js
     assert "buildEmailSubject(" not in js
 

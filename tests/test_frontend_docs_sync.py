@@ -100,6 +100,9 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     assert "data-secondary-image-clear" in frontend_index
     assert "preview-family-b" in frontend_index
     assert "preview-b-product-image" in frontend_index
+    assert 'id="open-stage1-preview"' in frontend_index
+    assert 'id="preview-container" class="preview hidden"' in frontend_index
+    assert "Open Preview" in frontend_index
     assert "Materials Evidence Strip" in frontend_stage2
     assert "Hero / Supporting Detail" in frontend_stage2
     assert "Product Callouts" in frontend_stage2

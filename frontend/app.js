@@ -3846,6 +3846,8 @@ function initStage1ModeS() {
   const templateDescriptionStage1 = document.getElementById('template-description-stage1');
   const templateCanvasStage1 = document.getElementById('template-preview-stage1');
   const stage1FallbackWarning = document.getElementById('stage1-fallback-warning');
+  const openPreviewButton = document.getElementById('open-stage1-preview');
+  const previewStaleStatus = document.getElementById('preview-stale-status');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
@@ -3892,6 +3894,10 @@ function initStage1ModeS() {
 
   let currentLayoutPreview = '';
   let templateRegistry = [];
+  const previewGate = {
+    open: false,
+    stale: true,
+  };
 
   const updateBrandLogoStatus = () => {
     if (!brandLogoStatus) return;
@@ -3993,6 +3999,47 @@ function initStage1ModeS() {
     return payload;
   };
 
+  const updatePreviewGateUi = () => {
+    if (previewContainer) {
+      previewContainer.classList.toggle('hidden', !previewGate.open);
+    }
+    if (openPreviewButton) {
+      openPreviewButton.textContent = previewGate.open ? 'Refresh Preview' : 'Open Preview';
+      openPreviewButton.setAttribute('aria-expanded', previewGate.open ? 'true' : 'false');
+    }
+    if (previewStaleStatus) {
+      if (!previewGate.open) {
+        previewStaleStatus.textContent = previewGate.stale
+          ? 'Preview is closed. Open it to render the latest inputs.'
+          : 'Preview is closed.';
+      } else {
+        previewStaleStatus.textContent = previewGate.stale
+          ? 'Preview is stale. Refresh when ready.'
+          : 'Preview is current.';
+      }
+    }
+  };
+
+  const markPreviewStale = () => {
+    previewGate.stale = true;
+    updatePreviewGateUi();
+  };
+
+  const requestPreviewUpdate = () => {
+    markPreviewStale();
+    return null;
+  };
+
+  const openPreviewOnDemand = () => {
+    previewGate.open = true;
+    const payload = refreshPreview();
+    previewGate.stale = false;
+    updatePreviewGateUi();
+    return payload;
+  };
+
+  updatePreviewGateUi();
+
   const stored = loadStage1Data();
   if (stored) {
     void (async () => {
@@ -4009,14 +4056,14 @@ function initStage1ModeS() {
       updateStage1TemplateVariantLabels(state.templateVariant || 'a');
       refreshVariantTemplateMeta(state.templateVariant || 'a');
       renderMaterialsSlots();
-      refreshPreview();
+      markPreviewStale();
     })();
   } else {
     applyStage1Defaults(form);
     state.galleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
     updateInlinePlaceholders(inlinePreviews);
     updateStage1TemplateVariantLabels(state.templateVariant || 'a');
-    refreshPreview();
+    markPreviewStale();
   }
 
   const refreshTemplatePreviewStage1 = async (templateId) => {
@@ -4104,7 +4151,7 @@ function initStage1ModeS() {
       const entry = templateRegistry.find((item) => item.id === value);
       state.templateLabel = entry?.name || '';
       state.previewBuilt = false;
-      refreshPreview();
+      requestPreviewUpdate();
       await refreshTemplatePreviewStage1(value);
     });
   };
@@ -4196,12 +4243,12 @@ function initStage1ModeS() {
       applyVariantFieldVisibility(state.templateVariant);
       updateStage1TemplateVariantLabels(state.templateVariant);
       refreshVariantTemplateMeta(state.templateVariant);
-      refreshPreview();
+      requestPreviewUpdate();
     });
   }
 
   ensureGalleryEntries(state, 4);
-  bindModeSBottomThumbnails(bottomThumbnails, state, statusElement, refreshPreview);
+  bindModeSBottomThumbnails(bottomThumbnails, state, statusElement, requestPreviewUpdate);
 
   // ── Template B: materials image slots ──────────────────────────────────────
   const MATERIALS_MAX = 5;
@@ -4244,6 +4291,8 @@ function initStage1ModeS() {
         reader.onload = (ev) => {
           state.materialsImages[idx] = { file, url: ev.target.result, dataUrl: ev.target.result, key: null };
           renderMaterialsSlots();
+          state.previewBuilt = false;
+          markPreviewStale();
         };
         reader.readAsDataURL(file);
       });
@@ -4256,6 +4305,8 @@ function initStage1ModeS() {
       removeBtn.addEventListener('click', () => {
         state.materialsImages.splice(idx, 1);
         renderMaterialsSlots();
+        state.previewBuilt = false;
+        markPreviewStale();
         if (addMaterialsBtn) {
           addMaterialsBtn.disabled = state.materialsImages.length >= MATERIALS_MAX;
         }
@@ -4278,6 +4329,8 @@ function initStage1ModeS() {
       if (state.materialsImages.length >= MATERIALS_MAX) return;
       state.materialsImages.push({ file: null, url: null, dataUrl: null, key: null });
       renderMaterialsSlots();
+      state.previewBuilt = false;
+      markPreviewStale();
     });
   }
 
@@ -4290,7 +4343,7 @@ function initStage1ModeS() {
     'productImage1',
     inlinePreviews.product_image_1,
     state,
-    refreshPreview,
+    requestPreviewUpdate,
     statusElement
   );
 
@@ -4299,7 +4352,7 @@ function initStage1ModeS() {
     'productImage2',
     inlinePreviews.product_image_2,
     state,
-    refreshPreview,
+    requestPreviewUpdate,
     statusElement
   );
   bindStage1SecondaryImageClearButton(
@@ -4307,7 +4360,7 @@ function initStage1ModeS() {
     form.querySelector('input[name="product_image_2"]'),
     inlinePreviews.product_image_2,
     state,
-    refreshPreview,
+    requestPreviewUpdate,
     statusElement
   );
 
@@ -4316,7 +4369,7 @@ function initStage1ModeS() {
     'brandLogo',
     inlinePreviews.brand_logo,
     state,
-    refreshPreview,
+    requestPreviewUpdate,
     statusElement,
     'brand-logo'
   );
@@ -4326,7 +4379,7 @@ function initStage1ModeS() {
     'scenario',
     inlinePreviews.scenario_asset,
     state,
-    refreshPreview,
+    requestPreviewUpdate,
     statusElement,
     'scenario'
   );
@@ -4340,7 +4393,7 @@ function initStage1ModeS() {
     if (descTitleEl) state.descriptionTitle = descTitleEl.value.trim();
     const descBodyEl = document.getElementById('description-body-stage1');
     if (descBodyEl) state.descriptionBody = descBodyEl.value.trim();
-    refreshPreview();
+    requestPreviewUpdate();
   });
 
   const persist = (payload, previewBuilt) => {
@@ -4354,6 +4407,7 @@ function initStage1ModeS() {
 
   buildPreviewButton.addEventListener('click', () => {
     const relaxedPayload = collectStage1Data(form, state, { strict: false });
+    openPreviewOnDemand();
     try {
       const strictPayload = collectStage1Data(form, state, { strict: true });
       state.previewBuilt = true;
@@ -4366,6 +4420,18 @@ function initStage1ModeS() {
       setStatus(statusElement, reason, 'warning');
     }
   });
+
+  if (openPreviewButton) {
+    openPreviewButton.addEventListener('click', () => {
+      try {
+        openPreviewOnDemand();
+        setStatus(statusElement, 'Preview rendered on demand.', 'info');
+      } catch (error) {
+        console.error(error);
+        setStatus(statusElement, error.message || 'Preview render failed.', 'error');
+      }
+    });
+  }
 
   nextButton.addEventListener('click', () => {
     try {
@@ -10333,6 +10399,8 @@ function initStage3() {
     const attachmentPosterPdf = document.getElementById('attachment-poster-pdf');
     const sendButton = document.getElementById('send-email');
     const refreshButton = document.getElementById('refresh-email-preview');
+    const acceptCopyButton = document.getElementById('accept-email-copy');
+    const rejectCopyButton = document.getElementById('reject-email-copy');
 
     if (!sendButton || !refreshButton || !emailRecipient || !emailSubject || !emailText || !emailHtml) {
       return;
@@ -10341,6 +10409,15 @@ function initStage3() {
     const stage2Result = await loadStage2Result();
     const posterKey = getPosterKeyFromLocation() || stage2Result?.poster_key || '';
     const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+    let emailCopyDecision = 'pending';
+
+    const setEmailCopyDecision = (decision, message) => {
+      emailCopyDecision = decision;
+      if (acceptCopyButton) acceptCopyButton.disabled = decision === 'accepted';
+      if (rejectCopyButton) rejectCopyButton.disabled = decision === 'rejected';
+      if (sendButton && decision !== 'rejected') sendButton.disabled = false;
+      if (message) setStatus(statusElement, message, decision === 'rejected' ? 'warning' : 'info');
+    };
 
     if (!posterKey) {
       setStatus(
@@ -10398,7 +10475,7 @@ function initStage3() {
       emailText.value = draft?.text || '';
       emailHtml.value = draft?.html || '';
       if (draftSource) {
-        draftSource.textContent = `Draft source: ${draft?.generated_from || 'deterministic'} | Tone: ${draft?.tone || 'clean_product_business'}`;
+        draftSource.textContent = `Email copy source: ${draft?.generated_from || 'deterministic'} | Tone: ${draft?.tone || 'clean_product_business'}`;
       }
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = draft?.html || '';
@@ -10423,6 +10500,9 @@ function initStage3() {
           : 'No optional backend-owned attachments available.';
       }
       setStatus(statusElement, 'Email draft 已从后端恢复。', 'success');
+      setEmailCopyDecision('pending');
+      if (acceptCopyButton) acceptCopyButton.disabled = false;
+      if (rejectCopyButton) rejectCopyButton.disabled = false;
       sendButton.disabled = false;
       return draft;
     }
@@ -10443,6 +10523,10 @@ function initStage3() {
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = emailHtml.value.trim();
       }
+      setEmailCopyDecision('pending');
+    });
+    [emailSubject, draftPreviewText, emailText].forEach((input) => {
+      input?.addEventListener('input', () => setEmailCopyDecision('pending'));
     });
 
     refreshButton.disabled = false;
@@ -10458,6 +10542,19 @@ function initStage3() {
       }
     });
 
+    if (acceptCopyButton) {
+      acceptCopyButton.addEventListener('click', () => {
+        setEmailCopyDecision('accepted', 'Email copy accepted for this send.');
+      });
+    }
+
+    if (rejectCopyButton) {
+      rejectCopyButton.addEventListener('click', () => {
+        setEmailCopyDecision('rejected', 'Email copy rejected. Refresh draft or edit the copy before sending.');
+        sendButton.disabled = true;
+      });
+    }
+
     sendButton.disabled = false;
     sendButton.addEventListener('click', async () => {
       const recipient = emailRecipient.value.trim();
@@ -10472,6 +10569,10 @@ function initStage3() {
 
       if (!recipient || !subject || !text || !html) {
         setStatus(statusElement, '请先完成收件人和邮件内容。', 'error');
+        return;
+      }
+      if (emailCopyDecision === 'rejected') {
+        setStatus(statusElement, 'Email copy 已拒绝，请刷新或编辑后再发送。', 'error');
         return;
       }
 
