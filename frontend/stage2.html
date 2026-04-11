@@ -7,29 +7,28 @@
     <title>Stage 2 - Generate Poster</title>
     <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
     <style>
-      /* === Stage 2 operator-first layout === */
+      /* === Stage 2 two-column operator layout === */
       .s2-main { padding: 24px 32px; }
       .s2-layout {
         display: grid;
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
         gap: 16px;
         align-items: start;
         max-width: 1280px;
         margin: 0 auto;
       }
       .s2-sidebar, .s2-right { display: contents; }
-      .s2-material-summary { order: 10; }
-      .s2-preview-panel { order: 20; }
-      .s2-result-output { order: 30; }
-      .s2-nav-actions { order: 40; }
-      .s2-generate-action { order: 50; }
-      .s2-renderer-controls { order: 60; }
-      .s2-bottom-controls { order: 70; }
-      .s2-copy-optimization { order: 80; }
-      .s2-key-summary { order: 90; }
-      .s2-debug-panel { order: 100; }
-      #ai-preview { order: 51; }
-      #asset-fallback-warning { order: 52; }
+      .s2-material-summary { grid-column: 1; order: 10; }
+      .s2-bottom-controls { grid-column: 1; order: 20; }
+      .s2-copy-optimization { grid-column: 1; order: 30; }
+      .s2-renderer-controls { grid-column: 1; order: 40; }
+      .s2-preview-panel { grid-column: 2; order: 10; }
+      .s2-result-output { grid-column: 2; order: 20; }
+      .s2-flow-actions { grid-column: 1 / -1; order: 80; }
+      .s2-key-summary { grid-column: 1 / -1; order: 90; }
+      .s2-debug-panel { grid-column: 1 / -1; order: 100; }
+      #ai-preview { grid-column: 1 / -1; order: 81; }
+      #asset-fallback-warning { grid-column: 1 / -1; order: 82; }
 
       /* Panel */
       .s2-panel {
@@ -86,6 +85,14 @@
 
       /* Nav actions */
       .s2-actions { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 2px; }
+      .s2-flow-actions {
+        display: grid;
+        grid-template-columns: minmax(180px, 260px) minmax(0, 1fr) auto;
+        gap: 12px;
+        align-items: center;
+      }
+      .s2-flow-actions .s2-actions { justify-content: flex-end; padding-top: 0; }
+      .s2-flow-url-note { color: #6B6762; font-size: 12px; }
 
       /* Preview panel */
       .s2-preview-wrap {
@@ -253,6 +260,19 @@
 
       @media (max-width: 900px) {
         .s2-layout { grid-template-columns: 1fr; }
+        .s2-material-summary,
+        .s2-bottom-controls,
+        .s2-copy-optimization,
+        .s2-renderer-controls,
+        .s2-preview-panel,
+        .s2-result-output,
+        .s2-flow-actions,
+        .s2-key-summary,
+        .s2-debug-panel,
+        #ai-preview,
+        #asset-fallback-warning { grid-column: 1; }
+        .s2-flow-actions { grid-template-columns: 1fr; }
+        .s2-flow-actions .s2-actions { justify-content: flex-start; }
         .s2-main { padding: 16px; }
       }
     </style>
@@ -361,7 +381,7 @@
           <!-- Renderer -->
           <div class="s2-panel s2-renderer-controls">
             <div class="s2-panel-hd">
-              <span>Renderer</span>
+              <span>Renderer / Template</span>
               <span id="poster2-pilot-badge" class="s2-badge"></span>
             </div>
             <div class="s2-panel-bd">
@@ -419,8 +439,15 @@
             </div>
           </div>
 
-          <!-- Generate -->
-          <button id="generate-poster" class="s2-btn-generate s2-generate-action" type="button">Generate Poster</button>
+          <!-- Generate / stage flow -->
+          <div class="s2-flow-actions">
+            <button id="generate-poster" class="s2-btn-generate s2-generate-action" type="button">Generate Poster</button>
+            <div class="s2-actions s2-nav-actions">
+              <a class="secondary" href="index.html">← Back to Stage 1</a>
+              <button id="to-stage3" class="primary" type="button" disabled>Continue to Stage 3</button>
+            </div>
+            <span class="s2-flow-url-note">URL 可在右侧 Output 中 Copy。</span>
+          </div>
 
           <!-- Loading state -->
           <div id="ai-preview" class="hidden">
@@ -446,12 +473,6 @@
                 <code id="final-poster-key" style="font-size:11px;word-break:break-all;">N/A</code>
               </div>
             </div>
-          </div>
-
-          <!-- Navigation -->
-          <div class="s2-actions s2-nav-actions">
-            <a class="secondary" href="index.html">← Back to Stage 1</a>
-            <button id="to-stage3" class="primary" type="button" disabled>Continue to Stage 3</button>
           </div>
 
         </aside>
