@@ -406,12 +406,12 @@ def test_generate_poster_v2_accepts_bottom_contract_fields(monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["template_behavior"]["behavior_modes"]["bottom_mode"] == "gallery_only"
-    assert body["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "gallery_only"
+    assert body["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "gallery_only_expanded"
     assert body["template_behavior"]["behavior_modes"]["gallery_mode"] == "supporting_packshots"
     assert body["bottom_contract_review"]["bottom_mode"] == "gallery_only"
     assert body["bottom_contract_review"]["requested_bottom_mode"] == "gallery_only"
     assert body["bottom_contract_review"]["effective_bottom_mode"] == "gallery_only"
-    assert body["bottom_contract_review"]["bottom_layout_mode"] == "gallery_only"
+    assert body["bottom_contract_review"]["bottom_layout_mode"] == "gallery_only_expanded"
     assert body["bottom_contract_review"]["bottom_mode_override_reason"] == "request_override_applied"
     assert body["bottom_contract_review"]["gallery_mode"] == "supporting_packshots"
     assert body["bottom_contract_review"]["title_band_region"]["rendered"] is False

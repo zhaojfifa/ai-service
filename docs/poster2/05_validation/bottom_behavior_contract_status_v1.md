@@ -314,10 +314,48 @@ Legacy aliases (accepted in requests, canonicalized before runtime):
 Runtime invariants after PR-1:
 - `_BOTTOM_MODE_ALIASES` applied before `_validate_token`; `title_only` never enters resolver
 - `_LEGACY_BOTTOM_MODE_CANONICAL` and `_BOTTOM_LAYOUT_MODE_BY_EFFECTIVE_MODE` removed
-- `bottom_layout_mode` always equals `bottom_policy.mode` (was a separately-derived layout mode)
+- `bottom_layout_mode` equals `bottom_policy.mode` for the canonical text/split modes; `gallery_only` now has the bounded visual variant `gallery_only_expanded` while preserving `bottom_policy.mode = gallery_only`
 - `bottom_mode_alias` field in `bottom_contract_review` shows alias mapping when applied
 - `mode_override_reason = "legacy_alias_canonicalized"` for alias requests
 - Geometry unchanged: `title_gallery_split` and `text_gallery_expanded` both y=640; `text_only_expanded` y=656
+
+## 12. Gallery-Only Expanded Visual Variant (2026-04-11)
+
+### Status: COMPLETE
+
+Scope is Family A / Template A `gallery_only` only.
+
+The semantic bottom mode remains:
+
+- `bottom_mode = gallery_only`
+- `title_band_region.rendered = false`
+- `title_slot_rendered = false`
+- `subtitle_slot_rendered = false`
+
+The bounded visual layout variant is:
+
+- `bottom_layout_mode = gallery_only_expanded`
+- `bottom_shell_top = 728`
+- `bottom_shell_height = 204` for the 4-card fryer detail row
+- `gallery_shell_height = 164`
+- `gallery_items_height = 126`
+- `peer_gap = 20`
+- `gallery_caption_mode = semantic_detail_caption_row`
+
+Representative before / after evidence for the 4-card fryer detail row:
+
+| field | before | after |
+| --- | ---: | ---: |
+| `bottom_layout_mode` | `gallery_only` | `gallery_only_expanded` |
+| `bottom_shell_height` | `116` | `204` |
+| `gallery_shell_height` | `116` | `164` |
+| `gallery_items_height` | `90` | `126` |
+| `peer_gap` | `0` | `20` |
+| first card bounds | `155,741,156,90` | `155,767,156,126` |
+| first media bounds | `163,749,140,56` | `163,775,140,92` |
+| first caption bounds | `163,809,140,14` | `163,871,140,14` |
+
+This change does not reopen title/subtitle in `gallery_only` and does not change product ownership, annotation ownership, header behavior, scenario behavior, or product main-path behavior.
 
 ## 24. PR-2 Bottom Mode Boundary Freeze and Completeness Rules (2026-03-30)
 

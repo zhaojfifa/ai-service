@@ -139,6 +139,7 @@ _EXPANDED_BOTTOM_SHELL_TOPS: dict[str, int] = {
     "title_gallery_split": 728,   # PR-7B-final: raised from 680 → 728 to clear product_secondary_slot bottom (708) + 20px gap
     "text_only_expanded": 728,    # PR-7B-final: raised from 640 → 728; shell height = title_band_height (content-proportionate)
     "text_gallery_expanded": 640, # 384px capacity
+    "gallery_only": 728,          # Gallery-only visual feature row; title band remains collapsed.
 }
 _SUPPORTED_GALLERY_MODES = {"strip_local_visible_only", "supporting_packshots", "none"}
 _SUPPORTED_HEADER_MODES = {
@@ -1906,7 +1907,7 @@ def resolve_bottom_behavior(
     visible_item_count = min(max(resolved_gallery_count, 0), max_items)
     requested_runtime_mode = requested_bottom_mode or bottom_mode
     # bottom_mode is already canonical (alias applied by caller via _BOTTOM_MODE_ALIASES)
-    resolved_bottom_layout_mode = bottom_mode  # always mirrors .mode
+    resolved_bottom_layout_mode = "gallery_only_expanded" if bottom_mode == "gallery_only" else bottom_mode
     actual_bottom_shell_top = _EXPANDED_BOTTOM_SHELL_TOPS.get(bottom_mode, 728)
     if requested_bottom_mode is None:
         mode_override_reason = "template_default_applied"
@@ -1960,7 +1961,8 @@ def resolve_bottom_behavior(
         subtitle_char_budget,
         layout_metrics,
     ) = _resolve_bottom_layout_policies(
-        bottom_mode=resolved_bottom_layout_mode,
+        bottom_mode=bottom_mode,
+        bottom_layout_mode=resolved_bottom_layout_mode,
         gallery_mode=gallery_mode,
         title_slot_rendered=title_slot_rendered,
         subtitle_slot_rendered=subtitle_slot_rendered,
@@ -2127,6 +2129,7 @@ def resolve_bottom_behavior(
 def _resolve_bottom_layout_policies(
     *,
     bottom_mode: str,
+    bottom_layout_mode: str,
     gallery_mode: str,
     title_slot_rendered: bool,
     subtitle_slot_rendered: bool,
@@ -2485,6 +2488,7 @@ def _resolve_bottom_layout_policies(
 
     peer_gap = _resolve_bottom_peer_gap(
         bottom_mode=bottom_mode,
+        bottom_layout_mode=bottom_layout_mode,
         visible_item_count=visible_item_count if gallery_strip_rendered else 0,
         title_band_sizing_mode=title_band_sizing_mode,
         peer_balance_policy=peer_balance_policy,
@@ -2496,7 +2500,7 @@ def _resolve_bottom_layout_policies(
     gallery_shell_top = (
         title_band_top + title_band_height + peer_gap
         if gallery_strip_rendered and title_slot_rendered
-        else (title_band_top if gallery_strip_rendered else title_band_top + title_band_height)
+        else (title_band_top + peer_gap if gallery_strip_rendered else title_band_top + title_band_height)
     )
     (
         gallery_strip_shift_policy,
@@ -2746,6 +2750,7 @@ def _resolve_gallery_distribution_layout(
 def _resolve_bottom_peer_gap(
     *,
     bottom_mode: str,
+    bottom_layout_mode: str,
     visible_item_count: int,
     title_band_sizing_mode: str,
     peer_balance_policy: str,
@@ -2753,6 +2758,8 @@ def _resolve_bottom_peer_gap(
 ) -> int:
     if visible_item_count <= 0:
         return 0
+    if bottom_layout_mode == "gallery_only_expanded":
+        return 20
     if bottom_mode == "text_gallery_expanded":
         return 18 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
     if bottom_mode != "title_gallery_split":
@@ -2801,6 +2808,14 @@ def _resolve_gallery_strip_vertical_metrics(
         shift_policy = "detail_row_quad_shift"
         shell_height = 116
         item_height = 90
+    if peer_balance_policy == "gallery_strip_only":
+        shift_policy = f"gallery_only_expanded_{shift_policy}"
+        item_height += 24
+        shell_height = max(shell_height + 28, item_height + 36)
+        if commercial_fryer_variant and visible_item_count >= 4:
+            shift_policy = "gallery_only_expanded_detail_row_shift"
+            shell_height = 164
+            item_height = 126
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)
@@ -2929,7 +2944,7 @@ def _resolve_bottom_shell_height(
     gallery_shell_height: int,
 ) -> int:
     if bottom_mode == "gallery_only":
-        return gallery_shell_height
+        return max(gallery_shell_top + gallery_shell_height - bottom_shell_top + 20, gallery_shell_height)
     if bottom_mode == "text_only_expanded":
         # PR-8C: shell fills full bottom zone to canvas bottom; title band is centered within.
         return _CANVAS_H - bottom_shell_top

@@ -871,6 +871,7 @@ class TestPosterPipelineRun:
         metadata_key = next(key for key in stored_payloads if key.endswith(".json"))
         metadata = json.loads(stored_payloads[metadata_key].decode("utf-8"))
         assert metadata["template_behavior"]["behavior_modes"]["bottom_mode"] == "gallery_only"
+        assert metadata["template_behavior"]["behavior_modes"]["bottom_layout_mode"] == "gallery_only_expanded"
         assert metadata["template_behavior"]["behavior_modes"]["gallery_mode"] == "supporting_packshots"
         assert metadata["bottom_contract_review"]["title_band_region"]["rendered"] is False
         assert metadata["bottom_contract_review"]["gallery_strip_region"]["rendered"] is True
@@ -883,14 +884,14 @@ class TestPosterPipelineRun:
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
         assert metadata["bottom_contract_review"]["gallery_distribution_policy"] == "single_packshot_focus"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_shell_frame_policy"] == "single_showcase_frame"
-        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "single_gallery_centered_shift"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "gallery_only_expanded_single_gallery_centered_shift"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_aspect_policy"] == "single_packshot_aspect"
         assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_text_emphasis_policy"] == "gallery_only_neutral_text"
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 296,
-            "y": 10,
+            "y": 18,
             "w": 240,
-            "h": 64,
+            "h": 88,
         }
 
     def test_renderer_metadata_exposes_dense_bottom_behavior_policy(self):
@@ -2157,7 +2158,8 @@ class TestBottomModeBoundaryAndCompleteness:
             assert "bottom_layout_mode" in review, f"missing bottom_layout_mode for mode={mode}"
             assert "bottom_mode_override_reason" in review, f"missing bottom_mode_override_reason for mode={mode}"
             assert review["effective_bottom_mode"] == mode, f"effective mode mismatch for mode={mode}"
-            assert review["bottom_layout_mode"] == mode, f"layout mode must mirror effective mode for mode={mode}"
+            expected_layout_mode = "gallery_only_expanded" if mode == "gallery_only" else mode
+            assert review["bottom_layout_mode"] == expected_layout_mode, f"layout mode mismatch for mode={mode}"
             assert review["bottom_mode_region_contract"]["effective_bottom_mode"] == mode
 
     def test_title_only_alias_canonicalized_to_text_only_expanded_with_explicit_diagnostics(self):
@@ -2250,13 +2252,13 @@ class TestBottomModeStabilization:
         review = metadata["bottom_contract_review"]
         assert review["requested_bottom_mode"] == "gallery_only"
         assert review["effective_bottom_mode"] == "gallery_only"
-        assert review["bottom_layout_mode"] == "gallery_only"
+        assert review["bottom_layout_mode"] == "gallery_only_expanded"
         assert "bottom_mode_override_reason" in review
 
     # --- gallery_only geometry fix ---
 
-    def test_gallery_only_gallery_shell_top_equals_bottom_shell_top(self):
-        """gallery_shell_top must equal bottom_shell_top for gallery_only (not hardcoded 888)."""
+    def test_gallery_only_gallery_shell_top_uses_bounded_peer_gap(self):
+        """gallery_only keeps the shell bounded while adding a deliberate gap before the gallery row."""
         from app.services.poster2.template_behavior import resolve_bottom_behavior
         policy = resolve_bottom_behavior(
             "gallery_only",
@@ -2270,9 +2272,9 @@ class TestBottomModeStabilization:
         )
         bottom_shell_top = policy.layout_metrics["bottom_shell_top"]
         gallery_shell_top = policy.layout_metrics["gallery_shell_top"]
-        assert gallery_shell_top == bottom_shell_top, (
-            f"gallery_shell_top ({gallery_shell_top}) must equal bottom_shell_top ({bottom_shell_top})"
-        )
+        assert policy.bottom_layout_mode == "gallery_only_expanded"
+        assert policy.layout_metrics["peer_gap"] == 20
+        assert gallery_shell_top == bottom_shell_top + 20
 
     def test_gallery_only_gallery_items_render_inside_bottom_shell(self):
         """Gallery items must have absolute y within the bottom shell bounds."""
@@ -2956,6 +2958,43 @@ class TestPostFreezeTextCapacity:
             "Lid Detail",
             "Dual Tank",
         ]
+
+    def test_gallery_only_fryer_dense_quad_uses_expanded_visual_feature_row(self):
+        from app.services.poster2.template_behavior import resolve_bottom_behavior
+
+        policy = resolve_bottom_behavior(
+            "gallery_only",
+            gallery_mode="strip_local_visible_only",
+            title_text="Suppressed in gallery only",
+            subtitle_text="Suppressed in gallery only",
+            requested_gallery_count=4,
+            normalized_gallery_count=4,
+            resolved_gallery_count=4,
+            max_items=4,
+            commercial_fryer_variant=True,
+        )
+
+        assert policy.mode == "gallery_only"
+        assert policy.bottom_layout_mode == "gallery_only_expanded"
+        assert policy.title_band_rendered is False
+        assert policy.title_slot_rendered is False
+        assert policy.subtitle_slot_rendered is False
+        assert policy.gallery_distribution_policy == "dense_quad_detail_row"
+        assert policy.gallery_caption_mode == "semantic_detail_caption_row"
+        assert policy.layout_metrics["bottom_shell_height"] == 204
+        assert policy.layout_metrics["gallery_shell_height"] == 164
+        assert policy.layout_metrics["gallery_items_height"] == 126
+        assert policy.layout_metrics["peer_gap"] == 20
+        assert [item["h"] for item in policy.layout_metrics["gallery_item_layouts"]] == [126, 126, 126, 126]
+        assert [item["caption_text"] for item in policy.gallery_caption_slots] == [
+            "Basket Detail",
+            "Single Tank",
+            "Lid Detail",
+            "Dual Tank",
+        ]
+        assert policy.gallery_caption_slots[0]["card_bounds"] == {"x": 155, "y": 767, "w": 156, "h": 126}
+        assert policy.gallery_caption_slots[0]["media_bounds"] == {"x": 163, "y": 775, "w": 140, "h": 92}
+        assert policy.gallery_caption_slots[0]["bounds"] == {"x": 163, "y": 871, "w": 140, "h": 14}
 
     def test_non_fryer_bottom_keeps_caption_mode_none(self):
         from app.services.poster2.template_behavior import resolve_bottom_behavior
