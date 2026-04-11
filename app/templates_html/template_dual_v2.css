@@ -288,6 +288,11 @@ body {
   text-wrap: balance;
 }
 
+.product-geometry-mode-family-a-fryer-hero-supporting-inset-v1 .header-agent-wrap .text-agent-secondary {
+  font-size: 16px;
+  line-height: 1.16;
+}
+
 .layer-header-layout {
   position: absolute;
   left: var(--header-inner-left);

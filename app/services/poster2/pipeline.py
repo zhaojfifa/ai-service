@@ -1947,6 +1947,11 @@ def _build_header_contract_review(
         if resolved_behavior.header_policy.agent_pill_visible
         else ""
     )
+    agent_visual_font_size = (
+        16
+        if resolved_behavior.product_policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
+        else int(template.agent_name_slot.font_size)
+    )
     if _is_template_b_template(template):
         header_bounds = _header_region_bounds(template, resolved_behavior)
         banner_rendered = bool(region_render_status.get("logo_banner_region", {}).get("rendered", False))
@@ -2063,6 +2068,7 @@ def _build_header_contract_review(
             "rendered": bool(layer_render_status.get("agent_name_text_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("agent_name_text_layer", {}).get("reason_code"),
             "bounds": _agent_name_slot_bounds(template, resolved_behavior),
+            "visual_font_size": agent_visual_font_size,
         },
     }
 
@@ -3114,6 +3120,11 @@ def _build_header_text_layer_evidence(
     brand_excerpt = _apply_text_budget(brand_sanitized, header.brand_char_budget)
     agent_excerpt = _apply_text_budget(agent_sanitized, header.agent_char_budget) if header.agent_char_budget > 0 else ""
     metrics = header.layout_metrics
+    agent_visual_font_size = (
+        16
+        if resolved_behavior.product_policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
+        else int(template.agent_name_slot.font_size)
+    )
     return {
         "layer_id": "header_text_layer",
         "rendered": brand_rendered or agent_rendered,
@@ -3140,6 +3151,7 @@ def _build_header_text_layer_evidence(
             "truncation_applied": agent_rendered and len(agent_sanitized) > len(agent_excerpt),
             "line_clamp": header.agent_line_clamp,
             "char_budget": header.agent_char_budget,
+            "visual_font_size": agent_visual_font_size,
             "slot_bounds": {
                 "x": int(metrics["agent_slot_x"]),
                 "y": int(metrics["agent_slot_y"]),

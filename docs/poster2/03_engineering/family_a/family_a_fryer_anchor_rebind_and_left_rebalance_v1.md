@@ -81,3 +81,15 @@ The visual-only deltas are:
 - footer media height increases from `46` to `58`
 
 No ownership, slot count, bottom mode, or caption semantics change in this addendum.
+
+## Final Micro-Closeout Addendum
+
+This fryer-only visual closeout keeps the accepted Family A runtime structure and does not reopen control, add regions, change ownership, change the 3-column header geometry, or change footer caption semantics.
+
+Bounded presentation deltas:
+
+- header agent text keeps the existing `x=684, y=96, w=228, h=36` slot and `agent_line_clamp = 2`, while the fryer path renders the visual agent text at `16px`
+- supporting inset keeps the existing supporting-inset model and retunes to `x=600, y=592, w=108, h=108` in the lower-right support area
+- Pillow final adds a light support base under the existing inset shell, without adding a new material region or increasing content density
+- footer detail-row cards reduce from `164x92` to `156x90` and recenter inside the same gallery strip
+- footer media bounds reduce from `148x58` to `140x56`, with captions and `semantic_detail_caption_row` retained

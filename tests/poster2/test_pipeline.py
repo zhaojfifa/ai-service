@@ -2940,9 +2940,9 @@ class TestPostFreezeTextCapacity:
         assert policy.gallery_caption_owner == "gallery_strip_region"
         assert policy.layout_metrics["peer_gap"] == 12
         assert policy.layout_metrics["title_band_height"] == 176
-        assert policy.layout_metrics["gallery_shell_height"] == 120
-        assert policy.layout_metrics["gallery_items_height"] == 92
-        assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [164, 164, 164, 164]
+        assert policy.layout_metrics["gallery_shell_height"] == 116
+        assert policy.layout_metrics["gallery_items_height"] == 90
+        assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [156, 156, 156, 156]
         assert [item["caption_text"] for item in policy.gallery_caption_slots] == [
             "Basket Detail",
             "Single Tank",
@@ -3417,7 +3417,7 @@ class TestProductTextCapacityPRC:
         assert policy.product_layout_mode == "single_primary"
         assert policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
         assert policy.product_primary_slot == {"x": 428, "y": 192, "w": 312, "h": 384}
-        assert policy.product_secondary_slot == {"x": 454, "y": 596, "w": 104, "h": 104}
+        assert policy.product_secondary_slot == {"x": 600, "y": 592, "w": 108, "h": 108}
         assert policy.product_primary_slot["y"] + policy.product_primary_slot["h"] < policy.product_secondary_slot["y"]
         assert policy.product_secondary_slot_rendered is True
 
@@ -5835,10 +5835,12 @@ class TestTemplateBBackendGenerationFix:
             title="Power Up Your Fry Station",
             subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
             agent_name="Commercial Electric Fryer Series",
+            product_secondary_image=AssetRef(url="mock://product-secondary"),
             gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
         )
         assets = ResolvedAssets(
             product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            product_secondary=PILImage.new("RGBA", (320, 240), (180, 120, 80, 255)),
             gallery=[PILImage.new("RGBA", (320, 240), (50, 100, 200, 255)) for _ in range(4)],
             gallery_status=[
                 {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
@@ -5853,6 +5855,12 @@ class TestTemplateBBackendGenerationFix:
             put_bytes_fn=_mock_r2_put(),
         )
         manifest = asyncio.run(pipe.run(spec, _load_template()))
+
+        assert manifest.header_contract_review["agent_name_slot"]["bounds"] == {"x": 684, "y": 96, "w": 228, "h": 36}
+        assert manifest.header_contract_review["agent_name_slot"]["visual_font_size"] == 16
+        assert manifest.header_text_layer["agent_text_slot"]["line_clamp"] == 2
+        assert manifest.header_text_layer["agent_text_slot"]["visual_font_size"] == 16
+        assert manifest.header_contract_review["agent_truncation_applied"] is False
 
         review = manifest.bottom_contract_review
         assert review["gallery_caption_mode"] == "semantic_detail_caption_row"

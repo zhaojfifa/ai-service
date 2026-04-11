@@ -133,3 +133,54 @@ Comparison:
 - `deliverable = true`
 - annotations remain inside `product_region`
 - 4 gallery items and captions remain rendered
+
+## Final Micro-Closeout Addendum
+
+### Tests Run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/renderer.py app/services/poster2/pipeline.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'title_gallery_split_fryer_dense_quad_detail_row_adds_breathing or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset or template_a_fryer_bottom_contract_review_exposes_caption_truth'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'real_template_has_three_lane_header_css or fryer_dense_quad_gallery_markup_emits_semantic_captions or resolve_feature_callout_map_uses_fryer_variant_annotation_bounds'`
+
+### Runtime Evidence
+
+Before:
+
+- screenshot: `/tmp/fryer_final_micro_before/before.png`
+- metadata: `/tmp/fryer_final_micro_before/metadata.json`
+- summary: `/tmp/fryer_final_micro_before/summary.json`
+
+After:
+
+- screenshot: `/tmp/fryer_final_micro_after/after.png`
+- metadata: `/tmp/fryer_final_micro_after/metadata.json`
+- summary: `/tmp/fryer_final_micro_after/summary.json`
+
+Comparison:
+
+- sheet: `/tmp/fryer_final_micro_compare/before_after.png`
+
+### Before / After Runtime Delta
+
+- header agent slot:
+  - before: `x=684, y=96, w=228, h=36`, `line_clamp=2`, `truncation_applied=false`
+  - after: `x=684, y=96, w=228, h=36`, `line_clamp=2`, `visual_font_size=16`, `truncation_applied=false`
+- supporting inset:
+  - before: `x=454, y=596, w=104, h=104`
+  - after: `x=600, y=592, w=108, h=108`
+- footer card bounds:
+  - before: `w=164, h=92`, first x `157`, last x `703`
+  - after: `w=156, h=90`, first x `173`, last x `695`
+- footer media bounds:
+  - before: `w=148, h=58`
+  - after: `w=140, h=56`
+
+### Proven
+
+- `bottom_mode = title_gallery_split`
+- `gallery_caption_mode = semantic_detail_caption_row`
+- `structure_complete = true`
+- `deliverable = true`
+- header agent slot geometry unchanged
+- supporting inset remains a supporting inset owned by `product_region`
+- 4 gallery items and captions remain rendered

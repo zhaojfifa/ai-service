@@ -48,7 +48,7 @@ _PRODUCT_REGION_X_FRYER = 424
 _PRODUCT_CANVAS_SHELL_W = 300
 _PRODUCT_CANVAS_SHELL_W_FRYER = 316
 _PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 428, "y": 192, "w": 312, "h": 384}
-_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 454, "y": 596, "w": 104, "h": 104}
+_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 600, "y": 592, "w": 108, "h": 108}
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
 # This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
@@ -2628,7 +2628,7 @@ def _resolve_gallery_distribution_layout(
         gallery_shell_frame_policy = "quad_detail_row_frame"
         gallery_aspect_policy = "detail_row_quad_aspect"
         gallery_spacing_policy = "detail_row_quad_spacing"
-        item_width = 164
+        item_width = 156
         gap = 18
     strip_width = 832
     strip_left = 96
@@ -2710,8 +2710,8 @@ def _resolve_gallery_strip_vertical_metrics(
     ]
     if commercial_fryer_variant and visible_item_count >= 4:
         shift_policy = "detail_row_quad_shift"
-        shell_height = 120
-        item_height = 92
+        shell_height = 116
+        item_height = 90
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)

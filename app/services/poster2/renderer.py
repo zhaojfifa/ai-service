@@ -309,9 +309,19 @@ class LayoutRenderer:
             draw_background=False,
         )
         if behavior.header_policy.agent_pill_visible:
+            agent_font_size = (
+                16
+                if behavior.product_policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
+                else spec.agent_name_slot.font_size
+            )
             self._draw_text(
                 canvas,
-                _agent_text_slot(spec, behavior.header_policy, color=behavior.text_colors["agent"]),
+                _agent_text_slot(
+                    spec,
+                    behavior.header_policy,
+                    color=behavior.text_colors["agent"],
+                    font_size=agent_font_size,
+                ),
                 _apply_char_budget(poster.agent_name, behavior.header_policy.agent_char_budget),
                 draw_background=False,
             )
@@ -785,12 +795,22 @@ class LayoutRenderer:
         secondary = product_policy.product_secondary_slot
         if not secondary:
             return
+        base = PILImage.new("RGBA", canvas.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(base)
+        x0 = int(secondary["x"]) - 8
+        y0 = int(secondary["y"]) + int(secondary["h"]) - 18
+        x1 = int(secondary["x"] + secondary["w"]) + 8
+        y1 = int(secondary["y"] + secondary["h"]) + 10
+        draw.rounded_rectangle([x0, y0, x1, y1], radius=16, fill=(158, 142, 132, 30))
+        draw.ellipse([x0 + 8, y0 + 10, x1 - 8, y1 + 10], fill=(104, 94, 88, 28))
+        base = base.filter(ImageFilter.GaussianBlur(radius=8))
+        canvas.alpha_composite(base)
         self._draw_shell_box(
             canvas,
             (int(secondary["x"]), int(secondary["y"]), int(secondary["w"]), int(secondary["h"])),
             radius=20,
-            fill=(255, 255, 255, 164),
-            border=(214, 218, 221, 150),
+            fill=(255, 255, 255, 172),
+            border=(214, 218, 221, 168),
             shadow=None,
         )
 
@@ -2914,7 +2934,13 @@ def _brand_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, 
     )
 
 
-def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, *, color: str) -> TextSlotSpec:
+def _agent_text_slot(
+    spec: TemplateSpec,
+    header_policy: ResolvedHeaderBehavior,
+    *,
+    color: str,
+    font_size: int | None = None,
+) -> TextSlotSpec:
     metrics = header_policy.layout_metrics
     return replace(
         spec.agent_name_slot,
@@ -2923,6 +2949,7 @@ def _agent_text_slot(spec: TemplateSpec, header_policy: ResolvedHeaderBehavior, 
         w=int(metrics["agent_slot_w"]),
         h=int(metrics["agent_slot_h"]),
         color=color,
+        font_size=font_size if font_size is not None else spec.agent_name_slot.font_size,
         max_lines=header_policy.agent_line_clamp,
         balance_wrap=header_policy.agent_line_clamp == 2,
     )

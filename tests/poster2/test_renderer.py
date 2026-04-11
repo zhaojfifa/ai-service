@@ -1803,6 +1803,7 @@ class TestHeaderAndTitleBandLayoutControl:
         assert ".slot-agent-name-text {" in css_template
         assert ".text-agent-secondary {" in css_template
         assert ".header-agent-wrap .text-agent-secondary {" in css_template
+        assert ".product-geometry-mode-family-a-fryer-hero-supporting-inset-v1 .header-agent-wrap .text-agent-secondary" in css_template
         assert ".layer-header-banner.state-logo-empty {" in css_template
         assert ".layer-header-banner.state-logo-empty .layer-brand-logo" in css_template
         assert ".slot-title:empty," in css_template
