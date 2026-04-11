@@ -72,6 +72,18 @@ _PRODUCT_ANNOTATION_LABEL_BOUNDS_FRYER: tuple[dict[str, int], ...] = (
     {"x": 764, "y": 412, "w": 176, "h": 76},
 )
 _PRODUCT_ANNOTATION_ANCHOR_INSET_FRYER = 36
+_FAMILY_A_FRYER_ANNOTATION_CARD_STYLE_TOKENS: dict[str, str] = {
+    "surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(248, 242, 239, 0.38))",
+    "border": "1px solid rgba(198, 58, 45, 0.07)",
+    "shadow": "0 6px 12px rgba(24, 24, 24, 0.025)",
+    "inset": "inset 0 1px 0 rgba(255, 255, 255, 0.56)",
+}
+_FAMILY_A_FRYER_BOTTOM_SURFACE_TOKENS: dict[str, str] = {
+    "title_band_surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(242, 245, 247, 0.54))",
+    "title_band_border": "1px solid rgba(198, 58, 45, 0.06)",
+    "title_band_shadow": "0 10px 20px rgba(36, 40, 44, 0.045)",
+    "gallery_shell_surface": "rgba(249, 250, 250, 0.68)",
+}
 
 # Frozen owner surfaces for product_region.
 # These are the only surfaces that carry product ownership.
@@ -2298,7 +2310,7 @@ def _resolve_bottom_layout_policies(
             subtitle_line_clamp = 2
             title_char_budget = 52
             subtitle_char_budget = 120  # PR-bottom-final: raise to 2-line CSS capacity; CSS line-clamp:2 handles overflow
-            title_band_height = 176 if commercial_fryer_variant else 176
+            title_band_height = 172 if commercial_fryer_variant else 176
             title_content_pad_top = 20 if commercial_fryer_variant else 20
             title_content_pad_bottom = 14 if commercial_fryer_variant else 16
             title_stack_gap = 8  # PR-7C: +2 from 6; matched to triplet/light-gallery branches
@@ -2706,7 +2718,7 @@ def _resolve_gallery_distribution_layout(
         gallery_aspect_policy = "detail_row_quad_aspect"
         gallery_spacing_policy = "detail_row_quad_spacing"
         item_width = 156
-        gap = 18
+        gap = 24
     strip_width = 832
     strip_left = 96
     used_width = item_width * visible_item_count + gap * max(visible_item_count - 1, 0)
@@ -2742,11 +2754,11 @@ def _resolve_bottom_peer_gap(
     if visible_item_count <= 0:
         return 0
     if bottom_mode == "text_gallery_expanded":
-        return 12 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
+        return 16 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
     if bottom_mode != "title_gallery_split":
         return 0
     if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance":
-        return 12
+        return 16
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         return 10
     if peer_balance_policy == "balanced_dense_copy_with_triplet_gallery":
@@ -2812,7 +2824,7 @@ def _resolve_gallery_shell_frame_metrics(
         "balanced_triplet": (14, 22),
         "supporting_triplet": (12, 20),
         "dense_quad": (8, 20),
-        "dense_quad_detail_row": (18, 24),
+        "dense_quad_detail_row": (22, 24),
     }
     item_radius_by_policy: dict[str, int] = {
         "single_center_focus": 18,

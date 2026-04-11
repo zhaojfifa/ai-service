@@ -571,6 +571,10 @@ class LayoutRenderer:
     ) -> None:
         has_title_band = behavior.bottom_policy.title_band_rendered
         has_gallery = behavior.bottom_policy.gallery_strip_rendered
+        is_family_a_fryer = (
+            getattr(behavior.product_policy, "product_geometry_mode", "")
+            == "family_a_fryer_hero_supporting_inset_v1"
+        )
         header_box = _header_shell_bounds(spec, behavior.header_policy)
         self._draw_shell_box(
             canvas,
@@ -615,16 +619,28 @@ class LayoutRenderer:
                 canvas,
                 _title_band_shell_bounds(spec, behavior.bottom_policy),
                 radius=28,
-                fill=_pillow_shell_fill("title_band", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
-                border=_pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
-                shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
+                fill=(
+                    (255, 255, 255, 194)
+                    if is_family_a_fryer
+                    else _pillow_shell_fill("title_band", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color)
+                ),
+                border=(
+                    _hex_to_rgba(behavior.accent_color, 15)
+                    if is_family_a_fryer
+                    else _pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color)
+                ),
+                shadow=(0, 7, 14, 0, 12) if is_family_a_fryer else _pillow_shadow(behavior.beauty_tokens.shell_shadow),
             )
         if has_gallery:
             self._draw_shell_box(
                 canvas,
                 _gallery_strip_shell_bounds(spec, behavior.bottom_policy),
                 radius=int(behavior.bottom_policy.layout_metrics.get("gallery_shell_radius", 20)),
-                fill=_pillow_shell_fill("gallery_strip", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color),
+                fill=(
+                    (249, 250, 250, 174)
+                    if is_family_a_fryer
+                    else _pillow_shell_fill("gallery_strip", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color)
+                ),
                 border=_pillow_border("gallery", behavior.beauty_tokens.shell_border, accent=behavior.accent_color),
                 shadow=_pillow_shadow(behavior.beauty_tokens.shell_shadow),
             )
@@ -827,8 +843,8 @@ class LayoutRenderer:
         draw.rounded_rectangle(
             [slot.x, slot.y, slot.x + slot.w, slot.y + slot.h],
             radius=12,
-            fill=(255, 255, 255, 178),
-            outline=(198, 58, 45, 28),
+            fill=(255, 255, 255, 148),
+            outline=(198, 58, 45, 18),
             width=1,
         )
         overlay = overlay.filter(ImageFilter.GaussianBlur(radius=0.25))

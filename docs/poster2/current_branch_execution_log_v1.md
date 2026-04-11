@@ -1,5 +1,88 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-FA-FRYER-POLISH-1: lighter annotation cards and airier bottom strip
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-11
+
+### Scope
+
+- Template A / Family A fryer only
+- bounded beautification / layout-metrics pass
+- no Template B work
+- no ownership, annotation anchor, product geometry, bottom mode, gallery count, or caption semantic change
+
+### Root rules followed
+
+- contract-first
+- renderer consumes resolver metrics and scoped style tokens
+- fixed product annotation ownership stayed under `product_region`
+- bottom stayed `title_gallery_split`
+- gallery stayed 4 items with `semantic_detail_caption_row`
+
+### Problem reproduced
+
+The fryer annotation cards read too solid against the product region, and the bottom title/gallery treatment felt visually heavy with the four thumbnail cards too attached.
+
+### Root cause found
+
+The active fryer visual treatment still used relatively opaque annotation card/title-band surfaces and a dense detail-row gap/shell frame, even though the slot, caption, and ownership contracts were already correct.
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- bounded Family A fryer beautification tokens
+- bottom resolver layout metrics
+- renderer consumption
+- evidence / metadata
+- tests
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_annotation_contract_review_uses_resolved_positions_source or title_gallery_split_fryer_dense_quad_detail_row_adds_breathing or template_a_fryer_bottom_contract_review_exposes_caption_truth or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset or template_a_regression_path_remains_unchanged or non_fryer_bottom_keeps_caption_mode_none'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'template_css_exposes_family_a_product_region_observability_freeze_tokens or template_css_exposes_family_a_bottom_region_practical_closure_tokens or fryer_dense_quad_gallery_markup_emits_semantic_captions or resolve_feature_callout_map_uses_fryer_variant_annotation_bounds or product_annotation_wait_uses_resolved_fryer_label_bounds'`
+- before/after runtime capture:
+  - before screenshot: `/tmp/fryer_polish_before/before.png`
+  - before metadata: `/tmp/fryer_polish_before/metadata.json`
+  - after screenshot: `/tmp/fryer_polish_after/after.png`
+  - after metadata: `/tmp/fryer_polish_after/metadata.json`
+  - comparison sheet: `/tmp/fryer_polish_after/before_after.png`
+  - metric delta: `/tmp/fryer_polish_after/metric_delta.json`
+
+### Exact runtime delta
+
+- `structure_complete = true`
+- `deliverable = true`
+- `bottom_mode = title_gallery_split`
+- `gallery_caption_mode = semantic_detail_caption_row`
+- gallery captions unchanged: `Basket Detail`, `Single Tank`, `Lid Detail`, `Dual Tank`
+- annotation card effective surface reduced from `rgba(... 0.74/0.54)` to `rgba(... 0.58/0.38)`
+- annotation card border reduced from `rgba(... 0.10)` to `rgba(... 0.07)`
+- annotation card shadow reduced from `0 8px 16px rgba(... 0.04)` to `0 6px 12px rgba(... 0.025)`
+- title-band height: `176 -> 172`
+- peer gap: `12 -> 16`
+- gallery shell bounds: `{x:155, y:916, w:714, h:116} -> {x:142, y:916, w:740, h:116}`
+- gallery item width/height unchanged: `156x90`; x positions spread from `173/347/521/695` to `164/344/524/704`
+- gallery media bounds remain `140x56`
+
+### Remaining risks
+
+- local screenshot generation used fallback system fonts because `NotoSansSC` is not installed in this workspace
+- Puppeteer was unavailable locally and the capture used the renderer fallback path
+
+---
+
 ## Entry — PR-FA-SPS-1: Family A single-primary support surface
 
 **Branch:** `main`

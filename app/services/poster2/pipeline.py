@@ -47,6 +47,8 @@ from .skills.structure.family_a_structure_surface_v1 import (
     build_structure_surface as build_family_a_structure_surface,
 )
 from .template_behavior import (
+    _FAMILY_A_FRYER_ANNOTATION_CARD_STYLE_TOKENS,
+    _FAMILY_A_FRYER_BOTTOM_SURFACE_TOKENS,
     _FROZEN_PRODUCT_ANNOTATION_SLOT_IDS,
     _FROZEN_PRODUCT_OWNER_SURFACES,
     _PRODUCT_ANNOTATION_OWNER_SLOT,
@@ -1911,6 +1913,11 @@ def _build_bottom_contract_review(
         },
         "gallery_caption_mode": resolved_behavior.bottom_policy.gallery_caption_mode,
         "caption_owner": resolved_behavior.bottom_policy.gallery_caption_owner,
+        "surface_tokens": (
+            dict(_FAMILY_A_FRYER_BOTTOM_SURFACE_TOKENS)
+            if resolved_behavior.product_policy.product_geometry_mode == "family_a_fryer_hero_supporting_inset_v1"
+            else {}
+        ),
         "behavior_policy": {
             "title_band_sizing_mode": resolved_behavior.bottom_policy.title_band_sizing_mode,
             "title_band_growth_policy": resolved_behavior.bottom_policy.title_band_growth_policy,
@@ -2770,6 +2777,11 @@ def _build_product_annotation_contract_review(
                 product_policy.annotation_items[0].get("positions_source")
                 if product_policy.annotation_items
                 else None
+            ),
+            "annotation_card_surface_tokens": (
+                dict(_FAMILY_A_FRYER_ANNOTATION_CARD_STYLE_TOKENS)
+                if product_policy.text_shell_variant == "family_a_fryer_extended_right_lane"
+                else {}
             ),
             "layout_metrics": dict(product_policy.layout_metrics),
         },
