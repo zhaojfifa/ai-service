@@ -86,6 +86,7 @@ _TEMPLATE_A_VISIBLE_TRUTH_SELECTORS: dict[str, str] = {
     "product_canvas_shell_layer": '[data-layer="product_canvas_shell_layer"]',
     "product_image_layer": '.layer-product .slot-product',
     "product_secondary_image_layer": '.layer-product .slot-product-secondary',
+    "product_support_surface_layer": '.layer-product .slot-product-support-surface',
     "feature_region": '[data-region="feature_region"]',
     "bottom_region": '[data-region="bottom_region"]',
     "title_band_region": '[data-region="title_band_region"]',
@@ -261,6 +262,12 @@ class LayoutRenderer:
                 canvas,
                 _product_secondary_image_slot(spec, behavior.product_policy),
                 assets.product_secondary,
+            )
+        if behavior.product_policy.product_support_surface_rendered and assets.gallery:
+            self._draw_product_support_surface(
+                canvas,
+                behavior.product_policy,
+                assets.gallery[0],
             )
         gallery_items_status = _apply_family_a_fryer_gallery_captions(
             list(assets.gallery_status),
@@ -854,6 +861,64 @@ class LayoutRenderer:
     def _draw_product(self, canvas: PILImage.Image, slot: ImageSlotSpec, img: PILImage.Image) -> None:
         self._draw_image(canvas, slot, img.convert("RGBA"))
 
+    def _draw_product_support_surface(
+        self,
+        canvas: PILImage.Image,
+        product_policy: Any,
+        img: PILImage.Image,
+    ) -> None:
+        bounds = getattr(product_policy, "product_support_surface_bounds", None)
+        if not bounds:
+            return
+        x = int(bounds["x"])
+        y = int(bounds["y"])
+        w = int(bounds["w"])
+        h = int(bounds["h"])
+        caption_text = str(getattr(product_policy, "product_support_surface_caption_text", "") or "")
+        inner_pad = 8
+        caption_gap = 4 if caption_text else 0
+        caption_h = 14 if caption_text else 0
+        media_h = max(h - (inner_pad * 2) - caption_gap - caption_h, 28)
+        self._draw_shell_box(
+            canvas,
+            (x, y, w, h),
+            radius=14,
+            fill=(250, 251, 251, 168),
+            border=(214, 218, 221, 132),
+            shadow=(0, 8, 16, 0, 24),
+        )
+        self._draw_image(
+            canvas,
+            ImageSlotSpec(
+                x=x + inner_pad,
+                y=y + inner_pad,
+                w=max(w - (inner_pad * 2), 1),
+                h=media_h,
+                fit="contain",
+                radius=10,
+            ),
+            img,
+        )
+        if caption_text:
+            self._draw_text(
+                canvas,
+                TextSlotSpec(
+                    x=x + inner_pad,
+                    y=y + inner_pad + media_h + caption_gap,
+                    w=max(w - (inner_pad * 2), 1),
+                    h=caption_h,
+                    font_key="label",
+                    font_size=11,
+                    color="#697077",
+                    align="center",
+                    max_lines=1,
+                    line_height=1.15,
+                    auto_shrink=False,
+                ),
+                caption_text,
+                draw_background=False,
+            )
+
     def _draw_gallery(
         self,
         canvas: PILImage.Image,
@@ -1213,6 +1278,11 @@ class PuppeteerStructuredRenderer:
             "scenario_is_real": has_real_scenario,
             "product": _image_to_data_url(assets.product),
             "product_secondary": _image_to_data_url(assets.product_secondary) if assets.product_secondary else "",
+            "product_support_surface": (
+                _image_to_data_url(assets.gallery[0])
+                if behavior.product_policy.product_support_surface_rendered and assets.gallery
+                else ""
+            ),
             "gallery": gallery_urls,
             "materials": [],
         }, gallery_items_status
@@ -1404,6 +1474,19 @@ class PuppeteerStructuredRenderer:
                 _product_secondary_slot(slot_spec, behavior.product_policy)
             ),
             "__PRODUCT_SECONDARY_URL__": asset_urls.get("product_secondary", ""),
+            "__PRODUCT_SUPPORT_SURFACE_CLASS__": (
+                " ".join(("state-show", *behavior.product_policy.css_classes))
+                if behavior.product_policy.product_support_surface_rendered
+                and asset_urls.get("product_support_surface")
+                else " ".join(("state-hidden", *behavior.product_policy.css_classes))
+            ),
+            "__PRODUCT_SUPPORT_SURFACE_STYLE__": _slot_style(
+                _product_support_surface_slot(behavior.product_policy)
+            ),
+            "__PRODUCT_SUPPORT_SURFACE_URL__": asset_urls.get("product_support_surface", ""),
+            "__PRODUCT_SUPPORT_SURFACE_CAPTION__": html.escape(
+                behavior.product_policy.product_support_surface_caption_text
+            ),
             "__FEATURE_LAYER_CLASS__": feature_layer_class,
             "__BOTTOM_REGION_CLASS__": bottom_region_class,
             "__TITLE_BAND_CLASS__": title_band_class,
@@ -2467,6 +2550,25 @@ def _build_renderer_layer_render_status(
             "count": 1 if (has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False)) else 0,
             "collapsed": not (has_product_secondary and getattr(product_policy, "product_secondary_slot_rendered", False)),
         },
+        "product_support_surface_layer": {
+            "rendered": bool(getattr(product_policy, "product_support_surface_rendered", False) and gallery_valid > 0),
+            "reason_code": (
+                None
+                if getattr(product_policy, "product_support_surface_rendered", False) and gallery_valid > 0
+                else (
+                    "bottom_gallery_item_1_unavailable"
+                    if getattr(product_policy, "product_support_surface_source", None) == "bottom_gallery_item_1_unavailable"
+                    else "support_surface_inactive"
+                )
+            ),
+            "source_binding": (
+                poster.gallery_images[0].url
+                if getattr(product_policy, "product_support_surface_rendered", False) and poster.gallery_images
+                else getattr(product_policy, "product_support_surface_source", None)
+            ),
+            "count": 1 if getattr(product_policy, "product_support_surface_rendered", False) and gallery_valid > 0 else 0,
+            "collapsed": not (getattr(product_policy, "product_support_surface_rendered", False) and gallery_valid > 0),
+        },
         "product_canvas_shell_layer": {
             "rendered": True,
             "reason_code": None,
@@ -2765,6 +2867,7 @@ def _build_renderer_region_render_status(
     product_count = (
         int(layer_status["product_image_layer"]["count"])
         + int(layer_status["product_secondary_image_layer"]["count"])
+        + int(layer_status.get("product_support_surface_layer", {}).get("count", 0))
         + int(layer_status["product_annotation_items_layer"]["count"])
     )
     feature_count = int(layer_status["feature_callout_layer"]["count"])
@@ -3469,6 +3572,19 @@ def _product_secondary_slot(slot_spec: dict[str, Any], product_policy) -> dict[s
         }
     )
     return slot
+
+
+def _product_support_surface_slot(product_policy) -> dict[str, Any]:
+    support_surface = getattr(product_policy, "product_support_surface_bounds", None)
+    if not support_surface:
+        return {"x": 0, "y": 0, "w": 0, "h": 0}
+    return {
+        "x": int(support_surface["x"]),
+        "y": int(support_surface["y"]),
+        "w": int(support_surface["w"]),
+        "h": int(support_surface["h"]),
+        "fit": "contain",
+    }
 
 
 def _image_to_data_url(img: Optional[PILImage.Image]) -> str:

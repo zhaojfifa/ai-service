@@ -138,6 +138,21 @@ poster2 统一使用以下 slot 类型语法：
 - 失效语义：
   - 缺失即 `product_region` 失败
 
+### A.product.product_support_surface
+
+- 类型：optional image + optional weak caption
+- 来源：`gallery_images[0]` / `gallery_caption_slot_1.caption_text`
+- 状态：optional
+- 规则：
+  - 仅在 `product_layout_mode = single_primary`、`secondary_product_mode = inset_hidden_no_reserve`、`product_secondary_slot_rendered = false` 的 Family A fryer single-primary 场景中可激活
+  - 第一选择复用 bottom gallery item 1 已解析图片
+  - 若 bottom gallery item 1 不可用，则完全折叠，不生成占位壳
+  - caption 仅可复用 bottom gallery caption slot 1 的短文本，且必须保持弱视觉层级
+  - 必须留在 `product_region` 的 lower product canvas support zone 内，不进入 annotation lane，不触碰 title band
+- 折叠语义：
+  - 输出 `product_support_surface_rendered = false`
+  - 输出 `product_support_surface_source = bottom_gallery_item_1_unavailable` 或 inactive/null 状态
+
 ---
 
 ## 4.3 `scenario_region` slot contract

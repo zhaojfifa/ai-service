@@ -5878,6 +5878,58 @@ class TestTemplateBBackendGenerationFix:
             "Dual Tank",
         ]
 
+    def test_template_a_fryer_single_primary_uses_gallery_item_1_as_support_surface(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            agent_name="Commercial Electric Fryer Series",
+            gallery_images=tuple(AssetRef(url=f"mock://gallery-{index}") for index in range(4)),
+        )
+        assets = ResolvedAssets(
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+            gallery=[PILImage.new("RGBA", (320, 240), (50, 100, 200, 255)) for _ in range(4)],
+            gallery_status=[
+                {"index": index, "url": f"mock://gallery-{index}", "resolved": True, "error_code": None}
+                for index in range(4)
+            ],
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(_load_template(), spec, assets=assets)
+
+        product_review = metadata["product_contract_review"]
+        bottom_review = metadata["bottom_contract_review"]
+        assert product_review["product_layout_mode"] == "single_primary"
+        assert product_review["secondary_product_mode"] == "inset_hidden_no_reserve"
+        assert product_review["product_secondary_slot_rendered"] is False
+        assert product_review["product_support_surface_rendered"] is True
+        assert product_review["product_support_surface_source"] == "bottom_gallery_item_1_asset"
+        assert product_review["product_support_surface_mode"] == "family_a_fryer_single_primary_bottom_gallery_1_support_surface"
+        assert product_review["product_support_surface_bounds"] == {"x": 472, "y": 594, "w": 136, "h": 104}
+        assert product_review["product_support_surface_caption_text"] == "Basket Detail"
+        assert product_review["product_support_surface_layer"]["rendered"] is True
+        assert product_review["product_support_surface_layer"]["source_binding"] == "mock://gallery-0"
+        assert bottom_review["gallery_caption_slots"]["gallery_caption_slot_1"]["caption_text"] == "Basket Detail"
+        assert bottom_review["gallery_slots"]["gallery_item_slot_1"]["rendered"] is True
+
+    def test_template_a_fryer_support_surface_collapses_without_gallery_item_1(self):
+        spec = _make_spec(
+            title="Power Up Your Fry Station",
+            subtitle="Fast heating, precise control, and durable stainless steel construction for everyday commercial use.",
+            agent_name="Commercial Electric Fryer Series",
+        )
+        _, metadata = _run_pipeline_with_stored_metadata(_load_template(), spec)
+
+        product_review = metadata["product_contract_review"]
+        assert product_review["product_layout_mode"] == "single_primary"
+        assert product_review["secondary_product_mode"] == "inset_hidden_no_reserve"
+        assert product_review["product_secondary_slot_rendered"] is False
+        assert product_review["product_support_surface_rendered"] is False
+        assert product_review["product_support_surface_source"] == "bottom_gallery_item_1_unavailable"
+        assert product_review["product_support_surface_mode"] == "none"
+        assert product_review["product_support_surface_bounds"] is None
+        assert product_review["product_support_surface_caption_text"] == ""
+        assert product_review["product_support_surface_layer"]["rendered"] is False
+        assert product_review["product_support_surface_layer"]["reason_code"] == "bottom_gallery_item_1_unavailable"
+
     def test_template_a_regression_path_remains_unchanged(self):
         from app.services.poster2.renderer import RendererSelector
 

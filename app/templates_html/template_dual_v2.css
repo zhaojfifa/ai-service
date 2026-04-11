@@ -98,6 +98,7 @@ body {
 .layer-bottom-content,
 .layer-scenario-image,
 .layer-product-image,
+.layer-product-support-surface,
 .layer-bottom-gallery-items,
 .layer-bottom-tagline {
   position: absolute;
@@ -436,7 +437,8 @@ body {
 .layer-scenario-content,
 .layer-product-content,
 .layer-scenario-image,
-.layer-product-image {
+.layer-product-image,
+.layer-product-support-surface {
   position: absolute;
   inset: 0;
 }
@@ -580,6 +582,14 @@ body {
   opacity: var(--product-secondary-opacity);
 }
 
+.layer-product-support-surface {
+  opacity: 0.74;
+}
+
+.layer-product-support-surface.state-hidden {
+  display: none;
+}
+
 .slot-product-secondary {
   z-index: 6;
   display: flex;
@@ -589,8 +599,48 @@ body {
   overflow: hidden;
 }
 
+.slot-product-support-surface {
+  z-index: 5;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(250, 251, 251, 0.66);
+  border: 1px solid rgba(214, 218, 221, 0.52);
+  box-shadow: 0 8px 16px rgba(36, 40, 44, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.64);
+}
+
 .product-secondary-fit-contain img {
   filter: var(--product-secondary-treatment);
+}
+
+.product-support-surface-fit-contain img {
+  align-self: center;
+  justify-self: center;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.product-support-surface-caption {
+  display: block;
+  min-height: 14px;
+  overflow: hidden;
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 11px;
+  line-height: 1.15;
+  text-align: center;
+  color: rgba(90, 97, 104, 0.74);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.product-support-surface-caption:empty {
+  display: none;
 }
 
 .product-geometry-mode-family_a_fryer_hero_supporting_inset_v1 .layer-product-secondary-image {

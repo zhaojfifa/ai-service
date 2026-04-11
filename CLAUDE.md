@@ -110,6 +110,11 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 - latest bounded closeout:
   - fryer annotation evidence now matches resolved runtime slot truth
   - fryer final footer now matches preview semantics as a thumbnail + caption row
+- latest Family A single-primary extension:
+  - fryer single-primary / no-secondary state may render an optional subordinate `product_support_surface`
+  - support surface reuses bottom gallery item 1 only when that asset is resolved
+  - support surface caption may reuse bottom gallery caption slot 1 text
+  - bottom gallery/caption ownership and annotation slot ownership remain unchanged
 - not yet: Family A redesign
 - not yet: Template B reopen
 - not yet: editor-first drift

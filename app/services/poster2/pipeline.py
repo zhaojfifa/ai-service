@@ -1063,6 +1063,25 @@ def _build_layer_render_status(
             "source_binding": spec.product_secondary_image.url if spec.product_secondary_image else None,
             "count": 1 if (assets.product_secondary is not None and behavior.product_policy.product_secondary_slot_rendered) else 0,
         },
+        "product_support_surface_layer": {
+            "rendered": bool(behavior.product_policy.product_support_surface_rendered and assets.gallery),
+            "reason_code": (
+                None
+                if behavior.product_policy.product_support_surface_rendered and assets.gallery
+                else (
+                    "bottom_gallery_item_1_unavailable"
+                    if behavior.product_policy.product_support_surface_source == "bottom_gallery_item_1_unavailable"
+                    else "support_surface_inactive"
+                )
+            ),
+            "source_binding": (
+                spec.gallery_images[0].url
+                if behavior.product_policy.product_support_surface_rendered and spec.gallery_images
+                else behavior.product_policy.product_support_surface_source
+            ),
+            "count": 1 if behavior.product_policy.product_support_surface_rendered and assets.gallery else 0,
+            "collapsed": not bool(behavior.product_policy.product_support_surface_rendered and assets.gallery),
+        },
         "product_annotation_shell_layer": {
             "rendered": product_annotation_rendered,
             "reason_code": (
@@ -2247,6 +2266,12 @@ def _build_product_contract_review(
                 "source_binding": layer_render_status.get("product_secondary_image_layer", {}).get("source_binding"),
                 "bounds": _product_secondary_slot_bounds(resolved_behavior),
             },
+            "product_support_surface_layer": {
+                "rendered": False,
+                "reason_code": "not_applicable_template_b",
+                "source_binding": None,
+                "bounds": None,
+            },
             "product_annotation_shell_layer": {
                 "rendered": False,
                 "reason_code": layer_render_status.get("product_annotation_shell_layer", {}).get("reason_code"),
@@ -2272,6 +2297,11 @@ def _build_product_contract_review(
             "product_secondary_slot": dict(product_policy.product_secondary_slot) if product_policy.product_secondary_slot else None,
             "product_secondary_slot_rendered": product_policy.product_secondary_slot_rendered,
             "product_secondary_asset_policy": product_policy.product_secondary_asset_policy,
+            "product_support_surface_rendered": False,
+            "product_support_surface_source": None,
+            "product_support_surface_mode": "not_applicable_template_b",
+            "product_support_surface_bounds": None,
+            "product_support_surface_caption_text": "",
             "owner_surfaces": owner_surfaces,
             "annotation_owner_slot": None,
             "secondary_slot_annotation_ownership": False,
@@ -2433,6 +2463,12 @@ def _build_product_contract_review(
             "source_binding": layer_render_status.get("product_secondary_image_layer", {}).get("source_binding"),
             "bounds": secondary_bounds,
         },
+        "product_support_surface_layer": {
+            "rendered": bool(layer_render_status.get("product_support_surface_layer", {}).get("rendered", False)),
+            "reason_code": layer_render_status.get("product_support_surface_layer", {}).get("reason_code"),
+            "source_binding": layer_render_status.get("product_support_surface_layer", {}).get("source_binding"),
+            "bounds": product_policy.product_support_surface_bounds,
+        },
         "product_annotation_shell_layer": {
             "rendered": bool(layer_render_status.get("product_annotation_shell_layer", {}).get("rendered", False)),
             "reason_code": layer_render_status.get("product_annotation_shell_layer", {}).get("reason_code"),
@@ -2458,6 +2494,11 @@ def _build_product_contract_review(
         "product_secondary_slot": dict(product_policy.product_secondary_slot) if product_policy.product_secondary_slot else None,
         "product_secondary_slot_rendered": product_policy.product_secondary_slot_rendered,
         "product_secondary_asset_policy": product_policy.product_secondary_asset_policy,
+        "product_support_surface_rendered": product_policy.product_support_surface_rendered,
+        "product_support_surface_source": product_policy.product_support_surface_source,
+        "product_support_surface_mode": product_policy.product_support_surface_mode,
+        "product_support_surface_bounds": product_policy.product_support_surface_bounds,
+        "product_support_surface_caption_text": product_policy.product_support_surface_caption_text,
         "owner_surfaces": sorted(_FROZEN_PRODUCT_OWNER_SURFACES),
         "annotation_owner_slot": _PRODUCT_ANNOTATION_OWNER_SLOT,
         "secondary_slot_annotation_ownership": False,

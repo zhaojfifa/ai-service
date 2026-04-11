@@ -49,6 +49,8 @@ _PRODUCT_CANVAS_SHELL_W = 300
 _PRODUCT_CANVAS_SHELL_W_FRYER = 316
 _PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 428, "y": 192, "w": 312, "h": 384}
 _PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 600, "y": 592, "w": 108, "h": 108}
+_PRODUCT_FRYER_SUPPORT_SURFACE_SLOT: dict[str, int] = {"x": 472, "y": 594, "w": 136, "h": 104}
+_PRODUCT_SUPPORT_SURFACE_CAPTION_BUDGET = 24
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
 # This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
@@ -472,6 +474,11 @@ class ResolvedProductBehavior:
     product_secondary_slot_rendered: bool
     product_secondary_asset_policy: str
     secondary_product_mode: str
+    product_support_surface_rendered: bool
+    product_support_surface_source: str | None
+    product_support_surface_mode: str
+    product_support_surface_bounds: dict[str, int] | None
+    product_support_surface_caption_text: str
     visible_annotation_count: int
     max_annotation_items: int
     annotation_count_policy: str
@@ -502,6 +509,15 @@ class ResolvedProductBehavior:
             "product_secondary_slot_rendered": self.product_secondary_slot_rendered,
             "product_secondary_asset_policy": self.product_secondary_asset_policy,
             "secondary_product_mode": self.secondary_product_mode,
+            "product_support_surface_rendered": self.product_support_surface_rendered,
+            "product_support_surface_source": self.product_support_surface_source,
+            "product_support_surface_mode": self.product_support_surface_mode,
+            "product_support_surface_bounds": (
+                dict(self.product_support_surface_bounds)
+                if self.product_support_surface_bounds
+                else None
+            ),
+            "product_support_surface_caption_text": self.product_support_surface_caption_text,
             "visible_annotation_count": self.visible_annotation_count,
             "max_annotation_items": self.max_annotation_items,
             "annotation_count_policy": self.annotation_count_policy,
@@ -923,6 +939,12 @@ def resolve_template_behavior(
         annotation_mode=product_annotation_mode,
         product_layout_mode=product_layout_mode,
         has_product_secondary_asset=has_product_secondary_asset,
+        product_support_surface_asset_available=(gallery_resolved_count or 0) > 0,
+        product_support_surface_caption_text=(
+            str(bottom_policy.gallery_caption_slots[0].get("caption_text", ""))
+            if bottom_policy.gallery_caption_slots
+            else ""
+        ),
         requested_feature_count=feature_count or 0,
         hero_policy=hero_policy,
         product_image_size=product_image_size,
@@ -1103,12 +1125,21 @@ def _clamp(value: int, minimum: int, maximum: int) -> int:
     return max(minimum, min(value, maximum))
 
 
+def _short_support_surface_caption(text: str | None) -> str:
+    cleaned = " ".join((text or "").split())
+    if len(cleaned) <= _PRODUCT_SUPPORT_SURFACE_CAPTION_BUDGET:
+        return cleaned
+    return cleaned[:_PRODUCT_SUPPORT_SURFACE_CAPTION_BUDGET].rstrip()
+
+
 def resolve_product_behavior(
     spec: TemplateSpec,
     *,
     annotation_mode: str,
     product_layout_mode: str = "single_primary",
     has_product_secondary_asset: bool = False,
+    product_support_surface_asset_available: bool = False,
+    product_support_surface_caption_text: str | None = None,
     requested_feature_count: int,
     hero_policy: ResolvedHeroBehavior,
     product_image_size: tuple[int, int] | None = None,
@@ -1210,6 +1241,47 @@ def resolve_product_behavior(
             product_secondary_slot = None
             product_secondary_slot_rendered = False
             product_secondary_asset_policy = "secondary_absent_collapsed"
+    secondary_product_mode = (
+        "inset_visible_supporting_detail"
+        if product_secondary_slot_rendered
+        else "inset_hidden_no_reserve"
+    )
+    product_support_surface_rendered = (
+        commercial_fryer_variant
+        and product_support_surface_asset_available
+        and effective_product_layout_mode == "single_primary"
+        and secondary_product_mode == "inset_hidden_no_reserve"
+        and not product_secondary_slot_rendered
+    )
+    product_support_surface_bounds = (
+        dict(_PRODUCT_FRYER_SUPPORT_SURFACE_SLOT)
+        if product_support_surface_rendered
+        else None
+    )
+    product_support_surface_source = (
+        "bottom_gallery_item_1_asset"
+        if product_support_surface_rendered
+        else (
+            "bottom_gallery_item_1_unavailable"
+            if (
+                commercial_fryer_variant
+                and effective_product_layout_mode == "single_primary"
+                and secondary_product_mode == "inset_hidden_no_reserve"
+                and not product_secondary_slot_rendered
+            )
+            else None
+        )
+    )
+    product_support_surface_mode = (
+        "family_a_fryer_single_primary_bottom_gallery_1_support_surface"
+        if product_support_surface_rendered
+        else "none"
+    )
+    product_support_surface_caption = (
+        _short_support_surface_caption(product_support_surface_caption_text)
+        if product_support_surface_rendered
+        else ""
+    )
 
     primary_visible_box = (
         _resolve_contained_image_bounds(product_primary_slot, product_image_size)
@@ -1372,6 +1444,10 @@ def resolve_product_behavior(
         "product_secondary_slot_y": product_secondary_slot["y"] if product_secondary_slot else None,
         "product_secondary_slot_w": product_secondary_slot["w"] if product_secondary_slot else None,
         "product_secondary_slot_h": product_secondary_slot["h"] if product_secondary_slot else None,
+        "product_support_surface_x": product_support_surface_bounds["x"] if product_support_surface_bounds else None,
+        "product_support_surface_y": product_support_surface_bounds["y"] if product_support_surface_bounds else None,
+        "product_support_surface_w": product_support_surface_bounds["w"] if product_support_surface_bounds else None,
+        "product_support_surface_h": product_support_surface_bounds["h"] if product_support_surface_bounds else None,
         "annotation_shell_x": int(annotation_shell["x"]),
         "annotation_shell_y": int(annotation_shell["y"]),
         "annotation_shell_w": int(annotation_shell["w"]),
@@ -1393,11 +1469,12 @@ def resolve_product_behavior(
         product_secondary_slot=product_secondary_slot,
         product_secondary_slot_rendered=product_secondary_slot_rendered,
         product_secondary_asset_policy=product_secondary_asset_policy,
-        secondary_product_mode=(
-            "inset_visible_supporting_detail"
-            if product_secondary_slot_rendered
-            else "inset_hidden_no_reserve"
-        ),
+        secondary_product_mode=secondary_product_mode,
+        product_support_surface_rendered=product_support_surface_rendered,
+        product_support_surface_source=product_support_surface_source,
+        product_support_surface_mode=product_support_surface_mode,
+        product_support_surface_bounds=product_support_surface_bounds,
+        product_support_surface_caption_text=product_support_surface_caption,
         visible_annotation_count=visible_annotation_count,
         max_annotation_items=max_items,
         annotation_count_policy=annotation_count_policy,

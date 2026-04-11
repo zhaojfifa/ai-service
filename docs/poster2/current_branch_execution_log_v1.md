@@ -1,5 +1,94 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-FA-SPS-1: Family A single-primary support surface
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-11
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/02_architecture/template_family_slot_contract_baseline_v1.md`
+
+### Scope
+
+- Template A / Family A fryer only
+- optional support surface under `product_region`
+- no Template B work
+- no product ownership or annotation slot logic change
+- no bottom family or bottom gallery/caption path change
+- no new operator inputs
+
+### Root rules followed
+
+- contract-first
+- renderer consumes resolved behavior truth
+- bottom gallery item 1 remains bottom-owned and is reused as source only
+- annotations remain product-region fixed-slot truth
+
+### Problem reproduced
+
+Family A fryer single-primary/no-secondary resolution could leave the lower product canvas visually underweighted while the main hero, annotation lane, and bottom gallery paths stayed otherwise healthy.
+
+### Root cause found
+
+The product-region contract had no optional subordinate support surface for the single-primary/no-secondary case, so the resolver could only collapse the secondary slot and leave the lower support zone empty.
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.html`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/02_architecture/template_family_slot_contract_baseline_v1.md`
+- `docs/poster2/03_engineering/family_a/family_a_single_primary_support_surface_v1.md`
+- `docs/poster2/05_validation/family_a/family_a_single_primary_support_surface_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- product-region slot contract
+- resolver behavior truth
+- renderer consumption
+- evidence / metadata
+- bounded Family A fryer presentation
+- docs
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'support_surface or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset or template_a_fryer_bottom_contract_review_exposes_caption_truth or template_a_regression_path_remains_unchanged'`
+
+### Exact runtime delta
+
+- active only when:
+  - `product_layout_mode = single_primary`
+  - `secondary_product_mode = inset_hidden_no_reserve`
+  - `product_secondary_slot_rendered = false`
+  - Family A fryer variant is active
+  - bottom gallery item 1 has a resolved asset
+- source: `bottom_gallery_item_1_asset`
+- fallback source evidence: `bottom_gallery_item_1_unavailable`
+- mode: `family_a_fryer_single_primary_bottom_gallery_1_support_surface`
+- bounds: `{x:472, y:594, w:136, h:104}`
+- caption: reuses `gallery_caption_slot_1.caption_text` when available
+
+### Remaining risks
+
+- focused structural tests were run; full screenshot capture was not run in this pass
+
+---
+
 ## Entry — PR-FA-WYSIWYG-1: Family A fryer truth-parity and footer-caption closeout
 
 **Branch:** `main`
