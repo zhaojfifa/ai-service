@@ -17,18 +17,31 @@
         max-width: 1280px;
         margin: 0 auto;
       }
-      .s2-sidebar, .s2-right { display: contents; }
-      .s2-renderer-controls { grid-column: 1; order: 10; }
-      .s2-material-summary { grid-column: 1; order: 20; }
-      .s2-bottom-controls { grid-column: 1; order: 30; }
-      .s2-copy-optimization { grid-column: 1; order: 40; }
-      .s2-preview-panel { grid-column: 2; order: 10; }
-      .s2-result-output { grid-column: 2; order: 20; }
-      .s2-flow-actions { grid-column: 1 / -1; order: 80; }
-      .s2-key-summary { grid-column: 1 / -1; order: 90; }
-      .s2-debug-panel { grid-column: 1 / -1; order: 100; }
-      #ai-preview { grid-column: 1 / -1; order: 81; }
-      #asset-fallback-warning { grid-column: 1 / -1; order: 82; }
+      .stage2-left-column,
+      .stage2-right-column,
+      .stage2-action-row,
+      .stage2-diagnostics-row {
+        min-width: 0;
+      }
+      .stage2-left-column,
+      .stage2-right-column,
+      .stage2-diagnostics-row {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .stage2-left-column { grid-column: 1; grid-row: 1; }
+      .stage2-right-column { grid-column: 2; grid-row: 1; }
+      .stage2-action-row { grid-row: 2; }
+      .stage2-diagnostics-row { grid-row: 3; }
+      .stage2-action-row,
+      .stage2-diagnostics-row {
+        grid-column: 1 / -1;
+      }
+      .s2-renderer-controls { order: 10; }
+      .s2-material-summary { order: 20; }
+      .s2-bottom-controls { order: 30; }
+      .s2-copy-optimization { order: 40; }
 
       /* Panel */
       .s2-panel {
@@ -260,17 +273,13 @@
 
       @media (max-width: 900px) {
         .s2-layout { grid-template-columns: 1fr; }
-        .s2-material-summary,
-        .s2-bottom-controls,
-        .s2-copy-optimization,
-        .s2-renderer-controls,
-        .s2-preview-panel,
-        .s2-result-output,
-        .s2-flow-actions,
-        .s2-key-summary,
-        .s2-debug-panel,
-        #ai-preview,
-        #asset-fallback-warning { grid-column: 1; }
+        .stage2-left-column,
+        .stage2-right-column,
+        .stage2-action-row,
+        .stage2-diagnostics-row {
+          grid-column: 1;
+          grid-row: auto;
+        }
         .s2-flow-actions { grid-template-columns: 1fr; }
         .s2-flow-actions .s2-actions { justify-content: flex-start; }
         .s2-main { padding: 16px; }
@@ -304,7 +313,7 @@
       <div class="s2-layout">
 
         <!-- ═══ LEFT: Controls ═══ -->
-        <aside class="s2-sidebar">
+        <section class="stage2-left-column" id="stage2-left-column" aria-label="Stage 2 operator controls">
 
           <!-- Copy -->
           <div class="s2-panel s2-material-summary">
@@ -439,6 +448,9 @@
             </div>
           </div>
 
+        </section>
+
+        <section class="stage2-action-row" id="stage2-action-row" aria-label="Stage 2 flow actions">
           <!-- Generate / stage flow -->
           <div class="s2-flow-actions">
             <button id="generate-poster" class="s2-btn-generate s2-generate-action" type="button">Generate Poster</button>
@@ -455,30 +467,10 @@
             <p id="ai-preview-message" class="hint"></p>
           </div>
           <p id="asset-fallback-warning" class="hint hidden"></p>
+        </section>
 
-          <!-- Output -->
-          <div class="s2-panel s2-result-output">
-            <div class="s2-panel-hd"><span>Output</span></div>
-            <div class="s2-panel-bd">
-              <label class="s2-field">
-                <span>Poster URL</span>
-                <div class="s2-copy-row">
-                  <input type="text" id="s2-out-url" readonly placeholder="—" />
-                  <button id="final-poster-copy" type="button" class="secondary subtle">Copy</button>
-                  <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Open ↗</a>
-                </div>
-              </label>
-              <div class="s2-field">
-                <span>poster_key</span>
-                <code id="final-poster-key" style="font-size:11px;word-break:break-all;">N/A</code>
-              </div>
-            </div>
-          </div>
-
-        </aside>
-
-        <!-- ═══ RIGHT: Preview + Resolver Layout ═══ -->
-        <div class="s2-right">
+        <!-- ═══ RIGHT: Preview + Output ═══ -->
+        <section class="stage2-right-column" id="stage2-right-column" aria-label="Stage 2 poster result">
 
           <!-- Poster Preview -->
           <div class="s2-panel s2-preview-panel">
@@ -503,6 +495,28 @@
             </div>
           </div>
 
+          <!-- Output -->
+          <div class="s2-panel s2-result-output">
+            <div class="s2-panel-hd"><span>Output</span></div>
+            <div class="s2-panel-bd">
+              <label class="s2-field">
+                <span>Poster URL</span>
+                <div class="s2-copy-row">
+                  <input type="text" id="s2-out-url" readonly placeholder="—" />
+                  <button id="final-poster-copy" type="button" class="secondary subtle">Copy</button>
+                  <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Open ↗</a>
+                </div>
+              </label>
+              <div class="s2-field">
+                <span>poster_key</span>
+                <code id="final-poster-key" style="font-size:11px;word-break:break-all;">N/A</code>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <section class="stage2-diagnostics-row" id="stage2-diagnostics-row" aria-label="Stage 2 diagnostics">
           <!-- Resolver Layout -->
           <div class="s2-panel s2-key-summary" id="s2-key-summary-panel" style="display:none">
             <div class="s2-panel-hd"><span>Key Summary</span></div>
@@ -553,7 +567,7 @@
             <dl id="poster2-resolver-slot-table" aria-hidden="true" style="display:none"></dl>
           </div>
 
-        </div><!-- /s2-right -->
+        </section>
 
       </div><!-- /s2-layout -->
 
