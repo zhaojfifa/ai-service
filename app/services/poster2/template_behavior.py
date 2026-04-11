@@ -44,10 +44,11 @@ _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 564, "w": 300, "h
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
 _PRODUCT_REGION_OUTER_W = 504
 _PRODUCT_REGION_OUTER_W_FRYER = 516
+_PRODUCT_REGION_X_FRYER = 424
 _PRODUCT_CANVAS_SHELL_W = 300
 _PRODUCT_CANVAS_SHELL_W_FRYER = 316
-_PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 460, "y": 192, "w": 312, "h": 384}
-_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 486, "y": 596, "w": 104, "h": 104}
+_PRODUCT_FRYER_PRIMARY_STAGE_SLOT: dict[str, int] = {"x": 428, "y": 192, "w": 312, "h": 384}
+_PRODUCT_FRYER_SUPPORTING_INSET_SLOT: dict[str, int] = {"x": 454, "y": 596, "w": 104, "h": 104}
 
 # Fixed product text shell bounds — the reserved text surface to the right of the canvas shell.
 # This is a static sibling of product_canvas_shell_layer; it does not collapse with annotation count.
@@ -62,11 +63,11 @@ _PRODUCT_TEXT_SHELL_X = 784
 _PRODUCT_TEXT_SHELL_Y = 216
 _PRODUCT_TEXT_SHELL_W = 176
 _PRODUCT_TEXT_SHELL_H = 276
-_PRODUCT_TEXT_SHELL_FRYER = {"x": 796, "y": 220, "w": 176, "h": 268}
+_PRODUCT_TEXT_SHELL_FRYER = {"x": 764, "y": 220, "w": 176, "h": 268}
 _PRODUCT_ANNOTATION_LABEL_BOUNDS_FRYER: tuple[dict[str, int], ...] = (
-    {"x": 796, "y": 220, "w": 176, "h": 76},
-    {"x": 796, "y": 316, "w": 176, "h": 76},
-    {"x": 796, "y": 412, "w": 176, "h": 76},
+    {"x": 764, "y": 220, "w": 176, "h": 76},
+    {"x": 764, "y": 316, "w": 176, "h": 76},
+    {"x": 764, "y": 412, "w": 176, "h": 76},
 )
 _PRODUCT_ANNOTATION_ANCHOR_INSET_FRYER = 36
 
@@ -1158,7 +1159,7 @@ def resolve_product_behavior(
     visible_annotation_count = 0 if annotation_mode == "none" else min(max(requested_feature_count, 0), max_items)
     hero_metrics = hero_policy.layout_metrics
     product_region = {
-        "x": int(hero_metrics["product_region_x"]),
+        "x": int(_PRODUCT_REGION_X_FRYER if commercial_fryer_variant else hero_metrics["product_region_x"]),
         "y": int(hero_metrics["product_region_y"]),
         "w": int(_PRODUCT_REGION_OUTER_W_FRYER if commercial_fryer_variant else hero_metrics["product_region_w"]),
         "h": int(hero_metrics["product_region_h"]),
@@ -2627,7 +2628,7 @@ def _resolve_gallery_distribution_layout(
         gallery_shell_frame_policy = "quad_detail_row_frame"
         gallery_aspect_policy = "detail_row_quad_aspect"
         gallery_spacing_policy = "detail_row_quad_spacing"
-        item_width = 172
+        item_width = 164
         gap = 18
     strip_width = 832
     strip_left = 96
@@ -2709,8 +2710,8 @@ def _resolve_gallery_strip_vertical_metrics(
     ]
     if commercial_fryer_variant and visible_item_count >= 4:
         shift_policy = "detail_row_quad_shift"
-        shell_height = 108
-        item_height = 80
+        shell_height = 120
+        item_height = 92
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)

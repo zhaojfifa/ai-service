@@ -27,8 +27,6 @@ That left two linked failures:
 
 ## Change
 
-## Change
-
 ### Phase 1: hero lift and reserve clearance
 
 - fryer product family stays in the current live x-lane
@@ -58,3 +56,28 @@ This keeps annotation ownership unchanged:
 ## Intent
 
 The result should first fix the hero/inset structural separation, then restore semantic anchoring from the real visible hero box without reopening broader Family A layout work.
+
+## Visual Rebalance Addendum
+
+The follow-on fryer-only visual rebalance keeps the accepted runtime structure:
+
+- `single_primary`
+- supporting inset
+- visible-box-derived anchors
+- `title_gallery_split`
+- `semantic_detail_caption_row`
+
+The visual-only deltas are:
+
+- fryer product family shifts left by `32px`
+- product region `x=456 -> 424`
+- product canvas `x=456 -> 424`
+- primary slot `x=460 -> 428`
+- secondary inset `x=486 -> 454`
+- annotation shell `x=796 -> 764`
+- annotation anchors continue to derive from the visible hero box
+- footer detail cards narrow from `172` to `164`
+- footer card height increases from `80` to `92`
+- footer media height increases from `46` to `58`
+
+No ownership, slot count, bottom mode, or caption semantics change in this addendum.

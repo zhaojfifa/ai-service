@@ -77,3 +77,59 @@ Comparison:
 
 - the runtime capture used fallback system fonts because local `NotoSansSC` font files are missing in this workspace
 - this is runtime metadata from this workspace, not deployed live metadata from the external environment
+
+## Visual Rebalance Addendum
+
+### Tests Run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'fryer_annotation_contract_review_uses_resolved_positions_source or fryer_secondary_asset_keeps_single_primary_hero_and_supporting_inset or fryer_variant_expands_product_text_shell_and_annotation_capacity or title_gallery_split_fryer_dense_quad_detail_row_adds_breathing'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'resolve_feature_callout_map_uses_fryer_variant_annotation_bounds or product_annotation_wait_uses_resolved_fryer_label_bounds'`
+
+### Runtime Evidence
+
+Before:
+
+- screenshot: `/tmp/fryer_visual_rebalance_before/before.png`
+- metadata: `/tmp/fryer_visual_rebalance_before/metadata.json`
+- summary: `/tmp/fryer_visual_rebalance_before/summary.json`
+
+After:
+
+- screenshot: `/tmp/fryer_visual_rebalance_after/after.png`
+- metadata: `/tmp/fryer_visual_rebalance_after/metadata.json`
+- summary: `/tmp/fryer_visual_rebalance_after/summary.json`
+
+Comparison:
+
+- sheet: `/tmp/fryer_visual_rebalance_compare/before_after.png`
+
+### Before / After Runtime Delta
+
+- product region:
+  - before: `x=456, y=188, w=516, h=540`
+  - after: `x=424, y=188, w=516, h=540`
+- product canvas:
+  - before: `x=456, y=188, w=316, h=540`
+  - after: `x=424, y=188, w=316, h=540`
+- annotation shell:
+  - before: `x=796, y=220, w=176, h=268`
+  - after: `x=764, y=220, w=176, h=268`
+- anchors:
+  - before: `x=702 / y=258,354,450`
+  - after: `x=670 / y=258,354,450`
+- footer card bounds:
+  - before: `w=172, h=80`
+  - after: `w=164, h=92`
+- footer media bounds:
+  - before: `w=156, h=46`
+  - after: `w=148, h=58`
+
+### Proven
+
+- `bottom_mode = title_gallery_split`
+- `gallery_caption_mode = semantic_detail_caption_row`
+- `structure_complete = true`
+- `deliverable = true`
+- annotations remain inside `product_region`
+- 4 gallery items and captions remain rendered

@@ -1116,10 +1116,10 @@ class TestStructuredGalleryMarkup:
         )
 
         assert len(resolved) == 3
-        assert [item[0]["label_box"]["x"] for item in resolved] == [796, 796, 796]
+        assert [item[0]["label_box"]["x"] for item in resolved] == [764, 764, 764]
         assert [item[0]["label_box"]["w"] for item in resolved] == [176, 176, 176]
         assert [item[0]["label_box"]["h"] for item in resolved] == [76, 76, 76]
-        assert [item[0]["anchor_x"] for item in resolved] == [736, 736, 736]
+        assert [item[0]["anchor_x"] for item in resolved] == [704, 704, 704]
 
     def test_resolve_feature_behavior_supports_second_feature_mode(self):
         resolved = resolve_feature_behavior(
@@ -2493,9 +2493,9 @@ class _FakePage:
 
     async def evaluate(self, expr):
         self.evaluations.append(expr)
-        assert hero.product_policy.annotation_items[0]["label_bounds"] == {"x": 796, "y": 220, "w": 176, "h": 76}
-        assert hero.product_policy.annotation_items[1]["label_bounds"] == {"x": 796, "y": 316, "w": 176, "h": 76}
-        assert hero.product_policy.annotation_items[2]["label_bounds"] == {"x": 796, "y": 412, "w": 176, "h": 76}
+        assert hero.product_policy.annotation_items[0]["label_bounds"] == {"x": 764, "y": 220, "w": 176, "h": 76}
+        assert hero.product_policy.annotation_items[1]["label_bounds"] == {"x": 764, "y": 316, "w": 176, "h": 76}
+        assert hero.product_policy.annotation_items[2]["label_bounds"] == {"x": 764, "y": 412, "w": 176, "h": 76}
 
     async def wait_for_function(self, expr, **kwargs):
         self.ready_checks.append((expr, kwargs))
