@@ -12,7 +12,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Mode S focuses on asset utilization, not layout editing.</p>
+          <p>运营只需要补齐素材和英文成稿文案；版式由系统按模板控制。</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -36,7 +36,7 @@
     <main>
       <section class="card stage-card">
         <h2>Stage 1 — Assets & Copy (Mode S)</h2>
-        <p class="hint">Upload assets, confirm previews, then continue. Mode S changes utilization logic only.</p>
+        <p class="hint">请补齐素材、确认预览后进入生成环节。此页不做自由版式编辑。</p>
       </section>
 
       <form id="poster-form" novalidate>
@@ -61,7 +61,7 @@
 
         <fieldset id="s1-brand" class="card stage-card">
           <legend>Brand</legend>
-          <p class="hint">Scenario + product images and descriptions stay visible for operators.</p>
+          <p class="hint">品牌素材用于海报识别区；可为空的项目会在后续环节显示为可诊断状态。</p>
           <div class="grid">
             <label class="field file-field optional">
               <span>Brand Logo (optional)</span>
@@ -69,8 +69,8 @@
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="brand_logo" alt="Brand logo preview" />
               </div>
-              <small class="hint">PNG/SVG preferred. Transparent background recommended.</small>
-              <small id="brand-logo-status" class="hint">Logo URL: not uploaded</small>
+              <small class="hint">建议使用 PNG/SVG，透明背景更稳定。</small>
+              <small id="brand-logo-status" class="hint">Logo URL: 尚未上传</small>
             </label>
             <label class="field">
               <span>Brand name</span>
@@ -92,7 +92,7 @@
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="scenario_asset" alt="Scenario preview" />
               </div>
-              <small class="hint">If empty, default scenario is used.</small>
+              <small class="hint">不上传时使用默认场景素材。</small>
             </label>
             <label class="field">
               <span>Scenario description</span>
@@ -107,7 +107,7 @@
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="product_image_1" alt="Product image 1 preview" />
               </div>
-              <small id="stage1-product1-hint" class="hint">Clear product photo. Prefer clean background.</small>
+              <small id="stage1-product1-hint" class="hint">请使用清晰产品图，干净背景更稳定。</small>
             </label>
             <label class="field file-field optional">
               <span id="stage1-product2-label">Product image 2 (optional)</span>
@@ -115,7 +115,7 @@
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="product_image_2" alt="Product image 2 preview" />
               </div>
-              <small id="stage1-product2-hint" class="hint">Optional second angle/detail shot.</small>
+              <small id="stage1-product2-hint" class="hint">可上传第二角度或细节图；为空也可继续。</small>
               <button type="button" class="secondary subtle" data-secondary-image-clear>Clear secondary image</button>
             </label>
             <label class="field">
@@ -128,18 +128,18 @@
             <label class="field">
               <span>Title (required)</span>
               <input type="text" name="title" placeholder="1–2 lines recommended" required />
-              <small class="hint">If too long, system will shrink text or add ellipsis.</small>
+              <small class="hint">用于最终海报，当前按英文成稿处理；过长时系统会按安全区缩放或省略。</small>
             </label>
             <label class="field optional">
               <span id="stage1-subtitle-label">Bottom Support Copy (optional)</span>
               <input type="text" name="subtitle" placeholder="底部辅助文案 / short support copy" />
-              <small id="stage1-subtitle-hint" class="hint">This stays bottom-owned support copy. It does not feed product callouts.</small>
+              <small id="stage1-subtitle-hint" class="hint">用于底部辅助文案，不会进入产品标注卖点。</small>
             </label>
           </div>
 
           <div class="feature-fields">
             <span class="feature-label">Product Callouts / Selling Points (optional, up to 3)</span>
-            <small class="hint">These feed the product-owned annotation path. Keep each line short and product-specific.</small>
+            <small class="hint">这些内容进入产品标注路径；请保持短句、英文、产品相关。</small>
             <div class="feature-grid">
               <input type="text" name="product_callouts" placeholder="Callout 1" />
               <input type="text" name="product_callouts" placeholder="Callout 2" />
@@ -180,12 +180,12 @@
 
         <fieldset id="s1-bottom-thumbs" class="card stage-card" data-variant-visible="a">
           <legend>Bottom thumbnails (optional, 0-4)</legend>
-          <p class="hint">Upload up to 4 small product images. Empty slots are allowed.</p>
+          <p class="hint">最多上传 4 张底部小图；空槽位允许存在。</p>
           <div id="bottom-thumbnails" class="thumbnail-grid">
             <div class="thumbnail-slot" data-slot-index="0">
               <div class="thumbnail-preview">
                 <img data-bottom-preview="0" alt="Bottom slot 1 preview" />
-                <span class="slot-placeholder">Empty</span>
+                <span class="slot-placeholder">未上传</span>
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
@@ -198,7 +198,7 @@
             <div class="thumbnail-slot" data-slot-index="1">
               <div class="thumbnail-preview">
                 <img data-bottom-preview="1" alt="Bottom slot 2 preview" />
-                <span class="slot-placeholder">Empty</span>
+                <span class="slot-placeholder">未上传</span>
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
@@ -211,7 +211,7 @@
             <div class="thumbnail-slot" data-slot-index="2">
               <div class="thumbnail-preview">
                 <img data-bottom-preview="2" alt="Bottom slot 3 preview" />
-                <span class="slot-placeholder">Empty</span>
+                <span class="slot-placeholder">未上传</span>
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
@@ -224,7 +224,7 @@
             <div class="thumbnail-slot" data-slot-index="3">
               <div class="thumbnail-preview">
                 <img data-bottom-preview="3" alt="Bottom slot 4 preview" />
-                <span class="slot-placeholder">Empty</span>
+                <span class="slot-placeholder">未上传</span>
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
@@ -244,8 +244,8 @@
           <div class="section-heading-row">
             <div>
               <h3>Material Preview / Layout Preview</h3>
-              <p class="hint">Open the WYSIWYG preview when you need to review safe areas.</p>
-              <p id="preview-stale-status" class="hint">Preview is closed. Open it when ready.</p>
+              <p class="hint">需要检查安全区时再打开预览；默认不打断素材录入。</p>
+              <p id="preview-stale-status" class="hint">预览已收起，可在需要时打开。</p>
             </div>
             <button id="open-stage1-preview" class="secondary" type="button" aria-expanded="false" aria-controls="preview-container">Open Preview</button>
           </div>

@@ -7,24 +7,35 @@
     <title>Stage 2 - Generate Poster</title>
     <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
     <style>
-      /* === Stage 2 two-column layout === */
+      /* === Stage 2 operator-first layout === */
       .s2-main { padding: 24px 32px; }
       .s2-layout {
         display: grid;
-        grid-template-columns: 340px 1fr;
-        gap: 20px;
+        grid-template-columns: 1fr;
+        gap: 16px;
         align-items: start;
         max-width: 1280px;
         margin: 0 auto;
       }
-      .s2-sidebar { display: flex; flex-direction: column; gap: 12px; }
-      .s2-right { display: flex; flex-direction: column; gap: 16px; }
+      .s2-sidebar, .s2-right { display: contents; }
+      .s2-material-summary { order: 10; }
+      .s2-preview-panel { order: 20; }
+      .s2-result-output { order: 30; }
+      .s2-nav-actions { order: 40; }
+      .s2-generate-action { order: 50; }
+      .s2-renderer-controls { order: 60; }
+      .s2-bottom-controls { order: 70; }
+      .s2-copy-optimization { order: 80; }
+      .s2-key-summary { order: 90; }
+      .s2-debug-panel { order: 100; }
+      #ai-preview { order: 51; }
+      #asset-fallback-warning { order: 52; }
 
       /* Panel */
       .s2-panel {
         background: #fff;
         border: 1px solid #E4E2DE;
-        border-radius: 12px;
+        border-radius: 8px;
         overflow: hidden;
       }
       .s2-panel-hd {
@@ -63,7 +74,7 @@
       .s2-btn-generate {
         width: 100%; padding: 11px 16px;
         background: #1A1917; color: #fff;
-        border: none; border-radius: 9px;
+        border: none; border-radius: 8px;
         font-family: inherit; font-size: 13.5px; font-weight: 500;
         cursor: pointer; transition: background 0.15s;
       }
@@ -252,7 +263,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Generate the final poster from Mode S inputs.</p>
+          <p>从环节 1 的素材生成最终海报；优先查看结果，诊断信息默认收起。</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -276,8 +287,8 @@
         <aside class="s2-sidebar">
 
           <!-- Copy -->
-          <div class="s2-panel">
-            <div class="s2-panel-hd"><span>Copy</span></div>
+          <div class="s2-panel s2-material-summary">
+            <div class="s2-panel-hd"><span>Material Summary</span></div>
             <div class="s2-panel-bd">
               <div id="s2-family-a-copy-fields">
                 <label class="s2-field">
@@ -326,7 +337,7 @@
             </div>
           </div>
 
-          <div id="poster2-copy-optimization-panel" class="s2-panel hidden">
+          <div id="poster2-copy-optimization-panel" class="s2-panel s2-copy-optimization hidden">
             <div class="s2-panel-hd"><span>Copy Optimization</span></div>
             <div class="s2-panel-bd">
               <label class="s2-field">
@@ -348,7 +359,7 @@
           </div>
 
           <!-- Renderer -->
-          <div class="s2-panel">
+          <div class="s2-panel s2-renderer-controls">
             <div class="s2-panel-hd">
               <span>Renderer</span>
               <span id="poster2-pilot-badge" class="s2-badge"></span>
@@ -371,7 +382,7 @@
           </div>
 
           <!-- Bottom Region -->
-          <div id="s2-bottom-region-panel" class="s2-panel">
+          <div id="s2-bottom-region-panel" class="s2-panel s2-bottom-controls">
             <div class="s2-panel-hd"><span>Bottom Region</span></div>
             <div class="s2-panel-bd">
               <label class="s2-field">
@@ -409,7 +420,7 @@
           </div>
 
           <!-- Generate -->
-          <button id="generate-poster" class="s2-btn-generate" type="button">Generate Poster</button>
+          <button id="generate-poster" class="s2-btn-generate s2-generate-action" type="button">Generate Poster</button>
 
           <!-- Loading state -->
           <div id="ai-preview" class="hidden">
@@ -419,7 +430,7 @@
           <p id="asset-fallback-warning" class="hint hidden"></p>
 
           <!-- Output -->
-          <div class="s2-panel">
+          <div class="s2-panel s2-result-output">
             <div class="s2-panel-hd"><span>Output</span></div>
             <div class="s2-panel-bd">
               <label class="s2-field">
@@ -438,7 +449,7 @@
           </div>
 
           <!-- Navigation -->
-          <div class="s2-actions">
+          <div class="s2-actions s2-nav-actions">
             <a class="secondary" href="index.html">← Back to Stage 1</a>
             <button id="to-stage3" class="primary" type="button" disabled>Continue to Stage 3</button>
           </div>
@@ -449,7 +460,7 @@
         <div class="s2-right">
 
           <!-- Poster Preview -->
-          <div class="s2-panel">
+          <div class="s2-panel s2-preview-panel">
             <div class="s2-panel-hd">
               <span>Preview</span>
               <div class="s2-badge-row">
@@ -461,7 +472,7 @@
               <img id="final-poster-img" class="hidden" alt="Final poster" decoding="async" />
               <div id="final-poster-placeholder" class="s2-preview-empty">
                 <div class="s2-preview-empty-icon">🖼</div>
-                <span>Generate a poster to preview</span>
+                <span>生成后在这里查看最终海报</span>
               </div>
             </div>
             <div class="s2-preview-footer">
@@ -472,10 +483,15 @@
           </div>
 
           <!-- Resolver Layout -->
-          <div class="s2-panel" id="poster2-resolver-layout-preview">
+          <div class="s2-panel s2-key-summary" id="s2-key-summary-panel" style="display:none">
+            <div class="s2-panel-hd"><span>Key Summary</span></div>
+            <div id="s2-modes-strip" class="s2-modes-strip" style="display:none"></div>
+          </div>
+
+          <div class="s2-panel s2-debug-panel" id="poster2-resolver-layout-preview">
             <div class="s2-panel-hd">
               <div class="s2-panel-title">
-                <span>Diagnostics</span>
+                <span>Resolver / Contract / Diagnostics</span>
                 <button id="s2-show-diagnostics" class="s2-diagnostics-toggle" type="button" aria-expanded="false" aria-controls="s2-diagnostics-body">Show Diagnostics</button>
               </div>
               <div class="s2-badge-row">
@@ -483,9 +499,6 @@
                 <code id="poster2-render-engine-used" class="s2-badge">—</code>
               </div>
             </div>
-
-            <!-- Modes strip -->
-            <div id="s2-modes-strip" class="s2-modes-strip" style="display:none"></div>
 
             <div id="s2-diagnostics-body" class="s2-diagnostics-body" hidden>
               <!-- Engine / contract info -->
@@ -502,7 +515,7 @@
 
               <!-- Region rows -->
               <div id="s2-resolver-regions" class="s2-resolver-regions">
-                <div class="s2-resolver-empty">Generate a poster to see resolver layout</div>
+                <div class="s2-resolver-empty">生成海报后可查看 resolver layout</div>
               </div>
 
               <!-- Timing -->
@@ -608,21 +621,21 @@
               <h4>Scene Background</h4>
               <select data-preset-select="scenario"></select>
             </div>
-            <p class="hint" data-preset-summary="scenario">Preset applied</p>
+            <p class="hint" data-preset-summary="scenario">已应用 preset</p>
           </section>
           <section class="prompt-slot">
             <div class="slot-header">
               <h4>Core Product</h4>
               <select data-preset-select="product"></select>
             </div>
-            <p class="hint" data-preset-summary="product">Preset applied</p>
+            <p class="hint" data-preset-summary="product">已应用 preset</p>
           </section>
           <section class="prompt-slot">
             <div class="slot-header">
               <h4>Bottom Series Thumbnails</h4>
               <select data-preset-select="gallery"></select>
             </div>
-            <p class="hint" data-preset-summary="gallery">Preset applied</p>
+            <p class="hint" data-preset-summary="gallery">已应用 preset</p>
           </section>
         </div>
         <div class="prompt-editor">
@@ -1125,6 +1138,7 @@
         function renderResolverLayout(regionStatus, templateBehavior, bottomReview, meta, headerReview, heroReview, productReview, featureReview, annotationReview, scenarioReview, titleTextLayer, subtitleTextLayer, headerTextLayer, parityReview, copyOptimizationReview) {
           // Modes strip
           const modesStrip = document.getElementById('s2-modes-strip');
+          const modesPanel = document.getElementById('s2-key-summary-panel');
           if (modesStrip && templateBehavior) {
             const chips = [];
             const tb = templateBehavior?.behavior_modes || {};
@@ -1151,6 +1165,10 @@
                 `<div class="s2-mode-chip"><span class="s2-mode-key">${k}</span>&nbsp;<span class="s2-mode-val">${v}</span></div>`
               ).join('');
               modesStrip.style.display = '';
+              if (modesPanel) modesPanel.style.display = '';
+            } else {
+              modesStrip.style.display = 'none';
+              if (modesPanel) modesPanel.style.display = 'none';
             }
           }
 
@@ -1178,7 +1196,7 @@
           const isTemplateB = Object.prototype.hasOwnProperty.call(regionStatus || {}, 'logo_banner_region');
 
           if (!regionStatus || Object.keys(regionStatus).length === 0) {
-            container.innerHTML = '<div class="s2-resolver-empty">No resolver data available</div>';
+            container.innerHTML = '<div class="s2-resolver-empty">暂无 resolver 数据</div>';
             return;
           }
 

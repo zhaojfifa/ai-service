@@ -12,7 +12,7 @@
       <div class="header-content">
         <div>
           <h1>Marketing Poster Builder</h1>
-          <p>Review the final poster and send the email.</p>
+          <p>确认最终海报和可发送邮件文案；HTML 源码默认收起。</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
@@ -37,7 +37,7 @@
       <section class="card stage-card">
         <h2>Stage 3 - Send Email</h2>
         <p class="hint">
-          Stage 3 restores the poster and email draft from live backend payload only.
+          此环节只从后端 poster_record 恢复海报和邮件草稿；本地缓存不作为真值。
         </p>
 
         <div class="output-group" id="stage3-preview">
@@ -92,7 +92,7 @@
         <div class="output-group">
           <h3>Email Preview</h3>
           <p id="email-draft-source" class="hint"></p>
-          <p class="hint">Gemini refreshes email copy only. Poster truth and send truth stay with the backend.</p>
+          <p class="hint">Gemini 只刷新邮件文案；海报真值和发送真值仍以后端为准。</p>
           <div id="email-html-preview" class="prompt-wrapper"></div>
         </div>
 

@@ -251,7 +251,7 @@ function initStage2RenderModeControl(promptInspector, statusElement) {
     stage2State.renderMode = select.value;
     sessionStorage.setItem(STAGE2_RENDER_MODE_KEY, select.value);
     if (statusElement) {
-      setStatus(statusElement, `Render mode set to ${select.value}.`, 'info');
+      setStatus(statusElement, `Render mode 已切换为 ${select.value}。`, 'info');
     }
   });
 
@@ -329,7 +329,7 @@ function initStage2Poster2PilotControls(stage1Data, statusElement) {
     stage2State.poster2.rendererMode = select.value;
     sessionStorage.setItem(STAGE2_POSTER2_RENDERER_MODE_KEY, select.value);
     if (statusElement && eligible) {
-      setStatus(statusElement, `Poster2 renderer set to ${select.value}.`, 'info');
+      setStatus(statusElement, `Poster2 renderer 已切换为 ${select.value}。`, 'info');
     }
   });
 }
@@ -726,7 +726,7 @@ function renderPoster2CopyOptimizationReview(review) {
   const keepCollapsed = !showActions && state.mode === 'off';
   if (summary) {
     if (!review) {
-      summary.innerHTML = '<div class="s2-slot-note">copy optimization review unavailable</div>';
+      summary.innerHTML = '<div class="s2-slot-note">暂无 copy optimization review。</div>';
     } else {
       summary.innerHTML = buildPoster2CopyOptimizationSummary(review, state);
     }
@@ -786,7 +786,7 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
       ? review.annotation_items.map((item) => item?.optimized_text || '').filter(Boolean).slice(0, 4)
       : [];
     renderPoster2CopyOptimizationReview(review);
-    if (statusElement) setStatus(statusElement, 'Poster2 copy optimization accepted for the next generate run.', 'info');
+    if (statusElement) setStatus(statusElement, '已接受 copy optimization，下次生成时生效。', 'info');
   };
 
   rejectBtn.onclick = () => {
@@ -795,7 +795,7 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
     state.acceptedSubtitle = '';
     state.acceptedFeatures = [];
     renderPoster2CopyOptimizationReview(state.latestReview);
-    if (statusElement) setStatus(statusElement, 'Poster2 copy optimization rejected; base Family A copy remains active.', 'info');
+    if (statusElement) setStatus(statusElement, '已拒绝 copy optimization，继续使用 Family A 基础文案。', 'info');
   };
 
   renderPoster2CopyOptimizationReview(state.latestReview);
@@ -849,7 +849,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
   }
   sync();
   if (statusElement && eligible) {
-    setStatus(statusElement, 'Poster2 bottom contract controls ready for validation.', 'info');
+    setStatus(statusElement, 'Poster2 bottom contract 控件已就绪，可验证。', 'info');
   }
 }
 
@@ -1406,7 +1406,7 @@ function updateMaterialPreviewAssets(container, assets = {}, labels = {}) {
   };
 
   setSlot('scenario', assets.scenario, {
-    emptyLabel: labels.scenario || 'Using default scenario',
+    emptyLabel: labels.scenario || '使用默认场景素材',
   });
   setSlot('product1', assets.product1, {
     emptyLabel: 'Missing',
@@ -1469,7 +1469,7 @@ function bindModeSBottomThumbnails(container, state, statusElement, refreshPrevi
           refreshPreview?.();
         } catch (error) {
           console.error(error);
-          setStatus(statusElement, 'Failed to process bottom thumbnail.', 'error');
+          setStatus(statusElement, '底部小图处理失败。', 'error');
         } finally {
           fileInput.value = '';
         }
@@ -1529,7 +1529,7 @@ function bindModeSOptionalAsset(
       refreshPreview?.();
     } catch (error) {
       console.error(error);
-      setStatus(statusElement, 'Failed to process image asset.', 'error');
+      setStatus(statusElement, '图片素材处理失败。', 'error');
     }
   });
 }
@@ -3908,7 +3908,7 @@ function initStage1ModeS() {
     } else if (key) {
       brandLogoStatus.textContent = `Logo URL: ${key}`;
     } else {
-      brandLogoStatus.textContent = 'Logo URL: not uploaded';
+      brandLogoStatus.textContent = 'Logo URL: 尚未上传';
     }
   };
 
@@ -3938,7 +3938,7 @@ function initStage1ModeS() {
 
     const scenarioLabel = payload.scenario_image && payload.scenario_image !== 'default'
       ? `Scenario: ${payload.scenario_image}`
-      : 'Using default scenario';
+      : '使用默认场景素材';
     updateMaterialPreviewAssets(
       materialPreviewAssets,
       {
@@ -4010,12 +4010,12 @@ function initStage1ModeS() {
     if (previewStaleStatus) {
       if (!previewGate.open) {
         previewStaleStatus.textContent = previewGate.stale
-          ? 'Preview is closed. Open it to render the latest inputs.'
-          : 'Preview is closed.';
+          ? '预览已收起，打开后会按最新输入重新渲染。'
+          : '预览已收起。';
       } else {
         previewStaleStatus.textContent = previewGate.stale
-          ? 'Preview is stale. Refresh when ready.'
-          : 'Preview is current.';
+          ? '预览可能不是最新，请在需要时刷新。'
+          : '预览已是最新。';
       }
     }
   };
@@ -4190,8 +4190,8 @@ function initStage1ModeS() {
     }
     if (subtitleHint) {
       subtitleHint.textContent = variant === 'b'
-        ? 'For Template B this stays in the top title/subtitle/SKU block. It does not feed product callouts.'
-        : 'This stays bottom-owned support copy. It does not feed product callouts.';
+        ? 'Template B 中该文案留在顶部标题/副标题/SKU 区，不进入产品标注卖点。'
+        : '该文案属于底部区域，不进入产品标注卖点。';
     }
     if (coreAssetsLegend) {
       coreAssetsLegend.textContent = variant === 'b' ? 'Product Assets' : 'Core Assets';
@@ -4201,16 +4201,16 @@ function initStage1ModeS() {
     }
     if (product1Hint) {
       product1Hint.textContent = variant === 'b'
-        ? 'Main catalog hero asset. Keep the product isolated and undistorted.'
-        : 'Clear product photo. Prefer clean background.';
+        ? '主图录产品图；请保持产品独立、不要变形。'
+        : '请使用清晰产品图，干净背景更稳定。';
     }
     if (product2Label) {
       product2Label.textContent = variant === 'b' ? 'Supporting detail image (optional)' : 'Product image 2 (optional)';
     }
     if (product2Hint) {
       product2Hint.textContent = variant === 'b'
-        ? 'Optional inset detail / supporting angle. It should support the hero, not compete with it.'
-        : 'Optional second angle/detail shot.';
+        ? '可选细节或辅助角度图；只辅助主图，不与主图竞争。'
+        : '可选第二角度或细节图。';
     }
     if (secondaryClearButton) {
       secondaryClearButton.textContent = variant === 'b' ? 'Clear supporting detail' : 'Clear secondary image';
@@ -4425,10 +4425,10 @@ function initStage1ModeS() {
     openPreviewButton.addEventListener('click', () => {
       try {
         openPreviewOnDemand();
-        setStatus(statusElement, 'Preview rendered on demand.', 'info');
+        setStatus(statusElement, '已按需渲染预览。', 'info');
       } catch (error) {
         console.error(error);
-        setStatus(statusElement, error.message || 'Preview render failed.', 'error');
+        setStatus(statusElement, error.message || '预览渲染失败。', 'error');
       }
     });
   }
@@ -4809,10 +4809,10 @@ function bindStage1SecondaryImageClearButton(
         inlinePreview.src = placeholderImages.productAlt;
       }
       refreshPreview?.();
-      setStatus(statusElement, 'Secondary product image cleared.', 'info');
+      setStatus(statusElement, '第二产品图已清除。', 'info');
     } catch (error) {
       console.error(error);
-      setStatus(statusElement, 'Failed to clear secondary product image.', 'error');
+      setStatus(statusElement, '清除第二产品图失败。', 'error');
     }
   });
 }
@@ -7576,7 +7576,7 @@ function initStage2() {
           if (titleSizePreset) titleSizePreset.value = 'M';
         refreshStage2Wireframe();
         updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
-        setStatus(statusElement, 'Fallback to stable mode requested.', 'info');
+        setStatus(statusElement, '已请求使用稳定模式。', 'info');
         void runStage2Generation({ isRegenerate: true });
       });
     }
@@ -7624,7 +7624,7 @@ function initStage2() {
 
     await hydrateStage1DataAssets(stage1Data);
   if (MODE_S && hasInlineStage1Assets(stage1Data)) {
-    setStatus(statusElement, '??????????? key/url???? base64??', 'error');
+    setStatus(statusElement, '素材仍是本地 base64，缺少后端 key/url，请先返回环节 1 重新上传。', 'error');
     stage2InFlight = false;
     setStage2ButtonsDisabled(false);
     return null;
@@ -9482,8 +9482,8 @@ async function triggerGeneration(opts) {
 
     const statusLevel = hasCopy ? 'warning' : 'error';
     const statusMessage = message || (hasCopy
-      ? 'Using template poster; you can proceed to Stage 3.'
-      : 'Generation failed. Please try again.');
+      ? '已使用模板海报兜底，可继续到环节 3。'
+      : '生成失败，请重试。');
     setStatus(statusElement, statusMessage, statusLevel);
   };
 
@@ -9551,10 +9551,10 @@ async function triggerGeneration(opts) {
     setStatus(
       statusElement,
       usePoster2Pilot
-        ? 'Poster2 pilot render finished.'
+        ? '海报生成完成。'
         : hasCopy
-        ? 'Copy generated.'
-        : 'Request finished (no copy).',
+        ? '文案已生成。'
+        : '请求完成，但未返回文案。',
       usePoster2Pilot || hasCopy ? 'success' : 'warning',
     );
 
@@ -9574,7 +9574,7 @@ async function triggerGeneration(opts) {
     try {
       const finalPoster = normaliseFinalPosterPayload(data);
       if (!finalPoster || !(finalPoster.url || finalPoster.key || finalPoster.storage_key)) {
-        setStatus(statusElement, 'Missing final_poster (Mode S requires final_poster).', 'error');
+        setStatus(statusElement, '缺少 final_poster；Mode S 必须返回最终海报。', 'error');
         return null;
       }
       await saveStage2Result({
@@ -9627,7 +9627,7 @@ async function triggerGeneration(opts) {
       error?.status === 429 &&
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
     const friendlyMessage = quotaExceeded
-      ? 'Image generation quota exceeded. Please try again later or upload existing assets.'
+      ? '图像生成额度已用尽，请稍后重试或上传已有素材。'
       : formatPosterGenerationError(error);
     const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
     const decoratedMessage = `${friendlyMessage}${statusHint}`;
@@ -10461,7 +10461,7 @@ function initStage3() {
     }
 
     async function refreshDraft() {
-      setStatus(statusElement, '正在从 poster_record 生成 email draft…', 'info');
+      setStatus(statusElement, '正在从 poster_record 生成邮件草稿…', 'info');
       const draft = await postJsonWithRetry(
         apiCandidates,
         '/api/v2/email/preview',
@@ -10475,7 +10475,7 @@ function initStage3() {
       emailText.value = draft?.text || '';
       emailHtml.value = draft?.html || '';
       if (draftSource) {
-        draftSource.textContent = `Email copy source: ${draft?.generated_from || 'deterministic'} | Tone: ${draft?.tone || 'clean_product_business'}`;
+        draftSource.textContent = `邮件文案来源：${draft?.generated_from || 'deterministic'} ｜ Tone: ${draft?.tone || 'clean_product_business'}`;
       }
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = draft?.html || '';
@@ -10497,9 +10497,9 @@ function initStage3() {
       if (attachmentStatus) {
         attachmentStatus.textContent = showAttachmentUi
           ? `Available: ${availableAttachmentTypes.join(', ') || 'none'} | Buildable: ${buildableAttachmentTypes.join(', ') || 'none'}`
-          : 'No optional backend-owned attachments available.';
+          : '暂无可选的后端附件。';
       }
-      setStatus(statusElement, 'Email draft 已从后端恢复。', 'success');
+      setStatus(statusElement, '邮件草稿已从后端恢复。', 'success');
       setEmailCopyDecision('pending');
       if (acceptCopyButton) acceptCopyButton.disabled = false;
       if (rejectCopyButton) rejectCopyButton.disabled = false;
@@ -10513,7 +10513,7 @@ function initStage3() {
       await refreshDraft();
     } catch (error) {
       console.error('[stage3 hydrate failed]', error);
-      setStatus(statusElement, error.message || 'Stage 3 恢复失败。', 'error');
+      setStatus(statusElement, error.message || '环节 3 恢复失败。', 'error');
       sendButton.disabled = true;
       refreshButton.disabled = false;
       return;
@@ -10536,7 +10536,7 @@ function initStage3() {
         await refreshDraft();
       } catch (error) {
         console.error('[email preview]', error);
-        setStatus(statusElement, error.message || 'Email preview 生成失败。', 'error');
+        setStatus(statusElement, error.message || '邮件预览生成失败。', 'error');
       } finally {
         refreshButton.disabled = false;
       }
@@ -10544,13 +10544,13 @@ function initStage3() {
 
     if (acceptCopyButton) {
       acceptCopyButton.addEventListener('click', () => {
-        setEmailCopyDecision('accepted', 'Email copy accepted for this send.');
+        setEmailCopyDecision('accepted', '本次发送已接受邮件文案。');
       });
     }
 
     if (rejectCopyButton) {
       rejectCopyButton.addEventListener('click', () => {
-        setEmailCopyDecision('rejected', 'Email copy rejected. Refresh draft or edit the copy before sending.');
+        setEmailCopyDecision('rejected', '已拒绝邮件文案；请 Refresh Draft 或手动编辑后再发送。');
         sendButton.disabled = true;
       });
     }
@@ -10572,12 +10572,12 @@ function initStage3() {
         return;
       }
       if (emailCopyDecision === 'rejected') {
-        setStatus(statusElement, 'Email copy 已拒绝，请刷新或编辑后再发送。', 'error');
+        setStatus(statusElement, '邮件文案已拒绝，请刷新或编辑后再发送。', 'error');
         return;
       }
 
       sendButton.disabled = true;
-      setStatus(statusElement, '正在发送 email…', 'info');
+      setStatus(statusElement, '正在发送邮件…', 'info');
 
       try {
         const response = await postJsonWithRetry(
@@ -10597,15 +10597,15 @@ function initStage3() {
         );
 
         if (response?.status === 'sent') {
-          setStatus(statusElement, 'Email 已发送。', 'success');
+          setStatus(statusElement, '邮件已发送。', 'success');
         } else if (response?.status === 'preview_only') {
-          setStatus(statusElement, 'Email draft 已保存；当前为 inline_only，未外发。', 'warning');
+          setStatus(statusElement, '邮件草稿已保存；当前为 inline_only，未外发。', 'warning');
         } else {
-          setStatus(statusElement, response?.error || 'Email 发送失败。', 'error');
+          setStatus(statusElement, response?.error || '邮件发送失败。', 'error');
         }
       } catch (error) {
         console.error('[email send]', error);
-        setStatus(statusElement, error.message || 'Email 发送失败。', 'error');
+        setStatus(statusElement, error.message || '邮件发送失败。', 'error');
       } finally {
         sendButton.disabled = false;
       }
