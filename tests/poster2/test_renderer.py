@@ -1743,9 +1743,9 @@ class TestStructuredScenarioLayer:
         assert "--annotation-label-letter-spacing:" in css_template
         assert "var(--product-shell-outline)," in css_template
         assert "var(--product-shell-glow);" in css_template
-        assert "rgba(255, 255, 255, 0.58), rgba(248, 242, 239, 0.38)" in css_template
-        assert "1px solid rgba(198, 58, 45, 0.07)" in css_template
-        assert "0 6px 12px rgba(24, 24, 24, 0.025)" in css_template
+        assert "rgba(255, 255, 255, 0.50), rgba(248, 242, 239, 0.32)" in css_template
+        assert "1px solid rgba(198, 58, 45, 0.05)" in css_template
+        assert "0 5px 10px rgba(24, 24, 24, 0.018)" in css_template
         assert "background: var(--annotation-leader-gradient);" in css_template
         assert "var(--annotation-marker-core-shadow);" in css_template
 
@@ -1765,8 +1765,8 @@ class TestStructuredScenarioLayer:
         assert ".text-subtitle::before" in css_template
         assert "var(--bottom-shell-outline)" in css_template
         assert "var(--gallery-shell-outline)" in css_template
-        assert "rgba(255, 255, 255, 0.76), rgba(242, 245, 247, 0.54)" in css_template
-        assert "rgba(249, 250, 250, 0.68)" in css_template
+        assert "rgba(255, 255, 255, 0.68), rgba(242, 245, 247, 0.46)" in css_template
+        assert "rgba(249, 250, 250, 0.58)" in css_template
 
 
 class TestHeaderAndTitleBandLayoutControl:

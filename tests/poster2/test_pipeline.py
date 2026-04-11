@@ -2938,9 +2938,9 @@ class TestPostFreezeTextCapacity:
         assert policy.gallery_distribution_policy == "dense_quad_detail_row"
         assert policy.gallery_caption_mode == "semantic_detail_caption_row"
         assert policy.gallery_caption_owner == "gallery_strip_region"
-        assert policy.layout_metrics["peer_gap"] == 16
+        assert policy.layout_metrics["peer_gap"] == 18
         assert policy.layout_metrics["title_band_height"] == 172
-        assert policy.layout_metrics["gallery_shell_w"] == 740
+        assert policy.layout_metrics["gallery_shell_w"] == 758
         assert policy.layout_metrics["gallery_shell_height"] == 116
         assert policy.layout_metrics["gallery_items_height"] == 90
         assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [156, 156, 156, 156]
@@ -2949,7 +2949,7 @@ class TestPostFreezeTextCapacity:
             - policy.layout_metrics["gallery_item_layouts"][index]["x"]
             - policy.layout_metrics["gallery_item_layouts"][index]["w"]
             for index in range(3)
-        ] == [24, 24, 24]
+        ] == [30, 30, 30]
         assert [item["caption_text"] for item in policy.gallery_caption_slots] == [
             "Basket Detail",
             "Single Tank",
@@ -3192,10 +3192,10 @@ class TestProductImageContract:
         assert [slot["anchor_y"] for slot in annotation_review["annotation_slots"]] == [258, 354, 450]
         assert annotation_review["behavior_policy"]["positions_source"] == "family_a_fryer_visible_box_derived"
         assert annotation_review["behavior_policy"]["annotation_card_surface_tokens"] == {
-            "surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(248, 242, 239, 0.38))",
-            "border": "1px solid rgba(198, 58, 45, 0.07)",
-            "shadow": "0 6px 12px rgba(24, 24, 24, 0.025)",
-            "inset": "inset 0 1px 0 rgba(255, 255, 255, 0.56)",
+            "surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.50), rgba(248, 242, 239, 0.32))",
+            "border": "1px solid rgba(198, 58, 45, 0.05)",
+            "shadow": "0 5px 10px rgba(24, 24, 24, 0.018)",
+            "inset": "inset 0 1px 0 rgba(255, 255, 255, 0.48)",
         }
 
     def test_product_primary_slot_bounds_match_single_primary_constant(self):
@@ -5878,9 +5878,9 @@ class TestTemplateBBackendGenerationFix:
         review = manifest.bottom_contract_review
         assert review["gallery_caption_mode"] == "semantic_detail_caption_row"
         assert review["caption_owner"] == "gallery_strip_region"
-        assert review["surface_tokens"]["title_band_surface"] == "linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(242, 245, 247, 0.54))"
-        assert review["behavior_policy"]["layout_metrics"]["peer_gap"] == 16
-        assert review["behavior_policy"]["layout_metrics"]["gallery_shell_w"] == 740
+        assert review["surface_tokens"]["title_band_surface"] == "linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(242, 245, 247, 0.46))"
+        assert review["behavior_policy"]["layout_metrics"]["peer_gap"] == 18
+        assert review["behavior_policy"]["layout_metrics"]["gallery_shell_w"] == 758
         assert list(review["gallery_caption_slots"].keys()) == [
             "gallery_caption_slot_1",
             "gallery_caption_slot_2",

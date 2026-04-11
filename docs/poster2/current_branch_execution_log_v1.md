@@ -1,5 +1,93 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-FA-POLISH-2: lighter annotation cards and airier bottom strip
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-11
+
+### Scope
+
+- Template A / Family A fryer only
+- bounded beautification / layout-metrics pass
+- no Template B work
+- no ownership, annotation anchor, product geometry, bottom mode, gallery count, or caption semantic change
+
+### Root rules followed
+
+- contract-first
+- renderer consumes resolver metrics and scoped style tokens
+- fixed product annotation ownership stayed under `product_region`
+- bottom stayed `title_gallery_split`
+- gallery stayed 4 items with `semantic_detail_caption_row`
+
+### Problem reproduced
+
+The active fryer polish baseline still read slightly heavy in the right annotation cards and bottom strip. The gallery row was structurally correct, but the four detail cards still felt a bit attached.
+
+### Root cause found
+
+The fryer-only visual token values remained a step too opaque after PR-FA-FRYER-POLISH-1, and the detail-row spacing used a 24px card gap inside a 740px shell.
+
+### Files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/services/poster2/renderer.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- bounded Family A fryer beautification tokens
+- bottom resolver layout metrics
+- renderer fallback consumption
+- evidence / metadata
+- tests
+
+### Validation run
+
+- `./.venv/bin/python -m py_compile app/services/poster2/template_behavior.py app/services/poster2/pipeline.py app/services/poster2/renderer.py`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'title_gallery_split_fryer_dense_quad_detail_row_adds_breathing or template_a_fryer_bottom_contract_review_exposes_caption_truth or fryer_annotation_contract_review_uses_resolved_positions_source or template_a_regression_path_remains_unchanged or non_fryer_bottom_keeps_caption_mode_none'`
+- `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'template_css_exposes_family_a_product_region_observability_freeze_tokens or template_css_exposes_family_a_bottom_region_practical_closure_tokens or fryer_dense_quad_gallery_markup_emits_semantic_captions or resolve_feature_callout_map_uses_fryer_variant_annotation_bounds or product_annotation_wait_uses_resolved_fryer_label_bounds'`
+- before/after runtime capture:
+  - before screenshot: `/tmp/pr_fa_polish2_before/before.png`
+  - before metadata: `/tmp/pr_fa_polish2_before/metadata.json`
+  - after screenshot: `/tmp/pr_fa_polish2_after/after.png`
+  - after metadata: `/tmp/pr_fa_polish2_after/metadata.json`
+  - comparison sheet: `/tmp/pr_fa_polish2_after/before_after.png`
+  - metric delta: `/tmp/pr_fa_polish2_after/metric_delta.json`
+
+### Exact runtime delta
+
+- `structure_complete = true`
+- `deliverable = true`
+- `bottom_mode = title_gallery_split`
+- `gallery_caption_mode = semantic_detail_caption_row`
+- gallery captions unchanged: `Basket Detail`, `Single Tank`, `Lid Detail`, `Dual Tank`
+- annotation card surface reduced from `rgba(... 0.58/0.38)` to `rgba(... 0.50/0.32)`
+- annotation card border reduced from `rgba(... 0.07)` to `rgba(... 0.05)`
+- annotation card shadow reduced from `0 6px 12px rgba(... 0.025)` to `0 5px 10px rgba(... 0.018)`
+- title-band surface reduced from `rgba(... 0.76/0.54)` to `rgba(... 0.68/0.46)`
+- title-band border reduced from `rgba(... 0.06)` to `rgba(... 0.045)`
+- title-band shadow reduced from `0 10px 20px rgba(... 0.045)` to `0 8px 16px rgba(... 0.032)`
+- gallery shell surface reduced from `rgba(... 0.68)` to `rgba(... 0.58)`
+- title-band bounds unchanged: `{x:112, y:728, w:800, h:172}`
+- peer gap: `16 -> 18`
+- gallery shell bounds: `{x:142, y:916, w:740, h:116} -> {x:133, y:918, w:758, h:116}`
+- gallery item size unchanged: `156x90`
+- gallery item x positions spread from `164/344/524/704` to `155/341/527/713`
+- gallery item internal gap: `24 -> 30`
+- gallery media bounds remain `140x56`
+
+### Remaining risks
+
+- local screenshot generation used fallback system fonts because `NotoSansSC` is not installed in this workspace
+- screenshot capture used the Pillow renderer path; CSS token parity is covered by focused renderer tests
+
+---
+
 ## Entry — PR-FA-FRYER-POLISH-1: lighter annotation cards and airier bottom strip
 
 **Branch:** `main`

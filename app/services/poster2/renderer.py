@@ -620,16 +620,16 @@ class LayoutRenderer:
                 _title_band_shell_bounds(spec, behavior.bottom_policy),
                 radius=28,
                 fill=(
-                    (255, 255, 255, 194)
+                    (255, 255, 255, 176)
                     if is_family_a_fryer
                     else _pillow_shell_fill("title_band", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color)
                 ),
                 border=(
-                    _hex_to_rgba(behavior.accent_color, 15)
+                    _hex_to_rgba(behavior.accent_color, 11)
                     if is_family_a_fryer
                     else _pillow_border("bottom", behavior.beauty_tokens.shell_border, accent=behavior.accent_color)
                 ),
-                shadow=(0, 7, 14, 0, 12) if is_family_a_fryer else _pillow_shadow(behavior.beauty_tokens.shell_shadow),
+                shadow=(0, 6, 11, 0, 9) if is_family_a_fryer else _pillow_shadow(behavior.beauty_tokens.shell_shadow),
             )
         if has_gallery:
             self._draw_shell_box(
@@ -637,7 +637,7 @@ class LayoutRenderer:
                 _gallery_strip_shell_bounds(spec, behavior.bottom_policy),
                 radius=int(behavior.bottom_policy.layout_metrics.get("gallery_shell_radius", 20)),
                 fill=(
-                    (249, 250, 250, 174)
+                    (249, 250, 250, 148)
                     if is_family_a_fryer
                     else _pillow_shell_fill("gallery_strip", behavior.beauty_tokens.shell_surface, accent=behavior.accent_color)
                 ),
@@ -843,8 +843,8 @@ class LayoutRenderer:
         draw.rounded_rectangle(
             [slot.x, slot.y, slot.x + slot.w, slot.y + slot.h],
             radius=12,
-            fill=(255, 255, 255, 148),
-            outline=(198, 58, 45, 18),
+            fill=(255, 255, 255, 128),
+            outline=(198, 58, 45, 13),
             width=1,
         )
         overlay = overlay.filter(ImageFilter.GaussianBlur(radius=0.25))

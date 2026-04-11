@@ -73,16 +73,16 @@ _PRODUCT_ANNOTATION_LABEL_BOUNDS_FRYER: tuple[dict[str, int], ...] = (
 )
 _PRODUCT_ANNOTATION_ANCHOR_INSET_FRYER = 36
 _FAMILY_A_FRYER_ANNOTATION_CARD_STYLE_TOKENS: dict[str, str] = {
-    "surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.58), rgba(248, 242, 239, 0.38))",
-    "border": "1px solid rgba(198, 58, 45, 0.07)",
-    "shadow": "0 6px 12px rgba(24, 24, 24, 0.025)",
-    "inset": "inset 0 1px 0 rgba(255, 255, 255, 0.56)",
+    "surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.50), rgba(248, 242, 239, 0.32))",
+    "border": "1px solid rgba(198, 58, 45, 0.05)",
+    "shadow": "0 5px 10px rgba(24, 24, 24, 0.018)",
+    "inset": "inset 0 1px 0 rgba(255, 255, 255, 0.48)",
 }
 _FAMILY_A_FRYER_BOTTOM_SURFACE_TOKENS: dict[str, str] = {
-    "title_band_surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(242, 245, 247, 0.54))",
-    "title_band_border": "1px solid rgba(198, 58, 45, 0.06)",
-    "title_band_shadow": "0 10px 20px rgba(36, 40, 44, 0.045)",
-    "gallery_shell_surface": "rgba(249, 250, 250, 0.68)",
+    "title_band_surface": "linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(242, 245, 247, 0.46))",
+    "title_band_border": "1px solid rgba(198, 58, 45, 0.045)",
+    "title_band_shadow": "0 8px 16px rgba(36, 40, 44, 0.032)",
+    "gallery_shell_surface": "rgba(249, 250, 250, 0.58)",
 }
 
 # Frozen owner surfaces for product_region.
@@ -2718,7 +2718,7 @@ def _resolve_gallery_distribution_layout(
         gallery_aspect_policy = "detail_row_quad_aspect"
         gallery_spacing_policy = "detail_row_quad_spacing"
         item_width = 156
-        gap = 24
+        gap = 30
     strip_width = 832
     strip_left = 96
     used_width = item_width * visible_item_count + gap * max(visible_item_count - 1, 0)
@@ -2754,11 +2754,11 @@ def _resolve_bottom_peer_gap(
     if visible_item_count <= 0:
         return 0
     if bottom_mode == "text_gallery_expanded":
-        return 16 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
+        return 18 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
     if bottom_mode != "title_gallery_split":
         return 0
     if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance":
-        return 16
+        return 18
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         return 10
     if peer_balance_policy == "balanced_dense_copy_with_triplet_gallery":
