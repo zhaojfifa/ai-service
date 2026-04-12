@@ -123,6 +123,7 @@ let stage2ActiveRequestId = 0;
 let stage2ActiveAbortController = null;
 let stage2LastSourceSignatures = null;
 let stage2RemovedBottomModeRemapLogged = false;
+let stage2IgnoredThumbnailsOverrideLogged = false;
 
 const stage2State = {
   poster: {
@@ -161,8 +162,6 @@ const stage2State = {
       subtitle: '',
       bottomMode: 'title_gallery_split',
       galleryMode: 'strip_local_visible_only',
-      galleryCount: 4,
-      autoFillGallery: false,
     },
   },
   generated: {
@@ -434,14 +433,63 @@ function canonicalizePoster2BottomMode(rawMode) {
   return allowedModes.has(canonical) ? canonical : 'title_gallery_split';
 }
 
+function countStage1GalleryAssets(stage1Data) {
+  if (typeof stage2RequestHelpers.countStage1GalleryAssets === 'function') {
+    return stage2RequestHelpers.countStage1GalleryAssets(stage1Data);
+  }
+  const entries = Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries : [];
+  return entries
+    .filter((entry) => {
+      const asset = entry?.asset;
+      if (!asset) return false;
+      if (typeof asset === 'string') return Boolean(asset.trim());
+      if (typeof asset !== 'object') return false;
+      return Boolean(
+        asset.key ||
+          asset.r2Key ||
+          asset.storage_key ||
+          asset.url ||
+          asset.remoteUrl ||
+          asset.publicUrl ||
+          asset.public_url ||
+          asset.asset_url ||
+          asset.src ||
+          asset.dataUrl ||
+          asset.data_url
+      );
+    })
+    .slice(0, 4)
+    .length;
+}
+
+function logIgnoredStaleThumbnailsOverride() {
+  if (stage2IgnoredThumbnailsOverrideLogged) return;
+  stage2IgnoredThumbnailsOverrideLogged = true;
+  console.info('[stage2] ignored stale operator override', {
+    field: 'thumbnails',
+    action: 'ignored_stale_stage2_override',
+    source: 'stale_local_or_hydrated_state',
+  });
+}
+
+function updateDetectedGalleryCountDisplay(stage1Data) {
+  const display = document.getElementById('poster2-detected-gallery-count');
+  if (!display) return;
+  const count = countStage1GalleryAssets(stage1Data);
+  display.textContent = `Detected gallery items: ${count}`;
+  display.dataset.galleryCount = String(count);
+}
+
 function ensurePoster2BottomContractState(stage1Data) {
   const bottom = stage2State.poster2?.bottomContract || {};
   const defaultTitle = resolvePoster2BottomFallbackText(stage1Data, 'title');
   const defaultSubtitle = resolvePoster2BottomFallbackText(stage1Data, 'subtitle');
-  const defaultGalleryCount = Math.min(
-    Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries.length : 0,
-    4
-  );
+  if (
+    Object.prototype.hasOwnProperty.call(bottom, 'galleryCount') ||
+    Object.prototype.hasOwnProperty.call(bottom, 'autoFillGallery')
+  ) {
+    logIgnoredStaleThumbnailsOverride();
+  }
   const modeSTemplateA = isModeSTemplateAFamilyPath(stage1Data);
   const resolvedTitle = hasPoster2BottomField(bottom, 'title')
     ? normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS)
@@ -461,11 +509,6 @@ function ensurePoster2BottomContractState(stage1Data) {
       : defaultSubtitle.source,
     bottomMode: canonicalizePoster2BottomMode(bottom.bottomMode),
     galleryMode: bottom.galleryMode || 'strip_local_visible_only',
-    galleryCount:
-      Number.isFinite(bottom.galleryCount)
-        ? bottom.galleryCount
-        : defaultGalleryCount,
-    autoFillGallery: Boolean(bottom.autoFillGallery),
   };
 
   return stage2State.poster2.bottomContract;
@@ -477,13 +520,7 @@ function buildPoster2BottomRequestState(stage1Data) {
   bottom.bottomMode = canonicalBottomMode;
   const requestedTitleText = normalisePoster2BottomText(bottom.title, POSTER2_BOTTOM_TITLE_MAX_CHARS);
   const requestedSubtitleText = normalisePoster2BottomText(bottom.subtitle, POSTER2_BOTTOM_SUBTITLE_MAX_CHARS);
-  const requestedGalleryCount = Math.max(0, Math.min(Number(bottom.galleryCount || 0), 4));
-  const galleryEntries = Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries : [];
-  const galleryInputCountNormalized = galleryEntries
-    .slice(0, requestedGalleryCount)
-    .filter((entry) => entry?.asset)
-    .length;
-  const galleryAutofillApplied = Boolean(bottom.autoFillGallery) && galleryInputCountNormalized < requestedGalleryCount;
+  const detectedGalleryCount = countStage1GalleryAssets(stage1Data);
 
   return {
     requested_title_text: requestedTitleText,
@@ -494,11 +531,11 @@ function buildPoster2BottomRequestState(stage1Data) {
     subtitle_source: bottom.subtitleSource || 'stage2.bottom_contract.subtitle',
     bottom_mode: canonicalBottomMode,
     gallery_mode: bottom.galleryMode || 'strip_local_visible_only',
-    gallery_input_count_raw: requestedGalleryCount,
-    gallery_input_count_normalized: galleryInputCountNormalized,
-    requested_gallery_count: requestedGalleryCount,
-    gallery_autofill_applied: galleryAutofillApplied,
-    auto_fill_gallery: Boolean(bottom.autoFillGallery),
+    gallery_input_count_raw: detectedGalleryCount,
+    gallery_input_count_normalized: detectedGalleryCount,
+    requested_gallery_count: detectedGalleryCount,
+    gallery_autofill_applied: false,
+    auto_fill_gallery: false,
   };
 }
 
@@ -508,8 +545,6 @@ function syncPoster2BottomContractFromControls(stage1Data) {
   const subtitleInput = document.getElementById('poster2-bottom-subtitle');
   const bottomMode = document.getElementById('poster2-bottom-mode');
   const galleryMode = document.getElementById('poster2-gallery-mode');
-  const galleryCount = document.getElementById('poster2-gallery-count');
-  const galleryAutofill = document.getElementById('poster2-gallery-autofill');
 
   if (titleInput) {
     bottom.title = normalisePoster2BottomText(titleInput.value, POSTER2_BOTTOM_TITLE_MAX_CHARS);
@@ -527,12 +562,7 @@ function syncPoster2BottomContractFromControls(stage1Data) {
   if (galleryMode) {
     bottom.galleryMode = galleryMode.value || 'strip_local_visible_only';
   }
-  if (galleryCount) {
-    bottom.galleryCount = Number(galleryCount.value || 0);
-  }
-  if (galleryAutofill) {
-    bottom.autoFillGallery = galleryAutofill.checked;
-  }
+  updateDetectedGalleryCountDisplay(stage1Data);
   return bottom;
 }
 
@@ -817,9 +847,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
   const subtitleInput = document.getElementById('poster2-bottom-subtitle');
   const bottomMode = document.getElementById('poster2-bottom-mode');
   const galleryMode = document.getElementById('poster2-gallery-mode');
-  const galleryCount = document.getElementById('poster2-gallery-count');
-  const galleryAutofill = document.getElementById('poster2-gallery-autofill');
-  if (!panel || !titleInput || !subtitleInput || !bottomMode || !galleryMode || !galleryCount || !galleryAutofill) {
+  if (!panel || !titleInput || !subtitleInput || !bottomMode || !galleryMode) {
     return;
   }
 
@@ -841,8 +869,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
     stage2State.poster2.bottomContract.subtitleSource = 'stage2.bottom_contract.subtitle';
     stage2State.poster2.bottomContract.bottomMode = canonicalBottomMode;
     stage2State.poster2.bottomContract.galleryMode = galleryMode.value;
-    stage2State.poster2.bottomContract.galleryCount = Number(galleryCount.value || 0);
-    stage2State.poster2.bottomContract.autoFillGallery = galleryAutofill.checked;
+    updateDetectedGalleryCountDisplay(stage1Data);
     updatePoster2BottomRequestPreview(stage1Data);
     invalidateStage2SuccessDerivedState('bottom_contract_changed', ['bottom_contract']);
   };
@@ -851,10 +878,9 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
   subtitleInput.value = stage2State.poster2.bottomContract.subtitle;
   bottomMode.value = canonicalizePoster2BottomMode(stage2State.poster2.bottomContract.bottomMode);
   galleryMode.value = stage2State.poster2.bottomContract.galleryMode;
-  galleryCount.value = String(stage2State.poster2.bottomContract.galleryCount);
-  galleryAutofill.checked = stage2State.poster2.bottomContract.autoFillGallery;
+  updateDetectedGalleryCountDisplay(stage1Data);
 
-  for (const element of [titleInput, subtitleInput, bottomMode, galleryMode, galleryCount, galleryAutofill]) {
+  for (const element of [titleInput, subtitleInput, bottomMode, galleryMode]) {
     element.addEventListener('input', sync);
     element.addEventListener('change', sync);
   }
@@ -6176,6 +6202,14 @@ function buildPoster2PayloadFromNormalisedInputs(input) {
   if (typeof stage2RequestHelpers.buildPoster2PayloadFromNormalisedInputs === 'function') {
     return stage2RequestHelpers.buildPoster2PayloadFromNormalisedInputs(input);
   }
+  const galleryImages = Array.isArray(input.galleryImages)
+    ? input.galleryImages.map((entry) => ({
+        url: entry.url || '',
+        key: entry.key || null,
+        caption: entry.caption || null,
+      }))
+    : [];
+  const galleryImageCount = galleryImages.length;
   return {
     template_id: input.templateId,
     renderer_mode: input.rendererMode || 'auto',
@@ -6188,17 +6222,11 @@ function buildPoster2PayloadFromNormalisedInputs(input) {
     product_secondary_image: input.productSecondaryImage || null,
     logo: input.logo || null,
     scenario_image: input.scenarioImage || null,
-    gallery_images: Array.isArray(input.galleryImages)
-      ? input.galleryImages.map((entry) => ({
-          url: entry.url || '',
-          key: entry.key || null,
-          caption: entry.caption || null,
-        }))
-      : [],
-    gallery_input_count_raw: input.bottomRequestState?.gallery_input_count_raw ?? 0,
-    gallery_input_count_normalized: input.bottomRequestState?.gallery_input_count_normalized ?? 0,
-    gallery_requested_count: input.bottomRequestState?.requested_gallery_count ?? 0,
-    gallery_autofill_applied: Boolean(input.bottomRequestState?.gallery_autofill_applied),
+    gallery_images: galleryImages,
+    gallery_input_count_raw: galleryImageCount,
+    gallery_input_count_normalized: galleryImageCount,
+    gallery_requested_count: galleryImageCount,
+    gallery_autofill_applied: false,
     bottom_mode: input.bottomRequestState?.bottom_mode || 'title_gallery_split',
     gallery_mode: input.bottomRequestState?.gallery_mode || 'strip_local_visible_only',
     style: {
@@ -6414,8 +6442,7 @@ function readStage2OperatorUiValues() {
     bottom_subtitle: valueOf('poster2-bottom-subtitle'),
     bottom_mode: valueOf('poster2-bottom-mode'),
     gallery_mode: valueOf('poster2-gallery-mode'),
-    gallery_count: valueOf('poster2-gallery-count'),
-    gallery_autofill: checkedOf('poster2-gallery-autofill'),
+    detected_gallery_count: document.getElementById('poster2-detected-gallery-count')?.dataset?.galleryCount ?? null,
     copy_optimization_mode: valueOf('poster2-copy-optimization-mode'),
     show_bullets: checkedOf('toggle-bullets'),
     title_size: valueOf('title-size-preset'),
@@ -6612,7 +6639,6 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
   );
   const subtitle = bottomRequestState.sanitized_subtitle_text;
   const requestedGalleryCount = bottomRequestState.requested_gallery_count;
-  const autoFillGallery = bottomRequestState.auto_fill_gallery;
   const featureSource = Array.isArray(stage1Data.product_callouts) && stage1Data.product_callouts.length
     ? stage1Data.product_callouts
     : Array.isArray(stage1Data.features) && stage1Data.features.length
@@ -6672,13 +6698,10 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
   );
 
   const galleryRefs = [];
-  const galleryEntries = buildModeSDefaultGalleryEntries(stage1Data.gallery_entries, Math.max(requestedGalleryCount, 4));
-  const galleryFallbackPlan = buildModeSFamilyAGalleryFallbackPlan({
-    productPrimaryRef: productRef,
-    productSecondaryRef: productSecondaryRef,
-    logoRef: logoRef,
-  });
-  for (let index = 0; index < galleryEntries.slice(0, requestedGalleryCount).length; index += 1) {
+  const galleryEntries = (Array.isArray(stage1Data.gallery_entries) ? stage1Data.gallery_entries : [])
+    .filter((entry) => entry?.asset)
+    .slice(0, requestedGalleryCount);
+  for (let index = 0; index < galleryEntries.length; index += 1) {
     const entry = galleryEntries[index];
     if (entry?.asset) {
       // eslint-disable-next-line no-await-in-loop
@@ -6702,41 +6725,6 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
         continue;
       }
     }
-
-    const fallbackCandidates = galleryFallbackPlan[index] || [productRef, productSecondaryRef, logoRef];
-    const fallbackRef = fallbackCandidates.find((candidate) => candidate?.url) || null;
-    if (fallbackRef?.url) {
-      galleryRefs.push({
-        url: fallbackRef.url,
-        key: fallbackRef.key || null,
-        caption: entry.caption || getModeSDefaultGalleryCaption(index),
-        source_role:
-          fallbackRef === productSecondaryRef
-            ? 'product_secondary_fallback'
-            : fallbackRef === productRef
-            ? 'product_primary_fallback'
-            : 'logo_fallback',
-      });
-    }
-  }
-  while (autoFillGallery && galleryRefs.length < requestedGalleryCount && productRef?.url) {
-    const index = galleryRefs.length;
-    const fallbackCaption = getModeSDefaultGalleryCaption(index);
-    const fallbackCandidates = (galleryFallbackPlan[index] || [productRef, productSecondaryRef, logoRef]).filter(
-      (candidate) => candidate?.url
-    );
-    const fallbackRef = fallbackCandidates[0] || productRef;
-    galleryRefs.push({
-      url: fallbackRef.url,
-      key: fallbackRef.key || null,
-      caption: fallbackCaption,
-      source_role:
-        fallbackRef === productSecondaryRef
-          ? 'product_secondary_fallback'
-          : fallbackRef === productRef
-          ? 'product_primary_fallback'
-          : 'logo_fallback',
-    });
   }
 
   const payload = buildGeneratePosterPayloadFromForm({

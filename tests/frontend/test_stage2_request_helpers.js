@@ -8,6 +8,7 @@ const {
   buildStage2SourceSignatures,
   buildStage2FormStateSignatures,
   diffStage2FormSignatures,
+  countStage1GalleryAssets,
   createRequestCoordinator,
   diffPayloadPaths,
   stableStringify,
@@ -129,6 +130,105 @@ test('buildGeneratePosterPayloadFromForm ignores success response metadata field
   assert.equal(payload.copy_optimization_review, undefined);
   assert.equal(payload.poster_key, undefined);
   assert.equal(payload.final_url, undefined);
+});
+
+test('stale thumbnails override does not enter payload counts', () => {
+  const payload = buildGeneratePosterPayloadFromForm(
+    makeInput({
+      thumbnails: 4,
+      galleryCount: 4,
+      bottomRequestState: {
+        gallery_input_count_raw: 4,
+        gallery_input_count_normalized: 4,
+        requested_gallery_count: 4,
+        gallery_autofill_applied: true,
+        auto_fill_gallery: true,
+        bottom_mode: 'title_gallery_split',
+        gallery_mode: 'strip_local_visible_only',
+      },
+      galleryImages: [
+        { url: 'https://cdn.example.com/gallery-current-1.png', key: 'gallery-current-1', caption: 'Current 1' },
+        { url: 'https://cdn.example.com/gallery-current-2.png', key: 'gallery-current-2', caption: 'Current 2' },
+        { url: 'https://cdn.example.com/gallery-current-3.png', key: 'gallery-current-3', caption: 'Current 3' },
+      ],
+    })
+  );
+  assert.equal(payload.gallery_requested_count, 3);
+  assert.equal(payload.gallery_input_count_raw, 3);
+  assert.equal(payload.gallery_input_count_normalized, 3);
+  assert.equal(payload.gallery_autofill_applied, false);
+  assert.equal(payload.thumbnails, undefined);
+  assert.equal(payload.galleryCount, undefined);
+});
+
+test('changing stale thumbnails value without changing assets has no effect', () => {
+  const base = {
+    galleryImages: [
+      { url: 'https://cdn.example.com/gallery-current-1.png', key: 'gallery-current-1', caption: 'Current 1' },
+      { url: 'https://cdn.example.com/gallery-current-2.png', key: 'gallery-current-2', caption: 'Current 2' },
+      { url: 'https://cdn.example.com/gallery-current-3.png', key: 'gallery-current-3', caption: 'Current 3' },
+    ],
+    bottomRequestState: {
+      gallery_input_count_raw: 4,
+      gallery_input_count_normalized: 4,
+      requested_gallery_count: 4,
+      bottom_mode: 'title_gallery_split',
+      gallery_mode: 'strip_local_visible_only',
+    },
+  };
+  const payloadA = buildGeneratePosterPayloadFromForm(makeInput({ ...base, thumbnails: 4 }));
+  const payloadB = buildGeneratePosterPayloadFromForm(makeInput({ ...base, thumbnails: 1 }));
+  assert.equal(stableStringify(payloadA), stableStringify(payloadB));
+  assert.equal(payloadA.gallery_requested_count, 3);
+});
+
+test('gallery count follows Stage1 asset truth across supported bottom modes', () => {
+  const makeGallery = (count) =>
+    Array.from({ length: count }, (_, index) => ({
+      url: `https://cdn.example.com/gallery-${index + 1}.png`,
+      key: `gallery-${index + 1}`,
+      caption: `Gallery ${index + 1}`,
+    }));
+  for (const [mode, count] of [
+    ['title_gallery_split', 4],
+    ['title_gallery_split', 3],
+    ['gallery_only', 4],
+    ['gallery_only', 3],
+    ['text_only_expanded', 3],
+  ]) {
+    const payload = buildGeneratePosterPayloadFromForm(
+      makeInput({
+        galleryImages: makeGallery(count),
+        bottomRequestState: {
+          gallery_input_count_raw: 4,
+          gallery_input_count_normalized: 4,
+          requested_gallery_count: 4,
+          bottom_mode: mode,
+          gallery_mode: 'strip_local_visible_only',
+        },
+      })
+    );
+    assert.equal(payload.bottom_mode, mode);
+    assert.equal(payload.gallery_images.length, count);
+    assert.equal(payload.gallery_requested_count, count);
+    assert.equal(payload.gallery_input_count_raw, count);
+    assert.equal(payload.gallery_input_count_normalized, count);
+  }
+});
+
+test('Stage1 gallery asset count ignores stale empty slots', () => {
+  assert.equal(
+    countStage1GalleryAssets({
+      gallery_entries: [
+        { asset: { url: 'https://cdn.example.com/gallery-1.png' }, caption: 'One' },
+        { asset: null, caption: 'Empty' },
+        { asset: {}, caption: 'Empty object' },
+        { asset: { key: 'gallery-3' }, caption: 'Three' },
+        { asset: { dataUrl: 'data:image/png;base64,abc' }, caption: 'Four' },
+      ],
+    }),
+    3
+  );
 });
 
 test('form signatures mark bottom changes without asset or copy changes', () => {

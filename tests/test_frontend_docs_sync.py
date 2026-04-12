@@ -140,8 +140,10 @@ def test_template_a_family_a_fryer_defaults_and_gallery_semantics_are_wired():
     assert "function buildModeSFamilyAGalleryFallbackPlan" in app_js
     assert "function resolveModeSAgentName" in app_js
     assert "function isModeSGenericAgentText" in app_js
-    assert "product_primary_fallback" in app_js
-    assert "product_secondary_fallback" in app_js
+    assert "function countStage1GalleryAssets" in app_js
+    assert "gallery_input_count_raw: detectedGalleryCount" in app_js
+    assert "requested_gallery_count: detectedGalleryCount" in app_js
+    assert "Detected gallery items:" in app_js
 
 
 def test_template_a_preview_parity_uses_shared_helpers_and_supporting_inset():

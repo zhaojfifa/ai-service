@@ -429,20 +429,10 @@
                   <option value="supporting_packshots">supporting_packshots</option>
                 </select>
               </label>
-              <label class="s2-field">
-                <span>Thumbnails</span>
-                <select id="poster2-gallery-count">
-                  <option value="0">0</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                  <option value="3">3</option>
-                  <option value="4" selected>4</option>
-                </select>
-              </label>
-              <label class="s2-field-inline">
-                <input type="checkbox" id="poster2-gallery-autofill" />
-                <span>Auto-fill from product image</span>
-              </label>
+              <div class="s2-field">
+                <span>Detected gallery items</span>
+                <output id="poster2-detected-gallery-count" aria-live="polite">Detected gallery items: 0</output>
+              </div>
             </div>
           </div>
 

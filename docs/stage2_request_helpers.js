@@ -65,6 +65,14 @@
     return JSON.stringify(sortValue(value));
   }
 
+  function hasPickedAssetIdentity(value) {
+    const identity = pickAssetIdentity(value);
+    if (!identity) return false;
+    if (Array.isArray(identity)) return identity.length > 0;
+    if (typeof identity === 'object') return Object.keys(identity).length > 0;
+    return true;
+  }
+
   function buildStage2SourceSignatures(stage1Data) {
     const data = stage1Data && typeof stage1Data === 'object' ? stage1Data : {};
     const galleryEntries = Array.isArray(data.gallery_entries) ? data.gallery_entries : [];
@@ -102,6 +110,12 @@
       assetSignature: stableStringify(assets),
       copySignature: stableStringify(copy),
     };
+  }
+
+  function countStage1GalleryAssets(stage1Data) {
+    const data = stage1Data && typeof stage1Data === 'object' ? stage1Data : {};
+    const galleryEntries = Array.isArray(data.gallery_entries) ? data.gallery_entries : [];
+    return galleryEntries.filter((entry) => hasPickedAssetIdentity(entry?.asset)).slice(0, 4).length;
   }
 
   function buildStage2FormStateSignatures({
@@ -172,6 +186,7 @@
 
   function buildPoster2PayloadFromNormalisedInputs(input) {
     const galleryImages = Array.isArray(input.galleryImages) ? input.galleryImages : [];
+    const galleryImageCount = galleryImages.length;
     const copyOptimization = input.copyOptimization || {};
     const acceptedFeatures = Array.isArray(copyOptimization.accepted_features)
       ? copyOptimization.accepted_features
@@ -195,10 +210,10 @@
         key: entry.key || null,
         caption: entry.caption || null,
       })),
-      gallery_input_count_raw: input.bottomRequestState?.gallery_input_count_raw ?? 0,
-      gallery_input_count_normalized: input.bottomRequestState?.gallery_input_count_normalized ?? 0,
-      gallery_requested_count: input.bottomRequestState?.requested_gallery_count ?? galleryImages.length,
-      gallery_autofill_applied: Boolean(input.bottomRequestState?.gallery_autofill_applied),
+      gallery_input_count_raw: galleryImageCount,
+      gallery_input_count_normalized: galleryImageCount,
+      gallery_requested_count: galleryImageCount,
+      gallery_autofill_applied: false,
       bottom_mode: input.bottomRequestState?.bottom_mode || 'title_gallery_split',
       gallery_mode: input.bottomRequestState?.gallery_mode || 'strip_local_visible_only',
       style: {
@@ -374,6 +389,7 @@
     cloneValue,
     stableStringify,
     pickAssetIdentity,
+    countStage1GalleryAssets,
     buildStage2SourceSignatures,
     buildStage2FormStateSignatures,
     diffStage2FormSignatures,

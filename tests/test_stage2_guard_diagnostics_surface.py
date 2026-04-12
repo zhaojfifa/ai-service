@@ -26,7 +26,7 @@ def test_frontend_stage2_surfaces_guard_diagnostic_fields():
         "poster2-header-text-layer",
         "poster2-bottom-mode",
         "poster2-gallery-mode",
-        "poster2-gallery-count",
+        "poster2-detected-gallery-count",
         "poster2-bottom-request-preview",
         "poster2-product-contract-review",
         "poster2-copy-optimization-review",
@@ -147,6 +147,15 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "bottom_layout_mode" in html
     assert "requested/effective:" in html
     assert "gallery_only" in html
+    assert "Detected gallery items" in html
+    assert "updateDetectedGalleryCountDisplay(stage1Data)" in js
+    assert "countStage1GalleryAssets(stage1Data)" in js
+    assert "ignored_stale_stage2_override" in js
+    assert 'id="poster2-gallery-count"' not in html
+    assert 'id="poster2-gallery-autofill"' not in html
+    assert "Auto-fill from product image" not in html
+    assert "stage2State.poster2.bottomContract.galleryCount =" not in js
+    assert "stage2State.poster2.bottomContract.autoFillGallery =" not in js
     assert 'option value="text_gallery_expanded"' not in html
     assert 'option value="title_gallery_split"' in html
     assert 'option value="text_only_expanded"' in html
