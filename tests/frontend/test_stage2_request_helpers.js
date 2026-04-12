@@ -6,6 +6,8 @@ const {
   buildGeneratePosterPayloadFromForm,
   buildPoster2RequestSummary,
   buildStage2SourceSignatures,
+  buildStage2FormStateSignatures,
+  diffStage2FormSignatures,
   createRequestCoordinator,
   diffPayloadPaths,
   stableStringify,
@@ -104,6 +106,72 @@ test('buildGeneratePosterPayloadFromForm does not let old derived arrays contami
   assert.deepEqual(second.features, ['Second A']);
   assert.deepEqual(second.gallery_images.map((entry) => entry.url), ['https://cdn.example.com/new-gallery.png']);
   assert.deepEqual(second.copy_optimization.accepted_features, []);
+});
+
+test('buildGeneratePosterPayloadFromForm ignores success response metadata fields', () => {
+  const payload = buildGeneratePosterPayloadFromForm(
+    makeInput({
+      poster_key: 'poster/success/old.png',
+      final_url: 'https://cdn.example.com/success-old.png',
+      bottom_contract_review: {
+        bottom_mode: 'gallery_only',
+      },
+      copy_optimization_review: {
+        title: { optimized_text: 'Old optimized title' },
+      },
+    })
+  );
+  const payloadJson = stableStringify(payload);
+  assert(!payloadJson.includes('poster/success/old.png'));
+  assert(!payloadJson.includes('success-old.png'));
+  assert(!payloadJson.includes('Old optimized title'));
+  assert.equal(payload.bottom_contract_review, undefined);
+  assert.equal(payload.copy_optimization_review, undefined);
+  assert.equal(payload.poster_key, undefined);
+  assert.equal(payload.final_url, undefined);
+});
+
+test('form signatures mark bottom changes without asset or copy changes', () => {
+  const stage1Data = {
+    brand_logo: { url: 'https://cdn.example.com/logo.png' },
+    scenario_asset: { url: 'https://cdn.example.com/scenario-a.png' },
+    product_image_1: { url: 'https://cdn.example.com/product-a.png' },
+    gallery_entries: [{ asset: { url: 'https://cdn.example.com/gallery-a.png' }, caption: 'A' }],
+    title: 'Air Fryer',
+    subtitle: 'Crisp results',
+    features: ['Fast heat'],
+  };
+  const before = buildStage2FormStateSignatures({
+    stage1Data,
+    bottomRequestState: {
+      bottom_mode: 'title_gallery_split',
+      gallery_mode: 'strip_local_visible_only',
+      requested_gallery_count: 2,
+      gallery_input_count_raw: 2,
+      gallery_input_count_normalized: 2,
+      gallery_autofill_applied: false,
+      requested_title_text: 'Air Fryer',
+      requested_subtitle_text: 'Crisp results',
+    },
+    copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+    adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+  });
+  const after = buildStage2FormStateSignatures({
+    stage1Data,
+    bottomRequestState: {
+      bottom_mode: 'gallery_only',
+      gallery_mode: 'strip_local_visible_only',
+      requested_gallery_count: 4,
+      gallery_input_count_raw: 4,
+      gallery_input_count_normalized: 1,
+      gallery_autofill_applied: true,
+      requested_title_text: 'Air Fryer',
+      requested_subtitle_text: 'Crisp results',
+    },
+    copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+    adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+  });
+  assert.deepEqual(diffStage2FormSignatures(before, after), ['bottom_contract']);
 });
 
 test('scenario-only change affects only scenario fields', () => {

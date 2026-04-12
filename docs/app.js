@@ -773,6 +773,7 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
       state.acceptedSubtitle = '';
       state.acceptedFeatures = [];
     }
+    invalidateStage2SuccessDerivedState('copy_optimization_mode_changed', ['copy_optimization_acceptance']);
     renderPoster2CopyOptimizationReview(state.latestReview);
   };
 
@@ -834,6 +835,7 @@ function initPoster2BottomContractControls(stage1Data, statusElement) {
     stage2State.poster2.bottomContract.galleryCount = Number(galleryCount.value || 0);
     stage2State.poster2.bottomContract.autoFillGallery = galleryAutofill.checked;
     updatePoster2BottomRequestPreview(stage1Data);
+    invalidateStage2SuccessDerivedState('bottom_contract_changed', ['bottom_contract']);
   };
 
   titleInput.value = stage2State.poster2.bottomContract.title;
@@ -6122,6 +6124,45 @@ function buildStage2SourceSignatures(stage1Data) {
   };
 }
 
+function buildStage2FormStateSignatures(input = {}) {
+  if (typeof stage2RequestHelpers.buildStage2FormStateSignatures === 'function') {
+    return stage2RequestHelpers.buildStage2FormStateSignatures(input);
+  }
+  const source = buildStage2SourceSignatures(input.stage1Data);
+  return {
+    ...source,
+    bottom: cloneStage2Value(input.bottomRequestState || {}),
+    copyReviewAcceptance: cloneStage2Value(input.copyOptimization || {}),
+    requestControls: cloneStage2Value(input.adjustments || {}),
+    bottomSignature: stableStringify(input.bottomRequestState || {}),
+    copyReviewAcceptanceSignature: stableStringify(input.copyOptimization || {}),
+    requestControlsSignature: stableStringify(input.adjustments || {}),
+    formSignature: stableStringify({
+      assets: source.assets,
+      copy: source.copy,
+      bottom: input.bottomRequestState || {},
+      copyReviewAcceptance: input.copyOptimization || {},
+      requestControls: input.adjustments || {},
+    }),
+  };
+}
+
+function diffStage2FormSignatures(previous, next) {
+  if (typeof stage2RequestHelpers.diffStage2FormSignatures === 'function') {
+    return stage2RequestHelpers.diffStage2FormSignatures(previous, next);
+  }
+  if (!previous || !next) return [];
+  const changed = [];
+  if (previous.assetSignature !== next.assetSignature) changed.push('assets');
+  if (previous.copySignature !== next.copySignature) changed.push('copy');
+  if (previous.bottomSignature !== next.bottomSignature) changed.push('bottom_contract');
+  if (previous.copyReviewAcceptanceSignature !== next.copyReviewAcceptanceSignature) {
+    changed.push('copy_optimization_acceptance');
+  }
+  if (previous.requestControlsSignature !== next.requestControlsSignature) changed.push('request_controls');
+  return changed;
+}
+
 function buildPoster2PayloadFromNormalisedInputs(input) {
   if (typeof stage2RequestHelpers.buildPoster2PayloadFromNormalisedInputs === 'function') {
     return stage2RequestHelpers.buildPoster2PayloadFromNormalisedInputs(input);
@@ -6265,6 +6306,19 @@ function clearStage2RuntimeRequestCache() {
   updateDebugPanels({ response: null });
 }
 
+function hasStage2SuccessDerivedState() {
+  return Boolean(
+    lastPosterResult ||
+      lastPromptBundle ||
+      posterGenerationState.promptBundle ||
+      posterGenerationState.rawResult ||
+      posterGeneratedImage ||
+      stage2State.poster2.latestResult ||
+      stage2State.vertex.lastResponse ||
+      stage2State.generated?.lastSuccessPosterUrl
+  );
+}
+
 function clearStage2DerivedSurfacesBeforeRequest() {
   lastPosterResult = null;
   lastPromptBundle = null;
@@ -6295,6 +6349,16 @@ function clearStage2DerivedSurfacesBeforeRequest() {
   if (copyButton) copyButton.disabled = true;
 }
 
+function invalidateStage2SuccessDerivedState(reason = 'operator_input_changed', fields = []) {
+  if (!hasStage2SuccessDerivedState()) return;
+  clearStage2DerivedSurfacesBeforeRequest();
+  refreshPosterLayoutPreview({});
+  console.info('[stage2] cleared success-derived state', {
+    reason,
+    invalidated_fields: fields,
+  });
+}
+
 function resetPoster2DerivedCopyOptimization(reason = 'source_changed') {
   const state = ensurePoster2CopyOptimizationState();
   state.decision = 'pending';
@@ -6306,19 +6370,65 @@ function resetPoster2DerivedCopyOptimization(reason = 'source_changed') {
   console.info('[stage2][poster2] cleared copy optimization state', { reason });
 }
 
-function invalidateStage2DerivedStateForSnapshot(stage1Data) {
-  const next = buildStage2SourceSignatures(stage1Data);
+function invalidateStage2DerivedStateForSnapshot(stage1Data, options = {}) {
+  const next = buildStage2FormStateSignatures({
+    stage1Data,
+    bottomRequestState: options.bottomRequestState || buildPoster2BottomRequestState(stage1Data),
+    copyOptimization: options.copyOptimizationState || ensurePoster2CopyOptimizationState(),
+    adjustments: options.adjustments || stage2State.adjustments || {},
+  });
   const previous = stage2LastSourceSignatures;
   const assetsChanged = Boolean(previous && previous.assetSignature !== next.assetSignature);
   const copyChanged = Boolean(previous && previous.copySignature !== next.copySignature);
+  const invalidatedFields = diffStage2FormSignatures(previous, next);
+  const bottomChanged = invalidatedFields.includes('bottom_contract');
   if (assetsChanged) {
     clearStage2RuntimeRequestCache();
   }
-  if (assetsChanged || copyChanged) {
-    resetPoster2DerivedCopyOptimization(assetsChanged ? 'asset_changed' : 'copy_changed');
+  if (assetsChanged || copyChanged || bottomChanged) {
+    resetPoster2DerivedCopyOptimization(
+      assetsChanged ? 'asset_changed' : copyChanged ? 'copy_changed' : 'bottom_contract_changed'
+    );
   }
   stage2LastSourceSignatures = next;
-  return { assetsChanged, copyChanged, signatures: next };
+  return { assetsChanged, copyChanged, bottomChanged, invalidatedFields, signatures: next };
+}
+
+function readStage2OperatorUiValues() {
+  const valueOf = (id) => document.getElementById(id)?.value ?? null;
+  const checkedOf = (id) => {
+    const element = document.getElementById(id);
+    return element ? Boolean(element.checked) : null;
+  };
+  return {
+    bottom_title: valueOf('poster2-bottom-title'),
+    bottom_subtitle: valueOf('poster2-bottom-subtitle'),
+    bottom_mode: valueOf('poster2-bottom-mode'),
+    gallery_mode: valueOf('poster2-gallery-mode'),
+    gallery_count: valueOf('poster2-gallery-count'),
+    gallery_autofill: checkedOf('poster2-gallery-autofill'),
+    copy_optimization_mode: valueOf('poster2-copy-optimization-mode'),
+    show_bullets: checkedOf('toggle-bullets'),
+    title_size: valueOf('title-size-preset'),
+  };
+}
+
+function logStage2RequestBoundary({
+  requestId,
+  currentUiValues,
+  canonicalFormState,
+  requestSnapshot,
+  previousResponsePresence,
+  invalidatedFields,
+}) {
+  console.info('[stage2] request boundary', {
+    request_id: requestId,
+    current_ui_values: currentUiValues,
+    canonical_form_state: canonicalFormState,
+    request_snapshot: requestSnapshot,
+    previous_response_presence: previousResponsePresence,
+    invalidated_fields: invalidatedFields,
+  });
 }
 
 function syncStage2PreviewStateFromStage1(snapshot) {
@@ -7590,6 +7700,7 @@ function initStage2() {
       toggleBulletsInput.checked = stage2State.adjustments.showBullets !== false;
       toggleBulletsInput.addEventListener('change', () => {
         stage2State.adjustments.showBullets = toggleBulletsInput.checked;
+        invalidateStage2SuccessDerivedState('request_controls_changed', ['request_controls']);
         refreshStage2Wireframe();
         renderPosterResult();
         updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
@@ -7604,6 +7715,7 @@ function initStage2() {
           const next = TITLE_SCALE_PRESETS[titleSizePreset.value] || 1;
           stage2State.adjustments.titleScale = next;
           stage2State.adjustments.titleSize = titleSizePreset.value;
+          invalidateStage2SuccessDerivedState('request_controls_changed', ['request_controls']);
           refreshStage2Wireframe();
           updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
         });
@@ -7620,6 +7732,7 @@ function initStage2() {
           };
           if (toggleBulletsInput) toggleBulletsInput.checked = true;
           if (titleSizePreset) titleSizePreset.value = 'M';
+        invalidateStage2SuccessDerivedState('request_controls_changed', ['request_controls']);
         refreshStage2Wireframe();
         updateDebugPanels({ payload: buildGeneratePosterPayload(stage2State.draft) });
         setStatus(statusElement, '已请求使用稳定模式。', 'info');
@@ -7689,7 +7802,12 @@ function initStage2() {
     }
 
     syncStage2PreviewStateFromStage1(stage1Data);
-    stage2LastSourceSignatures = buildStage2SourceSignatures(stage1Data);
+    stage2LastSourceSignatures = buildStage2FormStateSignatures({
+      stage1Data,
+      bottomRequestState: buildPoster2BottomRequestState(stage1Data),
+      copyOptimization: ensurePoster2CopyOptimizationState(),
+      adjustments: stage2State.adjustments || {},
+    });
 
     renderPosterResult();
 
@@ -9064,7 +9182,19 @@ async function triggerGeneration(opts) {
   stage2ActiveAbortController = new AbortController();
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
-  const sourceInvalidation = invalidateStage2DerivedStateForSnapshot(requestStage1Data);
+  const previousResponsePresence = {
+    lastPosterResult: Boolean(lastPosterResult),
+    latestResult: Boolean(stage2State.poster2.latestResult),
+    rawResult: Boolean(posterGenerationState.rawResult),
+    promptBundle: Boolean(posterGenerationState.promptBundle || lastPromptBundle),
+    finalPosterImage: Boolean(posterGeneratedImage),
+    vertexLastResponse: Boolean(stage2State.vertex.lastResponse),
+  };
+  const sourceInvalidation = invalidateStage2DerivedStateForSnapshot(requestStage1Data, {
+    bottomRequestState,
+    copyOptimizationState: ensurePoster2CopyOptimizationState(),
+    adjustments,
+  });
   clearStage2DerivedSurfacesBeforeRequest();
   renderPosterResult();
   const copyOptimizationState = cloneStage2Value(ensurePoster2CopyOptimizationState());
@@ -9072,6 +9202,8 @@ async function triggerGeneration(opts) {
     request_id: mySeq,
     assets_changed: sourceInvalidation.assetsChanged,
     copy_changed: sourceInvalidation.copyChanged,
+    bottom_changed: sourceInvalidation.bottomChanged,
+    invalidated_fields: sourceInvalidation.invalidatedFields,
   });
 
   // 1) 选可用 API 基址
@@ -9400,6 +9532,22 @@ async function triggerGeneration(opts) {
   if (!isCurrentStage2Request(mySeq)) return null;
   payload = freezeStage2RequestSnapshot(cloneStage2Value(payload));
   updateDebugPanels({ draft: stage2State.draft, payload: cloneStage2Value(payload) });
+  logStage2RequestBoundary({
+    requestId: mySeq,
+    currentUiValues: readStage2OperatorUiValues(),
+    canonicalFormState: {
+      assets: sourceInvalidation.signatures?.assets || null,
+      copy: sourceInvalidation.signatures?.copy || null,
+      bottom: sourceInvalidation.signatures?.bottom || null,
+      copyReviewAcceptance: sourceInvalidation.signatures?.copyReviewAcceptance || null,
+      requestControls: sourceInvalidation.signatures?.requestControls || null,
+    },
+    requestSnapshot: endpointPath === '/api/v2/generate-poster'
+      ? buildPoster2RequestSummary(payload)
+      : cloneStage2Value(payload),
+    previousResponsePresence,
+    invalidatedFields: sourceInvalidation.invalidatedFields || [],
+  });
 
   const posterSummary = {
     template_id: posterPayload.template_id,

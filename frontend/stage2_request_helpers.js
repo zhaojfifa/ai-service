@@ -104,6 +104,72 @@
     };
   }
 
+  function buildStage2FormStateSignatures({
+    stage1Data,
+    bottomRequestState,
+    copyOptimization,
+    adjustments,
+  } = {}) {
+    const source = buildStage2SourceSignatures(stage1Data);
+    const bottom = {
+      bottom_mode: bottomRequestState?.bottom_mode || null,
+      gallery_mode: bottomRequestState?.gallery_mode || null,
+      requested_gallery_count: bottomRequestState?.requested_gallery_count ?? null,
+      gallery_input_count_raw: bottomRequestState?.gallery_input_count_raw ?? null,
+      gallery_input_count_normalized: bottomRequestState?.gallery_input_count_normalized ?? null,
+      gallery_autofill_applied: Boolean(bottomRequestState?.gallery_autofill_applied),
+      auto_fill_gallery: Boolean(bottomRequestState?.auto_fill_gallery),
+      requested_title_text: normalizeText(bottomRequestState?.requested_title_text),
+      requested_subtitle_text: normalizeText(bottomRequestState?.requested_subtitle_text),
+    };
+    const acceptedFeatures = Array.isArray(copyOptimization?.acceptedFeatures)
+      ? copyOptimization.acceptedFeatures
+      : Array.isArray(copyOptimization?.accepted_features)
+      ? copyOptimization.accepted_features
+      : [];
+    const copyReviewAcceptance = {
+      mode: copyOptimization?.mode || 'off',
+      decision: copyOptimization?.decision || 'pending',
+      accepted_title: normalizeText(copyOptimization?.acceptedTitle || copyOptimization?.accepted_title),
+      accepted_subtitle: normalizeText(copyOptimization?.acceptedSubtitle || copyOptimization?.accepted_subtitle),
+      accepted_features: acceptedFeatures.map((entry) => normalizeText(entry)).filter(Boolean).slice(0, 4),
+    };
+    const requestControls = {
+      show_bullets: adjustments?.showBullets !== false,
+      title_size: adjustments?.titleSize || null,
+      quality_mode: adjustments?.qualityMode || null,
+    };
+    return {
+      ...source,
+      bottom,
+      copyReviewAcceptance,
+      requestControls,
+      bottomSignature: stableStringify(bottom),
+      copyReviewAcceptanceSignature: stableStringify(copyReviewAcceptance),
+      requestControlsSignature: stableStringify(requestControls),
+      formSignature: stableStringify({
+        assets: source.assets,
+        copy: source.copy,
+        bottom,
+        copyReviewAcceptance,
+        requestControls,
+      }),
+    };
+  }
+
+  function diffStage2FormSignatures(previous, next) {
+    if (!previous || !next) return [];
+    const changed = [];
+    if (previous.assetSignature !== next.assetSignature) changed.push('assets');
+    if (previous.copySignature !== next.copySignature) changed.push('copy');
+    if (previous.bottomSignature !== next.bottomSignature) changed.push('bottom_contract');
+    if (previous.copyReviewAcceptanceSignature !== next.copyReviewAcceptanceSignature) {
+      changed.push('copy_optimization_acceptance');
+    }
+    if (previous.requestControlsSignature !== next.requestControlsSignature) changed.push('request_controls');
+    return changed;
+  }
+
   function buildPoster2PayloadFromNormalisedInputs(input) {
     const galleryImages = Array.isArray(input.galleryImages) ? input.galleryImages : [];
     const copyOptimization = input.copyOptimization || {};
@@ -309,6 +375,8 @@
     stableStringify,
     pickAssetIdentity,
     buildStage2SourceSignatures,
+    buildStage2FormStateSignatures,
+    diffStage2FormSignatures,
     buildGeneratePosterPayloadFromForm,
     buildPoster2PayloadFromNormalisedInputs,
     buildPoster2RequestSummary,
