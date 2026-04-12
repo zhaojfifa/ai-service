@@ -193,6 +193,52 @@ test('changing stale thumbnails value without changing assets has no effect', ()
   assert.equal(payloadA.gallery_requested_count, 3);
 });
 
+test('form signatures ignore stale gallery-count overrides and follow Stage1 gallery assets', () => {
+  const stage1Data = {
+    brand_logo: { url: 'https://cdn.example.com/logo.png' },
+    scenario_asset: { url: 'https://cdn.example.com/scenario-a.png' },
+    product_image_1: { url: 'https://cdn.example.com/product-a.png' },
+    gallery_entries: [
+      { asset: { url: 'https://cdn.example.com/gallery-1.png' }, caption: 'One' },
+      { asset: { url: 'https://cdn.example.com/gallery-2.png' }, caption: 'Two' },
+      { asset: { url: 'https://cdn.example.com/gallery-3.png' }, caption: 'Three' },
+    ],
+    title: 'Air Fryer',
+    subtitle: 'Crisp results',
+    features: ['Fast heat'],
+  };
+  const signature = buildStage2FormStateSignatures({
+    stage1Data,
+    bottomRequestState: {
+      bottom_mode: 'title_gallery_split',
+      gallery_mode: 'strip_local_visible_only',
+      requested_gallery_count: 99,
+      gallery_input_count_raw: 88,
+      gallery_input_count_normalized: 77,
+      gallery_autofill_applied: true,
+      auto_fill_gallery: true,
+      requested_title_text: 'Air Fryer',
+      requested_subtitle_text: 'Crisp results',
+    },
+    copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+    adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+  });
+  assert.equal(signature.bottom.requested_gallery_count, 3);
+  assert.equal(signature.bottom.gallery_input_count_raw, 3);
+  assert.equal(signature.bottom.gallery_input_count_normalized, 3);
+  assert.equal(signature.bottom.gallery_autofill_applied, false);
+  assert.equal(signature.bottom.auto_fill_gallery, false);
+  assert.equal(signature.canonicalForm.detected_gallery_items, 3);
+  assert.equal(
+    signature.canonicalForm.detected_gallery_assets_signature,
+    stableStringify([
+      'https://cdn.example.com/gallery-1.png',
+      'https://cdn.example.com/gallery-2.png',
+      'https://cdn.example.com/gallery-3.png',
+    ])
+  );
+});
+
 test('gallery count follows Stage1 asset truth across supported bottom modes', () => {
   const makeGallery = (count) =>
     Array.from({ length: count }, (_, index) => ({
@@ -358,7 +404,9 @@ test('switching bottom_mode after success produces invalidated preflight state',
   assert.equal(diagnostics.cleared_success_state, true);
   assert.deepEqual(diagnostics.invalidated_fields, ['bottom_contract']);
   assert.equal(diagnostics.detected_gallery_items, 4);
+  assert.equal(diagnostics.canonical_form_signature, galleryOnly.formSignature);
   assert.equal(diagnostics.canonical_form_signature_hash, hashStableValue(galleryOnly.formSignature));
+  assert.equal(diagnostics.request_payload_signature, stableStringify(payload));
   assert.equal(diagnostics.request_payload_signature_hash, hashStableValue(payload));
 });
 

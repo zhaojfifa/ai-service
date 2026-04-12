@@ -108,6 +108,9 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     assert "Product Callouts" in frontend_stage2
     assert "s2-template-b-summary" in frontend_stage2
     assert "s2-template-badge" in frontend_stage2
+    assert 'id="poster2-detected-gallery-count"' in frontend_stage2
+    assert "Detected gallery items" in frontend_stage2
+    assert 'id="poster2-gallery-count"' not in frontend_stage2
 
 
 def test_stage1_request_mapping_prefers_dedicated_product_callouts_and_secondary_clear_path_exists():

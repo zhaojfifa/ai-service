@@ -114,9 +114,21 @@
       intent: normalizeText(data.intent),
       features: features.map((entry) => normalizeText(entry)).filter(Boolean),
     };
+    const assetSignatures = {
+      logo_source_signature: stableStringify(assets.brand_logo),
+      scenario_source_signature: stableStringify(assets.scenario_asset),
+      product_source_signature: stableStringify(assets.product_image_1),
+      product_secondary_source_signature: stableStringify(assets.product_image_2),
+      detected_gallery_assets_signature: stableStringify(
+        assets.gallery_entries
+          .map((entry) => entry.asset)
+          .filter((entry) => entry != null && entry !== '')
+      ),
+    };
     return {
       assets,
       copy,
+      assetSignatures,
       assetSignature: stableStringify(assets),
       copySignature: stableStringify(copy),
     };
@@ -135,14 +147,15 @@
     adjustments,
   } = {}) {
     const source = buildStage2SourceSignatures(stage1Data);
+    const detectedGalleryCount = countStage1GalleryAssets(stage1Data);
     const bottom = {
       bottom_mode: bottomRequestState?.bottom_mode || null,
       gallery_mode: bottomRequestState?.gallery_mode || null,
-      requested_gallery_count: bottomRequestState?.requested_gallery_count ?? null,
-      gallery_input_count_raw: bottomRequestState?.gallery_input_count_raw ?? null,
-      gallery_input_count_normalized: bottomRequestState?.gallery_input_count_normalized ?? null,
-      gallery_autofill_applied: Boolean(bottomRequestState?.gallery_autofill_applied),
-      auto_fill_gallery: Boolean(bottomRequestState?.auto_fill_gallery),
+      requested_gallery_count: detectedGalleryCount,
+      gallery_input_count_raw: detectedGalleryCount,
+      gallery_input_count_normalized: detectedGalleryCount,
+      gallery_autofill_applied: false,
+      auto_fill_gallery: false,
       requested_title_text: normalizeText(bottomRequestState?.requested_title_text),
       requested_subtitle_text: normalizeText(bottomRequestState?.requested_subtitle_text),
     };
@@ -168,6 +181,24 @@
       bottom,
       copyReviewAcceptance,
       requestControls,
+      canonicalForm: {
+        bottom_mode: bottom.bottom_mode,
+        gallery_mode: bottom.gallery_mode,
+        detected_gallery_items: detectedGalleryCount,
+        detected_gallery_assets_signature: source.assetSignatures.detected_gallery_assets_signature,
+        title_text: source.copy.title,
+        subtitle_text: source.copy.subtitle,
+        callouts_text: source.copy.features,
+        logo_source_signature: source.assetSignatures.logo_source_signature,
+        scenario_source_signature: source.assetSignatures.scenario_source_signature,
+        product_source_signature: source.assetSignatures.product_source_signature,
+        product_secondary_source_signature: source.assetSignatures.product_secondary_source_signature,
+        copy_optimization_mode: copyReviewAcceptance.mode,
+        copy_optimization_decision: copyReviewAcceptance.decision,
+        copy_optimization_accepted_title: copyReviewAcceptance.accepted_title,
+        copy_optimization_accepted_subtitle: copyReviewAcceptance.accepted_subtitle,
+        copy_optimization_accepted_features: copyReviewAcceptance.accepted_features,
+      },
       bottomSignature: stableStringify(bottom),
       copyReviewAcceptanceSignature: stableStringify(copyReviewAcceptance),
       requestControlsSignature: stableStringify(requestControls),
@@ -210,7 +241,9 @@
       invalidated_fields: Array.isArray(invalidatedFields) ? invalidatedFields : [],
       cleared_success_state: Boolean(clearedSuccessState),
       detected_gallery_items: Number(detectedGalleryItems || 0),
+      canonical_form_signature: formSignatures?.formSignature || '',
       canonical_form_signature_hash: hashStableValue(formSignatures?.formSignature || ''),
+      request_payload_signature: stableStringify(payload || {}),
       request_payload_signature_hash: hashStableValue(payload || {}),
     };
   }

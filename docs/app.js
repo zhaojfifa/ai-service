@@ -6390,6 +6390,14 @@ function clearStage2StoredSuccessReferences() {
   }
 }
 
+function hasStage2CanonicalSuccessSignatureMismatch(nextFormSignature) {
+  return Boolean(
+    stage2LastSuccessfulFormSignature &&
+      nextFormSignature &&
+      stage2LastSuccessfulFormSignature !== nextFormSignature
+  );
+}
+
 function hasStage2SuccessDerivedState() {
   return Boolean(
     lastPosterResult ||
@@ -6416,6 +6424,7 @@ function clearStage2DerivedSurfacesBeforeRequest() {
   stage2State.vertex.lastResponse = null;
   stage2State.generated.lastSuccessPosterUrl = null;
   stage2State.generated.lastCopy = null;
+  stage2LastSuccessfulRequestSignature = null;
   clearStage2StoredSuccessReferences();
   updateDebugPanels({ payload: null, response: null });
   updatePoster2DiagnosticsPanel(null);
@@ -6560,7 +6569,9 @@ function buildStage2PreflightDiagnostics(input) {
     invalidated_fields: Array.isArray(input?.invalidatedFields) ? input.invalidatedFields : [],
     cleared_success_state: Boolean(input?.clearedSuccessState),
     detected_gallery_items: Number(input?.detectedGalleryItems || 0),
+    canonical_form_signature: input?.formSignatures?.formSignature || '',
     canonical_form_signature_hash: hashStage2StableValue(input?.formSignatures?.formSignature || ''),
+    request_payload_signature: stage2StableStringify(input?.payload || {}),
     request_payload_signature_hash: hashStage2StableValue(input?.payload || {}),
   };
 }
@@ -6736,7 +6747,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
     brandName
   );
   const subtitle = bottomRequestState.sanitized_subtitle_text;
-  const requestedGalleryCount = bottomRequestState.requested_gallery_count;
+  const detectedGalleryCount = countStage1GalleryAssets(stage1Data);
   const featureSource = Array.isArray(stage1Data.product_callouts) && stage1Data.product_callouts.length
     ? stage1Data.product_callouts
     : Array.isArray(stage1Data.features) && stage1Data.features.length
@@ -6798,7 +6809,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
   const galleryRefs = [];
   const galleryEntries = (Array.isArray(stage1Data.gallery_entries) ? stage1Data.gallery_entries : [])
     .filter((entry) => entry?.asset)
-    .slice(0, requestedGalleryCount);
+    .slice(0, detectedGalleryCount);
   for (let index = 0; index < galleryEntries.length; index += 1) {
     const entry = galleryEntries[index];
     if (entry?.asset) {
@@ -9293,10 +9304,8 @@ async function triggerGeneration(opts) {
     adjustments,
   });
   const previousSuccessPresent = Object.values(previousResponsePresence).some(Boolean);
-  const successSignatureMismatch = Boolean(
-    stage2LastSuccessfulFormSignature &&
-      sourceInvalidation.signatures?.formSignature &&
-      stage2LastSuccessfulFormSignature !== sourceInvalidation.signatures.formSignature
+  const successSignatureMismatch = hasStage2CanonicalSuccessSignatureMismatch(
+    sourceInvalidation.signatures?.formSignature
   );
   const clearedSuccessState = clearStage2DerivedSurfacesBeforeRequest();
   renderPosterResult();
@@ -9897,6 +9906,8 @@ async function triggerGeneration(opts) {
       }
       await saveStage2Result({
         poster_key: data?.poster_key || null,
+        canonical_form_signature: sourceInvalidation.signatures?.formSignature || '',
+        request_payload_signature: stage2StableStringify(payload),
         prompt: nextPrompt,
         email_body: nextEmail,
         prompt_bundle: data?.prompt_bundle || null,

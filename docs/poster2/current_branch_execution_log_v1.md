@@ -1,5 +1,69 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-S2-STABILITY-1: lock Stage2 gallery count to Stage1 truth and clear post-success bottom-mode contamination
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-12
+
+### Scope
+
+- Stage2 frontend state / request lifecycle only
+- no backend contract change
+- no renderer change
+- no Template A geometry / ownership reopen
+- keep supported bottom modes:
+  - `title_gallery_split`
+  - `gallery_only`
+  - `text_only_expanded`
+
+### Root rules followed
+
+- contract-first
+- Stage2 consumes Stage1 gallery asset truth; Stage2 does not invent gallery count
+- success-derived preview/runtime state must be invalidated before the next request can reuse it
+- `frontend/` and `docs/` publish mirror stay aligned in the same task
+
+### Problem reproduced
+
+- after one successful generate, switching bottom mode in the same session could leave success-derived bottom truth, output references, or accepted copy state available to later requests
+- Stage2 also needed to ignore any stale local / hydrated thumbnail-count override and derive gallery count only from current Stage1 gallery assets
+
+### Root cause found
+
+- canonical invalidation depended on mixed sources: current form truth plus residual success-derived frontend state
+- request diagnostics only logged hashes, not the canonical signature and request payload signature themselves
+- gallery count was mostly derived correctly, but the canonical signature / request lifecycle still accepted stale count-shaped state as input instead of forcing Stage1 asset truth
+
+### Files changed
+
+- `frontend/app.js`
+- `frontend/stage2_request_helpers.js`
+- `tests/frontend/test_stage2_request_helpers.js`
+- `tests/test_frontend_docs_sync.py`
+- `docs/app.js`
+- `docs/stage2_request_helpers.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 frontend request lifecycle
+- Stage2 frontend canonical invalidation / diagnostics
+- Stage2 frontend publish-mirror alignment
+
+### Validation run
+
+- `node --test tests/frontend/test_stage2_request_helpers.js`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- `bash scripts/sync_frontend_to_docs.sh`
+
+### Remaining risks
+
+- no browser-session capture is attached in this entry, so the multi-step UI flow is covered by request-helper invariants and mirror checks rather than a live DOM replay
+- no backend/runtime contract was changed in this task, so backend integration was not rerun here
+
+---
+
 ## Entry — PR-FA-POLISH-2: lighter annotation cards and airier bottom strip
 
 **Branch:** `main`
