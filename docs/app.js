@@ -124,6 +124,8 @@ let stage2ActiveAbortController = null;
 let stage2LastSourceSignatures = null;
 let stage2RemovedBottomModeRemapLogged = false;
 let stage2IgnoredThumbnailsOverrideLogged = false;
+let stage2LastSuccessfulFormSignature = null;
+let stage2LastSuccessfulRequestSignature = null;
 
 const stage2State = {
   poster: {
@@ -6126,6 +6128,36 @@ function cloneStage2Value(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+function stage2StableStringify(value) {
+  if (typeof stage2RequestHelpers.stableStringify === 'function') {
+    return stage2RequestHelpers.stableStringify(value);
+  }
+  const sortValue = (input) => {
+    if (Array.isArray(input)) return input.map(sortValue);
+    if (!input || typeof input !== 'object') return input;
+    return Object.keys(input)
+      .sort()
+      .reduce((acc, key) => {
+        acc[key] = sortValue(input[key]);
+        return acc;
+      }, {});
+  };
+  return JSON.stringify(sortValue(value));
+}
+
+function hashStage2StableValue(value) {
+  if (typeof stage2RequestHelpers.hashStableValue === 'function') {
+    return stage2RequestHelpers.hashStableValue(value);
+  }
+  const text = typeof value === 'string' ? value : stage2StableStringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 function freezeStage2RequestSnapshot(value) {
   if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -6169,10 +6201,10 @@ function buildStage2FormStateSignatures(input = {}) {
     bottom: cloneStage2Value(input.bottomRequestState || {}),
     copyReviewAcceptance: cloneStage2Value(input.copyOptimization || {}),
     requestControls: cloneStage2Value(input.adjustments || {}),
-    bottomSignature: stableStringify(input.bottomRequestState || {}),
-    copyReviewAcceptanceSignature: stableStringify(input.copyOptimization || {}),
-    requestControlsSignature: stableStringify(input.adjustments || {}),
-    formSignature: stableStringify({
+    bottomSignature: stage2StableStringify(input.bottomRequestState || {}),
+    copyReviewAcceptanceSignature: stage2StableStringify(input.copyOptimization || {}),
+    requestControlsSignature: stage2StableStringify(input.adjustments || {}),
+    formSignature: stage2StableStringify({
       assets: source.assets,
       copy: source.copy,
       bottom: input.bottomRequestState || {},
@@ -6343,6 +6375,21 @@ function clearStage2RuntimeRequestCache() {
   updateDebugPanels({ response: null });
 }
 
+function clearStage2StoredSuccessReferences() {
+  sessionStorage.removeItem(STORAGE_KEYS.stage2);
+  if (typeof window !== 'undefined') {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('poster_key')) {
+        url.searchParams.delete('poster_key');
+        window.history.replaceState({}, '', url.toString());
+      }
+    } catch (error) {
+      console.warn('[stage2] unable to clear poster_key from URL', error);
+    }
+  }
+}
+
 function hasStage2SuccessDerivedState() {
   return Boolean(
     lastPosterResult ||
@@ -6352,11 +6399,14 @@ function hasStage2SuccessDerivedState() {
       posterGeneratedImage ||
       stage2State.poster2.latestResult ||
       stage2State.vertex.lastResponse ||
-      stage2State.generated?.lastSuccessPosterUrl
+      stage2State.generated?.lastSuccessPosterUrl ||
+      stage2State.generated?.lastCopy ||
+      sessionStorage.getItem(STORAGE_KEYS.stage2)
   );
 }
 
 function clearStage2DerivedSurfacesBeforeRequest() {
+  const hadSuccessState = hasStage2SuccessDerivedState();
   lastPosterResult = null;
   lastPromptBundle = null;
   posterGenerationState.promptBundle = null;
@@ -6364,6 +6414,9 @@ function clearStage2DerivedSurfacesBeforeRequest() {
   posterGeneratedImage = null;
   stage2State.poster2.latestResult = null;
   stage2State.vertex.lastResponse = null;
+  stage2State.generated.lastSuccessPosterUrl = null;
+  stage2State.generated.lastCopy = null;
+  clearStage2StoredSuccessReferences();
   updateDebugPanels({ payload: null, response: null });
   updatePoster2DiagnosticsPanel(null);
   updateStage2Warnings(null);
@@ -6384,15 +6437,17 @@ function clearStage2DerivedSurfacesBeforeRequest() {
   }
   if (finalKey) finalKey.textContent = 'N/A';
   if (copyButton) copyButton.disabled = true;
+  return hadSuccessState;
 }
 
 function invalidateStage2SuccessDerivedState(reason = 'operator_input_changed', fields = []) {
   if (!hasStage2SuccessDerivedState()) return;
-  clearStage2DerivedSurfacesBeforeRequest();
+  const clearedSuccessState = clearStage2DerivedSurfacesBeforeRequest();
   refreshPosterLayoutPreview({});
   console.info('[stage2] cleared success-derived state', {
     reason,
     invalidated_fields: fields,
+    cleared_success_state: clearedSuccessState,
   });
 }
 
@@ -6408,27 +6463,52 @@ function resetPoster2DerivedCopyOptimization(reason = 'source_changed') {
 }
 
 function invalidateStage2DerivedStateForSnapshot(stage1Data, options = {}) {
-  const next = buildStage2FormStateSignatures({
+  const buildNext = () => buildStage2FormStateSignatures({
     stage1Data,
     bottomRequestState: options.bottomRequestState || buildPoster2BottomRequestState(stage1Data),
     copyOptimization: options.copyOptimizationState || ensurePoster2CopyOptimizationState(),
     adjustments: options.adjustments || stage2State.adjustments || {},
   });
+  let next = buildNext();
   const previous = stage2LastSourceSignatures;
   const assetsChanged = Boolean(previous && previous.assetSignature !== next.assetSignature);
   const copyChanged = Boolean(previous && previous.copySignature !== next.copySignature);
-  const invalidatedFields = diffStage2FormSignatures(previous, next);
+  let invalidatedFields = diffStage2FormSignatures(previous, next);
   const bottomChanged = invalidatedFields.includes('bottom_contract');
+  const requestControlsChanged = invalidatedFields.includes('request_controls');
   if (assetsChanged) {
     clearStage2RuntimeRequestCache();
   }
-  if (assetsChanged || copyChanged || bottomChanged) {
+  if (assetsChanged || copyChanged || bottomChanged || requestControlsChanged) {
     resetPoster2DerivedCopyOptimization(
-      assetsChanged ? 'asset_changed' : copyChanged ? 'copy_changed' : 'bottom_contract_changed'
+      assetsChanged
+        ? 'asset_changed'
+        : copyChanged
+        ? 'copy_changed'
+        : bottomChanged
+        ? 'bottom_contract_changed'
+        : 'request_controls_changed'
     );
+    if (options.copyOptimizationState) {
+      const resetState = ensurePoster2CopyOptimizationState();
+      options.copyOptimizationState.decision = resetState.decision;
+      options.copyOptimizationState.acceptedTitle = resetState.acceptedTitle;
+      options.copyOptimizationState.acceptedSubtitle = resetState.acceptedSubtitle;
+      options.copyOptimizationState.acceptedFeatures = resetState.acceptedFeatures;
+      options.copyOptimizationState.latestReview = resetState.latestReview;
+    }
+    next = buildNext();
+    invalidatedFields = diffStage2FormSignatures(previous, next);
   }
   stage2LastSourceSignatures = next;
-  return { assetsChanged, copyChanged, bottomChanged, invalidatedFields, signatures: next };
+  return {
+    assetsChanged,
+    copyChanged,
+    bottomChanged,
+    requestControlsChanged,
+    invalidatedFields,
+    signatures: next,
+  };
 }
 
 function readStage2OperatorUiValues() {
@@ -6456,6 +6536,7 @@ function logStage2RequestBoundary({
   requestSnapshot,
   previousResponsePresence,
   invalidatedFields,
+  preflightDiagnostics,
 }) {
   console.info('[stage2] request boundary', {
     request_id: requestId,
@@ -6464,7 +6545,24 @@ function logStage2RequestBoundary({
     request_snapshot: requestSnapshot,
     previous_response_presence: previousResponsePresence,
     invalidated_fields: invalidatedFields,
+    preflight_diagnostics: preflightDiagnostics || null,
   });
+}
+
+function buildStage2PreflightDiagnostics(input) {
+  if (typeof stage2RequestHelpers.buildStage2PreflightDiagnostics === 'function') {
+    return stage2RequestHelpers.buildStage2PreflightDiagnostics(input);
+  }
+  return {
+    request_id: input?.requestId ?? null,
+    current_bottom_mode: input?.formSignatures?.bottom?.bottom_mode || null,
+    previous_success_present: Boolean(input?.previousSuccessPresent),
+    invalidated_fields: Array.isArray(input?.invalidatedFields) ? input.invalidatedFields : [],
+    cleared_success_state: Boolean(input?.clearedSuccessState),
+    detected_gallery_items: Number(input?.detectedGalleryItems || 0),
+    canonical_form_signature_hash: hashStage2StableValue(input?.formSignatures?.formSignature || ''),
+    request_payload_signature_hash: hashStage2StableValue(input?.payload || {}),
+  };
 }
 
 function syncStage2PreviewStateFromStage1(snapshot) {
@@ -9186,13 +9284,21 @@ async function triggerGeneration(opts) {
     promptBundle: Boolean(posterGenerationState.promptBundle || lastPromptBundle),
     finalPosterImage: Boolean(posterGeneratedImage),
     vertexLastResponse: Boolean(stage2State.vertex.lastResponse),
+    storedStage2Result: Boolean(sessionStorage.getItem(STORAGE_KEYS.stage2)),
+    lastSuccessfulFormSignature: Boolean(stage2LastSuccessfulFormSignature),
   };
   const sourceInvalidation = invalidateStage2DerivedStateForSnapshot(requestStage1Data, {
     bottomRequestState,
     copyOptimizationState: ensurePoster2CopyOptimizationState(),
     adjustments,
   });
-  clearStage2DerivedSurfacesBeforeRequest();
+  const previousSuccessPresent = Object.values(previousResponsePresence).some(Boolean);
+  const successSignatureMismatch = Boolean(
+    stage2LastSuccessfulFormSignature &&
+      sourceInvalidation.signatures?.formSignature &&
+      stage2LastSuccessfulFormSignature !== sourceInvalidation.signatures.formSignature
+  );
+  const clearedSuccessState = clearStage2DerivedSurfacesBeforeRequest();
   renderPosterResult();
   const copyOptimizationState = cloneStage2Value(ensurePoster2CopyOptimizationState());
   console.info('[stage2] request source signatures', {
@@ -9200,7 +9306,10 @@ async function triggerGeneration(opts) {
     assets_changed: sourceInvalidation.assetsChanged,
     copy_changed: sourceInvalidation.copyChanged,
     bottom_changed: sourceInvalidation.bottomChanged,
+    request_controls_changed: sourceInvalidation.requestControlsChanged,
     invalidated_fields: sourceInvalidation.invalidatedFields,
+    last_success_signature_mismatch: successSignatureMismatch,
+    cleared_success_state: clearedSuccessState,
   });
 
   // 1) 选可用 API 基址
@@ -9529,6 +9638,17 @@ async function triggerGeneration(opts) {
   if (!isCurrentStage2Request(mySeq)) return null;
   payload = freezeStage2RequestSnapshot(cloneStage2Value(payload));
   updateDebugPanels({ draft: stage2State.draft, payload: cloneStage2Value(payload) });
+  const requestPayloadSignature = hashStage2StableValue(payload);
+  const preflightDiagnostics = buildStage2PreflightDiagnostics({
+    requestId: mySeq,
+    formSignatures: sourceInvalidation.signatures,
+    payload,
+    previousSuccessPresent,
+    invalidatedFields: sourceInvalidation.invalidatedFields || [],
+    clearedSuccessState,
+    detectedGalleryItems: sourceInvalidation.signatures?.bottom?.requested_gallery_count || 0,
+  });
+  console.info('[stage2] generate preflight', preflightDiagnostics);
   logStage2RequestBoundary({
     requestId: mySeq,
     currentUiValues: readStage2OperatorUiValues(),
@@ -9544,6 +9664,7 @@ async function triggerGeneration(opts) {
       : cloneStage2Value(payload),
     previousResponsePresence,
     invalidatedFields: sourceInvalidation.invalidatedFields || [],
+    preflightDiagnostics,
   });
 
   const posterSummary = {
@@ -9589,6 +9710,8 @@ async function triggerGeneration(opts) {
     console.info('[stage2][poster2] request summary', {
       request_id: mySeq,
       ...buildPoster2RequestSummary(payload),
+      canonical_form_signature_hash: preflightDiagnostics.canonical_form_signature_hash,
+      request_payload_signature_hash: requestPayloadSignature,
       content_type: 'application/json; charset=UTF-8',
     });
   }
@@ -9702,6 +9825,8 @@ async function triggerGeneration(opts) {
     posterGenerationState.promptBundle = data?.prompt_bundle || null;
     posterGenerationState.rawResult = data || null;
     posterGeneratedLayout = TEMPLATE_DUAL_LAYOUT;
+    stage2LastSuccessfulFormSignature = sourceInvalidation.signatures?.formSignature || null;
+    stage2LastSuccessfulRequestSignature = requestPayloadSignature;
 
     if (promptBundlePre && promptBundleGroup) {
       const bundle = lastPromptBundle;

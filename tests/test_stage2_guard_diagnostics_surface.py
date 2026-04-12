@@ -143,6 +143,11 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "syncPoster2BottomContractFromControls(stage1Data)" in js
     assert "bottomRequestState," in js
     assert "product_secondary_image:" in js
+    assert "[stage2] generate preflight" in js
+    assert "previous_success_present" in js
+    assert "cleared_success_state" in js
+    assert "canonical_form_signature_hash" in js
+    assert "request_payload_signature_hash" in js
     assert "layout mode:" in html
     assert "bottom_layout_mode" in html
     assert "requested/effective:" in html

@@ -9,6 +9,8 @@ const {
   buildStage2FormStateSignatures,
   diffStage2FormSignatures,
   countStage1GalleryAssets,
+  buildStage2PreflightDiagnostics,
+  hashStableValue,
   createRequestCoordinator,
   diffPayloadPaths,
   stableStringify,
@@ -120,16 +122,25 @@ test('buildGeneratePosterPayloadFromForm ignores success response metadata field
       copy_optimization_review: {
         title: { optimized_text: 'Old optimized title' },
       },
+      previewTruth: {
+        bottomMode: 'gallery_only',
+      },
+      latestResult: {
+        bottom_contract_review: { bottom_mode: 'gallery_only' },
+      },
     })
   );
   const payloadJson = stableStringify(payload);
   assert(!payloadJson.includes('poster/success/old.png'));
   assert(!payloadJson.includes('success-old.png'));
   assert(!payloadJson.includes('Old optimized title'));
+  assert(!payloadJson.includes('previewTruth'));
   assert.equal(payload.bottom_contract_review, undefined);
   assert.equal(payload.copy_optimization_review, undefined);
   assert.equal(payload.poster_key, undefined);
   assert.equal(payload.final_url, undefined);
+  assert.equal(payload.previewTruth, undefined);
+  assert.equal(payload.latestResult, undefined);
 });
 
 test('stale thumbnails override does not enter payload counts', () => {
@@ -272,6 +283,83 @@ test('form signatures mark bottom changes without asset or copy changes', () => 
     adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
   });
   assert.deepEqual(diffStage2FormSignatures(before, after), ['bottom_contract']);
+});
+
+test('switching bottom_mode after success produces invalidated preflight state', () => {
+  const stage1Data = {
+    brand_logo: { url: 'https://cdn.example.com/logo.png' },
+    scenario_asset: { url: 'https://cdn.example.com/scenario-a.png' },
+    product_image_1: { url: 'https://cdn.example.com/product-a.png' },
+    gallery_entries: [
+      { asset: { url: 'https://cdn.example.com/gallery-1.png' }, caption: 'One' },
+      { asset: { url: 'https://cdn.example.com/gallery-2.png' }, caption: 'Two' },
+      { asset: { url: 'https://cdn.example.com/gallery-3.png' }, caption: 'Three' },
+      { asset: { url: 'https://cdn.example.com/gallery-4.png' }, caption: 'Four' },
+    ],
+    title: 'Air Fryer',
+    subtitle: 'Crisp results',
+    features: ['Fast heat'],
+  };
+  const makeSignature = (mode) =>
+    buildStage2FormStateSignatures({
+      stage1Data,
+      bottomRequestState: {
+        bottom_mode: mode,
+        gallery_mode: 'strip_local_visible_only',
+        requested_gallery_count: 4,
+        gallery_input_count_raw: 4,
+        gallery_input_count_normalized: 4,
+        gallery_autofill_applied: false,
+        requested_title_text: 'Air Fryer',
+        requested_subtitle_text: 'Crisp results',
+      },
+      copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+      adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+    });
+
+  const success = makeSignature('title_gallery_split');
+  const galleryOnly = makeSignature('gallery_only');
+  const backToSplit = makeSignature('title_gallery_split');
+  const textOnly = makeSignature('text_only_expanded');
+
+  assert.deepEqual(diffStage2FormSignatures(success, galleryOnly), ['bottom_contract']);
+  assert.deepEqual(diffStage2FormSignatures(galleryOnly, backToSplit), ['bottom_contract']);
+  assert.deepEqual(diffStage2FormSignatures(success, textOnly), ['bottom_contract']);
+  assert.deepEqual(diffStage2FormSignatures(textOnly, backToSplit), ['bottom_contract']);
+
+  const payload = buildGeneratePosterPayloadFromForm(
+    makeInput({
+      bottomRequestState: {
+        bottom_mode: 'gallery_only',
+        gallery_mode: 'strip_local_visible_only',
+        requested_gallery_count: 4,
+        gallery_input_count_raw: 4,
+        gallery_input_count_normalized: 4,
+      },
+      galleryImages: stage1Data.gallery_entries.map((entry, index) => ({
+        url: entry.asset.url,
+        key: `gallery-${index + 1}`,
+        caption: entry.caption,
+      })),
+    })
+  );
+  const diagnostics = buildStage2PreflightDiagnostics({
+    requestId: 7,
+    formSignatures: galleryOnly,
+    payload,
+    previousSuccessPresent: true,
+    invalidatedFields: diffStage2FormSignatures(success, galleryOnly),
+    clearedSuccessState: true,
+    detectedGalleryItems: 4,
+  });
+  assert.equal(diagnostics.request_id, 7);
+  assert.equal(diagnostics.current_bottom_mode, 'gallery_only');
+  assert.equal(diagnostics.previous_success_present, true);
+  assert.equal(diagnostics.cleared_success_state, true);
+  assert.deepEqual(diagnostics.invalidated_fields, ['bottom_contract']);
+  assert.equal(diagnostics.detected_gallery_items, 4);
+  assert.equal(diagnostics.canonical_form_signature_hash, hashStableValue(galleryOnly.formSignature));
+  assert.equal(diagnostics.request_payload_signature_hash, hashStableValue(payload));
 });
 
 test('scenario-only change affects only scenario fields', () => {

@@ -65,6 +65,16 @@
     return JSON.stringify(sortValue(value));
   }
 
+  function hashStableValue(value) {
+    const text = typeof value === 'string' ? value : stableStringify(value);
+    let hash = 2166136261;
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+  }
+
   function hasPickedAssetIdentity(value) {
     const identity = pickAssetIdentity(value);
     if (!identity) return false;
@@ -182,6 +192,27 @@
     }
     if (previous.requestControlsSignature !== next.requestControlsSignature) changed.push('request_controls');
     return changed;
+  }
+
+  function buildStage2PreflightDiagnostics({
+    requestId,
+    formSignatures,
+    payload,
+    previousSuccessPresent,
+    invalidatedFields,
+    clearedSuccessState,
+    detectedGalleryItems,
+  } = {}) {
+    return {
+      request_id: requestId ?? null,
+      current_bottom_mode: formSignatures?.bottom?.bottom_mode || null,
+      previous_success_present: Boolean(previousSuccessPresent),
+      invalidated_fields: Array.isArray(invalidatedFields) ? invalidatedFields : [],
+      cleared_success_state: Boolean(clearedSuccessState),
+      detected_gallery_items: Number(detectedGalleryItems || 0),
+      canonical_form_signature_hash: hashStableValue(formSignatures?.formSignature || ''),
+      request_payload_signature_hash: hashStableValue(payload || {}),
+    };
   }
 
   function buildPoster2PayloadFromNormalisedInputs(input) {
@@ -388,11 +419,13 @@
   const api = {
     cloneValue,
     stableStringify,
+    hashStableValue,
     pickAssetIdentity,
     countStage1GalleryAssets,
     buildStage2SourceSignatures,
     buildStage2FormStateSignatures,
     diffStage2FormSignatures,
+    buildStage2PreflightDiagnostics,
     buildGeneratePosterPayloadFromForm,
     buildPoster2PayloadFromNormalisedInputs,
     buildPoster2RequestSummary,
