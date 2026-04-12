@@ -146,11 +146,16 @@ def test_frontend_stage2_prefers_backend_product_and_bottom_runtime_evidence():
     assert "layout mode:" in html
     assert "bottom_layout_mode" in html
     assert "requested/effective:" in html
-    assert "text_gallery_expanded" in html
     assert "gallery_only" in html
-    assert 'option value="title_only"' in html
+    assert 'option value="text_gallery_expanded"' not in html
+    assert 'option value="title_gallery_split"' in html
+    assert 'option value="text_only_expanded"' in html
+    assert 'option value="gallery_only"' in html
+    assert 'option value="title_only"' not in html
     assert 'option value="title_only_expand"' not in html
     assert "canonicalizePoster2BottomMode" in js
+    assert "text_gallery_expanded: 'title_gallery_split'" in js
+    assert "removed_from_operator_surface" in js
     assert "title_only_expand: 'text_only_expanded'" in js
     assert "bottomMode.value = canonicalBottomMode" in js
     assert "bottom_mode: canonicalBottomMode" in js

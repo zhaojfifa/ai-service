@@ -122,6 +122,7 @@ const stage2RequestHelpers = globalThis.Stage2RequestHelpers || {};
 let stage2ActiveRequestId = 0;
 let stage2ActiveAbortController = null;
 let stage2LastSourceSignatures = null;
+let stage2RemovedBottomModeRemapLogged = false;
 
 const stage2State = {
   poster: {
@@ -414,14 +415,22 @@ function canonicalizePoster2BottomMode(rawMode) {
   const aliases = {
     title_only: 'text_only_expanded',
     title_only_expand: 'text_only_expanded',
+    text_gallery_expanded: 'title_gallery_split',
   };
   const canonical = aliases[mode] || mode || 'title_gallery_split';
   const allowedModes = new Set([
     'title_gallery_split',
-    'text_gallery_expanded',
     'text_only_expanded',
     'gallery_only',
   ]);
+  if (mode === 'text_gallery_expanded' && !stage2RemovedBottomModeRemapLogged) {
+    stage2RemovedBottomModeRemapLogged = true;
+    console.info('[stage2] bottom_mode remapped', {
+      from: 'text_gallery_expanded',
+      to: 'title_gallery_split',
+      reason: 'removed_from_operator_surface',
+    });
+  }
   return allowedModes.has(canonical) ? canonical : 'title_gallery_split';
 }
 
