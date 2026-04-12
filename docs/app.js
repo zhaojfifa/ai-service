@@ -6089,6 +6089,15 @@ function cloneStage2Value(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+function freezeStage2RequestSnapshot(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  Object.values(value).forEach((entry) => {
+    freezeStage2RequestSnapshot(entry);
+  });
+  return value;
+}
+
 function buildStage2SourceSignatures(stage1Data) {
   if (typeof stage2RequestHelpers.buildStage2SourceSignatures === 'function') {
     return stage2RequestHelpers.buildStage2SourceSignatures(stage1Data);
@@ -6157,6 +6166,13 @@ function buildPoster2PayloadFromNormalisedInputs(input) {
         : [],
     },
   };
+}
+
+function buildGeneratePosterPayloadFromForm(input) {
+  if (typeof stage2RequestHelpers.buildGeneratePosterPayloadFromForm === 'function') {
+    return stage2RequestHelpers.buildGeneratePosterPayloadFromForm(input);
+  }
+  return buildPoster2PayloadFromNormalisedInputs(cloneStage2Value(input || {}));
 }
 
 function buildPoster2RequestSummary(payload) {
@@ -6247,6 +6263,36 @@ function clearStage2RuntimeRequestCache() {
   stage2State.generated.lastSuccessPosterUrl = null;
   renderPoster2RunHistory();
   updateDebugPanels({ response: null });
+}
+
+function clearStage2DerivedSurfacesBeforeRequest() {
+  lastPosterResult = null;
+  lastPromptBundle = null;
+  posterGenerationState.promptBundle = null;
+  posterGenerationState.rawResult = null;
+  posterGeneratedImage = null;
+  stage2State.poster2.latestResult = null;
+  stage2State.vertex.lastResponse = null;
+  updateDebugPanels({ payload: null, response: null });
+  updatePoster2DiagnosticsPanel(null);
+  updateStage2Warnings(null);
+
+  const finalImg = document.getElementById('final-poster-img');
+  const finalPlaceholder = document.getElementById('final-poster-placeholder');
+  const finalLink = document.getElementById('final-poster-link');
+  const finalKey = document.getElementById('final-poster-key');
+  const copyButton = document.getElementById('final-poster-copy');
+  if (finalImg) {
+    finalImg.removeAttribute('src');
+    finalImg.classList.add('hidden');
+  }
+  if (finalPlaceholder) finalPlaceholder.classList.remove('hidden');
+  if (finalLink) {
+    finalLink.removeAttribute('href');
+    finalLink.classList.add('hidden');
+  }
+  if (finalKey) finalKey.textContent = 'N/A';
+  if (copyButton) copyButton.disabled = true;
 }
 
 function resetPoster2DerivedCopyOptimization(reason = 'source_changed') {
@@ -6574,7 +6620,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
     });
   }
 
-  const payload = buildPoster2PayloadFromNormalisedInputs({
+  const payload = buildGeneratePosterPayloadFromForm({
     templateId: POSTER2_PILOT_TEMPLATE_ID,
     rendererMode,
     brandName,
@@ -8999,11 +9045,9 @@ async function triggerGeneration(opts) {
   const requestStage1Data = cloneStage2Value(liveStage1Data) || {};
   syncPoster2BottomContractFromControls(requestStage1Data);
   const bottomRequestState = cloneStage2Value(buildPoster2BottomRequestState(requestStage1Data));
-  const copyOptimizationState = cloneStage2Value(ensurePoster2CopyOptimizationState());
   const adjustments = cloneStage2Value(stage2State.adjustments || {});
   const rendererMode = stage2State.poster2.rendererMode || 'auto';
   syncStage2PreviewStateFromStage1(requestStage1Data);
-  renderPosterResult();
   const posterPreviewSection = document.getElementById('stage2-poster-preview-section');
   let didAttempt = false;
   const isRegenerate = !!opts.isRegenerate;
@@ -9021,6 +9065,9 @@ async function triggerGeneration(opts) {
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
   const sourceInvalidation = invalidateStage2DerivedStateForSnapshot(requestStage1Data);
+  clearStage2DerivedSurfacesBeforeRequest();
+  renderPosterResult();
+  const copyOptimizationState = cloneStage2Value(ensurePoster2CopyOptimizationState());
   console.info('[stage2] request source signatures', {
     request_id: mySeq,
     assets_changed: sourceInvalidation.assetsChanged,
@@ -9351,6 +9398,7 @@ async function triggerGeneration(opts) {
   }
 
   if (!isCurrentStage2Request(mySeq)) return null;
+  payload = freezeStage2RequestSnapshot(cloneStage2Value(payload));
   updateDebugPanels({ draft: stage2State.draft, payload: cloneStage2Value(payload) });
 
   const posterSummary = {
@@ -9621,6 +9669,12 @@ async function triggerGeneration(opts) {
       responseText: error?.responseText,
       request_id: mySeq,
       request_summary: endpointPath === '/api/v2/generate-poster' ? buildPoster2RequestSummary(payload) : null,
+    });
+    updateDebugPanels({
+      response: error?.responseJson || error?.responseText || {
+        message: error?.message || 'request_failed',
+        status: error?.status || null,
+      },
     });
     const detail = error?.responseJson?.detail || null;
     const quotaExceeded =

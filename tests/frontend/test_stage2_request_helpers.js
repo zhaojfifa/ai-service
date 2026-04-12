@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const {
   buildPoster2PayloadFromNormalisedInputs,
+  buildGeneratePosterPayloadFromForm,
   buildPoster2RequestSummary,
   buildStage2SourceSignatures,
   createRequestCoordinator,
@@ -49,6 +50,60 @@ test('repeated same-input generate produces identical payloads', () => {
   const payloadA = buildPoster2PayloadFromNormalisedInputs(makeInput());
   const payloadB = buildPoster2PayloadFromNormalisedInputs(makeInput());
   assert.equal(stableStringify(payloadA), stableStringify(payloadB));
+});
+
+test('buildGeneratePosterPayloadFromForm returns a fresh request snapshot each time', () => {
+  const input = makeInput();
+  const payloadA = buildGeneratePosterPayloadFromForm(input);
+  const payloadB = buildGeneratePosterPayloadFromForm(input);
+
+  assert.notEqual(payloadA, payloadB);
+  assert.notEqual(payloadA.features, payloadB.features);
+  assert.notEqual(payloadA.gallery_images, payloadB.gallery_images);
+  assert.notEqual(payloadA.copy_optimization, payloadB.copy_optimization);
+  assert.notEqual(payloadA.copy_optimization.accepted_features, payloadB.copy_optimization.accepted_features);
+  assert.equal(stableStringify(payloadA), stableStringify(payloadB));
+});
+
+test('buildGeneratePosterPayloadFromForm does not let old derived arrays contaminate the next payload', () => {
+  const first = buildGeneratePosterPayloadFromForm(
+    makeInput({
+      features: ['First A', 'First B'],
+      galleryImages: [
+        { url: 'https://cdn.example.com/old-gallery.png', key: 'old-gallery', caption: 'Old' },
+      ],
+      copyOptimization: {
+        mode: 'suggest',
+        decision: 'accepted',
+        acceptedFeatures: ['Accepted old'],
+      },
+    })
+  );
+  first.features.push('mutated old feature');
+  first.gallery_images.push({ url: 'https://cdn.example.com/mutated-old.png', key: 'mutated-old' });
+  first.copy_optimization.accepted_features.push('mutated old accepted');
+
+  const second = buildGeneratePosterPayloadFromForm(
+    makeInput({
+      features: ['Second A'],
+      galleryImages: [
+        { url: 'https://cdn.example.com/new-gallery.png', key: 'new-gallery', caption: 'New' },
+      ],
+      copyOptimization: {
+        mode: 'suggest',
+        decision: 'pending',
+        acceptedFeatures: [],
+      },
+    })
+  );
+  const secondJson = stableStringify(second);
+  assert(!secondJson.includes('old-gallery'));
+  assert(!secondJson.includes('mutated-old'));
+  assert(!secondJson.includes('Accepted old'));
+  assert(!secondJson.includes('mutated old'));
+  assert.deepEqual(second.features, ['Second A']);
+  assert.deepEqual(second.gallery_images.map((entry) => entry.url), ['https://cdn.example.com/new-gallery.png']);
+  assert.deepEqual(second.copy_optimization.accepted_features, []);
 });
 
 test('scenario-only change affects only scenario fields', () => {

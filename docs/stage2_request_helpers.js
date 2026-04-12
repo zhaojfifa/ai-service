@@ -148,6 +148,11 @@
     };
   }
 
+  function buildGeneratePosterPayloadFromForm(formState) {
+    const snapshot = cloneValue(formState || {});
+    return buildPoster2PayloadFromNormalisedInputs(snapshot);
+  }
+
   function buildPoster2RequestSummary(payload) {
     return {
       template_id: payload?.template_id || null,
@@ -304,6 +309,7 @@
     stableStringify,
     pickAssetIdentity,
     buildStage2SourceSignatures,
+    buildGeneratePosterPayloadFromForm,
     buildPoster2PayloadFromNormalisedInputs,
     buildPoster2RequestSummary,
     containsFamilyAFryerSignal,
