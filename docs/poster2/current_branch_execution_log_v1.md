@@ -1,5 +1,187 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP4: Stage3 operator email polish and multi-recipient support
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read:
+  - `Storage / Copy / Email Closure Engineering`
+  - `PR: Gemini Copy Optimizer And Optional Attachment Assets`
+- then task-relevant frozen-state docs:
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+- then minimum task files only:
+  - `frontend/stage3.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/stage3.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-OP4 only
+- Stage3 operator delivery UX polish only
+- multi-recipient input support
+- clearer attachment-readiness presentation
+- preview-first Stage3 delivery flow
+- frontend/docs mirror sync
+- branch execution log write-back
+- no Stage1 changes, no Stage2 result/replay work, no backend contract redesign, no poster structure/bottom/product-annotation/renderer-routing change
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- Stage3 remains backend-truth-driven through `poster_key -> poster_record -> backend preview/send`
+- frontend cache remains cache only, not truth source
+- no frontend-composed email truth was reintroduced
+- attachment readiness remains presentation-only over backend-owned `email_assets` / preview/send readiness surfaces
+- source and published mirror were aligned in the same task
+
+### Problem reproduced
+
+- Stage3 still read like a technical send form instead of an operator delivery-confirmation page
+- recipient input only accepted one address cleanly and did not help operators manage multiple recipients
+- attachment readiness was exposed as raw available/buildable strings and checkbox enablement, but not as a clear operator-facing readiness summary
+- poster URL/key and HTML source sat too close to the primary send flow
+
+### Root cause found
+
+- Stage3 layout was still organized around a generic form/debug flow instead of operator reading order
+- recipient handling only used a single trimmed `recipient` string before calling `/api/v2/email/send`
+- attachment surfaces were backend-correct but frontend presentation stayed low-level
+- advanced/debug details were still mixed into the main delivery surface instead of being secondary
+
+### Exact Stage3 UX polish decisions
+
+- reshaped Stage3 into a preview-first operator flow:
+  - poster preview / poster identity
+  - recipients
+  - subject / preview text
+  - email draft preview
+  - attachment readiness
+  - send controls
+- kept poster URL/key and HTML source available, but moved them under:
+  - `Advanced Delivery Details / Show HTML Source`
+- kept backend draft/source evidence present, but reduced prominence in the primary operator path
+- retained existing light edit controls:
+  - refresh draft
+  - accept copy
+  - reject copy
+  - send
+
+### Exact multi-recipient behavior
+
+- Stage3 recipient input now supports:
+  - comma-separated addresses
+  - semicolon-separated addresses
+  - whitespace trimming
+  - deduplication
+  - basic frontend validation before send
+- parsing is local UI logic only:
+  - no backend truth model change
+  - no new send contract field added
+- valid recipients are shown in a visible operator list:
+  - `Ready To Send`
+- invalid recipients are shown in a visible operator list:
+  - `Needs Fix`
+- invalid addresses are not silently discarded
+- send is blocked when invalid addresses remain
+- backend send path stays authoritative by iterating the existing single-recipient backend send call once per valid recipient
+
+### Exact attachment-readiness presentation changes
+
+- attachment readiness is now shown as three operator-facing blocks:
+  - `Available Now`
+  - `Buildable Later`
+  - `This Send`
+- current send mode is explicitly summarized:
+  - inline-only with no external send
+  - resend with or without selected attachments
+- available backend attachment types are rendered as readable pills:
+  - `Poster PNG`
+  - `Poster PDF`
+- buildable-but-not-yet-available types remain visible but not falsely selectable
+- no storage-key internals, binary details, or raw asset-debug surfaces were introduced
+
+### Backend-truth boundary preserved
+
+- Stage3 still restores from:
+  - `GET /api/v2/posters/{poster_key}`
+- Stage3 still refreshes draft from:
+  - `POST /api/v2/email/preview`
+- Stage3 still sends through:
+  - `POST /api/v2/email/send`
+- no fallback to `/api/send-email`
+- no Stage1/Stage2 cache reconstruction of draft truth
+- no frontend-composed canonical subject/preview/html/text model was reintroduced
+
+### Files changed
+
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/stage3.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage3 frontend operator surface only
+- Stage3 frontend send-input handling only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- syntax:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync / checks:
+  - `bash scripts/sync_frontend_to_docs.sh`
+  - `bash scripts/check_frontend_docs_sync.sh`
+  - `cmp -s frontend/stage3.html docs/stage3.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+- existing sync/static validation:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+  - `./.venv/bin/python -m pytest -q tests/test_stage3_email_closure_surface.py` → `2 passed`
+- focused source inspection:
+  - recipient parser now splits on `[;,]`
+  - Stage3 still reads `poster_key` from location and calls backend restore/preview/send endpoints only
+  - attachment readiness UI now exposes available/buildable/send-state panels
+  - advanced/debug details are collapsed under the secondary details panel
+
+### Remaining risks
+
+- validation here is syntax/static/mirror/source-path based; no live browser capture or deployed send-provider run was attached in this workspace
+- multi-recipient send currently fans out one backend send call per valid recipient, so partial-send reporting depends on backend/provider behavior per recipient
+- inline-only / resend behavior remains backend-owned; this PR changes operator presentation only
+
+### Exact acceptance state
+
+- Stage3 remains backend-truth-driven
+- multi-recipient input now works through comma/semicolon parsing, trimming, deduplication, and invalid-address surfacing
+- attachment readiness is clearer and operator-facing
+- primary Stage3 reading flow is preview-first and delivery-oriented
+- no request/routing/runtime truth changed
+- no frontend-composed email truth was reintroduced
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was left untouched by this task because no new shared-state fact needed to be carried forward beyond branch-local execution state
+
 ## Entry — PR-OP3R: Family-A-only scenario generation product-shape correction
 
 **Branch:** `main`

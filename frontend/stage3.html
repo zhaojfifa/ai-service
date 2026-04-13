@@ -35,95 +35,137 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 3 - Send Email</h2>
+        <h2>Stage 3 - Delivery Review</h2>
         <p class="hint">
           此环节只从后端 poster_record 恢复海报和邮件草稿；本地缓存不作为真值。
         </p>
 
         <div class="output-group" id="stage3-preview">
-          <h3>Final Poster</h3>
+          <h3>Poster Delivery</h3>
           <div class="stage3-preview-grid">
             <figure class="poster-figure">
               <img id="stage3-poster-image" alt="Poster preview" />
               <figcaption id="stage3-poster-caption"></figcaption>
-              <p id="attachment-indicator" class="hint"></p>
+              <p id="stage3-poster-identity" class="hint"></p>
             </figure>
-            <div class="prompt-wrapper">
-              <label class="field">
-                <span>Final Poster URL</span>
-                <input id="stage3-poster-url" type="url" readonly />
-              </label>
-              <label class="field">
-                <span>Final Poster Key</span>
-                <input id="stage3-poster-key" type="text" readonly />
-              </label>
+            <div class="stage3-card-stack">
+              <div class="stage3-callout">
+                <h4>Send Checklist</h4>
+                <p class="hint">先确认当前海报、收件人和邮件草稿，再选择是否附带可用附件。</p>
+              </div>
+              <div class="stage3-card">
+                <h4>Email Draft Status</h4>
+                <p id="email-draft-source" class="hint"></p>
+                <p id="email-draft-summary" class="hint"></p>
+              </div>
             </div>
           </div>
         </div>
 
-        <form id="email-form">
-          <div class="grid">
+        <form id="email-form" class="stage3-form">
+          <div class="output-group">
+            <h3>Recipients</h3>
+            <p class="hint">支持逗号或分号分隔的多个邮箱地址。发送前会做去重和基础校验。</p>
             <label class="field">
-              <span>Recipient</span>
-              <input type="email" id="email-recipient" required />
+              <span>Recipients</span>
+              <textarea id="email-recipient" rows="3" required placeholder="alice@example.com, bob@example.com; team@example.com"></textarea>
             </label>
-            <label class="field">
-              <span>Subject</span>
-              <input type="text" id="email-subject" required />
-            </label>
+            <p id="email-recipient-feedback" class="hint"></p>
+            <div class="stage3-recipient-grid">
+              <div class="stage3-card">
+                <h4>Ready To Send</h4>
+                <div id="email-valid-recipients" class="stage3-pill-list"></div>
+              </div>
+              <div class="stage3-card stage3-card--warning" id="email-invalid-card" hidden>
+                <h4>Needs Fix</h4>
+                <div id="email-invalid-recipients" class="stage3-pill-list"></div>
+              </div>
+            </div>
           </div>
-          <label class="field">
-            <span>Preview Text</span>
-            <input type="text" id="email-preview-text" />
-          </label>
-          <label class="field">
-            <span>Body Copy</span>
-            <textarea id="email-text" rows="8" required></textarea>
-          </label>
-          <details class="source-details" id="email-source-details">
-            <summary>Show HTML Source</summary>
+
+          <div class="output-group">
+            <h3>Subject And Preview</h3>
+            <div class="grid">
+              <label class="field">
+                <span>Subject</span>
+                <input type="text" id="email-subject" required />
+              </label>
+              <label class="field">
+                <span>Preview Text</span>
+                <input type="text" id="email-preview-text" />
+              </label>
+            </div>
+          </div>
+
+          <div class="output-group">
+            <h3>Email Draft Preview</h3>
+            <p class="hint">Gemini refreshes email copy only; poster truth and send truth remain backend-owned.</p>
             <label class="field">
-              <span>HTML Source</span>
-              <textarea id="email-html" rows="10" required></textarea>
+              <span>Body Copy</span>
+              <textarea id="email-text" rows="8" required></textarea>
             </label>
-          </details>
+            <div id="email-html-preview" class="prompt-wrapper stage3-email-preview"></div>
+          </div>
+
+          <div class="output-group" id="email-attachment-group" hidden>
+            <h3>Attachment Readiness</h3>
+            <p id="email-attachment-status" class="hint"></p>
+            <div class="stage3-attachment-grid">
+              <div class="stage3-card">
+                <h4>Available Now</h4>
+                <div id="email-attachment-available" class="stage3-pill-list"></div>
+              </div>
+              <div class="stage3-card">
+                <h4>Buildable Later</h4>
+                <div id="email-attachment-buildable" class="stage3-pill-list"></div>
+              </div>
+              <div class="stage3-card">
+                <h4>This Send</h4>
+                <label class="field">
+                  <span>Delivery Mode</span>
+                  <select id="email-delivery-mode">
+                    <option value="inline_only">inline_only</option>
+                    <option value="resend">resend</option>
+                  </select>
+                </label>
+                <div class="stage3-attachment-options">
+                  <label><input type="checkbox" id="attachment-poster-png" value="poster_png" /> Poster PNG</label>
+                  <label><input type="checkbox" id="attachment-poster-pdf" value="poster_pdf" /> Poster PDF</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="output-group">
+            <h3>Send</h3>
+            <p class="hint">发送仍调用后端 preview/send 路径。当前页面只做轻量编辑，不重建邮件真值。</p>
+            <div class="actions">
+              <a class="secondary" href="stage2.html">Back to Stage 2</a>
+              <button id="refresh-email-preview" class="secondary" type="button" disabled>Refresh Draft</button>
+              <button id="accept-email-copy" class="secondary" type="button" disabled>Accept Copy</button>
+              <button id="reject-email-copy" class="secondary" type="button" disabled>Reject Copy</button>
+              <button id="send-email" class="primary" type="button" disabled>Send Email</button>
+            </div>
+          </div>
         </form>
 
-        <div class="output-group">
-          <h3>Email Preview</h3>
-          <p id="email-draft-source" class="hint"></p>
-          <p class="hint">Gemini 只刷新邮件文案；海报真值和发送真值仍以后端为准。</p>
-          <div id="email-html-preview" class="prompt-wrapper"></div>
-        </div>
-
-        <div class="output-group" id="email-attachment-group" hidden>
-          <h3>Optional Attachments</h3>
-          <p id="email-attachment-status" class="hint"></p>
-          <div class="grid">
+        <details class="source-details stage3-advanced-panel" id="email-source-details">
+          <summary>Advanced Delivery Details / Show HTML Source</summary>
+          <div class="stage3-advanced-grid">
             <label class="field">
-              <span>Delivery Mode</span>
-              <select id="email-delivery-mode">
-                <option value="inline_only">inline_only</option>
-                <option value="resend">resend</option>
-              </select>
+              <span>Final Poster URL</span>
+              <input id="stage3-poster-url" type="url" readonly />
             </label>
             <label class="field">
-              <span>Attachment Types</span>
-              <div class="prompt-wrapper">
-                <label><input type="checkbox" id="attachment-poster-png" value="poster_png" /> poster_png</label>
-                <label><input type="checkbox" id="attachment-poster-pdf" value="poster_pdf" /> poster_pdf</label>
-              </div>
+              <span>Final Poster Key</span>
+              <input id="stage3-poster-key" type="text" readonly />
             </label>
           </div>
-        </div>
-
-        <div class="actions">
-          <a class="secondary" href="stage2.html">Back to Stage 2</a>
-          <button id="refresh-email-preview" class="secondary" type="button" disabled>Refresh Draft</button>
-          <button id="accept-email-copy" class="secondary" type="button" disabled>Accept Copy</button>
-          <button id="reject-email-copy" class="secondary" type="button" disabled>Reject Copy</button>
-          <button id="send-email" class="primary" type="button" disabled>Send Email</button>
-        </div>
+          <label class="field">
+            <span>HTML Source</span>
+            <textarea id="email-html" rows="10" required></textarea>
+          </label>
+        </details>
         <p id="stage3-status" role="status" aria-live="polite"></p>
       </section>
     </main>

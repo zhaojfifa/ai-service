@@ -11510,16 +11510,83 @@ async function loadStage2Result() {
   }
 }
 
+function normaliseRecipientToken(token) {
+  return String(token || '').trim().toLowerCase();
+}
+
+function isValidEmailRecipient(token) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(token || '').trim());
+}
+
+function parseStage3Recipients(rawValue) {
+  const parts = String(rawValue || '')
+    .split(/[;,]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const seen = new Set();
+  const valid = [];
+  const invalid = [];
+
+  parts.forEach((part) => {
+    const normalised = normaliseRecipientToken(part);
+    if (!normalised || seen.has(normalised)) return;
+    seen.add(normalised);
+    if (isValidEmailRecipient(part)) {
+      valid.push(part.trim());
+    } else {
+      invalid.push(part.trim());
+    }
+  });
+
+  return {
+    raw: String(rawValue || ''),
+    valid,
+    invalid,
+    uniqueCount: valid.length + invalid.length,
+  };
+}
+
+function renderStage3PillList(container, items, { emptyLabel = 'None', tone = 'neutral' } = {}) {
+  if (!container) return;
+  container.innerHTML = '';
+  const values = Array.isArray(items) ? items : [];
+  if (!values.length) {
+    const empty = document.createElement('span');
+    empty.className = `stage3-pill stage3-pill--${tone}`;
+    empty.textContent = emptyLabel;
+    container.appendChild(empty);
+    return;
+  }
+  values.forEach((item) => {
+    const pill = document.createElement('span');
+    pill.className = `stage3-pill stage3-pill--${tone}`;
+    pill.textContent = item;
+    container.appendChild(pill);
+  });
+}
+
+function formatAttachmentTypeLabel(type) {
+  if (type === 'poster_png') return 'Poster PNG';
+  if (type === 'poster_pdf') return 'Poster PDF';
+  return type || 'Unknown';
+}
+
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
     const posterImage = document.getElementById('stage3-poster-image');
     const posterCaption = document.getElementById('stage3-poster-caption');
+    const posterIdentity = document.getElementById('stage3-poster-identity');
     const posterUrlInput = document.getElementById('stage3-poster-url');
     const posterKeyInput = document.getElementById('stage3-poster-key');
     const draftPreviewText = document.getElementById('email-preview-text');
     const draftSource = document.getElementById('email-draft-source');
+    const draftSummary = document.getElementById('email-draft-summary');
     const emailRecipient = document.getElementById('email-recipient');
+    const emailRecipientFeedback = document.getElementById('email-recipient-feedback');
+    const validRecipientsElement = document.getElementById('email-valid-recipients');
+    const invalidRecipientsElement = document.getElementById('email-invalid-recipients');
+    const invalidRecipientCard = document.getElementById('email-invalid-card');
     const emailSubject = document.getElementById('email-subject');
     const emailText = document.getElementById('email-text');
     const emailHtml = document.getElementById('email-html');
@@ -11527,6 +11594,8 @@ function initStage3() {
     const deliveryMode = document.getElementById('email-delivery-mode');
     const attachmentGroup = document.getElementById('email-attachment-group');
     const attachmentStatus = document.getElementById('email-attachment-status');
+    const attachmentAvailable = document.getElementById('email-attachment-available');
+    const attachmentBuildable = document.getElementById('email-attachment-buildable');
     const attachmentPosterPng = document.getElementById('attachment-poster-png');
     const attachmentPosterPdf = document.getElementById('attachment-poster-pdf');
     const sendButton = document.getElementById('send-email');
@@ -11542,6 +11611,7 @@ function initStage3() {
     const posterKey = getPosterKeyFromLocation() || stage2Result?.poster_key || '';
     const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
     let emailCopyDecision = 'pending';
+    let currentDraft = null;
 
     const setEmailCopyDecision = (decision, message) => {
       emailCopyDecision = decision;
@@ -11549,6 +11619,78 @@ function initStage3() {
       if (rejectCopyButton) rejectCopyButton.disabled = decision === 'rejected';
       if (sendButton && decision !== 'rejected') sendButton.disabled = false;
       if (message) setStatus(statusElement, message, decision === 'rejected' ? 'warning' : 'info');
+    };
+
+    const updateRecipientState = () => {
+      const parsed = parseStage3Recipients(emailRecipient?.value || '');
+      renderStage3PillList(validRecipientsElement, parsed.valid, {
+        emptyLabel: 'No valid recipients yet',
+        tone: 'success',
+      });
+      renderStage3PillList(invalidRecipientsElement, parsed.invalid, {
+        emptyLabel: 'No invalid recipients',
+        tone: 'warning',
+      });
+      if (invalidRecipientCard) {
+        invalidRecipientCard.hidden = parsed.invalid.length === 0;
+      }
+      if (emailRecipientFeedback) {
+        if (!parsed.uniqueCount) {
+          emailRecipientFeedback.textContent = '请输入至少一个收件邮箱。';
+        } else if (parsed.invalid.length) {
+          emailRecipientFeedback.textContent = `检测到 ${parsed.valid.length} 个可发送地址，${parsed.invalid.length} 个地址需要修正。`;
+        } else {
+          emailRecipientFeedback.textContent = `当前将发送到 ${parsed.valid.length} 个收件人；重复地址已自动去重。`;
+        }
+      }
+      return parsed;
+    };
+
+    const updateAttachmentSummary = () => {
+      const availableAttachmentTypes = Array.isArray(currentDraft?.available_attachment_types)
+        ? currentDraft.available_attachment_types
+        : [];
+      const buildableAttachmentTypes = Array.isArray(currentDraft?.buildable_attachment_types)
+        ? currentDraft.buildable_attachment_types
+        : [];
+      const selectedDeliveryMode = deliveryMode?.value || 'inline_only';
+      const inlineOnly = selectedDeliveryMode === 'inline_only';
+
+      renderStage3PillList(
+        attachmentAvailable,
+        availableAttachmentTypes.map(formatAttachmentTypeLabel),
+        { emptyLabel: 'None ready yet', tone: 'success' }
+      );
+      renderStage3PillList(
+        attachmentBuildable,
+        buildableAttachmentTypes.map(formatAttachmentTypeLabel),
+        { emptyLabel: 'Nothing waiting to build', tone: 'neutral' }
+      );
+
+      if (attachmentPosterPng) {
+        attachmentPosterPng.disabled = inlineOnly || !availableAttachmentTypes.includes('poster_png');
+        if (inlineOnly) attachmentPosterPng.checked = false;
+      }
+      if (attachmentPosterPdf) {
+        attachmentPosterPdf.disabled = inlineOnly || !availableAttachmentTypes.includes('poster_pdf');
+        if (inlineOnly) attachmentPosterPdf.checked = false;
+      }
+
+      if (attachmentStatus) {
+        if (!availableAttachmentTypes.length && !buildableAttachmentTypes.length) {
+          attachmentStatus.textContent = '当前发送为 inline-only。后端暂未提供可选附件。';
+        } else if (inlineOnly) {
+          attachmentStatus.textContent = '当前发送为 inline-only：只保存/预览邮件结果，不外发，也不附带附件。';
+        } else {
+          const selectedTypes = [
+            attachmentPosterPng?.checked ? 'Poster PNG' : null,
+            attachmentPosterPdf?.checked ? 'Poster PDF' : null,
+          ].filter(Boolean);
+          attachmentStatus.textContent = selectedTypes.length
+            ? `当前将通过 resend 发送，并附带：${selectedTypes.join(', ')}。`
+            : '当前将通过 resend 发送，但不会附带附件。';
+        }
+      }
     };
 
     if (!posterKey) {
@@ -11580,6 +11722,13 @@ function initStage3() {
         ].filter(Boolean);
         posterCaption.textContent = captionParts.join(' / ');
       }
+      if (posterIdentity) {
+        const identityParts = [
+          record?.template_id ? `Template: ${record.template_id}` : null,
+          record?.updated_at ? `Updated: ${record.updated_at}` : null,
+        ].filter(Boolean);
+        posterIdentity.textContent = identityParts.join(' ｜ ');
+      }
       if (posterUrlInput) {
         posterUrlInput.value = finalPoster.url || '';
       }
@@ -11589,6 +11738,7 @@ function initStage3() {
       if (!emailRecipient.value) {
         emailRecipient.value = DEFAULT_EMAIL_RECIPIENT;
       }
+      updateRecipientState();
       return record;
     }
 
@@ -11600,6 +11750,7 @@ function initStage3() {
         { poster_key: posterKey },
         1
       );
+      currentDraft = draft;
       emailSubject.value = draft?.subject || '';
       if (draftPreviewText) {
         draftPreviewText.value = draft?.preview_text || '';
@@ -11607,30 +11758,30 @@ function initStage3() {
       emailText.value = draft?.text || '';
       emailHtml.value = draft?.html || '';
       if (draftSource) {
-        draftSource.textContent = `邮件文案来源：${draft?.generated_from || 'deterministic'} ｜ Tone: ${draft?.tone || 'clean_product_business'}`;
+        draftSource.textContent = `Email copy source: backend preview / ${draft?.generated_from || 'deterministic'}`;
+      }
+      if (draftSummary) {
+        const summaryPoints = Array.isArray(draft?.summary_points) ? draft.summary_points.filter(Boolean) : [];
+        const tone = draft?.tone ? `Tone: ${draft.tone}` : null;
+        draftSummary.textContent = summaryPoints.length
+          ? [tone, `重点：${summaryPoints.join(' / ')}`].filter(Boolean).join(' ｜ ')
+          : tone || '当前草稿未返回额外摘要点。';
       }
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = draft?.html || '';
       }
       const availableAttachmentTypes = Array.isArray(draft?.available_attachment_types) ? draft.available_attachment_types : [];
       const buildableAttachmentTypes = Array.isArray(draft?.buildable_attachment_types) ? draft.buildable_attachment_types : [];
-      const showAttachmentUi = availableAttachmentTypes.length > 0 || buildableAttachmentTypes.length > 0;
       if (attachmentGroup) {
-        attachmentGroup.hidden = !showAttachmentUi;
+        attachmentGroup.hidden = false;
       }
-      if (attachmentPosterPng) {
-        attachmentPosterPng.checked = availableAttachmentTypes.includes('poster_png');
-        attachmentPosterPng.disabled = !availableAttachmentTypes.includes('poster_png');
+      if (attachmentPosterPng && availableAttachmentTypes.includes('poster_png')) {
+        attachmentPosterPng.checked = true;
       }
-      if (attachmentPosterPdf) {
-        attachmentPosterPdf.checked = availableAttachmentTypes.includes('poster_pdf');
-        attachmentPosterPdf.disabled = !availableAttachmentTypes.includes('poster_pdf');
+      if (attachmentPosterPdf && availableAttachmentTypes.includes('poster_pdf')) {
+        attachmentPosterPdf.checked = true;
       }
-      if (attachmentStatus) {
-        attachmentStatus.textContent = showAttachmentUi
-          ? `Available: ${availableAttachmentTypes.join(', ') || 'none'} | Buildable: ${buildableAttachmentTypes.join(', ') || 'none'}`
-          : '暂无可选的后端附件。';
-      }
+      updateAttachmentSummary();
       setStatus(statusElement, '邮件草稿已从后端恢复。', 'success');
       setEmailCopyDecision('pending');
       if (acceptCopyButton) acceptCopyButton.disabled = false;
@@ -11657,8 +11808,16 @@ function initStage3() {
       }
       setEmailCopyDecision('pending');
     });
+    emailRecipient.addEventListener('input', () => {
+      updateRecipientState();
+      setEmailCopyDecision('pending');
+    });
     [emailSubject, draftPreviewText, emailText].forEach((input) => {
       input?.addEventListener('input', () => setEmailCopyDecision('pending'));
+    });
+    deliveryMode?.addEventListener('change', updateAttachmentSummary);
+    [attachmentPosterPng, attachmentPosterPdf].forEach((input) => {
+      input?.addEventListener('change', updateAttachmentSummary);
     });
 
     refreshButton.disabled = false;
@@ -11689,18 +11848,25 @@ function initStage3() {
 
     sendButton.disabled = false;
     sendButton.addEventListener('click', async () => {
-      const recipient = emailRecipient.value.trim();
+      const recipientState = updateRecipientState();
       const subject = emailSubject.value.trim();
       const previewText = draftPreviewText?.value.trim() || '';
       const text = emailText.value.trim();
       const html = emailHtml.value.trim();
-      const attachmentTypes = [
-        attachmentPosterPng?.checked ? 'poster_png' : null,
-        attachmentPosterPdf?.checked ? 'poster_pdf' : null,
-      ].filter(Boolean);
+      const deliveryValue = deliveryMode?.value || 'inline_only';
+      const attachmentTypes = deliveryValue === 'resend'
+        ? [
+            attachmentPosterPng?.checked ? 'poster_png' : null,
+            attachmentPosterPdf?.checked ? 'poster_pdf' : null,
+          ].filter(Boolean)
+        : [];
 
-      if (!recipient || !subject || !text || !html) {
+      if (!recipientState.valid.length || !subject || !text || !html) {
         setStatus(statusElement, '请先完成收件人和邮件内容。', 'error');
+        return;
+      }
+      if (recipientState.invalid.length) {
+        setStatus(statusElement, '存在格式无效的收件地址，请先修正后再发送。', 'error');
         return;
       }
       if (emailCopyDecision === 'rejected') {
@@ -11709,31 +11875,47 @@ function initStage3() {
       }
 
       sendButton.disabled = true;
-      setStatus(statusElement, '正在发送邮件…', 'info');
+      setStatus(statusElement, `正在向 ${recipientState.valid.length} 个收件人发送邮件…`, 'info');
 
       try {
-        const response = await postJsonWithRetry(
-          apiCandidates,
-          '/api/v2/email/send',
-          {
-            poster_key: posterKey,
-            recipient,
-            subject,
-            preview_text: previewText,
-            text,
-            html,
-            delivery_mode: deliveryMode?.value || 'inline_only',
-            attachment_types: attachmentTypes,
-          },
-          1
-        );
+        const results = [];
+        for (const recipient of recipientState.valid) {
+          const response = await postJsonWithRetry(
+            apiCandidates,
+            '/api/v2/email/send',
+            {
+              poster_key: posterKey,
+              recipient,
+              subject,
+              preview_text: previewText,
+              text,
+              html,
+              delivery_mode: deliveryMode?.value || 'inline_only',
+              attachment_types: attachmentTypes,
+            },
+            1
+          );
+          results.push({ recipient, response });
+        }
 
-        if (response?.status === 'sent') {
-          setStatus(statusElement, '邮件已发送。', 'success');
-        } else if (response?.status === 'preview_only') {
-          setStatus(statusElement, '邮件草稿已保存；当前为 inline_only，未外发。', 'warning');
+        const sentCount = results.filter((entry) => entry.response?.status === 'sent').length;
+        const previewOnlyCount = results.filter((entry) => entry.response?.status === 'preview_only').length;
+        const failed = results.filter((entry) => !['sent', 'preview_only'].includes(entry.response?.status));
+
+        if (failed.length) {
+          setStatus(
+            statusElement,
+            `部分发送失败，请检查：${failed.map((entry) => entry.recipient).join(', ')}`,
+            'error'
+          );
+        } else if (previewOnlyCount && !sentCount) {
+          setStatus(
+            statusElement,
+            `邮件草稿已为 ${previewOnlyCount} 个收件人保存；当前为 inline_only，未外发。`,
+            'warning'
+          );
         } else {
-          setStatus(statusElement, response?.error || '邮件发送失败。', 'error');
+          setStatus(statusElement, `邮件已发送给 ${sentCount} 个收件人。`, 'success');
         }
       } catch (error) {
         console.error('[email send]', error);
