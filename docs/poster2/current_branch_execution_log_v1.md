@@ -1,5 +1,264 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP1B: Stage1 operator input clarity
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- task-relevant implementation files:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+- re-checked risk / closure docs before wording changes:
+  - latest relevant request-lifecycle / isolation note found in `docs/poster2/current_branch_execution_log_v1.md`
+  - requested root paths were not present in this workspace, so the formal validation-path files were used instead:
+    - `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+    - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+
+### Scope
+
+- Stage1 operator-facing labels only
+- Stage1 helper / instruction copy only
+- shallow Stage1 grouping / section-heading clarity only
+- upload constraint messaging visibility only
+- `frontend/` and `docs/` mirror alignment on touched files
+- branch execution log write-back
+- no request builder, renderer, routing, backend schema, Stage2 result, or Stage3 truth work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- preserve frozen product annotation ownership and bottom ownership
+- keep Product Callouts and Bottom Support Copy as separate operator surfaces
+- no request/routing/runtime truth change
+- keep source and published copies aligned in the same task
+
+### Problem reproduced
+
+- Stage1 still read like a mixed engineering/input form instead of an operator configuration page
+- the operator-facing label `Agent / Channel name` no longer matched the intended product meaning
+- Product Callouts and Bottom Support Copy were both present, but their ownership boundary was not explicit enough for operators
+- upload constraints were mostly implicit or buried inside per-field hints instead of surfaced early in the flow
+
+### Root cause found
+
+- Stage1 copy had grown incrementally around internal template/runtime work, so the surface still exposed older wording and section titles
+- section legends emphasized implementation buckets like `Brand`, `Core Assets`, and `Bottom thumbnails` rather than operator tasks
+- the page lacked one early, concise upload-guidance block
+
+### Exact Stage1 wording / grouping changes
+
+- renamed `Agent / Channel name (optional)` to `Product Series (optional)` without changing the underlying `agent_name` wiring
+- changed the Stage1 intro to `Operator Setup`
+- added an early `上传说明` block with:
+  - supported file types: `PNG / JPG / JPEG / WEBP`
+  - suggested single-file limit: `20MB`
+  - recommended quality guidance: clear original images, intact subject, long edge `1200px+`
+- regrouped and retitled operator sections to read more clearly:
+  - `Template Preview`
+  - `Brand & Series`
+  - `Main Product`
+  - `Product Sheet Details`
+  - `Bottom Area`
+- added shallow subgroup headings inside the main product block:
+  - `Scenario / Visuals`
+  - `Main Product`
+- clarified ownership wording:
+  - `Bottom Support Copy` now explicitly says it only feeds the bottom-owned support area
+  - `Product Callouts` now explicitly says it only feeds the product-owned annotation area
+  - bottom thumbnails now explicitly state they belong to the bottom area and remain separate from Product Callouts
+- updated preview placeholder wording from `Channel` / `Agent` to `Series`
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 operator presentation
+- Stage1 helper copy / grouping
+- publish mirror alignment
+- focused mirror validation
+- branch execution/state log
+
+### Focused validation run
+
+- `bash scripts/check_frontend_docs_sync.sh`
+- `node --check frontend/app.js`
+- `node --check docs/app.js`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- focused static assertions:
+  - old `Agent / Channel name` label absent
+  - new `Product Series` label present
+  - `Product Callouts` and `Bottom Support Copy` remain separate and explicitly distinguished
+  - `template_id` and hidden `template_variant` payload wiring strings unchanged
+- mirror check:
+  - `cmp -s frontend/index.html docs/index.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+
+### Remaining risks
+
+- validation here is static/mirror-focused; no live browser capture was added for operator readability
+- this PR intentionally did not rename deeper Stage2 / Stage3 engineering diagnostics, request traces, or backend field names
+
+### Exact acceptance state
+
+- Stage1 now reads more clearly as an operator configuration flow
+- `Agent / Channel name` no longer appears on the Stage1 operator surface
+- `Product Callouts` and `Bottom Support Copy` remain separate and are more clearly distinguished by ownership wording
+- no internal template ids or runtime payload construction changed
+- no request/routing/runtime truth changed
+- `frontend/` and `docs/` touched files are aligned
+- `CLAUDE.md` left unchanged because this PR did not add a new shared-state fact beyond branch-local progress
+
+---
+
+## Entry — PR-OP1A: selector reduction and Product Sheet preview completion
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- task-relevant implementation files:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `docs/index.html`
+  - `docs/app.js`
+
+### Scope
+
+- Stage1 operator-facing template selector only
+- static selector preview completion for `template_product_sheet_v1`
+- `frontend/` and `docs/` mirror alignment on touched selector assets
+- branch execution log write-back
+- no renderer, routing, backend schema, request-builder, bottom contract, or Stage2 replay/result work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- reversible UI reduction over deeper deletion
+- no Family A geometry / ownership / routing truth changes
+- no Family B backend routing reopen
+- keep source and published copies aligned in the same task
+
+### Problem reproduced
+
+- the operator surface still exposed three template lines overall:
+  - `template_dual`
+  - `template_focus`
+  - the separate Variant B / product-sheet path
+- the current Product Sheet / Family B selector preview still fell back to the missing-preview placeholder state
+
+### Root cause found
+
+- Stage1 selector truth came from `frontend/templates/registry.json`, which still listed `template_focus`
+- the operator surface also exposed the engineering-facing `template_variant` selector instead of collapsing to product-facing template names
+- the selector preview loader required both `spec` and `preview`, so `template_product_sheet_v1` could not load a static preview asset unless selector-side loading allowed preview-only entries
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `frontend/templates/registry.json`
+- `frontend/templates/template_product_sheet_preview.svg`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/templates/registry.json`
+- `docs/templates/template_product_sheet_preview.svg`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 selector presentation
+- selector-side preview asset loading
+- published mirror alignment
+- branch execution/state log
+
+### Exact selector reduction performed
+
+- removed the `template_focus` entry from the Stage1 registry
+- renamed operator-facing selector entries to:
+  - `Marketing Poster` -> internal id stays `template_dual`
+  - `Product Sheet` -> internal id stays `template_product_sheet_v1`
+- hid the engineering-facing Variant control from the operator UI
+- synchronized the hidden `template_variant` value from the chosen template id so:
+  - `template_dual` resolves to Variant A / existing marketing-poster path
+  - `template_product_sheet_v1` resolves to Variant B / existing product-sheet path
+- kept internal ids and request-family mapping unchanged
+
+### Preview asset decision for Product Sheet
+
+- added a new static SVG preview asset:
+  - `frontend/templates/template_product_sheet_preview.svg`
+  - mirrored to `docs/templates/template_product_sheet_preview.svg`
+- used a structure-oriented preview, not a photoreal mockup
+- the preview explicitly shows:
+  - top brand/banner area
+  - SKU/top-copy area
+  - large hero product area
+  - materials/detail strip
+  - description block
+- no renderer/template runtime logic was changed for this preview completion
+
+### Validation run
+
+- `bash scripts/check_frontend_docs_sync.sh`
+- `cmp -s frontend/templates/registry.json docs/templates/registry.json`
+- `cmp -s frontend/templates/template_product_sheet_preview.svg docs/templates/template_product_sheet_preview.svg`
+- `node --check frontend/app.js`
+- `node --check docs/app.js`
+- registry assertion:
+  - exactly 2 selector entries remain
+  - names are `Marketing Poster` and `Product Sheet`
+  - `template_focus` is absent
+  - `template_product_sheet_v1` points to `template_product_sheet_preview.svg`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+
+### Remaining risks
+
+- focused validation here is registry/static/mirror coverage; no live browser capture was attached for the selector canvas
+- Stage2 still contains internal family/template diagnostics by design; this PR intentionally did not rename those deeper engineering/debug surfaces
+
+### Exact acceptance state
+
+- selector registry now exposes exactly two operator-facing template choices
+- removed focused-subject entry is no longer selectable from the operator UI path
+- Product Sheet now has a real static preview asset instead of the missing-preview placeholder
+- internal ids remain `template_dual` and `template_product_sheet_v1`
+- hidden Variant sync preserves existing Family A / Family B request mapping without reopening routing
+- `frontend/` and `docs/` touched files are aligned
+- `CLAUDE.md` left unchanged because this PR did not introduce a new shared-state fact beyond branch-local execution state
+
+---
+
 ## Entry — PR-S2-STABILITY-1: lock Stage2 gallery count to Stage1 truth and clear post-success bottom-mode contamination
 
 **Branch:** `main`

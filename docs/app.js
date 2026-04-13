@@ -581,6 +581,21 @@ function isTemplateBTemplateId(templateId) {
   return (templateId || '').trim() === TEMPLATE_B_ID;
 }
 
+function deriveStage1TemplateVariant(templateId) {
+  return isTemplateBTemplateId(templateId) ? 'b' : 'a';
+}
+
+function syncStage1TemplateVariantControl(templateId, templateVariantStage1, state) {
+  const variant = deriveStage1TemplateVariant(templateId);
+  if (templateVariantStage1) {
+    templateVariantStage1.value = variant;
+  }
+  if (state && typeof state === 'object') {
+    state.templateVariant = variant;
+  }
+  return variant;
+}
+
 function isTemplateBStage1Data(stage1Data) {
   if (!stage1Data || typeof stage1Data !== 'object') return false;
   if (isTemplateBTemplateId(stage1Data.template_id)) return true;
@@ -1645,17 +1660,20 @@ App.utils.ensureTemplateAssets = (() => {
     const entry = registry.find(i => i.id === templateId) || registry[0];
     if (!entry) throw new Error('模板列表为空');
 
-    // Templates without static preview assets (e.g. Family B) return a spec-less stub.
-    if (!entry.spec || !entry.preview) {
+    if (!entry.preview) {
       const stub = { entry, spec: null, image: null };
       _cache.set(entry.id, stub);
       return stub;
     }
 
-    const specUrl = App.utils.assetUrl(`templates/${entry.spec}`);
     const imgUrl  = App.utils.assetUrl(`templates/${entry.preview}`);
 
-    const specP = fetch(specUrl).then(r => { if (!r.ok) throw new Error('无法加载模板规范'); return r.json(); });
+    const specP = entry.spec
+      ? fetch(App.utils.assetUrl(`templates/${entry.spec}`)).then(r => {
+          if (!r.ok) throw new Error('无法加载模板规范');
+          return r.json();
+        })
+      : Promise.resolve(null);
     const imgP  = App.utils.loadImageAny(imgUrl, 'image/png');
 
     const payload = { entry, spec: await specP, image: await imgP };
@@ -4088,12 +4106,10 @@ function initStage1ModeS() {
       if (layoutStructure && stored.layout_preview) {
         layoutStructure.textContent = stored.layout_preview;
       }
-      if (templateVariantStage1) {
-        templateVariantStage1.value = state.templateVariant || 'a';
-      }
-      applyVariantFieldVisibility(state.templateVariant || 'a');
-      updateStage1TemplateVariantLabels(state.templateVariant || 'a');
-      refreshVariantTemplateMeta(state.templateVariant || 'a');
+      const activeVariant = syncStage1TemplateVariantControl(state.templateId, templateVariantStage1, state);
+      applyVariantFieldVisibility(activeVariant);
+      updateStage1TemplateVariantLabels(activeVariant);
+      refreshVariantTemplateMeta(activeVariant);
       renderMaterialsSlots();
       markPreviewStale();
     })();
@@ -4101,7 +4117,10 @@ function initStage1ModeS() {
     applyStage1Defaults(form);
     state.galleryEntries = buildModeSDefaultGalleryEntries(state.galleryEntries, 4);
     updateInlinePlaceholders(inlinePreviews);
-    updateStage1TemplateVariantLabels(state.templateVariant || 'a');
+    const activeVariant = syncStage1TemplateVariantControl(state.templateId, templateVariantStage1, state);
+    applyVariantFieldVisibility(activeVariant);
+    updateStage1TemplateVariantLabels(activeVariant);
+    refreshVariantTemplateMeta(activeVariant);
     markPreviewStale();
   }
 
@@ -4176,11 +4195,17 @@ function initStage1ModeS() {
       state.templateId = templateRegistry[0].id;
       state.templateLabel = templateRegistry[0].name || '';
     }
-    templateSelectStage1.value = state.templateId;
-
-    if (templateVariantStage1) {
-      templateVariantStage1.value = state.templateVariant || 'a';
+    if (state.templateVariant === 'b' && !isTemplateBTemplateId(state.templateId)) {
+      state.templateId = TEMPLATE_B_ID;
     }
+    if (!templateRegistry.some((entry) => entry.id === state.templateId) && templateRegistry[0]) {
+      state.templateId = templateRegistry[0].id;
+      state.templateLabel = templateRegistry[0].name || '';
+    }
+    templateSelectStage1.value = state.templateId;
+    const activeVariant = syncStage1TemplateVariantControl(state.templateId, templateVariantStage1, state);
+    applyVariantFieldVisibility(activeVariant);
+    updateStage1TemplateVariantLabels(activeVariant);
 
     await refreshTemplatePreviewStage1(state.templateId);
 
@@ -4189,7 +4214,10 @@ function initStage1ModeS() {
       state.templateId = value;
       const entry = templateRegistry.find((item) => item.id === value);
       state.templateLabel = entry?.name || '';
+      const nextVariant = syncStage1TemplateVariantControl(value, templateVariantStage1, state);
       state.previewBuilt = false;
+      applyVariantFieldVisibility(nextVariant);
+      updateStage1TemplateVariantLabels(nextVariant);
       requestPreviewUpdate();
       await refreshTemplatePreviewStage1(value);
     });
@@ -4202,12 +4230,6 @@ function initStage1ModeS() {
       const v = el.dataset.variantVisible;
       el.hidden = v !== 'all' && v !== variant;
     });
-    // Template selector is only meaningful for Variant A (single B template exists)
-    if (templateSelectStage1) {
-      templateSelectStage1.closest('label')
-        ? (templateSelectStage1.closest('label').hidden = variant === 'b')
-        : (templateSelectStage1.hidden = variant === 'b');
-    }
   }
 
   function updateStage1TemplateVariantLabels(variant) {
@@ -4229,19 +4251,19 @@ function initStage1ModeS() {
     }
     if (subtitleHint) {
       subtitleHint.textContent = variant === 'b'
-        ? 'Template B 中该文案留在顶部标题/副标题/SKU 区，不进入产品标注卖点。'
-        : '该文案属于底部区域，不进入产品标注卖点。';
+        ? 'Product Sheet 中该文案留在顶部标题 / 副标题 / SKU 区，不进入产品标注区域。'
+        : '只进入底部辅助文案区域，不进入 Product Callouts 对应的产品标注区域。';
     }
     if (coreAssetsLegend) {
-      coreAssetsLegend.textContent = variant === 'b' ? 'Product Assets' : 'Core Assets';
+      coreAssetsLegend.textContent = 'Main Product';
     }
     if (product1Label) {
       product1Label.textContent = variant === 'b' ? 'Primary product image (required)' : 'Product image 1 (required)';
     }
     if (product1Hint) {
       product1Hint.textContent = variant === 'b'
-        ? '主图录产品图；请保持产品独立、不要变形。'
-        : '请使用清晰产品图，干净背景更稳定。';
+        ? '主图录产品图；支持 PNG / JPG / JPEG / WEBP，请保持产品完整、清晰、不要变形。'
+        : '支持 PNG / JPG / JPEG / WEBP；请使用清晰产品图，干净背景更稳定。';
     }
     if (product2Label) {
       product2Label.textContent = variant === 'b' ? 'Supporting detail image (optional)' : 'Product image 2 (optional)';
@@ -4249,13 +4271,13 @@ function initStage1ModeS() {
     if (product2Hint) {
       product2Hint.textContent = variant === 'b'
         ? '可选细节或辅助角度图；只辅助主图，不与主图竞争。'
-        : '可选第二角度或细节图。';
+        : '可选第二角度或细节图；只做补充，不替代主产品图。';
     }
     if (secondaryClearButton) {
       secondaryClearButton.textContent = variant === 'b' ? 'Clear supporting detail' : 'Clear secondary image';
     }
     if (productDescLabel) {
-      productDescLabel.textContent = variant === 'b' ? 'Product reference line' : 'Product description';
+      productDescLabel.textContent = 'Product Reference Line';
     }
     if (materialsLabel) {
       materialsLabel.innerHTML = variant === 'b'
@@ -4273,17 +4295,6 @@ function initStage1ModeS() {
     const effectiveId =
       variant === 'b' ? 'template_product_sheet_v1' : state.templateId;
     void refreshTemplatePreviewStage1(effectiveId);
-  }
-
-  if (templateVariantStage1) {
-    templateVariantStage1.addEventListener('change', () => {
-      state.templateVariant = templateVariantStage1.value || 'a';
-      state.previewBuilt = false;
-      applyVariantFieldVisibility(state.templateVariant);
-      updateStage1TemplateVariantLabels(state.templateVariant);
-      refreshVariantTemplateMeta(state.templateVariant);
-      requestPreviewUpdate();
-    });
   }
 
   ensureGalleryEntries(state, 4);

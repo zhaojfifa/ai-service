@@ -35,19 +35,28 @@
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 1 — Assets & Copy (Mode S)</h2>
-        <p class="hint">请补齐素材、确认预览后进入生成环节。此页不做自由版式编辑。</p>
+        <h2>Stage 1 — Operator Setup</h2>
+        <p class="hint">按运营配置顺序补齐品牌、产品素材与英文海报文案。此页只做结构化配置，不改模板归属与运行逻辑。</p>
+      </section>
+
+      <section class="card operator-note">
+        <h3>上传说明</h3>
+        <ul class="operator-note-list">
+          <li>支持 PNG / JPG / JPEG / WEBP。</li>
+          <li>单张素材建议控制在 20MB 内；最终以上传校验为准。</li>
+          <li>建议上传清晰原图，主体完整，长边 1200px 以上更稳。</li>
+        </ul>
       </section>
 
       <form id="poster-form" novalidate>
         <fieldset id="s1-template" class="card stage-card">
-          <legend>Template Selection</legend>
+          <legend>Template Preview</legend>
           <div class="grid">
             <label class="field">
-              <span>Template</span>
+              <span>Poster Type</span>
               <select id="template-select-stage1" name="template_id"></select>
             </label>
-            <label class="field">
+            <label class="field" hidden>
               <span>Variant</span>
               <select id="template-variant-stage1" name="template_variant">
                 <option value="a">Variant A</option>
@@ -55,13 +64,14 @@
               </select>
             </label>
           </div>
+          <p class="hint">先选择海报类型，再查看静态结构预览。这里仅确认模板入口，不改变后端模板真相。</p>
           <p id="template-description-stage1" class="hint"></p>
           <canvas id="template-preview-stage1" width="360" height="220" aria-label="Template preview"></canvas>
         </fieldset>
 
         <fieldset id="s1-brand" class="card stage-card">
-          <legend>Brand</legend>
-          <p class="hint">品牌素材用于海报识别区；可为空的项目会在后续环节显示为可诊断状态。</p>
+          <legend>Brand &amp; Series</legend>
+          <p class="hint">这里配置品牌识别信息与系列名。系列名只改文案展示，不改变模板归属或请求结构。</p>
           <div class="grid">
             <label class="field file-field optional">
               <span>Brand Logo (optional)</span>
@@ -77,14 +87,18 @@
               <input type="text" name="brand_name" placeholder="e.g., ChefCraft" />
             </label>
             <label class="field optional">
-              <span>Agent / Channel name (optional)</span>
-              <input type="text" name="agent_name" placeholder="e.g., Email / Dealer A" />
+              <span>Product Series (optional)</span>
+              <input type="text" name="agent_name" placeholder="e.g., Electric Fryer Series" />
             </label>
           </div>
         </fieldset>
 
         <fieldset id="s1-core-assets" class="card stage-card" data-variant-visible="all">
-          <legend id="stage1-core-assets-legend">Core Assets</legend>
+          <legend id="stage1-core-assets-legend">Main Product</legend>
+          <div class="stage-subsection" data-variant-visible="a">
+            <h3>Scenario / Visuals</h3>
+            <p class="hint">场景图只负责氛围与使用环境，不接管产品标注区或底部辅助区。</p>
+          </div>
           <div class="grid" data-variant-visible="a">
             <label class="field file-field optional">
               <span>Scenario image (optional)</span>
@@ -95,11 +109,16 @@
               <small class="hint">不上传时使用默认场景素材。</small>
             </label>
             <label class="field">
-              <span>Scenario description</span>
+              <span>Scenario / Visual note</span>
               <input type="text" name="scenario_image" placeholder="Default scenario" />
+              <small class="hint">用于说明场景方向；英文输入更利于后续阶段保持一致。</small>
             </label>
           </div>
 
+          <div class="stage-subsection">
+            <h3>Main Product</h3>
+            <p class="hint">主产品图、标题和产品标注文案在这里配置。请保持英文成稿与清晰产品图。</p>
+          </div>
           <div class="grid">
             <label class="field file-field">
               <span id="stage1-product1-label">Product image 1 (required)</span>
@@ -119,8 +138,9 @@
               <button type="button" class="secondary subtle" data-secondary-image-clear>Clear secondary image</button>
             </label>
             <label class="field">
-              <span id="stage1-product-desc-label">Product description</span>
+              <span id="stage1-product-desc-label">Product Reference Line</span>
               <input type="text" name="product_name" placeholder="Short product descriptor" />
+              <small class="hint">用于补充产品识别，不替代标题或产品标注。</small>
             </label>
           </div>
 
@@ -128,18 +148,18 @@
             <label class="field">
               <span>Title (required)</span>
               <input type="text" name="title" placeholder="1–2 lines recommended" required />
-              <small class="hint">用于最终海报，当前按英文成稿处理；过长时系统会按安全区缩放或省略。</small>
+              <small class="hint">标题请直接填写英文成稿；过长时系统会按安全区缩放或省略。</small>
             </label>
             <label class="field optional">
               <span id="stage1-subtitle-label">Bottom Support Copy (optional)</span>
               <input type="text" name="subtitle" placeholder="底部辅助文案 / short support copy" />
-              <small id="stage1-subtitle-hint" class="hint">用于底部辅助文案，不会进入产品标注卖点。</small>
+              <small id="stage1-subtitle-hint" class="hint">只进入底部辅助文案区域，不进入 Product Callouts 对应的产品标注区域。</small>
             </label>
           </div>
 
           <div class="feature-fields">
-            <span class="feature-label">Product Callouts / Selling Points (optional, up to 3)</span>
-            <small class="hint">这些内容进入产品标注路径；请保持短句、英文、产品相关。</small>
+            <span class="feature-label">Product Callouts (optional, up to 3)</span>
+            <small class="hint">只进入产品标注区域，不进入 Bottom Support Copy。请使用英文短句，聚焦卖点本身。</small>
             <div class="feature-grid">
               <input type="text" name="product_callouts" placeholder="Callout 1" />
               <input type="text" name="product_callouts" placeholder="Callout 2" />
@@ -149,7 +169,7 @@
         </fieldset>
 
         <fieldset id="s1-template-b-fields" class="card stage-card" data-variant-visible="b" hidden>
-          <legend>Template B — 产品图录字段</legend>
+          <legend>Product Sheet Details</legend>
 
           <div class="grid">
             <label class="field optional">
@@ -179,8 +199,8 @@
         </fieldset>
 
         <fieldset id="s1-bottom-thumbs" class="card stage-card" data-variant-visible="a">
-          <legend>Bottom thumbnails (optional, 0-4)</legend>
-          <p class="hint">最多上传 4 张底部小图；空槽位允许存在。</p>
+          <legend>Bottom Area</legend>
+          <p class="hint">底部缩略图属于底部区域，与 Product Callouts 的产品标注区分开处理。最多上传 4 张，空槽位允许存在。</p>
           <div id="bottom-thumbnails" class="thumbnail-grid">
             <div class="thumbnail-slot" data-slot-index="0">
               <div class="thumbnail-preview">
@@ -243,8 +263,8 @@
 <section class="card wireframe-card">
           <div class="section-heading-row">
             <div>
-              <h3>Material Preview / Layout Preview</h3>
-              <p class="hint">需要检查安全区时再打开预览；默认不打断素材录入。</p>
+              <h3>Template Preview</h3>
+              <p class="hint">用于确认结构分区与安全区，不用于修改模板逻辑或字段归属。</p>
               <p id="preview-stale-status" class="hint">预览已收起，可在需要时打开。</p>
             </div>
             <button id="open-stage1-preview" class="secondary" type="button" aria-expanded="false" aria-controls="preview-container">Open Preview</button>
@@ -258,7 +278,7 @@
                   </div>
                   <div class="poster-brand-name" id="preview-brand-name">Brand</div>
                 </div>
-                <div class="poster-agent" id="preview-agent-name">Channel</div>
+                <div class="poster-agent" id="preview-agent-name">Series</div>
               </div>
               <div class="poster-body">
                 <div class="poster-left">
@@ -292,7 +312,7 @@
                   </div>
                   <div>
                     <div id="preview-b-brand-name" class="template-b-preview__brand-name">Brand</div>
-                    <div id="preview-b-agent-name" class="template-b-preview__agent-name">Agent</div>
+                    <div id="preview-b-agent-name" class="template-b-preview__agent-name">Series</div>
                   </div>
                 </div>
               </div>

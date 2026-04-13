@@ -117,6 +117,26 @@ main {
   margin-top: 0;
 }
 
+.operator-note {
+  border: 1px solid #d8e6f7;
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f7fc 100%);
+}
+
+.operator-note h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.operator-note-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #52606d;
+}
+
+.operator-note-list li + li {
+  margin-top: 0.4rem;
+}
+
 .layout-fields {
   display: flex;
   flex-direction: column;
@@ -194,6 +214,16 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.stage-subsection {
+  margin-bottom: 0.9rem;
+}
+
+.stage-subsection h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.98rem;
+  color: #1f2933;
 }
 
 .feature-label {
