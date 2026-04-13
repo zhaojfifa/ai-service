@@ -1,5 +1,180 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP2R: collapse duplicated Stage1 preview logic and fold copy suggestions into preview
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read in this log:
+  - `PR-OP1A`
+  - `PR-OP1B`
+  - `PR-OP1C-REV`
+  - `PR-OP2-v2`
+- then task-relevant frozen-state docs:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- then minimum task files only:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-OP2R only
+- Stage1 operator surface only
+- collapse duplicated Stage1 preview logic back to one preview flow
+- move staged copy suggestions into the existing preview surface
+- preserve raw / suggestion / accepted separation
+- preserve Family A / Family B request-line isolation
+- frontend/docs mirror sync
+- branch execution log write-back
+- no backend routing, ownership, renderer routing, Stage2 result/replay use, bottom truth, or Stage3 truth changes
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- preserve family isolation and do not mix Family A / Family B request semantics
+- do not reuse Stage2 result/replay rendering for Stage1 preview
+- do not silently mutate canonical Stage2 request truth
+- keep Product Callouts product-owned and Bottom Support Copy bottom-owned
+- keep source and published mirror aligned in the same task
+
+### Problem reproduced
+
+- Stage1 had two preview surfaces in parallel:
+  - the existing template preview / poster-style preview flow
+  - a separate large `Stage1 Combined Preview`
+- Stage1 suggestions were also rendered as a second workflow surface:
+  - a separate large `Stage1 AI Copy Suggestions` block below the preview flow
+- the duplication made Stage1 read like a pseudo-dashboard instead of one operator preview path
+- deterministic suggestion output was also too close to null-filling / normalization and not strong enough on expression improvement
+
+### Root cause found
+
+- `refreshPreview()` still drove both:
+  - `updatePosterPreview(...)`
+  - `buildStage1CombinedPreviewModel(...)` -> `renderStage1CombinedPreview(...)`
+- the separate suggestion block reused the same Stage1 state model correctly, but was mounted outside the preview flow as a parallel section
+- suggestion drafting was still mostly whitespace/title normalization plus fallback filling, especially for Family A title/support copy and Family B title/subtitle/description phrasing
+
+### Exact preview-logic collapse decision
+
+- kept the existing `Template Preview` card as the only Stage1 preview flow
+- removed the standalone large `Stage1 Combined Preview` section entirely
+- removed the Stage1-only duplicate preview helpers:
+  - `buildStage1CombinedPreviewModel(...)`
+  - `renderStage1CombinedPreview(...)`
+- `refreshPreview()` now renders:
+  - the existing poster-style / family-aware preview
+  - the integrated copy-review suggestion surface only
+- no visual-input pseudo-dashboard was retained
+
+### Exact suggestion integration decision
+
+- moved the suggestion controls and review rows into the existing `Template Preview` card under:
+  - `Copy Review In Preview`
+- removed the standalone large `Stage1 AI Copy Suggestions` section as a parallel workflow surface
+- kept staged state separation intact:
+  - raw input
+  - suggestion layer
+  - accepted layer
+- kept explicit operator actions intact:
+  - generate suggestion
+  - accept checked suggestion targets
+  - apply accepted poster-copy targets back into visible Stage1 inputs
+  - restore the pre-apply raw snapshot
+  - clear accepted layer
+- email suggestion fields remain staged-only
+- improved deterministic suggestion phrasing:
+  - Family A:
+    - stronger title shaping toward marketing-style phrasing
+    - shorter compact callout phrasing
+    - bottom support copy phrased as bottom-owned support copy rather than explanation text
+  - Family B:
+    - cleaner title shaping with SKU-aware formatting
+    - clearer subtitle phrasing toward product-sheet language
+    - cleaner description-summary phrasing
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend operator surface only
+- frontend/docs publish mirror only
+- branch execution/state log only
+
+### Focused validation run
+
+- syntax:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync:
+  - `bash scripts/sync_frontend_to_docs.sh`
+  - `bash scripts/check_frontend_docs_sync.sh`
+  - `cmp -s frontend/index.html docs/index.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+- existing sync/static test:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- source inspection for preview collapse / integration:
+  - `rg -n "Stage1 Combined Preview|Stage1 AI Copy Suggestions|stage1-combined-preview|stage1-visual-preview|stage1-copy-preview|buildStage1CombinedPreviewModel|renderStage1CombinedPreview" frontend/index.html frontend/app.js frontend/styles.css`
+  - `rg -n "Template Preview|Copy Review In Preview|stage1-generate-suggestions|stage1-suggestion-list|Stage1 Combined Preview|Stage1 AI Copy Suggestions" frontend/index.html docs/index.html`
+
+### Focused validation result
+
+- `frontend/app.js` syntax passed
+- `docs/app.js` syntax passed
+- frontend/docs publish mirror check passed after sync
+- `tests/test_frontend_docs_sync.py` passed: `8 passed`
+- source inspection confirms:
+  - the standalone `Stage1 Combined Preview` block is removed
+  - the standalone `Stage1 AI Copy Suggestions` block is removed
+  - the duplicate combined-preview helpers are removed
+  - suggestion controls now live inside the existing preview surface
+- no backend file, route, renderer path, request builder, or Stage2/Stage3 truth file changed in this pass
+
+### Remaining risks
+
+- this PR still uses frontend-only staged suggestion drafting rather than a backend-backed suggestion path
+- suggestion quality is improved but remains deterministic/local in this pass
+- no browser automation or screenshot capture was added in this workspace, so before/after visual proof is source/DOM-level rather than attached screenshots
+
+### Exact acceptance state
+
+- Stage1 now has one preview logic only
+- the large standalone `Stage1 Combined Preview` block is removed
+- the standalone `Stage1 AI Copy Suggestions` block is removed as a parallel workflow surface
+- AI copy suggestions are integrated into the existing preview flow
+- raw / suggestion / accepted separation remains intact internally
+- suggestion apply remains explicit and recoverable
+- Family A / Family B request-line isolation remains intact
+- no request/routing/runtime truth changed
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was not updated by this task because no new shared-state fact needed to be carried forward
+
 ## Entry — PR-OP2-v2: Stage1 combined preview + staged copy suggestions
 
 **Branch:** `main`

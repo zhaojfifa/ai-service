@@ -4062,8 +4062,6 @@ function initStage1ModeS() {
       );
     }
 
-    const combinedPreviewModel = buildStage1CombinedPreviewModel(previewPayload, state);
-    renderStage1CombinedPreview(combinedPreviewModel);
     renderStage1SuggestionPanel(previewPayload, state.stage1SuggestionState);
 
     return payload;
@@ -6379,24 +6377,76 @@ function formatSuggestionValue(value) {
   return String(value || '').trim();
 }
 
+function removeSuggestionBoilerplate(value) {
+  return collapseSuggestionWhitespace(value)
+    .replace(/\b(optional|required|current|clean|product[- ]sheet|overview|details?)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function trimSuggestionEnding(value) {
+  return collapseSuggestionWhitespace(value).replace(/[.,;:!?]+$/g, '').trim();
+}
+
+function clipWords(value, limit = 6) {
+  return collapseSuggestionWhitespace(value)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, limit)
+    .join(' ');
+}
+
+function buildCompactCallout(value, fallback) {
+  const cleaned = removeSuggestionBoilerplate(value);
+  const compact = clipWords(cleaned, 5);
+  return toSentenceCase(trimSuggestionEnding(compact || fallback || ''));
+}
+
+function buildFamilyAMarketingTitle(payload) {
+  const base = trimSuggestionEnding(payload.title || payload.product_name || payload.agent_name || 'Product');
+  const compactBase = clipWords(toTitleCase(base), 6) || 'Product';
+  const lower = compactBase.toLowerCase();
+  if (/\b(for|with|built|made|designed)\b/.test(lower)) {
+    return compactBase;
+  }
+  return `${compactBase} for Fast Service`;
+}
+
+function buildFamilyBProductTitle(payload) {
+  const base = trimSuggestionEnding(payload.title || payload.product_name || payload.agent_name || payload.sku_text || 'Product Sheet');
+  const compactBase = clipWords(toTitleCase(base), 7) || 'Product Sheet';
+  const skuText = trimSuggestionEnding(payload.sku_text || '');
+  if (skuText && !compactBase.toLowerCase().includes(skuText.toLowerCase())) {
+    return `${compactBase} | ${skuText}`;
+  }
+  return compactBase;
+}
+
 function buildFamilyASuggestionDraft(payload) {
   const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
-  const productLine = collapseSuggestionWhitespace(payload.product_name || payload.agent_name || 'Product');
-  const rawTitle = toTitleCase(payload.title || productLine || 'Product Poster');
+  const rawTitle = buildFamilyAMarketingTitle(payload);
   const rawCallouts = resolveStage1ProductCallouts(payload);
+  const fallbackCallouts = [
+    payload.product_name,
+    payload.agent_name,
+    'Fast daily output',
+    'Easy-clean workflow',
+    'Commercial-ready build',
+  ];
   const callouts = uniqSuggestionItems(
-    rawCallouts.length ? rawCallouts : (DEFAULT_STAGE1.product_callouts || []),
+    (rawCallouts.length ? rawCallouts : fallbackCallouts)
+      .map((item, index) => buildCompactCallout(item, fallbackCallouts[index] || 'Product benefit')),
     3
   );
-  const supportCopy = toSentenceCase(
-    payload.subtitle
-      || (callouts.length >= 2
-        ? `${callouts[0]} · ${callouts[1]}`
-        : `${rawTitle} for everyday service`)
-  );
+  const supportSource = payload.subtitle || '';
+  const supportCopy = supportSource
+    ? toSentenceCase(trimSuggestionEnding(supportSource))
+    : toSentenceCase(
+      `${rawTitle} supports ${callouts.slice(0, 2).map((item) => item.toLowerCase()).join(' and ') || 'daily output and clean handling'} for steady commercial service.`
+    );
   const emailSubject = toSentenceCase(`${brandName}: ${rawTitle}`);
   const emailOpening = toSentenceCase(
-    `Showcase ${rawTitle.toLowerCase()} with ${callouts.slice(0, 2).join(', ') || 'core product benefits'}.`
+    `Showcase ${rawTitle.toLowerCase()} with ${callouts.slice(0, 2).join(', ') || 'strong commercial selling points'}.`
   );
   return {
     family: 'a',
@@ -6416,19 +6466,25 @@ function buildFamilyASuggestionDraft(payload) {
 function buildFamilyBSuggestionDraft(payload) {
   const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
   const skuText = collapseSuggestionWhitespace(payload.sku_text || '');
-  const title = toTitleCase(payload.title || payload.product_name || skuText || 'Product Sheet');
-  const subtitle = toSentenceCase(
-    payload.subtitle
-      || [skuText, payload.agent_name].filter(Boolean).join(' · ')
-      || `${brandName} product overview`
-  );
-  const descriptionSeed = collapseSuggestionWhitespace(
-    payload.description_body || payload.description_title || `${title} with clean product details and supporting materials.`
+  const title = buildFamilyBProductTitle(payload);
+  const subtitleSeed = payload.subtitle
+    || (payload.agent_name && skuText
+      ? `${payload.agent_name} product sheet · ${skuText}`
+      : payload.agent_name
+      ? `${payload.agent_name} product sheet`
+      : skuText
+      ? `Product sheet · ${skuText}`
+      : `${brandName} product sheet`);
+  const subtitle = toSentenceCase(trimSuggestionEnding(subtitleSeed));
+  const descriptionSeed = trimSuggestionEnding(
+    payload.description_body
+      || payload.description_title
+      || `${title} is presented with clean product details, material references, and ready-to-review specification copy`
   );
   const descriptionSummary = toSentenceCase(descriptionSeed);
   const emailSubject = toSentenceCase(`${brandName}: ${title}`);
   const emailOpening = toSentenceCase(
-    `Review ${title.toLowerCase()}${skuText ? ` (${skuText})` : ''} with the current product-sheet summary and supporting details.`
+    `Review ${title.toLowerCase()}${skuText ? ` (${skuText})` : ''} with cleaner product-sheet copy and supporting details.`
   );
   return {
     family: 'b',
@@ -6532,118 +6588,6 @@ function buildStage1SuggestionRows(payload, familyState) {
   ];
 }
 
-function buildStage1CombinedPreviewModel(payload, state) {
-  const family = getStage1SuggestionFamilyKey(payload);
-  const logoSrc = resolvePreviewAssetSrc(payload.brand_logo || state?.brandLogo);
-  const primarySrc = resolvePreviewAssetSrc(payload.product_image_1 || payload.product_asset || state?.productImage1);
-  const secondarySrc = resolvePreviewAssetSrc(payload.product_image_2 || state?.productImage2);
-  if (family === 'b') {
-    const materials = normaliseTemplateBMaterials(payload)
-      .map((entry) => resolvePreviewAssetSrc(entry))
-      .filter(Boolean);
-    return {
-      family,
-      visualItems: [
-        { label: 'Template', value: state?.templateLabel || payload.template_label || payload.template_id || 'Template B', meta: 'Product Sheet', src: null },
-        { label: 'Brand / Logo', value: payload.brand_name || 'Brand', meta: logoSrc ? '已提供 Logo' : '未上传 Logo', src: logoSrc },
-        { label: 'Primary Product', value: payload.product_name || payload.title || 'Primary product', meta: primarySrc ? '主图就绪' : '主图缺失', src: primarySrc },
-        { label: 'Secondary Product', value: secondarySrc ? 'Supporting detail ready' : 'Supporting detail optional', meta: secondarySrc ? '辅助图就绪' : '可留空', src: secondarySrc },
-        { label: 'Materials / Details', value: `${materials.length} item(s)`, meta: materials.length ? '辅图条已准备' : '暂无辅图条', src: materials[0] || null },
-      ],
-      copyItems: [
-        { label: 'Product Series', value: payload.agent_name || '' },
-        { label: 'SKU', value: payload.sku_text || '' },
-        { label: 'Title', value: payload.title || '' },
-        { label: 'Subtitle', value: payload.subtitle || '' },
-        { label: 'Description', value: payload.description_body || payload.descriptionBody || payload.description_title || payload.descriptionTitle || '' },
-      ],
-    };
-  }
-
-  const galleryEntries = buildModeSDefaultGalleryEntries(state?.galleryEntries || payload.gallery_entries || [], 4)
-    .slice(0, 4)
-    .filter((entry) => entry && entry.asset);
-  return {
-    family,
-    visualItems: [
-      { label: 'Template', value: state?.templateLabel || payload.template_label || payload.template_id || 'Template A', meta: 'Marketing Poster', src: null },
-      { label: 'Brand / Logo', value: payload.brand_name || 'Brand', meta: logoSrc ? '已提供 Logo' : '未上传 Logo', src: logoSrc },
-      { label: 'Scenario Image', value: payload.scenario_image || 'Default scenario', meta: resolvePreviewAssetSrc(payload.scenario_asset || state?.scenario) ? '场景素材就绪' : '默认场景', src: resolvePreviewAssetSrc(payload.scenario_asset || state?.scenario) },
-      { label: 'Primary Product', value: payload.product_name || payload.title || 'Primary product', meta: primarySrc ? '主图就绪' : '主图缺失', src: primarySrc },
-      { label: 'Secondary Product', value: secondarySrc ? 'Supporting angle ready' : 'Secondary optional', meta: secondarySrc ? '补充图就绪' : '可留空', src: secondarySrc },
-      { label: 'Bottom Thumbnails', value: `${galleryEntries.length} item(s)`, meta: galleryEntries.length ? '底部缩略图已准备' : '暂无底部缩略图', src: resolvePreviewAssetSrc(galleryEntries[0]?.asset) || null },
-    ],
-    copyItems: [
-      { label: 'Product Series', value: payload.agent_name || '' },
-      { label: 'Title', value: payload.title || '' },
-      { label: 'Product Callouts', value: resolveStage1ProductCallouts(payload) },
-      { label: 'Bottom Support Copy', value: payload.subtitle || '' },
-    ],
-  };
-}
-
-function renderStage1CombinedPreview(model) {
-  const root = document.getElementById('stage1-combined-preview');
-  const visual = document.getElementById('stage1-visual-preview');
-  const copy = document.getElementById('stage1-copy-preview');
-  if (!root || !visual || !copy) return;
-  root.dataset.templateFamily = model.family;
-
-  visual.innerHTML = '';
-  model.visualItems.forEach((item) => {
-    const tile = document.createElement('div');
-    tile.className = 'stage1-preview-tile';
-
-    const media = document.createElement('div');
-    media.className = 'stage1-preview-tile__media';
-    if (item.src) {
-      const img = document.createElement('img');
-      img.src = item.src;
-      img.alt = item.label;
-      media.appendChild(img);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'stage1-preview-tile__placeholder';
-      placeholder.textContent = item.meta || '当前无图片';
-      media.appendChild(placeholder);
-    }
-
-    const body = document.createElement('div');
-    body.className = 'stage1-preview-tile__body';
-    const label = document.createElement('div');
-    label.className = 'stage1-preview-tile__label';
-    label.textContent = item.label;
-    const value = document.createElement('div');
-    value.className = 'stage1-preview-tile__value';
-    value.textContent = item.value || '未填写';
-    const meta = document.createElement('div');
-    meta.className = 'stage1-preview-tile__meta';
-    meta.textContent = item.meta || '';
-    body.append(label, value, meta);
-
-    tile.append(media, body);
-    visual.appendChild(tile);
-  });
-
-  copy.innerHTML = '';
-  model.copyItems.forEach((item) => {
-    const row = document.createElement('div');
-    row.className = 'stage1-copy-row';
-    const label = document.createElement('div');
-    label.className = 'stage1-copy-row__label';
-    label.textContent = item.label;
-    const value = document.createElement('div');
-    value.className = 'stage1-copy-row__value';
-    const formatted = formatSuggestionValue(item.value);
-    value.textContent = formatted || '未填写';
-    if (!formatted) {
-      value.classList.add('stage1-copy-row__value--empty');
-    }
-    row.append(label, value);
-    copy.appendChild(row);
-  });
-}
-
 function renderStage1SuggestionPanel(payload, suggestionState) {
   const status = document.getElementById('stage1-suggestion-status');
   const actions = document.getElementById('stage1-suggestion-actions');
@@ -6657,15 +6601,15 @@ function renderStage1SuggestionPanel(payload, suggestionState) {
   const hasAccepted = Object.keys(familyState.accepted || {}).length > 0;
 
   status.textContent = hasLatest
-    ? `当前模板已生成 ${familyKey === 'a' ? '营销讲解海报' : '产品图录海报'}建议。生成来源：${familyState.latest.generated_from || 'frontend_staged_suggestion'}。`
-    : '当前尚未生成建议。';
+    ? `当前预览流已生成${familyKey === 'a' ? '营销讲解海报' : '产品图录海报'}建议。生成来源：${familyState.latest.generated_from || 'frontend_staged_suggestion'}。`
+    : '当前预览流尚未生成建议。';
   actions.classList.toggle('hidden', !hasLatest && !hasAccepted);
   list.innerHTML = '';
 
   if (!hasLatest && !hasAccepted) {
     const empty = document.createElement('p');
     empty.className = 'stage1-suggestion-summary';
-    empty.textContent = '建议生成后会在这里分开展示原始输入、建议层与已接受层。';
+    empty.textContent = '建议生成后会在当前预览流内分开展示原始输入、建议层与已接受层。';
     list.appendChild(empty);
     return;
   }
