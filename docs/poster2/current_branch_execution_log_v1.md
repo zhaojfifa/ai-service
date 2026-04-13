@@ -1,5 +1,179 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP3R: Family-A-only scenario generation product-shape correction
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read in this log:
+  - `PR-OP1A`
+  - `PR-OP1B`
+  - `PR-OP1C-REV`
+  - `PR-OP2-v2`
+  - `PR-OP2R`
+  - `PR-OP3`
+- then task-relevant frozen-state docs:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+- then minimum task files only:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-OP3R only
+- Family-A-only Stage1 AI scenario generation correction
+- product-shape correction for existing scenario generation only
+- keep existing `scenario_asset` / `scenario_image` write-back path
+- keep Family A / Family B request lines isolated
+- keep frontend/docs mirror aligned
+- write branch execution state back before stop
+- no Template B scenario support, no bottom/gallery truth change, no Stage2/Stage3 truth change, no renderer/routing reopen
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- Family A only; no Template B scenario-generation semantics added
+- product logic before technical fallback logic
+- renderer/request family truth left unchanged
+- generated asset remains an asset-source enhancement only, not a new asset-truth model
+- keep source and published mirror aligned in the same task
+
+### Problem reproduced
+
+- PR-OP3 added a working Family-A-only Stage1 scenario-generation action, but the generated asset still targeted `800x600` landscape output
+- the resulting image shape did not match the left-side vertical scenario region purpose
+- prompt construction still read too much like a generic technical field fallback and not enough like product-category-controlled scenario generation
+- fryer-like product inputs could drift into generic kitchen or unrelated appliance imagery
+
+### Root cause found
+
+- the existing Family A helper `buildFamilyAScenarioPrompt(...)` built context from sparse field presence but still framed the request as a generic `4:3 marketing scenario background`
+- the generation request itself still hard-coded:
+  - `width: 800`
+  - `height: 600`
+- product naming was used, but the prompt did not explicitly enforce fryer/commercial-kitchen category terms or explicit category exclusions
+
+### Exact size correction decision
+
+- changed the Family A Stage1 AI scenario generation target from:
+  - `800x600`
+- to:
+  - `600x800`
+- this is now explicitly treated as:
+  - portrait-oriented
+  - left-side vertical scenario visual
+  - Family-A-only scenario asset generation
+- Template B was not changed
+
+### Exact product-category prompt constraints added
+
+- added a new Family-A-only product-context classifier in the existing frontend scenario helper path
+- preferred product logic order remains:
+  - `product_name`
+  - `agent_name`
+  - `title`
+  - `scenario_image` note only as a weak supporting hint
+- fryer-like products now anchor prompt construction to controlled category language:
+  - `electric fryer`
+  - `countertop fryer`
+  - `stainless steel fryer`
+  - `commercial kitchen`
+  - `fast food kitchen`
+  - `restaurant prep station`
+  - `fryer basket`
+  - `fryer station context`
+  - `clean professional foodservice environment`
+- explicit drift-avoidance terms were added for fryer-like requests:
+  - `air fryer`
+  - `rice cooker`
+  - `oven`
+  - `generic smart appliance`
+  - `unrelated kitchen decor hero`
+- the prompt now explicitly frames the generated image as:
+  - a controlled product-context asset
+  - a portrait-oriented `600x800` vertical scenario image
+  - a restrained supporting scene for the left-side Family A scenario region
+- the scenario note no longer acts as primary truth; it is applied only as a weak supporting hint after product category alignment
+
+### Exact scenario write-back behavior
+
+- existing write-back model remains unchanged
+- generated response still normalizes through:
+  - `buildGeneratedAssetFromUrl(url, key)`
+- generated asset still writes back into:
+  - `state.scenario`
+- Stage1 persistence remains on the existing path:
+  - `scenario_asset: serialiseAssetForStorage(state.scenario)`
+- manual coexistence remains intact:
+  - generate AI scenario image
+  - upload/replace through the existing `input[name="scenario_asset"]`
+  - clear explicitly
+  - regenerate again
+- no parallel AI scenario asset-truth model was introduced
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend operator surface only
+- frontend/docs publish mirror only
+- branch execution/state log only
+
+### Focused validation run
+
+- syntax:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync:
+  - `bash scripts/sync_frontend_to_docs.sh`
+  - `bash scripts/check_frontend_docs_sync.sh`
+  - `cmp -s frontend/index.html docs/index.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+- focused static/source inspection:
+  - `rg -n "width: 600|height: 800|buildFamilyAScenarioPrompt|classifyFamilyAScenarioProductContext|electric fryer|air fryer|state\\.scenario = asset|serialiseAssetForStorage\\(state\\.scenario\\)|stage1-generate-scenario|data-variant-visible=\"b\"" frontend/app.js docs/app.js frontend/index.html docs/index.html`
+- existing sync/static test:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+
+### Remaining risks
+
+- validation here remains syntax/static/mirror/source-path based; no live browser capture was attached in this workspace
+- prompt quality is now more product-category-constrained, but actual image quality still depends on deployed provider behavior
+- non-fryer product categories still use a restrained generic product-supporting commercial-kitchen prompt path rather than a larger category taxonomy in this PR
+
+### Exact acceptance state
+
+- Family A scenario generation now targets `600x800`
+- generated scenario prompts are more product-category-consistent, with explicit fryer-category constraints when fryer-like cues are present
+- Template B still does not gain scenario-generation UI or semantics
+- generated images still write into the existing `scenario_asset` path
+- no request/routing/runtime truth changed
+- no Family A / Family B request-line mixing was introduced
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was left untouched by this task because no new shared-state fact needed to be carried forward beyond branch-local execution state
+
 ## Entry — PR-OP3: Family-A-only Stage1 AI scenario image generation
 
 **Branch:** `main`

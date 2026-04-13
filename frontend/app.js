@@ -53,29 +53,95 @@ function buildGeneratedAssetFromUrl(url, key) {
   };
 }
 
-function buildFamilyAScenarioPrompt(payload, state) {
-  const title = collapseSuggestionWhitespace(payload.title || '');
-  const productSeries = collapseSuggestionWhitespace(payload.agent_name || '');
+function classifyFamilyAScenarioProductContext(payload) {
   const productReference = collapseSuggestionWhitespace(payload.product_name || '');
+  const productSeries = collapseSuggestionWhitespace(payload.agent_name || '');
+  const title = collapseSuggestionWhitespace(payload.title || '');
+  const referenceLine = [productReference, productSeries, title]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  const fryerTokens = [
+    'fryer',
+    'deep fry',
+    'deep-fry',
+    'fry station',
+    'frying basket',
+    'countertop fryer',
+    'electric fryer',
+  ];
+  const isFryerCategory = fryerTokens.some((token) => referenceLine.includes(token));
+
+  if (isFryerCategory) {
+    return {
+      categoryLabel: 'commercial electric fryer product scene',
+      primaryTerms: [
+        'electric fryer',
+        'countertop fryer',
+        'stainless steel fryer',
+        'commercial kitchen',
+        'fast food kitchen',
+        'restaurant prep station',
+        'fryer basket',
+        'fryer station context',
+        'clean professional foodservice environment',
+      ],
+      avoidTerms: [
+        'air fryer',
+        'rice cooker',
+        'oven',
+        'generic smart appliance',
+        'unrelated kitchen decor hero',
+      ],
+    };
+  }
+
+  return {
+    categoryLabel: 'real product-supporting commercial kitchen scene',
+    primaryTerms: [
+      'product-category-consistent kitchen equipment context',
+      'clean professional prep surface',
+      'commercial cooking environment',
+      'restrained supporting scene',
+    ],
+    avoidTerms: [
+      'unrelated appliance category',
+      'generic decor hero image',
+      'lifestyle collage',
+    ],
+  };
+}
+
+function buildFamilyAScenarioPrompt(payload, state) {
   const scenarioNote = collapseSuggestionWhitespace(payload.scenario_image || '');
   const hasProductImage = Boolean(state?.productImage1);
-  const categoryHint = [productReference, productSeries, title]
+  const productReference = collapseSuggestionWhitespace(payload.product_name || '');
+  const productSeries = collapseSuggestionWhitespace(payload.agent_name || '');
+  const title = collapseSuggestionWhitespace(payload.title || '');
+  const productContext = classifyFamilyAScenarioProductContext(payload);
+  const stableProductLine = [productReference, productSeries, title]
     .filter(Boolean)
-    .join(', ');
-  const contextLine = categoryHint || 'commercial kitchen product';
-  const noteLine = scenarioNote && scenarioNote.toLowerCase() !== 'default'
-    ? scenarioNote
-    : 'clean modern kitchen environment with realistic service context';
+    .join(' | ');
+  const noteLine = scenarioNote && scenarioNote.toLowerCase() !== 'default' ? scenarioNote : '';
   const productPresence = hasProductImage
-    ? 'Design the scene to support a separate product hero image and keep the environment uncluttered.'
-    : 'Keep the scene usable as a standalone supporting hero background.';
+    ? 'Keep clear negative space and a restrained composition so a separate product hero can sit over the scene without conflict.'
+    : 'Keep the composition usable as a standalone product-supporting vertical scene.';
   return [
-    `Create a realistic 4:3 marketing scenario background for ${contextLine}.`,
-    `Scene direction: ${noteLine}.`,
-    'Use a bright commercial or modern kitchen environment, natural materials, clean counters, believable lighting, and product-category-appropriate context.',
+    'Create a realistic portrait-oriented 600x800 vertical scenario image for the left-side Family A scenario region.',
+    `Treat it as a controlled product-context asset for ${productContext.categoryLabel}, not a generic kitchen hero.`,
+    stableProductLine
+      ? `Use this stable product naming as the main category anchor: ${stableProductLine}.`
+      : 'Use the product category itself as the main category anchor.',
+    `Prefer these product-category terms: ${productContext.primaryTerms.join(', ')}.`,
+    `Avoid drift into these unrelated terms or categories: ${productContext.avoidTerms.join(', ')}.`,
+    noteLine
+      ? `Use this scenario note only as a weak supporting hint after product category alignment is satisfied: ${noteLine}.`
+      : 'Use any scenario note only as a weak supporting hint after product category alignment is satisfied.',
+    'Keep the environment clean, professional, realistic, and commercially usable.',
     productPresence,
     'No text, no logo, no watermark, no labels, no collage, no split layout, no poster framing.',
-    'Keep the image operator-safe, commercially usable, and visually restrained for a marketing poster scenario region.',
+    'Do not turn the image into a generic smart-appliance ad or a decorative lifestyle set.',
   ].join(' ');
 }
 
@@ -4529,7 +4595,7 @@ function initStage1ModeS() {
     if (scenarioClearButton) {
       scenarioClearButton.disabled = true;
     }
-    setScenarioStatus('正在为营销海报生成场景图，并回写到当前场景素材槽。', 'info');
+    setScenarioStatus('正在为营销海报生成 600x800 竖向场景图，并回写到当前场景素材槽。', 'info');
 
     try {
       const response = await postJsonWithRetry(
@@ -4537,8 +4603,8 @@ function initStage1ModeS() {
         '/api/imagen/generate',
         {
           prompt,
-          width: 800,
-          height: 600,
+          width: 600,
+          height: 800,
           variants: 1,
           add_watermark: false,
         },
