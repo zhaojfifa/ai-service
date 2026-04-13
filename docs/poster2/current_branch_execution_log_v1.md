@@ -1,5 +1,114 @@
 # Current Branch Execution Log v1
 
+## Entry — Hotfix verification: selector rollback and bottom flow no-op
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- task-relevant implementation files re-checked:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `frontend/templates/registry.json`
+  - `frontend/templates/template_marketing_poster_preview.svg`
+  - `frontend/templates/template_product_sheet_preview.svg`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+  - `docs/templates/registry.json`
+  - `docs/templates/template_marketing_poster_preview.svg`
+  - `docs/templates/template_product_sheet_preview.svg`
+
+### Scope
+
+- hotfix verification only
+- no-op confirmation against current selector-preview and bottom-placement state
+- focused validation only
+- branch execution log write-back
+- no request builder, backend schema, renderer behavior, routing, Stage2, Stage3, or ownership work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- no redesign
+- preserve runtime truth, request construction, renderer truth, and ownership truth
+- keep source and published copies aligned
+
+### Problem reproduced
+
+- hotfix request asked to ensure selector previews are rolled back from abstract / wireframe mode and that `Bottom Support Copy` is fully in the `Bottom Area` reading flow
+
+### Root cause found
+
+- no new defect remained in the current working tree
+- the requested rollback and field-placement correction were already present from the latest selector-preview correction pass
+
+### Exact selector preview hotfix state
+
+- `Marketing Poster` currently uses `template_marketing_poster_preview.svg`
+- `Product Sheet` currently uses `template_product_sheet_preview.svg`
+- both previews are already simple/minimal card-style SVGs rather than abstract wireframes
+- internal ids remain unchanged:
+  - `template_dual`
+  - `template_product_sheet_v1`
+
+### Exact Bottom Support Copy placement state
+
+- `Bottom Support Copy` remains inside `s1-bottom-thumbs` under `Bottom Area`
+- `Product Callouts` remains inside `s1-core-assets` under `Main Product`
+- static order remains:
+  - `Product Callouts (optional, up to 3)`
+  - `id="s1-bottom-thumbs"`
+  - `Bottom Support Copy (optional)`
+
+### Files changed
+
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- branch execution/state log only
+
+### Focused validation run
+
+- `bash scripts/check_frontend_docs_sync.sh`
+- `node --check frontend/app.js`
+- `node --check docs/app.js`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- focused static assertions:
+  - selector registry count = `2`
+  - selector ids remain `template_dual` and `template_product_sheet_v1`
+  - preview assets remain:
+    - `template_marketing_poster_preview.svg`
+    - `template_product_sheet_preview.svg`
+  - registry descriptions remain minimal-preview descriptions
+  - bottom-field order check remains true
+
+### Remaining risks
+
+- validation here is static and mirror-focused only; no live browser screenshot was captured in this hotfix verification pass
+
+### Exact acceptance state
+
+- exactly two operator-facing templates remain
+- both selector previews already read as simple, minimal, and visually comparable
+- Marketing Poster remains a simple marketing-card preview
+- Product Sheet remains a simple catalog-card preview
+- Bottom Support Copy is already fully in the Bottom Area reading flow
+- Product Callouts remains in Main Product only
+- no runtime truth changed
+- `frontend/` and `docs/` remain aligned
+- `CLAUDE.md` left unchanged because no new shared-state fact was introduced
+
 ## Entry — PR-OP1C-REV: minimal selector preview correction and bottom flow separation
 
 **Branch:** `main`
