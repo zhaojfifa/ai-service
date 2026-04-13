@@ -13,6 +13,7 @@ from app.main import DEFAULT_CORS_ORIGINS, app
 from app.services.poster2.background import BackgroundResult, FireflyBackgroundService
 from app.services.poster2.pipeline import PosterPipeline
 from app.services.poster2.contracts import RenderDebugArtifacts, RenderManifest
+from app.services.poster2.errors import PosterGenerationStageError
 
 
 class _FakePoster2Pipeline:
@@ -197,6 +198,35 @@ class _FakeDegradedPoster2Pipeline:
 class _BoomPoster2Pipeline:
     async def run(self, spec, template=None) -> RenderManifest:
         raise RuntimeError("simulated poster2 failure")
+
+
+class _StageErrorPoster2Pipeline:
+    async def run(self, spec, template=None) -> RenderManifest:
+        raise PosterGenerationStageError(
+            "asset_fetch",
+            "asset_fetch_timeout",
+            "asset_fetch exceeded timeout",
+            detail="asset_fetch timed out after 30000ms",
+            timeout_ms=30000,
+            retryable=True,
+            asset_url=spec.product_image.url,
+        )
+
+
+class _FlakyPoster2Pipeline:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def run(self, spec, template=None) -> RenderManifest:
+        self.calls += 1
+        if self.calls == 1:
+            raise PosterGenerationStageError(
+                "compose",
+                "compose_failed",
+                "failed to compose final poster",
+                detail="synthetic compose failure",
+            )
+        return await _FakePoster2Pipeline().run(spec, template)
 
 
 class _CapturePoster2Pipeline:
@@ -753,9 +783,71 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
 
     assert response.status_code == 500
     assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
-    assert response.json()["detail"]["error"] == "poster2_generation_failed"
-    assert response.json()["detail"]["message"] == "simulated poster2 failure"
-    assert response.json()["detail"]["exception_class"] == "RuntimeError"
+    body = response.json()
+    assert body["error"] == "poster2_generation_failed"
+    assert body["failure"]["message"] == "simulated poster2 failure"
+    assert body["failure"]["exception_class"] == "RuntimeError"
+
+
+def test_generate_poster_v2_stage_failure_response_is_machine_readable(monkeypatch):
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _StageErrorPoster2Pipeline())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-stage-1"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "pillow",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    body = response.json()
+    assert body["ok"] is False
+    assert body["error"] == "poster2_generation_failed"
+    assert body["request_id"] == "req-stage-1"
+    assert body["failure"]["stage"] == "asset_fetch"
+    assert body["failure"]["code"] == "asset_fetch_timeout"
+    assert body["failure"]["timeout_ms"] == 30000
+    assert body["failure"]["asset_url"] == "https://example.com/product.png"
+    assert body["failure"]["retryable"] is True
+
+
+def test_generate_poster_v2_failure_does_not_break_health_or_next_request(monkeypatch):
+    flaky_pipeline = _FlakyPoster2Pipeline()
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: flaky_pipeline)
+    monkeypatch.setattr("app.services.poster_records.POSTER_RECORD_DIR", Path("/tmp/poster2-test-records-flaky"))
+    client = TestClient(app, raise_server_exceptions=False)
+    payload = {
+        "brand_name": "厨厨房",
+        "agent_name": "智能顾问",
+        "title": "测试标题",
+        "subtitle": "测试副标题",
+        "features": ["特性A", "特性B"],
+        "product_image": {"url": "https://example.com/product.png"},
+        "template_id": "template_dual_v2",
+        "renderer_mode": "pillow",
+    }
+
+    first = client.post("/api/v2/generate-poster", json=payload)
+    assert first.status_code == 500
+    assert first.json()["failure"]["stage"] == "compose"
+
+    health = client.get("/health")
+    assert health.status_code == 200
+    assert health.json() == {"ok": True}
+
+    second = client.post("/api/v2/generate-poster", json=payload)
+    assert second.status_code == 200
+    assert second.json()["final_url"] == "https://example.com/final.png"
 
 
 def test_email_preview_and_inline_send_are_generated_from_poster_record(monkeypatch):

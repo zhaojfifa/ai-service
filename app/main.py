@@ -1392,6 +1392,7 @@ from app.services.poster2.contracts import (
     PosterSpec as P2PosterSpec,
     StyleSpec as P2StyleSpec,
 )
+from app.services.poster2.errors import PosterGenerationStageError, failure_response_payload
 from app.services.poster2.pipeline import PosterPipeline as P2Pipeline
 
 _poster2_pipeline: P2Pipeline | None = None
@@ -1420,7 +1421,7 @@ def _validate_poster2_renderer_request(template_id: str, renderer_mode: str) -> 
 
 
 def _poster2_request_log_fields(request: Request, payload: GeneratePosterV2Request) -> dict[str, Any]:
-    request_id = request.headers.get("X-Request-ID") or request.headers.get("X-Request-Id")
+    request_id = _poster2_request_id(request)
     return {
         "request_id": request_id or None,
         "origin": request.headers.get("Origin"),
@@ -1455,6 +1456,10 @@ def _poster2_final_poster_payload(manifest) -> dict[str, Any]:
     }
 
 
+def _poster2_request_id(request: Request) -> str | None:
+    return request.headers.get("X-Request-ID") or request.headers.get("X-Request-Id")
+
+
 @app.post(
     "/api/v2/generate-poster",
     response_model=GeneratePosterV2Response,
@@ -1471,6 +1476,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
     Text, logo, product, and gallery are NEVER passed through a generative model.
     """
     request_log = _poster2_request_log_fields(request, payload)
+    request_id = request_log["request_id"]
     logger.info("poster2: request start %s", request_log)
     try:
         _validate_poster2_renderer_request(payload.template_id, payload.renderer_mode)
@@ -1521,10 +1527,11 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         )
 
         pipeline = _get_poster2_pipeline()
-        manifest = await pipeline.run(spec)
+        async with _GENERATE_POSTER_SEMAPHORE:
+            manifest = await pipeline.run(spec)
         logger.info(
             "poster2: request success request_id=%s trace_id=%s template=%s requested=%s effective=%s degraded=%s total_ms=%s",
-            request_log["request_id"],
+            request_id,
             manifest.trace_id,
             manifest.template_id,
             manifest.renderer_mode,
@@ -1608,6 +1615,18 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
     except ValueError as exc:
         logger.warning("poster2: request validation error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except PosterGenerationStageError as exc:
+        logger.warning(
+            "poster2: request failed request=%s stage=%s code=%s detail=%s",
+            request_log,
+            exc.stage,
+            exc.code,
+            exc.detail,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=failure_response_payload(error=exc, request_id=request_id),
+        )
     except Exception as exc:
         reason_code = getattr(exc, "reason_code", None)
         detail = getattr(exc, "detail", None) or str(exc)
@@ -1620,16 +1639,22 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             failure_stage,
             detail,
         )
-        raise HTTPException(
+        return JSONResponse(
             status_code=500,
-            detail={
+            content={
+                "ok": False,
                 "error": "poster2_generation_failed",
-                "message": detail,
-                "reason_code": reason_code,
-                "exception_class": exc.__class__.__name__,
-                "failure_stage": failure_stage,
+                "request_id": request_id,
+                "failure": {
+                    "stage": failure_stage or "unknown",
+                    "code": reason_code or "poster2_generation_failed",
+                    "message": detail,
+                    "detail": detail,
+                    "exception_class": exc.__class__.__name__,
+                    "retryable": False,
+                },
             },
-        ) from exc
+        )
 
 
 @app.get(

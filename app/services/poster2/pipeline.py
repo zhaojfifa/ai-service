@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 import uuid
@@ -33,6 +34,7 @@ from .background import (
 )
 from .composer import Composer
 from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
+from .errors import PosterGenerationStageError
 from .copy_optimizer import resolve_copy_optimization
 from .font_registry import FontRegistry
 from .quality_guard import evaluate_deliverability, run_preflight_guard
@@ -61,6 +63,13 @@ from .template_registry import validate_template_registration
 logger = logging.getLogger("ai-service.poster2")
 
 ENGINE_VERSION = "2.0.0"
+_DEFAULT_STAGE_TIMEOUTS_MS = {
+    "asset_fetch": max(int(os.getenv("POSTER2_ASSET_STAGE_TIMEOUT_MS", "30000") or 0), 1),
+    "material_prepare": max(int(os.getenv("POSTER2_MATERIAL_STAGE_TIMEOUT_MS", "30000") or 0), 1),
+    "puppeteer_render": max(int(os.getenv("POSTER2_RENDER_STAGE_TIMEOUT_MS", "60000") or 0), 1),
+    "compose": max(int(os.getenv("POSTER2_COMPOSE_STAGE_TIMEOUT_MS", "30000") or 0), 1),
+    "storage_publish": max(int(os.getenv("POSTER2_STORAGE_STAGE_TIMEOUT_MS", "30000") or 0), 1),
+}
 _TEMPLATE_B_SKU_CHAR_BUDGET = 64
 _TEMPLATE_B_TITLE_CHAR_BUDGET = 120
 _TEMPLATE_B_SUBTITLE_CHAR_BUDGET = 80
@@ -177,38 +186,61 @@ class PosterPipeline:
 
         # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
-        if effective_spec.template_id == "template_dual_v2":
-            assets = await self._loader.load(effective_spec)
-            if assets.scenario is not None:
-                bg_result = await build_template_dual_v2_background(
-                    assets.scenario,
-                    width=effective_spec.size[0],
-                    height=effective_spec.size[1],
-                    trace_id=trace_id,
+        try:
+            if effective_spec.template_id == "template_dual_v2":
+                assets = await _run_stage_with_timeout(
+                    "asset_fetch",
+                    self._loader.load(effective_spec),
                 )
+                if assets.scenario is not None:
+                    bg_result = await _run_stage_with_timeout(
+                        "material_prepare",
+                        build_template_dual_v2_background(
+                            assets.scenario,
+                            width=effective_spec.size[0],
+                            height=effective_spec.size[1],
+                            trace_id=trace_id,
+                        ),
+                    )
+                else:
+                    bg_result = await _run_stage_with_timeout(
+                        "material_prepare",
+                        self._bg.generate(
+                            style_prompt="",
+                            negative_prompt=effective_spec.style.negative_prompt,
+                            width=effective_spec.size[0],
+                            height=effective_spec.size[1],
+                            seed=effective_spec.style.seed,
+                            template_hint=template.background_prompt_hint,
+                            trace_id=trace_id,
+                        ),
+                    )
             else:
-                bg_result = await self._bg.generate(
-                    style_prompt="",
-                    negative_prompt=effective_spec.style.negative_prompt,
-                    width=effective_spec.size[0],
-                    height=effective_spec.size[1],
-                    seed=effective_spec.style.seed,
-                    template_hint=template.background_prompt_hint,
-                    trace_id=trace_id,
+                assets, bg_result = await asyncio.gather(
+                    _run_stage_with_timeout("asset_fetch", self._loader.load(effective_spec)),
+                    _run_stage_with_timeout(
+                        "material_prepare",
+                        self._bg.generate(
+                            style_prompt=effective_spec.style.prompt,
+                            negative_prompt=effective_spec.style.negative_prompt,
+                            width=effective_spec.size[0],
+                            height=effective_spec.size[1],
+                            seed=effective_spec.style.seed,
+                            template_hint=template.background_prompt_hint,
+                            trace_id=trace_id,
+                        ),
+                    ),
                 )
-        else:
-            assets, bg_result = await asyncio.gather(
-                self._loader.load(effective_spec),
-                self._bg.generate(
-                    style_prompt=effective_spec.style.prompt,
-                    negative_prompt=effective_spec.style.negative_prompt,
-                    width=effective_spec.size[0],
-                    height=effective_spec.size[1],
-                    seed=effective_spec.style.seed,
-                    template_hint=template.background_prompt_hint,
-                    trace_id=trace_id,
-                ),
-            )
+        except PosterGenerationStageError:
+            raise
+        except Exception as exc:
+            raise PosterGenerationStageError(
+                "material_prepare",
+                "background_prepare_failed",
+                "failed to prepare background or materials",
+                detail=str(exc),
+                exception_class=exc.__class__.__name__,
+            ) from exc
         timings["load_and_bg_ms"] = _elapsed(t0)
         timings["background_layer_ms"] = timings["load_and_bg_ms"]
         resolved_behavior = resolve_template_behavior(
@@ -243,7 +275,21 @@ class PosterPipeline:
 
         # ── Phase 2: deterministic foreground/text render ────────────────────
         t1 = _now()
-        fg_result = await self._renderer.render(template, effective_spec, assets)
+        try:
+            fg_result = await _run_stage_with_timeout(
+                "puppeteer_render",
+                self._renderer.render(template, effective_spec, assets),
+            )
+        except PosterGenerationStageError:
+            raise
+        except Exception as exc:
+            raise PosterGenerationStageError(
+                "puppeteer_render",
+                "renderer_execution_failed",
+                "failed to render poster foreground",
+                detail=str(exc),
+                exception_class=exc.__class__.__name__,
+            ) from exc
         timings["renderer_ms"] = _elapsed(t1)
         timings.update(fg_result.layer_timings_ms)
         logger.info(
@@ -327,10 +373,30 @@ class PosterPipeline:
 
         # ── Phase 3: load background bytes and compose ───────────────────────
         t2 = _now()
-        bg_image = await self._loader.load_url(bg_result.url)
-        compose_result = self._composer.compose(
-            bg_image, fg_result.image, effective_spec.export_format
-        )
+        try:
+            bg_image = await _run_stage_with_timeout(
+                "asset_fetch",
+                self._loader.load_url(bg_result.url),
+            )
+            compose_result = await _run_stage_with_timeout(
+                "compose",
+                asyncio.to_thread(
+                    self._composer.compose,
+                    bg_image,
+                    fg_result.image,
+                    effective_spec.export_format,
+                ),
+            )
+        except PosterGenerationStageError:
+            raise
+        except Exception as exc:
+            raise PosterGenerationStageError(
+                "compose",
+                "compose_failed",
+                "failed to compose final poster",
+                detail=str(exc),
+                exception_class=exc.__class__.__name__,
+            ) from exc
         timings["compose_ms"] = _elapsed(t2)
 
         # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
@@ -347,16 +413,24 @@ class PosterPipeline:
 
         t3 = _now()
         fg_key = f"poster2/fg/{trace_id}.png"
-        fg_url = _put(fg_key, fg_result.png_bytes, content_type="image/png")
+        fg_url = await _publish_bytes(
+            _put,
+            key=fg_key,
+            data=fg_result.png_bytes,
+            content_type="image/png",
+            required=False,
+        )
         if not fg_url:
             logger.warning("poster2: R2 upload failed for fg key=%s", fg_key)
             fg_url = ""
 
         product_material_key = f"poster2/debug/product-material/{trace_id}.png"
-        product_material_url = _put(
-            product_material_key,
-            debug_product_material.png_bytes,
+        product_material_url = await _publish_bytes(
+            _put,
+            key=product_material_key,
+            data=debug_product_material.png_bytes,
             content_type="image/png",
+            required=False,
         )
         if not product_material_url:
             logger.warning("poster2: R2 upload failed for product/material key=%s", product_material_key)
@@ -364,9 +438,13 @@ class PosterPipeline:
 
         ext = effective_spec.export_format
         final_key = f"poster2/final/{trace_id}.{ext}"
-        final_url = _put(final_key, compose_result.png_bytes, content_type=f"image/{ext}")
-        if not final_url:
-            raise RuntimeError(f"R2 upload failed for final poster key={final_key}")
+        final_url = await _publish_bytes(
+            _put,
+            key=final_key,
+            data=compose_result.png_bytes,
+            content_type=f"image/{ext}",
+            required=True,
+        )
 
         geometry_evidence = _build_geometry_evidence(
             template,
@@ -531,10 +609,12 @@ class PosterPipeline:
             },
         }
         renderer_metadata_key = f"poster2/debug/metadata/{trace_id}.json"
-        renderer_metadata_url = _put(
-            renderer_metadata_key,
-            json.dumps(renderer_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
+        renderer_metadata_url = await _publish_bytes(
+            _put,
+            key=renderer_metadata_key,
+            data=json.dumps(renderer_metadata_payload, ensure_ascii=False, sort_keys=True).encode("utf-8"),
             content_type="application/json",
+            required=False,
         )
         if not renderer_metadata_url:
             logger.warning("poster2: R2 upload failed for renderer metadata key=%s", renderer_metadata_key)
@@ -617,6 +697,64 @@ def _now() -> int:
 
 def _elapsed(t0: int) -> int:
     return (time.monotonic_ns() - t0) // 1_000_000
+
+
+async def _run_stage_with_timeout(stage: str, awaitable):
+    timeout_ms = _DEFAULT_STAGE_TIMEOUTS_MS.get(stage)
+    if not timeout_ms:
+        return await awaitable
+    try:
+        return await asyncio.wait_for(awaitable, timeout=timeout_ms / 1000)
+    except PosterGenerationStageError:
+        raise
+    except asyncio.TimeoutError as exc:
+        raise PosterGenerationStageError(
+            stage,
+            f"{stage}_timeout",
+            f"{stage} exceeded timeout",
+            detail=f"{stage} timed out after {timeout_ms}ms",
+            exception_class=exc.__class__.__name__,
+            retryable=True,
+            timeout_ms=timeout_ms,
+        ) from exc
+
+
+async def _publish_bytes(
+    put_bytes_fn,
+    *,
+    key: str,
+    data: bytes,
+    content_type: str,
+    required: bool,
+) -> str:
+    try:
+        url = await _run_stage_with_timeout(
+            "storage_publish",
+            asyncio.to_thread(put_bytes_fn, key, data, content_type=content_type),
+        )
+    except PosterGenerationStageError:
+        raise
+    except Exception as exc:
+        raise PosterGenerationStageError(
+            "storage_publish",
+            "storage_publish_failed",
+            "failed to publish poster artifact",
+            detail=str(exc),
+            exception_class=exc.__class__.__name__,
+            extra={"key": key, "content_type": content_type, "required": required},
+        ) from exc
+    if url:
+        return url
+    if required:
+        raise PosterGenerationStageError(
+            "storage_publish",
+            "storage_publish_failed",
+            "failed to publish poster artifact",
+            detail=f"empty storage URL for key={key}",
+            exception_class="RuntimeError",
+            extra={"key": key, "content_type": content_type, "required": required},
+        )
+    return ""
 
 
 def _hash_spec(spec: PosterSpec) -> str:
