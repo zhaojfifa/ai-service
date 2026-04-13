@@ -1,36 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" role="img" aria-labelledby="title desc">
-  <title id="title">Marketing Poster template preview</title>
-  <desc id="desc">Simple marketing-card preview with a top band, hero stage, callout emphasis, and bottom support strip.</desc>
-  <defs>
-    <linearGradient id="marketing-card-bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#f8fbfd"/>
-      <stop offset="100%" stop-color="#eef3f6"/>
-    </linearGradient>
-  </defs>
-  <rect width="720" height="440" fill="#ecf2f5"/>
-  <rect x="28" y="24" width="664" height="392" rx="30" fill="url(#marketing-card-bg)" stroke="#d3dde5" stroke-width="2"/>
-  <rect x="54" y="48" width="612" height="48" rx="18" fill="#1f3647"/>
-  <rect x="78" y="62" width="110" height="20" rx="10" fill="#f8fbfd"/>
-  <rect x="520" y="62" width="116" height="20" rx="10" fill="#dbe5eb"/>
-  <rect x="54" y="118" width="612" height="174" rx="24" fill="#f8fbfd" stroke="#dde7ed"/>
-  <rect x="78" y="140" width="222" height="130" rx="18" fill="#e4edf3"/>
-  <circle cx="162" cy="204" r="38" fill="#bfd0db"/>
-  <rect x="120" y="176" width="84" height="56" rx="16" fill="#d7e4ec"/>
-  <rect x="328" y="138" width="310" height="134" rx="20" fill="#f1f6f9"/>
-  <ellipse cx="430" cy="228" rx="70" ry="18" fill="#dce5eb"/>
-  <rect x="388" y="150" width="84" height="98" rx="22" fill="#df935d"/>
-  <circle cx="430" cy="166" r="34" fill="#29465b"/>
-  <rect x="518" y="154" width="90" height="16" rx="8" fill="#f0c7a8"/>
-  <rect x="504" y="184" width="108" height="10" rx="5" fill="#8fa3b2"/>
-  <rect x="494" y="204" width="118" height="10" rx="5" fill="#b1bdc7"/>
-  <rect x="54" y="314" width="402" height="52" rx="18" fill="#f8fbfd" stroke="#dde7ed"/>
-  <rect x="80" y="332" width="170" height="10" rx="5" fill="#607b8f"/>
-  <rect x="80" y="348" width="122" height="8" rx="4" fill="#9cacb8"/>
-  <rect x="480" y="314" width="186" height="52" rx="18" fill="#f8fbfd" stroke="#dde7ed"/>
-  <rect x="504" y="332" width="96" height="10" rx="5" fill="#8ea2b0"/>
-  <rect x="54" y="384" width="612" height="18" rx="9" fill="#e6edf2"/>
-  <rect x="78" y="387" width="118" height="12" rx="6" fill="#ffffff"/>
-  <rect x="210" y="387" width="118" height="12" rx="6" fill="#ffffff"/>
-  <rect x="342" y="387" width="118" height="12" rx="6" fill="#ffffff"/>
-  <rect x="474" y="387" width="118" height="12" rx="6" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="220" viewBox="0 0 360 220" role="img" aria-labelledby="title desc">
+  <title id="title">Marketing Poster selector preview</title>
+  <desc id="desc">Simple marketing-card preview with a top band, hero block, selling-point list, and bottom support strip.</desc>
+  <rect width="360" height="220" fill="#e7e7e7"/>
+  <rect x="78" y="8" width="204" height="204" rx="12" fill="#f6f3f1"/>
+  <rect x="88" y="18" width="184" height="22" rx="4" fill="#f7e3e1"/>
+  <rect x="231" y="18" width="37" height="16" rx="4" fill="#ef6363"/>
+  <rect x="88" y="48" width="80" height="86" rx="10" fill="#ecebea"/>
+  <rect x="176" y="52" width="92" height="82" rx="6" fill="#f2f0ef"/>
+  <circle cx="181" cy="69" r="3" fill="#ef6363"/>
+  <rect x="190" y="68" width="74" height="2" rx="1" fill="#dad7d6"/>
+  <circle cx="181" cy="90" r="3" fill="#ef6363"/>
+  <rect x="190" y="89" width="74" height="2" rx="1" fill="#dad7d6"/>
+  <circle cx="181" cy="111" r="3" fill="#ef6363"/>
+  <rect x="190" y="110" width="74" height="2" rx="1" fill="#dad7d6"/>
+  <circle cx="181" cy="132" r="3" fill="#ef6363"/>
+  <rect x="190" y="131" width="74" height="2" rx="1" fill="#dad7d6"/>
+  <rect x="88" y="145" width="180" height="12" rx="2" fill="#f7e3e1"/>
+  <rect x="88" y="165" width="38" height="24" rx="4" fill="#ebe7e4"/>
+  <rect x="130" y="165" width="38" height="24" rx="4" fill="#ebe7e4"/>
+  <rect x="172" y="165" width="38" height="24" rx="4" fill="#ebe7e4"/>
+  <rect x="214" y="165" width="38" height="24" rx="4" fill="#ebe7e4"/>
 </svg>

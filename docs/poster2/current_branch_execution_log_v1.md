@@ -1,5 +1,210 @@
 # Current Branch Execution Log v1
 
+## Entry — P0 SVG preview-asset hotfix from repo-visible reference
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Scope
+
+- selector preview SVG asset replacement only
+- mirror replacement to `docs/templates/` only
+- focused asset validation only
+- branch execution log write-back
+- no registry, HTML, JS, CSS, request builder, renderer, ownership, Stage2, Stage3, or backend change
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- follow the frozen selector-preview spec and repo-visible reference only
+- no runtime truth change
+- keep source and published mirror copies aligned in the same task
+
+### Problem reproduced
+
+- the current local selector preview SVGs still needed to be redrawn against the repo-visible reference image rather than the prior abstract / structural card language
+
+### Root cause found
+
+- selector preview correction required an asset-only redraw using the reference file on `origin/main`:
+  - `frontend/assets/selector_preview_reference.png`
+- no surrounding registry or UI/runtime change was needed
+
+### Exact selector preview asset decision
+
+- redrew only:
+  - `frontend/templates/template_marketing_poster_preview.svg`
+  - `frontend/templates/template_product_sheet_preview.svg`
+- mirrored the same redraw to:
+  - `docs/templates/template_marketing_poster_preview.svg`
+  - `docs/templates/template_product_sheet_preview.svg`
+- matched the repo-visible reference language:
+  - pale gray page background
+  - warm off-white rounded card
+  - pale pink header/support bands
+  - restrained coral accent
+  - low-detail rounded structural blocks only
+- template cue kept minimal:
+  - `Marketing Poster`: top band, hero block, selling-point list, bottom support strip
+  - `Product Sheet`: banner, SKU/top-copy block, main product block, detail strip, lower info block
+
+### Files changed
+
+- `frontend/templates/template_marketing_poster_preview.svg`
+- `frontend/templates/template_product_sheet_preview.svg`
+- `docs/templates/template_marketing_poster_preview.svg`
+- `docs/templates/template_product_sheet_preview.svg`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- selector preview SVG assets only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- mirror equality:
+  - `cmp -s frontend/templates/template_marketing_poster_preview.svg docs/templates/template_marketing_poster_preview.svg`
+  - `cmp -s frontend/templates/template_product_sheet_preview.svg docs/templates/template_product_sheet_preview.svg`
+- asset fingerprint:
+  - `shasum frontend/templates/template_marketing_poster_preview.svg frontend/templates/template_product_sheet_preview.svg docs/templates/template_marketing_poster_preview.svg docs/templates/template_product_sheet_preview.svg`
+- published URL probe before publish:
+  - `curl -sS -I -m 20 https://zhaojfifa.github.io/ai-service/templates/template_marketing_poster_preview.svg`
+  - `curl -sS -I -m 20 https://zhaojfifa.github.io/ai-service/templates/template_product_sheet_preview.svg`
+  - direct content fetch of both published SVG URLs
+
+### Focused validation result
+
+- frontend/docs mirror checks passed
+- matched SHA values:
+  - marketing preview: `6983b2b28c4be135b85170743be60dca10f07208`
+  - product sheet preview: `7daed8e69814df02c919c156d8516a56d4bb6c76`
+- published URL content fetch succeeded, but still returned the previous remotely published SVG content at the time of this local hotfix pass
+- therefore:
+  - local asset replacement is complete
+  - mirror replacement is complete
+  - published URL state had not yet advanced to this local hotfix during this validation snapshot
+
+### Remaining risks
+
+- published URL validation here reflects pre-push / pre-publish remote state, so the remote SVGs still showed the older published asset at check time
+- `CLAUDE.md` had an unrelated local shared-state modification already present in the workspace and was not changed further by this task
+
+### Exact acceptance state
+
+- only the four requested SVG preview files were replaced
+- frontend/docs selector preview assets are identical
+- no registry mapping changed
+- no UI layout or runtime truth changed
+- remote published SVG URLs still reflected older content at validation time because this task had not yet been published when checked
+- `CLAUDE.md` was not updated further by this task
+
+## Entry — Frozen spec: selector preview SVG design spec v1
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Scope
+
+- shared-state freeze only
+- selector preview SVG design-spec freeze only
+- branch execution log write-back
+- no asset, registry, UI, runtime, request, renderer, ownership, Stage2, Stage3, or backend change
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- no implementation change without explicit request
+- record shared state separately from rules and separately from index docs
+
+### Problem reproduced
+
+- future selector preview asset tasks needed a frozen style/spec baseline so asset changes do not drift by interpretation across passes
+
+### Root cause found
+
+- selector preview expectations had been restated across multiple passes, but not yet frozen as a single explicit shared-state rule for future work
+
+### Frozen selector preview SVG design spec v1
+
+- flat, simple, minimal, low-detail, low-contrast selector-card style
+- not wireframe
+- not skeleton/loading style
+- not abstract logic diagram
+- not final poster render
+- consistent fidelity, density, color system, and rounded-card language across templates
+- maximum 2 visual hierarchy levels
+- about 6-10 major structural blocks only
+- only light gray base, pale accent, and one restrained dark support tone
+
+### Frozen template implication limits
+
+- `Marketing Poster` preview may only imply:
+  - top area
+  - hero/main visual area
+  - selling-point emphasis area
+  - bottom support area
+- `Product Sheet` preview may only imply:
+  - banner
+  - SKU/top-copy area
+  - main product area
+  - detail/material strip
+  - lower description/info area
+
+### Future task default from this freeze
+
+- draw only against this frozen spec
+- if a requested preview cannot be confidently drawn within this spec, stop and ask before proceeding
+- selector preview tasks default to SVG asset changes only unless explicitly requested otherwise
+- mirror `frontend/templates/` and `docs/templates/`
+- do not touch registry, app.js, runtime logic, request builder, renderer, ownership, Stage2, Stage3, or backend schema unless explicitly requested
+
+### Files changed
+
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- shared state only
+- branch execution/state log only
+
+### Validation run
+
+- no code/runtime validation required; this pass records frozen design-state only
+
+### Remaining risks
+
+- future preview work must follow this spec exactly; if a request conflicts with it, clarification should be requested before drawing
+
+### Exact acceptance state
+
+- selector preview SVG design spec v1 is now frozen as shared state
+- future selector preview asset work has an explicit non-drifting baseline
+- `docs/poster2/README.md` remained index-only
+- `AGENTS.md` remained rules-only
+
 ## Entry — SVG asset hotfix: selector-card preview refresh
 
 **Branch:** `main`
