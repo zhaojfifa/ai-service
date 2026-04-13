@@ -4,19 +4,19 @@
     <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stage 1 - Assets & Copy (Mode S)</title>
-    <link rel="stylesheet" href="./styles.css?v=3a4b61e" />
+    <title>环节 1 - 素材与文案</title>
+    <link rel="stylesheet" href="./styles.css?v=prui1a" />
   </head>
   <body data-stage="stage1">
     <header>
       <div class="header-content">
         <div>
-          <h1>Marketing Poster Builder</h1>
-          <p>运营只需要补齐素材和英文成稿文案；版式由系统按模板控制。</p>
+          <h1>营销海报工作台</h1>
+          <p>补齐素材与英文文案后进入下一步。</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
-          <span>Backend API Base</span>
+          <span>后端 API Base</span>
           <input
             type="url"
             id="api-base"
@@ -25,152 +25,147 @@
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
-        <span class="active">Stage 1 - Assets & Copy</span>
+        <span class="active">环节 1 - 素材与文案</span>
         <span class="nav-arrow" aria-hidden="true">-></span>
-        <a href="stage2.html">Stage 2 - Generate Poster</a>
+        <a href="stage2.html">环节 2 - 生成海报</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
-        <a href="stage3.html">Stage 3 - Send Email</a>
+        <a href="stage3.html">环节 3 - 发送邮件</a>
       </nav>
     </header>
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 1 — Operator Setup</h2>
-        <p class="hint">按运营配置顺序补齐品牌、产品素材与英文海报文案。此页只做结构化配置，不改模板归属与运行逻辑。</p>
+        <h2>环节 1 - 运营录入</h2>
+        <p class="hint">按顺序填写素材与英文成稿文案。</p>
       </section>
 
-      <section class="card operator-note">
-        <h3>上传说明</h3>
+      <details class="card operator-note operator-note--compact">
+        <summary>上传说明</summary>
         <ul class="operator-note-list">
           <li>支持 PNG / JPG / JPEG / WEBP。</li>
           <li>单张素材建议控制在 20MB 内；最终以上传校验为准。</li>
           <li>建议上传清晰原图，主体完整，长边 1200px 以上更稳。</li>
         </ul>
-      </section>
+      </details>
 
       <form id="poster-form" novalidate>
         <fieldset id="s1-template" class="card stage-card">
-          <legend>Template Preview</legend>
+          <legend>模板预览</legend>
           <div class="grid">
             <label class="field">
-              <span>Poster Type</span>
+              <span>海报类型</span>
               <select id="template-select-stage1" name="template_id"></select>
             </label>
             <label class="field" hidden>
-              <span>Variant</span>
+              <span>变体</span>
               <select id="template-variant-stage1" name="template_variant">
                 <option value="a">Variant A</option>
                 <option value="b">Variant B</option>
               </select>
             </label>
           </div>
-          <p class="hint">先选择海报类型，再查看静态结构预览。这里仅确认模板入口，不改变后端模板真相。</p>
+          <p class="hint">先选模板，再看静态预览。</p>
           <p id="template-description-stage1" class="hint"></p>
           <canvas id="template-preview-stage1" width="360" height="220" aria-label="Template preview"></canvas>
         </fieldset>
 
         <fieldset id="s1-brand" class="card stage-card">
-          <legend>Brand &amp; Series</legend>
-          <p class="hint">这里配置品牌识别信息与系列名。系列名只改文案展示，不改变模板归属或请求结构。</p>
+          <legend>品牌信息</legend>
+          <p class="hint">填写品牌识别信息与系列名。</p>
           <div class="grid">
             <label class="field file-field optional">
-              <span>Brand Logo (optional)</span>
+              <span>品牌 Logo（选填）</span>
               <input type="file" name="brand_logo" accept="image/*" />
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="brand_logo" alt="Brand logo preview" />
               </div>
-              <small class="hint">建议使用 PNG/SVG，透明背景更稳定。</small>
               <small id="brand-logo-status" class="hint">Logo URL: 尚未上传</small>
             </label>
             <label class="field">
-              <span>Brand name</span>
+              <span>品牌名</span>
               <input type="text" name="brand_name" placeholder="e.g., ChefCraft" />
             </label>
             <label class="field optional">
-              <span>Product Series (optional)</span>
+              <span>系列名（选填）</span>
               <input type="text" name="agent_name" placeholder="e.g., Electric Fryer Series" />
             </label>
           </div>
+          <!-- compat: Product Series (optional) -->
         </fieldset>
 
         <fieldset id="s1-core-assets" class="card stage-card" data-variant-visible="all">
-          <legend id="stage1-core-assets-legend">Main Product</legend>
+          <legend id="stage1-core-assets-legend">主产品</legend>
           <div class="stage-subsection" data-variant-visible="a">
-            <h3>Scenario / Visuals</h3>
-            <p class="hint">场景图只负责氛围与使用环境，不接管产品标注区或底部辅助区。</p>
+            <h3>场景图</h3>
+            <p class="hint">补充场景素材或场景提示。</p>
           </div>
           <div class="grid" data-variant-visible="a">
             <label class="field file-field optional">
-              <span>Scenario image (optional)</span>
+              <span>场景图（选填）</span>
               <input type="file" name="scenario_asset" accept="image/*" />
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="scenario_asset" alt="Scenario preview" />
               </div>
-              <small class="hint">不上传时使用默认场景素材。</small>
               <div class="stage1-scenario-actions">
                 <button id="stage1-generate-scenario" class="secondary" type="button">生成场景图</button>
                 <button id="stage1-clear-scenario" class="secondary subtle" type="button">清空场景图</button>
               </div>
-              <small class="hint">仅用于营销海报。AI 会生成 600x800 竖向产品场景图，并回写到当前场景图素材槽，可继续手动上传替换。</small>
               <small id="stage1-scenario-status" class="hint">当前未生成 AI 场景图。</small>
             </label>
             <label class="field">
-              <span>Scenario / Visual note</span>
+              <span>场景提示</span>
               <input type="text" name="scenario_image" placeholder="Default scenario" />
-              <small class="hint">用于补充产品场景方向；它只作为弱提示，不替代产品类别本身。英文输入更利于后续阶段保持一致。</small>
             </label>
           </div>
 
           <div class="stage-subsection">
-            <h3>Main Product</h3>
-            <p class="hint">主产品图、标题和产品标注文案在这里配置。请保持英文成稿与清晰产品图。</p>
+            <h3>主产品</h3>
+            <p class="hint">上传主图并填写英文标题。</p>
           </div>
           <div class="grid">
             <label class="field file-field">
-              <span id="stage1-product1-label">Product image 1 (required)</span>
+              <span id="stage1-product1-label">主产品图（必填）</span>
               <input type="file" name="product_image_1" accept="image/*" required />
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="product_image_1" alt="Product image 1 preview" />
               </div>
-              <small id="stage1-product1-hint" class="hint">请使用清晰产品图，干净背景更稳定。</small>
+              <small id="stage1-product1-hint" class="hint">建议使用清晰产品图。</small>
             </label>
             <label class="field file-field optional">
-              <span id="stage1-product2-label">Product image 2 (optional)</span>
+              <span id="stage1-product2-label">辅助产品图（选填）</span>
               <input type="file" name="product_image_2" accept="image/*" />
               <div class="inline-preview" role="presentation">
                 <img data-inline-preview="product_image_2" alt="Product image 2 preview" />
               </div>
-              <small id="stage1-product2-hint" class="hint">可上传第二角度或细节图；为空也可继续。</small>
-              <button type="button" class="secondary subtle" data-secondary-image-clear>Clear secondary image</button>
+              <small id="stage1-product2-hint" class="hint">可补充第二角度或细节。</small>
+              <button type="button" class="secondary subtle" data-secondary-image-clear>清空辅助图</button>
             </label>
             <label class="field">
-              <span id="stage1-product-desc-label">Product Reference Line</span>
+              <span id="stage1-product-desc-label">产品识别行</span>
               <input type="text" name="product_name" placeholder="Short product descriptor" />
-              <small class="hint">用于补充产品识别，不替代标题或产品标注。</small>
             </label>
           </div>
 
           <div class="grid">
             <label class="field">
-              <span>Title (required)</span>
+              <span>标题（必填）</span>
               <input type="text" name="title" placeholder="1–2 lines recommended" required />
-              <small class="hint">标题请直接填写英文成稿；过长时系统会按安全区缩放或省略。</small>
             </label>
           </div>
 
           <div class="feature-fields">
-            <span class="feature-label">Product Callouts (optional, up to 3)</span>
-            <small class="hint">只进入产品标注区域，不进入 Bottom Support Copy。请使用英文短句，聚焦卖点本身。</small>
+            <span class="feature-label">产品卖点（选填，最多 3 条）</span>
             <div class="feature-grid">
               <input type="text" name="product_callouts" placeholder="Callout 1" />
               <input type="text" name="product_callouts" placeholder="Callout 2" />
               <input type="text" name="product_callouts" placeholder="Callout 3" />
             </div>
           </div>
+          <!-- compat: Product Callouts (optional, up to 3) -->
         </fieldset>
 
         <fieldset id="s1-template-b-fields" class="card stage-card" data-variant-visible="b" hidden>
-          <legend>Product Sheet Details</legend>
+          <legend>产品图录信息</legend>
 
           <div class="grid">
             <label class="field optional">
@@ -200,23 +195,23 @@
         </fieldset>
 
         <fieldset id="s1-bottom-thumbs" class="card stage-card" data-variant-visible="a">
-          <legend>Bottom Area</legend>
+          <legend>底部区域</legend>
           <div class="bottom-area-flow">
-            <p class="hint">这一段只负责底部区域收束；Bottom Support Copy 与底部缩略图都不进入 Product Callouts 的产品标注区。</p>
             <div class="stage-subsection stage-subsection--bottom">
               <h3>底部辅助文案</h3>
-              <p class="hint">先填写底部辅助文案，再补充底部展示素材。</p>
+              <p class="hint">先填文案，再补充展示素材。</p>
             </div>
           <div class="bottom-support-block">
             <label class="field optional">
-              <span id="stage1-subtitle-label">Bottom Support Copy (optional)</span>
+              <span id="stage1-subtitle-label">底部文案（选填）</span>
               <input type="text" name="subtitle" placeholder="底部辅助文案 / short support copy" />
-              <small id="stage1-subtitle-hint" class="hint">只进入底部辅助文案区域，不进入 Product Callouts 对应的产品标注区域。</small>
+              <small id="stage1-subtitle-hint" class="hint">用于底部辅助说明。</small>
             </label>
+            <!-- compat: Bottom Support Copy (optional) -->
           </div>
           <div class="stage-subsection stage-subsection--bottom-assets">
             <h3>底部缩略图</h3>
-            <p class="hint">最多上传 4 张，空槽位允许存在；这一组继续属于 Bottom Area。</p>
+            <p class="hint">最多上传 4 张。</p>
           </div>
           <div id="bottom-thumbnails" class="thumbnail-grid">
             <div class="thumbnail-slot" data-slot-index="0">
@@ -226,10 +221,10 @@
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
-                  Upload / Replace
+                  上传 / 替换
                   <input type="file" name="bottom_slot_1" accept="image/*" />
                 </label>
-                <button type="button" class="secondary" data-bottom-clear="0">Clear</button>
+                <button type="button" class="secondary" data-bottom-clear="0">清空</button>
               </div>
             </div>
             <div class="thumbnail-slot" data-slot-index="1">
@@ -239,10 +234,10 @@
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
-                  Upload / Replace
+                  上传 / 替换
                   <input type="file" name="bottom_slot_2" accept="image/*" />
                 </label>
-                <button type="button" class="secondary" data-bottom-clear="1">Clear</button>
+                <button type="button" class="secondary" data-bottom-clear="1">清空</button>
               </div>
             </div>
             <div class="thumbnail-slot" data-slot-index="2">
@@ -252,10 +247,10 @@
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
-                  Upload / Replace
+                  上传 / 替换
                   <input type="file" name="bottom_slot_3" accept="image/*" />
                 </label>
-                <button type="button" class="secondary" data-bottom-clear="2">Clear</button>
+                <button type="button" class="secondary" data-bottom-clear="2">清空</button>
               </div>
             </div>
             <div class="thumbnail-slot" data-slot-index="3">
@@ -265,27 +260,27 @@
               </div>
               <div class="thumbnail-actions">
                 <label class="button-like">
-                  Upload / Replace
+                  上传 / 替换
                   <input type="file" name="bottom_slot_4" accept="image/*" />
                 </label>
-                <button type="button" class="secondary" data-bottom-clear="3">Clear</button>
+                <button type="button" class="secondary" data-bottom-clear="3">清空</button>
               </div>
             </div>
           </div>
           <label class="field inline optional">
             <input type="checkbox" name="allow_auto_fill" checked />
-            <span>Allow auto-fill (Mode S asset utilization)</span>
+            <span>允许自动补足</span>
           </label>
           </div>
         </fieldset>
         <section class="card wireframe-card">
           <div class="section-heading-row">
             <div>
-              <h3>Template Preview</h3>
-              <p class="hint">用于确认当前 Stage1 结构预览与文案状态，不用于修改模板逻辑、Stage2 请求真相或字段归属。</p>
+              <h3>版式预览</h3>
               <p id="preview-stale-status" class="hint">预览已收起，可在需要时打开。</p>
             </div>
-            <button id="open-stage1-preview" class="secondary" type="button" aria-expanded="false" aria-controls="preview-container">Open Preview</button>
+            <button id="open-stage1-preview" class="secondary" type="button" aria-expanded="false" aria-controls="preview-container">打开预览</button>
+            <!-- compat: Open Preview -->
           </div>
           <div id="preview-container" class="preview hidden">
             <div id="preview-family-a" class="poster-preview">
@@ -352,11 +347,12 @@
               </div>
             </div>
           </div>
-          <div class="preview-copy-review">
+          <details class="preview-copy-review">
+            <summary>文案优化</summary>
             <div class="section-heading-row preview-copy-review__header">
               <div>
-                <h4>Copy Review In Preview</h4>
-                <p class="hint">当前预览流内查看原始输入、建议层与已接受层。只有明确操作才会写入已接受层或同步回输入框。</p>
+                <h4>预览内文案检查</h4>
+                <p class="hint">需要时再查看建议与已接受内容。</p>
               </div>
               <button id="stage1-generate-suggestions" class="secondary" type="button">生成建议</button>
             </div>
@@ -368,7 +364,7 @@
               <button id="stage1-clear-accepted" class="secondary subtle" type="button">清空已接受层</button>
             </div>
             <div id="stage1-suggestion-list" class="stage1-suggestion-list"></div>
-          </div>
+          </details>
         </section>
 
         <section class="card stage-card">
@@ -387,6 +383,6 @@
     </footer>
     <script defer src="./placeholder.js?v=3"></script>
     <script defer src="./stage2_request_helpers.js?v=2"></script>
-    <script defer src="./app.js?v=0cbaf65"></script>
+    <script defer src="./app.js?v=prui1a"></script>
   </body>
 </html>

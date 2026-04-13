@@ -127,6 +127,16 @@ main {
   font-size: 1rem;
 }
 
+.operator-note summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #1f2933;
+}
+
+.operator-note--compact[open] summary {
+  margin-bottom: 0.85rem;
+}
+
 .operator-note-list {
   margin: 0;
   padding-left: 1.1rem;
@@ -269,6 +279,17 @@ main {
   margin-top: 1rem;
   border-top: 1px solid #d9e2ec;
   padding-top: 1rem;
+}
+
+.preview-copy-review summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #1f2933;
+  margin-bottom: 0.85rem;
+}
+
+.preview-copy-review[open] summary {
+  margin-bottom: 1rem;
 }
 
 .preview-copy-review__header h4 {
@@ -1503,6 +1524,33 @@ main {
 .stage3-advanced-panel {
   margin-top: 1.5rem;
   background: #f8fafc;
+}
+
+.s2-inline-hint {
+  margin: -0.15rem 0 0;
+}
+
+.s2-secondary-details {
+  border: 1px solid #e4e7eb;
+  border-radius: 8px;
+  background: #fafaf9;
+  padding: 0.8rem 0.9rem;
+}
+
+.s2-secondary-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #52606d;
+}
+
+.s2-secondary-details[open] summary {
+  margin-bottom: 0.75rem;
+}
+
+.s2-secondary-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .top-banner-grid {

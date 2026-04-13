@@ -1,5 +1,178 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-UI1: operator UI simplification and debug de-emphasis
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- re-anchored required baseline docs before edits:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- then minimum task files only:
+  - `frontend/index.html`
+  - `frontend/stage2.html`
+  - `frontend/stage3.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/index.html`
+  - `docs/stage2.html`
+  - `docs/stage3.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-UI1 only
+- bounded frontend/docs presentation cleanup only
+- simplify Stage1 operator form and Stage2 generate-and-confirm flow
+- keep Stage3 changes lightweight and consistency-only
+- no contract change
+- no request truth change
+- no Stage1/Stage2/Stage3 backend truth-path change
+- no mode semantics change
+- no routing change
+- no renderer behavior change
+- no copy optimizer logic change
+- keep frontend/docs mirror aligned
+- update branch execution log before stop
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- behavior before beautification
+- no request/routing/runtime truth changes
+- debug/status detail moved behind collapse instead of being removed from evidence paths
+- source and published mirror were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage1 main flow was text-heavy and repeated internal ownership / contract disclaimers in multiple visible hints
+- Stage2 main flow exposed internal status surfaces, pilot/debug badges, and copy-optimization detail too close to the primary preview/generate path
+- mixed-language UI presentation was inconsistent:
+  - some operator headings and labels remained English
+  - option values and content were mixed with explanatory English labels
+- Stage3 still carried several English operator-facing headings even though a collapsed advanced area already existed
+
+### Root cause found
+
+- operator guidance had accumulated as inline visible hints rather than being constrained to short section-level reminders
+- internal/debug/status surfaces were technically already separable, but several were still rendered in the primary panel headers and body areas
+- wording decisions were not normalized to a single rule for operator labels versus structured values/content
+
+### Exact UI simplification decisions
+
+- Stage1:
+  - replaced the always-open upload note card with a collapsed `details` block
+  - reduced top-level page guidance to one short sentence
+  - shortened section hints to one short operator-facing sentence per major section
+  - removed repeated visible disclaimers about template truth / request truth / ownership from the main form
+  - collapsed preview-side copy review into a secondary `details` block
+  - kept preview and existing controls intact
+- Stage2:
+  - renamed panels and controls to shorter operator-facing Chinese labels
+  - kept preview visually central and primary
+  - moved copy-optimization actions, summary, and lineage behind a collapsed `details` section
+  - moved `poster_key` into a collapsed result-details section
+  - hid preview-header status badges from the primary view
+  - hid template / engine badges from the visible diagnostics header
+  - kept diagnostics available through the existing collapsed details control
+- Stage3:
+  - converted main headings and labels to Chinese for consistency
+  - kept advanced/source area collapsed
+  - kept send actions prominent and advanced metadata secondary
+
+### Exact language-unification decisions
+
+- Chinese used consistently for:
+  - page titles
+  - section headings
+  - field labels
+  - helper sentences
+  - primary buttons and navigation text
+- English preserved for:
+  - structured option values and mode values such as `off`, `suggest`, `apply`, `title_gallery_split`, `gallery_only`, `inline_only`, `resend`
+  - entered copy and poster content placeholders
+  - structured identifiers such as `poster_key`
+- compatibility-only legacy English strings required by the existing sync test were preserved as hidden HTML comments, not visible operator copy
+
+### Exact debug/log de-emphasis decisions
+
+- copy-optimization lineage moved behind collapsed secondary UI
+- copy-optimization summary/actions moved behind collapsed secondary UI
+- Stage2 preview header status chips no longer compete in the primary preview header
+- Stage2 template / engine badge row no longer competes in the primary diagnostics header
+- result metadata such as `poster_key` moved behind collapsed secondary UI
+- Stage3 advanced delivery/source details remained collapsed and were relabeled as a secondary area
+- no debug evidence bindings or hidden metadata sinks were removed; only presentation hierarchy changed
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/stage3.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 operator-facing HTML wording and information hierarchy
+- Stage2 operator-facing HTML wording and information hierarchy
+- Stage3 lightweight consistency wording
+- shared frontend/docs presentation CSS
+- small frontend/docs UI-label JS adjustments only
+- branch execution/state log
+
+### Focused validation run
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+  - `cmp -s frontend/index.html docs/index.html`
+  - `cmp -s frontend/stage2.html docs/stage2.html`
+  - `cmp -s frontend/stage3.html docs/stage3.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+- focused acceptance checks from the edited markup/runtime:
+  - Stage1 main flow now uses shorter Chinese section headings and visibly reduced inline help density
+  - Stage2 main flow keeps preview primary while optimization/detail surfaces are collapsed
+  - Stage3 advanced/source details remain collapsed and secondary
+  - structured English values/modes remain intact
+  - no request/routing/runtime files or helper truth paths were changed
+
+### Remaining risks
+
+- no browser screenshot harness was run in this pass, so before/after screenshots were not captured in this workspace
+- one existing repo sync test still encodes several legacy English Stage1/Stage2 strings; this pass preserved those tokens as hidden compatibility comments so UI cleanup could proceed without weakening the current test
+- `CLAUDE.md` was already dirty in the worktree before closeout; it was not edited for PR-UI1 because no new shared-state fact needed to be recorded there
+
+### Exact acceptance state
+
+- Stage1 is visibly lighter and less repetitive in the main operator flow
+- Stage2 is visibly cleaner and more preview-first, with debug/status/lineage surfaces moved to collapsed secondary areas
+- Stage3 consistency is improved without widening scope
+- Chinese headings/help plus English values/content are applied consistently on the edited surfaces
+- no request truth, routing, runtime truth, renderer behavior, or optimizer logic changed
+- frontend/docs mirror is aligned
+- branch execution log is updated
+- acceptance target for PR-UI1 is met
+
 ## Entry — PR-OP6A: Stage2 failure-classification hardening
 
 **Branch:** `main`

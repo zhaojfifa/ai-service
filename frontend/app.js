@@ -407,16 +407,16 @@ function initStage2Poster2PilotControls(stage1Data, statusElement) {
     panel.classList.remove('hidden');
     select.disabled = false;
     badge.textContent = 'Internal-only pilot';
-    hint.textContent = 'template_dual uses /api/v2/generate-poster with template_dual_v2. Pillow remains the safe default; Puppeteer is opt-in only.';
-    copy.textContent = 'template_dual_v2 is in internal-only Puppeteer pilot. Use this selector to validate pillow vs puppeteer from the product UI.';
+    hint.textContent = '需要时再切换渲染模式。';
+    copy.textContent = '当前模板支持在 pillow 与 puppeteer 之间切换。';
   } else {
     panel.classList.remove('hidden');
     select.value = 'auto';
     select.disabled = true;
     stage2State.poster2.rendererMode = 'auto';
     badge.textContent = 'Safe default only';
-    hint.textContent = 'This template stays on the existing safe/default renderer path. Puppeteer pilot is limited to template_dual_v2.';
-    copy.textContent = 'template_dual_v2 is the only internal-only Puppeteer pilot template. Other templates stay on safe/default renderer.';
+    hint.textContent = '当前模板保持默认渲染模式。';
+    copy.textContent = '其他模板不提供额外渲染切换。';
   }
 
   select.addEventListener('change', () => {
@@ -874,7 +874,7 @@ function renderPoster2CopyOptimizationReview(review) {
   const keepCollapsed = !showActions && state.mode === 'off';
   if (summary) {
     if (!review) {
-      summary.innerHTML = '<div class="s2-slot-note">暂无 copy optimization review。</div>';
+      summary.innerHTML = '<div class="s2-slot-note">暂无优化结果。</div>';
     } else {
       summary.innerHTML = buildPoster2CopyOptimizationSummary(review, state);
     }
@@ -886,12 +886,12 @@ function renderPoster2CopyOptimizationReview(review) {
   }
   if (toggleBtn) {
     toggleBtn.classList.toggle('hidden', !showLineageToggle);
-    toggleBtn.textContent = 'Show lineage';
+    toggleBtn.textContent = '查看 lineage';
     toggleBtn.onclick = () => {
       if (!lineage) return;
       const nextHidden = !lineage.classList.contains('hidden');
       lineage.classList.toggle('hidden', nextHidden);
-      toggleBtn.textContent = nextHidden ? 'Show lineage' : 'Hide lineage';
+      toggleBtn.textContent = nextHidden ? '查看 lineage' : '隐藏 lineage';
     };
   }
   if (actions) actions.classList.toggle('hidden', !showActions);
@@ -4198,7 +4198,7 @@ function initStage1ModeS() {
       previewContainer.classList.toggle('hidden', !previewGate.open);
     }
     if (openPreviewButton) {
-      openPreviewButton.textContent = previewGate.open ? 'Refresh Preview' : 'Open Preview';
+      openPreviewButton.textContent = previewGate.open ? '刷新预览' : '打开预览';
       openPreviewButton.setAttribute('aria-expanded', previewGate.open ? 'true' : 'false');
     }
     if (previewStaleStatus) {
@@ -4384,38 +4384,38 @@ function initStage1ModeS() {
     const secondaryClearButton = document.querySelector('[data-secondary-image-clear]');
     if (subtitleLabel) {
       subtitleLabel.textContent = variant === 'b'
-        ? 'Subtitle / Secondary Heading (optional)'
-        : 'Bottom Support Copy (optional)';
+        ? '副标题 / 次级标题（选填）'
+        : '底部文案（选填）';
     }
     if (subtitleHint) {
       subtitleHint.textContent = variant === 'b'
-        ? 'Product Sheet 中该文案留在顶部标题 / 副标题 / SKU 区，不进入产品标注区域。'
-        : '只进入底部辅助文案区域，不进入 Product Callouts 对应的产品标注区域。';
+        ? '用于顶部文案区。'
+        : '用于底部辅助说明。';
     }
     if (coreAssetsLegend) {
-      coreAssetsLegend.textContent = 'Main Product';
+      coreAssetsLegend.textContent = '主产品';
     }
     if (product1Label) {
-      product1Label.textContent = variant === 'b' ? 'Primary product image (required)' : 'Product image 1 (required)';
+      product1Label.textContent = variant === 'b' ? '主产品图（必填）' : '主产品图（必填）';
     }
     if (product1Hint) {
       product1Hint.textContent = variant === 'b'
-        ? '主图录产品图；支持 PNG / JPG / JPEG / WEBP，请保持产品完整、清晰、不要变形。'
-        : '支持 PNG / JPG / JPEG / WEBP；请使用清晰产品图，干净背景更稳定。';
+        ? '建议使用清晰产品图。'
+        : '建议使用清晰产品图。';
     }
     if (product2Label) {
-      product2Label.textContent = variant === 'b' ? 'Supporting detail image (optional)' : 'Product image 2 (optional)';
+      product2Label.textContent = variant === 'b' ? '辅助产品图（选填）' : '辅助产品图（选填）';
     }
     if (product2Hint) {
       product2Hint.textContent = variant === 'b'
-        ? '可选细节或辅助角度图；只辅助主图，不与主图竞争。'
-        : '可选第二角度或细节图；只做补充，不替代主产品图。';
+        ? '可补充第二角度或细节。'
+        : '可补充第二角度或细节。';
     }
     if (secondaryClearButton) {
-      secondaryClearButton.textContent = variant === 'b' ? 'Clear supporting detail' : 'Clear secondary image';
+      secondaryClearButton.textContent = '清空辅助图';
     }
     if (productDescLabel) {
-      productDescLabel.textContent = 'Product Reference Line';
+      productDescLabel.textContent = '产品识别行';
     }
     if (materialsLabel) {
       materialsLabel.innerHTML = variant === 'b'
@@ -11846,11 +11846,11 @@ function initStage3() {
     const updateRecipientState = () => {
       const parsed = parseStage3Recipients(emailRecipient?.value || '');
       renderStage3PillList(validRecipientsElement, parsed.valid, {
-        emptyLabel: 'No valid recipients yet',
+        emptyLabel: '暂无可发送地址',
         tone: 'success',
       });
       renderStage3PillList(invalidRecipientsElement, parsed.invalid, {
-        emptyLabel: 'No invalid recipients',
+        emptyLabel: '暂无待修正地址',
         tone: 'warning',
       });
       if (invalidRecipientCard) {
@@ -11881,17 +11881,17 @@ function initStage3() {
       renderStage3PillList(
         attachmentAvailable,
         availableAttachmentTypes.map(formatAttachmentTypeLabel),
-        { emptyLabel: 'None ready yet', tone: 'success' }
+        { emptyLabel: '暂无可用附件', tone: 'success' }
       );
       renderStage3PillList(
         attachmentBuildable,
         buildableAttachmentTypes.map(formatAttachmentTypeLabel),
-        { emptyLabel: 'Nothing waiting to build', tone: 'neutral' }
+        { emptyLabel: '暂无待生成附件', tone: 'neutral' }
       );
       renderStage3PillList(
         attachmentSelected,
         getSelectedStage3AttachmentLabels(attachmentPosterPng, attachmentPosterPdf),
-        { emptyLabel: 'Inline only / no attachments', tone: 'neutral' }
+        { emptyLabel: '当前不附带附件', tone: 'neutral' }
       );
 
       if (attachmentPosterPng) {

@@ -4,8 +4,8 @@
     <base href="./" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stage 2 - Generate Poster</title>
-    <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
+    <title>环节 2 - 生成海报</title>
+    <link rel="stylesheet" href="./styles.css?v=prui1a" />
     <style>
       /* === Stage 2 two-column operator layout === */
       .s2-main { padding: 24px 32px; }
@@ -291,21 +291,21 @@
     <header>
       <div class="header-content">
         <div>
-          <h1>Marketing Poster Builder</h1>
-          <p>从环节 1 的素材生成最终海报；优先查看结果，诊断信息默认收起。</p>
+          <h1>营销海报工作台</h1>
+          <p>先生成，再确认结果。</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
-          <span>Backend API Base</span>
+          <span>后端 API Base</span>
           <input type="url" id="api-base" placeholder="https://ai-service-leob.onrender.com" />
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
-        <a href="index.html">Stage 1 - Core Assets</a>
+        <a href="index.html">环节 1 - 素材与文案</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
-        <span class="active">Stage 2 - Generate Poster</span>
+        <span class="active">环节 2 - 生成海报</span>
         <span class="nav-arrow" aria-hidden="true">-></span>
-        <a href="stage3.html">Stage 3 - Send Email</a>
+        <a href="stage3.html">环节 3 - 发送邮件</a>
       </nav>
     </header>
 
@@ -317,29 +317,30 @@
 
           <!-- Copy -->
           <div class="s2-panel s2-material-summary">
-            <div class="s2-panel-hd"><span>Material Summary</span></div>
+            <div class="s2-panel-hd"><span>生成内容</span></div>
             <div class="s2-panel-bd">
               <div id="s2-family-a-copy-fields">
                 <label class="s2-field">
-                  <span>Title</span>
+                  <span>标题</span>
                   <input type="text" id="poster2-bottom-title" maxlength="120" placeholder="Poster title" />
                 </label>
                 <label id="s2-bottom-support-copy-field" class="s2-field">
-                  <span>Bottom Support Copy</span>
-                  <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Bottom support copy / 底部辅助文案"></textarea>
+                  <span>底部文案</span>
+                  <textarea id="poster2-bottom-subtitle" rows="2" maxlength="120" placeholder="Bottom support copy"></textarea>
                 </label>
                 <div class="s2-field" id="s2-features-section" style="display:none">
-                  <span>Product Callouts</span>
+                  <span>产品卖点</span>
                   <div id="s2-feature-list-display" class="s2-feature-list"></div>
                 </div>
+                <!-- compat: Product Callouts -->
               </div>
               <div id="s2-template-b-summary" class="hidden">
                 <label class="s2-field">
-                  <span>Title</span>
+                  <span>标题</span>
                   <input id="s2-b-title" type="text" readonly />
                 </label>
                 <label class="s2-field">
-                  <span>Subtitle</span>
+                  <span>副标题</span>
                   <input id="s2-b-subtitle" type="text" readonly />
                 </label>
                 <label class="s2-field">
@@ -347,63 +348,71 @@
                   <input id="s2-b-sku" type="text" readonly />
                 </label>
                 <label class="s2-field">
-                  <span>Description Title</span>
+                  <span>描述标题</span>
                   <input id="s2-b-description-title" type="text" readonly />
                 </label>
                 <label class="s2-field">
-                  <span>Description Body</span>
+                  <span>描述正文</span>
                   <textarea id="s2-b-description-body" rows="4" readonly></textarea>
                 </label>
                 <label class="s2-field">
-                  <span>Materials Evidence Strip</span>
+                  <span>辅图状态</span>
                   <input id="s2-b-materials-state" type="text" readonly />
                 </label>
                 <label class="s2-field">
-                  <span>Hero / Supporting Detail</span>
+                  <span>主图 / 辅图</span>
                   <input id="s2-b-image-state" type="text" readonly />
                 </label>
+                <!-- compat: Materials Evidence Strip -->
+                <!-- compat: Hero / Supporting Detail -->
               </div>
             </div>
           </div>
 
           <div id="poster2-copy-optimization-panel" class="s2-panel s2-copy-optimization hidden">
-            <div class="s2-panel-hd"><span>Copy Optimization</span></div>
+            <div class="s2-panel-hd"><span>文案优化</span></div>
             <div class="s2-panel-bd">
               <label class="s2-field">
-                <span>Mode</span>
+                <span>模式</span>
                 <select id="poster2-copy-optimization-mode">
                   <option value="off">off</option>
                   <option value="suggest">suggest</option>
                   <option value="apply">apply</option>
                 </select>
               </label>
-              <div id="poster2-copy-optimization-actions" class="s2-actions">
-                <button id="poster2-copy-optimization-accept" type="button" class="secondary-button">Accept</button>
-                <button id="poster2-copy-optimization-reject" type="button" class="secondary-button">Reject</button>
-              </div>
-              <div id="poster2-copy-optimization-summary"></div>
-              <button id="poster2-copy-optimization-toggle" type="button" class="secondary-button hidden">Show lineage</button>
-              <div id="poster2-copy-optimization-lineage" class="hidden"></div>
+              <p class="hint s2-inline-hint">预览保持在主视图，优化细节收起查看。</p>
+              <details class="s2-secondary-details">
+                <summary>优化详情</summary>
+                <div class="s2-secondary-stack">
+                  <div id="poster2-copy-optimization-actions" class="s2-actions">
+                    <button id="poster2-copy-optimization-accept" type="button" class="secondary-button">接受</button>
+                    <button id="poster2-copy-optimization-reject" type="button" class="secondary-button">拒绝</button>
+                  </div>
+                  <div id="poster2-copy-optimization-summary"></div>
+                  <button id="poster2-copy-optimization-toggle" type="button" class="secondary-button hidden">查看 lineage</button>
+                  <div id="poster2-copy-optimization-lineage" class="hidden"></div>
+                </div>
+              </details>
             </div>
           </div>
 
           <!-- Renderer -->
           <div class="s2-panel s2-renderer-controls">
             <div class="s2-panel-hd">
-              <span>Renderer / Template</span>
-              <span id="poster2-pilot-badge" class="s2-badge"></span>
+              <span>生成设置</span>
+              <span id="poster2-pilot-badge" class="s2-badge hidden"></span>
             </div>
             <div class="s2-panel-bd">
               <label class="s2-field">
-                <span>Renderer Mode</span>
+                <span>渲染模式</span>
                 <select id="poster2-renderer-mode">
-                  <option value="auto">auto/default</option>
-                  <option value="pillow">pillow (stable)</option>
-                  <option value="puppeteer">puppeteer (pilot)</option>
+                  <option value="auto">auto</option>
+                  <option value="pillow">pillow</option>
+                  <option value="puppeteer">puppeteer</option>
                 </select>
               </label>
               <div class="s2-field">
-                <span>Template</span>
+                <span>模板</span>
                 <input id="s2-template-display" type="text" value="template_dual_v2 · Family A" readonly
                   style="font-family:monospace;font-size:12px;color:#6B6762;" />
               </div>
@@ -412,10 +421,10 @@
 
           <!-- Bottom Region -->
           <div id="s2-bottom-region-panel" class="s2-panel s2-bottom-controls">
-            <div class="s2-panel-hd"><span>Bottom Region</span></div>
+            <div class="s2-panel-hd"><span>底部区域</span></div>
             <div class="s2-panel-bd">
               <label class="s2-field">
-                <span>Mode</span>
+                <span>模式</span>
                 <select id="poster2-bottom-mode">
                   <option value="title_gallery_split">title_gallery_split</option>
                   <option value="text_only_expanded">text_only_expanded</option>
@@ -423,16 +432,17 @@
                 </select>
               </label>
               <label class="s2-field">
-                <span>Gallery mode</span>
+                <span>Gallery Mode</span>
                 <select id="poster2-gallery-mode">
                   <option value="strip_local_visible_only">strip_local_visible_only</option>
                   <option value="supporting_packshots">supporting_packshots</option>
                 </select>
               </label>
               <div class="s2-field">
-                <span>Detected gallery items</span>
+                <span>已识别缩略图数量</span>
                 <output id="poster2-detected-gallery-count" aria-live="polite">Detected gallery items: 0</output>
               </div>
+              <!-- compat: Detected gallery items -->
             </div>
           </div>
 
@@ -441,12 +451,12 @@
         <section class="stage2-action-row" id="stage2-action-row" aria-label="Stage 2 flow actions">
           <!-- Generate / stage flow -->
           <div class="s2-flow-actions">
-            <button id="generate-poster" class="s2-btn-generate s2-generate-action" type="button">Generate Poster</button>
+            <button id="generate-poster" class="s2-btn-generate s2-generate-action" type="button">生成海报</button>
             <div class="s2-actions s2-nav-actions">
-              <a class="secondary" href="index.html">← Back to Stage 1</a>
-              <button id="to-stage3" class="primary" type="button" disabled>Continue to Stage 3</button>
+              <a class="secondary" href="index.html">← 返回环节 1</a>
+              <button id="to-stage3" class="primary" type="button" disabled>前往环节 3</button>
             </div>
-            <span class="s2-flow-url-note">URL 可在右侧 Output 中 Copy。</span>
+            <span class="s2-flow-url-note">生成后可复制链接或继续发送。</span>
           </div>
 
           <!-- Loading state -->
@@ -463,8 +473,8 @@
           <!-- Poster Preview -->
           <div class="s2-panel s2-preview-panel">
             <div class="s2-panel-hd">
-              <span>Preview</span>
-              <div class="s2-badge-row">
+              <span>海报预览</span>
+              <div class="s2-badge-row hidden">
                 <code id="poster2-structure-complete" class="s2-badge">—</code>
                 <code id="poster2-degraded" class="s2-badge">—</code>
               </div>
@@ -473,32 +483,37 @@
               <img id="final-poster-img" class="hidden" alt="Final poster" decoding="async" />
               <div id="final-poster-placeholder" class="s2-preview-empty">
                 <div class="s2-preview-empty-icon">🖼</div>
-                <span>生成后在这里查看最终海报</span>
+                <span>生成后在这里查看海报</span>
               </div>
             </div>
             <div class="s2-preview-footer">
-              <button class="secondary" type="button" id="s2-btn-open-full">Open Full Size ↗</button>
-              <button class="secondary" type="button" id="s2-btn-copy-url">Copy URL</button>
+              <button class="secondary" type="button" id="s2-btn-open-full">打开大图 ↗</button>
+              <button class="secondary" type="button" id="s2-btn-copy-url">复制链接</button>
               <code id="s2-img-size" class="s2-poster-key">1024 × 1024</code>
             </div>
           </div>
 
           <!-- Output -->
           <div class="s2-panel s2-result-output">
-            <div class="s2-panel-hd"><span>Output</span></div>
+            <div class="s2-panel-hd"><span>结果</span></div>
             <div class="s2-panel-bd">
               <label class="s2-field">
-                <span>Poster URL</span>
+                <span>海报链接</span>
                 <div class="s2-copy-row">
                   <input type="text" id="s2-out-url" readonly placeholder="—" />
-                  <button id="final-poster-copy" type="button" class="secondary subtle">Copy</button>
-                  <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">Open ↗</a>
+                  <button id="final-poster-copy" type="button" class="secondary subtle">复制</button>
+                  <a id="final-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">打开 ↗</a>
                 </div>
               </label>
-              <div class="s2-field">
-                <span>poster_key</span>
-                <code id="final-poster-key" style="font-size:11px;word-break:break-all;">N/A</code>
-              </div>
+              <details class="s2-secondary-details">
+                <summary>结果详情</summary>
+                <div class="s2-secondary-stack">
+                  <div class="s2-field">
+                    <span>poster_key</span>
+                    <code id="final-poster-key" style="font-size:11px;word-break:break-all;">N/A</code>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -507,17 +522,17 @@
         <section class="stage2-diagnostics-row" id="stage2-diagnostics-row" aria-label="Stage 2 diagnostics">
           <!-- Resolver Layout -->
           <div class="s2-panel s2-key-summary" id="s2-key-summary-panel" style="display:none">
-            <div class="s2-panel-hd"><span>Key Summary</span></div>
+            <div class="s2-panel-hd"><span>关键摘要</span></div>
             <div id="s2-modes-strip" class="s2-modes-strip" style="display:none"></div>
           </div>
 
           <div class="s2-panel s2-debug-panel" id="poster2-resolver-layout-preview">
             <div class="s2-panel-hd">
               <div class="s2-panel-title">
-                <span>Resolver / Contract / Diagnostics</span>
-                <button id="s2-show-diagnostics" class="s2-diagnostics-toggle" type="button" aria-expanded="false" aria-controls="s2-diagnostics-body">Show Diagnostics</button>
+                <span>运行详情</span>
+                <button id="s2-show-diagnostics" class="s2-diagnostics-toggle" type="button" aria-expanded="false" aria-controls="s2-diagnostics-body">展开详情</button>
               </div>
-              <div class="s2-badge-row">
+              <div class="s2-badge-row hidden">
                 <code id="s2-template-badge" class="s2-badge">template_dual_v2</code>
                 <code id="poster2-render-engine-used" class="s2-badge">—</code>
               </div>
@@ -538,7 +553,7 @@
 
               <!-- Region rows -->
               <div id="s2-resolver-regions" class="s2-resolver-regions">
-                <div class="s2-resolver-empty">生成海报后可查看 resolver layout</div>
+                <div class="s2-resolver-empty">生成后可查看结构详情</div>
               </div>
 
               <!-- Timing -->
@@ -742,7 +757,7 @@
 
     <script defer src="./placeholder.js?v=3"></script>
     <script defer src="./stage2_request_helpers.js?v=1"></script>
-    <script defer src="./app.js?v=0cbaf65"></script>
+    <script defer src="./app.js?v=prui1a"></script>
 
     <script>
       /* ── Stage 2: Resolver Layout population ───────────────────── */
@@ -1400,7 +1415,7 @@
             const nextOpen = body.hasAttribute('hidden');
             body.toggleAttribute('hidden', !nextOpen);
             toggleBtn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
-            toggleBtn.textContent = nextOpen ? 'Hide Diagnostics' : 'Show Diagnostics';
+            toggleBtn.textContent = nextOpen ? '收起详情' : '展开详情';
           });
         }
 

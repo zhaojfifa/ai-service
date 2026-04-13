@@ -4,19 +4,19 @@
     <base href="./">
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stage 3 - Send Email</title>
-    <link rel="stylesheet" href="./styles.css?v=0cbaf65" />
+    <title>环节 3 - 发送邮件</title>
+    <link rel="stylesheet" href="./styles.css?v=prui1a" />
   </head>
   <body data-stage="stage3">
     <header>
       <div class="header-content">
         <div>
-          <h1>Marketing Poster Builder</h1>
-          <p>确认最终海报和可发送邮件文案；HTML 源码默认收起。</p>
+          <h1>营销海报工作台</h1>
+          <p>确认海报、收件人和邮件内容后发送。</p>
           <div id="build-info" class="build-info"></div>
         </div>
         <label class="api-config">
-          <span>Backend API Base</span>
+          <span>后端 API Base</span>
           <input
             type="url"
             id="api-base"
@@ -25,21 +25,21 @@
         </label>
       </div>
       <nav class="stage-nav" aria-label="Workflow navigation">
-        <a href="index.html">Stage 1 - Core Assets</a>
+        <a href="index.html">环节 1 - 素材与文案</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
-        <a href="stage2.html">Stage 2 - Generate Poster</a>
+        <a href="stage2.html">环节 2 - 生成海报</a>
         <span class="nav-arrow" aria-hidden="true">-></span>
-        <span class="active">Stage 3 - Send Email</span>
+        <span class="active">环节 3 - 发送邮件</span>
       </nav>
     </header>
 
     <main>
       <section class="card stage-card">
-        <h2>Stage 3 - Delivery Review</h2>
-        <p class="hint">请确认收件人、邮件文案与附件方式，然后发送。</p>
+        <h2>环节 3 - 发送确认</h2>
+        <p class="hint">确认收件人、邮件文案与附件方式。</p>
 
         <div class="output-group" id="stage3-preview">
-          <h3>Poster Preview</h3>
+          <h3>海报预览</h3>
           <div class="stage3-preview-grid">
             <figure class="poster-figure">
               <img id="stage3-poster-image" alt="Poster preview" />
@@ -47,18 +47,18 @@
               <p id="stage3-poster-identity" class="hint"></p>
             </figure>
             <div class="stage3-card">
-              <h4>Ready To Send</h4>
-              <p class="hint">海报保持可见，下面依次确认收件人、文案和附件方式即可。</p>
+              <h4>发送前检查</h4>
+              <p class="hint">按顺序确认收件人、文案和附件。</p>
             </div>
           </div>
         </div>
 
         <form id="email-form" class="stage3-form">
           <div class="output-group">
-            <h3>Recipients</h3>
+            <h3>收件人</h3>
             <p class="hint">支持逗号或分号分隔的多个邮箱地址。发送前会做去重和基础校验。</p>
             <label class="field">
-              <span>Recipients</span>
+              <span>收件邮箱</span>
               <textarea id="email-recipient" rows="3" required placeholder="alice@example.com, bob@example.com; team@example.com"></textarea>
             </label>
             <p id="email-recipient-feedback" class="hint"></p>
@@ -75,12 +75,12 @@
           </div>
 
           <div class="output-group">
-            <h3>Copy Confirmation</h3>
+            <h3>文案确认</h3>
             <p id="email-draft-source" class="hint"></p>
             <p id="email-draft-summary" class="hint"></p>
             <div class="grid">
               <label class="field">
-                <span>Subject</span>
+                <span>邮件主题</span>
                 <input type="text" id="email-subject" required />
               </label>
               <label class="field">
@@ -91,32 +91,32 @@
           </div>
 
           <div class="output-group">
-            <h3>Email Draft Preview</h3>
+            <h3>邮件预览</h3>
             <label class="field">
-              <span>Body Copy</span>
+              <span>正文</span>
               <textarea id="email-text" rows="8" required></textarea>
             </label>
             <div id="email-html-preview" class="prompt-wrapper stage3-email-preview"></div>
           </div>
 
           <div class="output-group" id="email-attachment-group" hidden>
-            <h3>Attachment Choice</h3>
+            <h3>附件选择</h3>
             <p id="email-attachment-status" class="hint"></p>
             <div class="stage3-attachment-grid">
               <div class="stage3-card">
-                <h4>Available Attachments</h4>
+                <h4>可用附件</h4>
                 <div id="email-attachment-available" class="stage3-pill-list"></div>
               </div>
               <div class="stage3-card">
-                <h4>Selected For This Send</h4>
+                <h4>本次发送</h4>
                 <div id="email-attachment-selected" class="stage3-pill-list"></div>
               </div>
               <div class="stage3-card">
-                <h4>Buildable Later</h4>
+                <h4>可后续生成</h4>
                 <div id="email-attachment-buildable" class="stage3-pill-list"></div>
               </div>
               <div class="stage3-card">
-                <h4>Delivery Mode</h4>
+                <h4>发送方式</h4>
                 <label class="field">
                   <span>Delivery Mode</span>
                   <select id="email-delivery-mode">
@@ -133,18 +133,18 @@
           </div>
 
           <div class="output-group">
-            <h3>Send</h3>
+            <h3>发送</h3>
             <div class="actions">
-              <a class="secondary" href="stage2.html">Back to Stage 2</a>
+              <a class="secondary" href="stage2.html">返回环节 2</a>
               <button id="refresh-email-preview" class="secondary" type="button" disabled>AI 优化文案</button>
-              <button id="send-email" class="primary" type="button" disabled>Send Email</button>
+              <button id="send-email" class="primary" type="button" disabled>发送邮件</button>
             </div>
           </div>
         </form>
 
         <details class="source-details stage3-advanced-panel" id="email-source-details">
-          <summary>Advanced Delivery Details / Show HTML Source</summary>
-          <p class="hint">此区域保留后端真值与高级调试信息，不参与主发送确认流。</p>
+          <summary>高级详情</summary>
+          <p class="hint">仅在需要时查看来源与 HTML。</p>
           <div class="stage3-advanced-grid">
             <label class="field">
               <span>Final Poster URL</span>
@@ -168,6 +168,6 @@
       <small>Frontend hosted on GitHub Pages. Backend served via Render.</small>
     </footer>
 
-    <script src="./app.js?v=0cbaf65" type="module"></script>
+    <script src="./app.js?v=prui1a" type="module"></script>
   </body>
 </html>
