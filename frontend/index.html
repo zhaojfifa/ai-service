@@ -355,6 +355,49 @@
           </div>
           <p id="stage1-status" role="status" aria-live="polite"></p>
         </section>
+
+        <section class="card stage-card">
+          <div class="section-heading-row">
+            <div>
+              <h3>Stage1 Combined Preview</h3>
+              <p class="hint">只读汇总当前 Stage1 输入，不复用 Stage2 结果渲染，也不改写请求真相。</p>
+            </div>
+          </div>
+          <div id="stage1-combined-preview" class="stage1-combined-preview" data-template-family="a">
+            <article class="stage1-preview-card">
+              <header class="stage1-preview-card__header">
+                <h4>Visual Inputs Preview</h4>
+                <p class="hint">按当前所选模板家族展示可见素材输入。</p>
+              </header>
+              <div id="stage1-visual-preview" class="stage1-preview-grid"></div>
+            </article>
+            <article class="stage1-preview-card">
+              <header class="stage1-preview-card__header">
+                <h4>Copy Inputs Preview</h4>
+                <p class="hint">只读取当前 Stage1 文案输入，不带入 Stage2 优化或回放结果。</p>
+              </header>
+              <div id="stage1-copy-preview" class="stage1-copy-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="card stage-card">
+          <div class="section-heading-row">
+            <div>
+              <h3>Stage1 AI Copy Suggestions</h3>
+              <p class="hint">分离展示原始输入、建议层、已接受层。只有明确操作才会写入已接受层或同步回输入框。</p>
+            </div>
+            <button id="stage1-generate-suggestions" class="secondary" type="button">生成建议</button>
+          </div>
+          <p id="stage1-suggestion-status" class="hint">当前尚未生成建议。</p>
+          <div id="stage1-suggestion-actions" class="actions stage1-suggestion-actions hidden">
+            <button id="stage1-accept-suggestions" class="primary" type="button">接受勾选建议</button>
+            <button id="stage1-apply-accepted" class="secondary" type="button">将已接受建议同步到输入</button>
+            <button id="stage1-restore-raw-copy" class="secondary" type="button">恢复应用前输入</button>
+            <button id="stage1-clear-accepted" class="secondary subtle" type="button">清空已接受层</button>
+          </div>
+          <div id="stage1-suggestion-list" class="stage1-suggestion-list"></div>
+        </section>
       </form>
     </main>
 

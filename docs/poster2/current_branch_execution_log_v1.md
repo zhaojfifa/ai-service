@@ -1,5 +1,202 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP2-v2: Stage1 combined preview + staged copy suggestions
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- then task-relevant frozen-state docs:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+  - `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- then minimum task files only:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-OP2-v2 only
+- Stage1 operator experience only
+- family-aware read-only combined preview
+- staged copy suggestion surface with explicit accept/apply/recover flow
+- frontend/docs mirror sync
+- branch execution log write-back
+- no backend routing, renderer routing, Stage2 replay/result rendering, Stage3 truth, ownership, bottom contract, or request-builder change
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- preserve family isolation and do not mix Family A / Family B request lines
+- do not reuse Stage2 result/replay rendering for Stage1 preview
+- do not silently mutate canonical Stage2 request truth
+- keep source and published mirror aligned in the same task
+
+### Problem reproduced
+
+- Stage1 previously had only the existing template preview / poster-style preview surface
+- it did not provide a family-aware read-only combined operator summary for current inputs
+- it also had no staged suggestion layer that cleanly separated:
+  - raw operator input
+  - suggestion
+  - accepted suggestion
+
+### Root cause found
+
+- Stage1 had no independent read-only combined-preview model
+- existing dual-poster / result preview helpers are Stage2-oriented and unsafe to reuse here because they couple to post-generate / replay semantics
+- Stage1 persistence also had no dedicated accepted-suggestion layer, so any suggestion feature would have risked silently overwriting visible source fields unless a separate Stage1-only state model was introduced
+
+### Exact Stage1 combined preview model implemented
+
+- added a new Stage1-only combined preview section with two cards:
+  - `Visual Inputs Preview`
+  - `Copy Inputs Preview`
+- implemented through new Stage1-only helpers in `frontend/app.js` / `docs/app.js`:
+  - `buildStage1CombinedPreviewModel(...)`
+  - `renderStage1CombinedPreview(...)`
+- preview derives only from current Stage1 form/state data
+- Family A combined preview shows only:
+  - template
+  - brand / logo
+  - scenario image
+  - primary / secondary product images
+  - bottom thumbnails
+  - Product Series
+  - title
+  - Product Callouts
+  - Bottom Support Copy
+- Family B combined preview shows only:
+  - template
+  - brand / logo
+  - primary / secondary product images
+  - materials / detail images
+  - Product Series
+  - SKU
+  - title
+  - subtitle
+  - description
+- the new Stage1 preview path does not call:
+  - `renderPosterResult()`
+  - `buildTemplateAPreviewModel(...)`
+  - `renderDualPosterPreview(...)`
+  - `buildDualPosterData(...)`
+
+### Exact staged AI suggestion behavior implemented
+
+- added a separate Stage1 suggestion panel with explicit state separation:
+  - raw input
+  - suggestion layer
+  - accepted layer
+- implemented through new Stage1-only helpers in `frontend/app.js` / `docs/app.js`:
+  - `buildStage1SuggestionDraft(...)`
+  - `renderStage1SuggestionPanel(...)`
+  - `normaliseStage1SuggestionState(...)`
+- implemented as frontend-only staged suggestion plumbing in this PR:
+  - no backend endpoint added
+  - no canonical Stage2 request truth change
+- family-specific suggestion targets:
+  - Family A:
+    - `title`
+    - `product_callouts`
+    - `bottom_support_copy`
+    - `email_subject`
+    - `email_opening`
+  - Family B:
+    - `title`
+    - `subtitle`
+    - `description_summary`
+    - `email_subject`
+    - `email_opening`
+- operator flow:
+  - generate suggestion
+  - check which targets to accept
+  - accept checked suggestions into Stage1 accepted layer only
+  - optionally apply accepted poster-copy targets back to visible Stage1 inputs by explicit button
+  - optionally restore the pre-apply raw snapshot
+  - optionally clear accepted layer
+- email subject/opening suggestions remain staged-only in this PR; they do not silently backfill any canonical Stage1 request field
+- accepted suggestion state is persisted under Stage1 storage only:
+  - `staged_copy_suggestions`
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend operator surface only
+- frontend/docs publish mirror only
+- branch execution/state log only
+
+### Focused validation run
+
+- syntax:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync:
+  - `bash scripts/sync_frontend_to_docs.sh`
+  - `bash scripts/check_frontend_docs_sync.sh`
+  - direct no-index diffs between `frontend/` and `docs/` for:
+    - `index.html`
+    - `app.js`
+    - `styles.css`
+- existing sync/static test:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- source inspection for forbidden Stage1 preview reuse:
+  - `rg -n "buildStage1CombinedPreviewModel|renderStage1CombinedPreview|renderStage1SuggestionPanel|buildStage1SuggestionDraft|renderPosterResult|buildTemplateAPreviewModel|renderDualPosterPreview|buildDualPosterData" frontend/app.js`
+
+### Focused validation result
+
+- `frontend/app.js` syntax passed
+- `docs/app.js` syntax passed
+- frontend/docs publish mirror check passed after sync
+- `tests/test_frontend_docs_sync.py` passed: `8 passed`
+- source inspection confirms the new Stage1 combined preview path is isolated to:
+  - `buildStage1CombinedPreviewModel(...)`
+  - `renderStage1CombinedPreview(...)`
+- no backend file or route changed in this pass
+
+### Remaining risks
+
+- this PR implements frontend-only staged suggestion drafting rather than a backend-backed suggestion endpoint, so suggestion quality is deterministic/local in the current pass
+- email subject / opening suggestions are staged for operator review only in this PR and are not yet wired into later-stage backend-owned email truth
+- focused validation covered syntax, mirror sync, and source-path isolation; no browser automation run was added in this pass
+
+### Exact acceptance state
+
+- Stage1 now shows a family-aware read-only combined preview
+- Stage1 combined preview is separate from Stage2 result/replay rendering
+- staged suggestions remain distinct from raw input and accepted state
+- accepted suggestions require explicit operator action
+- applying accepted suggestions back into visible inputs requires an explicit operator action
+- original visible Stage1 copy is recoverable through the stored pre-apply snapshot
+- Family A and Family B preview content remains isolated by family
+- no Stage2 request/routing/runtime truth changed
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was not updated by this task
+
 ## Entry — P0 SVG preview-asset hotfix from repo-visible reference
 
 **Branch:** `main`

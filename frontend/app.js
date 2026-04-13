@@ -3905,6 +3905,11 @@ function initStage1ModeS() {
   const stage1FallbackWarning = document.getElementById('stage1-fallback-warning');
   const openPreviewButton = document.getElementById('open-stage1-preview');
   const previewStaleStatus = document.getElementById('preview-stale-status');
+  const suggestionGenerateButton = document.getElementById('stage1-generate-suggestions');
+  const suggestionAcceptButton = document.getElementById('stage1-accept-suggestions');
+  const suggestionApplyButton = document.getElementById('stage1-apply-accepted');
+  const suggestionRestoreButton = document.getElementById('stage1-restore-raw-copy');
+  const suggestionClearButton = document.getElementById('stage1-clear-accepted');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
@@ -3947,6 +3952,7 @@ function initStage1ModeS() {
     descriptionTitle: '',
     descriptionBody: '',
     materialsImages: [],
+    stage1SuggestionState: normaliseStage1SuggestionState(null),
   };
 
   let currentLayoutPreview = '';
@@ -4025,6 +4031,9 @@ function initStage1ModeS() {
       layoutStructure,
       previewContainer
     );
+    if (!previewGate.open && previewContainer) {
+      previewContainer.classList.add('hidden');
+    }
 
     if (previewElements.brandLogo) {
       applyImageWithFallback(
@@ -4052,6 +4061,10 @@ function initStage1ModeS() {
         stage1FallbackWarning
       );
     }
+
+    const combinedPreviewModel = buildStage1CombinedPreviewModel(previewPayload, state);
+    renderStage1CombinedPreview(combinedPreviewModel);
+    renderStage1SuggestionPanel(previewPayload, state.stage1SuggestionState);
 
     return payload;
   };
@@ -4083,6 +4096,7 @@ function initStage1ModeS() {
   };
 
   const requestPreviewUpdate = () => {
+    refreshPreview();
     markPreviewStale();
     return null;
   };
@@ -4455,6 +4469,12 @@ function initStage1ModeS() {
     }
   };
 
+  const persistCurrentStage1State = (previewBuilt = state.previewBuilt) => {
+    const payload = collectStage1Data(form, state, { strict: false });
+    persist(payload, previewBuilt);
+    return payload;
+  };
+
   buildPreviewButton.addEventListener('click', () => {
     const relaxedPayload = collectStage1Data(form, state, { strict: false });
     openPreviewOnDemand();
@@ -4483,6 +4503,152 @@ function initStage1ModeS() {
     });
   }
 
+  if (suggestionGenerateButton) {
+    suggestionGenerateButton.addEventListener('click', () => {
+      const payload = collectStage1Data(form, state, { strict: false });
+      const familyKey = getStage1SuggestionFamilyKey(payload);
+      const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+      const draft = buildStage1SuggestionDraft(payload);
+      nextState.families[familyKey].latest = draft;
+      nextState.families[familyKey].selectedTargets = Object.keys(draft.targets || {});
+      state.stage1SuggestionState = nextState;
+      renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
+      persistCurrentStage1State(state.previewBuilt);
+      setStatus(statusElement, 'Stage1 建议已生成；原始输入未被改写。', 'info');
+    });
+  }
+
+  const syncSuggestionSelectionsFromDom = (payload) => {
+    const familyKey = getStage1SuggestionFamilyKey(payload);
+    const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+    const selectedTargets = Array.from(
+      document.querySelectorAll('[data-suggestion-target]:checked')
+    ).map((input) => input.dataset.suggestionTarget).filter(Boolean);
+    nextState.families[familyKey].selectedTargets = selectedTargets;
+    state.stage1SuggestionState = nextState;
+  };
+
+  document.addEventListener('change', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (!target.matches('[data-suggestion-target]')) return;
+    const payload = collectStage1Data(form, state, { strict: false });
+    syncSuggestionSelectionsFromDom(payload);
+    persistCurrentStage1State(state.previewBuilt);
+  });
+
+  if (suggestionAcceptButton) {
+    suggestionAcceptButton.addEventListener('click', () => {
+      const payload = collectStage1Data(form, state, { strict: false });
+      const familyKey = getStage1SuggestionFamilyKey(payload);
+      syncSuggestionSelectionsFromDom(payload);
+      const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+      const familyState = nextState.families[familyKey];
+      const latestTargets = familyState.latest?.targets || {};
+      const selectedTargets = Array.isArray(familyState.selectedTargets) ? familyState.selectedTargets : [];
+      if (!selectedTargets.length) {
+        setStatus(statusElement, '请先勾选要接受的建议。', 'warning');
+        return;
+      }
+      selectedTargets.forEach((key) => {
+        if (latestTargets[key]) {
+          familyState.accepted[key] = cloneStage2Value(latestTargets[key]);
+        }
+      });
+      state.stage1SuggestionState = nextState;
+      renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
+      persistCurrentStage1State(state.previewBuilt);
+      setStatus(statusElement, '已写入 Stage1 已接受层；原始输入保持不变。', 'success');
+    });
+  }
+
+  if (suggestionApplyButton) {
+    suggestionApplyButton.addEventListener('click', () => {
+      const payload = collectStage1Data(form, state, { strict: false });
+      const familyKey = getStage1SuggestionFamilyKey(payload);
+      const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+      const accepted = nextState.families[familyKey].accepted || {};
+      if (!Object.keys(accepted).length) {
+        setStatus(statusElement, '当前没有已接受建议可同步。', 'warning');
+        return;
+      }
+      nextState.families[familyKey].restoreSnapshot = captureStage1RawCopySnapshot(payload);
+
+      if (familyKey === 'b') {
+        if (accepted.title && form.elements.namedItem('title')) {
+          form.elements.namedItem('title').value = accepted.title;
+        }
+        if (accepted.subtitle && form.elements.namedItem('subtitle')) {
+          form.elements.namedItem('subtitle').value = accepted.subtitle;
+        }
+        if (accepted.description_summary && form.elements.namedItem('description_body')) {
+          form.elements.namedItem('description_body').value = accepted.description_summary;
+          state.descriptionBody = accepted.description_summary;
+        }
+      } else {
+        if (accepted.title && form.elements.namedItem('title')) {
+          form.elements.namedItem('title').value = accepted.title;
+        }
+        if (accepted.bottom_support_copy && form.elements.namedItem('subtitle')) {
+          form.elements.namedItem('subtitle').value = accepted.bottom_support_copy;
+        }
+        if (Array.isArray(accepted.product_callouts)) {
+          setStage1ProductCalloutInputs(form, accepted.product_callouts);
+        }
+      }
+
+      state.stage1SuggestionState = nextState;
+      state.previewBuilt = false;
+      openPreviewOnDemand();
+      persistCurrentStage1State(state.previewBuilt);
+      setStatus(statusElement, '已将已接受建议显式同步回 Stage1 输入；可随时恢复。', 'success');
+    });
+  }
+
+  if (suggestionRestoreButton) {
+    suggestionRestoreButton.addEventListener('click', () => {
+      const payload = collectStage1Data(form, state, { strict: false });
+      const familyKey = getStage1SuggestionFamilyKey(payload);
+      const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+      const snapshot = nextState.families[familyKey].restoreSnapshot;
+      if (!snapshot) {
+        setStatus(statusElement, '当前没有可恢复的输入快照。', 'warning');
+        return;
+      }
+      if (familyKey === 'b') {
+        if (form.elements.namedItem('title')) form.elements.namedItem('title').value = snapshot.title || '';
+        if (form.elements.namedItem('subtitle')) form.elements.namedItem('subtitle').value = snapshot.subtitle || '';
+        if (form.elements.namedItem('description_body')) {
+          form.elements.namedItem('description_body').value = snapshot.description_body || '';
+          state.descriptionBody = snapshot.description_body || '';
+        }
+      } else {
+        if (form.elements.namedItem('title')) form.elements.namedItem('title').value = snapshot.title || '';
+        if (form.elements.namedItem('subtitle')) form.elements.namedItem('subtitle').value = snapshot.subtitle || '';
+        setStage1ProductCalloutInputs(form, snapshot.product_callouts || []);
+      }
+      nextState.families[familyKey].restoreSnapshot = null;
+      state.stage1SuggestionState = nextState;
+      state.previewBuilt = false;
+      openPreviewOnDemand();
+      persistCurrentStage1State(state.previewBuilt);
+      setStatus(statusElement, '已恢复应用建议前的原始输入。', 'info');
+    });
+  }
+
+  if (suggestionClearButton) {
+    suggestionClearButton.addEventListener('click', () => {
+      const payload = collectStage1Data(form, state, { strict: false });
+      const familyKey = getStage1SuggestionFamilyKey(payload);
+      const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+      nextState.families[familyKey].accepted = {};
+      state.stage1SuggestionState = nextState;
+      renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
+      persistCurrentStage1State(state.previewBuilt);
+      setStatus(statusElement, '已清空当前模板家族的已接受层。', 'info');
+    });
+  }
+
   nextButton.addEventListener('click', () => {
     try {
       const payload = collectStage1Data(form, state, { strict: true });
@@ -4494,6 +4660,12 @@ function initStage1ModeS() {
       setStatus(statusElement, error.message || '请先完成版式预览后再继续。', 'error');
     }
   });
+
+  refreshPreview();
+  renderStage1SuggestionPanel(
+    collectStage1Data(form, state, { strict: false }),
+    state.stage1SuggestionState
+  );
 }
 
 function applyStage1Defaults(form) {
@@ -4642,6 +4814,7 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     state.materialsImages = Array.isArray(data.materials_images)
       ? data.materials_images.map((e) => ({ file: null, url: e.url || null, dataUrl: e.url || null, key: e.key || null }))
       : [];
+    state.stage1SuggestionState = normaliseStage1SuggestionState(data.staged_copy_suggestions);
 
     if (inlinePreviews.brand_logo) {
       inlinePreviews.brand_logo.src =
@@ -5941,6 +6114,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       materials_images: (state.materialsImages || [])
         .filter((e) => e.url)
         .map((e) => ({ url: e.url, key: e.key || null })),
+      staged_copy_suggestions: serialiseStage1SuggestionState(state.stage1SuggestionState),
       layout_preview: layoutPreview,
       preview_built: previewBuilt,
     };
@@ -6093,6 +6267,454 @@ function buildDraftFromStage1Data(stage1Data) {
     poster: stage1Data,
     prompt_bundle: stage1Data.prompt_bundle || null,
   };
+}
+
+function createDefaultStage1SuggestionFamilies() {
+  return {
+    a: {
+      latest: null,
+      accepted: {},
+      selectedTargets: [],
+      restoreSnapshot: null,
+    },
+    b: {
+      latest: null,
+      accepted: {},
+      selectedTargets: [],
+      restoreSnapshot: null,
+    },
+  };
+}
+
+function normaliseStage1SuggestionState(rawState) {
+  const base = {
+    version: 1,
+    families: createDefaultStage1SuggestionFamilies(),
+  };
+  if (!rawState || typeof rawState !== 'object') return base;
+  const rawFamilies = rawState.families && typeof rawState.families === 'object'
+    ? rawState.families
+    : rawState;
+  for (const familyKey of ['a', 'b']) {
+    const source = rawFamilies[familyKey] && typeof rawFamilies[familyKey] === 'object'
+      ? rawFamilies[familyKey]
+      : {};
+    base.families[familyKey] = {
+      latest: source.latest && typeof source.latest === 'object' ? source.latest : null,
+      accepted: source.accepted && typeof source.accepted === 'object' ? source.accepted : {},
+      selectedTargets: Array.isArray(source.selectedTargets) ? source.selectedTargets.filter(Boolean) : [],
+      restoreSnapshot: source.restoreSnapshot && typeof source.restoreSnapshot === 'object'
+        ? source.restoreSnapshot
+        : null,
+    };
+  }
+  return base;
+}
+
+function serialiseStage1SuggestionState(state) {
+  return cloneStage2Value(normaliseStage1SuggestionState(state));
+}
+
+function getStage1SuggestionFamilyKey(source) {
+  return isTemplateBStage1Data(source) ? 'b' : 'a';
+}
+
+function getStage1SuggestionFamilyState(rootState, familyKey) {
+  const normalized = normaliseStage1SuggestionState(rootState);
+  return normalized.families[familyKey] || normalized.families.a;
+}
+
+function collapseSuggestionWhitespace(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .trim();
+}
+
+function toSentenceCase(value) {
+  const text = collapseSuggestionWhitespace(value);
+  if (!text) return '';
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function toTitleCase(value) {
+  const text = collapseSuggestionWhitespace(value).toLowerCase();
+  if (!text) return '';
+  return text.replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
+function uniqSuggestionItems(items, limit = 3) {
+  const seen = new Set();
+  const output = [];
+  for (const rawItem of items || []) {
+    const next = toSentenceCase(rawItem);
+    const key = next.toLowerCase();
+    if (!next || seen.has(key)) continue;
+    seen.add(key);
+    output.push(next);
+    if (output.length >= limit) break;
+  }
+  return output;
+}
+
+function captureStage1RawCopySnapshot(payload) {
+  if (isTemplateBStage1Data(payload)) {
+    return {
+      title: payload.title || '',
+      subtitle: payload.subtitle || '',
+      description_body: payload.description_body || payload.descriptionBody || '',
+    };
+  }
+  return {
+    title: payload.title || '',
+    product_callouts: resolveStage1ProductCallouts(payload),
+    subtitle: payload.subtitle || '',
+  };
+}
+
+function formatSuggestionValue(value) {
+  if (Array.isArray(value)) {
+    return value.length ? value.join('\n') : '';
+  }
+  return String(value || '').trim();
+}
+
+function buildFamilyASuggestionDraft(payload) {
+  const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
+  const productLine = collapseSuggestionWhitespace(payload.product_name || payload.agent_name || 'Product');
+  const rawTitle = toTitleCase(payload.title || productLine || 'Product Poster');
+  const rawCallouts = resolveStage1ProductCallouts(payload);
+  const callouts = uniqSuggestionItems(
+    rawCallouts.length ? rawCallouts : (DEFAULT_STAGE1.product_callouts || []),
+    3
+  );
+  const supportCopy = toSentenceCase(
+    payload.subtitle
+      || (callouts.length >= 2
+        ? `${callouts[0]} · ${callouts[1]}`
+        : `${rawTitle} for everyday service`)
+  );
+  const emailSubject = toSentenceCase(`${brandName}: ${rawTitle}`);
+  const emailOpening = toSentenceCase(
+    `Showcase ${rawTitle.toLowerCase()} with ${callouts.slice(0, 2).join(', ') || 'core product benefits'}.`
+  );
+  return {
+    family: 'a',
+    generated_from: 'frontend_staged_suggestion',
+    generated_at: new Date().toISOString(),
+    raw_snapshot: captureStage1RawCopySnapshot(payload),
+    targets: {
+      title: rawTitle,
+      product_callouts: callouts,
+      bottom_support_copy: supportCopy,
+      email_subject: emailSubject,
+      email_opening: emailOpening,
+    },
+  };
+}
+
+function buildFamilyBSuggestionDraft(payload) {
+  const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
+  const skuText = collapseSuggestionWhitespace(payload.sku_text || '');
+  const title = toTitleCase(payload.title || payload.product_name || skuText || 'Product Sheet');
+  const subtitle = toSentenceCase(
+    payload.subtitle
+      || [skuText, payload.agent_name].filter(Boolean).join(' · ')
+      || `${brandName} product overview`
+  );
+  const descriptionSeed = collapseSuggestionWhitespace(
+    payload.description_body || payload.description_title || `${title} with clean product details and supporting materials.`
+  );
+  const descriptionSummary = toSentenceCase(descriptionSeed);
+  const emailSubject = toSentenceCase(`${brandName}: ${title}`);
+  const emailOpening = toSentenceCase(
+    `Review ${title.toLowerCase()}${skuText ? ` (${skuText})` : ''} with the current product-sheet summary and supporting details.`
+  );
+  return {
+    family: 'b',
+    generated_from: 'frontend_staged_suggestion',
+    generated_at: new Date().toISOString(),
+    raw_snapshot: captureStage1RawCopySnapshot(payload),
+    targets: {
+      title,
+      subtitle,
+      description_summary: descriptionSummary,
+      email_subject: emailSubject,
+      email_opening: emailOpening,
+    },
+  };
+}
+
+function buildStage1SuggestionDraft(payload) {
+  return isTemplateBStage1Data(payload)
+    ? buildFamilyBSuggestionDraft(payload)
+    : buildFamilyASuggestionDraft(payload);
+}
+
+function buildStage1SuggestionRows(payload, familyState) {
+  const latestTargets = familyState?.latest?.targets || {};
+  const acceptedTargets = familyState?.accepted || {};
+  if (isTemplateBStage1Data(payload)) {
+    return [
+      {
+        key: 'title',
+        label: 'Poster Title',
+        raw: payload.title || '',
+        suggestion: latestTargets.title || '',
+        accepted: acceptedTargets.title || '',
+      },
+      {
+        key: 'subtitle',
+        label: 'Poster Subtitle',
+        raw: payload.subtitle || '',
+        suggestion: latestTargets.subtitle || '',
+        accepted: acceptedTargets.subtitle || '',
+      },
+      {
+        key: 'description_summary',
+        label: 'Description Summary',
+        raw: payload.description_body || payload.descriptionBody || '',
+        suggestion: latestTargets.description_summary || '',
+        accepted: acceptedTargets.description_summary || '',
+      },
+      {
+        key: 'email_subject',
+        label: 'Email Subject',
+        raw: '',
+        suggestion: latestTargets.email_subject || '',
+        accepted: acceptedTargets.email_subject || '',
+      },
+      {
+        key: 'email_opening',
+        label: 'Email Opening',
+        raw: '',
+        suggestion: latestTargets.email_opening || '',
+        accepted: acceptedTargets.email_opening || '',
+      },
+    ];
+  }
+  return [
+    {
+      key: 'title',
+      label: 'Poster Title',
+      raw: payload.title || '',
+      suggestion: latestTargets.title || '',
+      accepted: acceptedTargets.title || '',
+    },
+    {
+      key: 'product_callouts',
+      label: 'Product Callouts',
+      raw: resolveStage1ProductCallouts(payload),
+      suggestion: latestTargets.product_callouts || [],
+      accepted: acceptedTargets.product_callouts || [],
+    },
+    {
+      key: 'bottom_support_copy',
+      label: 'Bottom Support Copy',
+      raw: payload.subtitle || '',
+      suggestion: latestTargets.bottom_support_copy || '',
+      accepted: acceptedTargets.bottom_support_copy || '',
+    },
+    {
+      key: 'email_subject',
+      label: 'Email Subject',
+      raw: '',
+      suggestion: latestTargets.email_subject || '',
+      accepted: acceptedTargets.email_subject || '',
+    },
+    {
+      key: 'email_opening',
+      label: 'Email Opening',
+      raw: '',
+      suggestion: latestTargets.email_opening || '',
+      accepted: acceptedTargets.email_opening || '',
+    },
+  ];
+}
+
+function buildStage1CombinedPreviewModel(payload, state) {
+  const family = getStage1SuggestionFamilyKey(payload);
+  const logoSrc = resolvePreviewAssetSrc(payload.brand_logo || state?.brandLogo);
+  const primarySrc = resolvePreviewAssetSrc(payload.product_image_1 || payload.product_asset || state?.productImage1);
+  const secondarySrc = resolvePreviewAssetSrc(payload.product_image_2 || state?.productImage2);
+  if (family === 'b') {
+    const materials = normaliseTemplateBMaterials(payload)
+      .map((entry) => resolvePreviewAssetSrc(entry))
+      .filter(Boolean);
+    return {
+      family,
+      visualItems: [
+        { label: 'Template', value: state?.templateLabel || payload.template_label || payload.template_id || 'Template B', meta: 'Product Sheet', src: null },
+        { label: 'Brand / Logo', value: payload.brand_name || 'Brand', meta: logoSrc ? '已提供 Logo' : '未上传 Logo', src: logoSrc },
+        { label: 'Primary Product', value: payload.product_name || payload.title || 'Primary product', meta: primarySrc ? '主图就绪' : '主图缺失', src: primarySrc },
+        { label: 'Secondary Product', value: secondarySrc ? 'Supporting detail ready' : 'Supporting detail optional', meta: secondarySrc ? '辅助图就绪' : '可留空', src: secondarySrc },
+        { label: 'Materials / Details', value: `${materials.length} item(s)`, meta: materials.length ? '辅图条已准备' : '暂无辅图条', src: materials[0] || null },
+      ],
+      copyItems: [
+        { label: 'Product Series', value: payload.agent_name || '' },
+        { label: 'SKU', value: payload.sku_text || '' },
+        { label: 'Title', value: payload.title || '' },
+        { label: 'Subtitle', value: payload.subtitle || '' },
+        { label: 'Description', value: payload.description_body || payload.descriptionBody || payload.description_title || payload.descriptionTitle || '' },
+      ],
+    };
+  }
+
+  const galleryEntries = buildModeSDefaultGalleryEntries(state?.galleryEntries || payload.gallery_entries || [], 4)
+    .slice(0, 4)
+    .filter((entry) => entry && entry.asset);
+  return {
+    family,
+    visualItems: [
+      { label: 'Template', value: state?.templateLabel || payload.template_label || payload.template_id || 'Template A', meta: 'Marketing Poster', src: null },
+      { label: 'Brand / Logo', value: payload.brand_name || 'Brand', meta: logoSrc ? '已提供 Logo' : '未上传 Logo', src: logoSrc },
+      { label: 'Scenario Image', value: payload.scenario_image || 'Default scenario', meta: resolvePreviewAssetSrc(payload.scenario_asset || state?.scenario) ? '场景素材就绪' : '默认场景', src: resolvePreviewAssetSrc(payload.scenario_asset || state?.scenario) },
+      { label: 'Primary Product', value: payload.product_name || payload.title || 'Primary product', meta: primarySrc ? '主图就绪' : '主图缺失', src: primarySrc },
+      { label: 'Secondary Product', value: secondarySrc ? 'Supporting angle ready' : 'Secondary optional', meta: secondarySrc ? '补充图就绪' : '可留空', src: secondarySrc },
+      { label: 'Bottom Thumbnails', value: `${galleryEntries.length} item(s)`, meta: galleryEntries.length ? '底部缩略图已准备' : '暂无底部缩略图', src: resolvePreviewAssetSrc(galleryEntries[0]?.asset) || null },
+    ],
+    copyItems: [
+      { label: 'Product Series', value: payload.agent_name || '' },
+      { label: 'Title', value: payload.title || '' },
+      { label: 'Product Callouts', value: resolveStage1ProductCallouts(payload) },
+      { label: 'Bottom Support Copy', value: payload.subtitle || '' },
+    ],
+  };
+}
+
+function renderStage1CombinedPreview(model) {
+  const root = document.getElementById('stage1-combined-preview');
+  const visual = document.getElementById('stage1-visual-preview');
+  const copy = document.getElementById('stage1-copy-preview');
+  if (!root || !visual || !copy) return;
+  root.dataset.templateFamily = model.family;
+
+  visual.innerHTML = '';
+  model.visualItems.forEach((item) => {
+    const tile = document.createElement('div');
+    tile.className = 'stage1-preview-tile';
+
+    const media = document.createElement('div');
+    media.className = 'stage1-preview-tile__media';
+    if (item.src) {
+      const img = document.createElement('img');
+      img.src = item.src;
+      img.alt = item.label;
+      media.appendChild(img);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'stage1-preview-tile__placeholder';
+      placeholder.textContent = item.meta || '当前无图片';
+      media.appendChild(placeholder);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'stage1-preview-tile__body';
+    const label = document.createElement('div');
+    label.className = 'stage1-preview-tile__label';
+    label.textContent = item.label;
+    const value = document.createElement('div');
+    value.className = 'stage1-preview-tile__value';
+    value.textContent = item.value || '未填写';
+    const meta = document.createElement('div');
+    meta.className = 'stage1-preview-tile__meta';
+    meta.textContent = item.meta || '';
+    body.append(label, value, meta);
+
+    tile.append(media, body);
+    visual.appendChild(tile);
+  });
+
+  copy.innerHTML = '';
+  model.copyItems.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'stage1-copy-row';
+    const label = document.createElement('div');
+    label.className = 'stage1-copy-row__label';
+    label.textContent = item.label;
+    const value = document.createElement('div');
+    value.className = 'stage1-copy-row__value';
+    const formatted = formatSuggestionValue(item.value);
+    value.textContent = formatted || '未填写';
+    if (!formatted) {
+      value.classList.add('stage1-copy-row__value--empty');
+    }
+    row.append(label, value);
+    copy.appendChild(row);
+  });
+}
+
+function renderStage1SuggestionPanel(payload, suggestionState) {
+  const status = document.getElementById('stage1-suggestion-status');
+  const actions = document.getElementById('stage1-suggestion-actions');
+  const list = document.getElementById('stage1-suggestion-list');
+  if (!status || !actions || !list) return;
+
+  const familyKey = getStage1SuggestionFamilyKey(payload);
+  const familyState = getStage1SuggestionFamilyState(suggestionState, familyKey);
+  const rows = buildStage1SuggestionRows(payload, familyState);
+  const hasLatest = Boolean(familyState.latest?.targets);
+  const hasAccepted = Object.keys(familyState.accepted || {}).length > 0;
+
+  status.textContent = hasLatest
+    ? `当前模板已生成 ${familyKey === 'a' ? '营销讲解海报' : '产品图录海报'}建议。生成来源：${familyState.latest.generated_from || 'frontend_staged_suggestion'}。`
+    : '当前尚未生成建议。';
+  actions.classList.toggle('hidden', !hasLatest && !hasAccepted);
+  list.innerHTML = '';
+
+  if (!hasLatest && !hasAccepted) {
+    const empty = document.createElement('p');
+    empty.className = 'stage1-suggestion-summary';
+    empty.textContent = '建议生成后会在这里分开展示原始输入、建议层与已接受层。';
+    list.appendChild(empty);
+    return;
+  }
+
+  rows.forEach((row) => {
+    const wrapper = document.createElement('article');
+    wrapper.className = 'stage1-suggestion-row';
+    const header = document.createElement('div');
+    header.className = 'stage1-suggestion-row__header';
+    const label = document.createElement('div');
+    label.className = 'stage1-suggestion-row__label';
+    label.textContent = row.label;
+    const toggleWrap = document.createElement('label');
+    toggleWrap.className = 'stage1-suggestion-row__toggle';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = familyState.selectedTargets.includes(row.key);
+    checkbox.disabled = !formatSuggestionValue(row.suggestion);
+    checkbox.dataset.suggestionTarget = row.key;
+    const checkboxText = document.createElement('span');
+    checkboxText.textContent = '接受此建议';
+    toggleWrap.append(checkbox, checkboxText);
+    header.append(label, toggleWrap);
+
+    const cols = document.createElement('div');
+    cols.className = 'stage1-suggestion-row__cols';
+
+    [
+      ['原始输入', row.raw, ''],
+      ['建议层', row.suggestion, 'stage1-suggestion-cell--suggestion'],
+      ['已接受层', row.accepted, 'stage1-suggestion-cell--accepted'],
+    ].forEach(([titleText, valueText, extraClass]) => {
+      const cell = document.createElement('div');
+      cell.className = `stage1-suggestion-cell ${extraClass}`.trim();
+      const title = document.createElement('div');
+      title.className = 'stage1-suggestion-cell__title';
+      title.textContent = titleText;
+      const value = document.createElement('div');
+      value.className = 'stage1-suggestion-cell__value';
+      const formatted = formatSuggestionValue(valueText);
+      value.textContent = formatted || '暂无内容';
+      if (!formatted) value.classList.add('stage1-suggestion-cell__value--empty');
+      cell.append(title, value);
+      cols.appendChild(cell);
+    });
+
+    wrapper.append(header, cols);
+    list.appendChild(wrapper);
+  });
 }
 
 function saveDraft(draft) {
