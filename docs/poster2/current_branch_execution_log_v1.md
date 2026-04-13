@@ -1,5 +1,172 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP6A: Stage2 failure-classification hardening
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- re-read frozen-state docs most relevant to this pass:
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+  - `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- then minimum task files only:
+  - `frontend/stage2.html`
+  - `frontend/app.js`
+  - `frontend/stage2_request_helpers.js`
+  - `docs/stage2.html`
+  - `docs/app.js`
+  - `docs/stage2_request_helpers.js`
+  - minimum additional validation surface:
+    - `tests/frontend/test_stage2_request_helpers.js`
+
+### Scope
+
+- PR-OP6A only
+- Stage2 failure-classification hardening only
+- keep the current diagnosis fixed:
+  - normal live generate path is proven working
+  - current reproduced failures are not primarily deploy-health blockers
+  - current reproduced failures are not primarily preflight/CORS blockers
+  - current reproduced failures are not currently proving residual request-state contamination as the top blocker
+  - remaining operator-facing problem is weak failure classification
+- keep Stage2/frontend/docs mirror aligned
+- update branch execution log before stop
+- no poster contract reopen, no bottom truth change, no renderer routing change, no product ownership change, no Stage3 truth-model change, no new operator feature work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- no request-shape redesign
+- no canonical request construction change
+- no bottom semantics change
+- no Stage1 asset semantics change
+- no Stage3 truth-model change
+- source and published mirror were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage2 already separated request-state failures from a generic transport bucket, but true backend `5xx` failures still collapsed into the same class and operator wording as browser-side CORS/fetch/preflight failures
+- current operator status text therefore blurred three different causes:
+  - request/input/asset failure
+  - network/CORS/fetch failure
+  - backend unavailable / `5xx`
+- current live evidence continued to show:
+  - success path works
+  - structured app-level `422` failures are real and machine-readable
+  - CORS headers are present on healthy and app-level error paths
+
+### Root cause found
+
+- `classifyStage2RequestFailure(...)` in Stage2 helpers and local fallback code treated `status >= 500` as `network_transport`
+- final operator status rendering simply prefixed one generic transport message to most non-request failures
+- Stage2 therefore lacked an explicit operator-visible `backend_unavailable` class even when the backend returned a structured `5xx` response body
+
+### Exact classification buckets implemented
+
+- `request_state`
+  - covers `400/401/403/404/409/412/413/422`
+  - also covers structured request/input/asset error codes such as:
+    - `image_decode_failed`
+    - `product_image_load_failed`
+    - `bad_image_source`
+    - `bad_placeholder_asset`
+    - `validation_error`
+- `network_transport`
+  - covers browser fetch/CORS/preflight/timeout/no-usable-response cases
+  - continues to catch `TypeError`, `status=0`, and transport-language failures
+- `backend_unavailable`
+  - new explicit class for backend `5xx` responses
+  - covers `500/502/503/504` through the generic `status >= 500` branch
+
+### Exact operator-facing wording decisions
+
+- request / input / asset issue:
+  - `当前素材或输入无法用于生成，请检查图片来源、占位素材和必填字段后重试。`
+- network / CORS / preflight issue:
+  - `浏览器未能完成生成请求，请检查网络、跨域或预检配置后重试。`
+- backend unavailable / `5xx`:
+  - `生成服务暂时不可用或返回服务器错误，请稍后重试。`
+- quota path kept distinct and unchanged:
+  - `图像生成额度已用尽，请稍后重试或上传已有素材。`
+
+Additional rendering rule:
+
+- request-state and backend-unavailable paths now keep useful backend code/message detail when available
+- network/CORS/fetch paths append detail only when it is operator-meaningful, such as CORS/preflight/timeout wording, instead of blindly surfacing generic `Failed to fetch`
+
+### Files changed
+
+- `frontend/app.js`
+- `docs/app.js`
+- `frontend/stage2_request_helpers.js`
+- `docs/stage2_request_helpers.js`
+- `tests/frontend/test_stage2_request_helpers.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 frontend failure-classification helper only
+- Stage2 operator-visible failure message composition only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- focused Stage2 helper coverage:
+  - `node --test tests/frontend/test_stage2_request_helpers.js` → `21 passed`
+  - updated helper coverage now verifies:
+    - structured `422` request/input/asset failure → `request_state`
+    - fetch/CORS failure → `network_transport`
+    - backend `502` failure → `backend_unavailable`
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+  - `node --check frontend/stage2_request_helpers.js`
+  - `node --check docs/stage2_request_helpers.js`
+- mirror sync/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/stage2_request_helpers.js docs/stage2_request_helpers.js`
+- live generate checks against deployed service:
+  - success sample `pr-op6a-success` → `200`, `template_id=template_dual_v2`, `renderer_mode=auto`, `degraded=false`, `structure_complete=true`, `deliverable=true`
+  - structured input failure sample `pr-op6a-422` → `422`, `code=image_decode_failed`, CORS headers still present on the response
+- focused classification-case validation coverage for required categories:
+  - successful generate → live deployed request
+  - structured `422` request/input failure → live deployed request
+  - true network/CORS/fetch failure → helper classification test
+  - true backend `5xx`/unavailable failure → helper classification test
+
+### Remaining risks
+
+- this pass hardens Stage2 classification and operator wording, but it does not add a dedicated browser-network capture harness; real browser-console phrasing for field incidents still depends on the browser/runtime that raises the fetch error
+- network/CORS and backend `5xx` validation are covered through focused classification tests in this workspace; no intentionally broken deployed `5xx` endpoint was introduced for live-path validation
+- no backend/API truth changed here, so any future deployment outage still depends on live environment health outside this workspace
+
+### Exact acceptance state
+
+- Stage2 now distinguishes:
+  - request/input/asset failure
+  - network/CORS/fetch failure
+  - backend unavailable / `5xx`
+- operator wording is concise and class-specific instead of collapsing all non-`422` failures into one generic transport message
+- successful path remains unchanged
+- no poster/runtime truth changed
+- no family-line routing changed
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was left untouched because this PR did not add a new shared-state fact beyond the branch execution log
+- branch execution log is updated
+- acceptance target for PR-OP6A is met
+
 ## Entry — PR-OP5: Stage2 request-state decontamination and scenario-driven closure
 
 **Branch:** `main`

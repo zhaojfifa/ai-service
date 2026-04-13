@@ -636,23 +636,29 @@ test('stored Stage2 success stays compatible only when canonical signature still
   assert.equal(compatibility.shouldClearPosterKey, false);
 });
 
-test('request failure classification separates request-state from network transport', () => {
-  assert.equal(
-    classifyStage2RequestFailure({
-      status: 422,
-      responseJson: { detail: { message: 'bottom_mode invalid' } },
-    }).kind,
-    'request_state'
-  );
-  assert.equal(
-    classifyStage2RequestFailure(new TypeError('Failed to fetch')).kind,
-    'network_transport'
-  );
-  assert.equal(
-    classifyStage2RequestFailure({
-      status: 0,
-      message: 'CORS blocked by Access-Control-Allow-Origin',
-    }).kind,
-    'network_transport'
-  );
+test('request failure classification separates request-state, network transport, and backend unavailable', () => {
+  const requestFailure = classifyStage2RequestFailure({
+    status: 422,
+    responseJson: { detail: { error: 'image_decode_failed', message: 'bad placeholder asset' } },
+  });
+  assert.equal(requestFailure.kind, 'request_state');
+  assert.match(requestFailure.operatorMessage, /素材或输入/);
+
+  const fetchFailure = classifyStage2RequestFailure(new TypeError('Failed to fetch'));
+  assert.equal(fetchFailure.kind, 'network_transport');
+  assert.match(fetchFailure.operatorMessage, /浏览器未能完成生成请求/);
+
+  const corsFailure = classifyStage2RequestFailure({
+    status: 0,
+    message: 'CORS blocked by Access-Control-Allow-Origin',
+  });
+  assert.equal(corsFailure.kind, 'network_transport');
+  assert.match(corsFailure.operatorMessage, /跨域|预检/);
+
+  const backendFailure = classifyStage2RequestFailure({
+    status: 502,
+    responseJson: { detail: { error: 'asset_fetch_timeout', message: 'upstream timeout' } },
+  });
+  assert.equal(backendFailure.kind, 'backend_unavailable');
+  assert.match(backendFailure.operatorMessage, /服务暂时不可用|服务器错误/);
 });

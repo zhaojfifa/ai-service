@@ -7445,6 +7445,19 @@ function classifyStage2RequestFailure(error) {
   ).trim().toLowerCase();
   const errorMessage = String(error?.message || '').trim().toLowerCase();
   const combined = `${detailCode} ${detailMessage} ${errorMessage}`.trim();
+  const hasStructuredAppDetail = Boolean(
+    responseJson ||
+    detailCode ||
+    detailMessage ||
+    (typeof error?.responseText === 'string' && error.responseText.trim())
+  );
+  const requestFailureCodes = new Set([
+    'image_decode_failed',
+    'product_image_load_failed',
+    'bad_image_source',
+    'bad_placeholder_asset',
+    'validation_error',
+  ]);
   const looksLikeTransport =
     error instanceof TypeError ||
     status === 0 ||
@@ -7457,22 +7470,86 @@ function classifyStage2RequestFailure(error) {
     combined.includes('network') ||
     combined.includes('timeout') ||
     combined.includes('timed out');
-  if (looksLikeTransport || status >= 500 || status === 502 || status === 503 || status === 504) {
+  if (status >= 500) {
     return {
-      kind: 'network_transport',
-      operatorMessage: '无法连接生成服务，请检查网络、CORS 或后端可达性后重试。',
+      kind: 'backend_unavailable',
+      operatorMessage: '生成服务暂时不可用或返回服务器错误，请稍后重试。',
+      detailCode,
+      detailMessage,
+      status,
     };
   }
-  if ([400, 401, 403, 404, 409, 412, 413, 422].includes(status)) {
+  if (requestFailureCodes.has(detailCode) || [400, 401, 403, 404, 409, 412, 413, 422].includes(status)) {
     return {
       kind: 'request_state',
-      operatorMessage: '当前 Stage2 请求状态无效，请检查当前输入、文案和素材状态后重试。',
+      operatorMessage: '当前素材或输入无法用于生成，请检查图片来源、占位素材和必填字段后重试。',
+      detailCode,
+      detailMessage,
+      status,
+    };
+  }
+  if (looksLikeTransport || !hasStructuredAppDetail) {
+    return {
+      kind: 'network_transport',
+      operatorMessage: '浏览器未能完成生成请求，请检查网络、跨域或预检配置后重试。',
+      detailCode,
+      detailMessage,
+      status,
     };
   }
   return {
     kind: 'unknown',
     operatorMessage: '生成失败，请重试。',
+    detailCode,
+    detailMessage,
+    status,
   };
+}
+
+function buildStage2FailureStatusMessage(error, failure, { quotaExceeded = false } = {}) {
+  if (quotaExceeded) {
+    const quotaStatusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
+    return `图像生成额度已用尽，请稍后重试或上传已有素材。${quotaStatusHint}`;
+  }
+
+  const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
+  const friendlyMessage = formatPosterGenerationError(error);
+  const normalizedFriendly = String(friendlyMessage || '').trim();
+  const normalizedLower = normalizedFriendly.toLowerCase();
+  const detailParts = [];
+
+  if (
+    failure?.detailCode &&
+    !normalizedLower.includes(String(failure.detailCode).toLowerCase())
+  ) {
+    detailParts.push(failure.detailCode);
+  }
+
+  const isGenericFriendly =
+    !normalizedFriendly ||
+    normalizedFriendly === failure?.operatorMessage ||
+    normalizedFriendly === '生成失败';
+
+  if (!isGenericFriendly) {
+    if (failure?.kind === 'network_transport') {
+      if (
+        normalizedLower.includes('cors') ||
+        normalizedLower.includes('cross-origin') ||
+        normalizedLower.includes('preflight') ||
+        normalizedLower.includes('access-control-allow-origin') ||
+        normalizedLower.includes('timeout') ||
+        normalizedLower.includes('timed out')
+      ) {
+        detailParts.push(normalizedFriendly);
+      }
+    } else {
+      detailParts.push(normalizedFriendly);
+    }
+  }
+
+  return detailParts.length
+    ? `${failure?.operatorMessage} ${detailParts.join(' · ')}${statusHint}`
+    : `${failure?.operatorMessage}${statusHint}`;
 }
 
 function syncStage2PreviewStateFromStage1(snapshot) {
@@ -10910,15 +10987,7 @@ async function triggerGeneration(opts) {
       error?.status === 429 &&
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
     const failure = classifyStage2RequestFailure(error);
-    const friendlyMessage = quotaExceeded
-      ? '图像生成额度已用尽，请稍后重试或上传已有素材。'
-      : formatPosterGenerationError(error);
-    const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
-    const decoratedMessage = quotaExceeded
-      ? `${friendlyMessage}${statusHint}`
-      : friendlyMessage && friendlyMessage !== failure.operatorMessage
-      ? `${failure.operatorMessage} ${friendlyMessage}${statusHint}`
-      : `${failure.operatorMessage}${statusHint}`;
+    const decoratedMessage = buildStage2FailureStatusMessage(error, failure, { quotaExceeded });
     setStatus(statusElement, decoratedMessage, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;

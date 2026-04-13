@@ -309,6 +309,19 @@
     );
     const errorMessage = normalizeText(error?.message).toLowerCase();
     const combined = `${detailCode} ${detailMessage.toLowerCase()} ${errorMessage}`.trim();
+    const hasStructuredAppDetail = Boolean(
+      responseJson ||
+      detailCode ||
+      detailMessage ||
+      (typeof error?.responseText === 'string' && error.responseText.trim())
+    );
+    const requestFailureCodes = new Set([
+      'image_decode_failed',
+      'product_image_load_failed',
+      'bad_image_source',
+      'bad_placeholder_asset',
+      'validation_error',
+    ]);
     const looksLikeTransport =
       error instanceof TypeError ||
       status === 0 ||
@@ -322,23 +335,42 @@
       combined.includes('timeout') ||
       combined.includes('timed out');
 
-    if (looksLikeTransport || status >= 500 || status === 502 || status === 503 || status === 504) {
+    if (status >= 500) {
       return {
-        kind: 'network_transport',
-        operatorMessage: '无法连接生成服务，请检查网络、CORS 或后端可达性后重试。',
+        kind: 'backend_unavailable',
+        operatorMessage: '生成服务暂时不可用或返回服务器错误，请稍后重试。',
+        detailCode,
+        detailMessage,
+        status,
       };
     }
 
-    if ([400, 401, 403, 404, 409, 412, 413, 422].includes(status)) {
+    if (requestFailureCodes.has(detailCode) || [400, 401, 403, 404, 409, 412, 413, 422].includes(status)) {
       return {
         kind: 'request_state',
-        operatorMessage: '当前 Stage2 请求状态无效，请检查当前输入、文案和素材状态后重试。',
+        operatorMessage: '当前素材或输入无法用于生成，请检查图片来源、占位素材和必填字段后重试。',
+        detailCode,
+        detailMessage,
+        status,
+      };
+    }
+
+    if (looksLikeTransport || !hasStructuredAppDetail) {
+      return {
+        kind: 'network_transport',
+        operatorMessage: '浏览器未能完成生成请求，请检查网络、跨域或预检配置后重试。',
+        detailCode,
+        detailMessage,
+        status,
       };
     }
 
     return {
       kind: 'unknown',
       operatorMessage: '生成失败，请重试。',
+      detailCode,
+      detailMessage,
+      status,
     };
   }
 
