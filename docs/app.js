@@ -6969,22 +6969,26 @@ function buildStage2SourceSignatures(stage1Data) {
     return stage2RequestHelpers.buildStage2SourceSignatures(stage1Data);
   }
   const galleryEntries = Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries : [];
+  const assets = {
+    brand_logo: pickDraftImageRef(stage1Data?.brand_logo),
+    scenario_asset: pickDraftImageRef(stage1Data?.scenario_asset),
+    product_image_1: pickDraftImageRef(stage1Data?.product_image_1 || stage1Data?.product_asset),
+    product_image_2: pickDraftImageRef(stage1Data?.product_image_2),
+    gallery_entries: galleryEntries.map((entry) => ({
+      asset: pickDraftImageRef(entry?.asset),
+      caption: entry?.caption || '',
+    })),
+  };
+  const copy = {
+    title: stage1Data?.title || '',
+    subtitle: stage1Data?.subtitle || stage1Data?.tagline || stage1Data?.promo || '',
+    features: resolveStage1ProductCallouts(stage1Data),
+  };
   return {
-    assetSignature: JSON.stringify({
-      brand_logo: pickDraftImageRef(stage1Data?.brand_logo),
-      scenario_asset: pickDraftImageRef(stage1Data?.scenario_asset),
-      product_image_1: pickDraftImageRef(stage1Data?.product_image_1 || stage1Data?.product_asset),
-      product_image_2: pickDraftImageRef(stage1Data?.product_image_2),
-      gallery_entries: galleryEntries.map((entry) => ({
-        asset: pickDraftImageRef(entry?.asset),
-        caption: entry?.caption || '',
-      })),
-    }),
-    copySignature: JSON.stringify({
-      title: stage1Data?.title || '',
-      subtitle: stage1Data?.subtitle || stage1Data?.tagline || stage1Data?.promo || '',
-      features: resolveStage1ProductCallouts(stage1Data),
-    }),
+    assets,
+    copy,
+    assetSignature: JSON.stringify(assets),
+    copySignature: JSON.stringify(copy),
   };
 }
 
@@ -7373,6 +7377,104 @@ function buildStage2PreflightDiagnostics(input) {
   };
 }
 
+function classifyStoredStage2ResultCompatibility(storedResult, currentFormSignature) {
+  if (typeof stage2RequestHelpers.classifyStoredStage2ResultCompatibility === 'function') {
+    return stage2RequestHelpers.classifyStoredStage2ResultCompatibility(storedResult, currentFormSignature);
+  }
+  const stored = storedResult && typeof storedResult === 'object' ? storedResult : null;
+  const currentSignature = typeof currentFormSignature === 'string' ? currentFormSignature.trim() : '';
+  const storedSignature = typeof stored?.canonical_form_signature === 'string'
+    ? stored.canonical_form_signature.trim()
+    : '';
+  const storedPosterKey = typeof stored?.poster_key === 'string' ? stored.poster_key.trim() : '';
+  if (!stored) {
+    return {
+      compatible: false,
+      reason: 'missing_stored_result',
+      shouldClearPosterKey: Boolean(storedPosterKey),
+    };
+  }
+  if (!storedSignature) {
+    return {
+      compatible: false,
+      reason: 'missing_stored_signature',
+      shouldClearPosterKey: Boolean(storedPosterKey),
+    };
+  }
+  if (!currentSignature) {
+    return {
+      compatible: false,
+      reason: 'missing_current_signature',
+      shouldClearPosterKey: Boolean(storedPosterKey),
+    };
+  }
+  if (storedSignature !== currentSignature) {
+    return {
+      compatible: false,
+      reason: 'canonical_signature_mismatch',
+      shouldClearPosterKey: Boolean(storedPosterKey),
+    };
+  }
+  return {
+    compatible: true,
+    reason: 'canonical_signature_match',
+    shouldClearPosterKey: false,
+    storedPosterKey,
+    storedSignature,
+  };
+}
+
+function classifyStage2RequestFailure(error) {
+  if (typeof stage2RequestHelpers.classifyStage2RequestFailure === 'function') {
+    return stage2RequestHelpers.classifyStage2RequestFailure(error);
+  }
+  if (error?.name === 'AbortError') {
+    return {
+      kind: 'aborted',
+      operatorMessage: '请求已取消。',
+    };
+  }
+  const status = Number(error?.status || 0);
+  const responseJson = error?.responseJson;
+  const detail = responseJson?.detail ?? responseJson ?? error?.responseText ?? null;
+  const detailCode = String(detail?.error || detail?.code || error?.code || '').trim().toLowerCase();
+  const detailMessage = String(
+    detail?.message ||
+    detail?.error ||
+    (typeof detail === 'string' ? detail : error?.message || '')
+  ).trim().toLowerCase();
+  const errorMessage = String(error?.message || '').trim().toLowerCase();
+  const combined = `${detailCode} ${detailMessage} ${errorMessage}`.trim();
+  const looksLikeTransport =
+    error instanceof TypeError ||
+    status === 0 ||
+    combined.includes('failed to fetch') ||
+    combined.includes('networkerror') ||
+    combined.includes('load failed') ||
+    combined.includes('network request failed') ||
+    combined.includes('cors') ||
+    combined.includes('access-control-allow-origin') ||
+    combined.includes('network') ||
+    combined.includes('timeout') ||
+    combined.includes('timed out');
+  if (looksLikeTransport || status >= 500 || status === 502 || status === 503 || status === 504) {
+    return {
+      kind: 'network_transport',
+      operatorMessage: '无法连接生成服务，请检查网络、CORS 或后端可达性后重试。',
+    };
+  }
+  if ([400, 401, 403, 404, 409, 412, 413, 422].includes(status)) {
+    return {
+      kind: 'request_state',
+      operatorMessage: '当前 Stage2 请求状态无效，请检查当前输入、文案和素材状态后重试。',
+    };
+  }
+  return {
+    kind: 'unknown',
+    operatorMessage: '生成失败，请重试。',
+  };
+}
+
 function syncStage2PreviewStateFromStage1(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return;
   const stage1Features = Array.isArray(snapshot.features)
@@ -7407,6 +7509,45 @@ function syncStage2PreviewStateFromStage1(snapshot) {
       : [],
     composite_poster_url: '',
   };
+}
+
+async function reconcileStage2StoredSuccessState(currentFormSignature, statusElement) {
+  const stored = await loadStage2Result();
+  const compatibility = classifyStoredStage2ResultCompatibility(stored, currentFormSignature);
+  const locationPosterKey = getPosterKeyFromLocation();
+  if (compatibility.compatible) {
+    stage2LastSuccessfulFormSignature = compatibility.storedSignature || currentFormSignature || null;
+    stage2LastSuccessfulRequestSignature =
+      typeof stored?.request_payload_signature === 'string' && stored.request_payload_signature.trim()
+        ? stored.request_payload_signature.trim()
+        : null;
+    return stored;
+  }
+
+  const hasStaleSuccess = Boolean(stored);
+  const shouldClearPosterKey = compatibility.shouldClearPosterKey || Boolean(locationPosterKey);
+  if (hasStaleSuccess) {
+    clearStage2RuntimeRequestCache();
+  } else if (shouldClearPosterKey) {
+    clearStage2StoredSuccessReferences();
+  }
+  stage2LastSuccessfulFormSignature = null;
+  stage2LastSuccessfulRequestSignature = null;
+
+  if ((hasStaleSuccess || shouldClearPosterKey) && statusElement) {
+    setStatus(
+      statusElement,
+      '已按当前 Stage1 truth 清理旧的 Stage2 生成状态；请基于当前输入重新生成。',
+      'info'
+    );
+  }
+  console.info('[stage2] reconciled stored success state', {
+    has_stored_success: hasStaleSuccess,
+    location_poster_key_present: Boolean(locationPosterKey),
+    compatibility_reason: compatibility.reason,
+    cleared_poster_key: shouldClearPosterKey,
+  });
+  return null;
 }
 
 function getKitPosterVariant(renderMode) {
@@ -8705,12 +8846,14 @@ function initStage2() {
     }
 
     syncStage2PreviewStateFromStage1(stage1Data);
-    stage2LastSourceSignatures = buildStage2FormStateSignatures({
+    const initialFormSignatures = buildStage2FormStateSignatures({
       stage1Data,
       bottomRequestState: buildPoster2BottomRequestState(stage1Data),
       copyOptimization: ensurePoster2CopyOptimizationState(),
       adjustments: stage2State.adjustments || {},
     });
+    stage2LastSourceSignatures = initialFormSignatures;
+    await reconcileStage2StoredSuccessState(initialFormSignatures.formSignature, statusElement);
 
     renderPosterResult();
 
@@ -10386,9 +10529,17 @@ async function triggerGeneration(opts) {
   } catch (error) {
     console.error('[triggerGeneration] asset normalisation failed', error);
     if (isCurrentStage2Request(mySeq)) {
+      const failure = classifyStage2RequestFailure({
+        status: 422,
+        responseJson: {
+          detail: {
+            message: error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+          },
+        },
+      });
       setStatus(
         statusElement,
-        error instanceof Error ? error.message : '素材未完成上传，请先上传至 R2/GCS。',
+        failure.operatorMessage,
         'error',
       );
       stage2InFlight = false;
@@ -10758,11 +10909,16 @@ async function triggerGeneration(opts) {
     const quotaExceeded =
       error?.status === 429 &&
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
+    const failure = classifyStage2RequestFailure(error);
     const friendlyMessage = quotaExceeded
       ? '图像生成额度已用尽，请稍后重试或上传已有素材。'
       : formatPosterGenerationError(error);
     const statusHint = typeof error?.status === 'number' ? ` (HTTP ${error.status})` : '';
-    const decoratedMessage = `${friendlyMessage}${statusHint}`;
+    const decoratedMessage = quotaExceeded
+      ? `${friendlyMessage}${statusHint}`
+      : friendlyMessage && friendlyMessage !== failure.operatorMessage
+      ? `${failure.operatorMessage} ${friendlyMessage}${statusHint}`
+      : `${failure.operatorMessage}${statusHint}`;
     setStatus(statusElement, decoratedMessage, 'error');
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;

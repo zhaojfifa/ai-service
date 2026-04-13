@@ -248,6 +248,100 @@
     };
   }
 
+  function classifyStoredStage2ResultCompatibility(storedResult, currentFormSignature) {
+    const stored = storedResult && typeof storedResult === 'object' ? storedResult : null;
+    const currentSignature = normalizeText(currentFormSignature);
+    const storedSignature = normalizeText(stored?.canonical_form_signature);
+    const storedPosterKey = normalizeText(stored?.poster_key);
+    if (!stored) {
+      return {
+        compatible: false,
+        reason: 'missing_stored_result',
+        shouldClearPosterKey: Boolean(storedPosterKey),
+      };
+    }
+    if (!storedSignature) {
+      return {
+        compatible: false,
+        reason: 'missing_stored_signature',
+        shouldClearPosterKey: Boolean(storedPosterKey),
+      };
+    }
+    if (!currentSignature) {
+      return {
+        compatible: false,
+        reason: 'missing_current_signature',
+        shouldClearPosterKey: Boolean(storedPosterKey),
+      };
+    }
+    if (storedSignature !== currentSignature) {
+      return {
+        compatible: false,
+        reason: 'canonical_signature_mismatch',
+        shouldClearPosterKey: Boolean(storedPosterKey),
+      };
+    }
+    return {
+      compatible: true,
+      reason: 'canonical_signature_match',
+      shouldClearPosterKey: false,
+      storedPosterKey,
+      storedSignature,
+    };
+  }
+
+  function classifyStage2RequestFailure(error) {
+    if (error?.name === 'AbortError') {
+      return {
+        kind: 'aborted',
+        operatorMessage: '请求已取消。',
+      };
+    }
+
+    const status = Number(error?.status || 0);
+    const responseJson = error?.responseJson;
+    const detail = responseJson?.detail ?? responseJson ?? error?.responseText ?? null;
+    const detailCode = normalizeText(detail?.error || detail?.code || error?.code).toLowerCase();
+    const detailMessage = normalizeText(
+      detail?.message ||
+      detail?.error ||
+      (typeof detail === 'string' ? detail : error?.message)
+    );
+    const errorMessage = normalizeText(error?.message).toLowerCase();
+    const combined = `${detailCode} ${detailMessage.toLowerCase()} ${errorMessage}`.trim();
+    const looksLikeTransport =
+      error instanceof TypeError ||
+      status === 0 ||
+      combined.includes('failed to fetch') ||
+      combined.includes('networkerror') ||
+      combined.includes('load failed') ||
+      combined.includes('network request failed') ||
+      combined.includes('cors') ||
+      combined.includes('access-control-allow-origin') ||
+      combined.includes('network') ||
+      combined.includes('timeout') ||
+      combined.includes('timed out');
+
+    if (looksLikeTransport || status >= 500 || status === 502 || status === 503 || status === 504) {
+      return {
+        kind: 'network_transport',
+        operatorMessage: '无法连接生成服务，请检查网络、CORS 或后端可达性后重试。',
+      };
+    }
+
+    if ([400, 401, 403, 404, 409, 412, 413, 422].includes(status)) {
+      return {
+        kind: 'request_state',
+        operatorMessage: '当前 Stage2 请求状态无效，请检查当前输入、文案和素材状态后重试。',
+      };
+    }
+
+    return {
+      kind: 'unknown',
+      operatorMessage: '生成失败，请重试。',
+    };
+  }
+
   function buildPoster2PayloadFromNormalisedInputs(input) {
     const galleryImages = Array.isArray(input.galleryImages) ? input.galleryImages : [];
     const galleryImageCount = galleryImages.length;
@@ -459,6 +553,8 @@
     buildStage2FormStateSignatures,
     diffStage2FormSignatures,
     buildStage2PreflightDiagnostics,
+    classifyStoredStage2ResultCompatibility,
+    classifyStage2RequestFailure,
     buildGeneratePosterPayloadFromForm,
     buildPoster2PayloadFromNormalisedInputs,
     buildPoster2RequestSummary,

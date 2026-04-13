@@ -1,5 +1,181 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP5: Stage2 request-state decontamination and scenario-driven closure
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- re-anchored required baseline/frozen docs before edits:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+  - `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- then minimum task files only:
+  - `frontend/stage2.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/stage2.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+  - minimum additional helper surface required for request-state closure:
+    - `frontend/stage2_request_helpers.js`
+    - `docs/stage2_request_helpers.js`
+    - `tests/frontend/test_stage2_request_helpers.js`
+
+### Scope
+
+- PR-OP5 only
+- Stage2 request-state decontamination only
+- scenario-driven closure for:
+  - Scenario A: re-generate inside Stage2 after changing controls
+  - Scenario B: return from Stage3 back to Stage2, then re-generate
+  - Scenario C: return to Stage1, change inputs, re-enter Stage2, then generate
+- keep Stage2/frontend/docs mirror aligned
+- update branch execution log before stop
+- no poster structure contract reopen, no bottom redesign, no product annotation ownership change, no renderer routing change, no Stage3 backend-truth-model change, no new operator feature work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- frontend cache remains cache only, never truth source
+- preview and final generate continue consuming the same canonical bottom request truth
+- bottom contract semantics stayed frozen
+- product annotation ownership stayed frozen
+- renderer routing and `/api/v2/generate-poster` truth stayed frozen
+- Stage3 remained backend-truth-driven
+- source and published mirror were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage2 still allowed stale success/session state to survive long enough to contaminate later operator flows even when current source truth had changed
+- the contamination class was broader than one field:
+  - stale `sessionStorage.stage2`
+  - stale `poster_key` in Stage2 URL
+  - stale success signatures
+  - stale copy-optimization acceptance/success carry-forward
+  - weak request failure labeling that collapsed request-state and transport/network failures together
+- the most important gap for Scenario C was that stale stored success could survive a Stage1 truth change because Stage2 init did not actively reconcile stored success against current canonical form state
+
+### Root cause found
+
+- Stage2 already had partial invalidation, but not a complete init-time reconciliation step for stored success state versus current Stage1/Stage2 canonical truth
+- helper/runtime logic did not expose an explicit compatibility test for stored success snapshots
+- local fallback signature code in `frontend/app.js` / `docs/app.js` also failed to carry explicit `assets` / `copy` objects into `formSignature`, which weakened fallback-path canonical signature honesty
+- operator-facing error handling treated request/input-state failures and network/transport/CORS/backend-reachability failures too similarly
+
+### Exact canonicalization / invalidation changes made
+
+- kept the existing bottom canonicalization path intact:
+  - preview and final generate still read the same canonical bottom request state
+- added explicit stored-success compatibility logic:
+  - `classifyStoredStage2ResultCompatibility(...)`
+  - compares persisted `canonical_form_signature` against current canonical Stage2 form truth
+- added Stage2 init reconciliation:
+  - `reconcileStage2StoredSuccessState(...)`
+  - if stored success matches current canonical truth, it may remain as safe comparison/session metadata only
+  - if stored success is stale or missing canonical signature, Stage2 clears:
+    - `sessionStorage.stage2`
+    - stale cached final-poster asset reference
+    - stale `poster_key` URL carry-forward
+    - last-success signature carry-forward
+- fixed local fallback form-signature construction in `frontend/app.js` / `docs/app.js` so `assets` and `copy` participate honestly in canonical signature construction even without helper delegation
+- kept copy-optimization invalidation tied to canonical source changes:
+  - source/bottom/request-control changes still reset accepted optimization carry-forward before the next canonical snapshot is built
+
+### Exact failure-classification changes made
+
+- added explicit Stage2 request failure classification helper:
+  - `classifyStage2RequestFailure(...)`
+- operator-visible failure handling now separates at least:
+  - `request_state`
+    - invalid/current-input/canonical-state problems such as bad request shape or unresolved operator input state
+  - `network_transport`
+    - network reachability, CORS, fetch/timeout, and backend availability problems
+- asset-normalization failure before request dispatch is now surfaced through the request-state class instead of a generic generate failure
+- transport/backend failures now prepend a clearer operator message instead of collapsing into the same generic path
+
+### Scenario closure coverage
+
+- Scenario A — re-generate inside Stage2 after changing controls:
+  - canonical request helper tests still prove fresh payload snapshots per generate
+  - bottom-mode change invalidates only `bottom_contract`
+  - success-derived state is cleared before the next request snapshot is used
+  - stale prior success metadata is not reused as request truth
+- Scenario B — return from Stage3 back to Stage2:
+  - Stage2 init now reconciles stored success against current canonical truth instead of trusting old success/session state implicitly
+  - stale `poster_key` / stored success state is cleared if it no longer matches current canonical Stage2 truth
+  - Stage3 success state does not silently become the next Stage2 request input source
+- Scenario C — return to Stage1, change inputs, re-enter Stage2:
+  - Stage2 init now treats canonical-signature mismatch as stale success contamination and clears old Stage2 success/session state
+  - fresh Stage1 truth becomes the only accepted request source for the next generate
+  - stale Stage2 cache/snapshot no longer outranks current Stage1 truth
+
+### Files changed
+
+- `frontend/app.js`
+- `docs/app.js`
+- `frontend/stage2_request_helpers.js`
+- `docs/stage2_request_helpers.js`
+- `tests/frontend/test_stage2_request_helpers.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 frontend request-state lifecycle only
+- Stage2 frontend request-helper / canonical-signature logic only
+- Stage2 operator-facing failure classification only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- focused Stage2 helper / scenario coverage:
+  - `node --test tests/frontend/test_stage2_request_helpers.js` → `21 passed`
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+  - `node --check frontend/stage2_request_helpers.js`
+  - `node --check docs/stage2_request_helpers.js`
+- mirror sync/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/stage2_request_helpers.js docs/stage2_request_helpers.js`
+- source-level proof attached through helper tests:
+  - stale stored Stage2 success is rejected on canonical signature mismatch
+  - stored Stage2 success remains compatible only on canonical signature match
+  - request-state failures and network/transport failures classify separately
+
+### Remaining risks
+
+- this pass validated through source-level/helper-level scenario proofs and static checks; no live browser recording or deployed network artifact bundle was available in this workspace
+- compatible stored Stage2 success may still exist as safe session metadata when canonical truth matches; this pass intentionally preserves the “cache is cache, not truth” boundary instead of deleting all success state unconditionally
+- no backend/API/runtime truth changed here, so any real deployed transport/CORS outage would still need live-environment verification outside this workspace
+
+### Exact acceptance state
+
+- Scenario A is clean at the Stage2 canonical request-helper / invalidation layer
+- Scenario B is clean at the Stage2 stored-success / stale-URL / stale-session reconciliation layer
+- Scenario C is clean at the Stage1-truth-over-stale-Stage2-cache reconciliation layer
+- preview and final generate still share the same canonical bottom truth
+- stale Stage2 or Stage3 success/session state no longer survives as the next Stage2 request truth when current canonical truth changed
+- operator-visible failure classes are clearer
+- no request/routing/runtime truth changed
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was left untouched by this pass because no new shared-state fact needed to be carried forward beyond the branch execution log
+- branch execution log is updated
+- acceptance target for PR-OP5 is met
+
 ## Entry — PR-OP4R: Stage3 redundancy reduction and operator-send flow simplification
 
 **Branch:** `main`

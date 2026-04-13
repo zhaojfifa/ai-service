@@ -10,6 +10,8 @@ const {
   diffStage2FormSignatures,
   countStage1GalleryAssets,
   buildStage2PreflightDiagnostics,
+  classifyStoredStage2ResultCompatibility,
+  classifyStage2RequestFailure,
   hashStableValue,
   createRequestCoordinator,
   diffPayloadPaths,
@@ -545,4 +547,112 @@ test('request summary stays normalized and Template A contract fields unchanged'
     ],
     copy_optimization_decision: 'pending',
   });
+});
+
+test('stored Stage2 success is rejected when canonical signature no longer matches current Stage1 truth', () => {
+  const current = buildStage2FormStateSignatures({
+    stage1Data: {
+      brand_logo: { url: 'https://cdn.example.com/logo-a.png' },
+      scenario_asset: { url: 'https://cdn.example.com/scenario-a.png' },
+      product_image_1: { url: 'https://cdn.example.com/product-a.png' },
+      gallery_entries: [{ asset: { url: 'https://cdn.example.com/gallery-a.png' }, caption: 'A' }],
+      title: 'Air Fryer',
+      subtitle: 'Crisp results',
+      features: ['Fast heat'],
+    },
+    bottomRequestState: {
+      bottom_mode: 'title_gallery_split',
+      gallery_mode: 'strip_local_visible_only',
+      requested_title_text: 'Air Fryer',
+      requested_subtitle_text: 'Crisp results',
+    },
+    copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+    adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+  });
+  const stale = buildStage2FormStateSignatures({
+    stage1Data: {
+      brand_logo: { url: 'https://cdn.example.com/logo-a.png' },
+      scenario_asset: { url: 'https://cdn.example.com/scenario-b.png' },
+      product_image_1: { url: 'https://cdn.example.com/product-a.png' },
+      gallery_entries: [{ asset: { url: 'https://cdn.example.com/gallery-a.png' }, caption: 'A' }],
+      title: 'Air Fryer',
+      subtitle: 'Crisp results',
+      features: ['Fast heat'],
+    },
+    bottomRequestState: {
+      bottom_mode: 'title_gallery_split',
+      gallery_mode: 'strip_local_visible_only',
+      requested_title_text: 'Air Fryer',
+      requested_subtitle_text: 'Crisp results',
+    },
+    copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+    adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+  });
+
+  const compatibility = classifyStoredStage2ResultCompatibility(
+    {
+      poster_key: 'poster-stale',
+      canonical_form_signature: stale.formSignature,
+    },
+    current.formSignature
+  );
+
+  assert.equal(compatibility.compatible, false);
+  assert.equal(compatibility.reason, 'canonical_signature_mismatch');
+  assert.equal(compatibility.shouldClearPosterKey, true);
+});
+
+test('stored Stage2 success stays compatible only when canonical signature still matches', () => {
+  const current = buildStage2FormStateSignatures({
+    stage1Data: {
+      brand_logo: { url: 'https://cdn.example.com/logo-a.png' },
+      scenario_asset: { url: 'https://cdn.example.com/scenario-a.png' },
+      product_image_1: { url: 'https://cdn.example.com/product-a.png' },
+      gallery_entries: [{ asset: { url: 'https://cdn.example.com/gallery-a.png' }, caption: 'A' }],
+      title: 'Air Fryer',
+      subtitle: 'Crisp results',
+      features: ['Fast heat'],
+    },
+    bottomRequestState: {
+      bottom_mode: 'gallery_only',
+      gallery_mode: 'strip_local_visible_only',
+      requested_title_text: 'Air Fryer',
+      requested_subtitle_text: 'Crisp results',
+    },
+    copyOptimization: { mode: 'suggest', decision: 'pending', acceptedFeatures: [] },
+    adjustments: { showBullets: true, titleSize: 'M', qualityMode: 'stable' },
+  });
+
+  const compatibility = classifyStoredStage2ResultCompatibility(
+    {
+      poster_key: 'poster-current',
+      canonical_form_signature: current.formSignature,
+    },
+    current.formSignature
+  );
+
+  assert.equal(compatibility.compatible, true);
+  assert.equal(compatibility.reason, 'canonical_signature_match');
+  assert.equal(compatibility.shouldClearPosterKey, false);
+});
+
+test('request failure classification separates request-state from network transport', () => {
+  assert.equal(
+    classifyStage2RequestFailure({
+      status: 422,
+      responseJson: { detail: { message: 'bottom_mode invalid' } },
+    }).kind,
+    'request_state'
+  );
+  assert.equal(
+    classifyStage2RequestFailure(new TypeError('Failed to fetch')).kind,
+    'network_transport'
+  );
+  assert.equal(
+    classifyStage2RequestFailure({
+      status: 0,
+      message: 'CORS blocked by Access-Control-Allow-Origin',
+    }).kind,
+    'network_transport'
+  );
 });
