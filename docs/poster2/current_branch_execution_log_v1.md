@@ -1,5 +1,166 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP1C-REV: minimal selector preview correction and bottom flow separation
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read in this log:
+  - `PR-OP1A`
+  - `PR-OP1B`
+  - `PR-OP1C`
+- task-relevant implementation files:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `frontend/templates/registry.json`
+  - `frontend/templates/template_marketing_poster_preview.svg`
+  - `frontend/templates/template_product_sheet_preview.svg`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+  - `docs/templates/registry.json`
+  - `docs/templates/template_marketing_poster_preview.svg`
+  - `docs/templates/template_product_sheet_preview.svg`
+
+### Scope
+
+- selector preview style correction only
+- Stage1 Bottom Support Copy visual-placement clarification only
+- static selector asset redraw only
+- shallow Stage1 boundary / spacing / helper adjacency tuning only
+- `frontend/` and `docs/` mirror alignment on touched files
+- focused validation only
+- branch execution log write-back
+- no request builder, backend schema, renderer behavior, routing, Stage2 result/replay, or Stage3 truth work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- preserve frozen renderer truth, request truth, ownership truth, and family routing truth
+- keep Product Callouts product-owned and Bottom Support Copy bottom-owned
+- use selector asset correction instead of runtime rendering changes
+- keep source and published copies aligned in the same task
+
+### Problem reproduced
+
+- PR-OP1C corrected selector parity, but pushed the previews too far toward structure-diagram / logic-block language
+- the result was more consistent than before, but still read too technical and too close to wireframe-style selector art
+- Bottom Support Copy was already moved under `Bottom Area`, but the opening of that section still felt too close to the product reading flow
+
+### Root cause found
+
+- both selector previews used the same static-SVG mechanism, but the SVG language still emphasized bounded structural blocks over simple minimal card presentation
+- the `Bottom Area` fieldset had the right ownership, but needed a clearer top-of-section boundary and lighter flow treatment so the bottom reading lane started more explicitly
+
+### Exact selector preview correction decision
+
+- kept both remaining selector previews as static SVG assets
+- corrected both previews from structure-diagram emphasis to minimal selector-card emphasis
+- normalized both previews to the same lighter comparison language:
+  - soft outer background
+  - restrained accent colors
+  - fewer content blocks
+  - lower detail density
+  - similar visual weight
+  - simple card-style shapes instead of wireframe-feeling schematic blocks
+- preserved purpose differentiation only:
+  - `Marketing Poster`: header, hero composition, marketing-copy emphasis, bottom support strip
+  - `Product Sheet`: banner, SKU/top-copy block, product hero, materials/detail strip, description area
+- kept internal ids and selector wiring unchanged:
+  - `template_dual`
+  - `template_product_sheet_v1`
+
+### Exact Bottom Support Copy layout move
+
+- kept `Bottom Support Copy` inside `s1-bottom-thumbs` under `Bottom Area`
+- added a `bottom-area-flow` wrapper with a top divider and extra top padding so the bottom reading flow starts as its own lane
+- converted the touched subsection headings / hints in the bottom block to Chinese:
+  - `底部辅助文案`
+  - `底部缩略图`
+- kept `Product Callouts` in `s1-core-assets`
+- kept the underlying field name as `subtitle`; no ownership remap or request-mapping change was made
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/styles.css`
+- `frontend/templates/registry.json`
+- `frontend/templates/template_marketing_poster_preview.svg`
+- `frontend/templates/template_product_sheet_preview.svg`
+- `docs/index.html`
+- `docs/styles.css`
+- `docs/templates/registry.json`
+- `docs/templates/template_marketing_poster_preview.svg`
+- `docs/templates/template_product_sheet_preview.svg`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 operator selector presentation
+- Stage1 bottom-area reading-flow presentation
+- publish mirror alignment
+- focused static validation
+- branch execution/state log
+
+### Focused validation run
+
+- `bash scripts/check_frontend_docs_sync.sh`
+- `node --check frontend/app.js`
+- `node --check docs/app.js`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- mirror assertions:
+  - `cmp -s frontend/templates/registry.json docs/templates/registry.json`
+  - `cmp -s frontend/templates/template_marketing_poster_preview.svg docs/templates/template_marketing_poster_preview.svg`
+  - `cmp -s frontend/templates/template_product_sheet_preview.svg docs/templates/template_product_sheet_preview.svg`
+- focused static assertions:
+  - selector registry count = `2`
+  - selector ids remain `template_dual` and `template_product_sheet_v1`
+  - registry descriptions now read as `Minimal ... preview ...`
+  - `Product Callouts` still appears before `id="s1-bottom-thumbs"`
+  - `Bottom Support Copy` still appears after `id="s1-bottom-thumbs"`
+  - `bottom-area-flow`, `底部辅助文案`, and `底部缩略图` are present in `frontend/index.html`
+
+### Direct proof captured
+
+- selector preview correction proof:
+  - both selector assets were redrawn in-place as minimal SVG cards rather than structure-diagram-heavy blocks
+  - registry descriptions now explicitly describe both choices as `Minimal ... preview ...`
+- bottom placement proof:
+  - static order check in `frontend/index.html` verified:
+    - `Product Callouts (optional, up to 3)`
+    - `id="s1-bottom-thumbs"`
+    - `Bottom Support Copy (optional)`
+  - `bottom-area-flow` wrapper now marks the start of the bottom-owned lane
+
+### Remaining risks
+
+- this PR again used focused static validation only; no live browser screenshot capture was attached in this workspace
+- selector-card quality here is still asset-based judgment; if future operator testing asks for further tuning, it should remain a static selector-asset pass rather than a runtime render change
+
+### Exact acceptance state
+
+- exactly two operator-facing templates remain
+- both selector previews now read as simple/minimal template options rather than abstract logic diagrams
+- the two previews are comparable in fidelity level
+- Product Sheet preview remains present and non-missing
+- Marketing Poster preview no longer reads as underpowered or placeholder-like
+- Bottom Support Copy clearly reads as bottom-owned by placement
+- Product Callouts remain clearly product-owned by placement
+- no request/routing/runtime truth changed
+- `frontend/` and `docs/` touched files remain aligned
+- `CLAUDE.md` left unchanged because this PR did not introduce a new shared-state fact beyond branch-local execution state
+
 ## Entry — PR-OP1C: selector preview parity and bottom placement clarity
 
 **Branch:** `main`

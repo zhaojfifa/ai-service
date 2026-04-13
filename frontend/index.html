@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stage 1 - Assets & Copy (Mode S)</title>
-    <link rel="stylesheet" href="./styles.css?v=9d1f6c2" />
+    <link rel="stylesheet" href="./styles.css?v=3a4b61e" />
   </head>
   <body data-stage="stage1">
     <header>
@@ -195,11 +195,12 @@
 
         <fieldset id="s1-bottom-thumbs" class="card stage-card" data-variant-visible="a">
           <legend>Bottom Area</legend>
-          <p class="hint">底部辅助文案与底部缩略图都属于底部区域，与 Product Callouts 的产品标注区分开处理。</p>
-          <div class="stage-subsection stage-subsection--bottom">
-            <h3>Bottom Support</h3>
-            <p class="hint">这一组只控制底部收束区域，不进入主产品标注区。</p>
-          </div>
+          <div class="bottom-area-flow">
+            <p class="hint">这一段只负责底部区域收束；Bottom Support Copy 与底部缩略图都不进入 Product Callouts 的产品标注区。</p>
+            <div class="stage-subsection stage-subsection--bottom">
+              <h3>底部辅助文案</h3>
+              <p class="hint">先填写底部辅助文案，再补充底部展示素材。</p>
+            </div>
           <div class="bottom-support-block">
             <label class="field optional">
               <span id="stage1-subtitle-label">Bottom Support Copy (optional)</span>
@@ -208,8 +209,8 @@
             </label>
           </div>
           <div class="stage-subsection stage-subsection--bottom-assets">
-            <h3>Bottom Thumbnails</h3>
-            <p class="hint">最多上传 4 张，空槽位允许存在。</p>
+            <h3>底部缩略图</h3>
+            <p class="hint">最多上传 4 张，空槽位允许存在；这一组继续属于 Bottom Area。</p>
           </div>
           <div id="bottom-thumbnails" class="thumbnail-grid">
             <div class="thumbnail-slot" data-slot-index="0">
@@ -269,6 +270,7 @@
             <input type="checkbox" name="allow_auto_fill" checked />
             <span>Allow auto-fill (Mode S asset utilization)</span>
           </label>
+          </div>
         </fieldset>
 <section class="card wireframe-card">
           <div class="section-heading-row">

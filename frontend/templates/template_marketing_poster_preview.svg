@@ -1,30 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" role="img" aria-labelledby="title desc">
   <title id="title">Marketing Poster template preview</title>
-  <desc id="desc">Structured preview with brand header, scenario panel, hero product panel, callout lane, title block, and bottom gallery area.</desc>
-  <rect width="720" height="440" fill="#eef2f5"/>
-  <rect x="28" y="24" width="664" height="392" rx="26" fill="#fbfcfd" stroke="#cbd5df" stroke-width="2"/>
-  <rect x="52" y="46" width="616" height="52" rx="18" fill="#163047"/>
-  <rect x="74" y="61" width="112" height="22" rx="11" fill="#f8fafc" opacity="0.95"/>
-  <rect x="520" y="61" width="124" height="22" rx="11" fill="#d4dee6" opacity="0.9"/>
-  <rect x="52" y="118" width="258" height="164" rx="22" fill="#e6edf3"/>
-  <rect x="72" y="140" width="218" height="120" rx="18" fill="#f8fafc" stroke="#d0d8e0"/>
-  <rect x="84" y="152" width="194" height="96" rx="14" fill="#cfdbe5"/>
-  <circle cx="170" cy="198" r="40" fill="#9eb2c3"/>
-  <rect x="340" y="118" width="328" height="164" rx="22" fill="#f3f6f9" stroke="#d8e0e8"/>
-  <rect x="534" y="138" width="98" height="18" rx="9" fill="#c87137"/>
-  <rect x="520" y="172" width="114" height="10" rx="5" fill="#7f96a9"/>
-  <rect x="508" y="194" width="126" height="10" rx="5" fill="#9caebb"/>
-  <rect x="524" y="216" width="110" height="10" rx="5" fill="#b2c0ca"/>
-  <circle cx="440" cy="200" r="56" fill="#20364c"/>
-  <rect x="403" y="148" width="74" height="116" rx="20" fill="#d7803d"/>
-  <rect x="52" y="302" width="448" height="52" rx="18" fill="#f4f7fa" stroke="#d8e0e8"/>
-  <rect x="76" y="320" width="182" height="10" rx="5" fill="#526f84"/>
-  <rect x="76" y="338" width="146" height="8" rx="4" fill="#95a8b7"/>
-  <rect x="522" y="302" width="146" height="52" rx="18" fill="#f4f7fa" stroke="#d8e0e8"/>
-  <rect x="544" y="320" width="102" height="10" rx="5" fill="#8ea2b3"/>
-  <rect x="52" y="370" width="616" height="28" rx="14" fill="#e8eef3" stroke="#d0d8e0"/>
-  <rect x="72" y="377" width="120" height="14" rx="7" fill="#ffffff" stroke="#d3dce4"/>
-  <rect x="206" y="377" width="120" height="14" rx="7" fill="#ffffff" stroke="#d3dce4"/>
-  <rect x="340" y="377" width="120" height="14" rx="7" fill="#ffffff" stroke="#d3dce4"/>
-  <rect x="474" y="377" width="120" height="14" rx="7" fill="#ffffff" stroke="#d3dce4"/>
+  <desc id="desc">Minimal preview with a soft header, hero composition, marketing emphasis, and bottom support area.</desc>
+  <defs>
+    <linearGradient id="bgA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fafc"/>
+      <stop offset="100%" stop-color="#eef3f7"/>
+    </linearGradient>
+  </defs>
+  <rect width="720" height="440" fill="#edf2f6"/>
+  <rect x="28" y="24" width="664" height="392" rx="28" fill="url(#bgA)" stroke="#d2dbe4" stroke-width="2"/>
+  <rect x="52" y="46" width="616" height="50" rx="18" fill="#1e3448"/>
+  <rect x="74" y="61" width="108" height="20" rx="10" fill="#f7fafc"/>
+  <rect x="522" y="61" width="118" height="20" rx="10" fill="#dde6ed"/>
+  <rect x="52" y="118" width="616" height="176" rx="24" fill="#f8fbfd" stroke="#dce4eb"/>
+  <rect x="74" y="138" width="232" height="136" rx="20" fill="#e6eef4"/>
+  <circle cx="164" cy="200" r="44" fill="#bfd0dd"/>
+  <rect x="124" y="172" width="82" height="60" rx="16" fill="#dce8f0"/>
+  <rect x="332" y="138" width="314" height="136" rx="20" fill="#f2f6fa"/>
+  <ellipse cx="434" cy="226" rx="70" ry="22" fill="#dce4ec"/>
+  <rect x="390" y="150" width="88" height="96" rx="24" fill="#e18c53"/>
+  <circle cx="434" cy="166" r="36" fill="#27435a"/>
+  <rect x="520" y="152" width="92" height="18" rx="9" fill="#f2c6a6"/>
+  <rect x="508" y="184" width="104" height="10" rx="5" fill="#90a5b6"/>
+  <rect x="492" y="204" width="120" height="10" rx="5" fill="#aab9c5"/>
+  <rect x="506" y="224" width="106" height="10" rx="5" fill="#bcc8d1"/>
+  <rect x="52" y="314" width="390" height="54" rx="18" fill="#f7fafc" stroke="#dce4eb"/>
+  <rect x="78" y="332" width="164" height="10" rx="5" fill="#5d778b"/>
+  <rect x="78" y="349" width="122" height="8" rx="4" fill="#9babb8"/>
+  <rect x="466" y="314" width="202" height="54" rx="18" fill="#f7fafc" stroke="#dce4eb"/>
+  <rect x="488" y="332" width="96" height="10" rx="5" fill="#8ea4b4"/>
+  <rect x="52" y="384" width="616" height="18" rx="9" fill="#e7edf2"/>
+  <rect x="74" y="387" width="120" height="12" rx="6" fill="#ffffff"/>
+  <rect x="206" y="387" width="120" height="12" rx="6" fill="#ffffff"/>
+  <rect x="338" y="387" width="120" height="12" rx="6" fill="#ffffff"/>
+  <rect x="470" y="387" width="120" height="12" rx="6" fill="#ffffff"/>
 </svg>

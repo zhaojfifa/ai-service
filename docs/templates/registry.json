@@ -4,12 +4,12 @@
     "name": "Marketing Poster",
     "spec": "template_dual_spec.json",
     "preview": "template_marketing_poster_preview.svg",
-    "description": "Structured marketing poster with header, scenario/product stage, callouts, and bottom detail area."
+    "description": "Minimal marketing poster preview with header, hero composition, callout emphasis, and bottom support area."
   },
   {
     "id": "template_product_sheet_v1",
     "name": "Product Sheet",
     "preview": "template_product_sheet_preview.svg",
-    "description": "Structured product sheet with banner, SKU copy, large hero image, materials strip, and description block."
+    "description": "Minimal product sheet preview with banner, SKU copy, product hero, detail strip, and description area."
   }
 ]

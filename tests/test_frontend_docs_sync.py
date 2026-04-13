@@ -98,7 +98,9 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     assert "配件 / 刀头 / 材质辅图" in frontend_index
     assert "Product Series (optional)" in frontend_index
     assert "Product Callouts (optional, up to 3)" in frontend_index
-    assert "Bottom Support" in frontend_index
+    assert "底部辅助文案" in frontend_index
+    assert "底部缩略图" in frontend_index
+    assert "bottom-area-flow" in frontend_index
     assert "data-secondary-image-clear" in frontend_index
     assert "preview-family-b" in frontend_index
     assert "preview-b-product-image" in frontend_index
