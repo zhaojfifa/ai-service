@@ -98,12 +98,14 @@ def test_stage1_operator_surfaces_and_publish_mirror_are_aligned():
     assert "配件 / 刀头 / 材质辅图" in frontend_index
     assert "Product Series (optional)" in frontend_index
     assert "Product Callouts (optional, up to 3)" in frontend_index
+    assert "Bottom Support" in frontend_index
     assert "data-secondary-image-clear" in frontend_index
     assert "preview-family-b" in frontend_index
     assert "preview-b-product-image" in frontend_index
     assert 'id="open-stage1-preview"' in frontend_index
     assert 'id="preview-container" class="preview hidden"' in frontend_index
     assert "Open Preview" in frontend_index
+    assert frontend_index.index('id="s1-core-assets"') < frontend_index.index("Product Callouts (optional, up to 3)") < frontend_index.index('id="s1-bottom-thumbs"') < frontend_index.index("Bottom Support Copy (optional)")
     assert "Materials Evidence Strip" in frontend_stage2
     assert "Hero / Supporting Detail" in frontend_stage2
     assert "Product Callouts" in frontend_stage2

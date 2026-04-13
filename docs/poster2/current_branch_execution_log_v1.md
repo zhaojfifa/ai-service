@@ -1,5 +1,169 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP1C: selector preview parity and bottom placement clarity
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read in this log:
+  - `PR-OP1A`
+  - `PR-OP1B`
+- poster2 baseline / architecture anchors re-read before edits:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- task-relevant implementation files:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `frontend/templates/registry.json`
+  - `frontend/templates/template_dual_template.b64`
+  - `frontend/templates/template_product_sheet_preview.svg`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+  - `docs/templates/registry.json`
+  - `docs/templates/template_product_sheet_preview.svg`
+
+### Scope
+
+- Stage1 operator-facing selector preview parity only
+- Stage1 Bottom Support Copy placement / section-boundary clarity only
+- static selector asset replacement only
+- `frontend/` and `docs/` mirror alignment on touched files and selector assets
+- focused validation only
+- branch execution log write-back
+- no request builder, backend schema, renderer behavior, routing, Stage2 result/replay, or Stage3 truth work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- preserve frozen renderer truth, ownership truth, request construction, and routing
+- keep Product Callouts product-owned and Bottom Support Copy bottom-owned
+- use layout clarification rather than payload or contract remapping
+- keep source and published copies aligned in the same task
+
+### Problem reproduced
+
+- selector comparison was still unfair because `Marketing Poster` used the older poster-like base64 preview while `Product Sheet` used a newer structure-first SVG preview
+- this made operators compare apparent preview maturity instead of actual template structure
+- `Bottom Support Copy` still sat inside the `Main Product` reading flow near `Product Callouts`, so the page layout kept implying shared ownership
+
+### Root cause found
+
+- PR-OP1A completed Product Sheet preview coverage, but `template_dual` still pointed at the old `template_dual_template.b64` selector asset
+- Stage1 HTML still rendered the `subtitle` field inside the `s1-core-assets` block, so helper-copy changes alone could not fully overcome the visual ownership cue
+
+### Exact selector preview parity decision taken
+
+- normalized both selector previews to the same structure-oriented static SVG language
+- replaced the `Marketing Poster` selector asset reference from `template_dual_template.b64` to a new static SVG:
+  - `frontend/templates/template_marketing_poster_preview.svg`
+  - mirrored to `docs/templates/template_marketing_poster_preview.svg`
+- kept `Product Sheet` on the existing structure-first SVG preview
+- kept internal ids unchanged:
+  - `template_dual`
+  - `template_product_sheet_v1`
+- kept selector fidelity intentionally parallel:
+  - same aspect ratio
+  - same abstraction level
+  - same neutral shell-first block language
+  - same limited accent usage
+- made the Marketing Poster preview show structure only:
+  - header
+  - scenario panel
+  - hero product panel
+  - callout lane
+  - title block
+  - bottom gallery area
+
+### Exact Bottom Support Copy layout move
+
+- removed `Bottom Support Copy` from the `Main Product` field grid inside `s1-core-assets`
+- moved the same `subtitle` input into `s1-bottom-thumbs` under `Bottom Area`
+- added a shallow `Bottom Support` subsection and a bordered `bottom-support-block` container ahead of bottom thumbnails
+- kept `Product Callouts` in `Main Product`
+- kept the underlying field name as `subtitle`; no ownership remap or request-mapping change was made
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/styles.css`
+- `frontend/templates/registry.json`
+- `frontend/templates/template_marketing_poster_preview.svg`
+- `docs/index.html`
+- `docs/styles.css`
+- `docs/templates/registry.json`
+- `docs/templates/template_marketing_poster_preview.svg`
+- `tests/test_frontend_docs_sync.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 operator selector presentation
+- Stage1 field layout / section-boundary presentation
+- publish mirror alignment
+- focused static validation
+- branch execution/state log
+
+### Focused validation run
+
+- `bash scripts/check_frontend_docs_sync.sh`
+- `node --check frontend/app.js`
+- `node --check docs/app.js`
+- `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- mirror assertions:
+  - `cmp -s frontend/templates/registry.json docs/templates/registry.json`
+  - `cmp -s frontend/templates/template_marketing_poster_preview.svg docs/templates/template_marketing_poster_preview.svg`
+  - `cmp -s frontend/templates/template_product_sheet_preview.svg docs/templates/template_product_sheet_preview.svg`
+- focused static assertions:
+  - selector registry count = `2`
+  - selector ids remain `template_dual` and `template_product_sheet_v1`
+  - selector previews now resolve to:
+    - `template_marketing_poster_preview.svg`
+    - `template_product_sheet_preview.svg`
+  - `Product Callouts` still appears in `s1-core-assets`
+  - `Bottom Support Copy` now appears after `id="s1-bottom-thumbs"` in `frontend/index.html`
+
+### Static proof captured
+
+- selector parity proof:
+  - registry now maps both operator templates to SVG structure previews instead of mixing SVG with the older poster-like base64 asset
+  - `frontend/templates/registry.json` preview list verified as:
+    - `template_marketing_poster_preview.svg`
+    - `template_product_sheet_preview.svg`
+- bottom placement proof:
+  - static position check in `frontend/index.html` verified ordering:
+    - `s1-core-assets`
+    - `Product Callouts`
+    - `s1-bottom-thumbs`
+    - `Bottom Support Copy`
+
+### Remaining risks
+
+- this PR used focused static validation only; no live browser screenshot capture was attached in this workspace
+- the new Marketing Poster selector preview is intentionally structural and simplified; if later operator testing asks for even tighter parity tuning, that should stay limited to selector assets rather than runtime rendering
+
+### Exact acceptance state
+
+- exactly two operator-facing templates remain
+- the two selector previews now use the same structure-oriented comparison language and no longer mix obviously mismatched fidelity levels
+- Product Sheet preview remains present and non-missing
+- Marketing Poster preview no longer reads as materially more finalized than Product Sheet
+- Bottom Support Copy now reads as bottom-owned by placement under `Bottom Area`
+- Product Callouts remain in `Main Product`
+- no request/routing/runtime truth changed
+- `frontend/` and `docs/` touched files remain aligned
+- `CLAUDE.md` left unchanged because this PR did not introduce a new shared-state fact beyond branch-local execution state
+
 ## Entry — PR-OP1B: Stage1 operator input clarity
 
 **Branch:** `main`

@@ -220,10 +220,30 @@ main {
   margin-bottom: 0.9rem;
 }
 
+.stage-subsection--bottom {
+  margin-top: 0.5rem;
+}
+
+.stage-subsection--bottom-assets {
+  margin-top: 1.1rem;
+}
+
 .stage-subsection h3 {
   margin: 0 0 0.3rem;
   font-size: 0.98rem;
   color: #1f2933;
+}
+
+.bottom-support-block {
+  border: 1px solid #d8e6f7;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f7fc 100%);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.bottom-support-block .field {
+  margin: 0;
 }
 
 .feature-label {

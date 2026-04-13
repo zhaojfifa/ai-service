@@ -3,8 +3,8 @@
     "id": "template_dual",
     "name": "Marketing Poster",
     "spec": "template_dual_spec.json",
-    "preview": "template_dual_template.b64",
-    "description": "Brand-led marketing layout with hero product, supporting callouts, and bottom detail strip."
+    "preview": "template_marketing_poster_preview.svg",
+    "description": "Structured marketing poster with header, scenario/product stage, callouts, and bottom detail area."
   },
   {
     "id": "template_product_sheet_v1",
