@@ -11571,6 +11571,13 @@ function formatAttachmentTypeLabel(type) {
   return type || 'Unknown';
 }
 
+function getSelectedStage3AttachmentLabels(attachmentPosterPng, attachmentPosterPdf) {
+  return [
+    attachmentPosterPng?.checked ? 'Poster PNG' : null,
+    attachmentPosterPdf?.checked ? 'Poster PDF' : null,
+  ].filter(Boolean);
+}
+
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
@@ -11595,13 +11602,12 @@ function initStage3() {
     const attachmentGroup = document.getElementById('email-attachment-group');
     const attachmentStatus = document.getElementById('email-attachment-status');
     const attachmentAvailable = document.getElementById('email-attachment-available');
+    const attachmentSelected = document.getElementById('email-attachment-selected');
     const attachmentBuildable = document.getElementById('email-attachment-buildable');
     const attachmentPosterPng = document.getElementById('attachment-poster-png');
     const attachmentPosterPdf = document.getElementById('attachment-poster-pdf');
     const sendButton = document.getElementById('send-email');
     const refreshButton = document.getElementById('refresh-email-preview');
-    const acceptCopyButton = document.getElementById('accept-email-copy');
-    const rejectCopyButton = document.getElementById('reject-email-copy');
 
     if (!sendButton || !refreshButton || !emailRecipient || !emailSubject || !emailText || !emailHtml) {
       return;
@@ -11610,16 +11616,7 @@ function initStage3() {
     const stage2Result = await loadStage2Result();
     const posterKey = getPosterKeyFromLocation() || stage2Result?.poster_key || '';
     const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
-    let emailCopyDecision = 'pending';
     let currentDraft = null;
-
-    const setEmailCopyDecision = (decision, message) => {
-      emailCopyDecision = decision;
-      if (acceptCopyButton) acceptCopyButton.disabled = decision === 'accepted';
-      if (rejectCopyButton) rejectCopyButton.disabled = decision === 'rejected';
-      if (sendButton && decision !== 'rejected') sendButton.disabled = false;
-      if (message) setStatus(statusElement, message, decision === 'rejected' ? 'warning' : 'info');
-    };
 
     const updateRecipientState = () => {
       const parsed = parseStage3Recipients(emailRecipient?.value || '');
@@ -11666,6 +11663,11 @@ function initStage3() {
         buildableAttachmentTypes.map(formatAttachmentTypeLabel),
         { emptyLabel: 'Nothing waiting to build', tone: 'neutral' }
       );
+      renderStage3PillList(
+        attachmentSelected,
+        getSelectedStage3AttachmentLabels(attachmentPosterPng, attachmentPosterPdf),
+        { emptyLabel: 'Inline only / no attachments', tone: 'neutral' }
+      );
 
       if (attachmentPosterPng) {
         attachmentPosterPng.disabled = inlineOnly || !availableAttachmentTypes.includes('poster_png');
@@ -11682,10 +11684,7 @@ function initStage3() {
         } else if (inlineOnly) {
           attachmentStatus.textContent = '当前发送为 inline-only：只保存/预览邮件结果，不外发，也不附带附件。';
         } else {
-          const selectedTypes = [
-            attachmentPosterPng?.checked ? 'Poster PNG' : null,
-            attachmentPosterPdf?.checked ? 'Poster PDF' : null,
-          ].filter(Boolean);
+          const selectedTypes = getSelectedStage3AttachmentLabels(attachmentPosterPng, attachmentPosterPdf);
           attachmentStatus.textContent = selectedTypes.length
             ? `当前将通过 resend 发送，并附带：${selectedTypes.join(', ')}。`
             : '当前将通过 resend 发送，但不会附带附件。';
@@ -11758,7 +11757,7 @@ function initStage3() {
       emailText.value = draft?.text || '';
       emailHtml.value = draft?.html || '';
       if (draftSource) {
-        draftSource.textContent = `Email copy source: backend preview / ${draft?.generated_from || 'deterministic'}`;
+        draftSource.textContent = '邮件文案已从后端恢复；如需更新，可使用 AI 优化文案。';
       }
       if (draftSummary) {
         const summaryPoints = Array.isArray(draft?.summary_points) ? draft.summary_points.filter(Boolean) : [];
@@ -11783,9 +11782,6 @@ function initStage3() {
       }
       updateAttachmentSummary();
       setStatus(statusElement, '邮件草稿已从后端恢复。', 'success');
-      setEmailCopyDecision('pending');
-      if (acceptCopyButton) acceptCopyButton.disabled = false;
-      if (rejectCopyButton) rejectCopyButton.disabled = false;
       sendButton.disabled = false;
       return draft;
     }
@@ -11806,14 +11802,9 @@ function initStage3() {
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = emailHtml.value.trim();
       }
-      setEmailCopyDecision('pending');
     });
     emailRecipient.addEventListener('input', () => {
       updateRecipientState();
-      setEmailCopyDecision('pending');
-    });
-    [emailSubject, draftPreviewText, emailText].forEach((input) => {
-      input?.addEventListener('input', () => setEmailCopyDecision('pending'));
     });
     deliveryMode?.addEventListener('change', updateAttachmentSummary);
     [attachmentPosterPng, attachmentPosterPdf].forEach((input) => {
@@ -11832,19 +11823,6 @@ function initStage3() {
         refreshButton.disabled = false;
       }
     });
-
-    if (acceptCopyButton) {
-      acceptCopyButton.addEventListener('click', () => {
-        setEmailCopyDecision('accepted', '本次发送已接受邮件文案。');
-      });
-    }
-
-    if (rejectCopyButton) {
-      rejectCopyButton.addEventListener('click', () => {
-        setEmailCopyDecision('rejected', '已拒绝邮件文案；请 Refresh Draft 或手动编辑后再发送。');
-        sendButton.disabled = true;
-      });
-    }
 
     sendButton.disabled = false;
     sendButton.addEventListener('click', async () => {
@@ -11867,10 +11845,6 @@ function initStage3() {
       }
       if (recipientState.invalid.length) {
         setStatus(statusElement, '存在格式无效的收件地址，请先修正后再发送。', 'error');
-        return;
-      }
-      if (emailCopyDecision === 'rejected') {
-        setStatus(statusElement, '邮件文案已拒绝，请刷新或编辑后再发送。', 'error');
         return;
       }
 

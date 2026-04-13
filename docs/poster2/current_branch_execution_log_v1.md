@@ -1,5 +1,172 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP4R: Stage3 redundancy reduction and operator-send flow simplification
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read:
+  - `PR-OP4`
+  - `Storage / Copy / Email Closure Engineering`
+  - `PR: Gemini Copy Optimizer And Optional Attachment Assets`
+- then minimum task files only:
+  - `frontend/stage3.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/stage3.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-OP4R only
+- Stage3 redundancy reduction only
+- operator-send flow simplification only
+- keep poster preview visible
+- keep Stage3 backend-truth-driven
+- keep frontend/docs mirror aligned
+- write branch execution log back before stop
+- no backend truth-model change, no preview/send contract change, no frontend-composed draft truth, no Stage1/Stage2 work, no attachment-ownership change
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- Stage3 remains backend-truth-driven through `poster_key -> poster_record -> backend preview/send`
+- no frontend-composed draft truth was reintroduced
+- no backend truth-model or API contract change was introduced
+- attachment ownership stayed backend-owned
+- source and published mirror were aligned in the same task
+
+### Problem reproduced
+
+- PR-OP4 improved Stage3 structurally, but the page still repeated too much explanation around the poster and draft
+- the main action area still read like an internal editing flow because it exposed:
+  - `Refresh Draft`
+  - `Accept Copy`
+  - `Reject Copy`
+  - `Send Email`
+- the Stage3 product shape still felt heavier than a lightweight send-confirmation page
+
+### Root cause found
+
+- PR-OP4 kept too much of the earlier internal closure-review control model in the primary operator path
+- poster/draft explanation remained duplicated between the main header, poster-side cards, and send section
+- the optimize/send boundary was technically correct, but the action language still exposed internal review mechanics instead of one operator-facing copy-improvement action
+
+### Exact redundancy reductions made
+
+- simplified the main Stage3 instruction to:
+  - `请确认收件人、邮件文案与附件方式，然后发送。`
+- removed the long backend/process explanation from the primary Stage3 header
+- kept the poster preview visible, but reduced surrounding explanation to one lightweight readiness card
+- moved technical truth explanation to the collapsed advanced/details area only
+- moved draft-source wording into the copy-confirmation section instead of repeating draft/process explanation above the poster
+
+### Exact action simplification decisions
+
+- simplified the primary action area to:
+  - `AI 优化文案`
+  - `Send Email`
+- kept:
+  - `Back to Stage 2`
+  as the only low-emphasis navigation action
+- removed the internal-feeling primary-flow controls:
+  - `Accept Copy`
+  - `Reject Copy`
+  - prominent `Refresh Draft` wording
+- retained backend preview refresh behavior under the operator-facing action:
+  - `AI 优化文案`
+- Stage3 send no longer depends on an accept/reject state machine
+
+### Main-flow simplification result
+
+- Stage3 now reads in this order:
+  - poster preview
+  - recipients
+  - copy confirmation
+  - email draft preview
+  - attachment choice
+  - send
+- attachment presentation is lighter and more operator-facing:
+  - available attachments
+  - selected for this send
+  - buildable later
+  - delivery mode
+
+### Backend-truth boundary preserved
+
+- Stage3 still restores through:
+  - `GET /api/v2/posters/{poster_key}`
+- Stage3 still refreshes copy through:
+  - `POST /api/v2/email/preview`
+- Stage3 still sends through:
+  - `POST /api/v2/email/send`
+- no frontend-composed canonical draft model was reintroduced
+- no backend truth-model, preview contract, or send contract change was made
+
+### Files changed
+
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/stage3.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage3 frontend operator surface only
+- Stage3 frontend action wiring only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- syntax:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync / checks:
+  - `bash scripts/sync_frontend_to_docs.sh`
+  - `bash scripts/check_frontend_docs_sync.sh`
+  - `cmp -s frontend/stage3.html docs/stage3.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+- existing sync/static validation:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused source inspection:
+  - simplified header instruction present
+  - `AI 优化文案` is the remaining copy-improvement action
+  - `Accept Copy`, `Reject Copy`, and `Refresh Draft` are absent from the primary operator flow
+  - Stage3 still calls backend restore/preview/send endpoints only
+  - advanced/details area still carries backend/source truth and HTML source
+
+### Remaining risks
+
+- validation here is syntax/static/mirror/source-path based; no live browser screenshot or deployed send-provider run was attached in this workspace
+- the existing `refresh-email-preview` id remains wired to backend preview refresh for compatibility, although the user-facing label is now simplified to `AI 优化文案`
+- multi-recipient send continues to fan out one backend send call per valid recipient; this PR intentionally did not redesign that backend-owned send pattern
+
+### Exact acceptance state
+
+- Stage3 header is simplified to operator-facing send guidance
+- poster preview remains visible
+- main flow now emphasizes recipients, copy, attachments, and send
+- main actions are simplified and no longer read like internal editing/debug controls
+- Stage3 remains backend-truth-driven
+- no frontend-composed draft truth was reintroduced
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was left untouched by this task because no new shared-state fact needed to be carried forward beyond branch-local execution state
+
 ## Entry — PR-OP4: Stage3 operator email polish and multi-recipient support
 
 **Branch:** `main`

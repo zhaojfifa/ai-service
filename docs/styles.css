@@ -1432,6 +1432,10 @@ main {
   padding: 1rem;
 }
 
+.stage3-preview-grid .stage3-card {
+  align-self: start;
+}
+
 .stage3-card--warning {
   border-color: #f7d79c;
   background: linear-gradient(180deg, #fffaf0 0%, #fff6e2 100%);
@@ -1484,6 +1488,10 @@ main {
   border-radius: 12px;
   padding: 1rem;
   background: #ffffff;
+}
+
+.stage3-form .actions {
+  margin-top: 0.5rem;
 }
 
 .stage3-attachment-options {
