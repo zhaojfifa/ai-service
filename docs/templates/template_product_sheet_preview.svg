@@ -1,39 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" role="img" aria-labelledby="title desc">
   <title id="title">Product Sheet template preview</title>
-  <desc id="desc">Minimal preview with a soft banner, SKU block, product hero, materials strip, and description area.</desc>
+  <desc id="desc">Simple catalog-card preview with a top banner, SKU block, product hero, detail strip, and lower description block.</desc>
   <defs>
-    <linearGradient id="bgB" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#faf8f4"/>
-      <stop offset="100%" stop-color="#f1ece5"/>
+    <linearGradient id="catalog-card-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#faf7f2"/>
+      <stop offset="100%" stop-color="#f1ece4"/>
     </linearGradient>
   </defs>
-  <rect width="720" height="440" fill="#edf2f6"/>
-  <rect x="28" y="24" width="664" height="392" rx="28" fill="url(#bgB)" stroke="#d5ddd9" stroke-width="2"/>
-  <rect x="52" y="46" width="616" height="52" rx="18" fill="#30414a"/>
-  <rect x="74" y="62" width="116" height="20" rx="10" fill="#f7f5f1"/>
-  <rect x="518" y="61" width="120" height="10" rx="5" fill="#c0cbc7"/>
-  <rect x="548" y="77" width="90" height="8" rx="4" fill="#d5ddd8"/>
-  <rect x="52" y="118" width="616" height="74" rx="20" fill="#f7f4ef" stroke="#dfddd6"/>
-  <rect x="78" y="136" width="130" height="18" rx="9" fill="#d88a55"/>
-  <rect x="78" y="162" width="208" height="10" rx="5" fill="#71848d"/>
-  <rect x="78" y="178" width="160" height="8" rx="4" fill="#a4b2b6"/>
-  <rect x="536" y="136" width="104" height="34" rx="12" fill="#ebe6de"/>
-  <rect x="552" y="149" width="72" height="8" rx="4" fill="#98a6ad"/>
-  <rect x="52" y="212" width="616" height="118" rx="24" fill="#f9f7f3" stroke="#e1ded8"/>
-  <rect x="78" y="234" width="110" height="72" rx="16" fill="#f1ece5"/>
-  <rect x="212" y="228" width="302" height="88" rx="20" fill="#fcfbf8" stroke="#d9d7d0"/>
-  <ellipse cx="362" cy="292" rx="74" ry="18" fill="#e2ddd6"/>
-  <rect x="324" y="236" width="76" height="80" rx="20" fill="#e29a63"/>
-  <circle cx="362" cy="250" r="38" fill="#374a55"/>
-  <rect x="538" y="232" width="102" height="72" rx="16" fill="#f1ece5"/>
-  <rect x="556" y="248" width="54" height="10" rx="5" fill="#8ea0a8"/>
-  <rect x="550" y="266" width="68" height="8" rx="4" fill="#a5b3b8"/>
-  <rect x="550" y="280" width="60" height="8" rx="4" fill="#b7c1c3"/>
-  <rect x="52" y="348" width="280" height="42" rx="16" fill="#f8f6f2" stroke="#dedbd5"/>
-  <rect x="74" y="363" width="56" height="12" rx="6" fill="#d7e0e5"/>
-  <rect x="140" y="363" width="56" height="12" rx="6" fill="#d7e0e5"/>
-  <rect x="206" y="363" width="56" height="12" rx="6" fill="#d7e0e5"/>
-  <rect x="356" y="348" width="312" height="42" rx="16" fill="#f8f6f2" stroke="#dedbd5"/>
-  <rect x="380" y="362" width="208" height="8" rx="4" fill="#6f818b"/>
-  <rect x="380" y="376" width="160" height="8" rx="4" fill="#a5b2b7"/>
+  <rect width="720" height="440" fill="#ecf2f5"/>
+  <rect x="28" y="24" width="664" height="392" rx="30" fill="url(#catalog-card-bg)" stroke="#d8ddd8" stroke-width="2"/>
+  <rect x="54" y="48" width="612" height="50" rx="18" fill="#30424b"/>
+  <rect x="78" y="62" width="116" height="20" rx="10" fill="#f9f6f2"/>
+  <rect x="520" y="62" width="116" height="10" rx="5" fill="#c5cec8"/>
+  <rect x="548" y="78" width="88" height="8" rx="4" fill="#d6ddd8"/>
+  <rect x="54" y="118" width="612" height="72" rx="20" fill="#f8f4ef" stroke="#e0ddd7"/>
+  <rect x="80" y="136" width="132" height="18" rx="9" fill="#d98c57"/>
+  <rect x="80" y="162" width="204" height="10" rx="5" fill="#758891"/>
+  <rect x="80" y="178" width="150" height="8" rx="4" fill="#a4b1b7"/>
+  <rect x="540" y="136" width="100" height="32" rx="12" fill="#ebe4dc"/>
+  <rect x="556" y="148" width="68" height="8" rx="4" fill="#98a6ad"/>
+  <rect x="54" y="212" width="612" height="118" rx="24" fill="#faf7f3" stroke="#e4dfd8"/>
+  <rect x="80" y="234" width="104" height="70" rx="16" fill="#f0ebe4"/>
+  <rect x="214" y="228" width="296" height="90" rx="20" fill="#fcfbf8" stroke="#dbd8d1"/>
+  <ellipse cx="360" cy="294" rx="72" ry="18" fill="#e2ddd6"/>
+  <rect x="322" y="236" width="76" height="82" rx="22" fill="#e39c67"/>
+  <circle cx="360" cy="250" r="36" fill="#394b56"/>
+  <rect x="540" y="232" width="100" height="70" rx="16" fill="#f0ebe4"/>
+  <rect x="558" y="248" width="52" height="10" rx="5" fill="#8da0a8"/>
+  <rect x="552" y="266" width="66" height="8" rx="4" fill="#a8b3b8"/>
+  <rect x="552" y="280" width="58" height="8" rx="4" fill="#bcc3c6"/>
+  <rect x="54" y="348" width="278" height="42" rx="16" fill="#f8f5f1" stroke="#e0ddd7"/>
+  <rect x="78" y="363" width="54" height="12" rx="6" fill="#d6dfe4"/>
+  <rect x="142" y="363" width="54" height="12" rx="6" fill="#d6dfe4"/>
+  <rect x="206" y="363" width="54" height="12" rx="6" fill="#d6dfe4"/>
+  <rect x="356" y="348" width="310" height="42" rx="16" fill="#f8f5f1" stroke="#e0ddd7"/>
+  <rect x="380" y="362" width="206" height="8" rx="4" fill="#71828b"/>
+  <rect x="380" y="376" width="156" height="8" rx="4" fill="#a7b3b8"/>
 </svg>

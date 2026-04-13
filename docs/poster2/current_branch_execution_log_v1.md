@@ -1,5 +1,101 @@
 # Current Branch Execution Log v1
 
+## Entry — SVG asset hotfix: selector-card preview refresh
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- task-relevant asset files only:
+  - `frontend/templates/template_marketing_poster_preview.svg`
+  - `frontend/templates/template_product_sheet_preview.svg`
+  - `docs/templates/template_marketing_poster_preview.svg`
+  - `docs/templates/template_product_sheet_preview.svg`
+
+### Scope
+
+- SVG asset hotfix only
+- selector preview asset replacement only
+- docs mirror sync only
+- focused mirror validation only
+- branch execution log write-back
+- no registry, HTML, JS, CSS, request builder, renderer, ownership, Stage2, Stage3, or backend work
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- no redesign outside selector preview assets
+- no runtime truth or request truth change
+- keep source and published copies aligned in the same task
+
+### Problem reproduced
+
+- selector previews needed an asset-only refresh to stay in a simple, minimal, clean selector-card mode rather than drifting toward abstract / schematic reading
+
+### Root cause found
+
+- current fix path only required asset-level tuning; no surrounding registry or UI logic change was needed
+
+### Exact selector preview asset decision
+
+- replaced only these two source assets:
+  - `frontend/templates/template_marketing_poster_preview.svg`
+  - `frontend/templates/template_product_sheet_preview.svg`
+- mirrored the exact same replacements to:
+  - `docs/templates/template_marketing_poster_preview.svg`
+  - `docs/templates/template_product_sheet_preview.svg`
+- kept the same visual direction as the current minimal selector-card baseline, but reduced detail density further:
+  - `Marketing Poster` reads as a simple marketing card with top band, hero stage, callout emphasis, and bottom support strip
+  - `Product Sheet` reads as a simple catalog card with top banner, SKU block, product hero, detail strip, and lower description block
+
+### Files changed
+
+- `frontend/templates/template_marketing_poster_preview.svg`
+- `frontend/templates/template_product_sheet_preview.svg`
+- `docs/templates/template_marketing_poster_preview.svg`
+- `docs/templates/template_product_sheet_preview.svg`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- selector preview assets only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- `cmp -s frontend/templates/template_marketing_poster_preview.svg docs/templates/template_marketing_poster_preview.svg`
+- `cmp -s frontend/templates/template_product_sheet_preview.svg docs/templates/template_product_sheet_preview.svg`
+- `shasum frontend/templates/template_marketing_poster_preview.svg frontend/templates/template_product_sheet_preview.svg docs/templates/template_marketing_poster_preview.svg docs/templates/template_product_sheet_preview.svg`
+
+### Focused validation result
+
+- marketing preview mirror check passed
+- product sheet preview mirror check passed
+- matched SHA values:
+  - marketing preview: `7acc68562683ae4fa55a8c947bee31dafb910fd7`
+  - product sheet preview: `0b547a7b402ca2a150b1c6eef63370f6238024b2`
+
+### Remaining risks
+
+- this pass validated mirror equality only, by request; it did not perform browser/runtime verification
+
+### Exact acceptance state
+
+- only the two requested selector preview SVG assets were replaced
+- docs mirror copies match the frontend assets exactly
+- no registry mapping changed
+- no UI layout or runtime truth changed
+- `CLAUDE.md` left unchanged because this pass introduced no new shared-state fact beyond branch-local execution state
+
 ## Entry — Hotfix verification: selector rollback and bottom flow no-op
 
 **Branch:** `main`
