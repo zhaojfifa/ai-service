@@ -1,5 +1,193 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP3: Family-A-only Stage1 AI scenario image generation
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-13
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- latest completed branch state entries re-read in this log:
+  - `PR-OP1A`
+  - `PR-OP1B`
+  - `PR-OP1C-REV`
+  - `PR-OP2-v2`
+  - `PR-OP2R`
+- then task-relevant frozen-state docs:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+  - `docs/poster2/05_validation/bottom_mode_switch_closure_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- then minimum task files only:
+  - `frontend/index.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/index.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+- then the minimum additional existing image-generation path only:
+  - `app/main.py`
+
+### Scope
+
+- PR-OP3 only
+- Family-A-only Stage1 operator action for AI scenario image generation
+- write generated scenario asset back into the existing Stage1 `scenario_asset` slot
+- preserve manual upload / replace coexistence
+- frontend/docs mirror sync
+- branch execution log write-back
+- no backend routing, renderer routing, Stage2 result/replay use, bottom/gallery truth, ownership, or Stage3 truth changes
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- Family A only; no Template B scenario-generation semantics added
+- generated asset remains an asset-source enhancement only, not a new request-truth model
+- do not reuse Stage2 result/replay rendering
+- do not silently mutate canonical Stage2 request truth
+- keep source and published mirror aligned in the same task
+
+### Problem reproduced
+
+- Stage1 had a manual scenario upload slot and a scenario note field for Family A, but no operator-side AI scenario-image generation entry
+- the repo already had a compatible image-generation endpoint, but Stage1 did not expose a safe Family-A-only path that writes the generated result back into the current scenario asset flow
+- without that integration, adding AI generation risked either:
+  - a parallel asset-truth model
+  - accidental Template B exposure
+  - or reuse of later-stage rendering paths
+
+### Root cause found
+
+- the existing Stage1 Family A operator surface only bound scenario handling through:
+  - `bindModeSOptionalAsset(...)`
+  - persisted `scenario_asset`
+- there was no Family-A-only operator action that called the existing backend image service and normalized the returned URL/key back into the same `state.scenario` model used by manual uploads
+
+### Exact Family-A-only scenario generation design
+
+- added a Family-A-only operator action inside the existing `Scenario / Visuals` block:
+  - `生成场景图`
+  - `清空场景图`
+- the control sits inside the Family A Stage1 scenario area only:
+  - HTML remains gated under `data-variant-visible="a"`
+  - JS also hard-guards with `isTemplateBStage1Data(...)` / `isTemplateBTemplateId(...)`
+- no Template B UI, visibility rule, fallback path, or request assumption was added
+- reused the existing backend image endpoint:
+  - `POST /api/imagen/generate`
+- generation request is constrained to:
+  - `width: 800`
+  - `height: 600`
+  - `variants: 1`
+  - `add_watermark: false`
+- prompt context is Family-A-only Stage1 context:
+  - `agent_name`
+  - `title`
+  - `product_name`
+  - `scenario_image` note
+  - product-image presence from `state.productImage1`
+- prompt strategy stays scenario-oriented and operator-safe:
+  - 4:3 marketing scenario background
+  - product-category-aware commercial kitchen / modern kitchen context
+  - restrained background/supporting-visual language
+  - explicit exclusion of text/logo/watermark/collage/poster framing
+- excluded from prompt truth:
+  - Bottom Support Copy
+  - Product Callouts
+  - Template B description fields
+  - Stage2 / Stage3 state
+
+### Exact write-back behavior into Stage1 `scenario_image`
+
+- generated response is normalized through existing Stage1 asset shape:
+  - `buildGeneratedAssetFromUrl(url, key)`
+- the resulting asset is written directly into:
+  - `state.scenario`
+- Stage1 preview then reads the same slot it already uses for manual uploads:
+  - inline preview
+  - Stage1 poster-style preview
+  - serialized Stage1 storage
+- persistence remains on the existing path:
+  - `scenario_asset: serialiseAssetForStorage(state.scenario)`
+- no parallel AI-scenario field or second asset line was introduced
+- manual coexistence remains intact:
+  - operator can generate AI scenario image
+  - operator can upload/replace via the existing `input[name="scenario_asset"]`
+  - operator can clear the current scenario asset explicitly
+  - operator can regenerate AI output again
+
+### Files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend operator surface only
+- frontend/docs publish mirror only
+- branch execution/state log only
+
+### Focused validation run
+
+- syntax:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync:
+  - `bash scripts/sync_frontend_to_docs.sh`
+  - `bash scripts/check_frontend_docs_sync.sh`
+  - `cmp -s frontend/index.html docs/index.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/styles.css docs/styles.css`
+- existing sync/static test:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py`
+- source inspection for Family-A-only control visibility:
+  - `rg -n "stage1-generate-scenario|stage1-clear-scenario|stage1-scenario-status|data-variant-visible=\"a\"|Scenario image \\(optional\\)" frontend/index.html docs/index.html`
+- source inspection for existing-slot write-back and family guard:
+  - `rg -n "buildFamilyAScenarioPrompt|/api/imagen/generate|state\\.scenario = asset|serialiseAssetForStorage\\(state\\.scenario\\)|bindModeSOptionalAsset\\(|isTemplateBStage1Data\\(|isTemplateBTemplateId\\(" frontend/app.js docs/app.js`
+
+### Focused validation result
+
+- `frontend/app.js` syntax passed
+- `docs/app.js` syntax passed
+- frontend/docs publish mirror check passed after sync
+- `tests/test_frontend_docs_sync.py` passed: `8 passed`
+- source inspection confirms:
+  - Family A scenario-generation controls are mounted only inside the Family A scenario block
+  - Template B keeps no scenario-generation UI path in the HTML
+  - runtime guards block Template B from using the generation path
+  - generated result writes into `state.scenario`
+  - persisted Stage1 storage still uses `scenario_asset: serialiseAssetForStorage(state.scenario)`
+- no backend route, renderer route, request builder family split, Stage2 result/replay path, bottom/gallery truth, or Stage3 truth file changed in this pass
+
+### Remaining risks
+
+- this PR depends on the existing backend image-generation endpoint and a reachable configured backend API base; no offline/local mock browser exercise was added in this workspace
+- focused validation here is syntax/static/mirror/source-path based; no live screenshot capture or end-to-end browser run was attached
+- prompt quality is intentionally constrained and operator-safe, but still subject to deployed image-provider behavior
+
+### Exact acceptance state
+
+- Family A can generate a scenario image from Stage1
+- Template B does not gain scenario-generation UI or scenario-generation semantics
+- generated scenario images flow back into the existing Stage1 `scenario_asset` path
+- manual upload/replace still coexists on the same scenario slot
+- no request/routing/runtime truth changed
+- no Family A / Family B request-line mixing was introduced
+- frontend/docs mirror is aligned
+- `CLAUDE.md` was not updated by this task because no new shared-state fact needed to be carried forward
+
 ## Entry — PR-OP2R: collapse duplicated Stage1 preview logic and fold copy suggestions into preview
 
 **Branch:** `main`

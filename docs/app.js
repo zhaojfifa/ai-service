@@ -53,6 +53,32 @@ function buildGeneratedAssetFromUrl(url, key) {
   };
 }
 
+function buildFamilyAScenarioPrompt(payload, state) {
+  const title = collapseSuggestionWhitespace(payload.title || '');
+  const productSeries = collapseSuggestionWhitespace(payload.agent_name || '');
+  const productReference = collapseSuggestionWhitespace(payload.product_name || '');
+  const scenarioNote = collapseSuggestionWhitespace(payload.scenario_image || '');
+  const hasProductImage = Boolean(state?.productImage1);
+  const categoryHint = [productReference, productSeries, title]
+    .filter(Boolean)
+    .join(', ');
+  const contextLine = categoryHint || 'commercial kitchen product';
+  const noteLine = scenarioNote && scenarioNote.toLowerCase() !== 'default'
+    ? scenarioNote
+    : 'clean modern kitchen environment with realistic service context';
+  const productPresence = hasProductImage
+    ? 'Design the scene to support a separate product hero image and keep the environment uncluttered.'
+    : 'Keep the scene usable as a standalone supporting hero background.';
+  return [
+    `Create a realistic 4:3 marketing scenario background for ${contextLine}.`,
+    `Scene direction: ${noteLine}.`,
+    'Use a bright commercial or modern kitchen environment, natural materials, clean counters, believable lighting, and product-category-appropriate context.',
+    productPresence,
+    'No text, no logo, no watermark, no labels, no collage, no split layout, no poster framing.',
+    'Keep the image operator-safe, commercially usable, and visually restrained for a marketing poster scenario region.',
+  ].join(' ');
+}
+
 function applySlotImagePreview(slot, index, url, { logoFallback } = {}) {
   const logoImg = document.getElementById('preview-brand-logo');
   const fallbackWarning = document.getElementById('asset-fallback-warning');
@@ -3910,6 +3936,9 @@ function initStage1ModeS() {
   const suggestionApplyButton = document.getElementById('stage1-apply-accepted');
   const suggestionRestoreButton = document.getElementById('stage1-restore-raw-copy');
   const suggestionClearButton = document.getElementById('stage1-clear-accepted');
+  const scenarioGenerateButton = document.getElementById('stage1-generate-scenario');
+  const scenarioClearButton = document.getElementById('stage1-clear-scenario');
+  const scenarioStatus = document.getElementById('stage1-scenario-status');
 
   if (!form || !buildPreviewButton || !nextButton) {
     return;
@@ -3975,6 +4004,36 @@ function initStage1ModeS() {
     }
   };
 
+  const setScenarioStatus = (message, level = 'hint') => {
+    if (!scenarioStatus) return;
+    scenarioStatus.textContent = message;
+    scenarioStatus.className = level === 'hint' ? 'hint' : `hint status-${level}`;
+  };
+
+  const updateScenarioControlState = () => {
+    const isFamilyA = !isTemplateBTemplateId(state.templateId);
+    if (scenarioGenerateButton) {
+      scenarioGenerateButton.disabled = !isFamilyA;
+      scenarioGenerateButton.hidden = !isFamilyA;
+    }
+    if (scenarioClearButton) {
+      scenarioClearButton.disabled = !isFamilyA || !state.scenario;
+      scenarioClearButton.hidden = !isFamilyA;
+    }
+    if (!scenarioStatus) return;
+    if (!isFamilyA) {
+      setScenarioStatus('产品图录海报不提供 AI 场景图入口。', 'hint');
+      scenarioStatus.hidden = true;
+      return;
+    }
+    scenarioStatus.hidden = false;
+    if (state.scenario?.remoteUrl || state.scenario?.r2Key) {
+      setScenarioStatus('当前场景图素材槽已存在可用图片，可继续手动替换或重新生成。', 'hint');
+      return;
+    }
+    setScenarioStatus('当前未生成 AI 场景图。', 'hint');
+  };
+
   const refreshPreview = () => {
     if (!form) return null;
     if (stage1FallbackWarning) {
@@ -4014,6 +4073,7 @@ function initStage1ModeS() {
     );
     updateBottomThumbnailsUi(bottomThumbnails, state);
     updateBrandLogoStatus();
+    updateScenarioControlState();
 
     const previewPayload = {
       ...payload,
@@ -4398,6 +4458,7 @@ function initStage1ModeS() {
 
   renderMaterialsSlots();
   updateStage1TemplateVariantLabels(state.templateVariant || 'a');
+  updateScenarioControlState();
   // ── end materials slots ────────────────────────────────────────────────────
 
   attachSingleImageHandler(
@@ -4445,6 +4506,99 @@ function initStage1ModeS() {
     statusElement,
     'scenario'
   );
+
+  const generateFamilyAScenarioAsset = async () => {
+    const payload = collectStage1Data(form, state, { strict: false });
+    if (isTemplateBStage1Data(payload) || isTemplateBTemplateId(state.templateId)) {
+      setStatus(statusElement, '当前海报类型不提供 AI 场景图。', 'warning');
+      updateScenarioControlState();
+      return;
+    }
+    const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+    if (!apiCandidates.length) {
+      setStatus(statusElement, '请先配置可用的后端 API Base，再生成场景图。', 'warning');
+      setScenarioStatus('未配置后端 API Base，无法生成场景图。', 'warning');
+      return;
+    }
+
+    const prompt = buildFamilyAScenarioPrompt(payload, state);
+    if (scenarioGenerateButton) {
+      scenarioGenerateButton.disabled = true;
+      scenarioGenerateButton.textContent = '生成中...';
+    }
+    if (scenarioClearButton) {
+      scenarioClearButton.disabled = true;
+    }
+    setScenarioStatus('正在为营销海报生成场景图，并回写到当前场景素材槽。', 'info');
+
+    try {
+      const response = await postJsonWithRetry(
+        apiCandidates,
+        '/api/imagen/generate',
+        {
+          prompt,
+          width: 800,
+          height: 600,
+          variants: 1,
+          add_watermark: false,
+        },
+        1
+      );
+      const asset = buildGeneratedAssetFromUrl(
+        response?.url || response?.results?.[0]?.url || null,
+        response?.key || response?.results?.[0]?.key || null
+      );
+      if (!asset) {
+        throw new Error('场景图生成成功，但未返回可用图片地址。');
+      }
+      await deleteStoredAsset(state.scenario);
+      state.scenario = asset;
+      if (inlinePreviews.scenario_asset) {
+        inlinePreviews.scenario_asset.src = pickImageSrc(asset) || placeholderImages.scenario;
+      }
+      state.previewBuilt = false;
+      refreshPreview();
+      persistCurrentStage1State(false);
+      setScenarioStatus('AI 场景图已写回当前场景素材槽，可继续手动上传替换。', 'success');
+      setStatus(statusElement, '营销海报场景图已生成并回写到 Stage1 场景素材。', 'success');
+    } catch (error) {
+      console.error(error);
+      setScenarioStatus(error.message || 'AI 场景图生成失败。', 'error');
+      setStatus(statusElement, error.message || 'AI 场景图生成失败。', 'error');
+    } finally {
+      if (scenarioGenerateButton) {
+        scenarioGenerateButton.textContent = '生成场景图';
+      }
+      updateScenarioControlState();
+    }
+  };
+
+  if (scenarioGenerateButton) {
+    scenarioGenerateButton.addEventListener('click', () => {
+      void generateFamilyAScenarioAsset();
+    });
+  }
+
+  if (scenarioClearButton) {
+    scenarioClearButton.addEventListener('click', async () => {
+      if (isTemplateBTemplateId(state.templateId)) {
+        return;
+      }
+      if (state.scenario) {
+        await deleteStoredAsset(state.scenario);
+      }
+      state.scenario = null;
+      state.previewBuilt = false;
+      if (inlinePreviews.scenario_asset) {
+        inlinePreviews.scenario_asset.src = placeholderImages.scenario;
+      }
+      refreshPreview();
+      persistCurrentStage1State(false);
+      setScenarioStatus('场景图素材已清空。', 'info');
+      setStatus(statusElement, '当前场景图已清空。', 'info');
+      updateScenarioControlState();
+    });
+  }
 
   form.addEventListener('input', () => {
     state.previewBuilt = false;

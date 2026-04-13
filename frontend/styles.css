@@ -216,6 +216,13 @@ main {
   gap: 0.75rem;
 }
 
+.stage1-scenario-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
 .stage-subsection {
   margin-bottom: 0.9rem;
 }
