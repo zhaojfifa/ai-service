@@ -286,6 +286,10 @@ let stage2InFlight = false;
 let stage2GenerateInFlight = false;
 let stage2LastClickAt = 0;
 const STAGE2_CLICK_DEBOUNCE_MS = 700;
+let stage2GenerateCooldownUntil = 0;
+let stage2GenerateCooldownTimer = null;
+const STAGE2_ATTEMPT_COOLDOWN_MS = 1600;
+const STAGE2_PREFLIGHT_TTL_MS = 20_000;
 let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
 const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
@@ -298,9 +302,169 @@ const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
 const STAGE1_PRODUCT_CALLOUT_MAX_ITEMS = 3;
 const FRONTEND_BASELINE_STAMP = 'ee1cd4c';
 const BACKEND_BASELINE_EXPECTED = 'ee1cd4c';
+const STAGE2_DIAGNOSTIC_ASSET_SLOTS = [
+  ['scenario', '场景图'],
+  ['product', '主产品图'],
+  ['product_secondary', '副产品图'],
+  ['gallery_1', '图库 1'],
+  ['gallery_2', '图库 2'],
+  ['gallery_3', '图库 3'],
+  ['gallery_4', '图库 4'],
+  ['logo', 'Logo'],
+];
+const STAGE2_DIAGNOSTIC_DEFAULTS = {
+  raw_bottom_mode: '—',
+  canonical_bottom_mode: '—',
+  payload_bottom_mode: '—',
+  request_id: '—',
+  health_status: 'unknown',
+  template_posters_status: 'unknown',
+  generate_status: 'idle',
+  failure_class: 'none',
+};
+const stage2RuntimeDiagnostics = {
+  ...STAGE2_DIAGNOSTIC_DEFAULTS,
+  assets: Object.fromEntries(
+    STAGE2_DIAGNOSTIC_ASSET_SLOTS.map(([key, label]) => [
+      key,
+      { key, label, readiness: 'missing', source: 'source absent' },
+    ])
+  ),
+};
+const stage2GeneratePreflightState = {
+  checkedAt: 0,
+  modeKey: '',
+  healthStatus: 'unknown',
+  templatePostersStatus: 'unknown',
+  lastFailure: false,
+};
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function stage2HasAssetIdentity(value) {
+  const identity = stage2RequestHelpers?.pickAssetIdentity
+    ? stage2RequestHelpers.pickAssetIdentity(value)
+    : value;
+  if (!identity) return false;
+  if (Array.isArray(identity)) return identity.length > 0;
+  if (typeof identity === 'object') return Object.keys(identity).length > 0;
+  if (typeof identity === 'string') return identity.trim().length > 0;
+  return true;
+}
+
+function createStage2AssetMarker(label, sourceValue, resolvedValue) {
+  const sourcePresent = stage2HasAssetIdentity(sourceValue);
+  const resolved = stage2HasAssetIdentity(resolvedValue);
+  return {
+    label,
+    readiness: resolved ? 'resolved' : 'missing',
+    source: sourcePresent ? 'source present' : 'source absent',
+  };
+}
+
+function buildStage2AssetReadiness(stage1Data, resolvedRefs = {}) {
+  const galleryEntries = Array.isArray(stage1Data?.gallery_entries) ? stage1Data.gallery_entries : [];
+  return {
+    scenario: createStage2AssetMarker('场景图', stage1Data?.scenario_asset || stage1Data?.scenario_image, resolvedRefs.scenario),
+    product: createStage2AssetMarker('主产品图', stage1Data?.product_image_1 || stage1Data?.product_asset, resolvedRefs.product),
+    product_secondary: createStage2AssetMarker('副产品图', stage1Data?.product_image_2, resolvedRefs.product_secondary),
+    gallery_1: createStage2AssetMarker('图库 1', galleryEntries[0]?.asset || null, resolvedRefs.gallery?.[0]),
+    gallery_2: createStage2AssetMarker('图库 2', galleryEntries[1]?.asset || null, resolvedRefs.gallery?.[1]),
+    gallery_3: createStage2AssetMarker('图库 3', galleryEntries[2]?.asset || null, resolvedRefs.gallery?.[2]),
+    gallery_4: createStage2AssetMarker('图库 4', galleryEntries[3]?.asset || null, resolvedRefs.gallery?.[3]),
+    logo: createStage2AssetMarker('Logo', stage1Data?.brand_logo, resolvedRefs.logo),
+  };
+}
+
+function renderStage2RuntimeDiagnostics() {
+  const markers = document.getElementById('stage2-runtime-diagnostics');
+  if (markers) {
+    const fields = [
+      ['raw_bottom_mode', stage2RuntimeDiagnostics.raw_bottom_mode],
+      ['canonical_bottom_mode', stage2RuntimeDiagnostics.canonical_bottom_mode],
+      ['payload_bottom_mode', stage2RuntimeDiagnostics.payload_bottom_mode],
+      ['request_id', stage2RuntimeDiagnostics.request_id],
+      ['health_status', stage2RuntimeDiagnostics.health_status],
+      ['template_posters_status', stage2RuntimeDiagnostics.template_posters_status],
+      ['generate_status', stage2RuntimeDiagnostics.generate_status],
+      ['failure_class', stage2RuntimeDiagnostics.failure_class],
+    ];
+    markers.innerHTML = fields.map(([key, value]) => `
+      <div class="s2-diagnostic-card">
+        <div class="s2-diagnostic-key">${key}</div>
+        <div class="s2-diagnostic-val">${value ?? '—'}</div>
+      </div>
+    `).join('');
+  }
+
+  const assets = document.getElementById('stage2-asset-readiness');
+  if (assets) {
+    const entries = STAGE2_DIAGNOSTIC_ASSET_SLOTS.map(([key, fallbackLabel]) => {
+      const marker = stage2RuntimeDiagnostics.assets?.[key] || {};
+      const label = marker.label || fallbackLabel;
+      return `
+        <div class="s2-diagnostic-card">
+          <div class="s2-diagnostic-key">${label}</div>
+          <div class="s2-diagnostic-val">${marker.readiness || 'missing'}</div>
+          <div class="s2-slot-note">${marker.source || 'source absent'}</div>
+        </div>
+      `;
+    });
+    assets.innerHTML = entries.join('');
+  }
+}
+
+function updateStage2RuntimeDiagnostics(next = {}) {
+  if (next.assets && typeof next.assets === 'object') {
+    stage2RuntimeDiagnostics.assets = {
+      ...stage2RuntimeDiagnostics.assets,
+      ...next.assets,
+    };
+  }
+  Object.keys(next).forEach((key) => {
+    if (key === 'assets') return;
+    if (next[key] === undefined) return;
+    stage2RuntimeDiagnostics[key] = next[key];
+  });
+  renderStage2RuntimeDiagnostics();
+}
+
+function getStage2RawBottomMode() {
+  return document.getElementById('poster2-bottom-mode')?.value || '';
+}
+
+function getStage2PayloadBottomMode(payload) {
+  if (payload?.bottom_mode) return payload.bottom_mode;
+  if (payload?.poster?.bottom_mode) return payload.poster.bottom_mode;
+  return null;
+}
+
+async function settleStage2GenerateRequest(stage1Data) {
+  const rawBottomMode = getStage2RawBottomMode();
+  const canonicalBottomMode = canonicalizePoster2BottomMode(rawBottomMode);
+  const bottomControl = document.getElementById('poster2-bottom-mode');
+  if (bottomControl) {
+    bottomControl.value = canonicalBottomMode;
+  }
+  syncPoster2BottomContractFromControls(stage1Data);
+  updatePoster2BottomRequestPreview(stage1Data);
+  await Promise.resolve();
+  await delay(0);
+  syncPoster2BottomContractFromControls(stage1Data);
+  const bottomRequestState = cloneStage2Value(buildPoster2BottomRequestState(stage1Data));
+  updateStage2RuntimeDiagnostics({
+    raw_bottom_mode: rawBottomMode || '—',
+    canonical_bottom_mode: bottomRequestState?.bottom_mode || canonicalBottomMode || '—',
+    payload_bottom_mode: 'pending',
+    failure_class: 'none',
+  });
+  return {
+    rawBottomMode,
+    canonicalBottomMode: bottomRequestState?.bottom_mode || canonicalBottomMode,
+    bottomRequestState,
+  };
 }
 
 function initStage2RenderModeControl(promptInspector, statusElement) {
@@ -1329,7 +1493,16 @@ function setStage2GenerateUiBusy(isBusy) {
 
 async function runStage2Generation({ isRegenerate = false } = {}) {
   const now = Date.now();
-  if (stage2GenerateInFlight) return;
+  if (stage2GenerateInFlight || stage2InFlight) {
+    console.info('[stage2] ignored duplicate generate click while request is active');
+    return;
+  }
+  if (now < stage2GenerateCooldownUntil) {
+    console.info('[stage2] ignored generate click during cooldown', {
+      cooldown_remaining_ms: Math.max(stage2GenerateCooldownUntil - now, 0),
+    });
+    return;
+  }
   if (now - stage2LastClickAt < STAGE2_CLICK_DEBOUNCE_MS) return;
   stage2LastClickAt = now;
   const t0 = Date.now();
@@ -1341,6 +1514,13 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
 
   stage2GenerateInFlight = true;
   setStage2GenerateUiBusy(true);
+  updateStage2RuntimeDiagnostics({
+    request_id: 'pending',
+    payload_bottom_mode: 'pending',
+    generate_status: 'guarded',
+    failure_class: 'none',
+    assets: buildStage2AssetReadiness(stage1Snapshot),
+  });
   try {
     const revealA = (async () => {
       await delay(STAGE2_REVEAL_DELAY_MS);
@@ -1355,7 +1535,19 @@ async function runStage2Generation({ isRegenerate = false } = {}) {
     renderPosterResult();
   } finally {
     stage2GenerateInFlight = false;
-    setStage2GenerateUiBusy(false);
+    stage2GenerateCooldownUntil = Date.now() + STAGE2_ATTEMPT_COOLDOWN_MS;
+    if (stage2GenerateCooldownTimer) {
+      clearTimeout(stage2GenerateCooldownTimer);
+      stage2GenerateCooldownTimer = null;
+    }
+    setStage2GenerateUiBusy(true);
+    stage2GenerateCooldownTimer = setTimeout(() => {
+      stage2GenerateCooldownTimer = null;
+      if (!stage2GenerateInFlight && !stage2InFlight) {
+        setStage2GenerateUiBusy(false);
+        updateRegenerateButtonState();
+      }
+    }, STAGE2_ATTEMPT_COOLDOWN_MS);
     const t1 = Date.now();
     const bullets = Array.isArray(stage1Snapshot?.bullets) ? stage1Snapshot.bullets.filter(Boolean) : [];
     const bottomEntries = Array.isArray(stage1Snapshot?.gallery_entries)
@@ -7512,7 +7704,14 @@ function buildStage2PreflightDiagnostics(input) {
   }
   return {
     request_id: input?.requestId ?? null,
+    raw_bottom_mode: input?.rawBottomMode ?? null,
+    canonical_bottom_mode: input?.canonicalBottomMode ?? input?.formSignatures?.bottom?.bottom_mode ?? null,
+    payload_bottom_mode: input?.payloadBottomMode ?? input?.payload?.bottom_mode ?? null,
     current_bottom_mode: input?.formSignatures?.bottom?.bottom_mode || null,
+    health_status: input?.healthStatus ?? 'unknown',
+    template_posters_status: input?.templatePostersStatus ?? 'unknown',
+    generate_status: input?.generateStatus ?? 'idle',
+    failure_class: input?.failureClass ?? 'none',
     previous_success_present: Boolean(input?.previousSuccessPresent),
     invalidated_fields: Array.isArray(input?.invalidatedFields) ? input.invalidatedFields : [],
     cleared_success_state: Boolean(input?.clearedSuccessState),
@@ -8935,6 +9134,7 @@ function initStage2() {
     stage2State.draft = draft;
     loadStage2SavedPosterState();
     renderStage2PosterSelectionCards();
+    renderStage2RuntimeDiagnostics();
     renderDraftSnapshot(draft);
     const hasDebugPanels = document.getElementById('debug-draft') || document.getElementById('debug-payload');
     if (hasDebugPanels) {
@@ -9039,6 +9239,11 @@ function initStage2() {
     initPoster2BottomContractControls(stage1Data, statusElement);
     initPoster2CopyOptimizationControls(stage1Data, statusElement);
     applyStage2TemplateFamilyVisibility(stage1Data);
+    updateStage2RuntimeDiagnostics({
+      raw_bottom_mode: getStage2RawBottomMode() || '—',
+      canonical_bottom_mode: buildPoster2BottomRequestState(stage1Data)?.bottom_mode || '—',
+      assets: buildStage2AssetReadiness(stage1Data),
+    });
 
     refreshStage2Wireframe();
 
@@ -9283,7 +9488,7 @@ function initStage2() {
       }
     };
 
-    const loadTemplatePosters = async ({ silent = false, force = false } = {}) => {
+    const loadTemplatePosters = async ({ silent = false, force = false, skipWarmUp = false } = {}) => {
       if (!force && templateState.loaded) {
         return Boolean(templateState.poster);
       }
@@ -9301,10 +9506,12 @@ function initStage2() {
         return false;
       }
 
-      try {
-        await warmUp(candidates);
-      } catch (error) {
-        console.warn('模板海报 warm up 失败', error);
+      if (!skipWarmUp) {
+        try {
+          await warmUp(candidates);
+        } catch (error) {
+          console.warn('模板海报 warm up 失败', error);
+        }
       }
 
       for (const base of candidates) {
@@ -9346,6 +9553,7 @@ function initStage2() {
         setStatus(statusElement, '模板海报加载失败，请稍后重试。', 'warning');
       }
       templateState.loaded = false;
+      templateState.poster = null;
       templateState.variantA = null;
       templateState.variantB = null;
       return false;
@@ -9401,6 +9609,105 @@ function initStage2() {
         }
       }
     };
+    const ensureStage2GeneratePreflight = async ({
+      rawBottomMode,
+      canonicalBottomMode,
+    } = {}) => {
+      const candidates = getApiCandidates();
+      if (!candidates.length) {
+        updateStage2RuntimeDiagnostics({
+          raw_bottom_mode: rawBottomMode || '—',
+          canonical_bottom_mode: canonicalBottomMode || '—',
+          health_status: 'no_api',
+          template_posters_status: 'unknown',
+          generate_status: 'blocked_preflight',
+          failure_class: 'preflight_unavailable',
+        });
+        setStatus(statusElement, '生成前检查失败：未找到可用后端，请先填写 API 基址。', 'warning');
+        stage2GeneratePreflightState.lastFailure = true;
+        return { ok: false, healthStatus: 'no_api', templatePostersStatus: 'unknown' };
+      }
+
+      const now = Date.now();
+      const modeKey = canonicalBottomMode || '';
+      const stale = !stage2GeneratePreflightState.checkedAt || now - stage2GeneratePreflightState.checkedAt > STAGE2_PREFLIGHT_TTL_MS;
+      const modeChanged = stage2GeneratePreflightState.modeKey !== modeKey;
+      const templateUnknown = stage2GeneratePreflightState.templatePostersStatus === 'unknown';
+      const shouldProbeHealth = stale || stage2GeneratePreflightState.lastFailure || modeChanged || stage2GeneratePreflightState.healthStatus === 'unknown';
+      const shouldProbeTemplate = stale || stage2GeneratePreflightState.lastFailure || modeChanged || templateUnknown;
+
+      let healthStatus = stage2GeneratePreflightState.healthStatus || 'unknown';
+      let templatePostersStatus = stage2GeneratePreflightState.templatePostersStatus || 'unknown';
+
+      updateStage2RuntimeDiagnostics({
+        raw_bottom_mode: rawBottomMode || '—',
+        canonical_bottom_mode: canonicalBottomMode || '—',
+        health_status: healthStatus,
+        template_posters_status: templatePostersStatus,
+        generate_status: 'preflight',
+        failure_class: 'none',
+      });
+
+      if (shouldProbeHealth) {
+        try {
+          const healthResults = await warmUp(candidates, { force: true });
+          const healthy = healthResults.some((result) => result?.status === 'fulfilled' && result.value === true);
+          healthStatus = healthy ? 'ok' : 'failed';
+        } catch (error) {
+          console.warn('[stage2] preflight health probe failed', error);
+          healthStatus = 'failed';
+        }
+      }
+
+      if (healthStatus !== 'ok') {
+        stage2GeneratePreflightState.checkedAt = Date.now();
+        stage2GeneratePreflightState.modeKey = modeKey;
+        stage2GeneratePreflightState.healthStatus = healthStatus;
+        stage2GeneratePreflightState.templatePostersStatus = templatePostersStatus;
+        stage2GeneratePreflightState.lastFailure = true;
+        updateStage2RuntimeDiagnostics({
+          health_status: healthStatus,
+          template_posters_status: templatePostersStatus,
+          generate_status: 'blocked_preflight',
+          failure_class: 'backend_unavailable',
+        });
+        setStatus(statusElement, '生成前检查失败：服务健康检查未通过，请稍后重试。', 'warning');
+        return { ok: false, healthStatus, templatePostersStatus };
+      }
+
+      if (shouldProbeTemplate) {
+        const templateReady = await loadTemplatePosters({ silent: true, force: true, skipWarmUp: true });
+        templatePostersStatus = templateReady ? 'ok' : 'failed';
+      } else if (templateState.loaded) {
+        templatePostersStatus = 'ok';
+      }
+
+      stage2GeneratePreflightState.checkedAt = Date.now();
+      stage2GeneratePreflightState.modeKey = modeKey;
+      stage2GeneratePreflightState.healthStatus = healthStatus;
+      stage2GeneratePreflightState.templatePostersStatus = templatePostersStatus;
+
+      updateStage2RuntimeDiagnostics({
+        health_status: healthStatus,
+        template_posters_status: templatePostersStatus,
+        generate_status: templatePostersStatus === 'ok' ? 'preflight_ready' : 'blocked_preflight',
+        failure_class: templatePostersStatus === 'ok' ? 'none' : 'template_posters_unavailable',
+      });
+
+      if (templatePostersStatus !== 'ok') {
+        stage2GeneratePreflightState.lastFailure = true;
+        setStatus(statusElement, '生成前检查失败：模板海报未就绪，请稍后重试。', 'warning');
+        return { ok: false, healthStatus, templatePostersStatus };
+      }
+
+      return {
+        ok: true,
+        checkedAt: stage2GeneratePreflightState.checkedAt,
+        healthStatus,
+        templatePostersStatus,
+      };
+    };
+
     const runGeneration = (extra = {}) => {
       const currentRequest = promptManager?.buildRequest?.();
       if (currentRequest?.prompts) {
@@ -9410,7 +9717,16 @@ function initStage2() {
       }
 
       const execute = async () => {
-        await loadTemplatePosters({ silent: true, force: true });
+        const rawBottomMode = getStage2RawBottomMode();
+        const canonicalBottomMode = canonicalizePoster2BottomMode(rawBottomMode);
+        const preflightSnapshot = await ensureStage2GeneratePreflight({
+          rawBottomMode,
+          canonicalBottomMode,
+        });
+        if (!preflightSnapshot.ok) {
+          return null;
+        }
+        await loadTemplatePosters({ silent: true, force: false, skipWarmUp: true });
         updateTemplatePosterDisplay();
         const fallbackPoster = activeTemplatePoster
           ? { ...activeTemplatePoster }
@@ -9440,6 +9756,7 @@ function initStage2() {
           promptPresets,
           latestPromptState,
           forceVariants: extra.forceVariants ?? 1,
+          preflightSnapshot,
           ...extra,
         });
       };
@@ -9643,33 +9960,20 @@ function initStage2() {
       apiBaseInput.addEventListener('change', () => {
         templateState.loaded = false;
         templateState.poster = null;
+        stage2GeneratePreflightState.checkedAt = 0;
+        stage2GeneratePreflightState.healthStatus = 'unknown';
+        stage2GeneratePreflightState.templatePostersStatus = 'unknown';
+        stage2GeneratePreflightState.lastFailure = false;
         updateTemplatePosterDisplay('正在重新加载模板海报…');
+        updateStage2RuntimeDiagnostics({
+          health_status: 'unknown',
+          template_posters_status: 'unknown',
+        });
         void loadTemplatePosters({ silent: true, force: true });
       });
     }
 
-    stage2RunGeneration = (extra = {}) =>
-      triggerGeneration({
-        stage1Data,
-        statusElement,
-        posterOutput,
-        aiPreview,
-        aiSpinner,
-        aiPreviewMessage,
-        templatePoster: MODE_S ? null : templateState.poster,
-        promptBundleGroup: MODE_S ? null : promptBundleGroup,
-        promptBundlePre: MODE_S ? null : promptBundlePre,
-        promptGroup: MODE_S ? null : promptGroup,
-        emailGroup,
-        promptTextarea: MODE_S ? null : promptTextarea,
-        emailTextarea,
-        generateButton,
-        regenerateButton,
-        nextButton,
-        promptManager: MODE_S ? null : promptManager,
-        updatePromptPanels: MODE_S ? null : updatePromptPanels,
-        ...extra,
-      });
+    stage2RunGeneration = (extra = {}) => runGeneration(extra);
     bindStage2GenerateButtonsOnce();
     updateRegenerateButtonState();
 
@@ -10504,12 +10808,13 @@ async function triggerGeneration(opts) {
     generateButton, regenerateButton, nextButton,
     promptManager, updatePromptPanels, promptPresets, latestPromptState,
     forceVariants = null, abTest = false,
+    preflightSnapshot = null,
   } = opts;
   const { disablePosterImage = false } = opts;
   const liveStage1Data = loadStage1Data() || stage1Data || lastStage1Data || {};
   const requestStage1Data = cloneStage2Value(liveStage1Data) || {};
-  syncPoster2BottomContractFromControls(requestStage1Data);
-  const bottomRequestState = cloneStage2Value(buildPoster2BottomRequestState(requestStage1Data));
+  const settledRequest = await settleStage2GenerateRequest(requestStage1Data);
+  const bottomRequestState = cloneStage2Value(settledRequest.bottomRequestState);
   const adjustments = cloneStage2Value(stage2State.adjustments || {});
   const rendererMode = stage2State.poster2.rendererMode || 'auto';
   syncStage2PreviewStateFromStage1(requestStage1Data);
@@ -10520,15 +10825,25 @@ async function triggerGeneration(opts) {
   stage2State.regenPolicy = isRegenerate
     ? { updateScenario: true, updateGallery: true, updateProduct: false }
     : { updateScenario: false, updateGallery: false, updateProduct: false };
-  if (stage2InFlight && stage2ActiveAbortController) {
-    abortActiveStage2Request('superseded_by_new_generate');
-    console.info('[stage2] aborted prior in-flight generate request');
+  if (stage2InFlight) {
+    console.info('[stage2] ignored direct duplicate generate request');
+    return null;
   }
   const mySeq = ++stage2GenerationSeq;
   stage2ActiveRequestId = mySeq;
   stage2ActiveAbortController = new AbortController();
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
+  updateStage2RuntimeDiagnostics({
+    request_id: mySeq,
+    raw_bottom_mode: settledRequest.rawBottomMode || '—',
+    canonical_bottom_mode: settledRequest.canonicalBottomMode || '—',
+    generate_status: 'preparing',
+    failure_class: 'none',
+    health_status: preflightSnapshot?.healthStatus || stage2RuntimeDiagnostics.health_status,
+    template_posters_status: preflightSnapshot?.templatePostersStatus || stage2RuntimeDiagnostics.template_posters_status,
+    assets: buildStage2AssetReadiness(requestStage1Data),
+  });
   const previousResponsePresence = {
     lastPosterResult: Boolean(lastPosterResult),
     latestResult: Boolean(stage2State.poster2.latestResult),
@@ -10838,6 +11153,13 @@ async function triggerGeneration(opts) {
           },
         },
       });
+      stage2GeneratePreflightState.lastFailure = true;
+      updateStage2RuntimeDiagnostics({
+        generate_status: 'failed',
+        failure_class: failure.kind || 'request_state',
+        payload_bottom_mode: 'blocked',
+        assets: buildStage2AssetReadiness(requestStage1Data),
+      });
       setStatus(
         statusElement,
         failure.operatorMessage,
@@ -10849,6 +11171,15 @@ async function triggerGeneration(opts) {
     }
     return null;
   }
+  updateStage2RuntimeDiagnostics({
+    assets: buildStage2AssetReadiness(requestStage1Data, {
+      logo: brandLogoRef,
+      scenario: scenarioRef,
+      product: productImage1Ref || productRef,
+      product_secondary: productImage2Ref,
+      gallery: (galleryItems || []).map((item) => item?.asset || item?.url || item),
+    }),
+  });
   // 4) Prompt bundle (Mode S presets only)
   const reqFromInspector = MODE_S ? {} : (promptManager?.buildRequest?.() || {});
   if (!MODE_S && forceVariants != null) reqFromInspector.variants = forceVariants;
@@ -10897,6 +11228,7 @@ async function triggerGeneration(opts) {
   payload = freezeStage2RequestSnapshot(cloneStage2Value(payload));
   updateDebugPanels({ draft: stage2State.draft, payload: cloneStage2Value(payload) });
   const requestPayloadSignature = hashStage2StableValue(payload);
+  const payloadBottomMode = getStage2PayloadBottomMode(payload);
   const preflightDiagnostics = buildStage2PreflightDiagnostics({
     requestId: mySeq,
     formSignatures: sourceInvalidation.signatures,
@@ -10905,6 +11237,23 @@ async function triggerGeneration(opts) {
     invalidatedFields: sourceInvalidation.invalidatedFields || [],
     clearedSuccessState,
     detectedGalleryItems: sourceInvalidation.signatures?.bottom?.requested_gallery_count || 0,
+    rawBottomMode: settledRequest.rawBottomMode,
+    canonicalBottomMode: settledRequest.canonicalBottomMode,
+    payloadBottomMode,
+    healthStatus: preflightSnapshot?.healthStatus || 'unknown',
+    templatePostersStatus: preflightSnapshot?.templatePostersStatus || 'unknown',
+    generateStatus: 'ready',
+    failureClass: 'none',
+  });
+  updateStage2RuntimeDiagnostics({
+    request_id: mySeq,
+    raw_bottom_mode: settledRequest.rawBottomMode || '—',
+    canonical_bottom_mode: settledRequest.canonicalBottomMode || '—',
+    payload_bottom_mode: payloadBottomMode || '—',
+    health_status: preflightDiagnostics.health_status,
+    template_posters_status: preflightDiagnostics.template_posters_status,
+    generate_status: 'ready',
+    failure_class: 'none',
   });
   console.info('[stage2] generate preflight', preflightDiagnostics);
   logStage2RequestBoundary({
@@ -10984,6 +11333,11 @@ async function triggerGeneration(opts) {
   const rawPayload = JSON.stringify(payload);
   try { validatePayloadSize(rawPayload); } catch (e) {
     if (isCurrentStage2Request(mySeq)) {
+      stage2GeneratePreflightState.lastFailure = true;
+      updateStage2RuntimeDiagnostics({
+        generate_status: 'failed',
+        failure_class: 'request_state',
+      });
       setStatus(statusElement, e.message, 'error');
       stage2InFlight = false;
       stage2ActiveAbortController = null;
@@ -11068,7 +11422,13 @@ async function triggerGeneration(opts) {
 
   try {
     didAttempt = true;
-    await warmUp(apiCandidates);
+    updateStage2RuntimeDiagnostics({
+      generate_status: 'in_flight',
+      failure_class: 'none',
+    });
+    if (!preflightSnapshot || preflightSnapshot.healthStatus !== 'ok') {
+      await warmUp(apiCandidates);
+    }
     if (!isCurrentStage2Request(mySeq)) return null;
     const resp = await postJsonWithRetry(apiCandidates, endpointPath, payload, 1, rawPayload, {
       signal: stage2ActiveAbortController?.signal,
@@ -11110,6 +11470,12 @@ async function triggerGeneration(opts) {
     });
 
     applyVertexPosterResult(data);
+    stage2GeneratePreflightState.lastFailure = false;
+    updateStage2RuntimeDiagnostics({
+      generate_status: 'success',
+      failure_class: 'none',
+      request_id: mySeq,
+    });
 
     clearFallbackTimer();
 
@@ -11187,6 +11553,10 @@ async function triggerGeneration(opts) {
   } catch (error) {
     if (error?.name === 'AbortError') {
       console.info('[generatePoster] request aborted', { request_id: mySeq, message: error?.message || 'aborted' });
+      updateStage2RuntimeDiagnostics({
+        generate_status: 'aborted',
+        failure_class: 'aborted',
+      });
       return null;
     }
     if (!isCurrentStage2Request(mySeq)) return null;
@@ -11209,6 +11579,12 @@ async function triggerGeneration(opts) {
       error?.status === 429 &&
       (detail?.error === 'vertex_quota_exceeded' || detail === 'vertex_quota_exceeded');
     const failure = classifyStage2RequestFailure(error);
+    stage2GeneratePreflightState.lastFailure = true;
+    updateStage2RuntimeDiagnostics({
+      generate_status: 'failed',
+      failure_class: failure.kind || 'unknown',
+      request_id: mySeq,
+    });
     const decoratedMessage = buildStage2FailureStatusMessage(error, failure, { quotaExceeded });
     setStatus(statusElement, decoratedMessage, 'error');
     generateButton.disabled = false;

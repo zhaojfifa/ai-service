@@ -1,5 +1,172 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-OP7: Stage2 generate guard and preflight diagnostics closure
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-14`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/stage2.html`
+- `frontend/app.js`
+- `frontend/stage2_request_helpers.js`
+- `docs/stage2.html`
+- `docs/app.js`
+- `docs/stage2_request_helpers.js`
+
+### Scope
+
+- PR-OP7 only
+- Stage2 generate guard and preflight diagnostics closure only
+- stabilize first-switch generate behavior without reopening contract/runtime truth
+- keep `frontend/` and `docs/` aligned
+- update branch execution log before stop
+- no poster contract change
+- no bottom truth change
+- no renderer routing change
+- no Stage3 saved-poster send-truth change
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- behavior before beautification
+- frontend/docs mirror were kept aligned in the same task
+- no request/runtime truth redesign
+
+### Problem reproduced
+
+- Stage2 still allowed generate attempts to fire too eagerly around the first bottom-mode switch
+- the request path still refreshed readiness surfaces too aggressively and too late, which made first-switch failures hard to distinguish from service-readiness timing
+- Stage2 lacked a compact operator-visible preflight surface for:
+  - raw vs canonical vs payload bottom mode
+  - health / template readiness
+  - generate status / failure class
+  - simple asset-slot readiness
+
+### Root cause found
+
+- the existing single-flight wrapper only debounced clicks; it did not keep a post-attempt cooldown or explicitly guard the direct `triggerGeneration(...)` path
+- Stage2 still force-loaded `/api/template-posters` on each run path instead of using a bounded readiness preflight cache
+- request diagnostics were logged to console, but the collapsed Stage2 diagnostics area did not expose the minimum markers needed to explain first-switch failures
+
+### Exact generate guard behavior
+
+- generate and regenerate now ignore repeated clicks while a request is active
+- the direct `triggerGeneration(...)` path now also refuses duplicate in-flight calls instead of aborting and superseding the prior request
+- Stage2 disables the generate buttons immediately on click
+- Stage2 now applies a post-attempt cooldown of `1600ms`
+- during cooldown the generate buttons remain disabled briefly, then re-enable automatically when no request is active
+
+### Exact canonicalize-and-rebuild behavior
+
+- on generate click Stage2 now enforces this order before payload build:
+  - read raw bottom-mode control value
+  - canonicalize it with the existing `canonicalizePoster2BottomMode(...)`
+  - write the canonical value back into the control
+  - sync controls into Stage2 bottom-contract state
+  - rebuild the canonical bottom request snapshot
+  - build payload from that rebuilt snapshot only
+- the settled request path also refreshes the hidden bottom-request preview before payload construction
+
+### Exact preflight TTL / retry behavior
+
+- added a bounded Stage2 preflight cache with TTL `20000ms`
+- preflight checks:
+  - `/health` through the existing `warmUp(...)` / health-probe path
+  - `/api/template-posters` through the existing template-poster loader
+- Stage2 reprobes when:
+  - the cached preflight is stale
+  - the previous generate failed
+  - the bottom mode changed
+  - template-poster readiness is unknown
+- if health preflight fails:
+  - generate is blocked
+  - operator sees `生成前检查失败：服务健康检查未通过，请稍后重试。`
+- if template-poster readiness fails:
+  - generate is blocked
+  - operator sees `生成前检查失败：模板海报未就绪，请稍后重试。`
+- if no API base exists:
+  - generate is blocked before request dispatch
+
+### Exact diagnostics markers added
+
+- collapsed Stage2 diagnostics now exposes:
+  - `raw_bottom_mode`
+  - `canonical_bottom_mode`
+  - `payload_bottom_mode`
+  - `request_id`
+  - `health_status`
+  - `template_posters_status`
+  - `generate_status`
+  - `failure_class`
+- added lightweight asset-slot readiness cards for:
+  - `scenario`
+  - `product`
+  - `product_secondary`
+  - `gallery[1..4]`
+  - `logo`
+- each asset slot now shows only:
+  - `resolved` or `missing`
+  - `source present` or `source absent`
+
+### Files changed
+
+- `frontend/stage2.html`
+- `frontend/app.js`
+- `frontend/stage2_request_helpers.js`
+- `docs/stage2.html`
+- `docs/app.js`
+- `docs/stage2_request_helpers.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 frontend generate guard only
+- Stage2 frontend readiness/preflight gating only
+- Stage2 collapsed diagnostics visibility only
+- publish mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+  - `node --check frontend/stage2_request_helpers.js`
+  - `node --check docs/stage2_request_helpers.js`
+- mirror sync/static:
+  - `cmp -s frontend/app.js docs/app.js`
+  - `cmp -s frontend/stage2.html docs/stage2.html`
+  - `cmp -s frontend/stage2_request_helpers.js docs/stage2_request_helpers.js`
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused source-level verification:
+  - verified `stage2RunGeneration` now routes through the cached preflight path instead of directly invoking `triggerGeneration(...)`
+  - verified duplicate in-flight clicks are ignored
+  - verified cooldown / TTL constants are present at `1600ms` and `20000ms`
+  - verified the new diagnostics markers and asset-slot surfaces are present in Stage2 markup/runtime
+
+### Remaining risks
+
+- no browser automation or screenshot harness was run in this pass, so the requested mode-switch sequence was not captured as visual evidence in this workspace
+- preflight health/template readiness remains frontend-side gating over existing endpoints; it improves explainability and timing behavior but does not change backend readiness truth
+- service slowness beyond the current TTL window can still surface after a successful preflight if the backend degrades between probe and request
+
+### Exact acceptance state
+
+- Stage2 now has a bounded generate guard with single-flight enforcement and a visible cooldown
+- Stage2 canonicalizes and rebuilds bottom request state before payload build
+- Stage2 now uses TTL-based readiness preflight instead of blindly forcing template readiness on every generate
+- Stage2 exposes the required minimal diagnostics markers and lightweight asset-slot readiness markers
+- no poster/runtime truth changed
+- frontend/docs mirror is aligned
+- branch execution log is updated
+- acceptance target for PR-OP7 is met
+
 ## Entry — PR-SAVE1: Stage2 save-gated poster send truth
 
 **Branch:** `main`
