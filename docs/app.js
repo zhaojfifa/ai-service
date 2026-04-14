@@ -10602,7 +10602,7 @@ function renderStage2PosterSelectionCards() {
     if (!card) return;
 
     const hasSnapshot = Boolean(snapshot);
-    card.classList.toggle('hidden', prefix === 'stage2-saved-poster' && !hasSnapshot);
+    card.classList.toggle('hidden', false);
     if (empty) empty.classList.toggle('hidden', hasSnapshot);
     if (image) {
       if (hasSnapshot && snapshot.preview_url) {

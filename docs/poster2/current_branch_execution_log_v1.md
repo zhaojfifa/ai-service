@@ -1,5 +1,140 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-UI2: Stage1/Stage2/Stage3 subtractive UI cleanup
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-14`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/styles.css`
+- then only the minimum UI-binding file needed for a small Stage2 presentation-only adjustment:
+  - `frontend/app.js`
+
+### Scope
+
+- PR-UI2 only
+- Stage1/Stage2/Stage3 presentation cleanup only
+- remove redundant explanatory UI and tighten operator information hierarchy
+- keep production behavior unchanged:
+  - generate behavior
+  - request truth
+  - saved-poster truth
+  - send truth
+  - backend API behavior
+  - renderer behavior
+  - `poster_key` logic
+  - production workflow
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- behavior before beautification
+- no request/runtime/send-truth change
+- no renderer/model change
+- `frontend/` and `docs/` were kept aligned in the same task
+
+### Exact sections removed or de-emphasized
+
+- Stage1:
+  - removed the large local intro card below the global header/navigation
+  - kept the global header, stage navigation, upload notes accordion, template preview, and input form
+- Stage2:
+  - de-emphasized the former large result/link box into a compact `链接与标识` utility panel
+  - collapsed link/key presentation under a small details block
+  - kept preview primary and made the `保存` action visually primary in the preview footer
+  - left open/copy link actions available but visually lower-weight
+- Stage3:
+  - removed the extra `发送前检查` explanation card beside the poster preview
+  - removed the visible advanced-details panel from the operator page
+  - replaced the multi-card attachment explanation layout with a compact attachment/delivery block
+  - kept only the essential send-step controls:
+    - recipients
+    - email copy
+    - attachment options
+    - delivery mode
+    - send action
+
+### How Stage2 explanation moved into the saved-poster area
+
+- moved the send-target explanation text node `stage2-save-gate-note` out of the result/link panel and into the `已保存海报` card body
+- kept the same runtime text behavior:
+  - before save: current result is preview-only
+  - after save: saved poster is the send target and must be replaced by regenerate + save
+- made one small UI-only app binding adjustment so the saved-poster card stays visible even when empty, allowing that explanation to remain anchored in the saved-poster area without changing any saved-poster truth
+
+### How Stage3 was simplified
+
+- reduced the preview area to the saved-poster message plus poster preview only
+- kept recipient entry and validation chips
+- kept subject / preview text / body fields
+- moved draft-source and summary text into the email preview block instead of giving them their own explanatory emphasis
+- simplified attachments into one compact area with:
+  - delivery mode select
+  - attachment checkboxes
+  - compact available / selected / buildable summaries
+- hid the advanced source panel from the operator UI while preserving the bound DOM fields needed by existing runtime logic
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/styles.css`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/stage3.html`
+- `docs/styles.css`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1/Stage2/Stage3 frontend presentation only
+- one small Stage2 UI-binding adjustment only
+- docs mirror alignment
+- branch execution/state log
+
+### Focused validation run
+
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- source-level verification:
+  - verified Stage1 no longer contains the redundant local intro card
+  - verified Stage2 result UI now uses compact `链接与标识` presentation
+  - verified `stage2-save-gate-note` now lives inside the saved-poster card
+  - verified Stage3 no longer contains visible `发送前检查`, `高级详情`, or the old multi-card attachment explanation layout
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with static/mirror checks and source inspection only; no browser screenshot run was performed in this workspace
+- Stage2 saved-poster card is now always visible for explanation hierarchy purposes; this is presentation-only, but any future styling work should preserve that UI intent rather than restoring conditional hiding
+
+### Acceptance state
+
+- Stage1 redundant large local intro card removed
+- Stage2 result area simplified
+- Stage2 send-target explanation now lives in the saved-poster area
+- Stage2 link presentation is de-emphasized relative to preview/save
+- Stage3 reduced to essential send-step controls
+- no production behavior changed
+- frontend/docs mirror remains aligned
+- branch execution log updated
+- PR-UI2 acceptance target met
+
 ## Entry — PR-BOTTOM-UF2: Family A gallery_only internal gallery-region rebalance
 
 **Branch:** `main`

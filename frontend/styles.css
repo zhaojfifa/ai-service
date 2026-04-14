@@ -1422,6 +1422,10 @@ main {
   margin-top: 0.75rem;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .stage3-form {
   display: grid;
   gap: 1.25rem;
@@ -1429,15 +1433,13 @@ main {
 
 .stage3-card-stack,
 .stage3-recipient-grid,
-.stage3-attachment-grid,
 .stage3-advanced-grid {
   display: grid;
   gap: 1rem;
 }
 
 .stage3-card-stack,
-.stage3-recipient-grid,
-.stage3-attachment-grid {
+.stage3-recipient-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
@@ -1455,6 +1457,10 @@ main {
 
 .stage3-preview-grid .stage3-card {
   align-self: start;
+}
+
+.stage3-preview-grid--simple {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .stage3-card--warning {
@@ -1515,15 +1521,33 @@ main {
   margin-top: 0.5rem;
 }
 
-.stage3-attachment-options {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+.stage3-attachment-compact {
+  display: grid;
+  gap: 1rem;
 }
 
-.stage3-advanced-panel {
-  margin-top: 1.5rem;
-  background: #f8fafc;
+.stage3-attachment-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1rem;
+}
+
+.stage3-attachment-summary {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.stage3-attachment-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.stage3-attachment-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #52606d;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .s2-inline-hint {
