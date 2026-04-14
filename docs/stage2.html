@@ -495,26 +495,26 @@
           </div>
 
           <div id="poster2-copy-optimization-panel" class="s2-panel s2-copy-optimization hidden">
-            <div class="s2-panel-hd"><span>文案优化</span></div>
+            <div class="s2-panel-hd"><span>海报贴合微调</span></div>
             <div class="s2-panel-bd">
-              <label class="s2-field">
-                <span>模式</span>
-                <select id="poster2-copy-optimization-mode">
-                  <option value="off">off</option>
-                  <option value="suggest">suggest</option>
-                  <option value="apply">apply</option>
-                </select>
-              </label>
-              <p class="hint s2-inline-hint">预览保持在主视图，优化细节收起查看。</p>
-              <details class="s2-secondary-details">
-                <summary>优化详情</summary>
+              <p class="hint s2-inline-hint">低优先级辅助区：仅在当前海报需要压缩、trim 或轻微贴合调整时查看。</p>
+              <details class="s2-secondary-details s2-secondary-details--quiet">
+                <summary>打开贴合微调</summary>
                 <div class="s2-secondary-stack">
+                  <label class="s2-field">
+                    <span>Refinement Mode</span>
+                    <select id="poster2-copy-optimization-mode">
+                      <option value="off">off</option>
+                      <option value="suggest">suggest</option>
+                      <option value="apply">apply</option>
+                    </select>
+                  </label>
                   <div id="poster2-copy-optimization-actions" class="s2-actions">
-                    <button id="poster2-copy-optimization-accept" type="button" class="secondary-button">接受</button>
-                    <button id="poster2-copy-optimization-reject" type="button" class="secondary-button">拒绝</button>
+                    <button id="poster2-copy-optimization-accept" type="button" class="secondary-button">接受当前贴合建议</button>
+                    <button id="poster2-copy-optimization-reject" type="button" class="secondary-button">忽略当前贴合建议</button>
                   </div>
                   <div id="poster2-copy-optimization-summary"></div>
-                  <button id="poster2-copy-optimization-toggle" type="button" class="secondary-button hidden">查看 lineage</button>
+                  <button id="poster2-copy-optimization-toggle" type="button" class="secondary-button hidden">查看 fit lineage</button>
                   <div id="poster2-copy-optimization-lineage" class="hidden"></div>
                 </div>
               </details>

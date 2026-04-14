@@ -346,18 +346,30 @@
             <summary>文案优化</summary>
             <div class="section-heading-row preview-copy-review__header">
               <div>
-                <h4>预览内文案检查</h4>
-                <p class="hint">需要时再查看建议与已接受内容。</p>
+                <h4>主产品文案增强中心</h4>
+                <p class="hint">先生成建议，再按字段接受需要的内容；只有你显式同步时才会写回输入。</p>
               </div>
-              <button id="stage1-generate-suggestions" class="secondary" type="button">生成建议</button>
+              <div class="stage1-suggestion-toolbar">
+                <label class="field stage1-suggestion-style-field">
+                  <span>建议风格</span>
+                  <select id="stage1-suggestion-style">
+                    <option value="product_focused">Product Focused</option>
+                    <option value="light_marketing">Light Marketing</option>
+                  </select>
+                </label>
+                <button id="stage1-generate-suggestions" class="secondary" type="button">生成产品文案建议</button>
+              </div>
             </div>
             <p id="stage1-suggestion-status" class="hint">当前尚未生成建议。</p>
-            <div id="stage1-suggestion-actions" class="actions stage1-suggestion-actions hidden">
-              <button id="stage1-accept-suggestions" class="primary" type="button">接受勾选建议</button>
-              <button id="stage1-apply-accepted" class="secondary" type="button">将已接受建议同步到输入</button>
-              <button id="stage1-restore-raw-copy" class="secondary" type="button">恢复应用前输入</button>
-              <button id="stage1-clear-accepted" class="secondary subtle" type="button">清空已接受层</button>
-            </div>
+            <details id="stage1-suggestion-actions-wrap" class="stage1-suggestion-actions-wrap hidden">
+              <summary>更多操作</summary>
+              <div id="stage1-suggestion-actions" class="actions stage1-suggestion-actions">
+                <button id="stage1-accept-suggestions" class="secondary" type="button">批量接受勾选项</button>
+                <button id="stage1-apply-accepted" class="primary" type="button">将已接受文案骨架同步到输入</button>
+                <button id="stage1-restore-raw-copy" class="secondary" type="button">恢复应用前输入</button>
+                <button id="stage1-clear-accepted" class="secondary subtle" type="button">清空已接受层</button>
+              </div>
+            </details>
             <div id="stage1-suggestion-list" class="stage1-suggestion-list"></div>
           </details>
         </section>

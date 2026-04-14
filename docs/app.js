@@ -307,6 +307,7 @@ const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
 const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
 const STAGE1_PRODUCT_CALLOUT_MAX_ITEMS = 3;
+const STAGE1_COPY_STYLE_DEFAULT = 'product_focused';
 const FRONTEND_BASELINE_STAMP = 'ee1cd4c';
 const BACKEND_BASELINE_EXPECTED = 'ee1cd4c';
 const STAGE2_DIAGNOSTIC_ASSET_SLOTS = [
@@ -1001,21 +1002,32 @@ function buildPoster2AnnotationOptimizationRows(items) {
   return items.map((item, index) => buildPoster2CopyLineageRow(`annotation_${index + 1}`, item)).join('');
 }
 
-function buildPoster2CopyOptimizationSummary(review, state) {
+function getPoster2RefinementSourceSummary(stage1Data) {
+  const spine = getStage1AcceptedCopySpine(stage1Data);
+  if (spine.accepted_title || spine.accepted_callouts.length || spine.accepted_bottom_support_copy) {
+    return `来源：Stage1 已接受产品文案 · ${spine.accepted_title || 'title pending'} · ${spine.accepted_callouts.length} callout(s)`;
+  }
+  return '来源：当前 Stage1 输入；尚未建立已接受产品文案骨架。';
+}
+
+function buildPoster2CopyOptimizationSummary(review, state, stage1Data) {
   const changedFields = Array.isArray(review?.changed_fields) ? review.changed_fields : [];
   const decision = state.decision || review?.decision || 'pending';
   const actionable = Boolean(review?.operator_controls?.can_accept) && changedFields.length > 0;
   const applied = review?.applied_to_rendered_output ? 'true' : 'false';
   const pending = decision === 'pending' ? 'true' : 'false';
   const disabledReason = review?.disabled_reason || review?.operator_controls?.disabled_reason || 'none';
+  const sourceSummary = getPoster2RefinementSourceSummary(stage1Data);
   return `
     <div class="s2-diagnostics-grid">
+      <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">role</div><div class="s2-diagnostic-val">poster_fit_refinement</div></div>
       <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">mode</div><div class="s2-diagnostic-val">${review?.mode || state.mode}</div></div>
       <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">changed_fields</div><div class="s2-diagnostic-val">${changedFields.length ? changedFields.join(', ') : 'none'}</div></div>
       <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">applied</div><div class="s2-diagnostic-val">${applied}</div></div>
       <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">pending</div><div class="s2-diagnostic-val">${pending}</div></div>
       <div class="s2-diagnostic-card"><div class="s2-diagnostic-key">actionable</div><div class="s2-diagnostic-val">${actionable ? 'true' : 'false'}</div></div>
     </div>
+    <div class="s2-slot-note">${sourceSummary}</div>
     <div class="s2-slot-note">disabled_reason: ${disabledReason || 'none'}</div>
   `;
 }
@@ -1027,7 +1039,7 @@ function buildPoster2CopyOptimizationLineage(review) {
   return `${titleLine}${subtitleLine}${annotationLine}`;
 }
 
-function renderPoster2CopyOptimizationReview(review) {
+function renderPoster2CopyOptimizationReview(review, stage1Data = loadStage1Data() || lastStage1Data || null) {
   const state = ensurePoster2CopyOptimizationState();
   state.latestReview = review || null;
 
@@ -1048,9 +1060,9 @@ function renderPoster2CopyOptimizationReview(review) {
   const keepCollapsed = !showActions && state.mode === 'off';
   if (summary) {
     if (!review) {
-      summary.innerHTML = '<div class="s2-slot-note">暂无优化结果。</div>';
+      summary.innerHTML = `<div class="s2-slot-note">暂无海报贴合微调结果。</div><div class="s2-slot-note">${getPoster2RefinementSourceSummary(stage1Data)}</div>`;
     } else {
-      summary.innerHTML = buildPoster2CopyOptimizationSummary(review, state);
+      summary.innerHTML = buildPoster2CopyOptimizationSummary(review, state, stage1Data);
     }
   }
 
@@ -1060,12 +1072,12 @@ function renderPoster2CopyOptimizationReview(review) {
   }
   if (toggleBtn) {
     toggleBtn.classList.toggle('hidden', !showLineageToggle);
-    toggleBtn.textContent = '查看 lineage';
+    toggleBtn.textContent = '查看 fit lineage';
     toggleBtn.onclick = () => {
       if (!lineage) return;
       const nextHidden = !lineage.classList.contains('hidden');
       lineage.classList.toggle('hidden', nextHidden);
-      toggleBtn.textContent = nextHidden ? '查看 lineage' : '隐藏 lineage';
+      toggleBtn.textContent = nextHidden ? '查看 fit lineage' : '隐藏 fit lineage';
     };
   }
   if (actions) actions.classList.toggle('hidden', !showActions);
@@ -1096,7 +1108,7 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
       state.acceptedFeatures = [];
     }
     invalidateStage2SuccessDerivedState('copy_optimization_mode_changed', ['copy_optimization_acceptance']);
-    renderPoster2CopyOptimizationReview(state.latestReview);
+    renderPoster2CopyOptimizationReview(state.latestReview, stage1Data);
   };
 
   acceptBtn.onclick = () => {
@@ -1108,8 +1120,8 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
     state.acceptedFeatures = Array.isArray(review?.annotation_items)
       ? review.annotation_items.map((item) => item?.optimized_text || '').filter(Boolean).slice(0, 4)
       : [];
-    renderPoster2CopyOptimizationReview(review);
-    if (statusElement) setStatus(statusElement, '已接受 copy optimization，下次生成时生效。', 'info');
+    renderPoster2CopyOptimizationReview(review, stage1Data);
+    if (statusElement) setStatus(statusElement, '已接受海报贴合微调建议；下次生成时生效。', 'info');
   };
 
   rejectBtn.onclick = () => {
@@ -1117,11 +1129,11 @@ function initPoster2CopyOptimizationControls(stage1Data, statusElement) {
     state.acceptedTitle = '';
     state.acceptedSubtitle = '';
     state.acceptedFeatures = [];
-    renderPoster2CopyOptimizationReview(state.latestReview);
-    if (statusElement) setStatus(statusElement, '已拒绝 copy optimization，继续使用 Family A 基础文案。', 'info');
+    renderPoster2CopyOptimizationReview(state.latestReview, stage1Data);
+    if (statusElement) setStatus(statusElement, '已拒绝海报贴合微调建议；继续使用当前 Stage1 文案输入。', 'info');
   };
 
-  renderPoster2CopyOptimizationReview(state.latestReview);
+  renderPoster2CopyOptimizationReview(state.latestReview, stage1Data);
 }
 
 function initPoster2BottomContractControls(stage1Data, statusElement) {
@@ -4427,6 +4439,7 @@ function initStage1ModeS() {
   const suggestionApplyButton = document.getElementById('stage1-apply-accepted');
   const suggestionRestoreButton = document.getElementById('stage1-restore-raw-copy');
   const suggestionClearButton = document.getElementById('stage1-clear-accepted');
+  const suggestionStyleSelect = document.getElementById('stage1-suggestion-style');
   const scenarioGenerateButton = document.getElementById('stage1-generate-scenario');
   const scenarioClearButton = document.getElementById('stage1-clear-scenario');
   const scenarioStatus = document.getElementById('stage1-scenario-status');
@@ -4614,6 +4627,7 @@ function initStage1ModeS() {
     }
 
     renderStage1SuggestionPanel(previewPayload, state.stage1SuggestionState);
+    syncStage1SuggestionStyleControl(previewPayload);
 
     return payload;
   };
@@ -5118,6 +5132,12 @@ function initStage1ModeS() {
     return payload;
   };
 
+  const syncStage1SuggestionStyleControl = (payload) => {
+    if (!suggestionStyleSelect) return;
+    const familyState = getStage1SuggestionFamilyState(state.stage1SuggestionState, getStage1SuggestionFamilyKey(payload));
+    suggestionStyleSelect.value = familyState.style || STAGE1_COPY_STYLE_DEFAULT;
+  };
+
   buildPreviewButton.addEventListener('click', () => {
     const relaxedPayload = collectStage1Data(form, state, { strict: false });
     openPreviewOnDemand();
@@ -5151,15 +5171,31 @@ function initStage1ModeS() {
       const payload = collectStage1Data(form, state, { strict: false });
       const familyKey = getStage1SuggestionFamilyKey(payload);
       const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
-      const draft = buildStage1SuggestionDraft(payload);
+      const style = suggestionStyleSelect?.value === 'light_marketing'
+        ? 'light_marketing'
+        : STAGE1_COPY_STYLE_DEFAULT;
+      nextState.families[familyKey].style = style;
+      const draft = buildStage1SuggestionDraft(payload, { style });
       nextState.families[familyKey].latest = draft;
       nextState.families[familyKey].selectedTargets = Object.keys(draft.targets || {});
       state.stage1SuggestionState = nextState;
       renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
       persistCurrentStage1State(state.previewBuilt);
-      setStatus(statusElement, 'Stage1 建议已生成；原始输入未被改写。', 'info');
+      setStatus(statusElement, 'Stage1 产品文案建议已生成；原始输入未被改写。', 'info');
     });
   }
+
+  suggestionStyleSelect?.addEventListener('change', () => {
+    const payload = collectStage1Data(form, state, { strict: false });
+    const familyKey = getStage1SuggestionFamilyKey(payload);
+    const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+    nextState.families[familyKey].style = suggestionStyleSelect.value === 'light_marketing'
+      ? 'light_marketing'
+      : STAGE1_COPY_STYLE_DEFAULT;
+    state.stage1SuggestionState = nextState;
+    persistCurrentStage1State(state.previewBuilt);
+    renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
+  });
 
   const syncSuggestionSelectionsFromDom = (payload) => {
     const familyKey = getStage1SuggestionFamilyKey(payload);
@@ -5171,6 +5207,25 @@ function initStage1ModeS() {
     state.stage1SuggestionState = nextState;
   };
 
+  const acceptSingleStage1SuggestionTarget = (payload, key) => {
+    const familyKey = getStage1SuggestionFamilyKey(payload);
+    const nextState = normaliseStage1SuggestionState(state.stage1SuggestionState);
+    const familyState = nextState.families[familyKey];
+    const latestTargets = familyState.latest?.targets || {};
+    if (!(key in latestTargets)) {
+      setStatus(statusElement, '当前字段没有可接受的建议。', 'warning');
+      return;
+    }
+    familyState.accepted[key] = cloneStage2Value(latestTargets[key]);
+    if (!familyState.selectedTargets.includes(key)) {
+      familyState.selectedTargets = [...familyState.selectedTargets, key];
+    }
+    state.stage1SuggestionState = nextState;
+    renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
+    persistCurrentStage1State(state.previewBuilt);
+    setStatus(statusElement, `已接受 ${key} 建议；当前输入保持不变。`, 'success');
+  };
+
   document.addEventListener('change', (event) => {
     const target = event.target;
     if (!(target instanceof HTMLInputElement)) return;
@@ -5178,6 +5233,15 @@ function initStage1ModeS() {
     const payload = collectStage1Data(form, state, { strict: false });
     syncSuggestionSelectionsFromDom(payload);
     persistCurrentStage1State(state.previewBuilt);
+  });
+
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const button = target.closest('[data-suggestion-quick-accept]');
+    if (!(button instanceof HTMLButtonElement)) return;
+    const payload = collectStage1Data(form, state, { strict: false });
+    acceptSingleStage1SuggestionTarget(payload, button.dataset.suggestionQuickAccept || '');
   });
 
   if (suggestionAcceptButton) {
@@ -5194,14 +5258,14 @@ function initStage1ModeS() {
         return;
       }
       selectedTargets.forEach((key) => {
-        if (latestTargets[key]) {
+        if (latestTargets[key] || Array.isArray(latestTargets[key])) {
           familyState.accepted[key] = cloneStage2Value(latestTargets[key]);
         }
       });
       state.stage1SuggestionState = nextState;
       renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
       persistCurrentStage1State(state.previewBuilt);
-      setStatus(statusElement, '已写入 Stage1 已接受层；原始输入保持不变。', 'success');
+      setStatus(statusElement, '已批量写入 Stage1 已接受产品文案层；原始输入保持不变。', 'success');
     });
   }
 
@@ -5244,7 +5308,7 @@ function initStage1ModeS() {
       state.previewBuilt = false;
       openPreviewOnDemand();
       persistCurrentStage1State(state.previewBuilt);
-      setStatus(statusElement, '已将已接受建议显式同步回 Stage1 输入；可随时恢复。', 'success');
+      setStatus(statusElement, '已将已接受产品文案骨架同步回 Stage1 输入；可随时恢复。', 'success');
     });
   }
 
@@ -5288,7 +5352,7 @@ function initStage1ModeS() {
       state.stage1SuggestionState = nextState;
       renderStage1SuggestionPanel(payload, state.stage1SuggestionState);
       persistCurrentStage1State(state.previewBuilt);
-      setStatus(statusElement, '已清空当前模板家族的已接受层。', 'info');
+      setStatus(statusElement, '已清空当前模板家族的已接受产品文案层。', 'info');
     });
   }
 
@@ -5305,6 +5369,9 @@ function initStage1ModeS() {
   });
 
   refreshPreview();
+  syncStage1SuggestionStyleControl(
+    collectStage1Data(form, state, { strict: false })
+  );
   renderStage1SuggestionPanel(
     collectStage1Data(form, state, { strict: false }),
     state.stage1SuggestionState
@@ -6713,6 +6780,10 @@ function buildLayoutPreview(payload) {
 }
 
 function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
+  const acceptedCopySpine = buildStage1AcceptedCopySpineFromFamilyState(
+    getStage1SuggestionFamilyState(state.stage1SuggestionState, getStage1SuggestionFamilyKey(payload)),
+    payload
+  );
   if (MODE_S) {
     return {
       brand_name: payload.brand_name,
@@ -6758,6 +6829,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
         .filter((e) => e.url)
         .map((e) => ({ url: e.url, key: e.key || null })),
       staged_copy_suggestions: serialiseStage1SuggestionState(state.stage1SuggestionState),
+      accepted_copy_spine: acceptedCopySpine,
       layout_preview: layoutPreview,
       preview_built: previewBuilt,
     };
@@ -6796,6 +6868,7 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
     gallery_label: state.galleryLabel || MATERIAL_DEFAULT_LABELS.gallery,
     gallery_allows_prompt: state.galleryAllowsPrompt !== false,
     gallery_allows_upload: state.galleryAllowsUpload !== false,
+    accepted_copy_spine: acceptedCopySpine,
     layout_preview: layoutPreview,
     preview_built: previewBuilt,
   };
@@ -6889,6 +6962,7 @@ function buildDraftFromStage1Data(stage1Data) {
   if (!stage1Data || typeof stage1Data !== 'object') return {};
   const bullets = Array.isArray(stage1Data.bullets) ? stage1Data.bullets : [];
   const productCallouts = resolveStage1ProductCallouts(stage1Data);
+  const acceptedCopySpine = getStage1AcceptedCopySpine(stage1Data);
   return {
     core: {
       brand_name: stage1Data.brand_name || '',
@@ -6902,10 +6976,13 @@ function buildDraftFromStage1Data(stage1Data) {
       product_callouts: productCallouts,
       product_image_1: stage1Data.product_image_1 || null,
       product_image_2: stage1Data.product_image_2 || null,
+      accepted_copy_spine: acceptedCopySpine,
     },
     messaging: {
       channel: stage1Data.channel || '',
       intent: stage1Data.intent || '',
+      accepted_email_subject_seed: acceptedCopySpine.accepted_email_subject_seed || '',
+      accepted_email_opening_seed: acceptedCopySpine.accepted_email_opening_seed || '',
     },
     poster: stage1Data,
     prompt_bundle: stage1Data.prompt_bundle || null,
@@ -6919,12 +6996,14 @@ function createDefaultStage1SuggestionFamilies() {
       accepted: {},
       selectedTargets: [],
       restoreSnapshot: null,
+      style: STAGE1_COPY_STYLE_DEFAULT,
     },
     b: {
       latest: null,
       accepted: {},
       selectedTargets: [],
       restoreSnapshot: null,
+      style: STAGE1_COPY_STYLE_DEFAULT,
     },
   };
 }
@@ -6949,6 +7028,10 @@ function normaliseStage1SuggestionState(rawState) {
       restoreSnapshot: source.restoreSnapshot && typeof source.restoreSnapshot === 'object'
         ? source.restoreSnapshot
         : null,
+      style:
+        source.style === 'light_marketing' || source.style === 'product_focused'
+          ? source.style
+          : STAGE1_COPY_STYLE_DEFAULT,
     };
   }
   return base;
@@ -6965,6 +7048,79 @@ function getStage1SuggestionFamilyKey(source) {
 function getStage1SuggestionFamilyState(rootState, familyKey) {
   const normalized = normaliseStage1SuggestionState(rootState);
   return normalized.families[familyKey] || normalized.families.a;
+}
+
+function getStage1CopyStyleLabel(style) {
+  return style === 'light_marketing' ? 'Light Marketing' : 'Product Focused';
+}
+
+function buildStage1AcceptedCopySpineFromFamilyState(familyState, payload) {
+  const accepted = familyState?.accepted && typeof familyState.accepted === 'object'
+    ? familyState.accepted
+    : {};
+  const fallbackTitle = collapseSuggestionWhitespace(payload?.title || '');
+  const fallbackCallouts = resolveStage1ProductCallouts(payload);
+  const fallbackBottomCopy = collapseSuggestionWhitespace(payload?.subtitle || payload?.tagline || '');
+  return {
+    accepted_title: collapseSuggestionWhitespace(accepted.title || fallbackTitle || ''),
+    accepted_callouts: normaliseStage1ProductCallouts(accepted.product_callouts || fallbackCallouts),
+    accepted_bottom_support_copy: collapseSuggestionWhitespace(
+      accepted.bottom_support_copy || accepted.subtitle || fallbackBottomCopy || ''
+    ),
+    accepted_email_subject_seed: collapseSuggestionWhitespace(
+      accepted.email_subject_seed || accepted.email_subject || ''
+    ),
+    accepted_email_opening_seed: collapseSuggestionWhitespace(
+      accepted.email_opening_seed || accepted.email_opening || ''
+    ),
+    style:
+      familyState?.style === 'light_marketing' || familyState?.style === 'product_focused'
+        ? familyState.style
+        : STAGE1_COPY_STYLE_DEFAULT,
+    source_family: payload && isTemplateBStage1Data(payload) ? 'b' : 'a',
+  };
+}
+
+function getStage1AcceptedCopySpine(stage1Data) {
+  if (!stage1Data || typeof stage1Data !== 'object') {
+    return {
+      accepted_title: '',
+      accepted_callouts: [],
+      accepted_bottom_support_copy: '',
+      accepted_email_subject_seed: '',
+      accepted_email_opening_seed: '',
+      style: STAGE1_COPY_STYLE_DEFAULT,
+      source_family: 'a',
+    };
+  }
+  const acceptedCopySpine = stage1Data.accepted_copy_spine;
+  if (acceptedCopySpine && typeof acceptedCopySpine === 'object') {
+    return {
+      accepted_title: collapseSuggestionWhitespace(acceptedCopySpine.accepted_title || stage1Data.title || ''),
+      accepted_callouts: normaliseStage1ProductCallouts(
+        acceptedCopySpine.accepted_callouts || resolveStage1ProductCallouts(stage1Data)
+      ),
+      accepted_bottom_support_copy: collapseSuggestionWhitespace(
+        acceptedCopySpine.accepted_bottom_support_copy || stage1Data.subtitle || stage1Data.tagline || ''
+      ),
+      accepted_email_subject_seed: collapseSuggestionWhitespace(
+        acceptedCopySpine.accepted_email_subject_seed || ''
+      ),
+      accepted_email_opening_seed: collapseSuggestionWhitespace(
+        acceptedCopySpine.accepted_email_opening_seed || ''
+      ),
+      style:
+        acceptedCopySpine.style === 'light_marketing' || acceptedCopySpine.style === 'product_focused'
+          ? acceptedCopySpine.style
+          : STAGE1_COPY_STYLE_DEFAULT,
+      source_family: acceptedCopySpine.source_family || getStage1SuggestionFamilyKey(stage1Data),
+    };
+  }
+  const suggestionState = normaliseStage1SuggestionState(stage1Data.staged_copy_suggestions);
+  return buildStage1AcceptedCopySpineFromFamilyState(
+    getStage1SuggestionFamilyState(suggestionState, getStage1SuggestionFamilyKey(stage1Data)),
+    stage1Data
+  );
 }
 
 function collapseSuggestionWhitespace(value) {
@@ -7047,14 +7203,16 @@ function buildCompactCallout(value, fallback) {
   return toSentenceCase(trimSuggestionEnding(compact || fallback || ''));
 }
 
-function buildFamilyAMarketingTitle(payload) {
+function buildFamilyAMarketingTitle(payload, style = STAGE1_COPY_STYLE_DEFAULT) {
   const base = trimSuggestionEnding(payload.title || payload.product_name || payload.agent_name || 'Product');
   const compactBase = clipWords(toTitleCase(base), 6) || 'Product';
   const lower = compactBase.toLowerCase();
   if (/\b(for|with|built|made|designed)\b/.test(lower)) {
-    return compactBase;
+    return style === 'light_marketing' ? compactBase : compactBase.replace(/\s+/g, ' ').trim();
   }
-  return `${compactBase} for Fast Service`;
+  return style === 'light_marketing'
+    ? `${compactBase} for Fast Service`
+    : `${compactBase} for Commercial Prep`;
 }
 
 function buildFamilyBProductTitle(payload) {
@@ -7067,16 +7225,22 @@ function buildFamilyBProductTitle(payload) {
   return compactBase;
 }
 
-function buildFamilyASuggestionDraft(payload) {
+function buildFamilyASuggestionDraft(payload, options = {}) {
+  const style = options.style === 'light_marketing' ? 'light_marketing' : STAGE1_COPY_STYLE_DEFAULT;
   const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
-  const rawTitle = buildFamilyAMarketingTitle(payload);
+  const assetContext = [
+    payload.product_image_1 ? 'primary product image' : '',
+    payload.product_image_2 ? 'secondary product image' : '',
+    payload.scenario_asset ? 'scenario image' : '',
+  ].filter(Boolean);
+  const rawTitle = buildFamilyAMarketingTitle(payload, style);
   const rawCallouts = resolveStage1ProductCallouts(payload);
   const fallbackCallouts = [
     payload.product_name,
     payload.agent_name,
-    'Fast daily output',
+    assetContext.length ? `${assetContext[0]} aligned detail` : 'Fast daily output',
     'Easy-clean workflow',
-    'Commercial-ready build',
+    style === 'light_marketing' ? 'Commercial-ready highlight' : 'Commercial-ready build',
   ];
   const callouts = uniqSuggestionItems(
     (rawCallouts.length ? rawCallouts : fallbackCallouts)
@@ -7087,23 +7251,28 @@ function buildFamilyASuggestionDraft(payload) {
   const supportCopy = supportSource
     ? toSentenceCase(trimSuggestionEnding(supportSource))
     : toSentenceCase(
-      `${rawTitle} supports ${callouts.slice(0, 2).map((item) => item.toLowerCase()).join(' and ') || 'daily output and clean handling'} for steady commercial service.`
+      style === 'light_marketing'
+        ? `${rawTitle} brings ${callouts.slice(0, 2).map((item) => item.toLowerCase()).join(' and ') || 'clean daily performance'} into a sharper product story.`
+        : `${rawTitle} supports ${callouts.slice(0, 2).map((item) => item.toLowerCase()).join(' and ') || 'daily output and clean handling'} for steady commercial service.`
     );
   const emailSubject = toSentenceCase(`${brandName}: ${rawTitle}`);
   const emailOpening = toSentenceCase(
-    `Showcase ${rawTitle.toLowerCase()} with ${callouts.slice(0, 2).join(', ') || 'strong commercial selling points'}.`
+    style === 'light_marketing'
+      ? `Share ${rawTitle.toLowerCase()} with ${callouts.slice(0, 2).join(', ') || 'clear product highlights'} for outreach.`
+      : `Showcase ${rawTitle.toLowerCase()} with ${callouts.slice(0, 2).join(', ') || 'strong commercial selling points'}.`
   );
   return {
     family: 'a',
     generated_from: 'frontend_staged_suggestion',
     generated_at: new Date().toISOString(),
+    style,
     raw_snapshot: captureStage1RawCopySnapshot(payload),
     targets: {
       title: rawTitle,
       product_callouts: callouts,
       bottom_support_copy: supportCopy,
-      email_subject: emailSubject,
-      email_opening: emailOpening,
+      email_subject_seed: emailSubject,
+      email_opening_seed: emailOpening,
     },
   };
 }
@@ -7146,10 +7315,10 @@ function buildFamilyBSuggestionDraft(payload) {
   };
 }
 
-function buildStage1SuggestionDraft(payload) {
+function buildStage1SuggestionDraft(payload, options = {}) {
   return isTemplateBStage1Data(payload)
     ? buildFamilyBSuggestionDraft(payload)
-    : buildFamilyASuggestionDraft(payload);
+    : buildFamilyASuggestionDraft(payload, options);
 }
 
 function buildStage1SuggestionRows(payload, familyState) {
@@ -7179,32 +7348,32 @@ function buildStage1SuggestionRows(payload, familyState) {
         accepted: acceptedTargets.description_summary || '',
       },
       {
-        key: 'email_subject',
-        label: 'Email Subject',
+        key: 'email_subject_seed',
+        label: 'Email Subject Seed',
         raw: '',
-        suggestion: latestTargets.email_subject || '',
-        accepted: acceptedTargets.email_subject || '',
+        suggestion: latestTargets.email_subject_seed || '',
+        accepted: acceptedTargets.email_subject_seed || acceptedTargets.email_subject || '',
       },
       {
-        key: 'email_opening',
-        label: 'Email Opening',
+        key: 'email_opening_seed',
+        label: 'Email Opening Seed',
         raw: '',
-        suggestion: latestTargets.email_opening || '',
-        accepted: acceptedTargets.email_opening || '',
+        suggestion: latestTargets.email_opening_seed || '',
+        accepted: acceptedTargets.email_opening_seed || acceptedTargets.email_opening || '',
       },
     ];
   }
   return [
     {
       key: 'title',
-      label: 'Poster Title',
+      label: 'Accepted Title',
       raw: payload.title || '',
       suggestion: latestTargets.title || '',
       accepted: acceptedTargets.title || '',
     },
     {
       key: 'product_callouts',
-      label: 'Product Callouts',
+      label: 'Accepted Callouts',
       raw: resolveStage1ProductCallouts(payload),
       suggestion: latestTargets.product_callouts || [],
       accepted: acceptedTargets.product_callouts || [],
@@ -7217,44 +7386,45 @@ function buildStage1SuggestionRows(payload, familyState) {
       accepted: acceptedTargets.bottom_support_copy || '',
     },
     {
-      key: 'email_subject',
-      label: 'Email Subject',
+      key: 'email_subject_seed',
+      label: 'Email Subject Seed',
       raw: '',
-      suggestion: latestTargets.email_subject || '',
-      accepted: acceptedTargets.email_subject || '',
+      suggestion: latestTargets.email_subject_seed || '',
+      accepted: acceptedTargets.email_subject_seed || acceptedTargets.email_subject || '',
     },
     {
-      key: 'email_opening',
-      label: 'Email Opening',
+      key: 'email_opening_seed',
+      label: 'Email Opening Seed',
       raw: '',
-      suggestion: latestTargets.email_opening || '',
-      accepted: acceptedTargets.email_opening || '',
+      suggestion: latestTargets.email_opening_seed || '',
+      accepted: acceptedTargets.email_opening_seed || acceptedTargets.email_opening || '',
     },
   ];
 }
 
 function renderStage1SuggestionPanel(payload, suggestionState) {
   const status = document.getElementById('stage1-suggestion-status');
-  const actions = document.getElementById('stage1-suggestion-actions');
+  const actionsWrap = document.getElementById('stage1-suggestion-actions-wrap');
   const list = document.getElementById('stage1-suggestion-list');
-  if (!status || !actions || !list) return;
+  if (!status || !list) return;
 
   const familyKey = getStage1SuggestionFamilyKey(payload);
   const familyState = getStage1SuggestionFamilyState(suggestionState, familyKey);
   const rows = buildStage1SuggestionRows(payload, familyState);
   const hasLatest = Boolean(familyState.latest?.targets);
   const hasAccepted = Object.keys(familyState.accepted || {}).length > 0;
+  const styleLabel = getStage1CopyStyleLabel(familyState.style || familyState.latest?.style || STAGE1_COPY_STYLE_DEFAULT);
 
   status.textContent = hasLatest
-    ? `当前预览流已生成${familyKey === 'a' ? '营销讲解海报' : '产品图录海报'}建议。生成来源：${familyState.latest.generated_from || 'frontend_staged_suggestion'}。`
-    : '当前预览流尚未生成建议。';
-  actions.classList.toggle('hidden', !hasLatest && !hasAccepted);
+    ? `Stage1 已生成${familyKey === 'a' ? '产品主文案' : '产品图录'}建议。风格：${styleLabel}。按字段接受即可；输入不会自动改写。`
+    : 'Stage1 尚未生成产品文案建议。';
+  actionsWrap?.classList.toggle('hidden', !hasLatest && !hasAccepted);
   list.innerHTML = '';
 
   if (!hasLatest && !hasAccepted) {
     const empty = document.createElement('p');
     empty.className = 'stage1-suggestion-summary';
-    empty.textContent = '建议生成后会在当前预览流内分开展示原始输入、建议层与已接受层。';
+    empty.textContent = 'Stage1 是主产品文案增强中心。生成后会分开展示原始输入、建议层与已接受层，且不会自动改写输入。';
     list.appendChild(empty);
     return;
   }
@@ -7267,6 +7437,8 @@ function renderStage1SuggestionPanel(payload, suggestionState) {
     const label = document.createElement('div');
     label.className = 'stage1-suggestion-row__label';
     label.textContent = row.label;
+    const controls = document.createElement('div');
+    controls.className = 'stage1-suggestion-row__controls';
     const toggleWrap = document.createElement('label');
     toggleWrap.className = 'stage1-suggestion-row__toggle';
     const checkbox = document.createElement('input');
@@ -7275,9 +7447,17 @@ function renderStage1SuggestionPanel(payload, suggestionState) {
     checkbox.disabled = !formatSuggestionValue(row.suggestion);
     checkbox.dataset.suggestionTarget = row.key;
     const checkboxText = document.createElement('span');
-    checkboxText.textContent = '接受此建议';
+    checkboxText.textContent = '批量勾选';
     toggleWrap.append(checkbox, checkboxText);
-    header.append(label, toggleWrap);
+    controls.append(toggleWrap);
+    const quickAcceptButton = document.createElement('button');
+    quickAcceptButton.type = 'button';
+    quickAcceptButton.className = 'secondary stage1-suggestion-row__quick-accept';
+    quickAcceptButton.textContent = '接受此字段';
+    quickAcceptButton.dataset.suggestionQuickAccept = row.key;
+    quickAcceptButton.disabled = !formatSuggestionValue(row.suggestion);
+    controls.appendChild(quickAcceptButton);
+    header.append(label, controls);
 
     const cols = document.createElement('div');
     cols.className = 'stage1-suggestion-row__cols';
@@ -12624,6 +12804,214 @@ function getSelectedStage3AttachmentLabels(attachmentPosterPng, attachmentPoster
   ].filter(Boolean);
 }
 
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function extractStage3EmailOpeningFromValues(previewText, bodyText) {
+  const direct = collapseSuggestionWhitespace(previewText || '');
+  if (direct) return direct;
+  const firstLine = String(bodyText || '')
+    .split(/\n+/)
+    .map((line) => collapseSuggestionWhitespace(line))
+    .find(Boolean);
+  return firstLine || '';
+}
+
+function buildStage3EmailBodyShort(text) {
+  const parts = String(text || '')
+    .split(/\n+/)
+    .map((line) => collapseSuggestionWhitespace(line))
+    .filter(Boolean);
+  return parts.slice(0, 2).join(' ');
+}
+
+function buildStage3EmailHtmlFromText(text) {
+  const paragraphs = String(text || '')
+    .split(/\n+/)
+    .map((line) => collapseSuggestionWhitespace(line))
+    .filter(Boolean);
+  if (!paragraphs.length) return '';
+  return paragraphs.map((line) => `<p>${escapeHtml(line)}</p>`).join('');
+}
+
+function dedupeStage3Paragraphs(parts) {
+  const seen = new Set();
+  const output = [];
+  parts.forEach((part) => {
+    const text = collapseSuggestionWhitespace(part || '');
+    if (!text) return;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    output.push(text);
+  });
+  return output;
+}
+
+function buildStage3AdaptedText({ currentText, opening, bodyShort }) {
+  const existingParts = String(currentText || '')
+    .split(/\n+/)
+    .map((line) => collapseSuggestionWhitespace(line))
+    .filter(Boolean);
+  const retainedTail = existingParts.slice(2);
+  return dedupeStage3Paragraphs([opening, bodyShort, ...retainedTail, ...existingParts]).join('\n\n');
+}
+
+function buildStage3SpineSummary(stage1Data, posterRecord) {
+  const spine = getStage1AcceptedCopySpine(stage1Data);
+  const parts = [
+    spine.accepted_title || posterRecord?.request_snapshot?.title || '',
+    spine.accepted_callouts.length ? `${spine.accepted_callouts.length} callout(s)` : '',
+    spine.accepted_bottom_support_copy ? 'bottom support ready' : '',
+    spine.accepted_email_subject_seed ? 'subject seed ready' : '',
+    spine.accepted_email_opening_seed ? 'opening seed ready' : '',
+  ].filter(Boolean);
+  return {
+    spine,
+    text: parts.length
+      ? `来源：Stage1 已接受产品文案骨架 + 已保存海报。当前骨架：${parts.join(' ｜ ')}。`
+      : '来源：当前 Stage1 输入 + 已保存海报。若需加强主产品文案，请先返回 Stage1。'
+  };
+}
+
+function buildStage3EmailAdaptationSuggestion({ stage1Data, posterRecord, backendDraft, currentValues }) {
+  const { spine } = buildStage3SpineSummary(stage1Data, posterRecord);
+  const brandName = collapseSuggestionWhitespace(
+    posterRecord?.request_snapshot?.brand_name || stage1Data?.brand_name || 'Brand'
+  );
+  const title = collapseSuggestionWhitespace(
+    spine.accepted_title || posterRecord?.request_snapshot?.title || stage1Data?.title || 'Product'
+  );
+  const callouts = normaliseStage1ProductCallouts(spine.accepted_callouts || resolveStage1ProductCallouts(stage1Data));
+  const bottomSupport = collapseSuggestionWhitespace(
+    spine.accepted_bottom_support_copy || stage1Data?.subtitle || stage1Data?.tagline || ''
+  );
+  const emailSubject = collapseSuggestionWhitespace(
+    spine.accepted_email_subject_seed || backendDraft?.subject || `${brandName}: ${title}`
+  );
+  const emailOpening = collapseSuggestionWhitespace(
+    spine.accepted_email_opening_seed
+      || backendDraft?.preview_text
+      || `Highlight ${title} with ${callouts.slice(0, 2).join(', ') || 'clear product messaging'}.`
+  );
+  const emailBodyShort = collapseSuggestionWhitespace(
+    [
+      `${title} keeps the product story centered on ${callouts.slice(0, 2).join(' and ') || 'clean commercial value'}.`,
+      bottomSupport || null,
+    ].filter(Boolean).join(' ')
+  );
+  const text = buildStage3AdaptedText({
+    currentText: backendDraft?.text || currentValues.text || '',
+    opening: emailOpening,
+    bodyShort: emailBodyShort,
+  });
+  return {
+    generated_from: 'frontend_stage3_email_adaptation',
+    generated_at: new Date().toISOString(),
+    targets: {
+      email_subject: emailSubject,
+      email_opening: emailOpening,
+      email_body_short: emailBodyShort,
+    },
+    draft: {
+      subject: emailSubject,
+      preview_text: emailOpening,
+      text,
+      html: buildStage3EmailHtmlFromText(text),
+    },
+  };
+}
+
+function renderStage3EmailAdaptationPanel(currentValues, suggestionState) {
+  const summary = document.getElementById('stage3-email-adaptation-summary');
+  const status = document.getElementById('stage3-email-adaptation-status');
+  const actions = document.getElementById('stage3-email-adaptation-actions');
+  const list = document.getElementById('stage3-email-adaptation-list');
+  const acceptButton = document.getElementById('stage3-accept-email-suggestion');
+  const applyButton = document.getElementById('stage3-apply-email-suggestion');
+  const clearButton = document.getElementById('stage3-clear-email-suggestion');
+  if (!summary || !status || !actions || !list) return;
+
+  const latest = suggestionState?.latest || null;
+  const accepted = suggestionState?.accepted || null;
+  const hasLatest = Boolean(latest?.targets);
+  const hasAccepted = Boolean(accepted?.targets);
+  summary.textContent = suggestionState?.spineSummary || 'Stage3 邮件适配将围绕已确认产品文案展开。';
+  status.textContent = hasLatest
+    ? '已生成邮件推广适配建议；可先接受，再同步到当前邮件字段。'
+    : '当前尚未生成邮件推广适配建议。';
+  actions.classList.remove('hidden');
+  if (acceptButton) acceptButton.disabled = !hasLatest;
+  if (applyButton) applyButton.disabled = !hasAccepted;
+  if (clearButton) clearButton.disabled = !hasAccepted;
+  list.innerHTML = '';
+
+  const rows = [
+    {
+      label: 'Email Subject',
+      raw: currentValues.subject || '',
+      suggestion: latest?.targets?.email_subject || '',
+      accepted: accepted?.targets?.email_subject || '',
+    },
+    {
+      label: 'Email Opening',
+      raw: currentValues.email_opening || '',
+      suggestion: latest?.targets?.email_opening || '',
+      accepted: accepted?.targets?.email_opening || '',
+    },
+    {
+      label: 'Email Body Short',
+      raw: currentValues.email_body_short || '',
+      suggestion: latest?.targets?.email_body_short || '',
+      accepted: accepted?.targets?.email_body_short || '',
+    },
+  ];
+
+  if (!hasLatest && !hasAccepted) {
+    const empty = document.createElement('p');
+    empty.className = 'stage1-suggestion-summary';
+    empty.textContent = 'Stage3 只做邮件外发适配，来源始终是 Stage1 已接受产品文案与已保存海报上下文。';
+    list.appendChild(empty);
+    return;
+  }
+
+  rows.forEach((row) => {
+    const wrapper = document.createElement('article');
+    wrapper.className = 'stage1-suggestion-row';
+    const label = document.createElement('div');
+    label.className = 'stage1-suggestion-row__label';
+    label.textContent = row.label;
+    const cols = document.createElement('div');
+    cols.className = 'stage1-suggestion-row__cols';
+    [
+      ['当前邮件', row.raw, ''],
+      ['建议层', row.suggestion, 'stage1-suggestion-cell--suggestion'],
+      ['已接受层', row.accepted, 'stage1-suggestion-cell--accepted'],
+    ].forEach(([titleText, valueText, extraClass]) => {
+      const cell = document.createElement('div');
+      cell.className = `stage1-suggestion-cell ${extraClass}`.trim();
+      const title = document.createElement('div');
+      title.className = 'stage1-suggestion-cell__title';
+      title.textContent = titleText;
+      const value = document.createElement('div');
+      value.className = 'stage1-suggestion-cell__value';
+      const formatted = formatSuggestionValue(valueText);
+      value.textContent = formatted || '暂无内容';
+      if (!formatted) value.classList.add('stage1-suggestion-cell__value--empty');
+      cell.append(title, value);
+      cols.appendChild(cell);
+    });
+    wrapper.append(label, cols);
+    list.appendChild(wrapper);
+  });
+}
+
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
@@ -12636,6 +13024,7 @@ function initStage3() {
     const draftPreviewText = document.getElementById('email-preview-text');
     const draftSource = document.getElementById('email-draft-source');
     const draftSummary = document.getElementById('email-draft-summary');
+    const stage3CopySpineSummary = document.getElementById('stage3-copy-spine-summary');
     const emailRecipient = document.getElementById('email-recipient');
     const emailRecipientFeedback = document.getElementById('email-recipient-feedback');
     const validRecipientsElement = document.getElementById('email-valid-recipients');
@@ -12655,16 +13044,54 @@ function initStage3() {
     const attachmentPosterPdf = document.getElementById('attachment-poster-pdf');
     const sendButton = document.getElementById('send-email');
     const refreshButton = document.getElementById('refresh-email-preview');
+    const acceptEmailSuggestionButton = document.getElementById('stage3-accept-email-suggestion');
+    const applyEmailSuggestionButton = document.getElementById('stage3-apply-email-suggestion');
+    const clearEmailSuggestionButton = document.getElementById('stage3-clear-email-suggestion');
 
     if (!sendButton || !refreshButton || !emailRecipient || !emailSubject || !emailText || !emailHtml) {
       return;
     }
 
+    const stage1Data = loadStage1Data() || {};
     const stage2Result = await loadStage2Result();
     const savedPoster = loadStage2SavedPosterState();
     const posterKey = savedPoster?.poster_key || '';
     const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
     let currentDraft = null;
+    let currentPosterRecord = null;
+    const stage3EmailSuggestionState = {
+      spineSummary: '',
+      latest: null,
+      accepted: null,
+    };
+
+    const getCurrentEmailValues = () => ({
+      subject: emailSubject.value.trim(),
+      email_opening: extractStage3EmailOpeningFromValues(draftPreviewText?.value || '', emailText.value || ''),
+      email_body_short: buildStage3EmailBodyShort(emailText.value || ''),
+      preview_text: draftPreviewText?.value.trim() || '',
+      text: emailText.value.trim(),
+      html: emailHtml.value.trim(),
+    });
+
+    const renderEmailAdaptation = () => {
+      renderStage3EmailAdaptationPanel(getCurrentEmailValues(), stage3EmailSuggestionState);
+    };
+
+    const applyAcceptedEmailSuggestion = () => {
+      if (!stage3EmailSuggestionState.accepted?.draft) return;
+      const acceptedDraft = stage3EmailSuggestionState.accepted.draft;
+      emailSubject.value = acceptedDraft.subject || '';
+      if (draftPreviewText) {
+        draftPreviewText.value = acceptedDraft.preview_text || '';
+      }
+      emailText.value = acceptedDraft.text || '';
+      emailHtml.value = acceptedDraft.html || '';
+      if (emailHtmlPreview) {
+        emailHtmlPreview.innerHTML = acceptedDraft.html || '';
+      }
+      renderEmailAdaptation();
+    };
 
     const updateRecipientState = () => {
       const parsed = parseStage3Recipients(emailRecipient?.value || '');
@@ -12769,6 +13196,7 @@ function initStage3() {
 
     async function hydratePosterRecord() {
       const record = await getJsonWithRetry(apiCandidates, `/api/v2/posters/${encodeURIComponent(posterKey)}`, 1);
+      currentPosterRecord = record;
       const finalPoster = record?.final_poster || stage2Result?.final_poster || null;
       if (!finalPoster) {
         throw new Error('poster_record missing final_poster');
@@ -12802,12 +13230,18 @@ function initStage3() {
       if (!emailRecipient.value) {
         emailRecipient.value = DEFAULT_EMAIL_RECIPIENT;
       }
+      const spineSummary = buildStage3SpineSummary(stage1Data, record);
+      stage3EmailSuggestionState.spineSummary = spineSummary.text;
+      if (stage3CopySpineSummary) {
+        stage3CopySpineSummary.textContent = spineSummary.text;
+      }
+      renderEmailAdaptation();
       updateRecipientState();
       return record;
     }
 
-    async function refreshDraft() {
-      setStatus(statusElement, '正在从 poster_record 生成邮件草稿…', 'info');
+    async function refreshDraft({ applyToForm = true, asSuggestion = false } = {}) {
+      setStatus(statusElement, asSuggestion ? '正在生成邮件推广适配建议…' : '正在从 poster_record 生成邮件草稿…', 'info');
       const draft = await postJsonWithRetry(
         apiCandidates,
         '/api/v2/email/preview',
@@ -12815,14 +13249,18 @@ function initStage3() {
         1
       );
       currentDraft = draft;
-      emailSubject.value = draft?.subject || '';
-      if (draftPreviewText) {
-        draftPreviewText.value = draft?.preview_text || '';
+      if (applyToForm) {
+        emailSubject.value = draft?.subject || '';
+        if (draftPreviewText) {
+          draftPreviewText.value = draft?.preview_text || '';
+        }
+        emailText.value = draft?.text || '';
+        emailHtml.value = draft?.html || '';
       }
-      emailText.value = draft?.text || '';
-      emailHtml.value = draft?.html || '';
       if (draftSource) {
-        draftSource.textContent = '邮件文案已从后端恢复；如需更新，可使用 AI 优化文案。';
+        draftSource.textContent = asSuggestion
+          ? '邮件推广适配建议已生成；当前发送表单未自动覆盖。'
+          : '邮件文案已从后端恢复；如需更新，可生成邮件推广适配建议。';
       }
       if (draftSummary) {
         const summaryPoints = Array.isArray(draft?.summary_points) ? draft.summary_points.filter(Boolean) : [];
@@ -12831,7 +13269,7 @@ function initStage3() {
           ? [tone, `重点：${summaryPoints.join(' / ')}`].filter(Boolean).join(' ｜ ')
           : tone || '当前草稿未返回额外摘要点。';
       }
-      if (emailHtmlPreview) {
+      if (applyToForm && emailHtmlPreview) {
         emailHtmlPreview.innerHTML = draft?.html || '';
       }
       const availableAttachmentTypes = Array.isArray(draft?.available_attachment_types) ? draft.available_attachment_types : [];
@@ -12846,7 +13284,19 @@ function initStage3() {
         attachmentPosterPdf.checked = true;
       }
       updateAttachmentSummary();
-      setStatus(statusElement, '邮件草稿已从后端恢复。', 'success');
+      if (asSuggestion) {
+        stage3EmailSuggestionState.latest = buildStage3EmailAdaptationSuggestion({
+          stage1Data,
+          posterRecord: currentPosterRecord,
+          backendDraft: draft,
+          currentValues: getCurrentEmailValues(),
+        });
+        renderEmailAdaptation();
+        setStatus(statusElement, '邮件推广适配建议已生成；请先接受后再同步到邮件。', 'success');
+      } else {
+        renderEmailAdaptation();
+        setStatus(statusElement, '邮件草稿已从后端恢复。', 'success');
+      }
       sendButton.disabled = false;
       return draft;
     }
@@ -12854,7 +13304,7 @@ function initStage3() {
     try {
       await warmUp(apiCandidates);
       await hydratePosterRecord();
-      await refreshDraft();
+      await refreshDraft({ applyToForm: true, asSuggestion: false });
     } catch (error) {
       console.error('[stage3 hydrate failed]', error);
       setStatus(statusElement, error.message || '环节 3 恢复失败。', 'error');
@@ -12867,7 +13317,11 @@ function initStage3() {
       if (emailHtmlPreview) {
         emailHtmlPreview.innerHTML = emailHtml.value.trim();
       }
+      renderEmailAdaptation();
     });
+    draftPreviewText?.addEventListener('input', renderEmailAdaptation);
+    emailSubject.addEventListener('input', renderEmailAdaptation);
+    emailText.addEventListener('input', renderEmailAdaptation);
     emailRecipient.addEventListener('input', () => {
       updateRecipientState();
     });
@@ -12880,13 +13334,38 @@ function initStage3() {
     refreshButton.addEventListener('click', async () => {
       refreshButton.disabled = true;
       try {
-        await refreshDraft();
+        await refreshDraft({ applyToForm: false, asSuggestion: true });
       } catch (error) {
         console.error('[email preview]', error);
         setStatus(statusElement, error.message || '邮件预览生成失败。', 'error');
       } finally {
         refreshButton.disabled = false;
       }
+    });
+
+    acceptEmailSuggestionButton?.addEventListener('click', () => {
+      if (!stage3EmailSuggestionState.latest) {
+        setStatus(statusElement, '当前没有可接受的邮件推广适配建议。', 'warning');
+        return;
+      }
+      stage3EmailSuggestionState.accepted = cloneStage2Value(stage3EmailSuggestionState.latest);
+      renderEmailAdaptation();
+      setStatus(statusElement, '已写入 Stage3 已接受邮件适配层；当前邮件未自动覆盖。', 'success');
+    });
+
+    applyEmailSuggestionButton?.addEventListener('click', () => {
+      if (!stage3EmailSuggestionState.accepted?.draft) {
+        setStatus(statusElement, '当前没有已接受的邮件适配建议可同步。', 'warning');
+        return;
+      }
+      applyAcceptedEmailSuggestion();
+      setStatus(statusElement, '已将已接受邮件适配同步到当前邮件字段。', 'success');
+    });
+
+    clearEmailSuggestionButton?.addEventListener('click', () => {
+      stage3EmailSuggestionState.accepted = null;
+      renderEmailAdaptation();
+      setStatus(statusElement, '已清空 Stage3 已接受邮件适配层。', 'info');
     });
 
     sendButton.disabled = false;

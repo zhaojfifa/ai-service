@@ -71,6 +71,20 @@
           </div>
 
           <div class="output-group">
+            <h3>邮件推广适配</h3>
+            <p id="stage3-copy-spine-summary" class="hint">来源：Stage1 已接受产品文案骨架 + 已保存海报上下文。</p>
+            <p id="stage3-email-adaptation-summary" class="hint">Stage3 只把已确认产品文案改写为邮件外发版本。</p>
+            <div id="stage3-email-adaptation-actions" class="actions stage3-email-adaptation-actions hidden">
+              <button id="refresh-email-preview" class="secondary" type="button" disabled>生成邮件适配建议</button>
+              <button id="stage3-accept-email-suggestion" class="secondary" type="button" disabled>接受建议</button>
+              <button id="stage3-apply-email-suggestion" class="secondary" type="button" disabled>同步到邮件</button>
+              <button id="stage3-clear-email-suggestion" class="secondary subtle" type="button" disabled>清空已接受层</button>
+            </div>
+            <p id="stage3-email-adaptation-status" class="hint">当前尚未生成邮件推广适配建议。</p>
+            <div id="stage3-email-adaptation-list" class="stage1-suggestion-list"></div>
+          </div>
+
+          <div class="output-group">
             <h3>文案确认</h3>
             <div class="grid">
               <label class="field">
@@ -117,7 +131,6 @@
             <h3>发送</h3>
             <div class="actions">
               <a class="secondary" href="stage2.html">返回环节 2</a>
-              <button id="refresh-email-preview" class="secondary" type="button" disabled>AI 优化文案</button>
               <button id="send-email" class="primary" type="button" disabled>发送邮件</button>
             </div>
           </div>

@@ -1,5 +1,328 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-AI-COPY2: Copy-spine hierarchy clarification and de-escalation pass
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-15`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+
+### Scope
+
+- PR-AI-COPY2 only
+- clarification and de-escalation pass only
+- keep the Stage1 / Stage2 / Stage3 copy-spine direction from PR-AI-COPY1
+- preserve production behavior unchanged:
+  - generate truth
+  - save/send truth
+  - renderer behavior
+  - backend API behavior
+  - Stage2 / Stage3 production gating
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- behavior before beautification
+- no generate/save/send/backend truth change
+- candidate-based and operator-confirmed copy assistance remains intact
+- `frontend/` and `docs/` were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage1 had the correct ownership of the accepted product-copy spine, but the UI still felt like a heavy review workstation
+- Stage2 had already been reframed, but still looked too much like a competing copy-optimization area
+- Stage3 correctly used the accepted Stage1 spine, but its source hierarchy could still be stated more directly in the operator UI
+
+### Root cause found
+
+- Stage1 suggestion rows still leaned on page-level control emphasis instead of field-level acceptance
+- Stage2 refinement controls were visible as a standard active panel instead of a clearly secondary, low-emphasis utility area
+- Stage3 source messaging existed in state, but the page-level copy did not make the upstream dependence on Stage1 accepted copy plus saved poster context explicit enough
+
+### How Stage1 was lightened
+
+- kept Stage1 as the main product-copy enhancement center
+- preserved support for:
+  - `title`
+  - `product_callouts`
+  - `bottom_support_copy`
+  - `email_subject_seed`
+  - `email_opening_seed`
+- changed the Stage1 copy-center header text to emphasize a lighter operator flow:
+  - generate suggestions first
+  - accept field-by-field
+  - sync only when explicitly requested
+- added local per-field acceptance buttons (`接受此字段`) directly in each suggestion row
+- de-emphasized the heavier page-level controls by moving them under a collapsed `更多操作` details block
+- kept the accepted copy spine model unchanged
+- kept non-destructive behavior unchanged:
+  - no auto-overwrite of operator input
+  - accepted layer still remains separate until explicit sync
+
+### How Stage2 was de-escalated
+
+- kept the existing fit/refinement-only role
+- further reduced visual emphasis by:
+  - labeling it as a `低优先级辅助区`
+  - moving the refinement controls behind a collapsed `打开贴合微调` details block
+- preserved the same refinement-only scope:
+  - compression
+  - trim
+  - layout-aware wording adjustment
+- changed button wording so Stage2 reads as handling the current fit suggestion only, not generating a second narrative center
+- left Stage2 payload truth and acceptance mechanics unchanged
+
+### How Stage3 source-of-copy was clarified
+
+- updated the visible Stage3 source line to explicitly say:
+  - `来源：Stage1 已接受产品文案骨架 + 已保存海报上下文`
+- tightened Stage3 adaptation summary/status copy so it reads as email-outreach adaptation rather than a separate copy-writing workspace
+- kept the candidate-based flow unchanged:
+  - generate suggestion
+  - accept suggestion
+  - sync to email fields
+- kept the accepted-before-sync behavior unchanged
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/styles.css`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/stage3.html`
+- `docs/styles.css`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 / Stage2 / Stage3 frontend copy-spine presentation and operator interaction hierarchy only
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- source-level verification:
+  - verified Stage1 still owns the accepted product-copy spine and now offers local per-field accept behavior
+  - verified Stage1 page-level controls are visually de-emphasized under `更多操作`
+  - verified Stage2 now reads as a low-emphasis secondary refinement area with collapsed controls
+  - verified Stage3 now explicitly states that email adaptation derives from Stage1 accepted copy plus saved poster context
+  - verified no production generate/send flow code was changed
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with syntax, mirror checks, and source inspection only; no browser screenshot run was performed in this workspace
+- Stage1 row layout is lighter in source structure, but fine-grain operator feel on narrow/mobile widths was not visually reviewed in-browser in this workspace
+- Stage2 and Stage3 hierarchy is clarified through presentation/copy changes only; this PR intentionally did not change deeper behavior or persistence rules
+
+### Acceptance state
+
+- Stage1 remains the main copy enhancement center and feels lighter/more operator-oriented
+- Stage2 now reads as clearly secondary poster-fit refinement
+- Stage3 now reads as email adaptation from accepted product copy plus saved poster context
+- production truth remains unchanged
+- frontend/docs mirror remains aligned
+- branch execution log updated
+- PR-AI-COPY2 acceptance target met
+
+### One-line execution summary
+
+- PR-AI-COPY2 kept the existing product-copy spine intact while lightening Stage1 into a faster field-level enhancement tool, pushing Stage2 further into low-emphasis fit refinement, and making Stage3 explicitly read as email adaptation from the accepted Stage1 copy spine plus saved poster context.
+
+## Entry — PR-AI-COPY1: Product-aware AI copy spine across Stage1/Stage2/Stage3
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-15`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- then only the minimum existing suggestion/copy-handling sections already inside those files were inspected for the active operator flow
+
+### Scope
+
+- PR-AI-COPY1 only
+- product-copy enhancement layer only
+- unify Stage1 / Stage2 / Stage3 under one product-copy assistance spine
+- keep the operator flow non-blocking
+- keep production behavior unchanged:
+  - poster request truth
+  - save/send truth
+  - renderer behavior
+  - bottom contract
+  - Stage2 / Stage3 production gating
+  - backend API behavior
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- behavior before beautification
+- no renderer/backend/send-truth change
+- candidate-based and operator-confirmed AI behavior
+- `frontend/` and `docs/` were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage1, Stage2, and Stage3 each exposed separate AI copy surfaces without a clear product role split
+- Stage1 suggestion copy existed, but did not clearly present itself as the main product-copy center
+- Stage2 still read like another general copy optimization area instead of a poster-fit refinement step
+- Stage3 email AI directly refreshed the email fields and did not clearly show that it was adapting already-confirmed product messaging
+
+### Root cause found
+
+- the frontend had staged suggestion mechanics in Stage1 and accept/reject mechanics in Stage2, but no explicit shared product-copy spine model
+- Stage1 did not persist a named accepted product-copy spine for downstream consumption
+- Stage2 and Stage3 messaging did not explain their bounded role relative to Stage1
+- Stage3 treated backend email preview refresh as a direct overwrite path instead of a candidate suggestion layer
+
+### Accepted copy spine fields
+
+- `accepted_title`
+- `accepted_callouts`
+- `accepted_bottom_support_copy`
+- `accepted_email_subject_seed`
+- `accepted_email_opening_seed`
+
+### Exact Stage1 copy-center changes
+
+- reframed the Stage1 copy area as `主产品文案增强中心`
+- added the explicit style selector with only two options:
+  - `Product Focused`
+  - `Light Marketing`
+- kept the staged model:
+  - original input
+  - suggestion layer
+  - accepted layer
+- expanded the Family A suggestion targets to:
+  - title
+  - product callouts
+  - bottom support copy
+  - email subject seed
+  - email opening seed
+- kept suggestion generation candidate-based and non-destructive:
+  - generating suggestions does not overwrite inputs
+  - accepting suggestions writes only to the accepted layer
+  - syncing accepted suggestions back to the input fields remains an explicit operator action
+- persisted the accepted product-copy spine into Stage1 saved state so later stages can read it without changing request truth by default
+
+### Exact Stage2 refinement-only changes
+
+- renamed the Stage2 copy area from generic optimization language to `海报贴合微调`
+- reframed the mode as `Refinement Mode`
+- changed the operator copy so Stage2 is explicitly limited to:
+  - poster-fit refinement
+  - layout-aware compression
+  - light wording adjustment
+- kept the existing accept / reject suggestion controls, but changed the wording to reflect fit refinement instead of a second copy center
+- added a summary/source note showing that Stage2 refinement is anchored to the Stage1 accepted spine when available, otherwise current Stage1 inputs
+- did not change Stage2 generate payload truth, renderer flow, or bottom behavior
+
+### Exact Stage3 email-adaptation changes
+
+- added a new `邮件推广适配` panel ahead of the email form fields
+- Stage3 now surfaces the Stage1 accepted copy spine as the email-adaptation source summary
+- changed the existing Stage3 AI refresh button into a candidate-based adaptation flow:
+  - generate email adaptation suggestion
+  - accept suggestion
+  - sync accepted suggestion into current email fields
+  - clear accepted layer
+- the visible adaptation outputs are:
+  - `email_subject`
+  - `email_opening`
+  - `email_body_short`
+- Stage3 adaptation uses the accepted Stage1 product-copy spine plus saved-poster context to build the suggestion layer
+- the existing backend `/api/v2/email/preview` flow is still used to refresh draft/attachment readiness, but Stage3 no longer auto-overwrites the current email form when generating a new adaptation suggestion
+- Stage3 remains non-blocking:
+  - operators can keep the restored draft and send without accepting any new adaptation suggestion
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/styles.css`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/stage3.html`
+- `docs/styles.css`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 / Stage2 / Stage3 frontend copy-enhancement behavior and presentation
+- Stage1 accepted copy-spine persistence
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- source-level verification:
+  - verified Stage1 now frames AI copy as the main product-copy enhancement center and exposes only the two requested style options
+  - verified Stage1 suggestion targets include title / callouts / bottom support / email subject seed / email opening seed
+  - verified Stage1 accept still writes to accepted layer without auto-overwriting inputs
+  - verified Stage2 now presents the AI area as poster-fit refinement only
+  - verified Stage3 now exposes a candidate-based email adaptation panel tied to the accepted product-copy spine
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with syntax, mirror checks, and source inspection only; no browser screenshot run was performed in this workspace
+- Stage3 email adaptation suggestions are accepted/synced in frontend session state only; they are not persisted server-side in this pass
+- Stage3 still depends on backend email preview for the baseline draft and attachments; this PR only re-scoped the frontend suggestion flow around that existing draft path
+
+### Acceptance state
+
+- Stage1 is now the main product-copy enhancement center
+- Stage2 is now explicitly positioned as layout-fit refinement only
+- Stage3 now adapts the accepted product-copy spine for email outreach
+- AI outputs remain candidate-based and operator-confirmed
+- no production generate/send behavior changed
+- frontend/docs mirror remains aligned
+- branch execution log updated
+- PR-AI-COPY1 acceptance target met
+
+### One-line execution summary
+
+- PR-AI-COPY1 turned Stage1/Stage2/Stage3 into one non-blocking product-copy spine by centering main product copy in Stage1, narrowing Stage2 to poster-fit refinement, and making Stage3 generate candidate-based email adaptation from the accepted copy spine and saved-poster context.
+
 ## Entry — PR-UI3: Stage3 send-step reduction pass
 
 **Branch:** `main`
