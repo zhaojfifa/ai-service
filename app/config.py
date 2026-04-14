@@ -183,6 +183,7 @@ class GlibatreeConfig:
 class Settings:
     environment: str
     allowed_origins: List[str]
+    cors_allow_credentials: bool
     email: EmailConfig
     resend: ResendConfig
     email_copy: EmailCopyConfig
@@ -206,11 +207,14 @@ def get_settings() -> Settings:
         return v if v is not None else default
 
     environment = _get("ENVIRONMENT", "development")
-    origins_raw = _get(
-        "CORS_ALLOW_ORIGINS",
-        _get("ALLOWED_ORIGINS", "*"),
+    origins_raw = (
+        _get("CORS_ALLOWED_ORIGINS")
+        or _get("CORS_ALLOW_ORIGINS")
+        or _get("OPS_UI_ALLOWED_ORIGIN")
+        or _get("ALLOWED_ORIGINS", "*")
     )
     allowed_origins = _parse_allowed_origins(origins_raw)
+    cors_allow_credentials = _as_bool(_get("CORS_ALLOW_CREDENTIALS"), True)
 
     email = EmailConfig(
         enabled=_as_bool(
@@ -278,6 +282,7 @@ def get_settings() -> Settings:
     return Settings(
         environment=environment,
         allowed_origins=allowed_origins,
+        cors_allow_credentials=cors_allow_credentials,
         email=email,
         resend=resend,
         email_copy=email_copy,
