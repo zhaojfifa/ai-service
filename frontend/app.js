@@ -243,10 +243,8 @@ const stage2State = {
     rendererMode: 'auto',
     history: [],
     latestResult: null,
-    comparison: {
-      current: null,
-      retained: null,
-    },
+    currentPoster: null,
+    savedPoster: null,
     copyOptimization: {
       mode: 'suggest',
       decision: 'pending',
@@ -292,7 +290,7 @@ let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
 const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
-const STAGE2_POSTER_COMPARISON_STORAGE_KEY = 'marketing-poster-stage2-comparison';
+const STAGE2_SAVED_POSTER_STORAGE_KEY = 'marketing-poster-stage2-saved-poster';
 const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
@@ -6930,7 +6928,7 @@ function cloneStage2Value(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
-function normaliseStage2PosterComparisonSnapshot(snapshot) {
+function normaliseStage2PosterSelectionSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return null;
   const previewUrl = typeof snapshot.preview_url === 'string' ? snapshot.preview_url.trim() : '';
   const finalUrl = typeof snapshot.final_url === 'string' ? snapshot.final_url.trim() : '';
@@ -6941,9 +6939,9 @@ function normaliseStage2PosterComparisonSnapshot(snapshot) {
     Number.isFinite(Number(snapshot.generated_at)) && Number(snapshot.generated_at) > 0
       ? Number(snapshot.generated_at)
       : null;
-  const retainedAt =
-    Number.isFinite(Number(snapshot.retained_at)) && Number(snapshot.retained_at) > 0
-      ? Number(snapshot.retained_at)
+  const savedAt =
+    Number.isFinite(Number(snapshot.saved_at)) && Number(snapshot.saved_at) > 0
+      ? Number(snapshot.saved_at)
       : null;
   if (!previewUrl && !finalUrl && !posterKey) return null;
   return {
@@ -6953,57 +6951,66 @@ function normaliseStage2PosterComparisonSnapshot(snapshot) {
     title: title || '',
     summary: summary || '',
     generated_at: generatedAt,
-    retained_at: retainedAt,
+    saved_at: savedAt,
   };
 }
 
-function ensureStage2PosterComparisonState() {
-  const current = stage2State.poster2?.comparison || {};
-  stage2State.poster2.comparison = {
-    current: normaliseStage2PosterComparisonSnapshot(current.current),
-    retained: normaliseStage2PosterComparisonSnapshot(current.retained),
-  };
-  return stage2State.poster2.comparison;
+function setStage2CurrentPosterSnapshot(snapshot) {
+  stage2State.poster2.currentPoster = normaliseStage2PosterSelectionSnapshot(snapshot);
+  return stage2State.poster2.currentPoster;
 }
 
-function loadStage2PosterComparisonState() {
-  const comparison = ensureStage2PosterComparisonState();
+function getStage2CurrentPosterSnapshot() {
+  return normaliseStage2PosterSelectionSnapshot(stage2State.poster2.currentPoster);
+}
+
+function getStage2SavedPosterSnapshot() {
+  stage2State.poster2.savedPoster = normaliseStage2PosterSelectionSnapshot(stage2State.poster2.savedPoster);
+  return stage2State.poster2.savedPoster;
+}
+
+function loadStage2SavedPosterState() {
+  stage2State.poster2.savedPoster = null;
   try {
-    const raw = sessionStorage.getItem(STAGE2_POSTER_COMPARISON_STORAGE_KEY);
-    if (!raw) return comparison;
+    const raw = sessionStorage.getItem(STAGE2_SAVED_POSTER_STORAGE_KEY);
+    if (!raw) return getStage2SavedPosterSnapshot();
     const parsed = JSON.parse(raw);
-    comparison.current = normaliseStage2PosterComparisonSnapshot(parsed?.current);
-    comparison.retained = normaliseStage2PosterComparisonSnapshot(parsed?.retained);
+    stage2State.poster2.savedPoster = normaliseStage2PosterSelectionSnapshot(parsed);
   } catch (error) {
-    console.warn('[stage2] unable to load poster comparison state', error);
+    console.warn('[stage2] unable to load saved poster state', error);
   }
-  return comparison;
+  return getStage2SavedPosterSnapshot();
 }
 
-function persistStage2PosterComparisonState() {
-  const comparison = ensureStage2PosterComparisonState();
+function persistStage2SavedPosterState() {
+  const savedPoster = getStage2SavedPosterSnapshot();
   try {
-    sessionStorage.setItem(
-      STAGE2_POSTER_COMPARISON_STORAGE_KEY,
-      JSON.stringify({
-        current: comparison.current || null,
-        retained: comparison.retained || null,
-      })
-    );
+    if (!savedPoster) {
+      sessionStorage.removeItem(STAGE2_SAVED_POSTER_STORAGE_KEY);
+      return;
+    }
+    sessionStorage.setItem(STAGE2_SAVED_POSTER_STORAGE_KEY, JSON.stringify(savedPoster));
   } catch (error) {
-    console.warn('[stage2] unable to persist poster comparison state', error);
+    console.warn('[stage2] unable to persist saved poster state', error);
   }
 }
 
-function clearStage2PosterComparisonState(options = {}) {
-  const { clearCurrent = true, clearRetained = false } = options;
-  const comparison = ensureStage2PosterComparisonState();
-  if (clearCurrent) comparison.current = null;
-  if (clearRetained) comparison.retained = null;
-  persistStage2PosterComparisonState();
+function clearStage2CurrentPosterSnapshot() {
+  stage2State.poster2.currentPoster = null;
 }
 
-function buildStage2PosterComparisonSnapshotFromGeneration(data) {
+function setStage2SavedPosterSnapshot(snapshot) {
+  stage2State.poster2.savedPoster = normaliseStage2PosterSelectionSnapshot(snapshot);
+  persistStage2SavedPosterState();
+  return stage2State.poster2.savedPoster;
+}
+
+function clearStage2SavedPosterSnapshot() {
+  stage2State.poster2.savedPoster = null;
+  persistStage2SavedPosterState();
+}
+
+function buildStage2PosterSelectionSnapshotFromGeneration(data) {
   const finalPoster = normaliseFinalPosterPayload(data);
   const finalUrl = extractVertexPosterUrl(data) || getPosterImageSource(finalPoster) || '';
   const posterKey =
@@ -7012,7 +7019,7 @@ function buildStage2PosterComparisonSnapshotFromGeneration(data) {
     (typeof finalPoster?.storage_key === 'string' && finalPoster.storage_key.trim()) ||
     '';
   if (!finalUrl && !posterKey) return null;
-  return normaliseStage2PosterComparisonSnapshot({
+  return normaliseStage2PosterSelectionSnapshot({
     preview_url: finalUrl,
     final_url: finalUrl,
     poster_key: posterKey,
@@ -7034,7 +7041,7 @@ function buildStage2PosterComparisonSnapshotFromGeneration(data) {
   });
 }
 
-function buildStage2PosterComparisonSnapshotFromStoredResult(stored) {
+function buildStage2PosterSelectionSnapshotFromStoredResult(stored) {
   if (!stored || typeof stored !== 'object') return null;
   const finalPoster = stored.final_poster || null;
   const finalUrl = getPosterImageSource(finalPoster) || finalPoster?.url || '';
@@ -7044,7 +7051,7 @@ function buildStage2PosterComparisonSnapshotFromStoredResult(stored) {
     (typeof finalPoster?.storage_key === 'string' && finalPoster.storage_key.trim()) ||
     '';
   if (!finalUrl && !posterKey) return null;
-  return normaliseStage2PosterComparisonSnapshot({
+  return normaliseStage2PosterSelectionSnapshot({
     preview_url: finalUrl,
     final_url: finalUrl,
     poster_key: posterKey,
@@ -7053,24 +7060,12 @@ function buildStage2PosterComparisonSnapshotFromStoredResult(stored) {
   });
 }
 
-function setStage2CurrentPosterComparison(snapshot) {
-  const comparison = ensureStage2PosterComparisonState();
-  comparison.current = normaliseStage2PosterComparisonSnapshot(snapshot);
-  persistStage2PosterComparisonState();
-}
-
-function setStage2RetainedPosterComparison(snapshot) {
-  const comparison = ensureStage2PosterComparisonState();
-  comparison.retained = normaliseStage2PosterComparisonSnapshot(snapshot);
-  persistStage2PosterComparisonState();
-}
-
-function formatStage2PosterComparisonTime(timestamp) {
+function formatStage2PosterSelectionTime(timestamp) {
   if (!timestamp) return '—';
   try {
     return new Date(timestamp).toLocaleString('zh-CN', { hour12: false });
   } catch (error) {
-    console.warn('[stage2] unable to format comparison timestamp', error);
+    console.warn('[stage2] unable to format poster selection timestamp', error);
     return '—';
   }
 }
@@ -7320,10 +7315,10 @@ function clearStage2RuntimeRequestCache() {
   posterGenerationState.promptBundle = null;
   posterGenerationState.rawResult = null;
   stage2State.poster2.latestResult = null;
+  clearStage2CurrentPosterSnapshot();
   stage2State.poster2.history = [];
   stage2State.generated.lastSuccessPosterUrl = null;
-  clearStage2PosterComparisonState({ clearCurrent: true, clearRetained: true });
-  renderStage2PosterComparisonCards();
+  renderStage2PosterSelectionCards();
   updateDebugPanels({ response: null });
 }
 
@@ -7373,6 +7368,7 @@ function clearStage2DerivedSurfacesBeforeRequest() {
   posterGenerationState.rawResult = null;
   posterGeneratedImage = null;
   stage2State.poster2.latestResult = null;
+  clearStage2CurrentPosterSnapshot();
   stage2State.vertex.lastResponse = null;
   stage2State.generated.lastSuccessPosterUrl = null;
   stage2State.generated.lastCopy = null;
@@ -7749,11 +7745,8 @@ async function reconcileStage2StoredSuccessState(currentFormSignature, statusEle
       typeof stored?.request_payload_signature === 'string' && stored.request_payload_signature.trim()
         ? stored.request_payload_signature.trim()
         : null;
-    const currentSnapshot =
-      normaliseStage2PosterComparisonSnapshot(loadStage2PosterComparisonState().current) ||
-      buildStage2PosterComparisonSnapshotFromStoredResult(stored);
-    setStage2CurrentPosterComparison(currentSnapshot);
-    renderStage2PosterComparisonCards();
+    setStage2CurrentPosterSnapshot(buildStage2PosterSelectionSnapshotFromStoredResult(stored));
+    renderStage2PosterSelectionCards();
     return stored;
   }
 
@@ -7766,8 +7759,8 @@ async function reconcileStage2StoredSuccessState(currentFormSignature, statusEle
   }
   stage2LastSuccessfulFormSignature = null;
   stage2LastSuccessfulRequestSignature = null;
-  clearStage2PosterComparisonState({ clearCurrent: true, clearRetained: false });
-  renderStage2PosterComparisonCards();
+  clearStage2CurrentPosterSnapshot();
+  renderStage2PosterSelectionCards();
 
   if ((hasStaleSuccess || shouldClearPosterKey) && statusElement) {
     setStatus(
@@ -8930,8 +8923,8 @@ function initStage2() {
     const titleSizePreset = document.getElementById('title-size-preset');
     const fallbackStableButton = document.getElementById('fallback-stable');
     const assetFallbackWarning = document.getElementById('asset-fallback-warning');
-    const keepCurrentPosterButton = document.getElementById('stage2-current-poster-action');
-    const clearRetainedPosterButton = document.getElementById('stage2-retained-poster-action');
+    const savePosterButton = document.getElementById('stage2-save-poster');
+    const clearSavedPosterButton = document.getElementById('stage2-saved-poster-action');
     let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
@@ -8940,8 +8933,8 @@ function initStage2() {
 
     const draft = loadDraft();
     stage2State.draft = draft;
-    loadStage2PosterComparisonState();
-    renderStage2PosterComparisonCards();
+    loadStage2SavedPosterState();
+    renderStage2PosterSelectionCards();
     renderDraftSnapshot(draft);
     const hasDebugPanels = document.getElementById('debug-draft') || document.getElementById('debug-payload');
     if (hasDebugPanels) {
@@ -9094,29 +9087,32 @@ function initStage2() {
     stage2LastSourceSignatures = initialFormSignatures;
     await reconcileStage2StoredSuccessState(initialFormSignatures.formSignature, statusElement);
 
-    if (keepCurrentPosterButton) {
-      keepCurrentPosterButton.addEventListener('click', () => {
-        const comparison = ensureStage2PosterComparisonState();
-        if (!comparison.current) {
-          setStatus(statusElement, '当前没有可保留的成功海报。', 'warning');
+    if (savePosterButton) {
+      savePosterButton.addEventListener('click', () => {
+        const currentPoster = getStage2CurrentPosterSnapshot();
+        if (!currentPoster) {
+          setStatus(statusElement, '当前没有可保存的成功海报。', 'warning');
           return;
         }
-        setStage2RetainedPosterComparison({
-          ...cloneStage2Value(comparison.current),
-          retained_at: Date.now(),
+        if (!currentPoster.poster_key) {
+          setStatus(statusElement, '当前海报缺少 poster_key，无法保存为发送对象。', 'error');
+          return;
+        }
+        setStage2SavedPosterSnapshot({
+          ...cloneStage2Value(currentPoster),
+          saved_at: Date.now(),
         });
-        renderStage2PosterComparisonCards();
-        setStatus(statusElement, '已保留当前海报，可用于与后续结果对照。', 'success');
+        renderStage2PosterSelectionCards();
+        setStatus(statusElement, '已保存当前海报；该海报现在是唯一可发送对象。', 'success');
       });
     }
 
-    if (clearRetainedPosterButton) {
-      clearRetainedPosterButton.addEventListener('click', () => {
-        const comparison = ensureStage2PosterComparisonState();
-        if (!comparison.retained) return;
-        setStage2RetainedPosterComparison(null);
-        renderStage2PosterComparisonCards();
-        setStatus(statusElement, '已取消保留海报。', 'info');
+    if (clearSavedPosterButton) {
+      clearSavedPosterButton.addEventListener('click', () => {
+        if (!getStage2SavedPosterSnapshot()) return;
+        clearStage2SavedPosterSnapshot();
+        renderStage2PosterSelectionCards();
+        setStatus(statusElement, '已取消保存海报；Stage3 发送已重新锁定。', 'info');
       });
     }
 
@@ -9683,12 +9679,12 @@ function initStage2() {
     }
 
     nextButton.addEventListener('click', async () => {
-      const stored = await loadStage2Result();
-      if (!stored || !stored.final_poster) {
-        setStatus(statusElement, '请先完成海报生成，再前往环节 3。', 'warning');
+      const savedPoster = getStage2SavedPosterSnapshot();
+      if (!savedPoster?.poster_key) {
+        setStatus(statusElement, '请先保存海报，再前往环节 3。', 'warning');
         return;
       }
-      window.location.href = buildStage3Url(stored.poster_key || getPosterKeyFromLocation());
+      window.location.href = buildStage3Url(savedPoster.poster_key);
     });
   })();
 }
@@ -10048,13 +10044,15 @@ function renderResolverLayoutPreview(data) {
   }
 }
 
-function renderStage2PosterComparisonCards() {
-  const comparison = ensureStage2PosterComparisonState();
+function renderStage2PosterSelectionCards() {
+  const currentPoster = getStage2CurrentPosterSnapshot();
+  const savedPoster = getStage2SavedPosterSnapshot();
+  const nextButton = document.getElementById('to-stage3');
+  const saveButton = document.getElementById('stage2-save-poster');
+  const gateNote = document.getElementById('stage2-save-gate-note');
   const bindCard = (prefix, snapshot, options = {}) => {
     const {
       emptyText = '暂无海报',
-      actionText = '',
-      actionDisabled = true,
       noteText = '',
       timeLabel = '生成时间',
     } = options;
@@ -10070,7 +10068,7 @@ function renderStage2PosterComparisonCards() {
     if (!card) return;
 
     const hasSnapshot = Boolean(snapshot);
-    card.classList.toggle('hidden', prefix === 'stage2-retained-poster' && !hasSnapshot);
+    card.classList.toggle('hidden', prefix === 'stage2-saved-poster' && !hasSnapshot);
     if (empty) empty.classList.toggle('hidden', hasSnapshot);
     if (image) {
       if (hasSnapshot && snapshot.preview_url) {
@@ -10086,13 +10084,16 @@ function renderStage2PosterComparisonCards() {
       note.classList.toggle('hidden', !noteText);
     }
     if (time) {
-      const stamp = prefix === 'stage2-retained-poster'
-        ? (snapshot?.retained_at || snapshot?.generated_at)
+      const stamp = prefix === 'stage2-saved-poster'
+        ? (snapshot?.saved_at || snapshot?.generated_at)
         : snapshot?.generated_at;
-      time.textContent = `${timeLabel}：${formatStage2PosterComparisonTime(stamp)}`;
+      time.textContent = `${timeLabel}：${formatStage2PosterSelectionTime(stamp)}`;
     }
     if (title) title.textContent = snapshot?.title || '未提供标题';
-    if (summary) summary.textContent = snapshot?.summary || emptyText;
+    if (summary) {
+      const posterKeySummary = snapshot?.poster_key ? `poster_key: ${snapshot.poster_key}` : '';
+      summary.textContent = [snapshot?.summary, posterKeySummary].filter(Boolean).join(' ｜ ') || emptyText;
+    }
     if (link) {
       if (hasSnapshot && snapshot.final_url) {
         link.href = snapshot.final_url;
@@ -10103,24 +10104,27 @@ function renderStage2PosterComparisonCards() {
       }
     }
     if (action) {
-      action.textContent = actionText;
-      action.disabled = actionDisabled;
+      action.disabled = !hasSnapshot;
     }
   };
 
-  bindCard('stage2-current-poster', comparison.current, {
-    emptyText: '生成成功后可保留当前海报。',
-    actionText: '保留当前海报',
-    actionDisabled: !comparison.current,
+  bindCard('stage2-current-poster', currentPoster, {
+    emptyText: '生成成功后可保存为发送对象。',
     timeLabel: '生成时间',
   });
-  bindCard('stage2-retained-poster', comparison.retained, {
-    emptyText: '当前未保留海报。',
-    actionText: '取消保留',
-    actionDisabled: !comparison.retained,
-    noteText: comparison.retained ? '仅用于对照' : '',
-    timeLabel: '保留时间',
+  bindCard('stage2-saved-poster', savedPoster, {
+    emptyText: '当前未保存海报。',
+    noteText: savedPoster ? '发送对象' : '',
+    timeLabel: '保存时间',
   });
+
+  if (nextButton) nextButton.disabled = !savedPoster?.poster_key;
+  if (saveButton) saveButton.disabled = !currentPoster?.poster_key;
+  if (gateNote) {
+    gateNote.textContent = savedPoster?.poster_key
+      ? '已保存海报可发送；如需更换发送对象，请先生成再点击保存。'
+      : '当前结果仅用于预览；请先点击保存，再进入环节 3 发送。';
+  }
 }
 
 
@@ -10331,10 +10335,10 @@ function updateStage2Warnings(data) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
   stage2State.poster2.latestResult = data || null;
-  setStage2CurrentPosterComparison(buildStage2PosterComparisonSnapshotFromGeneration(data));
+  setStage2CurrentPosterSnapshot(buildStage2PosterSelectionSnapshotFromGeneration(data));
   ensurePoster2CopyOptimizationState().latestReview = data?.copy_optimization_review || null;
   renderPoster2CopyOptimizationReview(data?.copy_optimization_review || null);
-  renderStage2PosterComparisonCards();
+  renderStage2PosterSelectionCards();
 
   if (typeof updateStage2Warnings === 'function') {
     updateStage2Warnings(data);
@@ -11025,8 +11029,6 @@ async function triggerGeneration(opts) {
     const nextPrompt = typeof options.prompt === 'string' ? options.prompt : '';
     const nextEmail = typeof options.email === 'string' ? options.email : '';
     const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
-    const canProceed = MODE_S ? Boolean(templatePoster) : hasCopy;
-    if (nextButton) nextButton.disabled = !canProceed;
 
     if (templatePoster && hasCopy) {
       try {
@@ -11055,6 +11057,7 @@ async function triggerGeneration(opts) {
       ? '已使用模板海报兜底，可继续到环节 3。'
       : '生成失败，请重试。');
     setStatus(statusElement, statusMessage, statusLevel);
+    renderStage2PosterSelectionCards();
   };
 
   if (templatePoster && allowTemplateFallback) {
@@ -11119,7 +11122,6 @@ async function triggerGeneration(opts) {
     if (promptTextarea) promptTextarea.value = nextPrompt;
 
     const hasCopy = Boolean(nextPrompt.trim()) || Boolean(nextEmail.trim());
-    const canProceed = MODE_S ? Boolean(data?.final_poster || data?.final_url) : hasCopy;
     setStatus(
       statusElement,
       usePoster2Pilot
@@ -11130,7 +11132,6 @@ async function triggerGeneration(opts) {
       usePoster2Pilot || hasCopy ? 'success' : 'warning',
     );
 
-    if (nextButton) nextButton.disabled = !canProceed;
     generateButton.disabled = false;
     if (regenerateButton) regenerateButton.disabled = false;
     regenerateButton?.classList.remove('hidden');
@@ -11179,6 +11180,7 @@ async function triggerGeneration(opts) {
       posterPreviewSection.classList.remove('hidden');
     }
     stage2LastGeneratedAssetFingerprint = fingerprintAssets(stage2State.assets);
+    renderStage2PosterSelectionCards();
     updateRegenerateButtonState();
 
     return data;
@@ -11215,14 +11217,6 @@ async function triggerGeneration(opts) {
     if (aiPreview) aiPreview.classList.add('complete');
     refreshPosterLayoutPreview();
 
-    const storedPrompt = stage2State.generated?.lastCopy?.prompt || '';
-    const storedEmail = stage2State.generated?.lastCopy?.email_body || '';
-    const currentPrompt = (promptTextarea?.value || '').trim();
-    const currentEmail = (emailTextarea?.value || '').trim();
-    const hasStoredCopy = Boolean(currentPrompt) || Boolean(currentEmail) || Boolean(storedPrompt) || Boolean(storedEmail);
-    const canProceed = MODE_S ? Boolean(lastPosterResult?.final_poster) : hasStoredCopy;
-    if (nextButton) nextButton.disabled = !canProceed;
-
     stage2HasAttemptedGenerate = true;
     if (stage2State.generated) {
       stage2State.generated.attempted = true;
@@ -11231,6 +11225,7 @@ async function triggerGeneration(opts) {
       posterPreviewSection.classList.remove('hidden');
     }
     renderPosterResult();
+    renderStage2PosterSelectionCards();
     updateRegenerateButtonState();
     return null;
   } finally {
@@ -12026,6 +12021,7 @@ function getSelectedStage3AttachmentLabels(attachmentPosterPng, attachmentPoster
 function initStage3() {
   void (async () => {
     const statusElement = document.getElementById('stage3-status');
+    const saveGateMessage = document.getElementById('stage3-save-gate');
     const posterImage = document.getElementById('stage3-poster-image');
     const posterCaption = document.getElementById('stage3-poster-caption');
     const posterIdentity = document.getElementById('stage3-poster-identity');
@@ -12059,7 +12055,8 @@ function initStage3() {
     }
 
     const stage2Result = await loadStage2Result();
-    const posterKey = getPosterKeyFromLocation() || stage2Result?.poster_key || '';
+    const savedPoster = loadStage2SavedPosterState();
+    const posterKey = savedPoster?.poster_key || '';
     const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
     let currentDraft = null;
 
@@ -12138,14 +12135,30 @@ function initStage3() {
     };
 
     if (!posterKey) {
+      if (saveGateMessage) {
+        saveGateMessage.textContent = '未找到已保存海报。请返回环节 2，先点击保存，再进入发送环节。';
+      }
+      if (posterCaption) {
+        posterCaption.textContent = '当前没有已保存海报。';
+      }
+      if (posterIdentity) {
+        posterIdentity.textContent = '发送对象为空：Stage3 只允许使用已保存海报。';
+      }
+      if (posterUrlInput) posterUrlInput.value = '';
+      if (posterKeyInput) posterKeyInput.value = '';
       setStatus(
         statusElement,
-        '缺少 poster_key，无法从后端恢复 Stage 3 数据。',
+        '未找到已保存海报；请先返回环节 2 保存海报，再进入 Stage3。',
         'warning'
       );
       sendButton.disabled = true;
       refreshButton.disabled = true;
       return;
+    }
+
+    if (saveGateMessage) {
+      const savedTitle = savedPoster?.title ? `已保存海报：${savedPoster.title}` : '已锁定发送对象：已保存海报';
+      saveGateMessage.textContent = `${savedTitle}。Stage3 只会使用该已保存海报发送。`;
     }
 
     async function hydratePosterRecord() {
@@ -12168,6 +12181,7 @@ function initStage3() {
       }
       if (posterIdentity) {
         const identityParts = [
+          '发送对象：已保存海报',
           record?.template_id ? `Template: ${record.template_id}` : null,
           record?.updated_at ? `Updated: ${record.updated_at}` : null,
         ].filter(Boolean);

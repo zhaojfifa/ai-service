@@ -576,6 +576,7 @@
             <div class="s2-preview-footer">
               <button class="secondary" type="button" id="s2-btn-open-full">打开大图 ↗</button>
               <button class="secondary" type="button" id="s2-btn-copy-url">复制链接</button>
+              <button class="secondary" type="button" id="stage2-save-poster" disabled>保存</button>
               <code id="s2-img-size" class="s2-poster-key">1024 × 1024</code>
             </div>
           </div>
@@ -601,15 +602,16 @@
                   </div>
                 </div>
               </details>
+              <p id="stage2-save-gate-note" class="hint">当前结果仅用于预览；请先点击保存，再进入环节 3 发送。</p>
             </div>
           </div>
 
           <div class="s2-panel s2-comparison-panel">
-            <div class="s2-panel-hd"><span>当前 / 保留对照</span></div>
+            <div class="s2-panel-hd"><span>当前海报 / 已保存海报</span></div>
             <div class="s2-panel-bd s2-compare-stack">
               <article class="s2-compare-card" id="stage2-current-poster-card">
                 <div class="s2-compare-head">
-                  <span class="s2-compare-title">Current Poster</span>
+                  <span class="s2-compare-title">当前海报</span>
                   <span id="stage2-current-poster-note" class="s2-compare-note hidden"></span>
                 </div>
                 <div class="s2-compare-media">
@@ -620,33 +622,32 @@
                   <div id="stage2-current-poster-time" class="s2-compare-time">生成时间：—</div>
                   <div class="s2-compare-text">
                     <strong id="stage2-current-poster-title">未提供标题</strong>
-                    <span id="stage2-current-poster-summary">生成成功后可保留当前海报。</span>
+                    <span id="stage2-current-poster-summary">生成成功后可保存为发送对象。</span>
                   </div>
                   <div class="s2-compare-actions">
-                    <button id="stage2-current-poster-action" type="button" class="secondary" disabled>保留当前海报</button>
                     <a id="stage2-current-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">打开海报 ↗</a>
                   </div>
                 </div>
               </article>
 
-              <article class="s2-compare-card hidden" id="stage2-retained-poster-card">
+              <article class="s2-compare-card hidden" id="stage2-saved-poster-card">
                 <div class="s2-compare-head">
-                  <span class="s2-compare-title">Retained Poster</span>
-                  <span id="stage2-retained-poster-note" class="s2-compare-note">仅用于对照</span>
+                  <span class="s2-compare-title">已保存海报</span>
+                  <span id="stage2-saved-poster-note" class="s2-compare-note">发送对象</span>
                 </div>
                 <div class="s2-compare-media">
-                  <img id="stage2-retained-poster-image" class="hidden" alt="Retained poster preview" decoding="async" />
-                  <div id="stage2-retained-poster-empty" class="s2-compare-empty hidden">当前未保留海报。</div>
+                  <img id="stage2-saved-poster-image" class="hidden" alt="Saved poster preview" decoding="async" />
+                  <div id="stage2-saved-poster-empty" class="s2-compare-empty hidden">当前未保存海报。</div>
                 </div>
                 <div class="s2-compare-body">
-                  <div id="stage2-retained-poster-time" class="s2-compare-time">保留时间：—</div>
+                  <div id="stage2-saved-poster-time" class="s2-compare-time">保存时间：—</div>
                   <div class="s2-compare-text">
-                    <strong id="stage2-retained-poster-title">未提供标题</strong>
-                    <span id="stage2-retained-poster-summary">当前未保留海报。</span>
+                    <strong id="stage2-saved-poster-title">未提供标题</strong>
+                    <span id="stage2-saved-poster-summary">当前未保存海报。</span>
                   </div>
                   <div class="s2-compare-actions">
-                    <button id="stage2-retained-poster-action" type="button" class="secondary" disabled>取消保留</button>
-                    <a id="stage2-retained-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">打开海报 ↗</a>
+                    <button id="stage2-saved-poster-action" type="button" class="secondary" disabled>取消保存</button>
+                    <a id="stage2-saved-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">打开海报 ↗</a>
                   </div>
                 </div>
               </article>

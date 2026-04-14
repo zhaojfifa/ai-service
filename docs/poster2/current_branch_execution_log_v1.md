@@ -1,5 +1,174 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-SAVE1: Stage2 save-gated poster send truth
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-14
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- task-relevant formal docs resolved from the indexed validation / engineering paths:
+  - `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md`
+  - `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md`
+  - `docs/poster2/03_engineering/email_copy_optimizer_and_optional_attachment_status_v1.md`
+- then minimum task files only:
+  - `frontend/stage2.html`
+  - `frontend/stage3.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/stage2.html`
+  - `docs/stage3.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-SAVE1 only
+- first revert the current retained-poster Stage2 implementation
+- replace it with a simpler `Current Poster` + `Saved Poster` model
+- gate Stage3 so only `Saved Poster` may be sent
+- no poster contract change
+- no canonical generate payload construction change
+- no bottom truth change
+- no product annotation ownership change
+- no renderer routing change
+- no backend API contract change
+- keep frontend/docs mirror aligned
+- update branch execution log before stop
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- behavior before beautification
+- send truth separated from generate truth
+- saved poster kept out of request construction and renderer truth
+- source and published mirror were kept aligned in the same task
+
+### Problem reproduced
+
+- the prior PR-COMP1 retained-poster implementation added a comparison-only state path in Stage2
+- the retained model did not match the workflow goal for operator-approved send truth
+- Stage3 still restored its sendable `poster_key` from the latest Stage2 success / URL path rather than from an explicit operator save action
+
+### Root cause found
+
+- the retained implementation solved only comparison visibility, not send-truth selection
+- Stage2 and Stage3 lacked a dedicated saved-poster gate that separated:
+  - latest successful preview result
+  - operator-approved poster selected for send
+
+### Old retained implementation reverted
+
+- removed the retained-poster storage key and retained-poster runtime functions
+- removed `保留当前海报` / `取消保留` behavior
+- removed the retained comparison card path and replaced it with saved-poster semantics
+- current generate flow no longer depends on the old retained comparison state
+
+### Exact Current Poster vs Saved Poster model
+
+- `Current Poster`
+  - latest successful generate result only
+  - preview-only
+  - updated automatically on every successful generate
+  - may be overwritten by the next successful generate
+  - never becomes send truth automatically
+- `Saved Poster`
+  - created only when the operator clicks `保存`
+  - stored as a lightweight send-selection snapshot with:
+    - `preview_url`
+    - `final_url`
+    - `poster_key`
+    - `title`
+    - `summary`
+    - `generated_at`
+    - `saved_at`
+  - this is the only Stage3 sendable poster
+  - also remains visible as the lightweight comparison card
+
+### Exact save / overwrite / clear rules
+
+- on successful generate:
+  - update `Current Poster` only
+  - do not overwrite `Saved Poster`
+- on clicking `保存`:
+  - copy `Current Poster` into `Saved Poster`
+  - require a valid `poster_key`
+  - overwrite the previous saved poster if one already exists
+- on clicking `取消保存`:
+  - clear `Saved Poster` only
+  - keep `Current Poster` intact
+
+### Exact Stage3 gating behavior
+
+- Stage3 now resolves send truth from the saved-poster session slot only
+- Stage3 no longer treats the latest Stage2 result or URL-carried `poster_key` as send truth
+- if there is no saved poster:
+  - Stage3 restore is blocked before email preview / send hydration
+  - operator receives a clear message to return to Stage2 and save a poster first
+  - send and draft-refresh actions remain disabled
+- Stage2 next-step button is also gated:
+  - disabled unless `Saved Poster` exists with a valid `poster_key`
+
+### Files changed
+
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `docs/stage2.html`
+- `docs/stage3.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 operator-facing save / send-selection UI
+- Stage2 runtime saved-poster selection state
+- Stage3 saved-poster gating and send-truth selection
+- branch execution/state log
+
+### Focused validation run
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync/static:
+  - `cmp -s frontend/stage2.html docs/stage2.html`
+  - `cmp -s frontend/stage3.html docs/stage3.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused save-gating checks:
+  - static check confirmed the old retained-poster implementation strings / storage key were removed
+  - static check confirmed saved-poster storage is not referenced inside `buildGeneratePosterPayload(...)`
+  - static check confirmed Stage3 now keys send truth from `loadStage2SavedPosterState()` only
+  - static check confirmed Stage3 no longer resolves send truth from `getPosterKeyFromLocation() || stage2Result?.poster_key`
+  - static check confirmed Stage2 next-step gating now depends on saved poster presence
+
+### Remaining risks
+
+- no browser automation or screenshot harness was run in this pass, so requested screenshots were not captured in this workspace
+- save-gating remains frontend-session based; it intentionally does not alter backend contract or persisted poster truth selection beyond the chosen `poster_key`
+- the legacy hidden `history` field still exists for compatibility, but it is not used by the save-gated workflow
+
+### Exact acceptance state
+
+- Stage2 generate flow is no longer coupled to the prior retained-poster implementation
+- Current Poster and Saved Poster are clearly separated
+- Saved Poster is the only sendable poster
+- the comparison stays simple
+- no poster/runtime contract truth changed
+- frontend/docs mirror is aligned
+- branch execution log is updated
+- acceptance target for PR-SAVE1 is met
+
 ## Entry — PR-COMP1: Stage2 single retained poster comparison card
 
 **Branch:** `main`
