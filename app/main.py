@@ -29,6 +29,14 @@ _GENERATE_POSTER_SEMAPHORE = asyncio.Semaphore(1)
 
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
+from app.ops_auth import (
+    OPS_USERNAME,
+    auth_state as build_ops_auth_state,
+    build_session_cookie,
+    is_authenticated as is_ops_authenticated,
+    is_protected_api_path,
+    load_ops_auth_settings,
+)
 from app.schemas import (
     GeneratePosterRequest,
     GeneratePosterResponse,
@@ -144,11 +152,78 @@ def root_head() -> Response:
 settings = get_settings()
 
 
+class OpsLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 # 健康检查，确保 Render 能检测端口开放
 @app.get("/health")
 @app.get("/healthz")
 def health() -> dict[str, bool]:
     return {"ok": True}
+
+
+@app.get("/api/auth/me")
+def ops_auth_me(request: Request) -> dict[str, Any]:
+    return build_ops_auth_state(request)
+
+
+@app.post("/api/auth/ops-login")
+def ops_auth_login(request: Request, payload: OpsLoginRequest) -> JSONResponse:
+    auth_settings = load_ops_auth_settings()
+    if not auth_settings.is_active:
+        return JSONResponse({"ok": True, **build_ops_auth_state(request)})
+    if payload.username != OPS_USERNAME or payload.password != auth_settings.password:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "ok": False,
+                "enabled": True,
+                "authenticated": False,
+                "username": None,
+                "error": "invalid_ops_credentials",
+            },
+        )
+    response = JSONResponse(
+        {
+            "ok": True,
+            "enabled": True,
+            "authenticated": True,
+            "username": OPS_USERNAME,
+        }
+    )
+    response.set_cookie(
+        key=auth_settings.cookie_name,
+        value=build_session_cookie(OPS_USERNAME, auth_settings),
+        max_age=auth_settings.cookie_max_age_sec,
+        httponly=True,
+        secure=auth_settings.cookie_secure,
+        samesite=auth_settings.cookie_samesite,
+        path="/",
+    )
+    return response
+
+
+@app.post("/api/auth/logout")
+def ops_auth_logout(request: Request) -> JSONResponse:
+    auth_settings = load_ops_auth_settings()
+    response = JSONResponse(
+        {
+            "ok": True,
+            "enabled": auth_settings.is_active,
+            "authenticated": False,
+            "username": None,
+        }
+    )
+    response.delete_cookie(
+        key=auth_settings.cookie_name,
+        path="/",
+        secure=auth_settings.cookie_secure,
+        httponly=True,
+        samesite=auth_settings.cookie_samesite,
+    )
+    return response
 
 
 def _storage_runtime_summary() -> dict[str, Any]:
@@ -330,7 +405,8 @@ DEFAULT_CORS_ORIGINS = {
 # 例如 https://zhaojfifa.github.io，确保预检请求与页面一致。
 
 cors_origins = {origin.rstrip("/") for origin in allow_origins}
-cors_origins.update(DEFAULT_CORS_ORIGINS)
+if not raw_origins:
+    cors_origins.update(DEFAULT_CORS_ORIGINS)
 
 allow_all = "*" in cors_origins
 explicit_origins = sorted(origin for origin in cors_origins if origin != "*")
@@ -338,7 +414,7 @@ if allow_all and explicit_origins:
     allow_all = False
 
 cors_allow_origins = explicit_origins or ["*"]
-cors_allow_credentials = not allow_all
+cors_allow_credentials = getattr(settings, "cors_allow_credentials", True) and not allow_all
 
 CORS_MIDDLEWARE_KWARGS = {
     "allow_origins": cors_allow_origins,
@@ -353,6 +429,26 @@ CORS_MIDDLEWARE_KWARGS = {
     ],
     "max_age": 86400,
 }
+
+
+@app.middleware("http")
+async def ops_auth_gate(request: Request, call_next):
+    auth_settings = load_ops_auth_settings()
+    if (
+        not auth_settings.is_active
+        or request.method.upper() == "OPTIONS"
+        or not is_protected_api_path(request.url.path)
+        or is_ops_authenticated(request, auth_settings)
+    ):
+        return await call_next(request)
+    return JSONResponse(
+        status_code=401,
+        content={
+            "ok": False,
+            "authenticated": False,
+            "error": "ops_auth_required",
+        },
+    )
 
 
 @app.options("/{path:path}")

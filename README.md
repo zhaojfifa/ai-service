@@ -66,6 +66,40 @@ uvicorn app.main:app --reload
 - `POST /api/r2/presign-put`：在配置 Cloudflare R2 后，为前端生成直传所需的预签名 PUT URL 与对象 Key。
 - `GET /health`：健康检查。
 
+### Ops Auth Gate
+
+内部海报工作台现在支持最小化 ops 登录门禁：
+
+- 公开接口仅保留：
+  - `GET /health`
+  - `POST /api/auth/ops-login`
+  - `POST /api/auth/logout`
+  - `GET /api/auth/me`
+- 以下内部海报 API 需要 ops 会话后才可访问：
+  - `/api/r2/presign-put`
+  - `/api/template-posters`
+  - `/api/generate-slot-image`
+  - `/api/generate-poster`
+  - `/api/send-email`
+  - `/api/image/generate`
+  - `/api/imagen/generate`
+  - `/api/v2/*`
+
+必需环境变量：
+
+| 变量名 | 说明 |
+| --- | --- |
+| `OPS_UI_ENABLED` | 是否启用 ops 门禁。 |
+| `OPS_UI_PASSWORD` | 固定用户名 `ops` 对应的后端口令。 |
+| `OPS_UI_SESSION_SECRET` | 会话签名密钥，仅后端使用。 |
+| `OPS_UI_ALLOWED_ORIGIN` | 可选；当前端仅允许一个受信 origin 时可直接使用。 |
+| `OPS_UI_COOKIE_NAME` | 会话 Cookie 名称。 |
+| `OPS_UI_COOKIE_MAX_AGE_SEC` | 会话有效期（秒）。 |
+| `OPS_UI_COOKIE_SECURE` | 是否仅通过 HTTPS 发送 Cookie。 |
+| `OPS_UI_COOKIE_SAMESITE` | Cookie SameSite 策略，支持 `lax` / `strict` / `none`。 |
+| `CORS_ALLOWED_ORIGINS` / `CORS_ALLOW_ORIGINS` | 允许携带凭证的前端 origin 列表。 |
+| `CORS_ALLOW_CREDENTIALS` | 是否允许浏览器携带 Cookie。 |
+
 ### 可选环境变量
 
 | 变量名 | 说明 |

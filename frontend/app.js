@@ -18,6 +18,13 @@ const STAGE2_PROD_API_BASE = 'https://ai-service-leob.onrender.com';
 const DEPRECATED_STAGE2_API_BASES = new Set([
   'https://ai-service-x758.onrender.com',
 ]);
+const OPS_AUTH_USERNAME = 'ops';
+const OPS_AUTH_PROTECTED_STAGES = new Set(['stage1', 'stage2', 'stage3']);
+let opsAuthState = {
+  enabled: false,
+  authenticated: false,
+  username: null,
+};
 
 function isDeprecatedApiBase(value) {
   const normalised = normaliseBase(value);
@@ -2218,7 +2225,7 @@ async function probeBase(base, { force } = {}) {
         method: 'GET',
         mode: 'cors',
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'include',
       });
       if (response.ok) {
         HEALTH_CACHE.set(base, { ok: true, timestamp: Date.now() });
@@ -2663,7 +2670,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           method: 'POST',
           mode: 'cors',
           cache: 'no-store',
-          credentials: 'omit',
+          credentials: 'include',
           headers,
           body: bodyRaw,
           signal: ctrl.signal,
@@ -2682,6 +2689,10 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
 
         if (!res.ok) {
           const detail = (json && (json.detail || json.message)) || text || `HTTP ${res.status}`;
+          if (res.status === 401) {
+            opsAuthState = { enabled: true, authenticated: false, username: null };
+            renderOpsAuthGate('登录已失效，请重新登录。');
+          }
           const error = new Error(detail);
           error.status = res.status;
           error.responseText = text;
@@ -2748,13 +2759,17 @@ async function getJsonWithRetry(apiBaseOrBases, path, retry = 1) {
           method: 'GET',
           mode: 'cors',
           cache: 'no-store',
-          credentials: 'omit',
+          credentials: 'include',
           signal: ctrl.signal,
         });
         const text = await res.text();
         let json = null;
         try { json = text ? JSON.parse(text) : null; } catch {}
         if (!res.ok) {
+          if (res.status === 401) {
+            opsAuthState = { enabled: true, authenticated: false, username: null };
+            renderOpsAuthGate('登录已失效，请重新登录。');
+          }
           throw new Error((json && (json.detail || json.message)) || text || `HTTP ${res.status}`);
         }
         return json ?? {};
@@ -3198,7 +3213,7 @@ function updateMaterialUrlDisplay(field, asset) {
   }
 })();
 
-function init() {
+async function init() {
   apiBaseInput = document.getElementById('api-base');
   loadBuildInfo();
   loadApiBase();
@@ -3206,6 +3221,13 @@ function init() {
   if (apiBaseInput) {
     apiBaseInput.addEventListener('change', saveApiBase);
     apiBaseInput.addEventListener('blur', saveApiBase);
+    apiBaseInput.addEventListener('change', () => {
+      void ensureOpsAuthAccess();
+    });
+  }
+
+  if (!(await ensureOpsAuthAccess())) {
+    return;
   }
 
   const stage = document.body?.dataset?.stage;
@@ -3224,7 +3246,9 @@ function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  void init();
+});
 
 async function loadBuildInfo() {
   const el = document.getElementById('build-info');
@@ -3258,7 +3282,7 @@ async function fetchBackendBuildStamp() {
         method: 'GET',
         mode: 'cors',
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'include',
       });
       if (!response.ok) continue;
       const payload = await response.json().catch(() => ({}));
@@ -3310,6 +3334,212 @@ function saveApiBase() {
   } else {
     localStorage.removeItem(STORAGE_KEYS.apiBase);
   }
+}
+
+function isOpsProtectedStage(stage) {
+  return OPS_AUTH_PROTECTED_STAGES.has(stage || '');
+}
+
+function setOpsProtectedContentHidden(hidden) {
+  const main = document.querySelector('main');
+  if (!main) return;
+  Array.from(main.children).forEach((child) => {
+    if (child.id === 'ops-auth-gate') return;
+    child.hidden = hidden;
+  });
+}
+
+function renderOpsLogoutButton() {
+  const headerContent = document.querySelector('.header-content');
+  if (!headerContent) return;
+  let button = document.getElementById('ops-auth-logout');
+  if (!opsAuthState.enabled || !opsAuthState.authenticated) {
+    button?.remove();
+    return;
+  }
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'ops-auth-logout';
+    button.type = 'button';
+    button.className = 'secondary';
+    button.textContent = '退出';
+    button.style.marginLeft = '12px';
+    button.addEventListener('click', async () => {
+      const candidates = getApiCandidates(apiBaseInput?.value || null);
+      for (const base of candidates) {
+        const url = joinBasePath(base, '/api/auth/logout');
+        if (!url) continue;
+        try {
+          await fetch(url, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: '{}',
+          });
+        } catch (error) {
+          console.warn('[ops-auth] logout failed', error);
+        }
+      }
+      opsAuthState = {
+        enabled: true,
+        authenticated: false,
+        username: null,
+      };
+      const gate = document.getElementById('ops-auth-gate');
+      gate?.remove();
+      await ensureOpsAuthAccess();
+    });
+  }
+  headerContent.appendChild(button);
+}
+
+function renderOpsAuthGate(message = '') {
+  const main = document.querySelector('main');
+  if (!main) return null;
+  let gate = document.getElementById('ops-auth-gate');
+  if (!gate) {
+    gate = document.createElement('section');
+    gate.id = 'ops-auth-gate';
+    gate.className = 'card stage-card';
+    gate.innerHTML = `
+      <h2>Ops Login</h2>
+      <p class="hint">请输入运营口令后继续使用内部海报工作台。</p>
+      <form id="ops-auth-form" class="grid" style="align-items:end;">
+        <label class="field">
+          <span>用户名</span>
+          <input id="ops-auth-username" type="text" value="${OPS_AUTH_USERNAME}" readonly />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input id="ops-auth-password" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="actions">
+          <button id="ops-auth-login" class="primary" type="submit">登录</button>
+          <button id="ops-auth-retry" class="secondary" type="button">重试检查</button>
+        </div>
+      </form>
+      <p id="ops-auth-status" class="hint"></p>
+    `;
+    main.prepend(gate);
+    const retryButton = gate.querySelector('#ops-auth-retry');
+    retryButton?.addEventListener('click', async () => {
+      await ensureOpsAuthAccess();
+    });
+    const form = gate.querySelector('#ops-auth-form');
+    form?.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const status = gate.querySelector('#ops-auth-status');
+      const passwordInput = gate.querySelector('#ops-auth-password');
+      const password = passwordInput?.value || '';
+      const candidates = getApiCandidates(apiBaseInput?.value || null);
+      if (!candidates.length) {
+        if (status) status.textContent = '请先填写后端 API Base。';
+        return;
+      }
+      if (status) status.textContent = '正在验证…';
+      let lastError = null;
+      for (const base of candidates) {
+        const url = joinBasePath(base, '/api/auth/ops-login');
+        if (!url) continue;
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            mode: 'cors',
+            cache: 'no-store',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+            body: JSON.stringify({
+              username: OPS_AUTH_USERNAME,
+              password,
+            }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload?.authenticated) {
+            lastError = new Error(payload?.error || 'ops_login_failed');
+            continue;
+          }
+          if (passwordInput) passwordInput.value = '';
+          await ensureOpsAuthAccess();
+          return;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (status) {
+        status.textContent = lastError?.message === 'invalid_ops_credentials'
+          ? '用户名或密码无效。'
+          : '登录失败，请检查 API Base 或稍后重试。';
+      }
+    });
+  }
+  const status = gate.querySelector('#ops-auth-status');
+  if (status) {
+    status.textContent = message || '未授权。请先登录。';
+  }
+  setOpsProtectedContentHidden(true);
+  renderOpsLogoutButton();
+  return gate;
+}
+
+async function fetchOpsAuthState() {
+  const candidates = getApiCandidates(apiBaseInput?.value || null);
+  if (!candidates.length) {
+    return {
+      enabled: true,
+      authenticated: false,
+      username: null,
+      error: 'missing_api_base',
+    };
+  }
+  let lastError = null;
+  for (const base of candidates) {
+    const url = joinBasePath(base, '/api/auth/me');
+    if (!url) continue;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        lastError = new Error(`auth_me_${response.status}`);
+        continue;
+      }
+      const payload = await response.json().catch(() => ({}));
+      return {
+        enabled: Boolean(payload?.enabled),
+        authenticated: Boolean(payload?.authenticated),
+        username: payload?.username || null,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error('ops_auth_unavailable');
+}
+
+async function ensureOpsAuthAccess() {
+  const stage = document.body?.dataset?.stage;
+  if (!isOpsProtectedStage(stage)) return true;
+  try {
+    opsAuthState = await fetchOpsAuthState();
+  } catch (error) {
+    renderOpsAuthGate('认证检查失败，请确认 API Base 与服务状态。');
+    return false;
+  }
+  if (!opsAuthState.enabled || opsAuthState.authenticated) {
+    document.getElementById('ops-auth-gate')?.remove();
+    setOpsProtectedContentHidden(false);
+    renderOpsLogoutButton();
+    return true;
+  }
+  renderOpsAuthGate(opsAuthState.error === 'missing_api_base'
+    ? '请先填写后端 API Base，然后登录。'
+    : '未授权。请先登录。');
+  return false;
 }
 
 function initStage1() {
@@ -9523,7 +9753,7 @@ function initStage2() {
             headers: { Accept: 'application/json' },
             mode: 'cors',
             cache: 'no-store',
-            credentials: 'omit',
+            credentials: 'include',
           });
           if (!response.ok) {
             continue;
