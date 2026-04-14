@@ -38,13 +38,14 @@
         <h2>环节 3 - 发送确认</h2>
 
         <div class="output-group" id="stage3-preview">
-          <h3>海报预览</h3>
-          <p id="stage3-save-gate" class="hint">Stage3 只允许使用已保存海报发送。</p>
-          <div class="stage3-preview-grid stage3-preview-grid--simple">
+          <div class="stage3-send-target">
+            <p id="stage3-save-gate" class="hint">发送对象：已保存海报</p>
+            <p id="stage3-poster-identity" class="hint"></p>
+          </div>
+          <div class="stage3-legacy-preview" hidden aria-hidden="true">
             <figure class="poster-figure">
               <img id="stage3-poster-image" alt="Poster preview" />
               <figcaption id="stage3-poster-caption"></figcaption>
-              <p id="stage3-poster-identity" class="hint"></p>
             </figure>
           </div>
         </div>
@@ -109,20 +110,6 @@
                 <label><input type="checkbox" id="attachment-poster-png" value="poster_png" /> Poster PNG</label>
                 <label><input type="checkbox" id="attachment-poster-pdf" value="poster_pdf" /> Poster PDF</label>
               </div>
-              <div class="stage3-attachment-summary">
-                <div class="stage3-attachment-row">
-                  <span class="stage3-attachment-label">可用</span>
-                  <div id="email-attachment-available" class="stage3-pill-list"></div>
-                </div>
-                <div class="stage3-attachment-row">
-                  <span class="stage3-attachment-label">本次发送</span>
-                  <div id="email-attachment-selected" class="stage3-pill-list"></div>
-                </div>
-                <div class="stage3-attachment-row">
-                  <span class="stage3-attachment-label">可后续生成</span>
-                  <div id="email-attachment-buildable" class="stage3-pill-list"></div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -140,6 +127,9 @@
           <input id="stage3-poster-url" type="url" readonly />
           <input id="stage3-poster-key" type="text" readonly />
           <textarea id="email-html" rows="10" required></textarea>
+          <div id="email-attachment-available"></div>
+          <div id="email-attachment-selected"></div>
+          <div id="email-attachment-buildable"></div>
         </div>
         <p id="stage3-status" role="status" aria-live="polite"></p>
       </section>

@@ -1,5 +1,125 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-UI3: Stage3 send-step reduction pass
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-14`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/stage3.html`
+- `frontend/styles.css`
+- `frontend/app.js` was inspected only after the required reads to confirm the Stage3 attachment summary containers could be removed from the visible UI without changing send behavior
+
+### Scope
+
+- PR-UI3 only
+- Stage3 presentation cleanup only
+- remove redundant Stage3 confirmation/review emphasis
+- reduce attachment presentation to the minimum send-step controls
+- keep production behavior unchanged:
+  - send behavior
+  - saved-poster truth
+  - attachment availability logic
+  - backend API behavior
+  - delivery mode behavior
+  - Stage2 workflow
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- behavior before beautification
+- no send-truth or backend-flow change
+- no saved-poster truth change
+- no attachment logic change
+- `frontend/` and `docs/` were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage3 still opened with a large confirmation/review area that repeated saved-poster confirmation through a dominant poster preview block
+- the attachment area still spent substantial vertical space on operator-facing breakdown groups:
+  - available
+  - this send
+  - buildable later
+- this made Stage3 read like a review page instead of a send step
+
+### Root cause found
+
+- Stage3 HTML still rendered a visible poster-preview section as a primary content block even though send truth already came from backend-hydrated `poster_record`
+- the attachment UI still exposed internal state breakdown lists that were not required to complete sending
+- existing runtime bindings did not require those breakdown lists to remain visible; they only required the underlying DOM targets to exist
+
+### Exact Stage3 sections removed or simplified
+
+- removed the visible `海报预览` heading and large poster review block from the top of Stage3
+- replaced the dominant confirmation area with a compact one-line send-target cue:
+  - `发送对象：已保存海报`
+- kept poster hydration bindings in a hidden legacy container so no runtime send/payload behavior changed
+- left recipients, email copy, delivery mode, attachment checkboxes, and send actions as the only visible send-step controls
+
+### Exact attachment simplification
+
+- kept only:
+  - `Delivery Mode`
+  - `Poster PNG`
+  - `Poster PDF`
+- removed the visible multi-group breakdown for:
+  - `可用`
+  - `本次发送`
+  - `可后续生成`
+- kept the single short attachment status line
+- retained the hidden summary target nodes inside the hidden source-details area so existing Stage3 runtime logic remains unchanged
+
+### Exact files changed
+
+- `frontend/stage3.html`
+- `frontend/styles.css`
+- `docs/stage3.html`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage3 frontend presentation only
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- source-level verification:
+  - verified the large Stage3 top preview/confirmation block is no longer visible in source markup
+  - verified Stage3 now shows a compact send-target note instead of a dominant poster review area
+  - verified the attachment section contains only visible `Delivery Mode`, `Poster PNG`, and `Poster PDF` controls plus one short status line
+  - verified no `frontend/app.js` change was required, so send behavior remained untouched
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with static/mirror checks and source inspection only; no browser screenshot run was performed in this workspace
+- hidden legacy DOM targets remain in Stage3 to preserve current runtime bindings; any future cleanup that removes them would require a deliberate no-behavior JS adjustment
+
+### Acceptance state
+
+- large Stage3 top preview/confirmation block removed from visible UI
+- attachment section reduced to visible delivery mode plus PNG/PDF selection
+- send behavior unchanged
+- no production behavior changed
+- frontend/docs mirror remains aligned
+- branch execution log updated
+- PR-UI3 acceptance target met
+
+### One-line execution summary
+
+- PR-UI3 reduced Stage3 to send-only controls by removing the visible saved-poster review block and attachment breakdown summaries while preserving existing runtime behavior and docs alignment.
+
 ## Entry — PR-UI2: Stage1/Stage2/Stage3 subtractive UI cleanup
 
 **Branch:** `main`
