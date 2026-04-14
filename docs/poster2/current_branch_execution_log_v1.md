@@ -1,5 +1,167 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-BOTTOM-UF2: Family A gallery_only internal gallery-region rebalance
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-14`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- then only the minimum files responsible for Family A bottom/gallery layout and rendering structure:
+  - `app/services/poster2/template_behavior.py`
+  - `app/templates_html/template_dual_v2.css`
+  - `app/templates_html/template_dual_v2.html`
+  - focused bottom validation tests
+
+### Scope
+
+- PR-BOTTOM-UF2 only
+- keep the unified outer bottom frame from PR-BOTTOM-UF1
+- change only the internal `gallery_only` gallery region contract
+- let `gallery_only` behave as the primary bottom-content layout instead of an inherited compact strip
+- keep request truth, renderer routing, hero/product geometry, and Stage3 logic unchanged
+- update branch execution log before stop
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- behavior before beautification
+- renderer consumes bottom behavior rather than defining template truth
+- no outer bottom frame regression from PR-BOTTOM-UF1
+- no request/runtime/send-truth changes
+
+### Problem reproduced
+
+- after PR-BOTTOM-UF1 the outer frame was stable, but `gallery_only` still reused a compact strip-derived internal gallery contract
+- that left the gallery shell and cards visually concentrated in the upper portion of the shared bottom frame
+- for the current 2-item `gallery_only` case before this pass, the branch-local behavior was:
+  - `bottom_shell_top=728`
+  - `bottom_shell_height=296`
+  - `gallery_shell_top=728`
+  - `gallery_shell_height=140`
+  - `gallery_items_top=746`
+  - `gallery_items_height=104`
+  - first item bounds `280x104`
+- this preserved the unified frame, but the internal gallery region still read like a compact strip rather than the primary bottom content
+
+### Root cause found
+
+- `gallery_only` still entered `_resolve_gallery_strip_vertical_metrics(...)` through a strip-inflation branch
+- that branch only enlarged compact strip values slightly instead of defining a true gallery-only primary-content region contract
+- item/media/caption placement then inherited those compact heights, so the cards remained visually top-locked even after the outer frame was unified
+
+### Why this is a second-level abstraction fix, not another top patch
+
+- the fix did not move individual cards or captions with ad hoc offsets
+- it replaced the `gallery_only` internal vertical region contract with explicit gallery-only primary-content sizing tables
+- the outer bottom frame stayed unchanged; only the internal gallery shell height, usable item height, and shell-local centering changed
+- caption/media bounds update naturally from the larger item-card contract instead of isolated per-slot nudges
+
+### Internal gallery_only region contract changed
+
+- added a dedicated `gallery_only` primary-content vertical policy in `template_behavior`
+- for `gallery_only`, the resolver now uses per-count internal sizing tables instead of strip-derived shell/item inflation
+- this policy now defines:
+  - larger `gallery_shell_height`
+  - larger `gallery_items_height`
+  - centered shell-local item placement through `inner_pad_y`
+  - fryer detail-row caption/media/card bounds derived from the larger card height
+- updated policy names now surface the abstraction change directly, for example:
+  - `gallery_only_primary_single_packshot_rebalance`
+  - `gallery_only_primary_pair_rebalance`
+  - `gallery_only_primary_detail_row_rebalance`
+
+### Exact files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Family A bottom behavior resolver
+- Family A template CSS fallback state
+- focused Family A bottom/gallery validation
+- branch execution/state log
+
+### Focused validation run
+
+- focused backend validation:
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k "renderer_metadata_exposes_bottom_mode_gallery_only_review or gallery_only_gallery_shell_top_uses_bounded_peer_gap or gallery_only_gallery_items_render_inside_bottom_shell or gallery_only_fryer_dense_quad_uses_expanded_visual_feature_row or toe_shell_height_equals_title_band_height or test_tgs_shell_top_is_728 or test_tgs_gallery_shell_top_above_shell_bottom"` → `8 passed`
+- focused HTML/CSS validation:
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k "test_template_css_exposes_independent_bottom_split_state_tokens or test_bottom_split_gallery_only_hides_title_band_and_keeps_gallery_strip or test_bottom_split_title_and_gallery_show_both_regions or test_text_only_expanded_html_keeps_full_width_text_layer_vars or test_text_only_expanded_html_keeps_subtitle_visible_while_gallery_stays_collapsed or test_template_html_hides_title_band_when_gallery_only"` → `6 passed`
+- direct structural metric comparison using the same resolver-side inputs for the three target modes:
+  - `text_only_expanded`
+    - `bottom_shell_top=728`
+    - `bottom_shell_height=296`
+    - `title_band_top=788`
+    - `title_band_height=176`
+    - `gallery_shell_top=964`
+    - `gallery_shell_height=0`
+    - `gallery_items_top=964`
+    - `gallery_items_height=0`
+  - `title_gallery_split`
+    - `bottom_shell_top=728`
+    - `bottom_shell_height=296`
+    - `title_band_top=728`
+    - `title_band_height=168`
+    - `gallery_shell_top=896`
+    - `gallery_shell_height=100`
+    - `gallery_items_top=906`
+    - `gallery_items_height=80`
+    - first item bounds `{x:224,y:906,w:280,h:80}`
+  - `gallery_only`
+    - `bottom_shell_top=728`
+    - `bottom_shell_height=296`
+    - `title_band_top=728`
+    - `title_band_height=0`
+    - `gallery_shell_top=728`
+    - `gallery_shell_height=236`
+    - `gallery_items_top=758`
+    - `gallery_items_height=176`
+    - first item bounds `{x:224,y:758,w:280,h:176}`
+- direct before/after comparison for the 2-item `gallery_only` case:
+  - before:
+    - `gallery_shell_top=728`
+    - `gallery_shell_height=140`
+    - `gallery_items_top=746`
+    - `gallery_items_height=104`
+    - first item bounds `{x:224,y:746,w:280,h:104}`
+  - after:
+    - `gallery_shell_top=728`
+    - `gallery_shell_height=236`
+    - `gallery_items_top=758`
+    - `gallery_items_height=176`
+    - first item bounds `{x:224,y:758,w:280,h:176}`
+- fryer caption/card evidence under the expanded `gallery_only` detail-row variant:
+  - `card_bounds={x:155,y:754,w:156,h:176}`
+  - `media_bounds={x:163,y:762,w:140,h:142}`
+  - `caption_bounds={x:163,y:908,w:140,h:14}`
+
+### Acceptance state
+
+- PR-BOTTOM-UF1 outer bottom frame abstraction remains intact
+- `gallery_only` now uses a distinct primary-content internal gallery region contract
+- `gallery_only` gallery content occupies the bottom area more fully
+- cards are no longer constrained by the old compact strip heights
+- `text_only_expanded` outer frame behavior remains unchanged
+- `title_gallery_split` outer frame behavior remains unchanged
+- request/routing/runtime truth remained unchanged
+- branch execution log is updated
+- PR-BOTTOM-UF2 acceptance target is met
+
+### Remaining risks
+
+- this pass validated structurally and through focused HTML/CSS tests, but no fresh screenshot capture was produced in this workspace
+- the `gallery_only` contract is now explicitly separated at the vertical-region layer; if future work wants a distinct horizontal distribution language for gallery-only, that would be a separate bounded change rather than part of this fix
+
 ## Entry — PR-BOTTOM-UF1: Family A unified bottom frame abstraction
 
 **Branch:** `main`

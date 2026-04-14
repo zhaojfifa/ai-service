@@ -2375,7 +2375,8 @@ class TestBottomSplitBehavior:
 
         assert "--bottom-shell-top: 728px;" in css_template
         assert "--bottom-shell-height: 296px;" in css_template
-        assert "--gallery-items-top: 746px;" in css_template
+        assert "--gallery-shell-height: 236px;" in css_template
+        assert "--gallery-items-top: 758px;" in css_template
         assert ".layer-bottom-region.state-title-only {" in css_template
         assert ".layer-bottom-region.state-gallery-only {" in css_template
         assert ".layer-bottom-region.state-title-gallery {" in css_template

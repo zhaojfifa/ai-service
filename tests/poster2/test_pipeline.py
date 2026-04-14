@@ -884,14 +884,16 @@ class TestPosterPipelineRun:
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_distribution_policy"] == "single_packshot_focus"
         assert metadata["bottom_contract_review"]["gallery_distribution_policy"] == "single_packshot_focus"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_shell_frame_policy"] == "single_showcase_frame"
-        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "gallery_only_expanded_single_gallery_centered_shift"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_strip_shift_policy"] == "gallery_only_primary_single_packshot_rebalance"
         assert metadata["bottom_contract_review"]["behavior_policy"]["gallery_aspect_policy"] == "single_packshot_aspect"
         assert metadata["bottom_contract_review"]["behavior_policy"]["bottom_text_emphasis_policy"] == "gallery_only_neutral_text"
+        assert metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]["gallery_shell_height"] == 232
+        assert metadata["bottom_contract_review"]["behavior_policy"]["layout_metrics"]["gallery_items_height"] == 168
         assert metadata["bottom_contract_review"]["gallery_slots"]["gallery_item_slot_1"]["local_bounds"] == {
             "x": 296,
-            "y": 18,
+            "y": 32,
             "w": 240,
-            "h": 88,
+            "h": 168,
         }
 
     def test_renderer_metadata_exposes_dense_bottom_behavior_policy(self):
@@ -2275,6 +2277,8 @@ class TestBottomModeStabilization:
         assert policy.bottom_layout_mode == "gallery_only_expanded"
         assert policy.layout_metrics["peer_gap"] == 0
         assert gallery_shell_top == bottom_shell_top
+        assert policy.layout_metrics["gallery_shell_height"] == 236
+        assert policy.layout_metrics["gallery_items_height"] == 176
 
     def test_gallery_only_gallery_items_render_inside_bottom_shell(self):
         """Gallery items must have absolute y within the bottom shell bounds."""
@@ -2982,19 +2986,19 @@ class TestPostFreezeTextCapacity:
         assert policy.gallery_distribution_policy == "dense_quad_detail_row"
         assert policy.gallery_caption_mode == "semantic_detail_caption_row"
         assert policy.layout_metrics["bottom_shell_height"] == 296
-        assert policy.layout_metrics["gallery_shell_height"] == 164
-        assert policy.layout_metrics["gallery_items_height"] == 126
+        assert policy.layout_metrics["gallery_shell_height"] == 228
+        assert policy.layout_metrics["gallery_items_height"] == 176
         assert policy.layout_metrics["peer_gap"] == 0
-        assert [item["h"] for item in policy.layout_metrics["gallery_item_layouts"]] == [126, 126, 126, 126]
+        assert [item["h"] for item in policy.layout_metrics["gallery_item_layouts"]] == [176, 176, 176, 176]
         assert [item["caption_text"] for item in policy.gallery_caption_slots] == [
             "Basket Detail",
             "Single Tank",
             "Lid Detail",
             "Dual Tank",
         ]
-        assert policy.gallery_caption_slots[0]["card_bounds"] == {"x": 155, "y": 747, "w": 156, "h": 126}
-        assert policy.gallery_caption_slots[0]["media_bounds"] == {"x": 163, "y": 755, "w": 140, "h": 92}
-        assert policy.gallery_caption_slots[0]["bounds"] == {"x": 163, "y": 851, "w": 140, "h": 14}
+        assert policy.gallery_caption_slots[0]["card_bounds"] == {"x": 155, "y": 754, "w": 156, "h": 176}
+        assert policy.gallery_caption_slots[0]["media_bounds"] == {"x": 163, "y": 762, "w": 140, "h": 142}
+        assert policy.gallery_caption_slots[0]["bounds"] == {"x": 163, "y": 908, "w": 140, "h": 14}
 
     def test_non_fryer_bottom_keeps_caption_mode_none(self):
         from app.services.poster2.template_behavior import resolve_bottom_behavior

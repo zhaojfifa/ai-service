@@ -2793,6 +2793,20 @@ def _resolve_gallery_strip_vertical_metrics(
 ) -> tuple[int, int, int]:
     if visible_item_count <= 0:
         return "gallery_collapsed", 0, gallery_shell_top, 0
+    gallery_only_vertical_table: dict[str, dict[int, tuple[str, int, int]]] = {
+        "strip_local_visible_only": {
+            1: ("gallery_only_primary_single_rebalance", 236, 176),
+            2: ("gallery_only_primary_pair_rebalance", 236, 176),
+            3: ("gallery_only_primary_triplet_rebalance", 224, 156),
+            4: ("gallery_only_primary_quad_rebalance", 216, 148),
+        },
+        "supporting_packshots": {
+            1: ("gallery_only_primary_single_packshot_rebalance", 232, 168),
+            2: ("gallery_only_primary_pair_packshot_rebalance", 224, 152),
+            3: ("gallery_only_primary_triplet_packshot_rebalance", 216, 144),
+            4: ("gallery_only_primary_quad_packshot_rebalance", 208, 136),
+        },
+    }
     vertical_table: dict[str, dict[int, tuple[str, int, int]]] = {
         "strip_local_visible_only": {
             1: ("single_gallery_centered_shift", 88, 68),
@@ -2807,21 +2821,25 @@ def _resolve_gallery_strip_vertical_metrics(
             4: ("tight_quad_shift", 76, 60),  # PR-7C: shell 68→76, item 52→60; less cramped
         },
     }
-    shift_policy, shell_height, item_height = vertical_table.get(gallery_mode, vertical_table["strip_local_visible_only"])[
-        min(max(visible_item_count, 1), 4)
-    ]
-    if commercial_fryer_variant and visible_item_count >= 4:
-        shift_policy = "detail_row_quad_shift"
-        shell_height = 116
-        item_height = 90
+    mode_key = min(max(visible_item_count, 1), 4)
     if peer_balance_policy == "gallery_strip_only":
-        shift_policy = f"gallery_only_expanded_{shift_policy}"
-        item_height += 24
-        shell_height = max(shell_height + 28, item_height + 36)
-        if commercial_fryer_variant and visible_item_count >= 4:
-            shift_policy = "gallery_only_expanded_detail_row_shift"
-            shell_height = 164
-            item_height = 126
+        shift_policy, shell_height, item_height = gallery_only_vertical_table.get(
+            gallery_mode,
+            gallery_only_vertical_table["strip_local_visible_only"],
+        )[mode_key]
+    else:
+        shift_policy, shell_height, item_height = vertical_table.get(gallery_mode, vertical_table["strip_local_visible_only"])[
+            mode_key
+        ]
+    if commercial_fryer_variant and visible_item_count >= 4:
+        if peer_balance_policy == "gallery_strip_only":
+            shift_policy = "gallery_only_primary_detail_row_rebalance"
+            shell_height = 228
+            item_height = 176
+        else:
+            shift_policy = "detail_row_quad_shift"
+            shell_height = 116
+            item_height = 90
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)

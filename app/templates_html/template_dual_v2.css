@@ -185,12 +185,12 @@ body {
   --title-content-pad-left: 40px;
   --title-stack-gap: 8px;
   --gallery-shell-top: 728px;
-  --gallery-shell-height: 140px;
+  --gallery-shell-height: 236px;
   --gallery-shell-left: 96px;
   --gallery-shell-width: 832px;
   --gallery-shell-radius: 20px;
-  --gallery-items-top: 746px;
-  --gallery-items-height: 104px;
+  --gallery-items-top: 758px;
+  --gallery-items-height: 176px;
   --gallery-item-radius: 14px;
   --bottom-title-letter-spacing: 0.006em;
   --bottom-subtitle-opacity: 0.9;
@@ -920,9 +920,9 @@ body {
   --bottom-shell-top: 728px;
   --bottom-shell-height: 296px;
   --gallery-shell-top: 728px;
-  --gallery-shell-height: 140px;
-  --gallery-items-top: 746px;
-  --gallery-items-height: 104px;
+  --gallery-shell-height: 236px;
+  --gallery-items-top: 758px;
+  --gallery-items-height: 176px;
 }
 
 
