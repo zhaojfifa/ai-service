@@ -243,6 +243,10 @@ const stage2State = {
     rendererMode: 'auto',
     history: [],
     latestResult: null,
+    comparison: {
+      current: null,
+      retained: null,
+    },
     copyOptimization: {
       mode: 'suggest',
       decision: 'pending',
@@ -288,6 +292,7 @@ let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
 const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
+const STAGE2_POSTER_COMPARISON_STORAGE_KEY = 'marketing-poster-stage2-comparison';
 const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
@@ -6925,6 +6930,151 @@ function cloneStage2Value(value) {
   return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
 }
 
+function normaliseStage2PosterComparisonSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const previewUrl = typeof snapshot.preview_url === 'string' ? snapshot.preview_url.trim() : '';
+  const finalUrl = typeof snapshot.final_url === 'string' ? snapshot.final_url.trim() : '';
+  const posterKey = typeof snapshot.poster_key === 'string' ? snapshot.poster_key.trim() : '';
+  const title = collapseSuggestionWhitespace(snapshot.title || '');
+  const summary = collapseSuggestionWhitespace(snapshot.summary || '');
+  const generatedAt =
+    Number.isFinite(Number(snapshot.generated_at)) && Number(snapshot.generated_at) > 0
+      ? Number(snapshot.generated_at)
+      : null;
+  const retainedAt =
+    Number.isFinite(Number(snapshot.retained_at)) && Number(snapshot.retained_at) > 0
+      ? Number(snapshot.retained_at)
+      : null;
+  if (!previewUrl && !finalUrl && !posterKey) return null;
+  return {
+    preview_url: previewUrl || finalUrl || '',
+    final_url: finalUrl || previewUrl || '',
+    poster_key: posterKey || null,
+    title: title || '',
+    summary: summary || '',
+    generated_at: generatedAt,
+    retained_at: retainedAt,
+  };
+}
+
+function ensureStage2PosterComparisonState() {
+  const current = stage2State.poster2?.comparison || {};
+  stage2State.poster2.comparison = {
+    current: normaliseStage2PosterComparisonSnapshot(current.current),
+    retained: normaliseStage2PosterComparisonSnapshot(current.retained),
+  };
+  return stage2State.poster2.comparison;
+}
+
+function loadStage2PosterComparisonState() {
+  const comparison = ensureStage2PosterComparisonState();
+  try {
+    const raw = sessionStorage.getItem(STAGE2_POSTER_COMPARISON_STORAGE_KEY);
+    if (!raw) return comparison;
+    const parsed = JSON.parse(raw);
+    comparison.current = normaliseStage2PosterComparisonSnapshot(parsed?.current);
+    comparison.retained = normaliseStage2PosterComparisonSnapshot(parsed?.retained);
+  } catch (error) {
+    console.warn('[stage2] unable to load poster comparison state', error);
+  }
+  return comparison;
+}
+
+function persistStage2PosterComparisonState() {
+  const comparison = ensureStage2PosterComparisonState();
+  try {
+    sessionStorage.setItem(
+      STAGE2_POSTER_COMPARISON_STORAGE_KEY,
+      JSON.stringify({
+        current: comparison.current || null,
+        retained: comparison.retained || null,
+      })
+    );
+  } catch (error) {
+    console.warn('[stage2] unable to persist poster comparison state', error);
+  }
+}
+
+function clearStage2PosterComparisonState(options = {}) {
+  const { clearCurrent = true, clearRetained = false } = options;
+  const comparison = ensureStage2PosterComparisonState();
+  if (clearCurrent) comparison.current = null;
+  if (clearRetained) comparison.retained = null;
+  persistStage2PosterComparisonState();
+}
+
+function buildStage2PosterComparisonSnapshotFromGeneration(data) {
+  const finalPoster = normaliseFinalPosterPayload(data);
+  const finalUrl = extractVertexPosterUrl(data) || getPosterImageSource(finalPoster) || '';
+  const posterKey =
+    (typeof data?.poster_key === 'string' && data.poster_key.trim()) ||
+    (typeof finalPoster?.key === 'string' && finalPoster.key.trim()) ||
+    (typeof finalPoster?.storage_key === 'string' && finalPoster.storage_key.trim()) ||
+    '';
+  if (!finalUrl && !posterKey) return null;
+  return normaliseStage2PosterComparisonSnapshot({
+    preview_url: finalUrl,
+    final_url: finalUrl,
+    poster_key: posterKey,
+    title:
+      data?.resolved_copy?.title ||
+      data?.title ||
+      stage2State.poster?.headline ||
+      stage2State.poster?.title ||
+      lastStage1Data?.title ||
+      '',
+    summary:
+      data?.resolved_copy?.subtitle ||
+      data?.subtitle ||
+      stage2State.poster?.tagline ||
+      stage2State.poster?.subtitle ||
+      lastStage1Data?.subtitle ||
+      '',
+    generated_at: Date.now(),
+  });
+}
+
+function buildStage2PosterComparisonSnapshotFromStoredResult(stored) {
+  if (!stored || typeof stored !== 'object') return null;
+  const finalPoster = stored.final_poster || null;
+  const finalUrl = getPosterImageSource(finalPoster) || finalPoster?.url || '';
+  const posterKey =
+    (typeof stored?.poster_key === 'string' && stored.poster_key.trim()) ||
+    (typeof finalPoster?.key === 'string' && finalPoster.key.trim()) ||
+    (typeof finalPoster?.storage_key === 'string' && finalPoster.storage_key.trim()) ||
+    '';
+  if (!finalUrl && !posterKey) return null;
+  return normaliseStage2PosterComparisonSnapshot({
+    preview_url: finalUrl,
+    final_url: finalUrl,
+    poster_key: posterKey,
+    title: stored?.poster?.headline || stored?.poster?.title || '',
+    summary: stored?.poster?.tagline || stored?.poster?.subtitle || '',
+  });
+}
+
+function setStage2CurrentPosterComparison(snapshot) {
+  const comparison = ensureStage2PosterComparisonState();
+  comparison.current = normaliseStage2PosterComparisonSnapshot(snapshot);
+  persistStage2PosterComparisonState();
+}
+
+function setStage2RetainedPosterComparison(snapshot) {
+  const comparison = ensureStage2PosterComparisonState();
+  comparison.retained = normaliseStage2PosterComparisonSnapshot(snapshot);
+  persistStage2PosterComparisonState();
+}
+
+function formatStage2PosterComparisonTime(timestamp) {
+  if (!timestamp) return '—';
+  try {
+    return new Date(timestamp).toLocaleString('zh-CN', { hour12: false });
+  } catch (error) {
+    console.warn('[stage2] unable to format comparison timestamp', error);
+    return '—';
+  }
+}
+
 function stage2StableStringify(value) {
   if (typeof stage2RequestHelpers.stableStringify === 'function') {
     return stage2RequestHelpers.stableStringify(value);
@@ -7172,7 +7322,8 @@ function clearStage2RuntimeRequestCache() {
   stage2State.poster2.latestResult = null;
   stage2State.poster2.history = [];
   stage2State.generated.lastSuccessPosterUrl = null;
-  renderPoster2RunHistory();
+  clearStage2PosterComparisonState({ clearCurrent: true, clearRetained: true });
+  renderStage2PosterComparisonCards();
   updateDebugPanels({ response: null });
 }
 
@@ -7598,6 +7749,11 @@ async function reconcileStage2StoredSuccessState(currentFormSignature, statusEle
       typeof stored?.request_payload_signature === 'string' && stored.request_payload_signature.trim()
         ? stored.request_payload_signature.trim()
         : null;
+    const currentSnapshot =
+      normaliseStage2PosterComparisonSnapshot(loadStage2PosterComparisonState().current) ||
+      buildStage2PosterComparisonSnapshotFromStoredResult(stored);
+    setStage2CurrentPosterComparison(currentSnapshot);
+    renderStage2PosterComparisonCards();
     return stored;
   }
 
@@ -7610,6 +7766,8 @@ async function reconcileStage2StoredSuccessState(currentFormSignature, statusEle
   }
   stage2LastSuccessfulFormSignature = null;
   stage2LastSuccessfulRequestSignature = null;
+  clearStage2PosterComparisonState({ clearCurrent: true, clearRetained: false });
+  renderStage2PosterComparisonCards();
 
   if ((hasStaleSuccess || shouldClearPosterKey) && statusElement) {
     setStatus(
@@ -8772,6 +8930,8 @@ function initStage2() {
     const titleSizePreset = document.getElementById('title-size-preset');
     const fallbackStableButton = document.getElementById('fallback-stable');
     const assetFallbackWarning = document.getElementById('asset-fallback-warning');
+    const keepCurrentPosterButton = document.getElementById('stage2-current-poster-action');
+    const clearRetainedPosterButton = document.getElementById('stage2-retained-poster-action');
     let warningElement = document.getElementById('stage2-warning');
 
     if (!generateButton || !nextButton) {
@@ -8780,6 +8940,8 @@ function initStage2() {
 
     const draft = loadDraft();
     stage2State.draft = draft;
+    loadStage2PosterComparisonState();
+    renderStage2PosterComparisonCards();
     renderDraftSnapshot(draft);
     const hasDebugPanels = document.getElementById('debug-draft') || document.getElementById('debug-payload');
     if (hasDebugPanels) {
@@ -8931,6 +9093,32 @@ function initStage2() {
     });
     stage2LastSourceSignatures = initialFormSignatures;
     await reconcileStage2StoredSuccessState(initialFormSignatures.formSignature, statusElement);
+
+    if (keepCurrentPosterButton) {
+      keepCurrentPosterButton.addEventListener('click', () => {
+        const comparison = ensureStage2PosterComparisonState();
+        if (!comparison.current) {
+          setStatus(statusElement, '当前没有可保留的成功海报。', 'warning');
+          return;
+        }
+        setStage2RetainedPosterComparison({
+          ...cloneStage2Value(comparison.current),
+          retained_at: Date.now(),
+        });
+        renderStage2PosterComparisonCards();
+        setStatus(statusElement, '已保留当前海报，可用于与后续结果对照。', 'success');
+      });
+    }
+
+    if (clearRetainedPosterButton) {
+      clearRetainedPosterButton.addEventListener('click', () => {
+        const comparison = ensureStage2PosterComparisonState();
+        if (!comparison.retained) return;
+        setStage2RetainedPosterComparison(null);
+        renderStage2PosterComparisonCards();
+        setStatus(statusElement, '已取消保留海报。', 'info');
+      });
+    }
 
     renderPosterResult();
 
@@ -9860,46 +10048,79 @@ function renderResolverLayoutPreview(data) {
   }
 }
 
-function renderPoster2RunHistory() {
-  const root = document.getElementById('poster2-run-history-list');
-  if (!root) return;
-  root.innerHTML = '';
-  const history = Array.isArray(stage2State.poster2.history) ? stage2State.poster2.history : [];
-  history.forEach((entry, index) => {
-    const card = document.createElement('div');
-    card.className = 'poster2-run-entry';
-    card.innerHTML = `
-      <strong>Run ${history.length - index}</strong>
-      <div>requested <code>${entry.requestedRenderer || 'N/A'}</code> -> effective <code>${entry.effectiveRenderer || 'N/A'}</code></div>
-      <div>degraded <code>${entry.degraded}</code> fallback <code>${entry.fallbackReason || 'null'}</code></div>
-      <div>incomplete_structure <code>${entry.incompleteStructure}</code> deliverable <code>${entry.deliverable}</code></div>
-    `;
-    if (entry.finalUrl) {
-      const link = document.createElement('a');
-      link.href = entry.finalUrl;
-      link.target = '_blank';
-      link.rel = 'noreferrer';
-      link.className = 'poster-preview-link';
-      link.textContent = 'Open final output';
-      card.appendChild(link);
-    }
-    root.appendChild(card);
-  });
-}
+function renderStage2PosterComparisonCards() {
+  const comparison = ensureStage2PosterComparisonState();
+  const bindCard = (prefix, snapshot, options = {}) => {
+    const {
+      emptyText = '暂无海报',
+      actionText = '',
+      actionDisabled = true,
+      noteText = '',
+      timeLabel = '生成时间',
+    } = options;
+    const card = document.getElementById(`${prefix}-card`);
+    const empty = document.getElementById(`${prefix}-empty`);
+    const image = document.getElementById(`${prefix}-image`);
+    const note = document.getElementById(`${prefix}-note`);
+    const time = document.getElementById(`${prefix}-time`);
+    const title = document.getElementById(`${prefix}-title`);
+    const summary = document.getElementById(`${prefix}-summary`);
+    const link = document.getElementById(`${prefix}-link`);
+    const action = document.getElementById(`${prefix}-action`);
+    if (!card) return;
 
-function recordPoster2PilotRun(data) {
-  const history = Array.isArray(stage2State.poster2.history) ? stage2State.poster2.history : [];
-  history.unshift({
-    requestedRenderer: data?.renderer_mode || null,
-    effectiveRenderer: data?.render_engine_used || null,
-    degraded: typeof data?.degraded === 'boolean' ? String(data.degraded) : 'N/A',
-    incompleteStructure: typeof data?.incomplete_structure === 'boolean' ? String(data.incomplete_structure) : 'N/A',
-    deliverable: typeof data?.deliverable === 'boolean' ? String(data.deliverable) : 'N/A',
-    fallbackReason: data?.fallback_reason_code || null,
-    finalUrl: extractVertexPosterUrl(data),
+    const hasSnapshot = Boolean(snapshot);
+    card.classList.toggle('hidden', prefix === 'stage2-retained-poster' && !hasSnapshot);
+    if (empty) empty.classList.toggle('hidden', hasSnapshot);
+    if (image) {
+      if (hasSnapshot && snapshot.preview_url) {
+        image.src = snapshot.preview_url;
+        image.classList.remove('hidden');
+      } else {
+        image.removeAttribute('src');
+        image.classList.add('hidden');
+      }
+    }
+    if (note) {
+      note.textContent = noteText || '';
+      note.classList.toggle('hidden', !noteText);
+    }
+    if (time) {
+      const stamp = prefix === 'stage2-retained-poster'
+        ? (snapshot?.retained_at || snapshot?.generated_at)
+        : snapshot?.generated_at;
+      time.textContent = `${timeLabel}：${formatStage2PosterComparisonTime(stamp)}`;
+    }
+    if (title) title.textContent = snapshot?.title || '未提供标题';
+    if (summary) summary.textContent = snapshot?.summary || emptyText;
+    if (link) {
+      if (hasSnapshot && snapshot.final_url) {
+        link.href = snapshot.final_url;
+        link.classList.remove('hidden');
+      } else {
+        link.removeAttribute('href');
+        link.classList.add('hidden');
+      }
+    }
+    if (action) {
+      action.textContent = actionText;
+      action.disabled = actionDisabled;
+    }
+  };
+
+  bindCard('stage2-current-poster', comparison.current, {
+    emptyText: '生成成功后可保留当前海报。',
+    actionText: '保留当前海报',
+    actionDisabled: !comparison.current,
+    timeLabel: '生成时间',
   });
-  stage2State.poster2.history = history.slice(0, 6);
-  renderPoster2RunHistory();
+  bindCard('stage2-retained-poster', comparison.retained, {
+    emptyText: '当前未保留海报。',
+    actionText: '取消保留',
+    actionDisabled: !comparison.retained,
+    noteText: comparison.retained ? '仅用于对照' : '',
+    timeLabel: '保留时间',
+  });
 }
 
 
@@ -10110,8 +10331,10 @@ function updateStage2Warnings(data) {
 function applyVertexPosterResult(data) {
   console.log('[triggerGeneration] applyVertexPosterResult', data);
   stage2State.poster2.latestResult = data || null;
+  setStage2CurrentPosterComparison(buildStage2PosterComparisonSnapshotFromGeneration(data));
   ensurePoster2CopyOptimizationState().latestReview = data?.copy_optimization_review || null;
   renderPoster2CopyOptimizationReview(data?.copy_optimization_review || null);
+  renderStage2PosterComparisonCards();
 
   if (typeof updateStage2Warnings === 'function') {
     updateStage2Warnings(data);
@@ -10166,9 +10389,6 @@ function applyVertexPosterResult(data) {
     updateGenerationMetaPanel(data);
   }
   updatePoster2DiagnosticsPanel(data);
-  if (data?.template_id === POSTER2_PILOT_TEMPLATE_ID) {
-    recordPoster2PilotRun(data);
-  }
   renderPosterResult();
 }
 

@@ -139,6 +139,93 @@
         font-size: 11px; font-family: monospace; color: #9E9A95;
       }
 
+      .s2-compare-stack {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 12px;
+      }
+      .s2-compare-card {
+        border: 1px solid #E4E2DE;
+        border-radius: 8px;
+        background: #FAFAF9;
+        overflow: hidden;
+      }
+      .s2-compare-card.hidden { display: none; }
+      .s2-compare-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid #E4E2DE;
+        background: #fff;
+      }
+      .s2-compare-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #1A1917;
+      }
+      .s2-compare-note {
+        font-size: 10.5px;
+        color: #92650A;
+        background: #FFF8EC;
+        border: 1px solid #F5D99A;
+        border-radius: 999px;
+        padding: 2px 8px;
+      }
+      .s2-compare-note.hidden { display: none; }
+      .s2-compare-media {
+        min-height: 180px;
+        background: #EDECEA;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px;
+      }
+      .s2-compare-media img {
+        width: 100%;
+        max-height: 220px;
+        object-fit: contain;
+        border-radius: 6px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      }
+      .s2-compare-media img.hidden { display: none; }
+      .s2-compare-empty {
+        color: #9E9A95;
+        font-size: 12px;
+        text-align: center;
+      }
+      .s2-compare-empty.hidden { display: none; }
+      .s2-compare-body {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+      }
+      .s2-compare-time {
+        font-size: 11px;
+        color: #6B6762;
+      }
+      .s2-compare-text {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .s2-compare-text strong {
+        font-size: 13px;
+        color: #1A1917;
+      }
+      .s2-compare-text span {
+        font-size: 12px;
+        color: #6B6762;
+        line-height: 1.5;
+      }
+      .s2-compare-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
       /* Badges in headers */
       .s2-badge-row { display: flex; gap: 6px; align-items: center; }
       .s2-badge {
@@ -514,6 +601,55 @@
                   </div>
                 </div>
               </details>
+            </div>
+          </div>
+
+          <div class="s2-panel s2-comparison-panel">
+            <div class="s2-panel-hd"><span>当前 / 保留对照</span></div>
+            <div class="s2-panel-bd s2-compare-stack">
+              <article class="s2-compare-card" id="stage2-current-poster-card">
+                <div class="s2-compare-head">
+                  <span class="s2-compare-title">Current Poster</span>
+                  <span id="stage2-current-poster-note" class="s2-compare-note hidden"></span>
+                </div>
+                <div class="s2-compare-media">
+                  <img id="stage2-current-poster-image" class="hidden" alt="Current poster preview" decoding="async" />
+                  <div id="stage2-current-poster-empty" class="s2-compare-empty">生成成功后会显示在这里</div>
+                </div>
+                <div class="s2-compare-body">
+                  <div id="stage2-current-poster-time" class="s2-compare-time">生成时间：—</div>
+                  <div class="s2-compare-text">
+                    <strong id="stage2-current-poster-title">未提供标题</strong>
+                    <span id="stage2-current-poster-summary">生成成功后可保留当前海报。</span>
+                  </div>
+                  <div class="s2-compare-actions">
+                    <button id="stage2-current-poster-action" type="button" class="secondary" disabled>保留当前海报</button>
+                    <a id="stage2-current-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">打开海报 ↗</a>
+                  </div>
+                </div>
+              </article>
+
+              <article class="s2-compare-card hidden" id="stage2-retained-poster-card">
+                <div class="s2-compare-head">
+                  <span class="s2-compare-title">Retained Poster</span>
+                  <span id="stage2-retained-poster-note" class="s2-compare-note">仅用于对照</span>
+                </div>
+                <div class="s2-compare-media">
+                  <img id="stage2-retained-poster-image" class="hidden" alt="Retained poster preview" decoding="async" />
+                  <div id="stage2-retained-poster-empty" class="s2-compare-empty hidden">当前未保留海报。</div>
+                </div>
+                <div class="s2-compare-body">
+                  <div id="stage2-retained-poster-time" class="s2-compare-time">保留时间：—</div>
+                  <div class="s2-compare-text">
+                    <strong id="stage2-retained-poster-title">未提供标题</strong>
+                    <span id="stage2-retained-poster-summary">当前未保留海报。</span>
+                  </div>
+                  <div class="s2-compare-actions">
+                    <button id="stage2-retained-poster-action" type="button" class="secondary" disabled>取消保留</button>
+                    <a id="stage2-retained-poster-link" class="poster-preview-link hidden" target="_blank" rel="noreferrer">打开海报 ↗</a>
+                  </div>
+                </div>
+              </article>
             </div>
           </div>
 

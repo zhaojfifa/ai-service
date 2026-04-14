@@ -1,5 +1,144 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-COMP1: Stage2 single retained poster comparison card
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** 2026-04-14
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- re-anchored required baseline docs before edits:
+  - `docs/poster2/poster_generation_product_design_baseline_v1.md`
+  - `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- then minimum task files only:
+  - `frontend/stage2.html`
+  - `frontend/app.js`
+  - `frontend/styles.css`
+  - `docs/stage2.html`
+  - `docs/app.js`
+  - `docs/styles.css`
+
+### Scope
+
+- PR-COMP1 only
+- Stage2 lightweight comparison-only UI enhancement only
+- add one Current Poster card and one optional Retained Poster card
+- keep retained poster comparison-only and operator-facing
+- no Stage2 request truth change
+- no canonical payload construction change
+- no Stage3 truth-model change
+- no backend API contract change
+- no template routing change
+- keep frontend/docs mirror aligned
+- update branch execution log before stop
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- behavior before beautification
+- retained poster kept outside canonical request/send truth
+- no new history browser or version manager introduced
+- source and published mirror were kept aligned in the same task
+
+### Problem reproduced
+
+- Stage2 exposed only the active latest result and had no lightweight way for an operator to pin one successful poster for side-by-side visual comparison
+- existing runtime state also included a hidden multi-run history path, which did not match the requested simplified two-slot model
+
+### Root cause found
+
+- Stage2 had no dedicated comparison-only state surface separated from current request/send truth
+- successful result state and persistence were organized around the active Stage2 success payload, not around a bounded retained comparison card
+
+### Exact retained-poster design
+
+- Stage2 now uses a two-slot comparison model only:
+  - `Current Poster`
+    - latest successful poster result
+    - updated automatically on each successful generate
+    - remains the only active Stage2 success truth feeding Stage3 through existing `poster_key` flow
+  - `Retained Poster`
+    - created only when the operator clicks `保留当前海报`
+    - stores lightweight comparison-safe fields only:
+      - `preview_url`
+      - `final_url`
+      - `poster_key`
+      - `title`
+      - `summary`
+      - `generated_at`
+      - `retained_at`
+- retained comparison state is stored separately in session storage under a dedicated comparison-only key
+- retained comparison state is not read by request payload builders, Stage3 restore, or send logic
+
+### Exact overwrite behavior
+
+- clicking `保留当前海报` copies the current successful poster comparison snapshot into the retained slot
+- if a retained poster already exists, that slot is overwritten in place by the newly kept current poster
+- new successful generate updates `Current Poster` only and does not overwrite `Retained Poster`
+
+### Exact clear/remove behavior
+
+- clicking `取消保留` clears the retained slot only
+- current/latest success remains intact
+- full stale-runtime reset still clears retained comparison state, but ordinary pre-request invalidation does not
+
+### Files changed
+
+- `frontend/stage2.html`
+- `frontend/app.js`
+- `docs/stage2.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 operator-facing HTML comparison card UI
+- Stage2 frontend/docs runtime state and comparison-only persistence
+- branch execution/state log
+
+### Focused validation run
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror sync/static:
+  - `cmp -s frontend/stage2.html docs/stage2.html`
+  - `cmp -s frontend/app.js docs/app.js`
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused retained-poster checks:
+  - separate comparison-only session storage key added for Stage2 retained/current cards
+  - successful generate path updates current comparison slot via `applyVertexPosterResult(...)`
+  - retain action overwrites the single retained slot only
+  - remove action clears the retained slot only
+  - static check confirmed comparison storage is not referenced inside `buildGeneratePosterPayload(...)`
+  - static check confirmed comparison storage is not referenced inside Stage3 hydrate/send code
+
+### Remaining risks
+
+- no browser automation or screenshot harness was run in this pass, so requested before/after screenshots were not captured in this workspace
+- the visible comparison cards restore their lightweight card state after reload, but the large primary preview surface still follows the existing active-success hydration behavior rather than a new retained-card restore path
+- the legacy hidden `history` field remains in state for compatibility, but it is no longer used to render operator-facing comparison UI
+
+### Exact acceptance state
+
+- Stage2 supports one retained comparison poster only
+- Current Poster remains the only active truth source for Stage2 to Stage3 flow
+- Retained Poster is clearly labeled comparison-only
+- retain / overwrite / remove behavior is simple and predictable
+- new successful generate updates Current Poster only
+- Retained Poster does not participate in generate payload construction
+- Retained Poster does not participate in Stage3 send truth
+- frontend/docs mirror is aligned
+- branch execution log is updated
+- acceptance target for PR-COMP1 is met
+
 ## Entry — PR-UI1: operator UI simplification and debug de-emphasis
 
 **Branch:** `main`
