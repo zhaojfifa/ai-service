@@ -2144,7 +2144,10 @@ def _resolve_bottom_layout_policies(
     # title_gallery_split and text_gallery_expanded share identical layout policies.
     if bottom_mode == "title_gallery_split":
         bottom_mode = "text_gallery_expanded"
-    title_band_top = bottom_shell_top
+    bottom_frame_top = bottom_shell_top
+    bottom_frame_height = _CANVAS_H - bottom_frame_top
+    bottom_content_top = bottom_frame_top
+    title_band_top = bottom_content_top
     title_content_pad_left = 40
     title_content_pad_right = 40
 
@@ -2239,10 +2242,10 @@ def _resolve_bottom_layout_policies(
         # PR-9C: apply min_bottom_clearance so dense copy (240px band) doesn't graze canvas edge.
         # Without this, dense case gives only 28px clearance (band bottom=996, canvas=1024).
         _BOTTOM_MIN_CLEARANCE = 40  # minimum px between band bottom and canvas bottom
-        _bottom_zone_h = _CANVAS_H - bottom_shell_top
-        _centered_top = bottom_shell_top + (_bottom_zone_h - title_band_height) // 2
+        _bottom_zone_h = bottom_frame_height
+        _centered_top = bottom_content_top + (_bottom_zone_h - title_band_height) // 2
         _max_top = _CANVAS_H - _BOTTOM_MIN_CLEARANCE - title_band_height
-        title_band_top = min(_centered_top, max(_max_top, bottom_shell_top + 16))
+        title_band_top = min(_centered_top, max(_max_top, bottom_content_top + 16))
         title_content_top = title_band_top
         title_content_height = title_band_height
     elif bottom_mode == "text_gallery_expanded":
@@ -2499,8 +2502,8 @@ def _resolve_bottom_layout_policies(
     # The old hardcoded 888 was a legacy placeholder that placed items outside the shell.
     gallery_shell_top = (
         title_band_top + title_band_height + peer_gap
-        if gallery_strip_rendered and title_slot_rendered
-        else (title_band_top + peer_gap if gallery_strip_rendered else title_band_top + title_band_height)
+        if gallery_strip_rendered
+        else title_band_top + title_band_height
     )
     (
         gallery_strip_shift_policy,
@@ -2604,6 +2607,9 @@ def _resolve_bottom_layout_policies(
         {
             "bottom_shell_top": bottom_shell_top,
             "bottom_shell_height": bottom_shell_height,
+            "bottom_frame_top": bottom_frame_top,
+            "bottom_frame_height": bottom_frame_height,
+            "bottom_content_top": bottom_content_top,
             "title_band_top": title_band_top,
             "title_band_height": title_band_height,
             "title_content_top": title_content_top,
@@ -2759,7 +2765,7 @@ def _resolve_bottom_peer_gap(
     if visible_item_count <= 0:
         return 0
     if bottom_layout_mode == "gallery_only_expanded":
-        return 20
+        return 0
     if bottom_mode == "text_gallery_expanded":
         return 18 if commercial_fryer_variant and peer_balance_policy == "family_a_fryer_detail_row_balance" else 0
     if bottom_mode != "title_gallery_split":
@@ -2943,19 +2949,9 @@ def _resolve_bottom_shell_height(
     gallery_shell_top: int,
     gallery_shell_height: int,
 ) -> int:
-    if bottom_mode == "gallery_only":
-        return max(gallery_shell_top + gallery_shell_height - bottom_shell_top + 20, gallery_shell_height)
-    if bottom_mode == "text_only_expanded":
-        # PR-8C: shell fills full bottom zone to canvas bottom; title band is centered within.
-        return _CANVAS_H - bottom_shell_top
-    bottom_edges: list[int] = []
-    if title_slot_rendered:
-        bottom_edges.append(title_band_top + title_band_height)
-    if gallery_strip_rendered:
-        bottom_edges.append(gallery_shell_top + gallery_shell_height)
-    if not bottom_edges:
-        return 0
-    return max(bottom_edges) - bottom_shell_top + 20  # PR-8C: 20px bottom breathing room below gallery
+    # Family A bottom modes now share one outer frame from bottom_shell_top to canvas bottom.
+    # Modes vary only the internal title/gallery allocation inside that frame.
+    return _CANVAS_H - bottom_shell_top
 
 
 def _resolve_bottom_behavior_vars(policy: ResolvedBottomBehavior) -> dict[str, str]:

@@ -1528,6 +1528,7 @@ class TestStructuredScenarioLayer:
                 "product": "data:image/png;base64,abc",
                 "gallery": ["data:image/png;base64,g1", "data:image/png;base64,g2"],
             },
+            gallery_items_status=[{}, {}],
             slot_spec=slot_spec,
             anchor_map=anchor_map,
             spec=template,
@@ -2269,6 +2270,7 @@ class TestBottomSplitBehavior:
                 "product": "data:image/png;base64,abc",
                 "gallery": gallery,
             },
+            gallery_items_status=[{} for _ in gallery],
             slot_spec=slot_spec,
             anchor_map=anchor_map,
             spec=template,
@@ -2372,8 +2374,8 @@ class TestBottomSplitBehavior:
         ).read_text(encoding="utf-8")
 
         assert "--bottom-shell-top: 728px;" in css_template
-        assert "--bottom-shell-height: 232px;" in css_template
-        assert "--gallery-items-top: 896px;" in css_template
+        assert "--bottom-shell-height: 296px;" in css_template
+        assert "--gallery-items-top: 746px;" in css_template
         assert ".layer-bottom-region.state-title-only {" in css_template
         assert ".layer-bottom-region.state-gallery-only {" in css_template
         assert ".layer-bottom-region.state-title-gallery {" in css_template

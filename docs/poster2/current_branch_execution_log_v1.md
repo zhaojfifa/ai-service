@@ -1,5 +1,140 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-BOTTOM-UF1: Family A unified bottom frame abstraction
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-14`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/stage2.html`
+- `frontend/app.js`
+- `frontend/stage2_request_helpers.js`
+- then only the minimum Family A bottom renderer/layout files needed to change the abstraction:
+  - `app/services/poster2/template_behavior.py`
+  - `app/templates_html/template_dual_v2.css`
+  - focused bottom validation tests
+
+### Scope
+
+- PR-BOTTOM-UF1 only
+- Family A bottom abstraction only
+- unify the outer bottom frame across:
+  - `text_only_expanded`
+  - `title_gallery_split`
+  - `gallery_only`
+- let `gallery_only` reclaim collapsed title-band space inside the shared frame
+- keep request/routing/runtime truth unchanged
+- keep hero/header/product ownership unchanged
+- update branch execution log before stop
+
+### Root rules followed
+
+- contract-first
+- keep work on the requested layer
+- behavior before beautification
+- renderer consumes bottom behavior; renderer does not redefine bottom truth
+- no request truth, routing truth, or Stage3 send truth changes
+
+### Problem reproduced
+
+- Family A `gallery_only` already collapsed `title_band_region`, but the gallery shell still started lower inside the bottom area
+- the runtime evidence shape was:
+  - `bottom_shell_top = 728`
+  - `title_band_height = 0`
+  - `gallery_shell_top = 748`
+- this left an unclaimed void where the title band had collapsed, so the whole bottom composition felt visually sunk relative to the other Family A bottom modes
+
+### Root cause found
+
+- the bottom abstraction was only partially unified:
+  - `bottom_shell_top` was already stable at `728`
+  - but `bottom_shell_height` still changed by mode
+  - and `gallery_only_expanded` still reserved a `peer_gap = 20` even when the title band had collapsed to `0`
+- CSS fallback state also still contained a gallery-only-specific lower shell override, which reinforced the lower-feeling composition
+
+### Abstraction changed
+
+- Family A now uses one shared outer bottom frame from `bottom_shell_top` to canvas bottom for the requested three modes
+- added a shared internal bottom content anchor at the frame top
+- `text_only_expanded` keeps its centered text-band allocation inside that shared frame
+- `title_gallery_split` keeps its split allocation inside that shared frame
+- `gallery_only` now allocates the collapsed title-band space back to gallery content inside that same frame
+
+### Why this is a unified frame fix, not a gallery_only patch
+
+- the fix did not hardcode a one-off gallery-only top offset
+- instead it changed the bottom abstraction so the outer frame height is shared and mode switching changes only internal allocation
+- `gallery_only` reclaims space by removing the peer gap that only made sense when a title band occupied that upper region
+- the frame anchor and frame height stay stable while title/gallery internals vary by mode
+
+### Exact files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `tests/poster2/test_renderer.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Family A bottom behavior resolver
+- Family A template CSS fallback state
+- focused bottom validation/tests
+- branch execution/state log
+
+### Focused validation run
+
+- focused backend validation:
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k "gallery_only_gallery_shell_top_uses_bounded_peer_gap or gallery_only_gallery_items_render_inside_bottom_shell or gallery_only_fryer_dense_quad_uses_expanded_visual_feature_row or toe_shell_height_equals_title_band_height or toe_title_band_equals_shell_for_all_sub_cases or toe_shell_height_equals_title_band_compact or toe_shell_height_equals_title_band_short_subtitle or toe_shell_height_equals_title_band_moderate_subtitle or toe_shell_height_equals_title_band_dense_subtitle or toe_no_dead_canvas_below_text_band or toe_layout_metrics_consistent_all_sub_cases or test_shell_height_equals_title_band_height or test_shell_does_not_overshoot_title_band or test_title_band_height_equals_shell_height_and_content_proportionate or test_css_vars_emit_correct_shell_geometry"` → `15 passed`
+- focused HTML/CSS validation:
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k "test_template_css_exposes_independent_bottom_split_state_tokens or test_bottom_split_gallery_only_hides_title_band_and_keeps_gallery_strip or test_text_only_expanded_html_keeps_full_width_text_layer_vars or test_text_only_expanded_html_keeps_subtitle_visible_while_gallery_stays_collapsed or test_template_html_hides_title_band_when_gallery_only or test_bottom_split_title_and_gallery_show_both_regions"` → `6 passed`
+- direct structural metric comparison across the three target modes:
+  - `text_only_expanded`
+    - `bottom_shell_top=728`
+    - `bottom_shell_height=296`
+    - `title_band_top=788`
+    - `title_band_height=176`
+    - `gallery_shell_top=964`
+    - `gallery_shell_height=0`
+    - `gallery_items_top=964`
+  - `title_gallery_split`
+    - `bottom_shell_top=728`
+    - `bottom_shell_height=296`
+    - `title_band_top=728`
+    - `title_band_height=168`
+    - `gallery_shell_top=896`
+    - `gallery_shell_height=100`
+    - `gallery_items_top=906`
+  - `gallery_only`
+    - `bottom_shell_top=728`
+    - `bottom_shell_height=296`
+    - `title_band_top=728`
+    - `title_band_height=0`
+    - `gallery_shell_top=728`
+    - `gallery_shell_height=140`
+    - `gallery_items_top=746`
+
+### Acceptance state
+
+- outer bottom frame top is stable across all three requested modes
+- outer bottom frame height is stable across all three requested modes
+- `gallery_only` no longer preserves collapsed title-band void inside the frame
+- mode switching changes internal allocation, not outer frame identity
+- request/routing/runtime truth stayed unchanged
+- Stage2 bottom mode switching truth stayed unchanged
+- branch execution log is updated
+- PR-BOTTOM-UF1 acceptance target is met
+
+### Remaining risks
+
+- this pass validated structurally and via focused HTML/CSS tests, but it did not capture new screenshot evidence from a live browser session in this workspace
+- some older historical tests in `tests/poster2/test_pipeline.py` still describe pre-unified-shell assumptions outside the focused validation set and may need broader cleanup if that legacy suite is rebaselined around the shared-frame model
+
 ## Entry — PR-OP7: Stage2 generate guard and preflight diagnostics closure
 
 **Branch:** `main`
