@@ -1814,6 +1814,7 @@ function bindModeSBottomThumbnails(container, state, statusElement, refreshPrevi
   container.querySelectorAll('[data-slot-index]').forEach((slot) => {
     const index = Number(slot.dataset.slotIndex || 0);
     const fileInput = slot.querySelector('input[type="file"]');
+    const generateButton = slot.querySelector(`[data-bottom-generate="${index}"]`);
     const clearButton = slot.querySelector(`[data-bottom-clear="${index}"]`);
 
     if (fileInput) {
@@ -1836,6 +1837,86 @@ function bindModeSBottomThumbnails(container, state, statusElement, refreshPrevi
       });
     }
 
+    if (generateButton) {
+      generateButton.addEventListener('click', async () => {
+        const posterForm = document.getElementById('poster-form');
+        const stage1Snapshot = posterForm
+          ? collectStage1Data(posterForm, state, { strict: false })
+          : null;
+        if (!pickImageSrc(state.productImage1 || stage1Snapshot?.product_image_1 || null)) {
+          setStatus(statusElement, '请先上传主产品图，再为底部槽位生成 AI 辅助图。', 'warning');
+          return;
+        }
+
+        const apiCandidates = getApiCandidates(apiBaseInput?.value || null);
+        if (!apiCandidates.length) {
+          setStatus(statusElement, '请先配置可用的后端 API Base，再生成底部槽位 AI 辅助图。', 'warning');
+          return;
+        }
+
+        const prompt = buildModeSBottomSlotHelperPrompt(stage1Snapshot || {}, state, index);
+        generateButton.disabled = true;
+        generateButton.textContent = '生成中...';
+        setStatus(statusElement, `正在为底部槽位 ${index + 1} 生成 AI 辅助图…`, 'info');
+
+        try {
+          const response = await postJsonWithRetry(
+            apiCandidates,
+            '/api/imagen/generate',
+            {
+              prompt,
+              width: 560,
+              height: 320,
+              variants: 1,
+              add_watermark: false,
+            },
+            1
+          );
+
+          const nextAsset = buildGeneratedAssetFromUrl(
+            response?.url || response?.results?.[0]?.url || null,
+            response?.key || response?.results?.[0]?.key || null
+          );
+          if (!nextAsset) {
+            throw new Error('底部槽位 AI 辅助图生成成功，但未返回可用图片地址。');
+          }
+
+          const existing = state.galleryEntries[index] || { id: createId(), caption: '' };
+          const hasExistingAsset = Boolean(pickImageSrc(existing.asset || null));
+          const shouldReplace = !hasExistingAsset || window.confirm(`底部槽位 ${index + 1} 已生成候选辅助图。是否替换当前图片？`);
+          if (!shouldReplace) {
+            setStatus(statusElement, `已生成底部槽位 ${index + 1} 的候选辅助图；当前图片保持不变。`, 'info');
+            return;
+          }
+
+          if (existing.asset) {
+            await deleteStoredAsset(existing.asset);
+          }
+          state.galleryEntries[index] = {
+            ...existing,
+            asset: nextAsset,
+            mode: 'upload',
+            prompt: null,
+          };
+          state.previewBuilt = false;
+          updateBottomThumbnailsUi(container, state);
+          refreshPreview?.();
+          setStatus(statusElement, `底部槽位 ${index + 1} AI 辅助图已写回当前槽位。`, 'success');
+        } catch (error) {
+          console.error(`[bottom slot ${index}] generate failed`, error);
+          const detail = error?.responseJson?.detail || error?.responseJson;
+          const quotaExceeded = error?.status === 429 && detail?.error === 'vertex_quota_exceeded';
+          const message = quotaExceeded
+            ? '图像生成配额已用尽，请稍后再试，或先上传现有素材。'
+            : error?.message || `底部槽位 ${index + 1} AI 辅助图生成失败。`;
+          setStatus(statusElement, message, 'error');
+        } finally {
+          generateButton.disabled = false;
+          generateButton.textContent = 'AI Generate';
+        }
+      });
+    }
+
     if (clearButton) {
       clearButton.addEventListener('click', async () => {
         const entry = state.galleryEntries[index];
@@ -1849,6 +1930,74 @@ function bindModeSBottomThumbnails(container, state, statusElement, refreshPrevi
       });
     }
   });
+}
+
+const MODE_S_BOTTOM_SLOT_INTENTS = [
+  'detail close-up',
+  'alternate angle',
+  'structural detail',
+  'supporting product view',
+];
+
+function classifyModeSBottomProductContext(payload) {
+  const reference = [
+    collapseSuggestionWhitespace(payload?.product_name || ''),
+    collapseSuggestionWhitespace(payload?.agent_name || ''),
+    collapseSuggestionWhitespace(payload?.title || ''),
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  if (/(fryer|deep fry|deep-fry|countertop fryer|electric fryer)/.test(reference)) {
+    return {
+      category: 'commercial electric fryer',
+      details: [
+        'stainless steel housing',
+        'fryer basket',
+        'control area',
+        'tank edge',
+      ],
+    };
+  }
+
+  return {
+    category: collapseSuggestionWhitespace(payload?.product_name || 'commercial product'),
+    details: [
+      'product edge detail',
+      'surface material',
+      'structural component',
+      'supporting view',
+    ],
+  };
+}
+
+function buildModeSBottomSlotHelperPrompt(stage1Data, state, index) {
+  const slotIntent = MODE_S_BOTTOM_SLOT_INTENTS[index] || 'supporting product view';
+  const productContext = classifyModeSBottomProductContext(stage1Data);
+  const brandName = collapseSuggestionWhitespace(stage1Data?.brand_name || '');
+  const productName = collapseSuggestionWhitespace(
+    stage1Data?.product_name || stage1Data?.title || stage1Data?.agent_name || productContext.category
+  );
+  const secondaryAvailable = Boolean(pickImageSrc(state?.productImage2 || stage1Data?.product_image_2 || null));
+  const identityLine = [brandName, productName].filter(Boolean).join(' | ');
+
+  return [
+    `Create one bottom-gallery helper image for slot ${index + 1}.`,
+    `Primary intent: ${slotIntent}.`,
+    'Use only the uploaded primary product image as the required product reference.',
+    secondaryAvailable
+      ? 'You may use the uploaded secondary product image as an optional supporting reference, but do not use any other asset.'
+      : 'No secondary product image reference is available; stay anchored only to the primary product image.',
+    'Do not use or infer from scenario images, poster backgrounds, logos, or unrelated assets.',
+    identityLine
+      ? `Keep the helper image faithful to this product identity: ${identityLine}.`
+      : 'Keep the helper image faithful to the uploaded product only.',
+    `Product category anchor: ${productContext.category}.`,
+    `Prefer details such as: ${productContext.details.join(', ')}.`,
+    'Target output: landscape helper view suitable for a wide bottom gallery tile.',
+    'Target size guidance: generate for about 560x320 and compose safely for a small bottom slot crop.',
+    'Keep product-centered framing with a neutral clean background and clear object silhouette.',
+    'Show an alternate product angle, close-up, structural/component detail, or supporting product view only.',
+    'No scene image, no lifestyle setup, no text, no logo, no watermark, no labels, no unrelated objects, no creative poster composition.',
+  ].join(' ');
 }
 
 function bindModeSOptionalAsset(

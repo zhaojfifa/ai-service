@@ -1,5 +1,158 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-AI-BOTTOM1: Slot-level bottom helper-image AI generation
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-15`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+- then only the minimum existing bottom-slot rendering and Stage1 slot-action sections inside those same files
+
+### Scope
+
+- PR-AI-BOTTOM1 only
+- Stage1 bottom-slot enhancement only
+- add slot-level `AI Generate` to the existing 4 bottom image slots
+- keep production behavior unchanged:
+  - generate truth
+  - save/send truth
+  - renderer behavior
+  - backend API behavior
+  - Stage2 / Stage3 behavior
+  - bottom contract
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- no extra bottom-AI panel or workflow step
+- keep the 4 existing bottom slots as the only AI entry points
+- no production generate/send/backend truth change
+- `frontend/` and `docs/` were kept aligned in the same task
+
+### Problem reproduced
+
+- the 4 existing bottom slots only exposed upload/replace and clear actions
+- there was no slot-level AI helper-image generation path in the active Stage1 bottom-slot UI
+- adding bottom helper-image AI risked becoming a separate workflow unless it stayed attached directly to each slot
+
+### Root cause found
+
+- the current Mode S bottom-slot binder handled file upload and clear actions only
+- existing Stage1 bottom-slot markup did not surface a slot-level AI action
+- no slot-specific product-helper prompt builder existed for the bottom gallery use case
+
+### Exact slot-level AI Generate behavior
+
+- added one `AI Generate` action to each of the 4 existing bottom slots
+- the current bottom UI structure remains unchanged:
+  - upload / replace
+  - AI Generate
+  - clear
+- each slot now uses a slot-specific default helper-view intent:
+  - slot 1: `detail close-up`
+  - slot 2: `alternate angle`
+  - slot 3: `structural detail`
+  - slot 4: `supporting product view`
+- if the slot is empty:
+  - generated helper image is written directly into that slot
+- if the slot already has an image:
+  - generation creates a slot-scoped candidate replacement
+  - operator confirmation is required before replacing the current slot image
+  - declining the confirmation keeps the current slot image unchanged
+- no new bottom-AI region, panel, or workflow step was introduced
+
+### Exact product-reference constraints
+
+- bottom-slot AI prompt generation is constrained to product imagery only
+- prompt guidance explicitly anchors generation to:
+  - primary product image as required reference
+  - secondary product image only as optional supporting reference
+- prompt guidance explicitly excludes:
+  - scenario image
+  - poster background
+  - logos
+  - unrelated assets / unrelated objects
+- the helper output is constrained to product-useful views only:
+  - alternate product angle
+  - detail close-up
+  - structural/component detail
+  - supporting product view
+
+### Exact size/aspect constraints
+
+- each slot-level AI request now includes explicit bottom-gallery fit guidance
+- prompt guidance specifies:
+  - landscape helper view
+  - suitable for a wide bottom gallery tile
+  - target generation around `560x320`
+  - compose safely for a small bottom-slot crop
+  - neutral clean background
+  - product-centered framing
+  - no text
+  - no logo
+  - no scene/lifestyle composition
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 bottom-slot frontend interaction only
+- slot-level bottom helper-image prompt construction only
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- source-level verification:
+  - verified all 4 bottom slots now show `AI Generate`
+  - verified slot-level prompt guidance references product imagery only and explicitly excludes scenario imagery
+  - verified slot-level prompt guidance includes bottom-slot size/aspect framing constraints
+  - verified no new bottom-AI panel or workflow section was introduced
+  - verified no Stage2 / Stage3 or production generate/send flow logic was changed
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with syntax, mirror checks, and source inspection only; no browser screenshot run was performed in this workspace
+- the existing image-generation endpoint is still prompt-driven, so product-reference enforcement in this pass is done through constrained prompt construction rather than image-conditioned backend changes
+- when an occupied slot generates a candidate and the operator declines replacement, the generated remote asset is not surfaced elsewhere in UI in this pass; the current slot simply remains unchanged
+
+### Acceptance state
+
+- all 4 existing bottom slots now expose `AI Generate`
+- slot-level AI helper generation stays inside the existing slot UI
+- product-only reference constraints and bottom-slot size/aspect guidance are applied
+- no extra bottom-AI section was introduced
+- no production truth changed
+- frontend/docs mirror remains aligned
+- branch execution log updated
+- PR-AI-BOTTOM1 acceptance target met
+
+### One-line execution summary
+
+- PR-AI-BOTTOM1 added `AI Generate` to each of the 4 existing bottom slots, constrained generation to product-based helper views with bottom-slot size guidance, kept the current slot UI/workflow intact, and preserved all production truth.
+
 ## Entry — PR-AI-COPY2: Copy-spine hierarchy clarification and de-escalation pass
 
 **Branch:** `main`
