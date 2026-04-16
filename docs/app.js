@@ -895,8 +895,32 @@ function buildTemplateBStage2State(stage1Data) {
   };
 }
 
-function renderTemplateBStage2Summary(stage1Data) {
+function buildTemplateBStage2ReviewState(stage1Data) {
   const summary = buildTemplateBStage2State(stage1Data);
+  const descriptionReady = Boolean(summary.description_title || summary.description_body);
+  return {
+    ...summary,
+    description_state: descriptionReady ? 'description panel ready' : 'description panel optional',
+    review_summary: [
+      summary.sku_text ? `SKU ${summary.sku_text}` : 'SKU optional',
+      `${summary.materials_count} material item(s)`,
+      summary.primary_product_state,
+      summary.secondary_product_state,
+      descriptionReady ? 'description ready' : 'description optional',
+    ].join(' | '),
+  };
+}
+
+function buildTemplateBStage2ResultCopy(stage1Data) {
+  const review = buildTemplateBStage2ReviewState(stage1Data);
+  return {
+    title: review.title || review.sku_text || 'Product sheet',
+    summary: review.review_summary,
+  };
+}
+
+function renderTemplateBStage2Summary(stage1Data) {
+  const summary = buildTemplateBStage2ReviewState(stage1Data);
   const setValue = (id, value, fallback = '—') => {
     const el = document.getElementById(id);
     if (el) el.value = value || fallback;
@@ -909,12 +933,26 @@ function renderTemplateBStage2Summary(stage1Data) {
   setValue('s2-b-materials-state', summary.materials_state);
   setValue(
     's2-b-image-state',
-    `${summary.primary_product_state}; ${summary.secondary_product_state}`
+    `${summary.primary_product_state}; ${summary.secondary_product_state}; ${summary.description_state}`
   );
+}
+
+function applyStage2TemplateFamilyCopy(stage1Data) {
+  const isTemplateB = isTemplateBStage1Data(stage1Data);
+  const setText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+  setText('s2-generated-content-title', isTemplateB ? 'Product Sheet Review' : '生成内容');
+  setText('s2-comparison-panel-title', isTemplateB ? '当前产品页 / 已保存产品页' : '当前海报 / 已保存海报');
+  setText('stage2-current-poster-card-label', isTemplateB ? '当前产品页' : '当前海报');
+  setText('stage2-saved-poster-card-label', isTemplateB ? '已保存产品页' : '已保存海报');
+  setText('s2-flow-url-note', isTemplateB ? '生成后可保存产品页并继续分享。' : '生成后可复制链接或继续发送。');
 }
 
 function applyStage2TemplateFamilyVisibility(stage1Data) {
   const isTemplateB = isTemplateBStage1Data(stage1Data);
+  applyStage2TemplateFamilyCopy(stage1Data);
 
   // Bottom Region panel (gallery/mode controls) — Family A only
   const bottomPanel = document.getElementById('s2-bottom-region-panel');
@@ -4956,20 +4994,56 @@ function initStage1ModeS() {
       const v = el.dataset.variantVisible;
       el.hidden = v !== 'all' && v !== variant;
     });
+    syncTemplateBStage1FieldLayout(variant);
+  }
+
+  function moveStage1BlockToAnchor(block, anchor) {
+    if (!block || !anchor || anchor.contains(block)) return;
+    anchor.parentNode.insertBefore(block, anchor.nextSibling);
+  }
+
+  function syncTemplateBStage1FieldLayout(variant) {
+    const titleBlock = document.getElementById('stage1-title-block');
+    const subtitleBlock = document.getElementById('stage1-subtitle-block');
+    const titleAnchorA = document.getElementById('stage1-a-title-anchor');
+    const titleAnchorB = document.getElementById('stage1-b-title-anchor');
+    const subtitleAnchorA = document.getElementById('stage1-a-subtitle-anchor');
+    const subtitleAnchorB = document.getElementById('stage1-b-subtitle-anchor');
+    if (variant === 'b') {
+      moveStage1BlockToAnchor(titleBlock, titleAnchorB);
+      moveStage1BlockToAnchor(subtitleBlock, subtitleAnchorB);
+      return;
+    }
+    moveStage1BlockToAnchor(titleBlock, titleAnchorA);
+    moveStage1BlockToAnchor(subtitleBlock, subtitleAnchorA);
   }
 
   function updateStage1TemplateVariantLabels(variant) {
     const subtitleLabel = document.getElementById('stage1-subtitle-label');
     const subtitleHint = document.getElementById('stage1-subtitle-hint');
+    const brandHint = document.getElementById('stage1-brand-hint');
+    const agentNameLabel = document.getElementById('stage1-agent-name-label');
     const coreAssetsLegend = document.getElementById('stage1-core-assets-legend');
+    const productSectionHint = document.getElementById('stage1-product-section-hint');
     const product1Label = document.getElementById('stage1-product1-label');
     const product1Hint = document.getElementById('stage1-product1-hint');
     const product2Label = document.getElementById('stage1-product2-label');
     const product2Hint = document.getElementById('stage1-product2-hint');
+    const productDescField = document.getElementById('stage1-product-desc-field');
     const productDescLabel = document.getElementById('stage1-product-desc-label');
     const materialsLabel = document.getElementById('stage1-materials-label');
     const materialsHint = document.getElementById('stage1-materials-hint');
     const secondaryClearButton = document.querySelector('[data-secondary-image-clear]');
+    if (brandHint) {
+      brandHint.textContent = variant === 'b'
+        ? '填写产品页使用的 Logo、品牌名和产品线名。'
+        : '填写品牌识别信息与系列名。';
+    }
+    if (agentNameLabel) {
+      agentNameLabel.textContent = variant === 'b'
+        ? '产品线 / 系列名（选填）'
+        : '系列名（选填）';
+    }
     if (subtitleLabel) {
       subtitleLabel.textContent = variant === 'b'
         ? '副标题 / 次级标题（选填）'
@@ -4981,38 +5055,46 @@ function initStage1ModeS() {
         : '用于底部辅助说明。';
     }
     if (coreAssetsLegend) {
-      coreAssetsLegend.textContent = '主产品';
+      coreAssetsLegend.textContent = variant === 'b' ? '产品图片' : '主产品';
+    }
+    if (productSectionHint) {
+      productSectionHint.textContent = variant === 'b'
+        ? '先放主产品图，再补充次级产品图或细节补充图。'
+        : '上传主图并填写英文标题。';
     }
     if (product1Label) {
-      product1Label.textContent = variant === 'b' ? '主产品图（必填）' : '主产品图（必填）';
+      product1Label.textContent = variant === 'b' ? '主产品图 / Hero SKU（必填）' : '主产品图（必填）';
     }
     if (product1Hint) {
       product1Hint.textContent = variant === 'b'
-        ? '建议使用清晰产品图。'
+        ? '用于主要 SKU 展示，建议正面或主角度清晰产品图。'
         : '建议使用清晰产品图。';
     }
     if (product2Label) {
-      product2Label.textContent = variant === 'b' ? '辅助产品图（选填）' : '辅助产品图（选填）';
+      product2Label.textContent = variant === 'b' ? '副产品图 / 细节补充（选填）' : '辅助产品图（选填）';
     }
     if (product2Hint) {
       product2Hint.textContent = variant === 'b'
-        ? '可补充第二角度或细节。'
+        ? '可补充第二角度、结构细节或包装补充。'
         : '可补充第二角度或细节。';
     }
     if (secondaryClearButton) {
-      secondaryClearButton.textContent = '清空辅助图';
+      secondaryClearButton.textContent = variant === 'b' ? '清空次级产品图' : '清空辅助图';
+    }
+    if (productDescField) {
+      productDescField.hidden = variant === 'b';
     }
     if (productDescLabel) {
-      productDescLabel.textContent = '产品识别行';
+      productDescLabel.textContent = variant === 'b' ? '产品识别行' : '产品识别行';
     }
     if (materialsLabel) {
       materialsLabel.innerHTML = variant === 'b'
-        ? '配件 / 刀头 / 材质辅图 <span class="optional">(选填，最多 5 张)</span>'
+        ? '材料 / 细节证据条 <span class="optional">(选填，最多 5 张)</span>'
         : '材质 / 配料图片 <span class="optional">(选填，最多 5 张)</span>';
     }
     if (materialsHint) {
       materialsHint.textContent = variant === 'b'
-        ? '这些素材作为产品主图下方的辅助证据条，不是第二主视觉。'
+        ? '这些素材用于产品页材料条或细节条，不作为第二主视觉。'
         : '产品材质、配料或细节图，显示在产品主图下方的缩略图条。';
     }
   }
@@ -7686,6 +7768,8 @@ function normaliseStage2PosterSelectionSnapshot(snapshot) {
   const posterKey = typeof snapshot.poster_key === 'string' ? snapshot.poster_key.trim() : '';
   const title = collapseSuggestionWhitespace(snapshot.title || '');
   const summary = collapseSuggestionWhitespace(snapshot.summary || '');
+  const templateId = collapseSuggestionWhitespace(snapshot.template_id || snapshot.templateId || '');
+  const templateFamily = collapseSuggestionWhitespace(snapshot.template_family || snapshot.templateFamily || '');
   const generatedAt =
     Number.isFinite(Number(snapshot.generated_at)) && Number(snapshot.generated_at) > 0
       ? Number(snapshot.generated_at)
@@ -7701,6 +7785,8 @@ function normaliseStage2PosterSelectionSnapshot(snapshot) {
     poster_key: posterKey || null,
     title: title || '',
     summary: summary || '',
+    template_id: templateId || null,
+    template_family: templateFamily || (isTemplateBTemplateId(templateId) ? 'b' : 'a'),
     generated_at: generatedAt,
     saved_at: savedAt,
   };
@@ -7764,30 +7850,35 @@ function clearStage2SavedPosterSnapshot() {
 function buildStage2PosterSelectionSnapshotFromGeneration(data) {
   const finalPoster = normaliseFinalPosterPayload(data);
   const finalUrl = extractVertexPosterUrl(data) || getPosterImageSource(finalPoster) || '';
+  const templateId = collapseSuggestionWhitespace(data?.template_id || lastStage1Data?.template_id || '');
+  const isTemplateB = isTemplateBTemplateId(templateId) || isTemplateBStage1Data(lastStage1Data);
   const posterKey =
     (typeof data?.poster_key === 'string' && data.poster_key.trim()) ||
     (typeof finalPoster?.key === 'string' && finalPoster.key.trim()) ||
     (typeof finalPoster?.storage_key === 'string' && finalPoster.storage_key.trim()) ||
     '';
   if (!finalUrl && !posterKey) return null;
+  const templateBResultCopy = isTemplateB ? buildTemplateBStage2ResultCopy(lastStage1Data || {}) : null;
   return normaliseStage2PosterSelectionSnapshot({
     preview_url: finalUrl,
     final_url: finalUrl,
     poster_key: posterKey,
-    title:
+    title: templateBResultCopy?.title ||
       data?.resolved_copy?.title ||
       data?.title ||
       stage2State.poster?.headline ||
       stage2State.poster?.title ||
       lastStage1Data?.title ||
       '',
-    summary:
+    summary: templateBResultCopy?.summary ||
       data?.resolved_copy?.subtitle ||
       data?.subtitle ||
       stage2State.poster?.tagline ||
       stage2State.poster?.subtitle ||
       lastStage1Data?.subtitle ||
       '',
+    template_id: templateId || null,
+    template_family: isTemplateB ? 'b' : 'a',
     generated_at: Date.now(),
   });
 }
@@ -7796,18 +7887,24 @@ function buildStage2PosterSelectionSnapshotFromStoredResult(stored) {
   if (!stored || typeof stored !== 'object') return null;
   const finalPoster = stored.final_poster || null;
   const finalUrl = getPosterImageSource(finalPoster) || finalPoster?.url || '';
+  const templateId = collapseSuggestionWhitespace(stored?.template_id || stored?.request_snapshot?.template_id || '');
+  const requestSnapshot = stored?.request_snapshot || {};
+  const isTemplateB = isTemplateBTemplateId(templateId) || isTemplateBStage1Data(requestSnapshot);
   const posterKey =
     (typeof stored?.poster_key === 'string' && stored.poster_key.trim()) ||
     (typeof finalPoster?.key === 'string' && finalPoster.key.trim()) ||
     (typeof finalPoster?.storage_key === 'string' && finalPoster.storage_key.trim()) ||
     '';
   if (!finalUrl && !posterKey) return null;
+  const templateBResultCopy = isTemplateB ? buildTemplateBStage2ResultCopy(requestSnapshot) : null;
   return normaliseStage2PosterSelectionSnapshot({
     preview_url: finalUrl,
     final_url: finalUrl,
     poster_key: posterKey,
-    title: stored?.poster?.headline || stored?.poster?.title || '',
-    summary: stored?.poster?.tagline || stored?.poster?.subtitle || '',
+    title: templateBResultCopy?.title || stored?.poster?.headline || stored?.poster?.title || '',
+    summary: templateBResultCopy?.summary || stored?.poster?.tagline || stored?.poster?.subtitle || '',
+    template_id: templateId || null,
+    template_family: isTemplateB ? 'b' : 'a',
   });
 }
 
@@ -9867,7 +9964,13 @@ function initStage2() {
           saved_at: Date.now(),
         });
         renderStage2PosterSelectionCards();
-        setStatus(statusElement, '已保存当前海报；该海报现在是唯一可发送对象。', 'success');
+        setStatus(
+          statusElement,
+          currentPoster?.template_family === 'b'
+            ? '已保存当前产品页；该产品页现在是唯一可分享对象。'
+            : '已保存当前海报；该海报现在是唯一可发送对象。',
+          'success'
+        );
       });
     }
 
@@ -9876,7 +9979,13 @@ function initStage2() {
         if (!getStage2SavedPosterSnapshot()) return;
         clearStage2SavedPosterSnapshot();
         renderStage2PosterSelectionCards();
-        setStatus(statusElement, '已取消保存海报；Stage3 发送已重新锁定。', 'info');
+        setStatus(
+          statusElement,
+          isTemplateBStage1Data(lastStage1Data)
+            ? '已取消保存产品页；Stage3 分享已重新锁定。'
+            : '已取消保存海报；Stage3 发送已重新锁定。',
+          'info'
+        );
       });
     }
 
@@ -10913,6 +11022,14 @@ function renderStage2PosterSelectionCards() {
   const nextButton = document.getElementById('to-stage3');
   const saveButton = document.getElementById('stage2-save-poster');
   const gateNote = document.getElementById('stage2-save-gate-note');
+  const currentCardLabel = document.getElementById('stage2-current-poster-card-label');
+  const savedCardLabel = document.getElementById('stage2-saved-poster-card-label');
+  const isTemplateB =
+    currentPoster?.template_family === 'b' ||
+    savedPoster?.template_family === 'b' ||
+    isTemplateBStage1Data(lastStage1Data);
+  if (currentCardLabel) currentCardLabel.textContent = isTemplateB ? '当前产品页' : '当前海报';
+  if (savedCardLabel) savedCardLabel.textContent = isTemplateB ? '已保存产品页' : '已保存海报';
   const bindCard = (prefix, snapshot, options = {}) => {
     const {
       emptyText = '暂无海报',
@@ -10972,12 +11089,12 @@ function renderStage2PosterSelectionCards() {
   };
 
   bindCard('stage2-current-poster', currentPoster, {
-    emptyText: '生成成功后可保存为发送对象。',
+    emptyText: isTemplateB ? '生成成功后可保存为分享对象。' : '生成成功后可保存为发送对象。',
     timeLabel: '生成时间',
   });
   bindCard('stage2-saved-poster', savedPoster, {
-    emptyText: '当前未保存海报。',
-    noteText: savedPoster ? '发送对象' : '',
+    emptyText: isTemplateB ? '当前未保存产品页。' : '当前未保存海报。',
+    noteText: savedPoster ? (isTemplateB ? '分享对象' : '发送对象') : '',
     timeLabel: '保存时间',
   });
 
@@ -10985,8 +11102,12 @@ function renderStage2PosterSelectionCards() {
   if (saveButton) saveButton.disabled = !currentPoster?.poster_key;
   if (gateNote) {
     gateNote.textContent = savedPoster?.poster_key
-      ? '已保存海报可发送；如需更换发送对象，请先生成再点击保存。'
-      : '当前结果仅用于预览；请先点击保存，再进入环节 3 发送。';
+      ? (isTemplateB
+        ? '已保存产品页可继续分享；如需更换分享对象，请先生成再点击保存。'
+        : '已保存海报可发送；如需更换发送对象，请先生成再点击保存。')
+      : (isTemplateB
+        ? '当前结果仅用于审核；请先点击保存，再进入环节 3 分享。'
+        : '当前结果仅用于预览；请先点击保存，再进入环节 3 发送。');
   }
 }
 
@@ -10994,6 +11115,10 @@ function renderStage2PosterSelectionCards() {
 function renderPosterResult() {
   const root = document.getElementById('poster-result');
   if (!root) return;
+  if (isTemplateBStage1Data(lastStage1Data)) {
+    renderTemplateBPosterResult(root);
+    return;
+  }
 
   const { poster, assets } = stage2State;
   const fallbackWarning = document.getElementById('asset-fallback-warning');
@@ -11127,6 +11252,42 @@ function renderPosterResult() {
       );
     });
   }
+}
+
+function renderTemplateBPosterResult(root) {
+  const fallbackWarning = document.getElementById('asset-fallback-warning');
+  if (fallbackWarning) {
+    fallbackWarning.textContent = '';
+    fallbackWarning.classList.add('hidden');
+  }
+  if (!root) return;
+  root.dataset.templateFamily = 'b';
+
+  const clearText = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '';
+  };
+  const clearImage = (id) => {
+    const el = document.getElementById(id);
+    if (el && el.tagName === 'IMG') {
+      el.removeAttribute('src');
+      el.style.display = 'none';
+    }
+  };
+  clearText('poster-result-brand-name');
+  clearText('poster-result-agent-name');
+  clearText('poster-result-title');
+  clearText('poster-result-subtitle');
+  clearImage('poster-result-brand-logo');
+  clearImage('poster-result-scenario-image');
+  clearImage('poster-result-product-image');
+  clearImage('poster-result-product-secondary-image');
+  const secondaryWrap = document.getElementById('poster-result-product-secondary-wrap');
+  if (secondaryWrap) secondaryWrap.classList.add('hidden');
+  const featureList = document.getElementById('poster-result-feature-list');
+  if (featureList) featureList.innerHTML = '';
+  const galleryEl = document.getElementById('poster-result-gallery');
+  if (galleryEl) galleryEl.innerHTML = '';
 }
 
 function updateGenerationMetaPanel(data) {
@@ -13012,7 +13173,32 @@ function buildStage3AdaptedText({ currentText, opening, bodyShort }) {
   return dedupeStage3Paragraphs([opening, bodyShort, ...retainedTail, ...existingParts]).join('\n\n');
 }
 
+function isTemplateBPosterRecord(posterRecord, stage1Data) {
+  return isTemplateBTemplateId(posterRecord?.template_id || posterRecord?.request_snapshot?.template_id || '')
+    || isTemplateBStage1Data(posterRecord?.request_snapshot)
+    || isTemplateBStage1Data(stage1Data);
+}
+
 function buildStage3SpineSummary(stage1Data, posterRecord) {
+  if (isTemplateBPosterRecord(posterRecord, stage1Data)) {
+    const requestSnapshot = posterRecord?.request_snapshot || stage1Data || {};
+    const materialsCount = normaliseTemplateBMaterials(requestSnapshot).length;
+    const parts = [
+      requestSnapshot.title || '',
+      requestSnapshot.subtitle ? 'subtitle ready' : '',
+      requestSnapshot.sku_text ? `SKU ${requestSnapshot.sku_text}` : '',
+      materialsCount ? `${materialsCount} material item(s)` : '',
+      requestSnapshot.product_image_2 ? 'secondary detail ready' : '',
+      requestSnapshot.description_title || requestSnapshot.description_body ? 'description panel ready' : '',
+    ].filter(Boolean);
+    return {
+      spine: null,
+      text: parts.length
+        ? `来源：Stage1 产品页输入 + 已保存产品页。当前产品页骨架：${parts.join(' ｜ ')}。`
+        : '来源：当前 Stage1 产品页输入 + 已保存产品页。若需补强 SKU、材料条或说明面板，请先返回 Stage1。'
+    };
+  }
+
   const spine = getStage1AcceptedCopySpine(stage1Data);
   const parts = [
     spine.accepted_title || posterRecord?.request_snapshot?.title || '',
@@ -13030,6 +13216,52 @@ function buildStage3SpineSummary(stage1Data, posterRecord) {
 }
 
 function buildStage3EmailAdaptationSuggestion({ stage1Data, posterRecord, backendDraft, currentValues }) {
+  if (isTemplateBPosterRecord(posterRecord, stage1Data)) {
+    const requestSnapshot = posterRecord?.request_snapshot || stage1Data || {};
+    const brandName = collapseSuggestionWhitespace(requestSnapshot.brand_name || 'Brand');
+    const title = collapseSuggestionWhitespace(requestSnapshot.title || 'Product Sheet');
+    const skuText = collapseSuggestionWhitespace(requestSnapshot.sku_text || '');
+    const subtitle = collapseSuggestionWhitespace(requestSnapshot.subtitle || '');
+    const description = collapseSuggestionWhitespace(
+      requestSnapshot.description_body || requestSnapshot.description_title || ''
+    );
+    const materialsCount = normaliseTemplateBMaterials(requestSnapshot).length;
+    const emailSubject = collapseSuggestionWhitespace(
+      backendDraft?.subject || `${brandName}: ${title}${skuText ? ` | ${skuText}` : ''}`
+    );
+    const emailOpening = collapseSuggestionWhitespace(
+      backendDraft?.preview_text
+        || `Share the product sheet for ${title}${skuText ? ` (${skuText})` : ''} with clear SKU and product-detail context.`
+    );
+    const emailBodyShort = collapseSuggestionWhitespace(
+      [
+        subtitle || null,
+        description || 'Review the saved product sheet with hero product, supporting detail, and materials strip coverage.',
+        materialsCount ? `Materials strip includes ${materialsCount} supporting image(s).` : null,
+      ].filter(Boolean).join(' ')
+    );
+    const text = buildStage3AdaptedText({
+      currentText: backendDraft?.text || currentValues.text || '',
+      opening: emailOpening,
+      bodyShort: emailBodyShort,
+    });
+    return {
+      generated_from: 'frontend_stage3_email_adaptation',
+      generated_at: new Date().toISOString(),
+      targets: {
+        email_subject: emailSubject,
+        email_opening: emailOpening,
+        email_body_short: emailBodyShort,
+      },
+      draft: {
+        subject: emailSubject,
+        preview_text: emailOpening,
+        text,
+        html: buildStage3EmailHtmlFromText(text),
+      },
+    };
+  }
+
   const { spine } = buildStage3SpineSummary(stage1Data, posterRecord);
   const brandName = collapseSuggestionWhitespace(
     posterRecord?.request_snapshot?.brand_name || stage1Data?.brand_name || 'Brand'
@@ -13091,10 +13323,19 @@ function renderStage3EmailAdaptationPanel(currentValues, suggestionState) {
   const accepted = suggestionState?.accepted || null;
   const hasLatest = Boolean(latest?.targets);
   const hasAccepted = Boolean(accepted?.targets);
-  summary.textContent = suggestionState?.spineSummary || 'Stage3 邮件适配将围绕已确认产品文案展开。';
+  const isTemplateB = suggestionState?.templateFamily === 'b';
+  summary.textContent = suggestionState?.spineSummary || (
+    isTemplateB
+      ? 'Stage3 邮件适配将围绕已确认产品页内容展开。'
+      : 'Stage3 邮件适配将围绕已确认产品文案展开。'
+  );
   status.textContent = hasLatest
-    ? '已生成邮件推广适配建议；可先接受，再同步到当前邮件字段。'
-    : '当前尚未生成邮件推广适配建议。';
+    ? (isTemplateB
+      ? '已生成产品页分享建议；可先接受，再同步到当前邮件字段。'
+      : '已生成邮件推广适配建议；可先接受，再同步到当前邮件字段。')
+    : (isTemplateB
+      ? '当前尚未生成产品页分享建议。'
+      : '当前尚未生成邮件推广适配建议。');
   actions.classList.remove('hidden');
   if (acceptButton) acceptButton.disabled = !hasLatest;
   if (applyButton) applyButton.disabled = !hasAccepted;
@@ -13125,7 +13366,9 @@ function renderStage3EmailAdaptationPanel(currentValues, suggestionState) {
   if (!hasLatest && !hasAccepted) {
     const empty = document.createElement('p');
     empty.className = 'stage1-suggestion-summary';
-    empty.textContent = 'Stage3 只做邮件外发适配，来源始终是 Stage1 已接受产品文案与已保存海报上下文。';
+    empty.textContent = isTemplateB
+      ? 'Stage3 只做产品页外发适配，来源始终是 Stage1 产品页输入与已保存产品页上下文。'
+      : 'Stage3 只做邮件外发适配，来源始终是 Stage1 已接受产品文案与已保存海报上下文。';
     list.appendChild(empty);
     return;
   }
@@ -13212,6 +13455,29 @@ function initStage3() {
       spineSummary: '',
       latest: null,
       accepted: null,
+      templateFamily: isTemplateBStage1Data(stage1Data) ? 'b' : 'a',
+    };
+
+    const applyStage3TemplateFamilyCopy = (isTemplateB) => {
+      stage3EmailSuggestionState.templateFamily = isTemplateB ? 'b' : 'a';
+      const headerSubtitle = document.getElementById('stage3-header-subtitle');
+      if (headerSubtitle) {
+        headerSubtitle.textContent = isTemplateB
+          ? '确认产品页、收件人和分享内容后发送。'
+          : '确认海报或产品页、收件人和邮件内容后发送。';
+      }
+      if (refreshButton) {
+        refreshButton.textContent = isTemplateB ? '生成产品页分享建议' : '生成邮件适配建议';
+      }
+      if (sendButton) {
+        sendButton.textContent = isTemplateB ? '发送产品页邮件' : '发送邮件';
+      }
+      const adaptationSummary = document.getElementById('stage3-email-adaptation-summary');
+      if (adaptationSummary) {
+        adaptationSummary.textContent = isTemplateB
+          ? 'Stage3 只把已确认产品页内容改写为邮件分享版本。'
+          : 'Stage3 只把已确认产品文案改写为邮件外发版本。';
+      }
     };
 
     const getCurrentEmailValues = () => ({
@@ -13241,6 +13507,8 @@ function initStage3() {
       }
       renderEmailAdaptation();
     };
+
+    applyStage3TemplateFamilyCopy(stage3EmailSuggestionState.templateFamily === 'b');
 
     const updateRecipientState = () => {
       const parsed = parseStage3Recipients(emailRecipient?.value || '');
@@ -13317,20 +13585,27 @@ function initStage3() {
     };
 
     if (!posterKey) {
+      const isTemplateB = stage3EmailSuggestionState.templateFamily === 'b';
       if (saveGateMessage) {
-        saveGateMessage.textContent = '未找到已保存海报。请返回环节 2，先点击保存，再进入发送环节。';
+        saveGateMessage.textContent = isTemplateB
+          ? '未找到已保存产品页。请返回环节 2，先点击保存，再进入分享环节。'
+          : '未找到已保存海报。请返回环节 2，先点击保存，再进入发送环节。';
       }
       if (posterCaption) {
-        posterCaption.textContent = '当前没有已保存海报。';
+        posterCaption.textContent = isTemplateB ? '当前没有已保存产品页。' : '当前没有已保存海报。';
       }
       if (posterIdentity) {
-        posterIdentity.textContent = '发送对象为空：Stage3 只允许使用已保存海报。';
+        posterIdentity.textContent = isTemplateB
+          ? '分享对象为空：Stage3 只允许使用已保存产品页。'
+          : '发送对象为空：Stage3 只允许使用已保存海报。';
       }
       if (posterUrlInput) posterUrlInput.value = '';
       if (posterKeyInput) posterKeyInput.value = '';
       setStatus(
         statusElement,
-        '未找到已保存海报；请先返回环节 2 保存海报，再进入 Stage3。',
+        isTemplateB
+          ? '未找到已保存产品页；请先返回环节 2 保存产品页，再进入 Stage3。'
+          : '未找到已保存海报；请先返回环节 2 保存海报，再进入 Stage3。',
         'warning'
       );
       sendButton.disabled = true;
@@ -13339,13 +13614,20 @@ function initStage3() {
     }
 
     if (saveGateMessage) {
-      const savedTitle = savedPoster?.title ? `已保存海报：${savedPoster.title}` : '已锁定发送对象：已保存海报';
-      saveGateMessage.textContent = `${savedTitle}。Stage3 只会使用该已保存海报发送。`;
+      const isTemplateB = stage3EmailSuggestionState.templateFamily === 'b';
+      const savedTitle = savedPoster?.title
+        ? `${isTemplateB ? '已保存产品页' : '已保存海报'}：${savedPoster.title}`
+        : `${isTemplateB ? '已锁定分享对象：已保存产品页' : '已锁定发送对象：已保存海报'}`;
+      saveGateMessage.textContent = isTemplateB
+        ? `${savedTitle}。Stage3 只会使用该已保存产品页分享。`
+        : `${savedTitle}。Stage3 只会使用该已保存海报发送。`;
     }
 
     async function hydratePosterRecord() {
       const record = await getJsonWithRetry(apiCandidates, `/api/v2/posters/${encodeURIComponent(posterKey)}`, 1);
       currentPosterRecord = record;
+      const isTemplateB = isTemplateBPosterRecord(record, stage1Data);
+      applyStage3TemplateFamilyCopy(isTemplateB);
       const finalPoster = record?.final_poster || stage2Result?.final_poster || null;
       if (!finalPoster) {
         throw new Error('poster_record missing final_poster');
@@ -13364,7 +13646,7 @@ function initStage3() {
       }
       if (posterIdentity) {
         const identityParts = [
-          '发送对象：已保存海报',
+          isTemplateB ? '分享对象：已保存产品页' : '发送对象：已保存海报',
           record?.template_id ? `Template: ${record.template_id}` : null,
           record?.updated_at ? `Updated: ${record.updated_at}` : null,
         ].filter(Boolean);
@@ -13390,7 +13672,14 @@ function initStage3() {
     }
 
     async function refreshDraft({ applyToForm = true, asSuggestion = false } = {}) {
-      setStatus(statusElement, asSuggestion ? '正在生成邮件推广适配建议…' : '正在从 poster_record 生成邮件草稿…', 'info');
+      const isTemplateB = stage3EmailSuggestionState.templateFamily === 'b';
+      setStatus(
+        statusElement,
+        asSuggestion
+          ? (isTemplateB ? '正在生成产品页分享建议…' : '正在生成邮件推广适配建议…')
+          : (isTemplateB ? '正在从 poster_record 生成产品页分享草稿…' : '正在从 poster_record 生成邮件草稿…'),
+        'info'
+      );
       const draft = await postJsonWithRetry(
         apiCandidates,
         '/api/v2/email/preview',
@@ -13408,8 +13697,12 @@ function initStage3() {
       }
       if (draftSource) {
         draftSource.textContent = asSuggestion
-          ? '邮件推广适配建议已生成；当前发送表单未自动覆盖。'
-          : '邮件文案已从后端恢复；如需更新，可生成邮件推广适配建议。';
+          ? (isTemplateB
+            ? '产品页分享建议已生成；当前发送表单未自动覆盖。'
+            : '邮件推广适配建议已生成；当前发送表单未自动覆盖。')
+          : (isTemplateB
+            ? '产品页分享文案已从后端恢复；如需更新，可生成产品页分享建议。'
+            : '邮件文案已从后端恢复；如需更新，可生成邮件推广适配建议。');
       }
       if (draftSummary) {
         const summaryPoints = Array.isArray(draft?.summary_points) ? draft.summary_points.filter(Boolean) : [];
@@ -13441,10 +13734,20 @@ function initStage3() {
           currentValues: getCurrentEmailValues(),
         });
         renderEmailAdaptation();
-        setStatus(statusElement, '邮件推广适配建议已生成；请先接受后再同步到邮件。', 'success');
+        setStatus(
+          statusElement,
+          isTemplateB
+            ? '产品页分享建议已生成；请先接受后再同步到邮件。'
+            : '邮件推广适配建议已生成；请先接受后再同步到邮件。',
+          'success'
+        );
       } else {
         renderEmailAdaptation();
-        setStatus(statusElement, '邮件草稿已从后端恢复。', 'success');
+        setStatus(
+          statusElement,
+          isTemplateB ? '产品页分享草稿已从后端恢复。' : '邮件草稿已从后端恢复。',
+          'success'
+        );
       }
       sendButton.disabled = false;
       return draft;

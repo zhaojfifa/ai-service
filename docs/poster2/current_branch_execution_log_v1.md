@@ -1,5 +1,172 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-OP1: Template B operator/result isolation closeout
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-16`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `README.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/stage2_request_helpers.js`
+
+### Scope
+
+- `PR-TB-OP1` only
+- Template B operator-surface clarity only
+- Template B Stage2 result/review isolation only
+- Template B Stage3 wording alignment only
+- keep Template B request-builder split and backend truth path unchanged
+- do not touch Family A frozen truth
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- treat Template B as an independent Product Sheet line
+- branch result/review before Template A-specific preview semantics
+- preserve backend-owned `poster_key -> poster_record` Stage3 truth
+- keep `frontend/` and `docs/` aligned in the same task
+
+### Problem reproduced
+
+- Template B already generated through its own request path, but Stage1 still read partly like leftover Family A operator flow
+- Stage2 post-generate result/replay state still reused Template A-shaped preview/result handling
+- Stage3 wording still defaulted to generic marketing-poster / send language instead of product-sheet sharing language for Template B
+
+### Root cause found
+
+- Stage1 shared title/subtitle/product blocks stayed in Family A locations even when Template B was selected
+- `renderPosterResult()` always executed the Template A preview builder and only then filled the hidden Stage2 replay surface
+- Stage2 current/saved result cards stored generic A-shaped title/subtitle summaries instead of Template B completeness-focused review summaries
+- Stage3 summary/adaptation copy was not template-family aware, so Template B inherited Family A-oriented wording
+
+### Exact Stage1 B-only operator-surface adjustments
+
+- added a dedicated Template B top-copy fieldset directly after brand info
+- moved the existing shared title and subtitle inputs into the Template B top-copy area when Template B is selected, while restoring them to their original Family A anchors for Template A
+- moved Template B materials slots into that same top-copy area so the visible operator order now reads:
+  - logo / brand / product line
+  - SKU
+  - title
+  - subtitle
+  - materials evidence strip
+  - primary product
+  - secondary product
+  - description title / description body
+- split Template B description fields into their own lower description panel fieldset after product images
+- updated Template B-only labels/helper text for:
+  - brand/product-line wording
+  - product image roles
+  - materials evidence strip wording
+  - secondary-product clear action
+- hid the leftover product-identification text field for Template B so the operator surface does not read like a Family A carryover
+
+### Exact Stage2 result/replay isolation changes
+
+- added an early Template B branch in `renderPosterResult()` before any Template A-specific preview builder runs
+- Template B Stage2 replay path now clears the hidden A-shaped replay surface instead of reusing Template A preview semantics
+- added Template B-specific Stage2 family copy for:
+  - generated-content panel title
+  - comparison panel title
+  - current/saved card labels
+  - flow note
+- upgraded Template B Stage2 summary state to report Product Sheet review concerns:
+  - template identity
+  - SKU
+  - materials count/state
+  - primary product readiness
+  - secondary product readiness
+  - description readiness
+- changed current/saved snapshot summaries for Template B so result cards now store and replay completeness-focused Product Sheet summaries rather than A-style subtitle-only summaries
+- updated Template B save/clear/save-gate copy to use product-page/share semantics instead of generic poster/send semantics
+
+### Exact Stage3 semantic adjustments
+
+- kept backend-driven Stage3 restore/send flow unchanged
+- added template-family-aware Stage3 wording so Template B now reads as product-sheet sharing rather than marketing-poster sending
+- updated Template B-specific copy for:
+  - page header subtitle
+  - save-gate / missing-saved-object messages
+  - poster identity label
+  - refresh button label
+  - send button label
+  - draft-source status
+  - adaptation status/summaries
+- added Template B-specific spine/adaptation summaries that emphasize:
+  - title
+  - subtitle
+  - SKU
+  - materials strip
+  - secondary detail
+  - description panel
+- preserved backend truth by keeping Stage3 draft hydration and send requests sourced from `poster_record` and `/api/v2/email/*`
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage2.html`
+- `docs/stage3.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend operator language / field order for Template B only
+- Stage2 frontend result/replay surface and saved/current summary copy for Template B only
+- Stage3 frontend wording only
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused Template B frontend presence check:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py -k template_b_independent_preview_and_generate_path_are_present` → `1 passed`
+- source-level verification:
+  - verified Template B Stage1 input order now reads as Product Sheet top-copy -> materials strip -> product images -> description panel
+  - verified Template B Stage2 result path branches before Template A preview builder usage
+  - verified Template B current/saved result summaries now report Product Sheet completeness rather than A-style scenario/bottom/gallery review semantics
+  - verified Stage3 wording shifts to product-page/share language for Template B while keeping backend hydration/send flow unchanged
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with syntax, mirror checks, and source inspection only; no browser screenshot or manual click-through run was produced in this workspace
+- Template B Stage2 isolation now avoids Template A replay semantics, but the hidden legacy replay container still exists in markup for shared Stage2 structure and is intentionally cleared rather than redesigned in this pass
+- Stage3 wording is template-aware, but backend email draft content still depends on backend draft generation quality and is only frontend-reframed in this pass
+
+### Acceptance state
+
+- Template B now reads as an independent Product Sheet line in Stage1 operator flow
+- Template B Stage2 result/review no longer falls through Template A preview/result semantics
+- Template B Stage2 current/saved summaries reflect B-specific operator concerns only
+- Stage3 remains backend-truth-driven while reading as product-sheet sharing for Template B
+- Family A frozen truth remains untouched
+- frontend/docs mirror remains aligned
+- branch execution log updated before stop
+
+### One-line execution summary
+
+- `PR-TB-OP1` closed the Template B operator line as an independent Product Sheet workflow by reordering B inputs, isolating Stage2 result/replay from Template A semantics, aligning Stage3 to product-sheet sharing language, and leaving Family A frozen truth unchanged.
+
 ## Entry — PR-BOTTOM-GALLERY-VIS1: Bottom helper-image card rebalance
 
 **Branch:** `main`
