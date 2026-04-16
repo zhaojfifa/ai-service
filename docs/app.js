@@ -900,13 +900,13 @@ function buildTemplateBStage2ReviewState(stage1Data) {
   const descriptionReady = Boolean(summary.description_title || summary.description_body);
   return {
     ...summary,
-    description_state: descriptionReady ? 'description panel ready' : 'description panel optional',
+    description_state: descriptionReady ? 'product summary panel ready' : 'product summary panel optional',
     review_summary: [
       summary.sku_text ? `SKU ${summary.sku_text}` : 'SKU optional',
       `${summary.materials_count} material item(s)`,
       summary.primary_product_state,
       summary.secondary_product_state,
-      descriptionReady ? 'description ready' : 'description optional',
+      descriptionReady ? 'product summary ready' : 'product summary optional',
     ].join(' | '),
   };
 }
@@ -5113,7 +5113,7 @@ function initStage1ModeS() {
     }
     if (copyReviewHint) {
       copyReviewHint.textContent = variant === 'b'
-        ? '可选辅助区：只整理标题、副标题、说明摘要和邮件分享种子，不生成卖点或标注文案。'
+        ? '可选辅助区：整理标题、副标题、产品摘要段落和邮件分享种子；保持短句、低重复、产品详情语气，不生成卖点或标注文案。'
         : '先生成建议，再按字段接受需要的内容；只有你显式同步时才会写回输入。';
     }
     if (suggestionStyleField) {
@@ -5550,6 +5550,9 @@ function initStage1ModeS() {
         }
         if (accepted.subtitle && form.elements.namedItem('subtitle')) {
           form.elements.namedItem('subtitle').value = accepted.subtitle;
+        }
+        if (accepted.description_title && form.elements.namedItem('description_title')) {
+          form.elements.namedItem('description_title').value = accepted.description_title;
         }
         if (accepted.description_summary && form.elements.namedItem('description_body')) {
           form.elements.namedItem('description_body').value = accepted.description_summary;
@@ -7424,6 +7427,7 @@ function captureStage1RawCopySnapshot(payload) {
     return {
       title: payload.title || '',
       subtitle: payload.subtitle || '',
+      description_title: payload.description_title || payload.descriptionTitle || '',
       description_body: payload.description_body || payload.descriptionBody || '',
     };
   }
@@ -7488,6 +7492,65 @@ function buildFamilyBProductTitle(payload) {
   return compactBase;
 }
 
+function splitTemplateBDescriptionFragments(value) {
+  return String(value || '')
+    .split(/(?:\n+|[.;。；]+|\s+\|\s+)/)
+    .map((item) => trimSuggestionEnding(item))
+    .filter(Boolean);
+}
+
+function isTemplateBProductSheetHeading(value) {
+  const text = collapseSuggestionWhitespace(value);
+  if (!text) return false;
+  if (text.length > 72) return false;
+  return !/\b(discover|experience|unlock|elevate|revolutionize|amazing|ultimate|perfect|selling points?|callouts?)\b/i.test(text);
+}
+
+function ensureSentenceEnding(value) {
+  const text = trimSuggestionEnding(value);
+  return text ? `${text}.` : '';
+}
+
+function buildTemplateBDescriptionTitleSuggestion(payload) {
+  const rawTitle = collapseSuggestionWhitespace(payload.description_title || payload.descriptionTitle || '');
+  if (isTemplateBProductSheetHeading(rawTitle)) {
+    return clipWords(toTitleCase(rawTitle), 6);
+  }
+  return 'Product Overview';
+}
+
+function buildTemplateBDescriptionSummary(payload, title) {
+  const fragments = [
+    ...splitTemplateBDescriptionFragments(payload.description_body || payload.descriptionBody || ''),
+    ...splitTemplateBDescriptionFragments(payload.description_title || payload.descriptionTitle || ''),
+  ];
+  const seen = new Set();
+  const selected = [];
+  for (const fragment of fragments) {
+    const compact = clipWords(fragment, 18);
+    const lower = compact.toLowerCase();
+    if (!compact || seen.has(lower)) continue;
+    if (/^(product overview|product summary|key details|application summary)$/i.test(compact)) continue;
+    if (/\b(discover|experience|unlock|elevate|revolutionize|selling points?|callouts?)\b/i.test(compact)) continue;
+    seen.add(lower);
+    selected.push(toSentenceCase(compact));
+    if (selected.length >= 2) break;
+  }
+  if (selected.length) {
+    return ensureSentenceEnding(selected.join('. '));
+  }
+
+  const skuText = collapseSuggestionWhitespace(payload.sku_text || '');
+  const materialsCount = normaliseTemplateBMaterials(payload).length;
+  const detailParts = [
+    skuText ? `SKU ${skuText}` : '',
+    materialsCount ? `${materialsCount} material reference${materialsCount === 1 ? '' : 's'}` : '',
+    payload.product_image_2 ? 'secondary detail image' : '',
+  ].filter(Boolean);
+  const context = detailParts.length ? detailParts.join(', ') : 'clear product-detail context';
+  return ensureSentenceEnding(`${title} is prepared for product-sheet review with ${context} and a concise distributor-ready summary`);
+}
+
 function buildFamilyASuggestionDraft(payload, options = {}) {
   const style = options.style === 'light_marketing' ? 'light_marketing' : STAGE1_COPY_STYLE_DEFAULT;
   const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
@@ -7544,6 +7607,7 @@ function buildFamilyBSuggestionDraft(payload) {
   const brandName = collapseSuggestionWhitespace(payload.brand_name || 'Brand');
   const skuText = collapseSuggestionWhitespace(payload.sku_text || '');
   const title = buildFamilyBProductTitle(payload);
+  const descriptionTitle = buildTemplateBDescriptionTitleSuggestion(payload);
   const subtitleSeed = payload.subtitle
     || (payload.agent_name && skuText
       ? `${payload.agent_name} product sheet · ${skuText}`
@@ -7553,15 +7617,10 @@ function buildFamilyBSuggestionDraft(payload) {
       ? `Product sheet · ${skuText}`
       : `${brandName} product sheet`);
   const subtitle = toSentenceCase(trimSuggestionEnding(subtitleSeed));
-  const descriptionSeed = trimSuggestionEnding(
-    payload.description_body
-      || payload.description_title
-      || `${title} is presented with clean product details, material references, and ready-to-review specification copy`
-  );
-  const descriptionSummary = toSentenceCase(descriptionSeed);
+  const descriptionSummary = buildTemplateBDescriptionSummary(payload, title);
   const emailSubject = toSentenceCase(`${brandName}: ${title}`);
   const emailOpening = toSentenceCase(
-    `Review ${title.toLowerCase()}${skuText ? ` (${skuText})` : ''} with cleaner product-sheet copy and supporting details.`
+    `Share ${title.toLowerCase()}${skuText ? ` (${skuText})` : ''} with concise product-sheet details and distributor-ready context.`
   );
   return {
     family: 'b',
@@ -7571,9 +7630,12 @@ function buildFamilyBSuggestionDraft(payload) {
     targets: {
       title,
       subtitle,
+      description_title: descriptionTitle,
       description_summary: descriptionSummary,
       email_subject: emailSubject,
       email_opening: emailOpening,
+      email_subject_seed: emailSubject,
+      email_opening_seed: emailOpening,
     },
   };
 }
@@ -7604,8 +7666,15 @@ function buildStage1SuggestionRows(payload, familyState) {
         accepted: acceptedTargets.subtitle || '',
       },
       {
+        key: 'description_title',
+        label: 'Product Summary Heading',
+        raw: payload.description_title || payload.descriptionTitle || '',
+        suggestion: latestTargets.description_title || '',
+        accepted: acceptedTargets.description_title || '',
+      },
+      {
         key: 'description_summary',
-        label: 'Description Summary',
+        label: 'Product Summary Paragraph',
         raw: payload.description_body || payload.descriptionBody || '',
         suggestion: latestTargets.description_summary || '',
         accepted: acceptedTargets.description_summary || '',
@@ -7614,14 +7683,14 @@ function buildStage1SuggestionRows(payload, familyState) {
         key: 'email_subject_seed',
         label: 'Email Subject Seed',
         raw: '',
-        suggestion: latestTargets.email_subject_seed || '',
+        suggestion: latestTargets.email_subject_seed || latestTargets.email_subject || '',
         accepted: acceptedTargets.email_subject_seed || acceptedTargets.email_subject || '',
       },
       {
         key: 'email_opening_seed',
         label: 'Email Opening Seed',
         raw: '',
-        suggestion: latestTargets.email_opening_seed || '',
+        suggestion: latestTargets.email_opening_seed || latestTargets.email_opening || '',
         accepted: acceptedTargets.email_opening_seed || acceptedTargets.email_opening || '',
       },
     ];
@@ -7693,7 +7762,7 @@ function renderStage1SuggestionPanel(payload, suggestionState) {
     const empty = document.createElement('p');
     empty.className = 'stage1-suggestion-summary';
     empty.textContent = isTemplateB
-      ? 'Stage1 产品页文案整理只覆盖标题、副标题、说明摘要和邮件分享种子；不会生成或要求产品卖点 / callout。'
+      ? 'Stage1 产品页文案整理只覆盖标题、副标题、产品摘要标题 / 段落和邮件分享种子；强调短句、低重复和产品详情语气，不生成卖点 / callout。'
       : 'Stage1 是主产品文案增强中心。生成后会分开展示原始输入、建议层与已接受层，且不会自动改写输入。';
     list.appendChild(empty);
     return;
@@ -13228,7 +13297,7 @@ function buildStage3SpineSummary(stage1Data, posterRecord) {
       requestSnapshot.sku_text ? `SKU ${requestSnapshot.sku_text}` : '',
       materialsCount ? `${materialsCount} material item(s)` : '',
       requestSnapshot.product_image_2 ? 'secondary detail ready' : '',
-      requestSnapshot.description_title || requestSnapshot.description_body ? 'description panel ready' : '',
+      requestSnapshot.description_title || requestSnapshot.description_body ? 'product summary panel ready' : '',
     ].filter(Boolean);
     return {
       spine: null,
@@ -13261,9 +13330,7 @@ function buildStage3EmailAdaptationSuggestion({ stage1Data, posterRecord, backen
     const title = collapseSuggestionWhitespace(requestSnapshot.title || 'Product Sheet');
     const skuText = collapseSuggestionWhitespace(requestSnapshot.sku_text || '');
     const subtitle = collapseSuggestionWhitespace(requestSnapshot.subtitle || '');
-    const description = collapseSuggestionWhitespace(
-      requestSnapshot.description_body || requestSnapshot.description_title || ''
-    );
+    const description = collapseSuggestionWhitespace(buildTemplateBDescriptionSummary(requestSnapshot, title));
     const materialsCount = normaliseTemplateBMaterials(requestSnapshot).length;
     const emailSubject = collapseSuggestionWhitespace(
       backendDraft?.subject || `${brandName}: ${title}${skuText ? ` | ${skuText}` : ''}`
