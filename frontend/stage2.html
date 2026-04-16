@@ -442,7 +442,7 @@
 
           <!-- Copy -->
           <div class="s2-panel s2-material-summary">
-            <div class="s2-panel-hd"><span>生成内容</span></div>
+            <div class="s2-panel-hd"><span id="s2-generated-content-title">生成内容</span></div>
             <div class="s2-panel-bd">
               <div id="s2-family-a-copy-fields">
                 <label class="s2-field">
@@ -481,11 +481,11 @@
                   <textarea id="s2-b-description-body" rows="4" readonly></textarea>
                 </label>
                 <label class="s2-field">
-                  <span>辅图状态</span>
+                  <span>材料证据条</span>
                   <input id="s2-b-materials-state" type="text" readonly />
                 </label>
                 <label class="s2-field">
-                  <span>主图 / 辅图</span>
+                  <span>主图 / 次级产品</span>
                   <input id="s2-b-image-state" type="text" readonly />
                 </label>
                 <!-- compat: Materials Evidence Strip -->
@@ -581,7 +581,7 @@
               <a class="secondary" href="index.html">← 返回环节 1</a>
               <button id="to-stage3" class="primary" type="button" disabled>前往环节 3</button>
             </div>
-            <span class="s2-flow-url-note">生成后可复制链接或继续发送。</span>
+            <span id="s2-flow-url-note" class="s2-flow-url-note">生成后可复制链接或继续发送。</span>
           </div>
 
           <!-- Loading state -->
@@ -646,11 +646,11 @@
           </div>
 
           <div class="s2-panel s2-comparison-panel">
-            <div class="s2-panel-hd"><span>当前海报 / 已保存海报</span></div>
+            <div class="s2-panel-hd"><span id="s2-comparison-panel-title">当前海报 / 已保存海报</span></div>
             <div class="s2-panel-bd s2-compare-stack">
               <article class="s2-compare-card" id="stage2-current-poster-card">
                 <div class="s2-compare-head">
-                  <span class="s2-compare-title">当前海报</span>
+                  <span id="stage2-current-poster-card-label" class="s2-compare-title">当前海报</span>
                   <span id="stage2-current-poster-note" class="s2-compare-note hidden"></span>
                 </div>
                 <div class="s2-compare-media">
@@ -671,7 +671,7 @@
 
               <article class="s2-compare-card" id="stage2-saved-poster-card">
                 <div class="s2-compare-head">
-                  <span class="s2-compare-title">已保存海报</span>
+                  <span id="stage2-saved-poster-card-label" class="s2-compare-title">已保存海报</span>
                   <span id="stage2-saved-poster-note" class="s2-compare-note">发送对象</span>
                 </div>
                 <div class="s2-compare-media">

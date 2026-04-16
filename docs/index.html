@@ -66,7 +66,7 @@
 
         <fieldset id="s1-brand" class="card stage-card">
           <legend>品牌信息</legend>
-          <p class="hint">填写品牌识别信息与系列名。</p>
+          <p id="stage1-brand-hint" class="hint">填写品牌识别信息与系列名。</p>
           <div class="grid">
             <label class="field file-field optional">
               <span>品牌 Logo（选填）</span>
@@ -81,11 +81,30 @@
               <input type="text" name="brand_name" placeholder="e.g., ChefCraft" />
             </label>
             <label class="field optional">
-              <span>系列名（选填）</span>
+              <span id="stage1-agent-name-label">系列名（选填）</span>
               <input type="text" name="agent_name" placeholder="e.g., Electric Fryer Series" />
             </label>
           </div>
           <!-- compat: Product Series (optional) -->
+        </fieldset>
+
+        <fieldset id="s1-template-b-topcopy" class="card stage-card" data-variant-visible="b" hidden>
+          <legend>产品页顶部信息</legend>
+          <p class="hint">按产品页阅读顺序整理 SKU、标题、副标题和材料证据条，再继续补充产品图片。</p>
+          <div class="grid">
+            <label class="field optional">
+              <span>SKU / 型号 <span class="optional">(选填)</span></span>
+              <input id="sku-text-stage1" name="sku_text" type="text" placeholder="型号编码，如 HW-X200" />
+            </label>
+          </div>
+          <div id="stage1-b-title-anchor"></div>
+          <div id="stage1-b-subtitle-anchor"></div>
+          <div class="form-row">
+            <span id="stage1-materials-label" class="feature-label">配件 / 刀头 / 材质辅图 <span class="optional">(选填，最多 5 张)</span></span>
+            <small id="stage1-materials-hint" class="hint">这些素材作为产品主图下方的辅助证据条，不是第二主视觉。</small>
+            <div id="materials-image-slots" class="thumbnail-grid"></div>
+            <button type="button" id="add-materials-image-btn" class="secondary">+ 添加辅图条目</button>
+          </div>
         </fieldset>
 
         <fieldset id="s1-core-assets" class="card stage-card" data-variant-visible="all">
@@ -115,7 +134,7 @@
 
           <div class="stage-subsection">
             <h3>主产品</h3>
-            <p class="hint">上传主图并填写英文标题。</p>
+            <p id="stage1-product-section-hint" class="hint">上传主图并填写英文标题。</p>
           </div>
           <div class="grid">
             <label class="field file-field">
@@ -135,13 +154,14 @@
               <small id="stage1-product2-hint" class="hint">可补充第二角度或细节。</small>
               <button type="button" class="secondary subtle" data-secondary-image-clear>清空辅助图</button>
             </label>
-            <label class="field">
+            <label id="stage1-product-desc-field" class="field">
               <span id="stage1-product-desc-label">产品识别行</span>
               <input type="text" name="product_name" placeholder="Short product descriptor" />
             </label>
           </div>
 
-          <div class="grid">
+          <div id="stage1-a-title-anchor"></div>
+          <div id="stage1-title-block" class="grid">
             <label class="field">
               <span>标题（必填）</span>
               <input type="text" name="title" placeholder="1–2 lines recommended" required />
@@ -159,14 +179,11 @@
           <!-- compat: Product Callouts (optional, up to 3) -->
         </fieldset>
 
-        <fieldset id="s1-template-b-fields" class="card stage-card" data-variant-visible="b" hidden>
-          <legend>产品图录信息</legend>
+        <fieldset id="s1-template-b-description" class="card stage-card" data-variant-visible="b" hidden>
+          <legend>产品说明面板</legend>
+          <p class="hint">最后补齐说明标题和短描述，保持产品页下方信息面板简洁可读。</p>
 
           <div class="grid">
-            <label class="field optional">
-              <span>产品型号 / SKU <span class="optional">(选填)</span></span>
-              <input id="sku-text-stage1" name="sku_text" type="text" placeholder="型号编码，如 HW-X200" />
-            </label>
             <label class="field optional">
               <span>描述标题 <span class="optional">(选填)</span></span>
               <input id="description-title-stage1" name="description_title" type="text" placeholder="如：产品特点" />
@@ -180,13 +197,6 @@
                         placeholder="产品详细描述文案…"></textarea>
             </label>
           </div>
-
-          <div class="form-row">
-            <span id="stage1-materials-label" class="feature-label">配件 / 刀头 / 材质辅图 <span class="optional">(选填，最多 5 张)</span></span>
-            <small id="stage1-materials-hint" class="hint">这些素材作为产品主图下方的辅助证据条，不是第二主视觉。</small>
-            <div id="materials-image-slots" class="thumbnail-grid"></div>
-            <button type="button" id="add-materials-image-btn" class="secondary">+ 添加辅图条目</button>
-          </div>
         </fieldset>
 
         <fieldset id="s1-bottom-thumbs" class="card stage-card" data-variant-visible="a">
@@ -196,7 +206,8 @@
               <h3>底部辅助文案</h3>
               <p class="hint">先填文案，再补充展示素材。</p>
             </div>
-          <div class="bottom-support-block">
+          <div id="stage1-a-subtitle-anchor"></div>
+          <div id="stage1-subtitle-block" class="bottom-support-block">
             <label class="field optional">
               <span id="stage1-subtitle-label">底部文案（选填）</span>
               <input type="text" name="subtitle" placeholder="底部辅助文案 / short support copy" />
