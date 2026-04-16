@@ -1,5 +1,123 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-BEAUTY1: Template B visual beautification pass
+
+**Branch:** `poster2/pr-tb-op3-description-copy`
+**Status:** Complete
+**Last updated:** `2026-04-16`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+
+### Scope
+
+- `PR-TB-BEAUTY1` only
+- Template B visual presentation / beautification layer only
+- refine the existing `.template-b-preview*` surface used by the Template B preview/result presentation path
+- preserve Template B request truth, renderer truth, region ownership, save/send truth, and Stage1/Stage2/Stage3 workflow closure
+- preserve Family A frozen truth and all Family A styling / behavior
+- keep `frontend/` and `docs/` mirrored
+
+### Root rules followed
+
+- read context before editing
+- stayed on the requested presentation layer
+- no contract reopen
+- no request payload, backend, renderer, region ownership, Stage2/Stage3 logic, or copy-helper logic changes
+- no Template B structural markup changes
+- no Family A CSS selectors or behavior changed
+
+### Problem reproduced
+
+- the Template B preview surface still read as a plain baseline Product Sheet
+- background depth was shallow and region separation depended mostly on spacing
+- the materials strip rendered as simple thumbnails without enough evidence-row treatment
+- the hero product surface had limited anchoring and product-stage support
+- the description block was card-light and visually less connected to the industrial sheet system
+
+### Root cause found
+
+- Template B was structurally/operator closed by prior PRs, but its dedicated `.template-b-preview*` CSS still used minimal gradients, borders, and shadows
+- the visual hierarchy was present but understated: banner, top-copy, materials, hero, and description regions lacked enough differentiated surface depth
+- the materials and description regions had no presentation-only affordance to read as product-sheet support/detail surfaces
+
+### Exact beautification-layer changes
+
+- strengthened the Template B sheet background with layered radial gradients, a restrained industrial grid texture, stronger border radius, and deeper sheet shadow
+- added presentation-only sheet separators through pseudo-elements without changing DOM structure
+- refined the header/banner with a darker metallic surface, inset highlights, a subtle amber rule, and stronger logo tile depth
+- turned the top-copy area into a defined Product Sheet information surface with a left accent rail and soft card depth
+- converted the materials strip into a supporting evidence row with a card-like container, `DETAIL STRIP` presentation label, stronger thumbnail cards, and inset framing
+- strengthened the hero region with a refined product-stage background, masked grid support, stronger floor shadow, product image bounds, and more premium secondary-detail card depth
+- refined the description block into a premium product summary panel with layered background, accent rail, deeper card shadow, and improved text spacing
+
+### Exact regions visually refined
+
+- Template B background / overall sheet surface
+- Template B header / brand lockup banner
+- Template B top-copy SKU / title / subtitle surface
+- Template B materials/detail strip
+- Template B hero product region and secondary detail inset
+- Template B description / product summary panel
+
+### Exact files changed
+
+- `frontend/styles.css`
+- `docs/styles.css`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- frontend CSS presentation layer for Template B only
+- docs CSS mirror
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused Template B frontend presence check:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py -k template_b_independent_preview_and_generate_path_are_present` → `1 passed, 7 deselected`
+- source-level verification:
+  - verified all CSS changes are scoped to `.template-b-preview*`
+  - verified no Template B request builder, renderer truth, backend path, region ownership, save/send truth, or Stage2/Stage3 logic was changed
+  - verified Family A selectors and behavior were not edited
+  - verified `frontend/styles.css` and `docs/styles.css` remain mirrored
+
+### Remaining risks
+
+- this pass was validated with static checks, mirror checks, focused source checks, and source inspection only; no browser screenshot comparison was produced in this workspace
+- beautification is CSS-only for the existing frontend Template B preview/result surface; backend-rendered image truth was intentionally not changed
+- pseudo-element labels and textures are presentation-only; if later browser QA finds the surface too dense at a specific viewport, tune only the B CSS selectors without reopening structure
+
+### Acceptance state
+
+- Template B remains functionally closed as an independent Product Sheet line
+- Template B background has stronger layered depth while staying industrial and restrained
+- Template B header/top-copy surface has clearer premium Product Sheet hierarchy
+- Template B materials strip reads more like a supporting evidence/detail row
+- Template B hero region has stronger visual anchoring and focus support
+- Template B description block reads as a refined product summary panel
+- Family A frozen truth remains untouched
+- Template B structure, renderer/request truth, region ownership, backend behavior, and save/send truth remain untouched
+- frontend/docs mirror remains aligned
+- branch execution log updated before stop
+
+### One-line execution summary
+
+- `PR-TB-BEAUTY1` improved only Template B visual presentation across background, header/top-copy, materials strip, hero support, and description panel using B-scoped CSS, preserving all structure/truth boundaries and Family A frozen truth.
+
 ## Entry — PR-TB-OP3: Template B description copy-quality closeout
 
 **Branch:** `main`
