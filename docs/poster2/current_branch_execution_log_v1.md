@@ -1,5 +1,136 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-OP2: Template B callout residue de-emphasis
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-16`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+
+### Scope
+
+- `PR-TB-OP2` only
+- Template B operator-surface semantic cleanup only
+- remove / de-emphasize Template A selling-point and callout residue from Template B
+- preserve Template B request truth and compatibility scaffolding
+- preserve Template B renderer truth
+- preserve backend API behavior and save/send truth
+- do not touch Family A frozen truth
+- keep `frontend/` and `docs/` mirrored
+- update branch execution log before stop
+
+### Root rules followed
+
+- keep work on the requested layer
+- no contract reopen
+- no renderer, backend, request-builder, or save/send truth change
+- Template B UI follows active Product Sheet truth:
+  - `feature_mode = none`
+  - `product_annotation_mode = none`
+  - `bottom_mode = description_block`
+  - `materials_mode = strip_thumbnails`
+  - `top_copy_hierarchy_mode = sku_meta_title_subtitle_catalog`
+- keep Family A wording and behavior intact
+
+### Problem reproduced
+
+- Template B Stage1 still showed the shared `产品卖点（选填，最多 3 条）` / `product_callouts` block as a primary visible input
+- Template B Stage1 optional copy helper still reused generic product-copy / marketing-style controls that could read like selling-point generation
+- Template B Stage3 had backend-safe product-sheet wording from OP1, but the section heading still defaulted to generic email-promotion adaptation until runtime wording was applied
+
+### Root cause found
+
+- the shared product callout field block had no Template A-only visibility gate
+- compatibility storage for `product_callouts` remained wired through form serialization, which is safe, but the visible field implied Template B needed Family A-style callout content
+- Stage1 suggestion UI had Template B-specific suggestion targets, but its surrounding labels/style selector still used generic marketing-copy affordances
+
+### Exact Template B A-residue removal / de-emphasis
+
+- marked the Stage1 `product_callouts` block as `data-variant-visible="a"` so it is hidden for Template B
+- kept the underlying named inputs in the DOM for compatibility, but removed them from the visible Template B primary workflow
+- hid the Stage1 suggestion style selector for Template B because `Light Marketing` / `Product Focused` is not part of Template B product-sheet truth
+- changed Template B suggestion rows from `Poster Title` / `Poster Subtitle` to `Product Sheet Title` / `Product Sheet Subtitle`
+- changed Template B empty-state suggestion guidance to explicitly state that Product Sheet cleanup covers title, subtitle, description summary, and email-sharing seeds only, and does not generate or require product selling points / callouts
+
+### Exact Stage1 / Stage2 / Stage3 wording changes
+
+- Stage1:
+  - Template B primary visible inputs now stay centered on SKU, title, subtitle, materials strip, primary product, secondary product, description title, and description body
+  - Template B copy helper reads as `产品页文案整理`
+  - Template B copy helper hint says it does not generate selling-point or annotation copy
+  - Template B copy helper generate/apply buttons use product-page wording
+- Stage2:
+  - no Stage2 Template B result/review code was changed
+  - existing Template B Stage2 review remains centered on SKU, materials strip, product images, and description completeness
+  - existing Family A `产品卖点` Stage2 panel remains hidden for Template B
+- Stage3:
+  - added a runtime-updated heading hook so Template B reads `产品页分享适配`
+  - kept OP1 product-sheet sharing wording and backend-driven poster_record flow unchanged
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/stage3.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend visibility / operator wording for Template B only
+- Stage3 frontend heading wording hook for Template B only
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused Template B frontend presence check:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py -k template_b_independent_preview_and_generate_path_are_present` → `1 passed`
+- source-level verification:
+  - verified the Stage1 callout block is now Family A-visible only via `data-variant-visible="a"`
+  - verified Template B Stage1 copy helper no longer presents marketing style selection
+  - verified Template B suggestion labels use Product Sheet wording
+  - verified Template B Stage3 heading can switch to product-page sharing language
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with syntax, mirror checks, focused source checks, and source inspection only; no browser click-through or screenshot comparison was produced in this workspace
+- compatibility scaffolding for `product_callouts` still exists underneath for shared storage and Family A, but it is no longer a visible primary Template B operator concept
+- Stage2 diagnostic source still contains Family A feature/callout code paths, but Template B operator review surfaces remain hidden or B-specific and no renderer/backend truth changed
+
+### Acceptance state
+
+- Template B Stage1 no longer visibly requires or promotes Family A-style selling points / callouts
+- Template B Stage1 primary workflow remains Product Sheet-centered
+- Template B Stage2 review semantics remain Product Sheet-centered
+- Template B Stage3 keeps product-sheet sharing language
+- Family A frozen truth remains untouched
+- Template B renderer/request/backend truth remains untouched
+- frontend/docs mirror remains aligned
+- branch execution log updated before stop
+
+### One-line execution summary
+
+- `PR-TB-OP2` removed visible Template A selling-point/callout residue from Template B by hiding the shared callout block for B, reframing optional copy assistance as product-sheet cleanup, preserving compatibility and all Template B truth, and keeping Family A behavior untouched.
+
 ## Entry — PR-TB-OP1: Template B operator/result isolation closeout
 
 **Branch:** `main`
