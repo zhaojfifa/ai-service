@@ -1,5 +1,131 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-TB-OP3: Template B description copy-quality closeout
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-16`
+
+### What was read first
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `frontend/index.html`
+- `frontend/stage2.html`
+- `frontend/stage3.html`
+- `frontend/app.js`
+- `frontend/styles.css`
+
+### Scope
+
+- `PR-TB-OP3` only
+- Template B copy-quality / expression closeout only
+- improve description-title and description-body guidance for Product Sheet language
+- improve Template B staged copy suggestions for concise product-summary output
+- keep Stage2 and Stage3 wording aligned to Product Sheet / SKU / product-details semantics
+- do not touch Family A frozen truth
+- do not touch Template B renderer truth, request truth, region ownership, layout contract, backend API behavior, or save/send truth
+- keep `frontend/` and `docs/` mirrored
+
+### Root rules followed
+
+- read context before editing
+- keep work on the requested operator/copy layer
+- no contract reopen
+- no renderer, backend, request-builder, layout, region ownership, or save/send truth change
+- Template B runtime truth remains Product Sheet-native:
+  - `feature_mode = none`
+  - `product_annotation_mode = none`
+  - `bottom_mode = description_block`
+  - `top_copy_hierarchy_mode = sku_meta_title_subtitle_catalog`
+  - description title/body remain owned by `description_region`
+
+### Problem reproduced
+
+- Template B Stage1 description guidance still used generic `描述标题 / 描述正文` wording and a broad detailed-description placeholder
+- Template B staged copy helper passed raw description body/title text through with minimal shaping, which could preserve repeated stitched fragments or slogan-like copy
+- Template B review/send wording was mostly Product Sheet-oriented, but still used generic `description panel / description ready` language in some B-only summaries
+
+### Root cause found
+
+- OP1/OP2 closed Template B structure and callout residue, but the description block copy helper still treated description text as a generic summary string
+- there was no B-only fragment splitting, dedupe, slogan/callout rejection, or concise product-summary fallback for description suggestions
+- the Stage3 B email adaptation reused raw saved description text instead of the same product-sheet summary shaping
+
+### Exact Template B description-copy guidance changes
+
+- changed the Stage1 Template B fieldset from `产品说明面板` to `产品摘要面板`
+- changed Stage1 description guidance to request a product-page heading plus 1-2 sentence summary covering use, key structure/materials, or fit context
+- explicitly discouraged slogans, long marketing prose, and repeated stitched text in the Template B description body placeholder
+- changed visible field labels from generic description title/body to `产品摘要标题` and `产品摘要正文`
+- added Product Sheet-style title examples: `Product Overview / Key Details / Application Summary`
+
+### Exact Product Sheet wording changes
+
+- added B-only description helper functions to split description fragments, dedupe repeated text, reject campaign/callout-style fragments, and enforce sentence endings
+- changed Template B staged suggestions to include a `Product Summary Heading` and `Product Summary Paragraph`
+- changed Template B staged description fallback to use SKU, materials count, and secondary detail context in a concise distributor-ready product-sheet summary
+- changed Template B copy-helper guidance to emphasize short sentences, low repetition, and product-details tone
+- changed Template B Stage2 summary wording from generic `description panel / description ready` to `product summary panel / product summary ready`
+- changed Template B Stage3 spine wording to `product summary panel ready`
+- changed Template B Stage3 email adaptation to reuse the B-only product-summary shaping instead of raw repeated description text
+- preserved existing backend-driven `poster_key -> poster_record` Stage3 truth path
+
+### Exact files changed
+
+- `frontend/index.html`
+- `frontend/app.js`
+- `docs/index.html`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 Template B operator copy guidance
+- Stage1 Template B frontend staged-copy helper wording and B-only description shaping
+- Stage2 Template B review wording only
+- Stage3 Template B send/adaptation wording only
+- docs mirror alignment
+- branch execution/state log
+
+### Validation performed
+
+- syntax/static:
+  - `node --check frontend/app.js`
+  - `node --check docs/app.js`
+- mirror/static:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py` → `8 passed`
+- focused Template B frontend presence check:
+  - `./.venv/bin/python -m pytest -q tests/test_frontend_docs_sync.py -k template_b_independent_preview_and_generate_path_are_present` → `1 passed, 7 deselected`
+- source-level verification:
+  - verified Template B Stage1 description-title/body guidance now reads as Product Sheet summary input
+  - verified Template B staged copy helper no longer directly forwards repeated raw description text without B-only shaping
+  - verified Template B Stage2 review wording uses product-summary semantics instead of generic description wording
+  - verified Template B Stage3 email adaptation remains backend-record driven and only reshapes frontend wording for product-sheet delivery
+  - verified touched `frontend/` and `docs/` files remain aligned
+
+### Remaining risks
+
+- this pass was validated with syntax, mirror checks, focused source checks, and source inspection only; no browser click-through or screenshot comparison was produced in this workspace
+- the B-only staged helper is deterministic and lightweight, not a full language model; it reduces repeated/slogan fragments but cannot guarantee perfect prose for every pasted operator input
+- shared frontend files still contain Family A paths by design, but this task did not alter Family A behavior, renderer truth, backend behavior, or request truth
+
+### Acceptance state
+
+- Template B description-title guidance now reads as Product Sheet section-heading guidance
+- Template B description-body guidance now asks for concise product-summary language and discourages repeated stitched prose
+- Template B staged copy suggestions are biased toward product summary, use/detail context, spec-adjacent language, and distributor-ready sharing tone
+- Template B Stage2 and Stage3 wording remains Product Sheet-centered
+- Family A frozen truth remains untouched
+- Template B renderer/request/backend/save-send truth remains untouched
+- frontend/docs mirror remains aligned
+- branch execution log updated before stop
+
+### One-line execution summary
+
+- `PR-TB-OP3` improved Template B description-copy quality by reframing description inputs as product-summary fields, adding B-only concise/deduped Product Sheet suggestion shaping, keeping Stage2/Stage3 wording product-sheet oriented, preserving Template B structure and Family A frozen truth, and updating the branch execution log.
+
 ## Entry — PR-TB-OP2: Template B callout residue de-emphasis
 
 **Branch:** `main`
