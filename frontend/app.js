@@ -5034,6 +5034,12 @@ function initStage1ModeS() {
     const materialsLabel = document.getElementById('stage1-materials-label');
     const materialsHint = document.getElementById('stage1-materials-hint');
     const secondaryClearButton = document.querySelector('[data-secondary-image-clear]');
+    const copyReviewSummary = document.getElementById('stage1-copy-review-summary');
+    const copyReviewTitle = document.getElementById('stage1-copy-review-title');
+    const copyReviewHint = document.getElementById('stage1-copy-review-hint');
+    const suggestionStyleField = document.getElementById('stage1-suggestion-style-field');
+    const suggestionGenerateButton = document.getElementById('stage1-generate-suggestions');
+    const suggestionApplyButton = document.getElementById('stage1-apply-accepted');
     if (brandHint) {
       brandHint.textContent = variant === 'b'
         ? '填写产品页使用的 Logo、品牌名和产品线名。'
@@ -5096,6 +5102,32 @@ function initStage1ModeS() {
       materialsHint.textContent = variant === 'b'
         ? '这些素材用于产品页材料条或细节条，不作为第二主视觉。'
         : '产品材质、配料或细节图，显示在产品主图下方的缩略图条。';
+    }
+    if (copyReviewSummary) {
+      copyReviewSummary.textContent = variant === 'b' ? '产品页文案整理' : '文案优化';
+    }
+    if (copyReviewTitle) {
+      copyReviewTitle.textContent = variant === 'b'
+        ? '产品页文案整理'
+        : '主产品文案增强中心';
+    }
+    if (copyReviewHint) {
+      copyReviewHint.textContent = variant === 'b'
+        ? '可选辅助区：只整理标题、副标题、说明摘要和邮件分享种子，不生成卖点或标注文案。'
+        : '先生成建议，再按字段接受需要的内容；只有你显式同步时才会写回输入。';
+    }
+    if (suggestionStyleField) {
+      suggestionStyleField.hidden = variant === 'b';
+    }
+    if (suggestionGenerateButton) {
+      suggestionGenerateButton.textContent = variant === 'b'
+        ? '生成产品页文案建议'
+        : '生成产品文案建议';
+    }
+    if (suggestionApplyButton) {
+      suggestionApplyButton.textContent = variant === 'b'
+        ? '将已接受产品页文案同步到输入'
+        : '将已接受文案骨架同步到输入';
     }
   }
 
@@ -7559,14 +7591,14 @@ function buildStage1SuggestionRows(payload, familyState) {
     return [
       {
         key: 'title',
-        label: 'Poster Title',
+        label: 'Product Sheet Title',
         raw: payload.title || '',
         suggestion: latestTargets.title || '',
         accepted: acceptedTargets.title || '',
       },
       {
         key: 'subtitle',
-        label: 'Poster Subtitle',
+        label: 'Product Sheet Subtitle',
         raw: payload.subtitle || '',
         suggestion: latestTargets.subtitle || '',
         accepted: acceptedTargets.subtitle || '',
@@ -7640,6 +7672,7 @@ function renderStage1SuggestionPanel(payload, suggestionState) {
   if (!status || !list) return;
 
   const familyKey = getStage1SuggestionFamilyKey(payload);
+  const isTemplateB = familyKey === 'b';
   const familyState = getStage1SuggestionFamilyState(suggestionState, familyKey);
   const rows = buildStage1SuggestionRows(payload, familyState);
   const hasLatest = Boolean(familyState.latest?.targets);
@@ -7647,15 +7680,21 @@ function renderStage1SuggestionPanel(payload, suggestionState) {
   const styleLabel = getStage1CopyStyleLabel(familyState.style || familyState.latest?.style || STAGE1_COPY_STYLE_DEFAULT);
 
   status.textContent = hasLatest
-    ? `Stage1 已生成${familyKey === 'a' ? '产品主文案' : '产品图录'}建议。风格：${styleLabel}。按字段接受即可；输入不会自动改写。`
-    : 'Stage1 尚未生成产品文案建议。';
+    ? (isTemplateB
+      ? 'Stage1 已生成产品页文案建议。按字段接受即可；输入不会自动改写。'
+      : `Stage1 已生成产品主文案建议。风格：${styleLabel}。按字段接受即可；输入不会自动改写。`)
+    : (isTemplateB
+      ? 'Stage1 尚未生成产品页文案建议。'
+      : 'Stage1 尚未生成产品文案建议。');
   actionsWrap?.classList.toggle('hidden', !hasLatest && !hasAccepted);
   list.innerHTML = '';
 
   if (!hasLatest && !hasAccepted) {
     const empty = document.createElement('p');
     empty.className = 'stage1-suggestion-summary';
-    empty.textContent = 'Stage1 是主产品文案增强中心。生成后会分开展示原始输入、建议层与已接受层，且不会自动改写输入。';
+    empty.textContent = isTemplateB
+      ? 'Stage1 产品页文案整理只覆盖标题、副标题、说明摘要和邮件分享种子；不会生成或要求产品卖点 / callout。'
+      : 'Stage1 是主产品文案增强中心。生成后会分开展示原始输入、建议层与已接受层，且不会自动改写输入。';
     list.appendChild(empty);
     return;
   }
@@ -13471,6 +13510,10 @@ function initStage3() {
       }
       if (sendButton) {
         sendButton.textContent = isTemplateB ? '发送产品页邮件' : '发送邮件';
+      }
+      const adaptationHeading = document.getElementById('stage3-email-adaptation-heading');
+      if (adaptationHeading) {
+        adaptationHeading.textContent = isTemplateB ? '产品页分享适配' : '邮件推广适配';
       }
       const adaptationSummary = document.getElementById('stage3-email-adaptation-summary');
       if (adaptationSummary) {
