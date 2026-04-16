@@ -1,5 +1,108 @@
 # Current Branch Execution Log v1
 
+## Entry — PR-BOTTOM-GALLERY-VIS1: Bottom helper-image card rebalance
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-04-16`
+
+### What was read first
+
+- `AGENTS.md`
+- `README.md`
+- `docs/poster2/README.md`
+- `docs/poster2/poster_generation_product_design_baseline_v1.md`
+- `docs/poster2/02_architecture/template_dual_v2_architecture_business_definition.md`
+- `docs/poster2/03_engineering/family_a/bottom_region_practical_beautification_observability_v1.md`
+- `docs/poster2/05_validation/family_a/bottom_region_practical_closure_status_v1.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- then only the fryer bottom gallery behavior / template CSS / validation assertions directly tied to the helper-card row
+
+### Scope
+
+- `PR-BOTTOM-GALLERY-VIS1` only
+- fryer bottom helper-image card rebalance only
+- keep existing 4-slot bottom gallery truth
+- keep current caption ownership
+- keep Stage2 / Stage3 production behavior unchanged
+- do not touch bottom truth or AI generation logic
+- update context before stop
+
+### Root rules followed
+
+- contract-first, beauty second
+- keep work on the requested layer
+- no bottom truth, generate/send truth, or renderer routing change
+- no AI generation behavior change
+- update the validation path and branch context in the same task
+
+### Problem reproduced
+
+- fryer helper-image cards in the 4-slot bottom row rendered at about `156x90`
+- bounded media area dropped to about `140x56`
+- captions took too much of the remaining vertical budget, so both real helper images and AI-generated helper images read as flattened strips instead of useful product helper cards
+
+### Root cause found
+
+- the fryer-only `dense_quad_detail_row` branch in `resolve_bottom_behavior()` allocated only `90px` item height inside a `116px` shell
+- caption truth reserved a relatively tall `14px` caption band with `8px` card padding on all sides
+- captioned helper cards used `object-fit: cover`, which further reduced readable product detail by cropping already short media windows
+
+### Exact visual rebalance
+
+- kept the same 4-card row, same slot widths, same caption ownership, same `dense_quad_detail_row` policy
+- increased fryer split-mode helper card height from `90` to `100`
+- tightened fryer split-mode shell height from `116` to `106` so the taller cards stay inside the accepted bottom frame
+- increased helper media bounds from `140x56` to `142x71`
+- reduced caption bounds from `140x14` to `142x12`
+- changed captioned helper cards to prefer `object-fit: contain` so product geometry reads more like a helper-image card and less like a cropped strip
+- softened caption visual weight with smaller type, tighter spacing, and a weaker tone
+
+### Exact files changed
+
+- `app/services/poster2/template_behavior.py`
+- `app/templates_html/template_dual_v2.css`
+- `tests/poster2/test_pipeline.py`
+- `docs/poster2/README.md`
+- `docs/poster2/05_validation/family_a/bottom_gallery_helper_card_rebalance_status_v1.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Family A bottom-region beautification only
+- fryer helper-card shell/media/caption allocation only
+- validation/context docs only
+
+### Validation performed
+
+- resolver evidence:
+  - confirmed fryer split-mode helper row now resolves to `gallery_shell_height = 106`
+  - confirmed fryer split-mode helper row now resolves to `gallery_items_height = 100`
+  - confirmed first helper card now resolves to:
+    - `card_bounds = 156x100`
+    - `media_bounds = 142x71`
+    - `caption_bounds = 142x12`
+- focused tests:
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_pipeline.py -k 'title_gallery_split_fryer_dense_quad_detail_row_adds_breathing or template_a_fryer_bottom_contract_review_exposes_caption_truth'`
+  - `./.venv/bin/python -m pytest -q tests/poster2/test_renderer.py -k 'fryer_dense_quad_gallery_markup_emits_semantic_captions'`
+
+### Remaining risks
+
+- this pass was validated with resolver truth, CSS review, and focused tests only; no browser screenshot comparison was produced in this workspace
+- `object-fit: contain` improves product readability for helper images, but very loose-source images may now show more intentional inner breathing room instead of edge-to-edge crop fill
+
+### Acceptance state
+
+- 4-slot bottom helper-image row remains intact
+- bottom truth and AI generation logic remain unchanged
+- helper imagery receives materially more readable vertical space
+- captions no longer dominate the limited card height
+- validation path and branch context were updated before stop
+
+### One-line execution summary
+
+- `PR-BOTTOM-GALLERY-VIS1` rebalanced the fryer bottom helper-image cards into taller, less cropped product helper cards while preserving the existing 4-slot bottom truth and production behavior.
+
 ## Entry — PR-AI-BOTTOM1: Slot-level bottom helper-image AI generation
 
 **Branch:** `main`

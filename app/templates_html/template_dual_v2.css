@@ -1053,26 +1053,38 @@ body {
 .gallery-item-with-caption {
   display: flex;
   flex-direction: column;
-  padding: 8px;
+  padding: 7px 7px 6px;
+  gap: 3px;
 }
 
 .gallery-item-with-caption .gallery-item-media {
+  display: flex;
   flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
   min-height: 0;
   height: auto;
+  padding: 4px 6px 2px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(245, 247, 248, 0.62));
 }
 
 .gallery-item-caption {
-  margin-top: 6px;
   font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
-  font-size: 12px;
-  line-height: 1.2;
-  letter-spacing: 0.02em;
-  color: rgba(90, 97, 104, 0.92);
+  font-size: 11px;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  color: rgba(90, 97, 104, 0.78);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.gallery-item-with-caption img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
 }
 
 .structured-overlay svg {

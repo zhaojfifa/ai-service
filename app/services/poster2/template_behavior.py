@@ -2838,8 +2838,8 @@ def _resolve_gallery_strip_vertical_metrics(
             item_height = 176
         else:
             shift_policy = "detail_row_quad_shift"
-            shell_height = 116
-            item_height = 90
+            shell_height = 106
+            item_height = 100
     if peer_balance_policy == "gallery_priority_under_dense_quad":
         shell_height = max(shell_height - 4, item_height + 12)
     inner_pad_y = max((shell_height - item_height) // 2, 0)
@@ -2899,9 +2899,9 @@ def _resolve_gallery_caption_truth(
         y = int(item["y"])
         w = int(item["w"])
         h = int(item["h"])
-        inner_pad = 8
-        caption_gap = 4
-        caption_h = 14
+        inner_pad = 7
+        caption_gap = 3
+        caption_h = 12
         media_h = max(h - (inner_pad * 2) - caption_gap - caption_h, 20)
         local_x = int(item["local_x"])
         local_y = int(item["local_y"])

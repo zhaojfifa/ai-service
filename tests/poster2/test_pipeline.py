@@ -2947,9 +2947,10 @@ class TestPostFreezeTextCapacity:
         assert policy.layout_metrics["peer_gap"] == 18
         assert policy.layout_metrics["title_band_height"] == 172
         assert policy.layout_metrics["gallery_shell_w"] == 758
-        assert policy.layout_metrics["gallery_shell_height"] == 116
-        assert policy.layout_metrics["gallery_items_height"] == 90
+        assert policy.layout_metrics["gallery_shell_height"] == 106
+        assert policy.layout_metrics["gallery_items_height"] == 100
         assert [item["w"] for item in policy.layout_metrics["gallery_item_layouts"]] == [156, 156, 156, 156]
+        assert [item["h"] for item in policy.layout_metrics["gallery_item_layouts"]] == [100, 100, 100, 100]
         assert [
             policy.layout_metrics["gallery_item_layouts"][index + 1]["x"]
             - policy.layout_metrics["gallery_item_layouts"][index]["x"]
@@ -5929,7 +5930,8 @@ class TestTemplateBBackendGenerationFix:
             "gallery_caption_slot_3",
             "gallery_caption_slot_4",
         ]
-        assert [slot["media_bounds"]["h"] for slot in review["gallery_caption_slots"].values()] == [56, 56, 56, 56]
+        assert [slot["card_bounds"]["h"] for slot in review["gallery_caption_slots"].values()] == [100, 100, 100, 100]
+        assert [slot["media_bounds"]["h"] for slot in review["gallery_caption_slots"].values()] == [71, 71, 71, 71]
         assert [slot["caption_text"] for slot in review["gallery_caption_slots"].values()] == [
             "Basket Detail",
             "Single Tank",
