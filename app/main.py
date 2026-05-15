@@ -1689,23 +1689,49 @@ def _poster2_failure_response(
     message: str,
     retryable: bool,
     timeout_ms: int | None = None,
+    exception_class: str = "TimeoutError",
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status_code,
         content={
             "ok": False,
             "error": "poster2_generation_failed",
+            "error_code": code,
             "request_id": request_id,
             "failure": {
                 "stage": stage,
                 "code": code,
                 "message": message,
                 "detail": message,
-                "exception_class": "TimeoutError",
+                "exception_class": exception_class,
                 "retryable": retryable,
                 **({"timeout_ms": timeout_ms} if timeout_ms is not None else {}),
             },
         },
+        headers={"X-Request-ID": request_id} if request_id else None,
+    )
+
+
+def _poster2_stage_error_status(exc: PosterGenerationStageError) -> int:
+    if exc.stage != "puppeteer_render":
+        return exc.status_code
+    if exc.code.endswith("_timeout") or exc.context.timeout_ms is not None:
+        return 504
+    return 503
+
+
+def _poster2_stage_failure_response(
+    *,
+    error: PosterGenerationStageError,
+    request_id: str | None,
+) -> JSONResponse:
+    status_code = _poster2_stage_error_status(error)
+    payload = failure_response_payload(error=error, request_id=request_id)
+    payload["error_code"] = error.code
+    return JSONResponse(
+        status_code=status_code,
+        content=payload,
+        headers={"X-Request-ID": request_id} if request_id else None,
     )
 
 
@@ -1802,19 +1828,24 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                 stage="semaphore_wait",
                 timeout_ms=queue_timeout_ms,
             )
-            _poster2_lifecycle_log("response_start", request_id=request_id, status_code=503)
+            _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=503)
             return _poster2_failure_response(
                 status_code=503,
                 request_id=request_id,
                 stage="semaphore_wait",
-                code="poster2_generate_queue_timeout",
+                code="generate_busy",
                 message="poster2 generate queue wait exceeded timeout",
                 retryable=True,
                 timeout_ms=queue_timeout_ms,
             )
-        _poster2_lifecycle_log("semaphore_wait_end", request_id=request_id)
+        _poster2_lifecycle_log("semaphore_acquired", request_id=request_id)
         lifecycle_token = set_request_lifecycle_id(request_id)
         try:
+            _poster2_lifecycle_log(
+                "pipeline_start",
+                request_id=request_id,
+                timeout_ms=runtime_timeout_ms,
+            )
             manifest = await asyncio.wait_for(
                 pipeline.run(spec),
                 timeout=runtime_timeout_ms / 1000,
@@ -1826,12 +1857,12 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                 stage="generate_runtime",
                 timeout_ms=runtime_timeout_ms,
             )
-            _poster2_lifecycle_log("response_start", request_id=request_id, status_code=504)
+            _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=504)
             return _poster2_failure_response(
                 status_code=504,
                 request_id=request_id,
                 stage="generate_runtime",
-                code="poster2_generate_timeout",
+                code="generate_timeout",
                 message="poster2 generate runtime exceeded timeout",
                 retryable=True,
                 timeout_ms=runtime_timeout_ms,
@@ -1919,8 +1950,11 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             final_poster=_poster2_final_poster_payload(manifest),
         )
         _poster2_lifecycle_log("storage_end", request_id=request_id, trace_id=manifest.trace_id, target="poster_record")
-        _poster2_lifecycle_log("response_start", request_id=request_id, status_code=200, trace_id=manifest.trace_id)
-        return JSONResponse(content=response_payload_dict)
+        _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=200, trace_id=manifest.trace_id)
+        return JSONResponse(
+            content=response_payload_dict,
+            headers={"X-Request-ID": request_id} if request_id else None,
+        )
 
     except FileNotFoundError as exc:
         _poster2_lifecycle_log("exception", request_id=request_id, stage="request_file", exception_class=exc.__class__.__name__)
@@ -1945,11 +1979,9 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             exc.code,
             exc.detail,
         )
-        _poster2_lifecycle_log("response_start", request_id=request_id, status_code=exc.status_code)
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=failure_response_payload(error=exc, request_id=request_id),
-        )
+        status_code = _poster2_stage_error_status(exc)
+        _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=status_code)
+        return _poster2_stage_failure_response(error=exc, request_id=request_id)
     except Exception as exc:
         reason_code = getattr(exc, "reason_code", None)
         detail = getattr(exc, "detail", None) or str(exc)
@@ -1969,12 +2001,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             failure_stage,
             detail,
         )
-        _poster2_lifecycle_log("response_start", request_id=request_id, status_code=500)
+        _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=500)
         return JSONResponse(
             status_code=500,
             content={
                 "ok": False,
                 "error": "poster2_generation_failed",
+                "error_code": reason_code or "poster2_generation_failed",
                 "request_id": request_id,
                 "failure": {
                     "stage": failure_stage or "unknown",
@@ -1985,6 +2018,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
                     "retryable": False,
                 },
             },
+            headers={"X-Request-ID": request_id} if request_id else None,
         )
 
 

@@ -297,7 +297,7 @@ class PosterPipeline:
         t1 = _now()
         try:
             _lifecycle_log(
-                "render_start",
+                "puppeteer_render_start",
                 trace_id=trace_id,
                 template_id=template.template_id,
                 renderer_mode=effective_spec.renderer_mode,
@@ -319,7 +319,7 @@ class PosterPipeline:
         timings["renderer_ms"] = _elapsed(t1)
         timings.update(fg_result.layer_timings_ms)
         _lifecycle_log(
-            "render_end",
+            "puppeteer_render_end",
             trace_id=trace_id,
             render_engine_used=fg_result.render_engine_used,
             renderer_ms=timings["renderer_ms"],

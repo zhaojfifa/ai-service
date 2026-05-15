@@ -1768,12 +1768,19 @@ class PuppeteerStructuredRenderer:
             launch_kwargs["executable_path"] = chromium_executable
 
         async with async_playwright() as playwright:
+            launch_t0 = _now()
             logger.info("poster2.puppeteer: browser_launch_start width=%d height=%d", width, height)
             try:
                 browser = await playwright.chromium.launch(**launch_kwargs)
             except Exception as exc:
+                logger.warning(
+                    "poster2.puppeteer: browser_launch_failed ms=%d exc=%s detail=%s",
+                    _elapsed(launch_t0),
+                    exc.__class__.__name__,
+                    _truncate_detail(str(exc) or exc.__class__.__name__),
+                )
                 raise _classify_puppeteer_exception(exc, stage="browser_launch") from exc
-            logger.info("poster2.puppeteer: browser_launch_done")
+            logger.info("poster2.puppeteer: browser_launch_done ms=%d", _elapsed(launch_t0))
             try:
                 page = await browser.new_page(
                     viewport={"width": width, "height": height},
@@ -1808,9 +1815,10 @@ class PuppeteerStructuredRenderer:
                 logger.info("poster2.puppeteer: screenshot_done")
                 return png_bytes, visible_truth_evidence
             finally:
+                close_t0 = _now()
                 try:
                     await browser.close()
-                    logger.info("poster2.puppeteer: browser_close_done")
+                    logger.info("poster2.puppeteer: browser_close_done ms=%d", _elapsed(close_t0))
                 except Exception as exc:
                     logger.warning("poster2.puppeteer: browser_close_failed detail=%s", exc)
 

@@ -219,6 +219,23 @@ class _StageErrorPoster2Pipeline:
         )
 
 
+class _PuppeteerStageErrorPoster2Pipeline:
+    def __init__(self, *, code: str = "renderer_execution_failed", timeout_ms: int | None = None) -> None:
+        self.code = code
+        self.timeout_ms = timeout_ms
+
+    async def run(self, spec, template=None) -> RenderManifest:
+        raise PosterGenerationStageError(
+            "puppeteer_render",
+            self.code,
+            "failed to render poster foreground",
+            detail="BrowserType.launch: target closed",
+            exception_class="PuppeteerRenderError",
+            retryable=True,
+            timeout_ms=self.timeout_ms,
+        )
+
+
 class _SlowPoster2Pipeline:
     async def run(self, spec, template=None) -> RenderManifest:
         await asyncio.sleep(60)
@@ -873,8 +890,9 @@ def test_generate_poster_v2_queue_timeout_returns_json_with_cors(monkeypatch):
     assert response.headers["x-request-id"] == "req-queue-timeout-1"
     body = response.json()
     assert body["request_id"] == "req-queue-timeout-1"
+    assert body["error_code"] == "generate_busy"
     assert body["failure"]["stage"] == "semaphore_wait"
-    assert body["failure"]["code"] == "poster2_generate_queue_timeout"
+    assert body["failure"]["code"] == "generate_busy"
     assert body["failure"]["retryable"] is True
 
 
@@ -903,9 +921,75 @@ def test_generate_poster_v2_runtime_timeout_returns_json_with_cors(monkeypatch):
     assert response.headers["x-request-id"] == "req-runtime-timeout-1"
     body = response.json()
     assert body["request_id"] == "req-runtime-timeout-1"
+    assert body["error_code"] == "generate_timeout"
     assert body["failure"]["stage"] == "generate_runtime"
-    assert body["failure"]["code"] == "poster2_generate_timeout"
+    assert body["failure"]["code"] == "generate_timeout"
     assert body["failure"]["retryable"] is True
+
+
+def test_generate_poster_v2_puppeteer_stage_error_returns_json_503_with_request_id(monkeypatch):
+    monkeypatch.setattr(
+        "app.main._get_poster2_pipeline",
+        lambda: _PuppeteerStageErrorPoster2Pipeline(),
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-puppeteer-fail-1"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "puppeteer",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.headers["x-request-id"] == "req-puppeteer-fail-1"
+    body = response.json()
+    assert body["ok"] is False
+    assert body["error_code"] == "renderer_execution_failed"
+    assert body["request_id"] == "req-puppeteer-fail-1"
+    assert body["failure"]["stage"] == "puppeteer_render"
+    assert body["failure"]["exception_class"] == "PuppeteerRenderError"
+
+
+def test_generate_poster_v2_puppeteer_timeout_returns_json_504_with_request_id(monkeypatch):
+    monkeypatch.setattr(
+        "app.main._get_poster2_pipeline",
+        lambda: _PuppeteerStageErrorPoster2Pipeline(code="puppeteer_render_timeout", timeout_ms=60000),
+    )
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-puppeteer-timeout-1"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "puppeteer",
+        },
+    )
+
+    assert response.status_code == 504
+    assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.headers["x-request-id"] == "req-puppeteer-timeout-1"
+    body = response.json()
+    assert body["error_code"] == "puppeteer_render_timeout"
+    assert body["request_id"] == "req-puppeteer-timeout-1"
+    assert body["failure"]["stage"] == "puppeteer_render"
+    assert body["failure"]["timeout_ms"] == 60000
 
 
 def test_generate_poster_v2_failure_does_not_break_health_or_next_request(monkeypatch):
