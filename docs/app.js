@@ -4888,7 +4888,7 @@ function initStage1ModeS() {
     markPreviewStale();
   }
 
-  const refreshTemplatePreviewStage1 = async (templateId) => {
+  async function refreshTemplatePreviewStage1(templateId) {
     if (!templateCanvasStage1) return;
     try {
       const assets = await App.utils.ensureTemplateAssets(templateId);
@@ -4927,7 +4927,7 @@ function initStage1ModeS() {
         templateDescriptionStage1.textContent = '模板预览加载失败，请检查 templates 资源。';
       }
     }
-  };
+  }
 
   const mountTemplateChooserStage1 = async () => {
     if (!templateSelectStage1) return;

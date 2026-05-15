@@ -1,5 +1,66 @@
 # Current Branch Execution Log v1
 
+## Entry — Stage1 template preview TDZ fix
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-05-15`
+
+### Scope
+
+- Stage1 frontend stability only
+- hoist the Mode S template-preview refresh helper inside `initStage1ModeS`
+- keep Template A and Template B selector paths separated
+- keep `frontend/` and `docs/` mirrored
+
+### Root rules followed
+
+- read required repo and poster2 docs before editing
+- stayed on the frontend initialization-order layer
+- no template registry, template spec, backend API, renderer, contract, bottom SOP, product annotation, Template B payload, CSS, or beautification changes
+
+### Problem reproduced
+
+- live GitHub Pages `/ai-service/index.html` failed during Stage1 initialization with `ReferenceError: Cannot access 'refreshTemplatePreviewStage1' before initialization`
+- deployed `app.js` matched local `docs/app.js`
+
+### Root cause found
+
+- `init()` called `initStage1()`, which routed to `initStage1ModeS()`
+- early default/stored hydration called `refreshVariantTemplateMeta(...)`
+- `refreshVariantTemplateMeta(...)` called `refreshTemplatePreviewStage1(...)`
+- `refreshTemplatePreviewStage1` was a local `const` async function expression declared later in the same scope, so the early call hit the JavaScript temporal dead zone
+
+### Files changed
+
+- `frontend/app.js`
+- `docs/app.js`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage1 frontend initialization order only
+
+### Validation run
+
+- `node --check frontend/app.js` -> passed
+- `node --check docs/app.js` -> passed
+- `bash scripts/check_frontend_docs_sync.sh` -> `frontend/docs publish assets are in sync`
+- `python3.11 -m pytest -q tests/test_frontend_docs_sync.py` -> `8 passed`
+- local Playwright check against `http://127.0.0.1:8017/docs/index.html` with ops auth mocked open:
+  - template options loaded: `Marketing Poster`, `Product Sheet`
+  - Template A preview description rendered
+  - Template B preview description rendered after selector change
+  - Template B top-copy controls visible after selecting Product Sheet
+  - Template A bottom controls visible after selecting Marketing Poster
+  - no `refreshTemplatePreviewStage1` console/page errors
+
+### Remaining risks
+
+- manual browser verification on the deployed GitHub Pages URL should be repeated after publish/cache refresh
+- unrelated pre-existing template spec drift between `frontend/templates/template_dual_spec.json` and `docs/templates/template_dual_spec.json` was observed during review but intentionally not changed in this scoped fix
+
+
 ## Entry — PR-TB-BEAUTY1: Template B visual beautification pass
 
 **Branch:** `poster2/pr-tb-op3-description-copy`
