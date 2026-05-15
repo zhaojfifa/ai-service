@@ -26,6 +26,22 @@ services:
         value: "10000"
       - key: POSTER2_GENERATE_TIMEOUT_MS
         value: "80000"
+      - key: CORS_ALLOW_ORIGINS
+        value: https://zhaojfifa.github.io
+      - key: CORS_ALLOW_CREDENTIALS
+        value: "true"
+      - key: OPS_UI_ENABLED
+        value: "true"
+      - key: OPS_USERNAME
+        value: ops
+      - key: OPS_PASSWORD
+        sync: false
+      - key: OPS_UI_SESSION_SECRET
+        sync: false
+      - key: OPS_UI_COOKIE_SAMESITE
+        value: none
+      - key: OPS_UI_COOKIE_SECURE
+        value: "true"
       - key: VERTEX_SAFETY_FILTER_LEVEL
         value: block_some
       - key: VERTEX_SEED

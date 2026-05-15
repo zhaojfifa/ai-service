@@ -75,3 +75,19 @@ def test_ops_login_me_and_logout_flow(monkeypatch) -> None:
 
     after_logout = client.get("/api/template-posters")
     assert after_logout.status_code == 401
+
+
+def test_ops_password_alias_is_accepted(monkeypatch) -> None:
+    monkeypatch.setenv("OPS_UI_ENABLED", "true")
+    monkeypatch.delenv("OPS_UI_PASSWORD", raising=False)
+    monkeypatch.setenv("OPS_PASSWORD", "rotated-pass")
+    monkeypatch.setenv("OPS_UI_SESSION_SECRET", "test-session-secret")
+    client = TestClient(app)
+
+    login = client.post(
+        "/api/auth/ops-login",
+        json={"username": "ops", "password": "rotated-pass"},
+    )
+
+    assert login.status_code == 200
+    assert login.json()["authenticated"] is True

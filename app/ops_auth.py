@@ -12,7 +12,8 @@ from typing import Any
 from fastapi import Request
 
 
-OPS_USERNAME = "ops"
+DEFAULT_OPS_USERNAME = "ops"
+OPS_USERNAME = DEFAULT_OPS_USERNAME
 
 PROTECTED_API_PREFIXES = (
     "/api/r2/presign-put",
@@ -48,6 +49,17 @@ def _normalise_same_site(value: str | None) -> str:
     return text
 
 
+def _env_first(*names: str) -> str | None:
+    for name in names:
+        value = os.getenv(name)
+        if value is None:
+            continue
+        text = value.strip()
+        if text:
+            return text
+    return None
+
+
 def _urlsafe_b64encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
@@ -60,6 +72,7 @@ def _urlsafe_b64decode(text: str) -> bytes:
 @dataclass(frozen=True)
 class OpsAuthSettings:
     enabled: bool
+    username: str
     password: str | None
     session_secret: str | None
     allowed_origin: str | None
@@ -76,7 +89,8 @@ class OpsAuthSettings:
 def load_ops_auth_settings() -> OpsAuthSettings:
     return OpsAuthSettings(
         enabled=_as_bool(os.getenv("OPS_UI_ENABLED"), False),
-        password=os.getenv("OPS_UI_PASSWORD"),
+        username=_env_first("OPS_USERNAME", "OPS_UI_USERNAME") or DEFAULT_OPS_USERNAME,
+        password=_env_first("OPS_PASSWORD", "OPS_UI_PASSWORD"),
         session_secret=os.getenv("OPS_UI_SESSION_SECRET"),
         allowed_origin=(os.getenv("OPS_UI_ALLOWED_ORIGIN") or "").strip() or None,
         cookie_name=(os.getenv("OPS_UI_COOKIE_NAME") or "ops_ui_session").strip() or "ops_ui_session",
@@ -125,7 +139,7 @@ def read_session_cookie(cookie_value: str | None, settings: OpsAuthSettings, now
         return None
     if not isinstance(payload, dict):
         return None
-    if payload.get("sub") != OPS_USERNAME:
+    if payload.get("sub") != settings.username:
         return None
     if int(payload.get("exp") or 0) <= int(now or time.time()):
         return None
@@ -146,5 +160,5 @@ def auth_state(request: Request, settings: OpsAuthSettings | None = None) -> dic
     return {
         "enabled": auth_settings.is_active,
         "authenticated": authenticated,
-        "username": OPS_USERNAME if authenticated and auth_settings.is_active else None,
+        "username": auth_settings.username if authenticated and auth_settings.is_active else None,
     }

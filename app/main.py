@@ -45,7 +45,6 @@ def _generate_runtime_timeout_ms() -> int:
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
 from app.ops_auth import (
-    OPS_USERNAME,
     auth_state as build_ops_auth_state,
     build_session_cookie,
     is_authenticated as is_ops_authenticated,
@@ -189,7 +188,7 @@ def ops_auth_login(request: Request, payload: OpsLoginRequest) -> JSONResponse:
     auth_settings = load_ops_auth_settings()
     if not auth_settings.is_active:
         return JSONResponse({"ok": True, **build_ops_auth_state(request)})
-    if payload.username != OPS_USERNAME or payload.password != auth_settings.password:
+    if payload.username != auth_settings.username or payload.password != auth_settings.password:
         return JSONResponse(
             status_code=401,
             content={
@@ -205,12 +204,12 @@ def ops_auth_login(request: Request, payload: OpsLoginRequest) -> JSONResponse:
             "ok": True,
             "enabled": True,
             "authenticated": True,
-            "username": OPS_USERNAME,
+            "username": auth_settings.username,
         }
     )
     response.set_cookie(
         key=auth_settings.cookie_name,
-        value=build_session_cookie(OPS_USERNAME, auth_settings),
+        value=build_session_cookie(auth_settings.username, auth_settings),
         max_age=auth_settings.cookie_max_age_sec,
         httponly=True,
         secure=auth_settings.cookie_secure,
@@ -1234,6 +1233,45 @@ async def api_generate_slot_image(req: GenerateSlotImageRequest) -> GenerateSlot
     return GenerateSlotImageResponse(url=url, key=key)
 
 
+def _legacy_generate_failure_response(
+    *,
+    status_code: int,
+    trace: str,
+    stage: str,
+    code: str,
+    message: str,
+    retryable: bool,
+    timeout_ms: int | None = None,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "failed",
+            "error": "poster_generation_failed",
+            "request_id": trace,
+            "failure": {
+                "stage": stage,
+                "code": code,
+                "message": message,
+                "detail": message,
+                "exception_class": "TimeoutError",
+                "retryable": retryable,
+                **({"timeout_ms": timeout_ms} if timeout_ms is not None else {}),
+            },
+        },
+        headers={"X-Request-Trace": trace},
+    )
+
+
+def _release_legacy_generation_semaphore(task: asyncio.Task) -> None:
+    try:
+        task.exception()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        _GENERATE_POSTER_SEMAPHORE.release()
+
+
 @app.post("/api/generate-poster", response_model=GeneratePosterResponse)
 async def generate_poster(request: Request) -> JSONResponse:
     trace = _ensure_trace_id(request)
@@ -1304,8 +1342,7 @@ async def generate_poster(request: Request) -> JSONResponse:
             poster, prompt_payload
         )
 
-        # 生成主图与变体
-        async with _GENERATE_POSTER_SEMAPHORE:
+        def _run_legacy_generation():
             seed_value = (
                 draft.options.seed
                 if draft is not None and draft.options.seed is not None
@@ -1344,6 +1381,56 @@ async def generate_poster(request: Request) -> JSONResponse:
                 extra_warnings = []
                 degraded_extra = False
                 quality_mode_used = "stable"
+            return result, extra_warnings, degraded_extra, quality_mode_used, seed_value
+
+        queue_timeout_ms = _generate_queue_timeout_ms()
+        runtime_timeout_ms = _generate_runtime_timeout_ms()
+        try:
+            await asyncio.wait_for(
+                _GENERATE_POSTER_SEMAPHORE.acquire(),
+                timeout=queue_timeout_ms / 1000,
+            )
+        except TimeoutError:
+            logger.warning(
+                "generate_poster queue timeout",
+                extra={"trace": trace, "timeout_ms": queue_timeout_ms},
+            )
+            return _legacy_generate_failure_response(
+                status_code=503,
+                trace=trace,
+                stage="semaphore_wait",
+                code="poster_generate_queue_timeout",
+                message="poster generate queue wait exceeded timeout",
+                retryable=True,
+                timeout_ms=queue_timeout_ms,
+            )
+
+        generation_task = asyncio.create_task(asyncio.to_thread(_run_legacy_generation))
+        release_deferred = False
+        try:
+            result, extra_warnings, degraded_extra, quality_mode_used, seed_value = await asyncio.wait_for(
+                asyncio.shield(generation_task),
+                timeout=runtime_timeout_ms / 1000,
+            )
+        except TimeoutError:
+            release_deferred = True
+            generation_task.add_done_callback(_release_legacy_generation_semaphore)
+            logger.warning(
+                "generate_poster runtime timeout",
+                extra={"trace": trace, "timeout_ms": runtime_timeout_ms},
+            )
+            return _legacy_generate_failure_response(
+                status_code=504,
+                trace=trace,
+                stage="generate_runtime",
+                code="poster_generate_timeout",
+                message="poster generate runtime exceeded timeout",
+                retryable=True,
+                timeout_ms=runtime_timeout_ms,
+            )
+        finally:
+            if not release_deferred:
+                _GENERATE_POSTER_SEMAPHORE.release()
 
         email_body = compose_marketing_email(poster, result.poster.filename)
         response_bundle: PromptBundle | None = None

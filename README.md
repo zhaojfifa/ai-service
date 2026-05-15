@@ -90,7 +90,8 @@ uvicorn app.main:app --reload
 | 变量名 | 说明 |
 | --- | --- |
 | `OPS_UI_ENABLED` | 是否启用 ops 门禁。 |
-| `OPS_UI_PASSWORD` | 固定用户名 `ops` 对应的后端口令。 |
+| `OPS_PASSWORD` / `OPS_UI_PASSWORD` | ops 登录口令；`OPS_PASSWORD` 优先，用于轮换暴露后的口令。 |
+| `OPS_USERNAME` / `OPS_UI_USERNAME` | ops 登录用户名；默认 `ops`。 |
 | `OPS_UI_SESSION_SECRET` | 会话签名密钥，仅后端使用。 |
 | `OPS_UI_ALLOWED_ORIGIN` | 可选；当前端仅允许一个受信 origin 时可直接使用。 |
 | `OPS_UI_COOKIE_NAME` | 会话 Cookie 名称。 |
