@@ -9394,6 +9394,60 @@ Measured deltas:
 - accepted optimization still changes rendered subtitle truth when explicitly selected
 - 4-item strip remains in `title_gallery_split` but now reads as a semantic detail row with breathing room
 
+## 2026-05-15 — Stage2 generate gateway failure hardening
+
+### Root rules followed
+
+- backend/runtime stability only
+- no poster contract, Template A/B payload shape, bottom SOP, product annotation truth, beautification, or layout geometry changes
+- existing frontend/docs request correlation behavior preserved
+
+### Problem reproduced / reviewed
+
+- live evidence showed mixed successful poster generation and gateway-level `502 Bad Gateway` / `ERR_FAILED` failures with the same valid frontend payload class
+- local review found the backend generate route serialized all Stage2 poster generation through one semaphore, but semaphore wait and whole-request runtime were not bounded below the Render gateway timeout
+- this means queued/cold Puppeteer work could be killed by the platform before FastAPI returned structured JSON with CORS and request id
+
+### Root cause
+
+- frontend payload and poster contract are not implicated
+- backend had stage-level timeouts, but lacked a route-level queue timeout and route-level runtime timeout
+- lifecycle logs were too coarse to tell whether a failure happened during request receipt, auth, semaphore wait, render, compose, storage, response construction, exception, or timeout
+- live Render log search by historical request id could not be completed from this workspace because no Render CLI/access token is configured
+
+### Files changed
+
+- `app/main.py`
+- `app/services/poster2/pipeline.py`
+- `app/services/poster2/renderer.py`
+- `render.yaml`
+- `tests/poster2/test_api.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 backend generate runtime guard
+- PosterPipeline lifecycle observability
+- Puppeteer browser close observability
+- Render deployment timeout configuration
+- focused API/CORS regression coverage
+
+### Validation run
+
+- `python3.11 -m py_compile app/main.py app/services/poster2/pipeline.py app/services/poster2/renderer.py tests/poster2/test_api.py` -> passed
+- `CORS_ALLOW_ORIGINS=https://zhaojfifa.github.io python3.11 -m pytest -q tests/poster2/test_api.py -k 'route_is_backward_compatible or preflight_allows_content_type_and_x_request_id or error_response_keeps_cors_headers or stage_failure_response_is_machine_readable or queue_timeout_returns_json_with_cors or runtime_timeout_returns_json_with_cors'` -> passed
+- `CORS_ALLOW_ORIGINS=https://zhaojfifa.github.io python3.11 -m pytest -q tests/poster2/test_api.py` -> passed
+- `CORS_ALLOW_ORIGINS=https://zhaojfifa.github.io python3.11 -m pytest -q tests/test_ops_auth_gate.py` -> passed
+- live `GET https://ai-service-leob.onrender.com/health` -> 200
+- live `OPTIONS https://ai-service-leob.onrender.com/api/v2/generate-poster` from `https://zhaojfifa.github.io` -> 200 with `X-Request-ID` allowed
+- live unauthenticated generate probe with `X-Request-ID: stage2-live-unauth-probe` -> 401 JSON with CORS and `X-Request-ID`
+
+### Remaining risks
+
+- live authenticated 5-run same-payload validation was not run because ops credentials and Render log access are not available in this workspace
+- Render cold restart validation was not run from this workspace
+- this patch does not add a browser pool; if logs still show Chromium launch pressure after deployment, browser warmup/pooling remains the next bounded mitigation
+
 ## 2026-05-15 — Stage2 generate request correlation and transport classification
 
 ### Root rules followed

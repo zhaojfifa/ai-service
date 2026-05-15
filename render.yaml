@@ -22,6 +22,10 @@ services:
         value: imagen-3.0-edit
       - key: VERTEX_TIMEOUT_SECONDS
         value: "60"
+      - key: POSTER2_GENERATE_QUEUE_TIMEOUT_MS
+        value: "10000"
+      - key: POSTER2_GENERATE_TIMEOUT_MS
+        value: "80000"
       - key: VERTEX_SAFETY_FILTER_LEVEL
         value: block_some
       - key: VERTEX_SEED

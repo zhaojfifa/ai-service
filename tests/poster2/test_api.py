@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import asyncio
 import io
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,6 +26,11 @@ class _FakePoster2Pipeline:
         }
         requested_bottom_mode = raw_bottom_mode
         effective_bottom_mode = aliases.get(raw_bottom_mode, raw_bottom_mode)
+        effective_bottom_layout_mode = (
+            "gallery_only_expanded"
+            if effective_bottom_mode == "gallery_only"
+            else effective_bottom_mode
+        )
         override_reason = (
             "requested_matches_template_default"
             if effective_bottom_mode == "title_gallery_split" and raw_bottom_mode == "title_gallery_split"
@@ -74,7 +80,7 @@ class _FakePoster2Pipeline:
             template_behavior={
                 "behavior_modes": {
                     "bottom_mode": effective_bottom_mode,
-                    "bottom_layout_mode": effective_bottom_mode,
+                    "bottom_layout_mode": effective_bottom_layout_mode,
                     "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
                 }
             },
@@ -105,7 +111,7 @@ class _FakePoster2Pipeline:
                 "requested_bottom_mode": requested_bottom_mode,
                 "effective_bottom_mode": effective_bottom_mode,
                 "bottom_mode": effective_bottom_mode,
-                "bottom_layout_mode": effective_bottom_mode,
+                "bottom_layout_mode": effective_bottom_layout_mode,
                 "bottom_mode_override_reason": override_reason,
                 "gallery_mode": spec.gallery_mode or "strip_local_visible_only",
                 "title_band_region": {"rendered": title_band_rendered},
@@ -211,6 +217,21 @@ class _StageErrorPoster2Pipeline:
             retryable=True,
             asset_url=spec.product_image.url,
         )
+
+
+class _SlowPoster2Pipeline:
+    async def run(self, spec, template=None) -> RenderManifest:
+        await asyncio.sleep(60)
+        return await _FakePoster2Pipeline().run(spec, template)
+
+
+class _NeverAcquireSemaphore:
+    async def acquire(self) -> bool:
+        await asyncio.sleep(60)
+        return True
+
+    def release(self) -> None:
+        return None
 
 
 class _FlakyPoster2Pipeline:
@@ -823,6 +844,67 @@ def test_generate_poster_v2_stage_failure_response_is_machine_readable(monkeypat
     assert body["failure"]["code"] == "asset_fetch_timeout"
     assert body["failure"]["timeout_ms"] == 30000
     assert body["failure"]["asset_url"] == "https://example.com/product.png"
+    assert body["failure"]["retryable"] is True
+
+
+def test_generate_poster_v2_queue_timeout_returns_json_with_cors(monkeypatch):
+    monkeypatch.setenv("POSTER2_GENERATE_QUEUE_TIMEOUT_MS", "5")
+    monkeypatch.setattr("app.main._GENERATE_POSTER_SEMAPHORE", _NeverAcquireSemaphore())
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _FakePoster2Pipeline())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-queue-timeout-1"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "pillow",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.headers["x-request-id"] == "req-queue-timeout-1"
+    body = response.json()
+    assert body["request_id"] == "req-queue-timeout-1"
+    assert body["failure"]["stage"] == "semaphore_wait"
+    assert body["failure"]["code"] == "poster2_generate_queue_timeout"
+    assert body["failure"]["retryable"] is True
+
+
+def test_generate_poster_v2_runtime_timeout_returns_json_with_cors(monkeypatch):
+    monkeypatch.setenv("POSTER2_GENERATE_TIMEOUT_MS", "5")
+    monkeypatch.setattr("app.main._get_poster2_pipeline", lambda: _SlowPoster2Pipeline())
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.post(
+        "/api/v2/generate-poster",
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-runtime-timeout-1"},
+        json={
+            "brand_name": "厨厨房",
+            "agent_name": "智能顾问",
+            "title": "测试标题",
+            "subtitle": "测试副标题",
+            "features": ["特性A", "特性B"],
+            "product_image": {"url": "https://example.com/product.png"},
+            "template_id": "template_dual_v2",
+            "renderer_mode": "pillow",
+        },
+    )
+
+    assert response.status_code == 504
+    assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.headers["x-request-id"] == "req-runtime-timeout-1"
+    body = response.json()
+    assert body["request_id"] == "req-runtime-timeout-1"
+    assert body["failure"]["stage"] == "generate_runtime"
+    assert body["failure"]["code"] == "poster2_generate_timeout"
     assert body["failure"]["retryable"] is True
 
 

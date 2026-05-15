@@ -1808,7 +1808,11 @@ class PuppeteerStructuredRenderer:
                 logger.info("poster2.puppeteer: screenshot_done")
                 return png_bytes, visible_truth_evidence
             finally:
-                await browser.close()
+                try:
+                    await browser.close()
+                    logger.info("poster2.puppeteer: browser_close_done")
+                except Exception as exc:
+                    logger.warning("poster2.puppeteer: browser_close_failed detail=%s", exc)
 
     async def _stabilize_page_for_screenshot(self, page: Any) -> None:
         await page.locator("#poster-root").wait_for(

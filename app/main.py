@@ -27,6 +27,21 @@ from PIL import Image, ImageDraw, ImageFont
 
 _GENERATE_POSTER_SEMAPHORE = asyncio.Semaphore(1)
 
+
+def _env_positive_int(name: str, default: int) -> int:
+    try:
+        return max(int(os.getenv(name, str(default)) or default), 1)
+    except (TypeError, ValueError):
+        return default
+
+
+def _generate_queue_timeout_ms() -> int:
+    return _env_positive_int("POSTER2_GENERATE_QUEUE_TIMEOUT_MS", 10000)
+
+
+def _generate_runtime_timeout_ms() -> int:
+    return _env_positive_int("POSTER2_GENERATE_TIMEOUT_MS", 80000)
+
 from app.config import get_settings
 from app.middlewares.body_guard import BodyGuardMiddleware
 from app.ops_auth import (
@@ -1498,7 +1513,11 @@ from app.services.poster2.contracts import (
     StyleSpec as P2StyleSpec,
 )
 from app.services.poster2.errors import PosterGenerationStageError, failure_response_payload
-from app.services.poster2.pipeline import PosterPipeline as P2Pipeline
+from app.services.poster2.pipeline import (
+    PosterPipeline as P2Pipeline,
+    reset_request_lifecycle_id,
+    set_request_lifecycle_id,
+)
 
 _poster2_pipeline: P2Pipeline | None = None
 
@@ -1565,6 +1584,44 @@ def _poster2_request_id(request: Request) -> str | None:
     return request.headers.get("X-Request-ID") or request.headers.get("X-Request-Id")
 
 
+def _poster2_lifecycle_log(event: str, *, request_id: str | None, **fields: Any) -> None:
+    logger.info(
+        "poster2.lifecycle event=%s request_id=%s fields=%s",
+        event,
+        request_id,
+        {key: value for key, value in fields.items() if value is not None},
+    )
+
+
+def _poster2_failure_response(
+    *,
+    status_code: int,
+    request_id: str | None,
+    stage: str,
+    code: str,
+    message: str,
+    retryable: bool,
+    timeout_ms: int | None = None,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "ok": False,
+            "error": "poster2_generation_failed",
+            "request_id": request_id,
+            "failure": {
+                "stage": stage,
+                "code": code,
+                "message": message,
+                "detail": message,
+                "exception_class": "TimeoutError",
+                "retryable": retryable,
+                **({"timeout_ms": timeout_ms} if timeout_ms is not None else {}),
+            },
+        },
+    )
+
+
 @app.post(
     "/api/v2/generate-poster",
     response_model=GeneratePosterV2Response,
@@ -1582,6 +1639,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
     """
     request_log = _poster2_request_log_fields(request, payload)
     request_id = request_log["request_id"]
+    _poster2_lifecycle_log(
+        "request_received",
+        request_id=request_id,
+        template_id=payload.template_id,
+        renderer_mode=payload.renderer_mode,
+    )
+    _poster2_lifecycle_log("auth_passed", request_id=request_id)
     logger.info("poster2: request start %s", request_log)
     try:
         _validate_poster2_renderer_request(payload.template_id, payload.renderer_mode)
@@ -1632,8 +1696,62 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         )
 
         pipeline = _get_poster2_pipeline()
-        async with _GENERATE_POSTER_SEMAPHORE:
-            manifest = await pipeline.run(spec)
+        queue_timeout_ms = _generate_queue_timeout_ms()
+        runtime_timeout_ms = _generate_runtime_timeout_ms()
+        _poster2_lifecycle_log(
+            "semaphore_wait_start",
+            request_id=request_id,
+            timeout_ms=queue_timeout_ms,
+        )
+        try:
+            await asyncio.wait_for(
+                _GENERATE_POSTER_SEMAPHORE.acquire(),
+                timeout=queue_timeout_ms / 1000,
+            )
+        except TimeoutError:
+            _poster2_lifecycle_log(
+                "timeout",
+                request_id=request_id,
+                stage="semaphore_wait",
+                timeout_ms=queue_timeout_ms,
+            )
+            _poster2_lifecycle_log("response_start", request_id=request_id, status_code=503)
+            return _poster2_failure_response(
+                status_code=503,
+                request_id=request_id,
+                stage="semaphore_wait",
+                code="poster2_generate_queue_timeout",
+                message="poster2 generate queue wait exceeded timeout",
+                retryable=True,
+                timeout_ms=queue_timeout_ms,
+            )
+        _poster2_lifecycle_log("semaphore_wait_end", request_id=request_id)
+        lifecycle_token = set_request_lifecycle_id(request_id)
+        try:
+            manifest = await asyncio.wait_for(
+                pipeline.run(spec),
+                timeout=runtime_timeout_ms / 1000,
+            )
+        except TimeoutError:
+            _poster2_lifecycle_log(
+                "timeout",
+                request_id=request_id,
+                stage="generate_runtime",
+                timeout_ms=runtime_timeout_ms,
+            )
+            _poster2_lifecycle_log("response_start", request_id=request_id, status_code=504)
+            return _poster2_failure_response(
+                status_code=504,
+                request_id=request_id,
+                stage="generate_runtime",
+                code="poster2_generate_timeout",
+                message="poster2 generate runtime exceeded timeout",
+                retryable=True,
+                timeout_ms=runtime_timeout_ms,
+            )
+        finally:
+            reset_request_lifecycle_id(lifecycle_token)
+            _GENERATE_POSTER_SEMAPHORE.release()
         logger.info(
             "poster2: request success request_id=%s trace_id=%s template=%s requested=%s effective=%s degraded=%s total_ms=%s",
             request_id,
@@ -1706,21 +1824,33 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         response_payload_dict = _model_dump(response_payload)
         if manifest.template_b_parity_review is None:
             response_payload_dict.pop("template_b_parity_review", None)
+        _poster2_lifecycle_log("storage_start", request_id=request_id, trace_id=manifest.trace_id, target="poster_record")
         create_poster_record(
             poster_key=poster_key,
             request_snapshot=_model_dump(payload),
             render_result=response_payload_dict,
             final_poster=_poster2_final_poster_payload(manifest),
         )
+        _poster2_lifecycle_log("storage_end", request_id=request_id, trace_id=manifest.trace_id, target="poster_record")
+        _poster2_lifecycle_log("response_start", request_id=request_id, status_code=200, trace_id=manifest.trace_id)
         return JSONResponse(content=response_payload_dict)
 
     except FileNotFoundError as exc:
+        _poster2_lifecycle_log("exception", request_id=request_id, stage="request_file", exception_class=exc.__class__.__name__)
         logger.warning("poster2: request file error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
+        _poster2_lifecycle_log("exception", request_id=request_id, stage="request_validation", exception_class=exc.__class__.__name__)
         logger.warning("poster2: request validation error %s detail=%s", request_log, exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except PosterGenerationStageError as exc:
+        _poster2_lifecycle_log(
+            "exception",
+            request_id=request_id,
+            stage=exc.stage,
+            code=exc.code,
+            exception_class=exc.__class__.__name__,
+        )
         logger.warning(
             "poster2: request failed request=%s stage=%s code=%s detail=%s",
             request_log,
@@ -1728,6 +1858,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             exc.code,
             exc.detail,
         )
+        _poster2_lifecycle_log("response_start", request_id=request_id, status_code=exc.status_code)
         return JSONResponse(
             status_code=exc.status_code,
             content=failure_response_payload(error=exc, request_id=request_id),
@@ -1736,6 +1867,13 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
         reason_code = getattr(exc, "reason_code", None)
         detail = getattr(exc, "detail", None) or str(exc)
         failure_stage = getattr(exc, "stage", None) or getattr(exc, "fallback_stage", None)
+        _poster2_lifecycle_log(
+            "exception",
+            request_id=request_id,
+            stage=failure_stage or "unknown",
+            code=reason_code or "poster2_generation_failed",
+            exception_class=exc.__class__.__name__,
+        )
         logger.exception(
             "poster2: generation failed request=%s exc_class=%s reason_code=%s failure_stage=%s detail=%s",
             request_log,
@@ -1744,6 +1882,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             failure_stage,
             detail,
         )
+        _poster2_lifecycle_log("response_start", request_id=request_id, status_code=500)
         return JSONResponse(
             status_code=500,
             content={

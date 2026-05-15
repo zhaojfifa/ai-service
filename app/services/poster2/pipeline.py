@@ -16,9 +16,10 @@ import os
 import re
 import time
 import uuid
+from contextvars import ContextVar, Token
 from dataclasses import asdict, replace
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from PIL import Image as PILImage
 from app.services.email.copy_safety import (
@@ -61,6 +62,25 @@ from .template_behavior import (
 from .template_registry import validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
+_REQUEST_ID_CTX: ContextVar[str | None] = ContextVar("poster2_request_id", default=None)
+
+
+def set_request_lifecycle_id(request_id: str | None) -> Token[str | None]:
+    return _REQUEST_ID_CTX.set(request_id)
+
+
+def reset_request_lifecycle_id(token: Token[str | None]) -> None:
+    _REQUEST_ID_CTX.reset(token)
+
+
+def _lifecycle_log(event: str, *, trace_id: str | None = None, **fields: Any) -> None:
+    logger.info(
+        "poster2.lifecycle event=%s request_id=%s trace_id=%s fields=%s",
+        event,
+        _REQUEST_ID_CTX.get(),
+        trace_id,
+        {key: value for key, value in fields.items() if value is not None},
+    )
 
 ENGINE_VERSION = "2.0.0"
 _DEFAULT_STAGE_TIMEOUTS_MS = {
@@ -276,6 +296,12 @@ class PosterPipeline:
         # ── Phase 2: deterministic foreground/text render ────────────────────
         t1 = _now()
         try:
+            _lifecycle_log(
+                "render_start",
+                trace_id=trace_id,
+                template_id=template.template_id,
+                renderer_mode=effective_spec.renderer_mode,
+            )
             fg_result = await _run_stage_with_timeout(
                 "puppeteer_render",
                 self._renderer.render(template, effective_spec, assets),
@@ -292,6 +318,12 @@ class PosterPipeline:
             ) from exc
         timings["renderer_ms"] = _elapsed(t1)
         timings.update(fg_result.layer_timings_ms)
+        _lifecycle_log(
+            "render_end",
+            trace_id=trace_id,
+            render_engine_used=fg_result.render_engine_used,
+            renderer_ms=timings["renderer_ms"],
+        )
         logger.info(
             "poster2: trace=%s fg_hash=%s engine=%s renderer=%.0fms",
             trace_id, fg_result.sha256[:8], fg_result.render_engine_used, timings["renderer_ms"],
@@ -374,6 +406,7 @@ class PosterPipeline:
         # ── Phase 3: load background bytes and compose ───────────────────────
         t2 = _now()
         try:
+            _lifecycle_log("compose_start", trace_id=trace_id)
             bg_image = await _run_stage_with_timeout(
                 "asset_fetch",
                 self._loader.load_url(bg_result.url),
@@ -398,6 +431,7 @@ class PosterPipeline:
                 exception_class=exc.__class__.__name__,
             ) from exc
         timings["compose_ms"] = _elapsed(t2)
+        _lifecycle_log("compose_end", trace_id=trace_id, compose_ms=timings["compose_ms"])
 
         # ── Phase 3.5: pilot debug artifact assembly ────────────────────────
         debug_product_material = render_product_material_debug_layer(
@@ -412,6 +446,7 @@ class PosterPipeline:
             _put = self._put_bytes
 
         t3 = _now()
+        _lifecycle_log("storage_start", trace_id=trace_id)
         fg_key = f"poster2/fg/{trace_id}.png"
         fg_url = await _publish_bytes(
             _put,
@@ -622,6 +657,12 @@ class PosterPipeline:
 
         timings["storage_ms"] = _elapsed(t3)
         timings["total_ms"] = _elapsed(t0)
+        _lifecycle_log(
+            "storage_end",
+            trace_id=trace_id,
+            storage_ms=timings["storage_ms"],
+            total_ms=timings["total_ms"],
+        )
 
         logger.info(
             "poster2: trace=%s DONE final=%s total=%.1fs",
