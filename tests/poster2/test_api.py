@@ -303,6 +303,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
 
     response = client.post(
         "/api/v2/generate-poster",
+        headers={"X-Request-ID": "req-success-1"},
         json={
             "brand_name": "厨厨房",
             "agent_name": "智能顾问",
@@ -316,6 +317,7 @@ def test_generate_poster_v2_route_is_backward_compatible(monkeypatch):
     )
 
     assert response.status_code == 200
+    assert response.headers["x-request-id"] == "req-success-1"
     body = response.json()
     assert body["final_url"] == "https://example.com/final.png"
     assert body["poster_key"].startswith("p2_")
@@ -768,7 +770,7 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
 
     response = client.post(
         "/api/v2/generate-poster",
-        headers={"Origin": "https://zhaojfifa.github.io"},
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-error-1"},
         json={
             "brand_name": "厨厨房",
             "agent_name": "智能顾问",
@@ -783,7 +785,9 @@ def test_generate_poster_v2_error_response_keeps_cors_headers(monkeypatch):
 
     assert response.status_code == 500
     assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.headers["x-request-id"] == "req-error-1"
     body = response.json()
+    assert body["request_id"] == "req-error-1"
     assert body["error"] == "poster2_generation_failed"
     assert body["failure"]["message"] == "simulated poster2 failure"
     assert body["failure"]["exception_class"] == "RuntimeError"
@@ -810,6 +814,7 @@ def test_generate_poster_v2_stage_failure_response_is_machine_readable(monkeypat
 
     assert response.status_code == 502
     assert response.headers["access-control-allow-origin"] == "https://zhaojfifa.github.io"
+    assert response.headers["x-request-id"] == "req-stage-1"
     body = response.json()
     assert body["ok"] is False
     assert body["error"] == "poster2_generation_failed"

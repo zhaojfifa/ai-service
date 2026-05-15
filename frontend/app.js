@@ -299,6 +299,7 @@ const STAGE2_ATTEMPT_COOLDOWN_MS = 1600;
 const STAGE2_PREFLIGHT_TTL_MS = 20_000;
 let stage2RunGeneration = null;
 const STAGE2_REVEAL_DELAY_MS = 500;
+const STAGE2_GENERATE_TIMEOUT_MS = 90_000;
 const STAGE2_RENDER_MODE_KEY = 'marketing-poster-render-mode';
 const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
 const STAGE2_SAVED_POSTER_STORAGE_KEY = 'marketing-poster-stage2-saved-poster';
@@ -349,6 +350,13 @@ const stage2GeneratePreflightState = {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createStage2ClientRequestId() {
+  const suffix = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(16).slice(2, 10);
+  return `stage2-${suffix}`;
 }
 
 function stage2HasAssetIdentity(value) {
@@ -2756,11 +2764,9 @@ function summariseNegativePrompts(prompts) {
   return Array.from(new Set(values)).join(' | ');
 }
 
-function ensureUploadedAndLog(path, payload, rawPayload) {
+function ensureUploadedAndLog(path, payload, rawPayload, requestIdOverride = null) {
   const MAX = 512 * 1024;
-  const requestId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(16).slice(2, 10);
+  const requestId = requestIdOverride || createStage2ClientRequestId();
   let bodyString = null;
   if (typeof rawPayload === 'string') {
     bodyString = rawPayload;
@@ -2809,7 +2815,8 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
         : String(apiBaseOrBases || '').split(',').map(s => s.trim()).filter(Boolean));
   if (!bases.length) throw new Error('未配置后端 API 地址');
 
-  const inspection = ensureUploadedAndLog(path, payload, rawPayload);
+  const requestId = options?.requestId || createStage2ClientRequestId();
+  const inspection = ensureUploadedAndLog(path, payload, rawPayload, requestId);
 
   // 2) 组包（外部已给字符串就不再二次 JSON.stringify）
   const bodyRaw = (typeof rawPayload === 'string')
@@ -2817,6 +2824,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
     : inspection.bodyString ?? JSON.stringify(payload);
 
   const logPrefix = `[postJsonWithRetry] ${path}`;
+  const noRetryStatuses = new Set([401, 403, 422]);
   const previewSnippet = (() => {
     if (typeof bodyRaw !== 'string') return '';
     const limit = 512;
@@ -2833,6 +2841,9 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
   const urlFor = (b) => `${String(b).replace(/\/$/, '')}/${String(path).replace(/^\/+/, '')}`;
   let lastErr = null;
   const externalSignal = options?.signal || null;
+  const timeoutMs = Number.isFinite(Number(options?.timeoutMs))
+    ? Math.max(Number(options.timeoutMs), 1)
+    : 60_000;
 
   const throwIfAborted = () => {
     if (externalSignal?.aborted) {
@@ -2857,11 +2868,12 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           externalSignal.addEventListener('abort', relayAbort, { once: true });
         }
       }
-      const timer = setTimeout(() => ctrl.abort(), 60000); // 60s 超时
+      const timer = setTimeout(() => ctrl.abort('client_timeout'), timeoutMs);
       const url = urlFor(b);                               // ← 定义 url
       try {
         const headers = {
           'Content-Type': 'application/json; charset=UTF-8',
+          'X-Request-ID': requestId,
           ...(inspection?.headers || {}),
         };
 
@@ -2880,6 +2892,7 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           candidateIndex: order.indexOf(b),
           bodyBytes: typeof bodyRaw === 'string' ? bodyRaw.length : 0,
           status: res.status,
+          requestId,
         });
 
         const text = await res.text();
@@ -2898,23 +2911,45 @@ async function postJsonWithRetry(apiBaseOrBases, path, payload, retry = 1, rawPa
           error.responseJson = json;
           error.url = url;
           error.requestBody = bodyRaw;
+          error.requestId = requestId;
           throw error;
         }
 
         if (window._healthCache?.set) window._healthCache.set(b, { ok: true, ts: Date.now() });
         return json ?? {}; // 保持旧版语义：返回 JSON 对象
       } catch (e) {
+        if (externalSignal?.aborted) {
+          throwIfAborted();
+        }
         if (e?.name === 'AbortError' && externalSignal?.aborted) {
           throwIfAborted();
+        }
+        if (e?.name === 'AbortError' || e === 'client_timeout' || ctrl.signal.aborted) {
+          const timeoutError = new Error('No HTTP response received; possible network/CORS/timeout/backend termination.');
+          timeoutError.name = 'AbortError';
+          timeoutError.code = 'client_timeout';
+          timeoutError.kind = 'client_timeout';
+          timeoutError.url = url;
+          timeoutError.requestId = requestId;
+          throw timeoutError;
+        }
+        if (e instanceof TypeError || String(e?.message || '').toLowerCase().includes('failed to fetch')) {
+          e.kind = 'network_transport';
+          e.code = e.code || 'network_transport';
+          e.requestId = requestId;
         }
         console.warn(`${logPrefix} failed`, {
           attempt: attempt + 1,
           url,
+          requestId,
           message: e?.message,
           status: e?.status,
           bodyPreview: previewSnippet,
         });
         lastErr = e;
+        if (noRetryStatuses.has(Number(e?.status || 0))) {
+          throw e;
+        }
         if (window._healthCache?.set) window._healthCache.set(b, { ok: false, ts: Date.now() });
         base = null; // 该轮失败，下一轮重新挑
       } finally {
@@ -8535,14 +8570,36 @@ function classifyStoredStage2ResultCompatibility(storedResult, currentFormSignat
 }
 
 function classifyStage2RequestFailure(error) {
-  if (typeof stage2RequestHelpers.classifyStage2RequestFailure === 'function') {
-    return stage2RequestHelpers.classifyStage2RequestFailure(error);
-  }
   if (error?.name === 'AbortError') {
+    if (error?.code === 'client_timeout' || error?.kind === 'client_timeout') {
+      return {
+        kind: 'client_timeout',
+        operatorMessage: 'No HTTP response received; possible network/CORS/timeout/backend termination.',
+        detailCode: 'client_timeout',
+        detailMessage: 'No HTTP response received; possible network/CORS/timeout/backend termination.',
+        status: 0,
+      };
+    }
     return {
       kind: 'aborted',
       operatorMessage: '请求已取消。',
     };
+  }
+  if (
+    error?.kind === 'network_transport' ||
+    error instanceof TypeError ||
+    String(error?.message || '').toLowerCase().includes('failed to fetch')
+  ) {
+    return {
+      kind: 'network_transport',
+      operatorMessage: 'No HTTP response received; possible network/CORS/timeout/backend termination.',
+      detailCode: error?.code || 'network_transport',
+      detailMessage: 'No HTTP response received; possible network/CORS/timeout/backend termination.',
+      status: Number(error?.status || 0),
+    };
+  }
+  if (typeof stage2RequestHelpers.classifyStage2RequestFailure === 'function') {
+    return stage2RequestHelpers.classifyStage2RequestFailure(error);
   }
   const status = Number(error?.status || 0);
   const responseJson = error?.responseJson;
@@ -8569,6 +8626,7 @@ function classifyStage2RequestFailure(error) {
     'validation_error',
   ]);
   const looksLikeTransport =
+    error?.kind === 'network_transport' ||
     error instanceof TypeError ||
     status === 0 ||
     combined.includes('failed to fetch') ||
@@ -8601,7 +8659,7 @@ function classifyStage2RequestFailure(error) {
   if (looksLikeTransport || !hasStructuredAppDetail) {
     return {
       kind: 'network_transport',
-      operatorMessage: '浏览器未能完成生成请求，请检查网络、跨域或预检配置后重试。',
+      operatorMessage: 'No HTTP response received; possible network/CORS/timeout/backend termination.',
       detailCode,
       detailMessage,
       status,
@@ -11658,12 +11716,13 @@ async function triggerGeneration(opts) {
     return null;
   }
   const mySeq = ++stage2GenerationSeq;
+  const clientRequestId = createStage2ClientRequestId();
   stage2ActiveRequestId = mySeq;
   stage2ActiveAbortController = new AbortController();
   stage2InFlight = true;
   setStage2ButtonsDisabled(true);
   updateStage2RuntimeDiagnostics({
-    request_id: mySeq,
+    request_id: clientRequestId,
     raw_bottom_mode: settledRequest.rawBottomMode || '—',
     canonical_bottom_mode: settledRequest.canonicalBottomMode || '—',
     generate_status: 'preparing',
@@ -12058,7 +12117,7 @@ async function triggerGeneration(opts) {
   const requestPayloadSignature = hashStage2StableValue(payload);
   const payloadBottomMode = getStage2PayloadBottomMode(payload);
   const preflightDiagnostics = buildStage2PreflightDiagnostics({
-    requestId: mySeq,
+    requestId: clientRequestId,
     formSignatures: sourceInvalidation.signatures,
     payload,
     previousSuccessPresent,
@@ -12074,7 +12133,7 @@ async function triggerGeneration(opts) {
     failureClass: 'none',
   });
   updateStage2RuntimeDiagnostics({
-    request_id: mySeq,
+    request_id: clientRequestId,
     raw_bottom_mode: settledRequest.rawBottomMode || '—',
     canonical_bottom_mode: settledRequest.canonicalBottomMode || '—',
     payload_bottom_mode: payloadBottomMode || '—',
@@ -12085,7 +12144,7 @@ async function triggerGeneration(opts) {
   });
   console.info('[stage2] generate preflight', preflightDiagnostics);
   logStage2RequestBoundary({
-    requestId: mySeq,
+    requestId: clientRequestId,
     currentUiValues: readStage2OperatorUiValues(),
     canonicalFormState: {
       assets: sourceInvalidation.signatures?.assets || null,
@@ -12143,7 +12202,7 @@ async function triggerGeneration(opts) {
   });
   if (endpointPath === '/api/v2/generate-poster') {
     console.info('[stage2][poster2] request summary', {
-      request_id: mySeq,
+      request_id: clientRequestId,
       ...buildPoster2RequestSummary(payload),
       canonical_form_signature_hash: preflightDiagnostics.canonical_form_signature_hash,
       request_payload_signature_hash: requestPayloadSignature,
@@ -12260,6 +12319,8 @@ async function triggerGeneration(opts) {
     if (!isCurrentStage2Request(mySeq)) return null;
     const resp = await postJsonWithRetry(apiCandidates, endpointPath, payload, 1, rawPayload, {
       signal: stage2ActiveAbortController?.signal,
+      requestId: clientRequestId,
+      timeoutMs: endpointPath === '/api/v2/generate-poster' ? STAGE2_GENERATE_TIMEOUT_MS : undefined,
     });
     const data = (resp && typeof resp.json === 'function') ? await resp.json() : resp;
     if (!isCurrentStage2Request(mySeq)) return null;
@@ -12302,7 +12363,7 @@ async function triggerGeneration(opts) {
     updateStage2RuntimeDiagnostics({
       generate_status: 'success',
       failure_class: 'none',
-      request_id: mySeq,
+      request_id: clientRequestId,
     });
 
     clearFallbackTimer();
@@ -12380,12 +12441,15 @@ async function triggerGeneration(opts) {
     return data;
   } catch (error) {
     if (error?.name === 'AbortError') {
-      console.info('[generatePoster] request aborted', { request_id: mySeq, message: error?.message || 'aborted' });
-      updateStage2RuntimeDiagnostics({
-        generate_status: 'aborted',
-        failure_class: 'aborted',
-      });
-      return null;
+      if (error?.code !== 'client_timeout' && error?.kind !== 'client_timeout') {
+        console.info('[generatePoster] request aborted', { request_id: clientRequestId, message: error?.message || 'aborted' });
+        updateStage2RuntimeDiagnostics({
+          request_id: clientRequestId,
+          generate_status: 'aborted',
+          failure_class: 'aborted',
+        });
+        return null;
+      }
     }
     if (!isCurrentStage2Request(mySeq)) return null;
     console.error('[generatePoster] request failed', {
@@ -12393,13 +12457,15 @@ async function triggerGeneration(opts) {
       status: error?.status,
       responseJson: error?.responseJson,
       responseText: error?.responseText,
-      request_id: mySeq,
+      request_id: clientRequestId,
+      sequence_id: mySeq,
       request_summary: endpointPath === '/api/v2/generate-poster' ? buildPoster2RequestSummary(payload) : null,
     });
     updateDebugPanels({
       response: error?.responseJson || error?.responseText || {
         message: error?.message || 'request_failed',
         status: error?.status || null,
+        request_id: clientRequestId,
       },
     });
     const detail = error?.responseJson?.detail || null;
@@ -12411,7 +12477,7 @@ async function triggerGeneration(opts) {
     updateStage2RuntimeDiagnostics({
       generate_status: 'failed',
       failure_class: failure.kind || 'unknown',
-      request_id: mySeq,
+      request_id: clientRequestId,
     });
     const decoratedMessage = buildStage2FailureStatusMessage(error, failure, { quotaExceeded });
     setStatus(statusElement, decoratedMessage, 'error');

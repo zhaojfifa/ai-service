@@ -451,6 +451,15 @@ async def ops_auth_gate(request: Request, call_next):
     )
 
 
+@app.middleware("http")
+async def request_id_response_header(request: Request, call_next):
+    response = await call_next(request)
+    request_id = _poster2_request_id(request)
+    if request_id:
+        response.headers["X-Request-ID"] = request_id
+    return response
+
+
 @app.options("/{path:path}")
 async def cors_preflight(path: str) -> Response:  # pragma: no cover - exercised by browsers
     return Response(status_code=204)

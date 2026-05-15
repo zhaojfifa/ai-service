@@ -9394,6 +9394,59 @@ Measured deltas:
 - accepted optimization still changes rendered subtitle truth when explicitly selected
 - 4-item strip remains in `title_gallery_split` but now reads as a semantic detail row with breathing room
 
+## 2026-05-15 — Stage2 generate request correlation and transport classification
+
+### Root rules followed
+
+- Stage2 frontend source and published mirror stayed aligned
+- no poster contract, renderer semantics, bottom SOP, product annotation truth, Template A/B payload contract, or styling changes
+- backend change limited to request correlation headers on existing responses
+
+### Problem reproduced / reviewed
+
+- Stage2 generate failures could appear as generic browser `Failed to fetch` / CORS-like errors with no client/server request correlation
+- retry diagnostics did not expose a stable request id across attempts
+- frontend generate timeout did not leave clear margin over the backend Puppeteer render timeout plus cold-start/queue overhead
+
+### Root cause
+
+- frontend generated an internal request id but did not send it as `X-Request-ID` on `/api/v2/generate-poster`
+- retry/error paths could not reliably correlate the browser attempt with backend logs
+- transport failures and client abort timeouts were not classified separately from normal backend HTTP errors
+- backend accepted request ids for logs/body metadata on the generate route, but did not consistently echo the id as a response header
+
+### Files changed
+
+- `frontend/app.js`
+- `docs/app.js`
+- `app/main.py`
+- `tests/poster2/test_api.py`
+- `tests/test_ops_auth_gate.py`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Stage2 frontend request/diagnostic layer
+- backend response correlation header middleware
+- focused API/auth regression coverage
+
+### Validation run
+
+- `node --check frontend/app.js` -> passed
+- `node --check docs/app.js` -> passed
+- `bash scripts/check_frontend_docs_sync.sh` -> passed
+- `python3.11 -m pytest -q tests/test_frontend_docs_sync.py` -> passed
+- `CORS_ALLOW_ORIGINS=https://zhaojfifa.github.io python3.11 -m pytest -q tests/poster2/test_api.py -k 'route_is_backward_compatible or preflight_allows_content_type_and_x_request_id or error_response_keeps_cors_headers or stage_failure_response_is_machine_readable'` -> passed
+- `CORS_ALLOW_ORIGINS=https://zhaojfifa.github.io python3.11 -m pytest -q tests/test_ops_auth_gate.py` -> passed
+- local browser probe against static Stage2 page: simulated unavailable backend classified as `network_transport` with the required operator message and preserved request id
+- local browser probe against delayed route: simulated frontend timeout classified as `client_timeout` with the required operator message and preserved request id
+
+### Remaining risks
+
+- live authenticated 3-run generate validation was not run because ops credentials were not available in this workspace
+- Render cold restart validation was not run from this workspace
+- this patch intentionally does not introduce a browser pool; Puppeteer cold-start/pool mitigation remains a follow-up if production evidence shows runtime instability
+
 ## 2026-04-10 — Family A fryer hero/footer blocker removal
 
 ### Root rules followed

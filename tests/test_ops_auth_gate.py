@@ -28,12 +28,13 @@ def test_protected_api_requires_login_and_keeps_cors_headers(monkeypatch) -> Non
 
     response = client.get(
         "/api/template-posters",
-        headers={"Origin": "https://zhaojfifa.github.io"},
+        headers={"Origin": "https://zhaojfifa.github.io", "X-Request-ID": "req-auth-1"},
     )
 
     assert response.status_code == 401
     assert response.json()["error"] == "ops_auth_required"
     assert response.headers["access-control-allow-origin"]
+    assert response.headers["x-request-id"] == "req-auth-1"
 
 
 def test_ops_login_me_and_logout_flow(monkeypatch) -> None:
