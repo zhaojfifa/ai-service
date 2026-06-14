@@ -86,4 +86,8 @@ def test_validate_template_registration_rejects_version_mismatch():
 
 def test_template_registry_snapshot_contains_family_a_template():
     registry = get_template_registry()
-    assert set(registry) == {"template_dual_v2"}
+    assert set(registry) == {
+        "template_dual_v2",
+        "template_dual_v2_airy",
+        "template_product_sheet_v1",
+    }

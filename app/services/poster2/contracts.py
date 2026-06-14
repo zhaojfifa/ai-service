@@ -189,6 +189,9 @@ class TemplateBehaviorModesSpec:
     header_mode: Optional[str] = None
     bottom_mode: str = "title_gallery_split"
     gallery_mode: str = "strip_local_visible_only"
+    # Visual Relaxation Layer (non-geometric beautification preset; "none" =
+    # current render). See app/services/poster2/relaxation.py.
+    relaxation_preset: str = "none"
     # Template B extensions
     materials_mode: Optional[str] = None
     top_copy_mode: Optional[str] = None
@@ -407,6 +410,9 @@ class RenderManifest:
     slot_binding_status: dict = field(default_factory=dict)
     template_behavior: dict = field(default_factory=dict)
     geometry_evidence: dict = field(default_factory=dict)
+    # Visual Relaxation Layer audit (preset used + non-geometric proof). Defaults
+    # to an empty dict so it survives exclude_none serialization.
+    relaxation_preset: dict = field(default_factory=dict)
     hero_contract_review: dict = field(default_factory=dict)
     product_contract_review: dict = field(default_factory=dict)
     header_contract_review: dict = field(default_factory=dict)

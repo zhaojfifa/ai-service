@@ -1605,6 +1605,7 @@ from app.services.poster2.pipeline import (
     reset_request_lifecycle_id,
     set_request_lifecycle_id,
 )
+from app.services.poster2.template_registry import is_campaign_explainer_template
 
 _poster2_pipeline: P2Pipeline | None = None
 
@@ -1625,9 +1626,10 @@ def _to_asset_ref(ref) -> P2AssetRef:
 def _validate_poster2_renderer_request(template_id: str, renderer_mode: str) -> None:
     if renderer_mode != "puppeteer":
         return
-    if template_id != "template_dual_v2":
+    if not is_campaign_explainer_template(template_id):
         raise ValueError(
-            "renderer_mode=puppeteer is only enabled for template_dual_v2 during the pilot"
+            "renderer_mode=puppeteer is only enabled for the template_dual_v2 "
+            "campaign-explainer lineage during the pilot"
         )
 
 
@@ -1923,6 +1925,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             slot_binding_status=manifest.slot_binding_status,
             template_behavior=manifest.template_behavior,
             geometry_evidence=manifest.geometry_evidence,
+            relaxation_preset=manifest.relaxation_preset,
             hero_contract_review=manifest.hero_contract_review,
             product_contract_review=manifest.product_contract_review,
             header_contract_review=manifest.header_contract_review,

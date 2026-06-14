@@ -1,5 +1,113 @@
 # Current Branch Execution Log v1
 
+## Entry — Visual Relaxation Layer + template_dual_v2_airy
+
+**Branch:** `main`
+**Status:** Complete
+**Last updated:** `2026-06-14`
+
+### What was read first
+
+- `CLAUDE.md`, `docs/poster2/README.md`, `current_branch_execution_log_v1.md`
+- `docs/poster2/template_taxonomy_and_visual_relaxation_plan_v1.md` (the plan this implements)
+- `docs/poster2/05_validation/bottom_behavior_contract_status_v1.md` (frozen bottom SOP)
+- `docs/poster2/05_validation/product_region_annotation_contract_status_v1.md` (frozen annotation truth)
+- live code: `renderer.py`, `template_behavior.py`, `family_a_beautification_freeze_pack_v1.py`,
+  `template_registry.py`, `quality_guard.py`, `pipeline.py`, `contracts.py`, `schemas/poster2.py`,
+  `templates_html/template_dual_v2.{html,css}`
+
+### Scope
+
+- Add a contract-safe, non-geometric Visual Relaxation Layer (closed-enum presets:
+  `none` / `airy` / `premium_soft` / `dense_safe`).
+- Add opt-in variant `template_dual_v2_airy` (Family A; reuses dual_v2 shell/assets;
+  differs only by `relaxation_preset = airy`).
+- Relaxation is template-spec-driven (`behavior_modes.relaxation_preset`), injected via the
+  existing `__BEAUTY_CSS_VARS__` channel. No Stage1/2/3 flow change; no API schema break.
+
+### Root rules followed
+
+- Relaxation may change only surface/spacing CSS-var values; never region ownership, slot
+  ownership, product-annotation truth, bottom-SOP truth, or structural geometry.
+- `none` injects ZERO CSS vars → byte-identical to the pre-relaxation render.
+- Only existing, consumed, non-geometry, non-freeze-pack-owned CSS vars are overridden.
+
+### Implementation deviations from the plan (and why)
+
+- Plan §4 proposed 8 token families. Investigation of the live CSS + freeze pack showed
+  several are unusable as injected overrides, so the first pass wires only two effective levers:
+  - `--title-stack-gap` (title/subtitle stack breathing) — effective.
+  - `--product-primary-shadow` (product image drop-shadow lift) — effective, NOT freeze-pack-owned.
+- Excluded and documented as no-op / out-of-bounds:
+  - `--peer-region-gap`: defined in CSS but consumed nowhere (inert no-op).
+  - `--product-content-pad-*`: consumed by `.layer-product-content`, but the product slot inside
+    is absolutely positioned → padding does not move the product. Real product-resize breathing
+    is a GEOMETRY change → future geometry style-variant, not relaxation.
+  - scenario↔product seam blend: no seam var exists; a seam mask = new geometry → out of bounds.
+  - `--shell-shadow-*`, `--shell-surface-*`, `--accent-tone`: authored (warm-tinted) by the
+    Family A freeze pack; overriding them would re-tint / mask frozen surface truth.
+
+### Exact code changes
+
+- NEW `app/services/poster2/relaxation.py`: closed-enum presets, non-geometry CSS-var whitelist,
+  `relaxation_css_vars()`, `relaxation_report()`, `assert_relaxation_vars_non_geometric()`.
+- `contracts.py`: `TemplateBehaviorModesSpec.relaxation_preset` (default "none");
+  `RenderManifest.relaxation_preset` (dict, default-factory).
+- `template_behavior.py`: merge `relaxation_css_vars(...)` LAST into `css_vars` (Family A + B),
+  add `ResolvedTemplateBehavior.relaxation_preset`, surface it in `as_dict()`.
+- `template_registry.py`: register `template_dual_v2_airy` (v `2.1.6-airy.1`);
+  `CAMPAIGN_EXPLAINER_TEMPLATE_IDS` + `is_campaign_explainer_template()`.
+- `pipeline.py` (210/880/890) + `copy_optimizer.py` (399) + `main.py`
+  (`_validate_poster2_renderer_request` puppeteer pilot gate): widen the five `== "template_dual_v2"`
+  branches to the campaign-explainer predicate so airy is a faithful relaxation-only twin
+  (existing-id behavior byte-identical); populate `manifest.relaxation_preset`.
+- `quality_guard.py`: `assert_relaxation_non_geometric()` (differential region/slot-bounds guard).
+- `schemas/poster2.py` + `main.py`: additive `relaxation_preset` response field.
+- NEW spec `app/templates/specs/template_dual_v2_airy.json` (clone of dual_v2 + relaxation_preset).
+- NEW assets: `template_dual_v2_airy.{html,css,svg}`, `slot_spec.*`, `anchor_map.*` —
+  byte-identical copies of dual_v2 (renderer/region_matrix untouched).
+- NEW `scripts/poster2_relaxation_stability_harness.py`; NEW `tests/poster2/test_relaxation.py`;
+  fixed pre-existing-red `tests/poster2/test_template_registry.py` snapshot.
+
+### Layer changed
+
+- Beautification layer (downstream of structure/behavior). No structural geometry, ownership,
+  Stage2 contract, or `/api/v2/generate-poster` schema change.
+
+### Validation performed
+
+- `node --check frontend/app.js`, `node --check docs/app.js`, `bash scripts/check_frontend_docs_sync.sh` — pass.
+- `python -m py_compile` of all changed backend files — pass.
+- `pytest tests/poster2/test_relaxation.py tests/poster2/test_template_registry.py` — 34 passed.
+- Byte-identity proof: `template_dual_v2` (none) Pillow sha256 `a5ef87ee…` and css-var-style sha256
+  `2d30baed…` are IDENTICAL before/after the change → `none` is a true no-op.
+- Regression baseline: the 19 renderer/quality failures are PRE-EXISTING at HEAD (same 19 with and
+  without this change); this change adds 42 passing tests and zero new failures.
+- Stability harness (10× each, real Puppeteer, mocked Firefly/R2): baseline + airy both 100%
+  success, validator pass, deterministic single hash each; airy hash differs from baseline.
+  Visual diff baseline↔airy = 3.53% of canvas, confined to product region + title band
+  (geometry_evidence region/slot bounds identical). Evidence in `scripts/out/relaxation/`.
+
+### Remaining risks
+
+- Visible relaxation is moderate (product-lift shadow + title-stack gap); deeper product/gallery
+  breathing needs a geometry style-variant (tracked in the taxonomy plan), not relaxation.
+- The 4 widened campaign-explainer branches are predicate-gated; existing-id behavior verified
+  byte-identical, but future Family A variants must be added to `CAMPAIGN_EXPLAINER_TEMPLATE_IDS`.
+- 19 pre-existing renderer/quality test failures remain (out of scope; not introduced here).
+
+### Acceptance state
+
+- Default `template_dual_v2` render unchanged (proven byte-identical). `template_dual_v2_airy`
+  is testable via the harness and selectable through the normal generate path. No geometry/
+  ownership change. Airy is visibly less tight. 10-run stability passes for both. Quality report
+  includes the relaxation preset and validator result.
+
+### One-line execution summary
+
+- Added a non-geometric, template-driven Visual Relaxation Layer + an opt-in `template_dual_v2_airy`
+  variant, proven render-neutral for the baseline and stable/deliverable for airy.
+
 ## Entry — Stage1 template preview TDZ fix
 
 **Branch:** `main`

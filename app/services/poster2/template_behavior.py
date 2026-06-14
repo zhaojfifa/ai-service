@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .contracts import TemplateBeautyTokensSpec, TemplateBehaviorModesSpec, TemplateSpec
+from .relaxation import normalize_relaxation_preset, relaxation_css_vars
 from .skills.beautification.family_a_beautification_freeze_pack_v1 import (
     build_beautification_freeze_pack as build_family_a_beautification_freeze_pack,
 )
@@ -798,6 +799,8 @@ class ResolvedTemplateBehavior:
     top_copy_policy: ResolvedTopCopyBehavior | None = None
     materials_policy: ResolvedMaterialsBehavior | None = None
     description_policy: ResolvedDescriptionBehavior | None = None
+    # Visual Relaxation Layer preset applied to css_vars (default "none").
+    relaxation_preset: str = "none"
 
     def css_var_style(self) -> str:
         return "; ".join(f"{key}: {value}" for key, value in self.css_vars.items())
@@ -990,6 +993,11 @@ def resolve_template_behavior(
     css_vars.update(_resolve_header_behavior_vars(header_policy))
     if commercial_fryer_variant:
         css_vars.update(_resolve_product_behavior_vars(product_policy))
+    # Visual Relaxation Layer (downstream, non-geometric). Merged LAST so the
+    # preset's spacing/surface overrides layer over the frozen beauty/behavior
+    # vars. "none" contributes {} -> byte-identical to the pre-relaxation render.
+    resolved_relaxation_preset = normalize_relaxation_preset(modes.relaxation_preset)
+    css_vars.update(relaxation_css_vars(resolved_relaxation_preset))
     return ResolvedTemplateBehavior(
         hero_mode=hero_mode,
         feature_mode=feature_mode,
@@ -1007,6 +1015,7 @@ def resolve_template_behavior(
         css_vars=css_vars,
         accent_color=accent_color,
         text_colors=text_colors,
+        relaxation_preset=resolved_relaxation_preset,
         root_classes=(
             *hero_policy.css_classes,
             _css_mode_class("feature-behavior", feature_mode),
@@ -3360,6 +3369,9 @@ def _resolve_product_sheet_behavior(
         "--product-hero-top": f"{hero_policy.layout_metrics['product_region_y']}px",
         "--product-hero-h": f"{hero_policy.layout_metrics['product_region_h']}px",
     })
+    # Visual Relaxation Layer (Family B parity; no-op for "none").
+    resolved_relaxation_preset = normalize_relaxation_preset(spec.behavior_modes.relaxation_preset)
+    css_vars.update(relaxation_css_vars(resolved_relaxation_preset))
 
     return ResolvedTemplateBehavior(
         hero_mode="centered_product_focus",
@@ -3384,6 +3396,7 @@ def _resolve_product_sheet_behavior(
         css_vars=css_vars,
         accent_color=accent_color,
         text_colors=text_colors,
+        relaxation_preset=resolved_relaxation_preset,
         root_classes=(
             *hero_policy.css_classes,
             _css_mode_class("feature-behavior", "none"),

@@ -95,6 +95,34 @@ _TEMPLATE_REGISTRY: dict[str, TemplateMetadata] = {
             "title_band_region",
         ),
     ),
+    # Opt-in Visual Relaxation variant of template_dual_v2. Same Family A shell,
+    # assets, regions, slots, ownership, and behavior — differs ONLY by the
+    # non-geometric relaxation preset baked into its spec (relaxation_preset:
+    # "airy"). Reuses template_dual_v2's render assets as byte-identical copies.
+    "template_dual_v2_airy": TemplateMetadata(
+        template_id="template_dual_v2_airy",
+        template_version="2.1.6-airy.1",
+        template_family=FAMILY_A_CAMPAIGN_EXPLAINER,
+        family_mode="campaign_explainer_core",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=(
+            "puppeteer_timeout",
+            "puppeteer_template_render_failed",
+            "puppeteer_navigation_failed",
+            "puppeteer_screenshot_failed",
+            "puppeteer_browser_launch_failed",
+            "puppeteer_asset_load_failed",
+            "puppeteer_missing_chromium",
+            "puppeteer_missing_system_libs",
+            "puppeteer_unknown_error",
+        ),
+        minimum_deliverable_regions=(
+            "header_region",
+            "product_region",
+            "title_band_region",
+        ),
+    ),
     "template_product_sheet_v1": TemplateMetadata(
         template_id="template_product_sheet_v1",
         template_version="1.0.0",
@@ -155,3 +183,22 @@ def validate_template_registration(template: TemplateSpec) -> TemplateMetadata:
         )
     resolve_family_definition(metadata.template_family)
     return metadata
+
+
+# Family A campaign-explainer template lineage (template_dual_v2 + its opt-in
+# relaxation variants). Used by the Stage2 pipeline / copy optimizer to apply the
+# identical Family A background, text-normalization, and copy-optimization
+# branches to every member, so a relaxation variant differs from the base ONLY by
+# its non-geometric relaxation preset. Membership preserves existing behavior for
+# template_dual_v2 (still True) and template_product_sheet_v1 (still False).
+CAMPAIGN_EXPLAINER_TEMPLATE_IDS: frozenset[str] = frozenset(
+    {
+        "template_dual_v2",
+        "template_dual_v2_airy",
+    }
+)
+
+
+def is_campaign_explainer_template(template_id: str) -> bool:
+    """True for the template_dual_v2 Family A campaign-explainer lineage."""
+    return template_id in CAMPAIGN_EXPLAINER_TEMPLATE_IDS

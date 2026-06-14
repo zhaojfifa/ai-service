@@ -146,3 +146,37 @@ def _build_preflight_slot_inputs(spec: PosterSpec) -> dict[str, object]:
         "product_image": bool(spec.product_image and (spec.product_image.url or "").strip()),
         "title": bool(spec.title),
     }
+
+
+def assert_relaxation_non_geometric(
+    baseline_geometry: dict,
+    relaxed_geometry: dict,
+    *,
+    preset_id: str,
+) -> dict[str, object]:
+    """Prove a relaxation preset is non-geometric by differencing geometry evidence.
+
+    Compares the ``region_bounds`` and ``slot_bounds`` (the {x,y,w,h} maps emitted
+    by both Family A and Template B geometry evidence) of a baseline render against
+    a relaxed render. Any difference means the preset moved a region/slot boundary,
+    which is a contract violation -> :class:`QualityGuardError`. Returns a small
+    proof payload on success (suitable for the manifest relaxation report).
+    """
+    diffs: list[str] = []
+    for key in ("region_bounds", "slot_bounds"):
+        base = baseline_geometry.get(key, {}) or {}
+        relaxed = relaxed_geometry.get(key, {}) or {}
+        for name in sorted(set(base) | set(relaxed)):
+            if base.get(name) != relaxed.get(name):
+                diffs.append(f"{key}.{name}: {base.get(name)!r} != {relaxed.get(name)!r}")
+    if diffs:
+        raise QualityGuardError(
+            "relaxation_geometry_drift",
+            f"relaxation preset {preset_id!r} changed geometry: " + "; ".join(diffs),
+        )
+    return {
+        "preset": preset_id,
+        "geometry_invariant": True,
+        "region_bounds_match": True,
+        "slot_bounds_match": True,
+    }

@@ -59,7 +59,8 @@ from .template_behavior import (
     _TEXT_LAYER_OWNER_MAP,
     resolve_template_behavior,
 )
-from .template_registry import validate_template_registration
+from .relaxation import relaxation_report
+from .template_registry import is_campaign_explainer_template, validate_template_registration
 
 logger = logging.getLogger("ai-service.poster2")
 _REQUEST_ID_CTX: ContextVar[str | None] = ContextVar("poster2_request_id", default=None)
@@ -207,7 +208,7 @@ class PosterPipeline:
         # ── Phase 1: background layer + product/material layer preparation ───
         t0 = _now()
         try:
-            if effective_spec.template_id == "template_dual_v2":
+            if is_campaign_explainer_template(effective_spec.template_id):
                 assets = await _run_stage_with_timeout(
                     "asset_fetch",
                     self._loader.load(effective_spec),
@@ -712,6 +713,7 @@ class PosterPipeline:
             slot_binding_status=quality_guard_report.slot_binding_status,
             template_behavior=resolved_behavior.as_dict(),
             geometry_evidence=geometry_evidence,
+            relaxation_preset=relaxation_report(resolved_behavior.relaxation_preset),
             hero_contract_review=renderer_metadata_payload["hero_contract_review"],
             product_contract_review=renderer_metadata_payload["product_contract_review"],
             header_contract_review=renderer_metadata_payload["header_contract_review"],
@@ -877,7 +879,7 @@ def _normalize_contract_text_spec(spec: PosterSpec, template=None) -> PosterSpec
     agent_name = _normalize_requested_text(spec.agent_name)
     title = normalize_marketing_title(_normalize_requested_text(spec.title))
     subtitle_requested = _normalize_requested_text(spec.subtitle)
-    if (template.template_id if template else spec.template_id) == "template_dual_v2":
+    if is_campaign_explainer_template(template.template_id if template else spec.template_id):
         subtitle = subtitle_requested
     else:
         subtitle = normalize_marketing_subtitle(
@@ -887,7 +889,7 @@ def _normalize_contract_text_spec(spec: PosterSpec, template=None) -> PosterSpec
     sku_text = _normalize_requested_text(spec.sku_text)
     description_title = normalize_marketing_title(_normalize_requested_text(spec.description_title))
     description_body = _normalize_requested_text(spec.description_body)
-    if (template.template_id if template else spec.template_id) == "template_dual_v2":
+    if is_campaign_explainer_template(template.template_id if template else spec.template_id):
         features = tuple(
             normalized
             for item in spec.features

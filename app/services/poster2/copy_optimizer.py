@@ -14,6 +14,7 @@ from app.services.email.copy_safety import (
 
 from .contracts import CopyOptimizationSpec, PosterSpec, TemplateSpec
 from .gemini_copy_optimizer import GeminiPoster2CopyOptimizer
+from .template_registry import is_campaign_explainer_template
 
 
 _SUBTITLE_OPTIMIZE_TARGET_BUDGET = 72
@@ -396,7 +397,7 @@ def resolve_copy_optimization(
     requested_spec: PosterSpec,
     effective_spec: PosterSpec,
 ) -> tuple[PosterSpec, dict[str, Any]]:
-    if template.template_id != "template_dual_v2":
+    if not is_campaign_explainer_template(template.template_id):
         return effective_spec, {}
 
     from .template_behavior import resolve_bottom_behavior
