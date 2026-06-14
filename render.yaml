@@ -26,6 +26,15 @@ services:
         value: "10000"
       - key: POSTER2_GENERATE_TIMEOUT_MS
         value: "80000"
+      # Puppeteer OOM/502 mitigation (HX-POSTER2-PUPPETEER-MEMORY-FIX-V1).
+      # The poster canvas is 1024px at device_scale_factor=1, so both caps stay
+      # above the canvas and are visually lossless. INLINE caps the per-image
+      # bitmap Chromium decodes; LOAD caps the held-PIL floor. Together they keep
+      # peak RSS for the full 7-asset payload under the 512 MB free-plan ceiling.
+      - key: POSTER2_INLINE_MAX_DIMENSION
+        value: "1280"
+      - key: POSTER2_MAX_IMAGE_DIMENSION
+        value: "1600"
       - key: CORS_ALLOW_ORIGINS
         value: https://zhaojfifa.github.io
       - key: CORS_ALLOW_CREDENTIALS

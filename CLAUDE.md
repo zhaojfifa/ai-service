@@ -42,6 +42,23 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
 
 - `project_poster2_baseline_2026-03-30.md` is missing in this workspace
 - `docs/poster2/current_branch_execution_log_v1.md` is the working execution/state log for branch-local progress
+- selector preview SVG design spec is now frozen for future selector-preview asset work:
+  - flat, simple, minimal, low-detail, low-contrast selector-card style
+  - not wireframe
+  - not skeleton/loading style
+  - not abstract logic diagram
+  - not final poster render
+  - consistent fidelity, density, color system, and rounded-card language across templates
+  - maximum 2 visual hierarchy levels
+  - about 6-10 major structural blocks only
+  - only light gray base, pale accent, and one restrained dark support tone
+- frozen selector-preview implication limits:
+  - Marketing Poster: top area, hero/main visual area, selling-point emphasis area, bottom support area
+  - Product Sheet: banner, SKU/top-copy area, main product area, detail/material strip, lower description/info area
+- future selector-preview asset tasks default to:
+  - SVG asset changes only unless explicitly requested otherwise
+  - mirror `frontend/templates/` and `docs/templates/`
+  - do not touch registry, app.js, runtime logic, request builder, renderer, ownership, Stage2, Stage3, or backend schema unless explicitly requested
 - closure engineering adds:
   - `poster_key` on `/api/v2/generate-poster`
   - persisted `poster_record`
@@ -82,6 +99,16 @@ poster2 document entry and grouping live in `docs/poster2/README.md`.
   - fryer bottom behavior now exposes `gallery_caption_mode`, `gallery_caption_owner`, and `gallery_caption_slots`
   - Pillow final footer now renders bounded thumbnail + caption cards for fryer detail rows
   - non-fryer Family A footer caption mode remains `none`
+
+## Puppeteer memory fix (HX-POSTER2-PUPPETEER-MEMORY-FIX-V1)
+
+- P0 generate-poster OOM/502 root cause was full-resolution image base64 inlining
+- fix landed: `_downscale_for_inline` caps each inlined asset to `POSTER2_INLINE_MAX_DIMENSION` (default 1280) before encoding; poster canvas is only 1024px so caps above it are visually lossless
+- `render.yaml` adds config stopgap: `POSTER2_MAX_IMAGE_DIMENSION=1600` (held-PIL floor) + `POSTER2_INLINE_MAX_DIMENSION=1280`
+- evidence: Chromium decode 172.6→34.3 MB (5.03×); real peak RSS 697→410.7 MB (under 512 MB free-plan ceiling); 10-run stability 100% / deterministic for base/studio/product_hero
+- no contract / geometry / ownership / bottom-SOP / annotation / schema change
+- open: live authenticated Stage2 200/no-502 confirmation against the production memory plan (not runnable from this workspace)
+- status doc: `docs/poster2/05_validation/puppeteer_memory_fix_status_v1.md`; harness: `scripts/poster2_puppeteer_memory_fix_harness.py`
 
 ## Current document alignment target
 

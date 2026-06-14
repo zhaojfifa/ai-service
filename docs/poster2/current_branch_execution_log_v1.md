@@ -9809,3 +9809,63 @@ After bundle:
 - this closes the current fryer hero/footer blockers only inside the existing Family A system
 - it is still not a Family A redesign track
 - live commercial acceptance should still be rechecked with the full current fryer asset pack if external signoff is needed
+
+## 2026-06-14 — HX-POSTER2-PUPPETEER-MEMORY-FIX-V1 (Puppeteer inlining OOM/502)
+
+### Root rules followed
+
+- production stability first; scope limited to the inline memory explosion only
+- no Stage1/2/3 flow change, no `/api/v2/generate-poster` schema change
+- no bottom SOP / `visible_item_count` / annotation truth / region bounds / composition change
+- no Template Seed, no new visual variants, no UI redesign, no freeform editor
+
+### Root cause
+
+- `_image_to_data_url` PNG-encoded each asset at full resolution before base64 inlining
+- Chromium decoded all 7 inlined images (logo + scenario + product + product_secondary + gallery×4) at up to the 4096px load ceiling simultaneously, while Python also held them as PIL
+- poster canvas is only 1024px at `device_scale_factor=1`, so every asset was decoded far larger than any slot
+- peak RSS crossed the 512 MB free-plan ceiling → Linux OOM SIGKILL → raw 502
+
+### Fix
+
+- code (primary): `_downscale_for_inline` bounds each inlined asset longest edge to `POSTER2_INLINE_MAX_DIMENSION` (default 1280) with LANCZOS before encoding; small/slot-sized assets returned untouched
+- config stopgap (`render.yaml`): `POSTER2_MAX_IMAGE_DIMENSION=1600` (held-PIL floor) + `POSTER2_INLINE_MAX_DIMENSION=1280` (inline cap) — both above the 1024px canvas, visually lossless
+
+### Files changed
+
+- `app/services/poster2/renderer.py`
+- `render.yaml`
+- `tests/poster2/test_renderer.py`
+- `scripts/poster2_puppeteer_memory_fix_harness.py`
+- `docs/poster2/05_validation/puppeteer_memory_fix_status_v1.md`
+- `docs/poster2/README.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+- `CLAUDE.md`
+
+### Memory evidence (full 7-asset payload, real Chromium, product_hero)
+
+- Chromium decode: 172.6 MB → 34.3 MB (5.03×)
+- held PIL (load cap 1600): 172.6 MB → 52.4 MB (3.29×)
+- real peak RSS (macOS, self+children):
+  - before no fix: 697.0 MB (over 512, reproduces OOM)
+  - inline fix only: 553.9 MB (near ceiling)
+  - inline fix + config stopgap: 410.7 MB (under 512, ~100 MB headroom)
+- reports: `scripts/out/puppeteer_memory_fix/puppeteer_memory_report.json`, `puppeteer_stability_report.json`
+
+### Stability evidence (10-run, full 7-asset payload, real Puppeteer)
+
+- base / studio / product_hero: 100% success, validator pass every run, single distinct final hash each
+- product_hero final hash identical across before/after memory scenarios (visual output byte-stable through downscale)
+
+### Validation run
+
+- `.venv/bin/python -m py_compile app/services/poster2/renderer.py scripts/poster2_puppeteer_memory_fix_harness.py` -> passed
+- `node --check frontend/app.js` + `node --check docs/app.js` -> passed
+- `bash scripts/check_frontend_docs_sync.sh` -> passed
+- `pytest tests/poster2/test_renderer.py -k InlineDownscale` -> 4 passed
+- focused poster2 suites (renderer/quality/registry/composition/geometry/relaxation/pipeline): failure set byte-identical to `main` baseline (zero new failures)
+
+### Remaining risks
+
+- real-RSS numbers are macOS (Render is Linux, lower); live authenticated Stage2 generation against the production memory plan was not runnable from this workspace (no ops credentials / Render shell), so the live 200/no-502 confirmation on the real 7-asset payload is the only open validation step
+- byte-identical hashes shown on solid fixtures; photographic assets render visually identical (caps > canvas) but not guaranteed byte-identical

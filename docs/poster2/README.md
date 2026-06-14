@@ -127,6 +127,7 @@ Core verification anchors:
 - [product_region_annotation_contract_status_v1.md](05_validation/product_region_annotation_contract_status_v1.md)
 - [scenario_region_resolver_and_renderer_parity_status_v1.md](05_validation/scenario_region_resolver_and_renderer_parity_status_v1.md)
 - [text_layer_contract_closure_status_v1.md](05_validation/text_layer_contract_closure_status_v1.md)
+- [puppeteer_memory_fix_status_v1.md](05_validation/puppeteer_memory_fix_status_v1.md)
 
 Family B historical validation remains under the same validation path and is not reopened by current Family A work:
 

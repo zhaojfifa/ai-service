@@ -50,6 +50,16 @@ from .template_registry import resolve_template_metadata
 
 logger = logging.getLogger("ai-service.poster2")
 
+# Maximum longest-edge pixel size for an image *inlined* into the render HTML as a
+# base64 data URL. The poster canvas is 1024px wide at device_scale_factor=1, so no
+# asset is ever displayed larger than the canvas; a small absolute cap above that
+# (default 1280px) is visually lossless after CSS object-fit while preventing
+# Chromium from decoding full-resolution (up to 4096px) bitmaps for every asset.
+# This is the primary mitigation for the generate-poster OOM/502 on the production
+# memory ceiling. Tunable via env as a no-deploy stopgap (lower it to shrink the
+# Chromium decode footprint further).
+_INLINE_MAX_DIMENSION = max(int(os.getenv("POSTER2_INLINE_MAX_DIMENSION", "1280") or 0), 1)
+
 _HTML_TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "app" / "templates_html"
 _TEMPLATE_B_VISIBLE_TRUTH_SELECTORS: dict[str, str] = {
     "logo_banner_region": '[data-parity-key="logo_banner_region"]',
@@ -3618,9 +3628,39 @@ def _product_support_surface_slot(product_policy) -> dict[str, Any]:
     }
 
 
+def _downscale_for_inline(
+    img: PILImage.Image,
+    *,
+    max_dim: int = _INLINE_MAX_DIMENSION,
+) -> PILImage.Image:
+    """Bound an image's longest edge to *max_dim* before base64 inlining.
+
+    Returns the original image untouched when it already fits, so already
+    slot-sized assets (e.g. gallery thumbnails) and small fixtures are
+    byte-identical to before. Oversized assets are LANCZOS-downscaled to the
+    cap, which is visually lossless at the 1024px poster canvas while keeping
+    Chromium's per-image decode footprint small (≈max_dim²·4 bytes instead of
+    up to 4096²·4 ≈ 67 MB).
+    """
+    if img.width <= max_dim and img.height <= max_dim:
+        return img
+    scaled = img.copy()
+    scaled.thumbnail((max_dim, max_dim), PILImage.LANCZOS)
+    logger.info(
+        "poster2.inline_downscale src=%sx%s -> %sx%s cap=%d",
+        img.width,
+        img.height,
+        scaled.width,
+        scaled.height,
+        max_dim,
+    )
+    return scaled
+
+
 def _image_to_data_url(img: Optional[PILImage.Image]) -> str:
     if img is None:
         img = PILImage.new("RGBA", (1, 1), (0, 0, 0, 0))
+    img = _downscale_for_inline(img)
     buf = BytesIO()
     img.convert("RGBA").save(buf, format="PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")

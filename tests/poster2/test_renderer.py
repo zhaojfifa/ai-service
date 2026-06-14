@@ -55,6 +55,9 @@ from app.services.poster2.renderer import (
     _visible_gallery_item_count,
     _apply_family_a_fryer_gallery_captions,
     _prepare_gallery_urls,
+    _downscale_for_inline,
+    _image_to_data_url,
+    _INLINE_MAX_DIMENSION,
 )
 from app.services.poster2.renderer_routing import RendererRoutingError, resolve_renderer_routing
 from app.services.poster2.template_behavior import (
@@ -2600,3 +2603,39 @@ class TestPuppeteerHardening:
         assert page.evaluations
         assert page.ready_checks[0][1]["timeout"] == 1234
         assert page.wait_timeouts == [32]
+
+
+class TestInlineDownscaleMemoryFix:
+    """HX-POSTER2-PUPPETEER-MEMORY-FIX-V1: bound inlined-asset pixel size."""
+
+    def test_small_image_is_untouched_and_byte_identical(self):
+        # Already slot-sized assets must not change -> no visual drift, stable hash.
+        small = solid_image(196, 56)
+        assert _downscale_for_inline(small) is small
+        assert _image_to_data_url(small) == _image_to_data_url(small)
+
+    def test_oversized_image_is_capped_to_inline_max_dimension(self):
+        big = solid_image(4096, 3072)
+        out = _downscale_for_inline(big)
+        assert max(out.width, out.height) == _INLINE_MAX_DIMENSION
+        # aspect ratio preserved (4:3)
+        assert abs(out.width / out.height - 4 / 3) < 0.02
+        # original is not mutated
+        assert big.size == (4096, 3072)
+
+    def test_explicit_cap_argument_bounds_longest_edge(self):
+        out = _downscale_for_inline(solid_image(2000, 1000), max_dim=500)
+        assert out.width == 500 and out.height == 250
+
+    def test_data_url_of_oversized_image_shrinks(self):
+        big = solid_image(4096, 4096)
+        capped_url = _image_to_data_url(big)
+        # encode the raw (uncapped) image directly for comparison
+        from io import BytesIO
+        import base64
+
+        buf = BytesIO()
+        big.convert("RGBA").save(buf, format="PNG")
+        raw_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+        assert len(capped_url) < len(raw_url)
+        assert capped_url.startswith("data:image/png;base64,")
