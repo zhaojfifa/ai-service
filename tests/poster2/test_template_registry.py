@@ -89,5 +89,6 @@ def test_template_registry_snapshot_contains_family_a_template():
     assert set(registry) == {
         "template_dual_v2",
         "template_dual_v2_airy",
+        "template_dual_v2_studio",
         "template_product_sheet_v1",
     }

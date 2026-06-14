@@ -7,6 +7,13 @@
     "description": "Minimal marketing poster preview with header, hero composition, callout emphasis, and bottom support area."
   },
   {
+    "id": "template_dual_studio",
+    "name": "Marketing Poster · Studio",
+    "spec": "template_dual_spec.json",
+    "preview": "template_marketing_poster_preview.svg",
+    "description": "Studio geometry style of the Marketing Poster: product breathing, stronger title hierarchy, and a lighter gallery. Same structure and Stage1 inputs."
+  },
+  {
     "id": "template_product_sheet_v1",
     "name": "Product Sheet",
     "preview": "template_product_sheet_preview.svg",

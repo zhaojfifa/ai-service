@@ -305,6 +305,18 @@ const STAGE2_POSTER2_RENDERER_MODE_KEY = 'marketing-poster-v2-renderer-mode';
 const STAGE2_SAVED_POSTER_STORAGE_KEY = 'marketing-poster-stage2-saved-poster';
 const POSTER2_PILOT_SOURCE_TEMPLATE_ID = 'template_dual';
 const POSTER2_PILOT_TEMPLATE_ID = 'template_dual_v2';
+// Stage1 selector card id -> backend pilot template id. The studio geometry style
+// variant reuses the Marketing Poster Stage1 inputs/preview and only differs at
+// render time. Selecting its card sends template_dual_v2_studio to /api/v2.
+const POSTER2_PILOT_STUDIO_SOURCE_TEMPLATE_ID = 'template_dual_studio';
+const POSTER2_PILOT_TEMPLATE_BY_SOURCE = {
+  [POSTER2_PILOT_SOURCE_TEMPLATE_ID]: POSTER2_PILOT_TEMPLATE_ID,
+  [POSTER2_PILOT_STUDIO_SOURCE_TEMPLATE_ID]: 'template_dual_v2_studio',
+};
+function resolvePoster2PilotTemplateId(stage1Data) {
+  const source = (stage1Data && stage1Data.template_id) || '';
+  return POSTER2_PILOT_TEMPLATE_BY_SOURCE[source] || POSTER2_PILOT_TEMPLATE_ID;
+}
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
 const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
 const STAGE1_PRODUCT_CALLOUT_MAX_ITEMS = 3;
@@ -570,7 +582,10 @@ function ensureStage2FinalPosterPreview(container) {
 }
 
 function shouldUsePoster2Pilot(stage1Data) {
-  return (stage1Data?.template_id || '') === POSTER2_PILOT_SOURCE_TEMPLATE_ID;
+  return Object.prototype.hasOwnProperty.call(
+    POSTER2_PILOT_TEMPLATE_BY_SOURCE,
+    stage1Data?.template_id || '',
+  );
 }
 
 function initStage2Poster2PilotControls(stage1Data, statusElement) {
@@ -9024,7 +9039,7 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
   }
 
   const payload = buildGeneratePosterPayloadFromForm({
-    templateId: POSTER2_PILOT_TEMPLATE_ID,
+    templateId: resolvePoster2PilotTemplateId(stage1Data),
     rendererMode,
     brandName,
     agentName,

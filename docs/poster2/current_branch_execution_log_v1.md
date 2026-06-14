@@ -1,5 +1,58 @@
 # Current Branch Execution Log v1
 
+## Entry — Geometry style variant template_dual_v2_studio
+
+**Branch:** `poster2-vrelax-heavy-v1`
+**Status:** Complete (awaiting Owner approval; not merged)
+**Last updated:** `2026-06-14`
+
+### Scope
+
+- Add opt-in geometry style variant `template_dual_v2_studio` (HX-POSTER2-STYLE-VARIANT-V1):
+  bounded product-image breathing + stronger title hierarchy + lighter gallery surface,
+  preserving ownership, bottom SOP geometry, and product-annotation truth.
+
+### Exact changes
+
+- `contracts.py`: `TemplateBehaviorModesSpec.geometry_profile: str = "default"`.
+- `template_behavior.py`: `_PRODUCT_STUDIO_BREATHING_PRIMARY_SLOT = {474,224,264,468}` +
+  a `geometry_profile == "studio_breathing_v1"` branch in `resolve_product_behavior`
+  (floats the product IMAGE inside the unchanged card; region/canvas/anchors unchanged).
+- `template_registry.py`: register `template_dual_v2_studio` (v `2.1.6-studio.1`) + add to
+  `CAMPAIGN_EXPLAINER_TEMPLATE_IDS`; `tests/.../test_template_registry.py` snapshot updated.
+- New spec `app/templates/specs/template_dual_v2_studio.json` (geometry_profile + title 52 /
+  subtitle 18 for Pillow parity).
+- New assets: `template_dual_v2_studio.css` (title 40→52, subtitle recede, lighter gallery
+  strip surface) — `html`/`svg`/`slot_spec`/`anchor_map` are byte-identical copies of base.
+- New `scripts/poster2_geometry_variant_review.py` (stability + geometry-invariant harness);
+  new `tests/poster2/test_geometry_variant.py`.
+- Review package: `docs/poster2/geometry_variant_studio_review_v1.md`.
+
+### Layer changed
+
+- Bounded geometry (product image slot) + variant typography/surface. No region boundary,
+  ownership, bottom-SOP geometry, or annotation-truth change. Base + airy untouched.
+
+### Validation performed
+
+- Stability harness 10× base + 10× studio (real Puppeteer): both 100% success, validator
+  pass, deterministic. Geometry/ownership invariants all PASS (7 protected regions +
+  visible_item_count + ownership_guards identical; only product image slot floats).
+- `tests/poster2/test_geometry_variant.py` (10) pass; full suite zero new failures vs the
+  post-relaxation baseline; node/sync/py_compile pass.
+
+### Remaining risks / Owner decision
+
+- Geometric bottom-FOOTPRINT reduction is frozen by bottom SOP (shell top y=728 is the
+  minimum); this variant reduces PERCEIVED bottom weight only. Physically shrinking the
+  bottom = a bottom-SOP amendment = Owner decision (documented in the review package).
+
+### One-line execution summary
+
+- Added a bounded geometry style variant (`template_dual_v2_studio`) that visibly improves
+  product breathing + title hierarchy + bottom weight while proving ownership/SOP/annotation
+  geometry are byte-identical to the base.
+
 ## Entry — Visual Relaxation Layer + template_dual_v2_airy
 
 **Branch:** `main`

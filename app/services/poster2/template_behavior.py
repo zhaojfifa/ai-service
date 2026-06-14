@@ -43,6 +43,13 @@ _CANVAS_H = 1024  # poster canvas height in px (template_dual_v2 fixed dimension
 _PRODUCT_DUAL_PRIMARY_SLOT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 360}
 _PRODUCT_DUAL_SECONDARY_SLOT: dict[str, int] = {"x": 456, "y": 564, "w": 300, "h": 144}
 _PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT: dict[str, int] = {"x": 456, "y": 188, "w": 300, "h": 540}
+# Geometry style variant (geometry_profile = "studio_breathing_v1"): the product
+# IMAGE floats inside the unchanged product card with margin on all sides. The
+# product_region bounds, the product card (canvas/shell), ownership, and the
+# annotation anchors (attached to the card edge) are all unchanged — only the
+# image slot shrinks. Centered within the default 300x540 single-primary slot.
+_GEOMETRY_PROFILE_STUDIO_BREATHING = "studio_breathing_v1"
+_PRODUCT_STUDIO_BREATHING_PRIMARY_SLOT: dict[str, int] = {"x": 474, "y": 224, "w": 264, "h": 468}
 _PRODUCT_REGION_OUTER_W = 504
 _PRODUCT_REGION_OUTER_W_FRYER = 516
 _PRODUCT_REGION_X_FRYER = 424
@@ -1259,7 +1266,13 @@ def resolve_product_behavior(
                 product_secondary_slot_rendered = False
                 product_secondary_asset_policy = "secondary_absent_collapsed"
         else:
-            product_primary_slot = dict(_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT)
+            if spec.behavior_modes.geometry_profile == _GEOMETRY_PROFILE_STUDIO_BREATHING:
+                # Bounded geometry variant: float the product image inside its
+                # unchanged card. product_region / canvas / shell / anchors stay
+                # as the baseline; only the image slot is inset.
+                product_primary_slot = dict(_PRODUCT_STUDIO_BREATHING_PRIMARY_SLOT)
+            else:
+                product_primary_slot = dict(_PRODUCT_SINGLE_PRIMARY_SLOT_DEFAULT)
             product_secondary_slot = None
             product_secondary_slot_rendered = False
             product_secondary_asset_policy = "secondary_absent_collapsed"

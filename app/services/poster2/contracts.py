@@ -192,6 +192,9 @@ class TemplateBehaviorModesSpec:
     # Visual Relaxation Layer (non-geometric beautification preset; "none" =
     # current render). See app/services/poster2/relaxation.py.
     relaxation_preset: str = "none"
+    # Geometry style profile (bounded geometry variant; "default" = current
+    # geometry). Consumed by resolve_product_behavior. See template_dual_v2_studio.
+    geometry_profile: str = "default"
     # Template B extensions
     materials_mode: Optional[str] = None
     top_copy_mode: Optional[str] = None

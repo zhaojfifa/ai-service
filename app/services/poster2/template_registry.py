@@ -123,6 +123,35 @@ _TEMPLATE_REGISTRY: dict[str, TemplateMetadata] = {
             "title_band_region",
         ),
     ),
+    # Opt-in geometry style variant of template_dual_v2 (HX-POSTER2-STYLE-VARIANT-V1).
+    # Same Family A regions, ownership, bottom SOP, and annotation truth; differs by
+    # BOUNDED geometry: product image breathing (geometry_profile), stronger title
+    # hierarchy, and a lighter gallery surface (its own CSS). Region bounds, owner
+    # guards, and the 3 annotation slots are preserved.
+    "template_dual_v2_studio": TemplateMetadata(
+        template_id="template_dual_v2_studio",
+        template_version="2.1.6-studio.1",
+        template_family=FAMILY_A_CAMPAIGN_EXPLAINER,
+        family_mode="campaign_explainer_core",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=(
+            "puppeteer_timeout",
+            "puppeteer_template_render_failed",
+            "puppeteer_navigation_failed",
+            "puppeteer_screenshot_failed",
+            "puppeteer_browser_launch_failed",
+            "puppeteer_asset_load_failed",
+            "puppeteer_missing_chromium",
+            "puppeteer_missing_system_libs",
+            "puppeteer_unknown_error",
+        ),
+        minimum_deliverable_regions=(
+            "header_region",
+            "product_region",
+            "title_band_region",
+        ),
+    ),
     "template_product_sheet_v1": TemplateMetadata(
         template_id="template_product_sheet_v1",
         template_version="1.0.0",
@@ -195,6 +224,7 @@ CAMPAIGN_EXPLAINER_TEMPLATE_IDS: frozenset[str] = frozenset(
     {
         "template_dual_v2",
         "template_dual_v2_airy",
+        "template_dual_v2_studio",
     }
 )
 

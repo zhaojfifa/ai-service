@@ -54,6 +54,13 @@ Then read only the task-relevant status / plan / validation documents.
 - [quality_guard_and_structure_completeness_v1.md](02_architecture/quality_guard_and_structure_completeness_v1.md)
 - [family_isolation_rules_v1.md](02_architecture/family_isolation_rules_v1.md)
 
+Review-only (no contract change):
+
+- [geometry_variant_studio_review_v1.md](geometry_variant_studio_review_v1.md)
+  Review package for the `template_dual_v2_studio` geometry style variant (HX-POSTER2-STYLE-VARIANT-V1): bounded product-image breathing + stronger title hierarchy + lighter gallery surface. Proves protected region bounds, ownership guards, bottom-SOP geometry, and the 3 product-annotation slots are byte-identical to the base; base + airy untouched. Includes stability + geometry-invariant results, operator review (~4.3/5), and the one Owner decision (geometric bottom-footprint reduction is a frozen-SOP amendment).
+- [template_taxonomy_and_visual_relaxation_plan_v1.md](template_taxonomy_and_visual_relaxation_plan_v1.md)
+  Planning only. Defines the template taxonomy (fixed base / seeded / style variant / campaign pack, all pinned to a base family) and a Composition / Visual Relaxation beauty-token layer that fixes "too tightly fitted / mechanically packed" output by tuning negative space, surface, blend, and text rhythm only — never region geometry. Governing rule: relaxation changes the space between/inside regions, never region boundaries; bottom SOP and product annotation truth are untouched. Includes runtime compatibility table, enum token model, relaxation rules per visual issue, renderer/Pillow policy, validator + aesthetic QA, and a Phase 1–4 plan.
+
 ### 03 Engineering
 
 - [template_dual_v2_engineering_implementation_and_acceptance.md](03_engineering/template_dual_v2_engineering_implementation_and_acceptance.md)
