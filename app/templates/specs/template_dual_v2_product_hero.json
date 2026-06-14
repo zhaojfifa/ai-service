@@ -1,0 +1,189 @@
+{
+  "_comment": "Poster 2.0 — Product Hero composition variant of template_dual_v2 (HX-POSTER2-COMPOSITION-PRIORITY-V1). Same Family A regions, ownership, bottom SOP, and annotation truth. The product uses the FULL single-primary slot (no geometry_profile float) so it is large and dominant; the variant CSS gives the strong title + lighter gallery. The Composition Priority Layer (composition_strategy=product_hero) adds the scenario atmosphere recede + product lift at request time. Version must match the template_registry entry.",
+  "template_id": "template_dual_v2_product_hero",
+  "version": "2.1.6-product-hero.1",
+  "contract_version": "poster2.template_dual_v2.v1",
+  "behavior_modes": {
+    "hero_mode": "scenario_cover_product_contain",
+    "feature_mode": "product_anchor_callouts",
+    "product_annotation_mode": "product_anchor_callouts",
+    "bottom_mode": "title_gallery_split",
+    "gallery_mode": "strip_local_visible_only"
+  },
+  "beauty_tokens": {
+    "shell_surface": "campaign_frozen_panel",
+    "shell_border": "clean_frame",
+    "shell_shadow": "medium",
+    "accent_tone": "warm_red",
+    "text_emphasis": "campaign_frozen"
+  },
+  "canvas_w": 1024,
+  "canvas_h": 1024,
+  "safe_margin": 48,
+
+  "background_prompt_hint": "soft premium studio backdrop, warm neutral gradient, subtle depth, restrained highlights, clean composition",
+
+  "logo_slot": {
+    "x": 104, "y": 74, "w": 120, "h": 64,
+    "fit": "contain",
+    "bg_color": "transparent",
+    "shadow": false,
+    "radius": 0
+  },
+
+  "brand_name_slot": {
+    "x": 244, "y": 88, "w": 416, "h": 36,
+    "font_key": "brand_bold",
+    "font_size": 28,
+    "color": "#1A1A1A",
+    "align": "left",
+    "max_lines": 1,
+    "line_height": 1.2,
+    "auto_shrink": true
+  },
+
+  "agent_name_slot": {
+    "x": 684, "y": 96, "w": 228, "h": 36,
+    "font_key": "brand_regular",
+    "font_size": 15,
+    "color": "#6F5757",
+    "align": "right",
+    "max_lines": 2,
+    "line_height": 1.2,
+    "auto_shrink": true,
+    "bg_color": "transparent",
+    "bg_radius": 0
+  },
+
+  "title_slot": {
+    "x": 112, "y": 744, "w": 800, "h": 84,
+    "font_key": "brand_bold",
+    "font_size": 52,
+    "color": "#E8002A",
+    "align": "center",
+    "max_lines": 2,
+    "line_height": 1.12,
+    "auto_shrink": true
+  },
+
+  "subtitle_slot": {
+    "x": 152, "y": 840, "w": 720, "h": 28,
+    "font_key": "brand_regular",
+    "font_size": 18,
+    "color": "#E8002A",
+    "align": "center",
+    "max_lines": 1,
+    "line_height": 1.2,
+    "auto_shrink": true
+  },
+
+  "product_slot": {
+    "x": 456, "y": 188, "w": 300, "h": 540,
+    "fit": "contain",
+    "align_x": "center",
+    "align_y": "center",
+    "pad_top": 24,
+    "pad_right": 18,
+    "pad_bottom": 10,
+    "pad_left": 18,
+    "bg_color": "transparent",
+    "shadow": true,
+    "radius": 24
+  },
+
+  "scenario_slot": {
+    "x": 96, "y": 188, "w": 288, "h": 520,
+    "fit": "cover",
+    "align_x": "center",
+    "align_y": "center",
+    "bg_color": "transparent",
+    "shadow": false,
+    "radius": 24
+  },
+
+  "feature_callouts": [
+    {
+      "anchor_x": 764, "anchor_y": 250,
+      "anchor_radius": 7,
+      "anchor_color": "#E8002A",
+      "leader_color": "#E8002A",
+      "leader_width": 2,
+      "label_box": {
+        "x": 784, "y": 216, "w": 176, "h": 76,
+        "font_key": "feature",
+        "font_size": 15,
+        "color": "#1A1A1A",
+        "align": "left",
+        "max_lines": 3,
+        "line_height": 1.3,
+        "auto_shrink": true,
+        "bg_color": "#FFFFFF",
+        "bg_radius": 8
+      }
+    },
+    {
+      "anchor_x": 764, "anchor_y": 350,
+      "anchor_radius": 7,
+      "anchor_color": "#E8002A",
+      "leader_color": "#E8002A",
+      "leader_width": 2,
+      "label_box": {
+        "x": 784, "y": 316, "w": 176, "h": 76,
+        "font_key": "feature",
+        "font_size": 15,
+        "color": "#1A1A1A",
+        "align": "left",
+        "max_lines": 3,
+        "line_height": 1.3,
+        "auto_shrink": true,
+        "bg_color": "#FFFFFF",
+        "bg_radius": 8
+      }
+    },
+    {
+      "anchor_x": 764, "anchor_y": 450,
+      "anchor_radius": 7,
+      "anchor_color": "#E8002A",
+      "leader_color": "#E8002A",
+      "leader_width": 2,
+      "label_box": {
+        "x": 784, "y": 416, "w": 176, "h": 76,
+        "font_key": "feature",
+        "font_size": 15,
+        "color": "#1A1A1A",
+        "align": "left",
+        "max_lines": 3,
+        "line_height": 1.3,
+        "auto_shrink": true,
+        "bg_color": "#FFFFFF",
+        "bg_radius": 8
+      }
+    },
+    {
+      "anchor_x": 764, "anchor_y": 550,
+      "anchor_radius": 7,
+      "anchor_color": "#E8002A",
+      "leader_color": "#E8002A",
+      "leader_width": 2,
+      "label_box": {
+        "x": 784, "y": 516, "w": 144, "h": 60,
+        "font_key": "feature",
+        "font_size": 15,
+        "color": "#1A1A1A",
+        "align": "left",
+        "max_lines": 2,
+        "line_height": 1.3,
+        "auto_shrink": true
+      }
+    }
+  ],
+
+  "gallery_slot": {
+    "x": 96, "y": 904, "w": 832, "h": 56,
+    "count": 4,
+    "gap": 16,
+    "thumb_w": 196,
+    "thumb_radius": 14,
+    "show_label": false
+  }
+}

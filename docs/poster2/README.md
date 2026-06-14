@@ -56,6 +56,8 @@ Then read only the task-relevant status / plan / validation documents.
 
 Review-only (no contract change):
 
+- [composition_priority_layer_review_v1.md](composition_priority_layer_review_v1.md)
+  Review package for the Composition Priority Layer (HX-POSTER2-COMPOSITION-PRIORITY-V1): the operator "海报风格策略" (Balanced / Studio / Product Hero / Catalog Clean) — a request-level, non-geometric CSS-var bundle (scenario atmosphere recede + product lift + text breathing) plus the `template_dual_v2_product_hero` variant. Raises Product Hero to ~4.6/5 (product focus 4.6, scenario 2.5, bottom 2.5, title 4.5, premium 4.6). Proves all protected region bounds, ownership, bottom-SOP geometry, `visible_item_count`, and annotation truth unchanged; base/airy/studio unaffected.
 - [geometry_variant_studio_review_v1.md](geometry_variant_studio_review_v1.md)
   Review package for the `template_dual_v2_studio` geometry style variant (HX-POSTER2-STYLE-VARIANT-V1): bounded product-image breathing + stronger title hierarchy + lighter gallery surface. Proves protected region bounds, ownership guards, bottom-SOP geometry, and the 3 product-annotation slots are byte-identical to the base; base + airy untouched. Includes stability + geometry-invariant results, operator review (~4.3/5), and the one Owner decision (geometric bottom-footprint reduction is a frozen-SOP amendment).
 - [template_taxonomy_and_visual_relaxation_plan_v1.md](template_taxonomy_and_visual_relaxation_plan_v1.md)

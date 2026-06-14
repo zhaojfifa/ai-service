@@ -74,6 +74,10 @@ class GeneratePosterV2Request(BaseModel):
     template_id: str = Field(default="template_dual_v2", max_length=80)
     export_format: str = Field(default="png", pattern=r"^(png|jpeg|webp)$")
     renderer_mode: Literal["auto", "pillow", "puppeteer"] = Field(default="auto")
+    # Composition Priority Layer (operator "海报风格策略"). Additive + optional;
+    # None/"balanced" reproduces the un-composed render. Validated server-side
+    # against the closed enum in app/services/poster2/composition.py.
+    composition_strategy: Optional[str] = Field(default=None, max_length=40)
 
     model_config = {"json_schema_extra": {
         "example": {
@@ -136,6 +140,7 @@ class GeneratePosterV2Response(BaseModel):
     template_behavior: dict = Field(default_factory=dict)
     geometry_evidence: dict = Field(default_factory=dict)
     relaxation_preset: dict = Field(default_factory=dict)
+    composition_strategy: dict = Field(default_factory=dict)
     hero_contract_review: dict = Field(default_factory=dict)
     product_contract_review: dict = Field(default_factory=dict)
     header_contract_review: dict = Field(default_factory=dict)

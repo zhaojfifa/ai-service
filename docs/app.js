@@ -248,6 +248,7 @@ const stage2State = {
   },
   poster2: {
     rendererMode: 'auto',
+    compositionStrategy: 'balanced',
     history: [],
     latestResult: null,
     currentPoster: null,
@@ -316,6 +317,29 @@ const POSTER2_PILOT_TEMPLATE_BY_SOURCE = {
 function resolvePoster2PilotTemplateId(stage1Data) {
   const source = (stage1Data && stage1Data.template_id) || '';
   return POSTER2_PILOT_TEMPLATE_BY_SOURCE[source] || POSTER2_PILOT_TEMPLATE_ID;
+}
+// Composition Priority Layer ("海报风格策略"). Closed business-language presets.
+// Each maps to a backend template (look) + a composition_strategy token (scenario
+// recede / product lift). "balanced" keeps the Stage1-selected template.
+const POSTER2_COMPOSITION_STRATEGIES = ['balanced', 'studio', 'product_hero', 'catalog_clean'];
+const POSTER2_COMPOSITION_LABELS = {
+  balanced: '均衡 Balanced',
+  studio: '棚拍 Studio',
+  product_hero: '产品主角 Product Hero',
+  catalog_clean: '目录净版 Catalog Clean',
+};
+const POSTER2_COMPOSITION_TEMPLATE = {
+  balanced: null,
+  studio: 'template_dual_v2_studio',
+  product_hero: 'template_dual_v2_product_hero',
+  catalog_clean: 'template_dual_v2_studio',
+};
+const STAGE2_POSTER2_COMPOSITION_KEY = 'marketing-poster-stage2-poster2-composition-strategy';
+function normalizePoster2CompositionStrategy(value) {
+  return POSTER2_COMPOSITION_STRATEGIES.includes(value) ? value : 'balanced';
+}
+function resolvePoster2CompositionTemplateId(stage1Data, strategy) {
+  return POSTER2_COMPOSITION_TEMPLATE[strategy] || resolvePoster2PilotTemplateId(stage1Data);
 }
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;
 const POSTER2_BOTTOM_SUBTITLE_MAX_CHARS = 120;
@@ -600,6 +624,33 @@ function initStage2Poster2PilotControls(stage1Data, statusElement) {
   const stored = sessionStorage.getItem(STAGE2_POSTER2_RENDERER_MODE_KEY);
   stage2State.poster2.rendererMode = stored || stage2State.poster2.rendererMode || 'auto';
   select.value = stage2State.poster2.rendererMode;
+
+  // Composition Priority Layer selector ("海报风格策略") — closed presets only.
+  const strategySelect = document.getElementById('poster2-composition-strategy');
+  if (strategySelect) {
+    const storedStrategy = normalizePoster2CompositionStrategy(
+      sessionStorage.getItem(STAGE2_POSTER2_COMPOSITION_KEY)
+      || stage2State.poster2.compositionStrategy,
+    );
+    stage2State.poster2.compositionStrategy = storedStrategy;
+    strategySelect.value = storedStrategy;
+    strategySelect.disabled = !eligible;
+    if (!eligible) {
+      strategySelect.value = 'balanced';
+      stage2State.poster2.compositionStrategy = 'balanced';
+    }
+    if (!strategySelect.dataset.bound) {
+      strategySelect.dataset.bound = '1';
+      strategySelect.addEventListener('change', () => {
+        const next = normalizePoster2CompositionStrategy(strategySelect.value);
+        stage2State.poster2.compositionStrategy = next;
+        sessionStorage.setItem(STAGE2_POSTER2_COMPOSITION_KEY, next);
+        if (statusElement && eligible) {
+          setStatus(statusElement, `海报风格策略 已切换为 ${POSTER2_COMPOSITION_LABELS[next] || next}。`, 'info');
+        }
+      });
+    }
+  }
 
   if (eligible) {
     panel.classList.remove('hidden');
@@ -8197,6 +8248,7 @@ function buildPoster2PayloadFromNormalisedInputs(input) {
   return {
     template_id: input.templateId,
     renderer_mode: input.rendererMode || 'auto',
+    composition_strategy: input.compositionStrategy || 'balanced',
     brand_name: input.brandName || '',
     agent_name: input.agentName || '',
     title: input.title || '',
@@ -9038,8 +9090,10 @@ async function buildPoster2GeneratePayload(stage1Data, apiCandidates, options = 
     }
   }
 
+  const compositionStrategy = normalizePoster2CompositionStrategy(stage2State.poster2.compositionStrategy);
   const payload = buildGeneratePosterPayloadFromForm({
-    templateId: resolvePoster2PilotTemplateId(stage1Data),
+    templateId: resolvePoster2CompositionTemplateId(stage1Data, compositionStrategy),
+    compositionStrategy,
     rendererMode,
     brandName,
     agentName,

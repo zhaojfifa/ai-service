@@ -225,6 +225,7 @@ class LayoutRenderer:
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
+            composition_strategy=poster.composition_strategy,
             agent_name=poster.agent_name,
             has_product_secondary_asset=assets.product_secondary is not None,
             # Template B extensions
@@ -1109,6 +1110,7 @@ class PuppeteerStructuredRenderer:
             gallery_resolved_count=min(len(assets.gallery), spec.gallery_slot.count),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
+            composition_strategy=poster.composition_strategy,
             agent_name=poster.agent_name,
             has_product_secondary_asset=assets.product_secondary is not None,
             materials_count=len(assets.materials),
@@ -1344,6 +1346,7 @@ class PuppeteerStructuredRenderer:
             gallery_resolved_count=len(asset_urls.get("gallery") or []),
             bottom_mode=poster.bottom_mode,
             gallery_mode=poster.gallery_mode,
+            composition_strategy=poster.composition_strategy,
             agent_name=poster.agent_name,
             # Template B extensions
             materials_count=len(asset_urls.get("materials") or []),

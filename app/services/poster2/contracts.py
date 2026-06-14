@@ -84,6 +84,9 @@ class PosterSpec:
     locale: str = "zh-CN"
     export_format: Literal["png", "jpeg", "webp"] = "png"
     renderer_mode: RendererMode = "auto"
+    # Composition Priority Layer (operator "海报风格策略"; "balanced" = current
+    # render). Non-geometric CSS-var bundle. See app/services/poster2/composition.py.
+    composition_strategy: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -416,6 +419,8 @@ class RenderManifest:
     # Visual Relaxation Layer audit (preset used + non-geometric proof). Defaults
     # to an empty dict so it survives exclude_none serialization.
     relaxation_preset: dict = field(default_factory=dict)
+    # Composition Priority Layer audit (strategy used + non-geometric proof).
+    composition_strategy: dict = field(default_factory=dict)
     hero_contract_review: dict = field(default_factory=dict)
     product_contract_review: dict = field(default_factory=dict)
     header_contract_review: dict = field(default_factory=dict)

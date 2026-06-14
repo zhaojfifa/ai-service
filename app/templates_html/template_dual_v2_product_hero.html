@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=1024, initial-scale=1" />
+  <style>
+__FONT_FACE_CSS__
+__INLINE_CSS__
+  </style>
+</head>
+<body>
+  <div
+    id="poster-root"
+    class="__ROOT_BEHAVIOR_CLASS__"
+    data-template-id="__TEMPLATE_ID__"
+    data-template-contract-version="__TEMPLATE_CONTRACT_VERSION__"
+    style="--safe-margin: __SAFE_MARGIN__px; __BEAUTY_CSS_VARS__"
+  >
+    <div class="layer layer-background" aria-hidden="true"></div>
+    <div class="safe-frame"></div>
+    <div class="structured-overlay" aria-hidden="true">__SVG_OVERLAY__</div>
+
+    <div class="layer layer-header-banner __HEADER_LAYER_CLASS__" style="__HEADER_STYLE_VARS__">
+      <div class="layer layer-header-region-shell" data-region="header_region">
+        <div class="region-shell region-shell-header"></div>
+      </div>
+      <div class="layer layer-header-content">
+        <div class="layer-header-layout">
+          <div class="layer layer-header-identity-zone" data-slot="header_identity_zone_slot">
+            <div class="layer layer-brand-logo">
+              <div class="slot slot-logo" style="__LOGO_STYLE__">
+                <img src="__LOGO_URL__" alt="" loading="eager" />
+              </div>
+            </div>
+            <div class="layer layer-brand-text">
+              <div class="slot slot-brand" style="__BRAND_STYLE__">
+                <div class="text-brand">__BRAND_TEXT__</div>
+              </div>
+            </div>
+          </div>
+          <div class="layer layer-header-agent-zone" data-slot="header_agent_zone_slot">
+            <div class="layer layer-agent-name-text __AGENT_TEXT_CLASS__">
+              <div class="slot slot-agent-name-text" style="__AGENT_STYLE__">
+                <div class="text-agent-secondary">__AGENT_TEXT__</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer layer-scenario layer-hero-peer-region __SCENARIO_LAYER_CLASS__">
+      <div class="layer layer-scenario-region-shell" data-region="scenario_region">
+        <div class="region-shell region-shell-scenario __SCENARIO_SHELL_CLASS__"></div>
+      </div>
+      <div class="layer layer-scenario-content __SCENARIO_CONTENT_CLASS__">
+        <div class="layer layer-scenario-image">
+          <div class="slot slot-scenario image-slot scenario-fit-cover" style="__SCENARIO_STYLE__">
+            <img src="__SCENARIO_URL__" alt="" loading="eager" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer layer-product layer-hero-peer-region __PRODUCT_LAYER_CLASS__">
+      <div class="layer layer-product-region-shell" data-region="product_region" data-layer="product_card_shell_layer">
+        <div class="region-shell region-shell-product"></div>
+      </div>
+      <div class="layer layer-product-canvas-shell" data-layer="product_canvas_shell_layer">
+        <div class="region-shell region-shell-product-canvas"></div>
+      </div>
+      <div class="layer layer-product-content __PRODUCT_CONTENT_CLASS__">
+        <div class="layer layer-product-image">
+          <div class="slot slot-product image-slot product-fit-contain" style="__PRODUCT_STYLE__">
+            <img src="__PRODUCT_URL__" alt="" loading="eager" />
+          </div>
+        </div>
+        <div class="layer layer-product-secondary-image __PRODUCT_SECONDARY_CLASS__">
+          <div class="slot slot-product-secondary image-slot product-secondary-fit-contain" style="__PRODUCT_SECONDARY_STYLE__">
+            <img src="__PRODUCT_SECONDARY_URL__" alt="" loading="eager" />
+          </div>
+        </div>
+        <div class="layer layer-product-support-surface __PRODUCT_SUPPORT_SURFACE_CLASS__" data-layer="product_support_surface_layer">
+          <div class="slot slot-product-support-surface image-slot product-support-surface-fit-contain" style="__PRODUCT_SUPPORT_SURFACE_STYLE__">
+            <img src="__PRODUCT_SUPPORT_SURFACE_URL__" alt="" loading="eager" />
+            <span class="product-support-surface-caption">__PRODUCT_SUPPORT_SURFACE_CAPTION__</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer layer-feature-callouts __FEATURE_LAYER_CLASS__" data-region="feature_region">
+      <div class="feature-layer">__FEATURE_ITEMS__</div>
+    </div>
+
+    <div class="layer layer-bottom-region __BOTTOM_REGION_CLASS__" data-region="bottom_region">
+      <div class="layer layer-bottom-region-shell">
+        <div class="region-shell region-shell-bottom"></div>
+      </div>
+      <div class="layer layer-title-band-region-shell __TITLE_BAND_CLASS__" data-region="title_band_region">
+        <div class="region-shell region-shell-title-band"></div>
+      </div>
+      <div class="layer layer-gallery-strip-region-shell __GALLERY_REGION_CLASS__" data-region="gallery_strip_region">
+        <div class="region-shell region-shell-gallery-strip"></div>
+      </div>
+      <div class="layer layer-bottom-content">
+        <div class="layer layer-title-subtitle __TITLE_CONTENT_CLASS__">
+          <div class="layer-title-band-layout">
+            <div class="layer layer-title">
+              <div class="slot slot-title text-title" style="__TITLE_STYLE__">__TITLE_TEXT__</div>
+            </div>
+            <div class="layer layer-subtitle __SUBTITLE_CLASS__">
+              <div class="slot slot-subtitle text-subtitle" style="__SUBTITLE_STYLE__">__SUBTITLE_TEXT__</div>
+            </div>
+          </div>
+        </div>
+        <div class="layer layer-bottom-gallery-items __GALLERY_ITEMS_CLASS__">
+          <div class="gallery-strip" aria-hidden="true">__GALLERY_ITEMS__</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="layer layer-bottom-tagline __BOTTOM_TAGLINE_CLASS__">
+      <div class="slot slot-bottom-tagline text-bottom-tagline" style="__BOTTOM_TAGLINE_STYLE__">__BOTTOM_TAGLINE_TEXT__</div>
+    </div>
+  </div>
+</body>
+</html>

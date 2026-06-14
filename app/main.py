@@ -1802,6 +1802,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             template_id=payload.template_id,
             export_format=payload.export_format,
             renderer_mode=payload.renderer_mode,
+            composition_strategy=payload.composition_strategy,
             materials_images=tuple(
                 P2AssetRef(url=m.url, key=m.key) for m in (payload.materials_images or [])
             ),
@@ -1926,6 +1927,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             template_behavior=manifest.template_behavior,
             geometry_evidence=manifest.geometry_evidence,
             relaxation_preset=manifest.relaxation_preset,
+            composition_strategy=manifest.composition_strategy,
             hero_contract_review=manifest.hero_contract_review,
             product_contract_review=manifest.product_contract_review,
             header_contract_review=manifest.header_contract_review,

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .contracts import TemplateBeautyTokensSpec, TemplateBehaviorModesSpec, TemplateSpec
+from .composition import composition_css_vars
 from .relaxation import normalize_relaxation_preset, relaxation_css_vars
 from .skills.beautification.family_a_beautification_freeze_pack_v1 import (
     build_beautification_freeze_pack as build_family_a_beautification_freeze_pack,
@@ -880,6 +881,8 @@ def resolve_template_behavior(
     gallery_mode: str | None = None,
     agent_name: str | None = None,
     has_product_secondary_asset: bool = False,
+    # Composition Priority Layer (request-level "海报风格策略"); "balanced"/None = no-op.
+    composition_strategy: str | None = None,
     # Template B extensions
     materials_count: int = 0,
     description_title: str | None = None,
@@ -1005,6 +1008,10 @@ def resolve_template_behavior(
     # vars. "none" contributes {} -> byte-identical to the pre-relaxation render.
     resolved_relaxation_preset = normalize_relaxation_preset(modes.relaxation_preset)
     css_vars.update(relaxation_css_vars(resolved_relaxation_preset))
+    # Composition Priority Layer (request-level). Merged LAST so the operator's
+    # "海报风格策略" surface overrides layer over the template + relaxation vars.
+    # "balanced"/None contributes {} -> byte-identical to the un-composed render.
+    css_vars.update(composition_css_vars(composition_strategy))
     return ResolvedTemplateBehavior(
         hero_mode=hero_mode,
         feature_mode=feature_mode,

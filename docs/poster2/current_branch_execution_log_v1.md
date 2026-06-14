@@ -1,5 +1,56 @@
 # Current Branch Execution Log v1
 
+## Entry — Composition Priority Layer + template_dual_v2_product_hero
+
+**Branch:** `poster2-composition-priority-v1`
+**Status:** Complete (all gates green; committed, not pushed; awaiting Owner approval)
+**Last updated:** `2026-06-14`
+
+### Scope
+
+- Add the request-level Composition Priority Layer ("海报风格策略": Balanced / Studio /
+  Product Hero / Catalog Clean) that re-prioritises the poster (product first, scenario
+  atmosphere, gallery evidence, strong title, premium) via a non-geometric CSS-var bundle,
+  plus the `template_dual_v2_product_hero` variant. Target studio ~4.3 -> >=4.5; reached.
+
+### Exact changes
+
+- NEW `app/services/poster2/composition.py`: closed-enum strategies -> bundle of
+  `--scenario-image-treatment` / `--product-primary-shadow` / `--title-stack-gap`;
+  `balanced` = {}; non-geometry whitelist + report.
+- `contracts.py`: `PosterSpec.composition_strategy`; `RenderManifest.composition_strategy`.
+- `template_behavior.py`: `composition_strategy` kwarg + merge LAST (Family A); threaded at
+  the renderer (x3) + pipeline call sites. `schemas/poster2.py` + `main.py`: additive request
+  + response field; `pipeline.py`: manifest report.
+- NEW template `template_dual_v2_product_hero` (full/un-floated product + studio CSS
+  title-52/light-gallery; html/svg/slot_spec/anchor_map byte-identical to base); registry
+  entry + `CAMPAIGN_EXPLAINER_TEMPLATE_IDS`; registry snapshot test updated.
+- Stage2 UI: `#poster2-composition-strategy` "海报风格策略" select (stage2.html) -> payload
+  `(template_id, composition_strategy)` (app.js); frontend + docs mirrored byte-identically.
+- NEW `scripts/poster2_composition_review.py`; NEW `tests/poster2/test_composition.py`;
+  review package `docs/poster2/composition_priority_layer_review_v1.md`.
+
+### Layer changed
+
+- Composition (request-level, non-geometric CSS-var bundle) + one bounded Family A template
+  variant. No region geometry/ownership, bottom SOP, annotation truth, or visible_item_count
+  change. Base/airy/studio unaffected.
+
+### Validation performed
+
+- Stability 10x base/studio/product_hero (real Puppeteer, stubbed R2): 100% / deterministic /
+  validator pass. 26/26 geometry-ownership-composition invariants PASS (composition proven
+  non-geometric). Scenario saturation receded to 0.54x base.
+- Operator review: product_hero product focus 4.6, scenario 2.5, bottom 2.5, title 4.5,
+  premium 4.6 — all targets met.
+- node/sync/py_compile pass; 60 focused tests pass; zero new suite failures vs main baseline;
+  browser selector can choose the strategy (Playwright-verified).
+
+### One-line execution summary
+
+- Added a non-geometric Composition Priority Layer + `template_dual_v2_product_hero`, raising
+  Product Hero to ~4.6/5 with every protected geometry/ownership guard proven unchanged.
+
 ## Entry — Geometry style variant template_dual_v2_studio
 
 **Branch:** `poster2-vrelax-heavy-v1`

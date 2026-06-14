@@ -59,6 +59,7 @@ from .template_behavior import (
     _TEXT_LAYER_OWNER_MAP,
     resolve_template_behavior,
 )
+from .composition import composition_report
 from .relaxation import relaxation_report
 from .template_registry import is_campaign_explainer_template, validate_template_registration
 
@@ -276,6 +277,7 @@ class PosterPipeline:
             gallery_resolved_count=min(len(assets.gallery), template.gallery_slot.count),
             bottom_mode=effective_spec.bottom_mode,
             gallery_mode=effective_spec.gallery_mode,
+            composition_strategy=effective_spec.composition_strategy,
             agent_name=effective_spec.agent_name,
             has_product_secondary_asset=assets.product_secondary is not None,
             # Template B extensions
@@ -714,6 +716,7 @@ class PosterPipeline:
             template_behavior=resolved_behavior.as_dict(),
             geometry_evidence=geometry_evidence,
             relaxation_preset=relaxation_report(resolved_behavior.relaxation_preset),
+            composition_strategy=composition_report(effective_spec.composition_strategy),
             hero_contract_review=renderer_metadata_payload["hero_contract_review"],
             product_contract_review=renderer_metadata_payload["product_contract_review"],
             header_contract_review=renderer_metadata_payload["header_contract_review"],
