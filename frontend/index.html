@@ -199,29 +199,34 @@
           </div>
         </fieldset>
 
-        <fieldset id="s1-template-b-announcement" class="card stage-card" data-variant-visible="b" hidden>
-          <legend>新品公告信息 <span class="optional">(选填)</span></legend>
-          <p class="hint">仅产品页 / 新品公告使用：库存徽标、按需报价行和海报上的联系文案。这些都是海报展示文本，不触发任何邮件 / Stage3 发送动作。</p>
+        <fieldset id="s1-template-b-announcement" class="card stage-card s1-announcement-card" data-variant-visible="b" hidden>
+          <legend>公告展示条 · Announcement strip <span class="optional">(选填 / optional)</span></legend>
+          <p class="hint s1-announcement-warning">下面是印在海报上的<strong>短展示标签</strong>（库存 / 报价 / 联系）。<strong>这些不是产品描述，请勿填写产品名称、标题或卖点</strong>——产品文案请用上方「产品页顶部信息」和「产品摘要面板」。每个标签留空即不显示（collapse-by-design）。</p>
           <div class="grid">
             <label class="field optional">
-              <span>库存徽标 <span class="optional">(选填，如 EN STOCK)</span></span>
-              <input id="availability-badge-stage1" name="availability_badge" type="text" maxlength="40" placeholder="如 EN STOCK / DISPONIBLE" />
+              <span>库存徽标 · Availability badge <span class="optional">(选填)</span></span>
+              <input id="availability-badge-stage1" name="availability_badge" type="text" maxlength="40" placeholder="EN STOCK" />
+              <small class="hint">海报顶部右侧的短库存标签。示例 / example：<code>EN STOCK</code>、<code>DISPONIBLE</code>。不要填产品名。</small>
             </label>
           </div>
           <div class="form-row">
+            <span class="feature-label">报价行 · Tariff line <span class="optional">(选填)</span></span>
             <label class="field optional checkbox-field">
               <input id="tariff-on-request-stage1" name="tariff_on_request" type="checkbox" />
-              <span>在海报上显示『Tarif : nous contacter』（按需报价）<span class="optional">(v1 仅支持按需报价，不显示具体价格)</span></span>
+              <span>勾选后，在海报上显示固定一行『<code>Tarif : nous contacter</code>』（按需报价 / on request）</span>
             </label>
+            <small class="hint">v1 仅支持「按需报价」这一种固定文案；此处不填写、也不显示具体价格。</small>
           </div>
           <div class="grid">
             <label class="field optional">
-              <span>联系按钮文案 <span class="optional">(选填，仅展示)</span></span>
-              <input id="on-poster-cta-label-stage1" name="on_poster_cta_label" type="text" maxlength="60" placeholder="如 Nous contacter" />
+              <span>联系按钮文案 · CTA label <span class="optional">(选填)</span></span>
+              <input id="on-poster-cta-label-stage1" name="on_poster_cta_label" type="text" maxlength="60" placeholder="Nous contacter" />
+              <small class="hint">印在海报上的联系短语（图片文字，仅展示）。示例 / example：<code>Nous contacter</code>。</small>
             </label>
             <label class="field optional">
-              <span>联系邮箱（海报展示文本） <span class="optional">(选填，仅展示，不发送)</span></span>
-              <input id="on-poster-cta-email-stage1" name="on_poster_cta_email" type="text" maxlength="120" placeholder="如 commercial@cuistance.eu" />
+              <span>联系邮箱 · CTA email <span class="optional">(选填)</span></span>
+              <input id="on-poster-cta-email-stage1" name="on_poster_cta_email" type="text" maxlength="120" placeholder="commercial@cuistance.eu" />
+              <small class="hint">印在海报上的联系邮箱文字（图片文字，仅展示）。示例 / example：<code>commercial@cuistance.eu</code>。</small>
             </label>
           </div>
         </fieldset>

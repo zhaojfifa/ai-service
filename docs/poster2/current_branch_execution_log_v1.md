@@ -10229,3 +10229,74 @@ After bundle:
   family / renderer. No Stage3/email/send change. No price. No phone/contact footer. No Product Matrix / portrait
   Catalog Hero. No Family A / bottom SOP / product-annotation change. `.eml` HTML not used as runtime template.
   No `.DS_Store` / local fonts committed.
+
+## Family B Announcement — LIVE E2E GAP DIAGNOSIS (2026-06-15)
+
+### Verdict: DEPLOYMENT MISMATCH (stop at Step 1)
+
+- Deployed backend `ai-service-leob.onrender.com` reports `build-info`: branch `kit1.0`, sha `0cbaf65`,
+  built 2026-01-24 — predates announcement work (and even `main` @ 21ebba2).
+- Deployed OpenAPI: `availability_badge` / `tariff_mode` / `on_poster_cta_label` / `on_poster_cta_email` /
+  `announcement_variant_contract_review` = ALL ABSENT (sku_text/description_title present → older Template-B build).
+- Deployed served `/index.html`: announcement fieldset + input ids ABSENT.
+- Git: `origin/poster2-family-b-announcement-ui-closure-v1` = `1fdeb84` (pushed), but Render is NOT serving it.
+
+### Root cause
+
+- Old deployed backend has no announcement schema → Pydantic silently drops the fields (extra=ignore) → poster
+  renders without EN STOCK / Tarif / CTA; response has no `announcement_variant_contract_review`. The "UI appears
+  present" was a different (newer) frontend build than the Render-served one.
+
+### Remediation (Owner)
+
+- Repoint/redeploy Render to commit `1fdeb84` (currently pinned to `kit1.0`/`0cbaf65`); publish the matching
+  `docs/` frontend; then re-run live E2E. Verify via `/build-info.json` + `/openapi.json` grep `availability_badge`.
+
+### Evidence artifacts (untracked, not committed)
+
+- `docs/poster2/assets/announcement_live_e2e_diagnosis_v1/live_e2e_gap_diagnosis.md`
+- `docs/poster2/assets/announcement_live_e2e_diagnosis_v1/live_e2e_probe_evidence.json`
+- `docs/poster2/assets/announcement_live_e2e_diagnosis_v1/remote_build_info.json`
+
+### Compliance
+
+- Evidence-only. No code change, no push, no deploy. No Stage3 / Poster Set / Catalog Hero / Family A / bottom SOP
+  / geometry change.
+
+## Family B Announcement — REMOTE UI FILL VALIDATION + operator-clarity fix (2026-06-15)
+
+### Trigger
+
+- Remote redeployed correct code (OpenAPI now has announcement fields), but operators typed generic product text
+  into the announcement fields because labels/guidance were not explicit enough.
+
+### Change (frontend copy + minimal CSS only)
+
+- Stage1 fieldset relabeled 「公告展示条 · Announcement strip」 with a "not product description" warning; bilingual
+  field labels (库存徽标 · Availability badge / 报价行 · Tariff line / 联系按钮文案 · CTA label / 联系邮箱 · CTA email);
+  placeholders set to the exact examples (EN STOCK / Nous contacter / commercial@cuistance.eu); removed
+  邮件/Stage3/发送 wording; red-accent card + tinted warning for visual distinction. Stage2 summary labels clarified.
+  No field-name / mapping / backend-schema / geometry change.
+
+### Validation
+
+- node --check frontend+docs app.js: OK. Frontend/docs sync: in sync. Focused tests (UI wiring + docs sync +
+  announcement backend): 15 passed.
+- Local Playwright: improved labels asserted; exact sample filled; Stage1 snapshot carries the 4 values; Stage2
+  summary shows EN STOCK / 按需报价 (Tarif : nous contacter) / Nous contacter · commercial@cuistance.eu / SKU.
+- Backend render (real pipeline): announcement_variant_contract_review present; 3 slots rendered; cta_action_bound
+  false; stage3_send_untouched true; materials collapsed_by_design. final_poster.png shows EN STOCK / Tarif / CTA.
+- Live remote: backend confirmed current via OpenAPI; authenticated live generate is the Owner step
+  (POST /api/v2/generate-poster returns 401 ops_auth_required; no prod credentials here). build-info.json is a
+  stale static file.
+
+### Artifacts
+
+- `docs/poster2/assets/announcement_remote_ui_validation_v1/` (stage1/stage2 screenshots, request payload,
+  response diagnostics, final_poster.png + page screenshot, remote_build_info.json, validation_notes.md).
+- `docs/poster2/assets/announcement_live_e2e_diagnosis_v1/` (prior deploy-gap diagnosis evidence).
+
+### Compliance
+
+- No backend schema / renderer geometry / template family / Stage3 / price / phone-footer / Poster Set / Family A /
+  bottom SOP / product-annotation change. Not pushed, not deployed, no PR/merge.

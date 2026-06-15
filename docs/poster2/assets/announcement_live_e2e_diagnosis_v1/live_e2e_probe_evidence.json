@@ -1,0 +1,27 @@
+{
+  "probe_target": "https://ai-service-leob.onrender.com",
+  "remote_refs": {
+    "origin/main": "21ebba2122569714c93c6718112371f72ecccdf1",
+    "origin/poster2-family-b-announcement-ui-closure-v1": "1fdeb841dae1e5b5422b5f60ab1136432604cd66",
+    "local_HEAD": "1fdeb841dae1e5b5422b5f60ab1136432604cd66"
+  },
+  "deployed_build_info": {
+    "branch": "kit1.0",
+    "sha": "0cbaf65",
+    "built_at_utc": "2026-01-24T16:02:21Z"
+  },
+  "deployed_request_schema_has_announcement_fields": {
+    "availability_badge": false,
+    "tariff_mode": false,
+    "on_poster_cta_label": false,
+    "on_poster_cta_email": false
+  },
+  "deployed_response_has_announcement_review": false,
+  "deployed_request_schema_has_template_b_fields": {
+    "sku_text": true,
+    "description_title": true,
+    "description_body": true
+  },
+  "deployed_request_field_count": 26,
+  "verdict": "DEPLOYMENT_MISMATCH"
+}

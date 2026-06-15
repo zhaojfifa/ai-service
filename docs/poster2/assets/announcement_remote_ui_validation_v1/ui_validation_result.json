@@ -1,0 +1,37 @@
+{
+  "labels": {
+    "fieldset_text_has": {
+      "announcement": true,
+      "not_product_desc": true,
+      "availability": true,
+      "tariff": true,
+      "cta_label": true,
+      "cta_email": true,
+      "no_price_word": false,
+      "no_send_word": true
+    },
+    "placeholders": {
+      "availability": "EN STOCK",
+      "cta_label": "Nous contacter",
+      "cta_email": "commercial@cuistance.eu"
+    }
+  },
+  "stage1_snapshot": {
+    "availability_badge": "EN STOCK",
+    "tariff_mode": "on_request",
+    "on_poster_cta_label": "Nous contacter",
+    "on_poster_cta_email": "commercial@cuistance.eu"
+  },
+  "stage2_summary": {
+    "availability": "EN STOCK",
+    "tariff": "按需报价 (Tarif : nous contacter)",
+    "cta": "Nous contacter · commercial@cuistance.eu",
+    "sku": "311011 (RC10L)"
+  },
+  "console_errors": [
+    "Failed to load resource: the server responded with a status of 404 (File not found)",
+    "Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+    "Failed to load resource: the server responded with a status of 404 (File not found)"
+  ],
+  "generate_request_captured": false
+}
