@@ -1,0 +1,411 @@
+{
+  "announcement_variant_contract_review": {
+    "core_information_area": {
+      "intact": true,
+      "members": {
+        "brand_logo_slot": {
+          "rendered": true
+        },
+        "description_copy_core": {
+          "rendered": true,
+          "satisfied_by": "description_title_layer"
+        },
+        "product_hero_primary": {
+          "rendered": true
+        },
+        "sku_text_layer": {
+          "rendered": true
+        },
+        "top_copy_title_layer": {
+          "rendered": true
+        }
+      }
+    },
+    "materials_strip_region": {
+      "collapsed_by_design": true,
+      "count": 0,
+      "foreign_content_routed_in": false,
+      "reason_code": "materials_not_used_in_announcement_variant",
+      "region_order_unchanged": true,
+      "rendered": false
+    },
+    "missing_core_information_members": [],
+    "new_copy_slots": {
+      "availability_badge": {
+        "char_budget": 16,
+        "collapsed_by_design": false,
+        "owner_region": "top_copy_region",
+        "reason_code": null,
+        "rendered": true,
+        "rendered_excerpt": "EN STOCK",
+        "requested": "EN STOCK",
+        "sanitized": "EN STOCK"
+      },
+      "on_poster_cta_text": {
+        "char_budget": 80,
+        "collapsed_by_design": false,
+        "cta_action_bound": false,
+        "email": "commercial@cuistance.eu",
+        "label": "Nous contacter",
+        "owner_region": "description_region",
+        "reason_code": null,
+        "render_kind": "display_text_only",
+        "rendered": true,
+        "rendered_excerpt": "Nous contacter · commercial@cuistance.eu",
+        "stage3_send_untouched": true
+      },
+      "tariff_line": {
+        "char_budget": 40,
+        "collapsed_by_design": false,
+        "mode": "on_request",
+        "owner_region": "top_copy_region",
+        "price_supported": false,
+        "reason_code": null,
+        "rendered": true,
+        "rendered_excerpt": "Tarif : nous contacter",
+        "requested": "on_request",
+        "sanitized": "Tarif : nous contacter"
+      }
+    },
+    "product_hero": {
+      "primary_rendered": true
+    },
+    "structure_complete": true,
+    "template_binding": "template_product_sheet_v1",
+    "variant_id": "family_b_product_announcement"
+  },
+  "degraded": false,
+  "deliverable": true,
+  "description_contract_review": {
+    "behavior_policy": {
+      "body_char_budget": 400,
+      "body_line_clamp": 5,
+      "collapse_policy": "collapse_when_title_and_body_empty",
+      "description_density_mode": "standard_block",
+      "region_ownership_policy": "description_region_owns_description_title_and_body",
+      "title_char_budget": 80,
+      "title_line_clamp": 1
+    },
+    "description_body_layer": {
+      "char_budget": 400,
+      "layer_id": "description_body_layer",
+      "line_clamp": 5,
+      "owner_region": "description_region",
+      "reason_code": null,
+      "rendered": true,
+      "rendered_excerpt": "Structure exterieure en acier inoxydable, revetement interieur antiadhesif, voyants de cuisson, livre avec cuillere et doseur a riz.",
+      "requested_text": "Structure exterieure en acier inoxydable, revetement interieur antiadhesif, voyants de cuisson, livre avec cuillere et doseur a riz.",
+      "sanitized_text": "Structure exterieure en acier inoxydable, revetement interieur antiadhesif, voyants de cuisson, livre avec cuillere et doseur a riz.",
+      "slot_bounds": {
+        "h": 120,
+        "w": 768,
+        "x": 128,
+        "y": 804
+      },
+      "truncation_applied": false
+    },
+    "description_density_mode": "standard_block",
+    "description_mode": "description_block",
+    "description_region": {
+      "bounds": {
+        "h": 228,
+        "w": 832,
+        "x": 96,
+        "y": 748
+      },
+      "rendered": true
+    },
+    "description_title_layer": {
+      "char_budget": 80,
+      "layer_id": "description_title_layer",
+      "line_clamp": 1,
+      "owner_region": "description_region",
+      "reason_code": null,
+      "rendered": true,
+      "rendered_excerpt": "Inox - maintien au chaud 24h",
+      "requested_text": "Inox - maintien au chaud 24h",
+      "sanitized_text": "Inox - maintien au chaud 24h",
+      "slot_bounds": {
+        "h": 40,
+        "w": 800,
+        "x": 112,
+        "y": 756
+      },
+      "truncation_applied": false
+    }
+  },
+  "fallback_reason_code": null,
+  "product_contract_review": {
+    "annotation_owner_slot": null,
+    "annotation_slots": [],
+    "behavior_policy": {
+      "annotation_bounds_policy": "no_annotation_bounds",
+      "annotation_connector_policy": "annotation_connectors_disabled",
+      "annotation_count_policy": "annotations_disabled",
+      "annotation_marker_policy": "annotation_markers_disabled",
+      "annotation_shell_policy": "annotation_shell_collapsed",
+      "char_budget": 0,
+      "layout_metrics": {
+        "annotation_shell_h": 0,
+        "annotation_shell_w": 0,
+        "annotation_shell_x": 0,
+        "annotation_shell_y": 0,
+        "product_canvas_shell_h": 384,
+        "product_canvas_shell_w": 800,
+        "product_canvas_shell_x": 112,
+        "product_canvas_shell_y": 348,
+        "product_primary_slot_h": 384,
+        "product_primary_slot_w": 800,
+        "product_primary_slot_x": 112,
+        "product_primary_slot_y": 348,
+        "product_region_h": 384,
+        "product_region_w": 800,
+        "product_region_x": 112,
+        "product_region_y": 348,
+        "product_secondary_slot_h": null,
+        "product_secondary_slot_w": null,
+        "product_secondary_slot_x": null,
+        "product_secondary_slot_y": null,
+        "product_support_surface_h": null,
+        "product_support_surface_w": null,
+        "product_support_surface_x": null,
+        "product_support_surface_y": null,
+        "product_text_shell_h": 0,
+        "product_text_shell_w": 0,
+        "product_text_shell_x": 0,
+        "product_text_shell_y": 0
+      },
+      "line_clamp": 0,
+      "secondary_product_mode": "inset_hidden_no_reserve",
+      "text_budget_policy": "annotation_budget_disabled"
+    },
+    "effective_product_source": "mock://rice-cooker",
+    "geometry_frozen": true,
+    "owner_surfaces": [
+      "product_card_shell_layer",
+      "product_canvas_shell_layer",
+      "product_image_layer",
+      "product_primary_slot"
+    ],
+    "product_annotation_items_layer": {
+      "reason_code": "annotation_mode_none",
+      "rendered": false,
+      "visible_item_count": 0
+    },
+    "product_annotation_mode": "none",
+    "product_annotation_owner": "not_applicable_template_b",
+    "product_annotation_shell_layer": {
+      "bounds": {
+        "h": 0,
+        "w": 0,
+        "x": 0,
+        "y": 0
+      },
+      "reason_code": "annotation_mode_none",
+      "rendered": false
+    },
+    "product_canvas_shell_layer": {
+      "bounds": {
+        "h": 384,
+        "w": 800,
+        "x": 112,
+        "y": 348
+      },
+      "reason_code": null,
+      "rendered": true
+    },
+    "product_card_shell_layer": {
+      "bounds": {
+        "h": 384,
+        "w": 800,
+        "x": 112,
+        "y": 348
+      },
+      "reason_code": null,
+      "rendered": true
+    },
+    "product_geometry_mode": "single_hero_centered_full_width_v1",
+    "product_geometry_mode_reason": "full_width_hero_geometry_selected",
+    "product_hero_region": {
+      "bounds": {
+        "h": 384,
+        "w": 800,
+        "x": 112,
+        "y": 348
+      },
+      "rendered": true
+    },
+    "product_image_layer": {
+      "bounds": {
+        "h": 384,
+        "w": 800,
+        "x": 112,
+        "y": 348
+      },
+      "reason_code": null,
+      "rendered": true
+    },
+    "product_layout_mode": "single_hero_centered",
+    "product_layout_mode_reason": "single_hero_centered_without_secondary_asset",
+    "product_primary_image_fit": "contain",
+    "product_primary_slot": {
+      "h": 384,
+      "w": 800,
+      "x": 112,
+      "y": 348
+    },
+    "product_secondary_asset_policy": "hide_no_reserve",
+    "product_secondary_image_layer": {
+      "bounds": {
+        "h": 0,
+        "w": 0,
+        "x": 0,
+        "y": 0
+      },
+      "reason_code": "secondary_slot_not_active",
+      "rendered": false,
+      "source_binding": null
+    },
+    "product_secondary_slot": null,
+    "product_secondary_slot_rendered": false,
+    "product_source": "request.product_image",
+    "product_support_surface_bounds": null,
+    "product_support_surface_caption_text": "",
+    "product_support_surface_layer": {
+      "bounds": null,
+      "reason_code": "not_applicable_template_b",
+      "rendered": false,
+      "source_binding": null
+    },
+    "product_support_surface_mode": "not_applicable_template_b",
+    "product_support_surface_rendered": false,
+    "product_support_surface_source": null,
+    "product_text_shell_layer": {
+      "bounds": {
+        "h": 0,
+        "w": 0,
+        "x": 0,
+        "y": 0
+      },
+      "owner_region": "product_hero_region",
+      "owner_surface": "not_used_in_template_b",
+      "reason_code": "not_used_in_template_b",
+      "rendered": false,
+      "text_does_not_compete_with_canvas": true
+    },
+    "rendered_annotation_items": [],
+    "rendered_product_source": "mock://rice-cooker",
+    "requested_annotation_items": [],
+    "requested_product_source": "mock://rice-cooker",
+    "sanitized_annotation_items": [],
+    "secondary_product_mode": "inset_hidden_no_reserve",
+    "secondary_slot_annotation_ownership": false
+  },
+  "region_render_status": {
+    "description_region": {
+      "collapsed": false,
+      "count": 2,
+      "rendered": true
+    },
+    "logo_banner_region": {
+      "collapsed": false,
+      "count": 2,
+      "rendered": true
+    },
+    "materials_strip_region": {
+      "collapsed": true,
+      "count": 0,
+      "rendered": false
+    },
+    "product_hero_region": {
+      "collapsed": false,
+      "count": 1,
+      "rendered": true
+    },
+    "top_copy_region": {
+      "collapsed": false,
+      "count": 3,
+      "rendered": true
+    }
+  },
+  "render_engine_used": "pillow",
+  "renderer_mode": "pillow",
+  "structure_complete": true,
+  "template_id": "template_product_sheet_v1",
+  "top_copy_contract_review": {
+    "behavior_policy": {
+      "region_ownership_policy": "top_copy_region_owns_sku_title_subtitle",
+      "sku_char_budget": 64,
+      "subtitle_char_budget": 80,
+      "subtitle_line_clamp": 1,
+      "title_char_budget": 120,
+      "title_line_clamp": 2,
+      "top_copy_hierarchy_mode": "sku_meta_title_subtitle_catalog"
+    },
+    "sku_text_layer": {
+      "char_budget": 64,
+      "layer_id": "sku_text_layer",
+      "line_clamp": 1,
+      "owner_region": "top_copy_region",
+      "reason_code": null,
+      "rendered": true,
+      "rendered_excerpt": "311011 (RC10L)",
+      "requested_text": "311011 (RC10L)",
+      "sanitized_text": "311011 (RC10L)",
+      "slot_bounds": {
+        "h": 20,
+        "w": 800,
+        "x": 112,
+        "y": 172
+      },
+      "truncation_applied": false
+    },
+    "top_copy_hierarchy_mode": "sku_meta_title_subtitle_catalog",
+    "top_copy_mode": "title_subtitle_stack",
+    "top_copy_region": {
+      "bounds": {
+        "h": 100,
+        "w": 832,
+        "x": 96,
+        "y": 168
+      },
+      "rendered": true
+    },
+    "top_copy_subtitle_layer": {
+      "char_budget": 80,
+      "layer_id": "top_copy_subtitle_layer",
+      "line_clamp": 1,
+      "owner_region": "top_copy_region",
+      "reason_code": null,
+      "rendered": true,
+      "rendered_excerpt": "Cuiseur a riz professionnel 10 litres",
+      "requested_text": "Cuiseur a riz professionnel 10 litres",
+      "sanitized_text": "Cuiseur a riz professionnel 10 litres",
+      "slot_bounds": {
+        "h": 24,
+        "w": 720,
+        "x": 152,
+        "y": 238
+      },
+      "truncation_applied": false
+    },
+    "top_copy_title_layer": {
+      "char_budget": 120,
+      "layer_id": "top_copy_title_layer",
+      "line_clamp": 2,
+      "owner_region": "top_copy_region",
+      "reason_code": null,
+      "rendered": true,
+      "rendered_excerpt": "NOUVEAUTE ! CUISEUR A RIZ PROFESSIONNEL",
+      "requested_text": "NOUVEAUTE ! CUISEUR A RIZ PROFESSIONNEL",
+      "sanitized_text": "NOUVEAUTE ! CUISEUR A RIZ PROFESSIONNEL",
+      "slot_bounds": {
+        "h": 56,
+        "w": 800,
+        "x": 112,
+        "y": 176
+      },
+      "truncation_applied": false
+    }
+  }
+}

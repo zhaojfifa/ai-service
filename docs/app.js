@@ -962,6 +962,10 @@ function buildTemplateBStage2State(stage1Data) {
     sku_text: stage1Data?.sku_text || '',
     description_title: stage1Data?.description_title || stage1Data?.descriptionTitle || '',
     description_body: stage1Data?.description_body || stage1Data?.descriptionBody || '',
+    availability_badge: stage1Data?.availability_badge || stage1Data?.availabilityBadge || '',
+    tariff_mode: (stage1Data?.tariff_mode || stage1Data?.tariffMode) === 'on_request' ? 'on_request' : '',
+    on_poster_cta_label: stage1Data?.on_poster_cta_label || stage1Data?.onPosterCtaLabel || '',
+    on_poster_cta_email: stage1Data?.on_poster_cta_email || stage1Data?.onPosterCtaEmail || '',
     materials_count: materials.length,
     materials_state: materials.length ? `${materials.length} accessory / sample image(s) ready` : '0 accessory / sample images',
     primary_product_state: stage1Data?.product_image_1 ? 'primary ready' : 'primary missing',
@@ -1004,6 +1008,10 @@ function renderTemplateBStage2Summary(stage1Data) {
   setValue('s2-b-sku', summary.sku_text);
   setValue('s2-b-description-title', summary.description_title);
   setValue('s2-b-description-body', summary.description_body);
+  const ctaDisplay = [summary.on_poster_cta_label, summary.on_poster_cta_email].filter(Boolean).join(' · ');
+  setValue('s2-b-availability', summary.availability_badge, '（不显示）');
+  setValue('s2-b-tariff', summary.tariff_mode === 'on_request' ? '按需报价 (Tarif : nous contacter)' : '', '（不显示）');
+  setValue('s2-b-cta', ctaDisplay, '（不显示）');
   setValue('s2-b-materials-state', summary.materials_state);
   setValue(
     's2-b-image-state',
@@ -4773,6 +4781,11 @@ function initStage1ModeS() {
     descriptionTitle: '',
     descriptionBody: '',
     materialsImages: [],
+    // Family B Product Announcement variant (display-only copy slots)
+    availabilityBadge: '',
+    tariffMode: '',
+    onPosterCtaLabel: '',
+    onPosterCtaEmail: '',
     stage1SuggestionState: normaliseStage1SuggestionState(null),
   };
 
@@ -5478,6 +5491,15 @@ function initStage1ModeS() {
     if (descTitleEl) state.descriptionTitle = descTitleEl.value.trim();
     const descBodyEl = document.getElementById('description-body-stage1');
     if (descBodyEl) state.descriptionBody = descBodyEl.value.trim();
+    // Family B Product Announcement variant copy slots
+    const availEl = document.getElementById('availability-badge-stage1');
+    if (availEl) state.availabilityBadge = availEl.value.trim();
+    const tariffEl = document.getElementById('tariff-on-request-stage1');
+    if (tariffEl) state.tariffMode = tariffEl.checked ? 'on_request' : '';
+    const ctaLabelEl = document.getElementById('on-poster-cta-label-stage1');
+    if (ctaLabelEl) state.onPosterCtaLabel = ctaLabelEl.value.trim();
+    const ctaEmailEl = document.getElementById('on-poster-cta-email-stage1');
+    if (ctaEmailEl) state.onPosterCtaEmail = ctaEmailEl.value.trim();
     requestPreviewUpdate();
   });
 
@@ -5886,6 +5908,20 @@ async function applyStage1DataToForm(data, form, state, inlinePreviews) {
     if (descTitleInput) descTitleInput.value = state.descriptionTitle;
     const descBodyInput = document.getElementById('description-body-stage1');
     if (descBodyInput) descBodyInput.value = state.descriptionBody;
+
+    // Family B Product Announcement variant copy slots
+    state.availabilityBadge = data.availability_badge || '';
+    state.tariffMode = data.tariff_mode === 'on_request' ? 'on_request' : '';
+    state.onPosterCtaLabel = data.on_poster_cta_label || '';
+    state.onPosterCtaEmail = data.on_poster_cta_email || '';
+    const availInput = document.getElementById('availability-badge-stage1');
+    if (availInput) availInput.value = state.availabilityBadge;
+    const tariffInput = document.getElementById('tariff-on-request-stage1');
+    if (tariffInput) tariffInput.checked = state.tariffMode === 'on_request';
+    const ctaLabelInput = document.getElementById('on-poster-cta-label-stage1');
+    if (ctaLabelInput) ctaLabelInput.value = state.onPosterCtaLabel;
+    const ctaEmailInput = document.getElementById('on-poster-cta-email-stage1');
+    if (ctaEmailInput) ctaEmailInput.value = state.onPosterCtaEmail;
 
     // Template B materials images
     state.materialsImages = Array.isArray(data.materials_images)
@@ -6549,6 +6585,11 @@ function collectStage1Data(form, state, { strict = false } = {}) {
       payload.materials_images = state.materialsImages
         .filter((e) => e.url)
         .map((e) => ({ url: e.url, key: e.key || null }));
+      // Family B Product Announcement variant — display-only copy slots.
+      payload.availability_badge = form.querySelector('[name="availability_badge"]')?.value?.trim() || null;
+      payload.tariff_mode = form.querySelector('[name="tariff_on_request"]')?.checked ? 'on_request' : null;
+      payload.on_poster_cta_label = form.querySelector('[name="on_poster_cta_label"]')?.value?.trim() || null;
+      payload.on_poster_cta_email = form.querySelector('[name="on_poster_cta_email"]')?.value?.trim() || null;
     }
 
     if (strict) {
@@ -7192,6 +7233,11 @@ function serialiseStage1Data(payload, state, layoutPreview, previewBuilt) {
       sku_text: state.skuText || null,
       description_title: state.descriptionTitle || null,
       description_body: state.descriptionBody || null,
+      // Family B Product Announcement variant — display-only copy slots
+      availability_badge: state.availabilityBadge || null,
+      tariff_mode: state.tariffMode === 'on_request' ? 'on_request' : null,
+      on_poster_cta_label: state.onPosterCtaLabel || null,
+      on_poster_cta_email: state.onPosterCtaEmail || null,
       materials_images: (state.materialsImages || [])
         .filter((e) => e.url)
         .map((e) => ({ url: e.url, key: e.key || null })),
@@ -8300,6 +8346,11 @@ function buildPoster2RequestSummary(payload) {
     gallery_mode: payload?.gallery_mode || null,
     feature_count: Array.isArray(payload?.features) ? payload.features.length : 0,
     gallery_count: Array.isArray(payload?.gallery_images) ? payload.gallery_images.length : 0,
+    // Family B Product Announcement variant — display-only copy slots (surface for the operator preview).
+    availability_badge: payload?.availability_badge || null,
+    tariff_mode: payload?.tariff_mode === 'on_request' ? 'on_request' : null,
+    on_poster_cta_label: payload?.on_poster_cta_label || null,
+    on_poster_cta_email: payload?.on_poster_cta_email || null,
   };
 }
 
@@ -9171,6 +9222,11 @@ async function buildTemplateBPosterPayload(stage1Data, apiCandidates, options = 
     stage1Data.description_body || stage1Data.descriptionBody,
     ''
   );
+  // Family B Product Announcement variant — display-only copy slots.
+  const availabilityBadge = safeText(stage1Data.availability_badge || stage1Data.availabilityBadge, '');
+  const tariffMode = (stage1Data.tariff_mode || stage1Data.tariffMode) === 'on_request' ? 'on_request' : '';
+  const onPosterCtaLabel = safeText(stage1Data.on_poster_cta_label || stage1Data.onPosterCtaLabel, '');
+  const onPosterCtaEmail = safeText(stage1Data.on_poster_cta_email || stage1Data.onPosterCtaEmail, '');
 
   const productRef = await normaliseAssetReference(
     stage1Data.product_image_1 || stage1Data.product_asset,
@@ -9255,6 +9311,10 @@ async function buildTemplateBPosterPayload(stage1Data, apiCandidates, options = 
     description_title: descriptionTitle,
     description_body: descriptionBody,
     sku_text: skuText,
+    availability_badge: availabilityBadge,
+    tariff_mode: tariffMode,
+    on_poster_cta_label: onPosterCtaLabel,
+    on_poster_cta_email: onPosterCtaEmail,
     style: {
       prompt: safeText(stage1Data.title || stage1Data.description_title, 'clean studio background, soft diffused light'),
     },
@@ -11891,6 +11951,10 @@ async function triggerGeneration(opts) {
         description_title: payload.description_title || null,
         description_body: payload.description_body || null,
         materials_images: payload.materials_images || [],
+        availability_badge: payload.availability_badge || null,
+        tariff_mode: payload.tariff_mode === 'on_request' ? 'on_request' : null,
+        on_poster_cta_label: payload.on_poster_cta_label || null,
+        on_poster_cta_email: payload.on_poster_cta_email || null,
       };
     } else if (usePoster2Pilot) {
       const poster2Request = await buildPoster2GeneratePayload(requestStage1Data, apiCandidates, {

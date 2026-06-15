@@ -34,7 +34,13 @@ from .background import (
     make_background_service,
 )
 from .composer import Composer
-from .contracts import PosterSpec, RenderDebugArtifacts, RenderManifest, TemplateSpec
+from .contracts import (
+    PosterSpec,
+    RenderDebugArtifacts,
+    RenderManifest,
+    TemplateSpec,
+    resolve_announcement_copy_slots,
+)
 from .errors import PosterGenerationStageError
 from .copy_optimizer import resolve_copy_optimization
 from .font_registry import FontRegistry
@@ -107,6 +113,9 @@ _TEMPLATE_B_VISIBLE_TRUTH_KEYS = {
     "sku_text_layer",
     "top_copy_title_layer",
     "top_copy_subtitle_layer",
+    "availability_badge_layer",
+    "tariff_line_layer",
+    "on_poster_cta_text_layer",
     "materials_strip_region",
     "materials_item_0",
     "materials_item_1",
@@ -610,6 +619,13 @@ class PosterPipeline:
                 layer_render_status=layer_render_status,
                 region_render_status=quality_guard_report.region_render_status,
             ),
+            "announcement_variant_contract_review": _build_announcement_variant_contract_review(
+                template,
+                requested_spec=requested_spec,
+                effective_spec=effective_spec,
+                layer_render_status=layer_render_status,
+                region_render_status=quality_guard_report.region_render_status,
+            ),
             "title_text_layer": _build_title_text_layer_evidence(
                 template,
                 requested_spec=requested_spec,
@@ -726,6 +742,7 @@ class PosterPipeline:
             scenario_contract_review=renderer_metadata_payload["scenario_contract_review"],
             top_copy_contract_review=renderer_metadata_payload["top_copy_contract_review"],
             description_contract_review=renderer_metadata_payload["description_contract_review"],
+            announcement_variant_contract_review=renderer_metadata_payload["announcement_variant_contract_review"],
             title_text_layer=renderer_metadata_payload["title_text_layer"],
             subtitle_text_layer=renderer_metadata_payload["subtitle_text_layer"],
             header_text_layer=renderer_metadata_payload["header_text_layer"],
@@ -1715,6 +1732,25 @@ def _build_template_b_parity_review(
             visible_truth_evidence=visible_truth_evidence,
             geometry_evidence=geometry_evidence,
         ),
+        # Product Announcement variant — three optional display-only copy slots.
+        "availability_badge_layer": _parity_target_review(
+            target_key="availability_badge_layer",
+            region_key="top_copy_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "tariff_line_layer": _parity_target_review(
+            target_key="tariff_line_layer",
+            region_key="description_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
+        "on_poster_cta_text_layer": _parity_target_review(
+            target_key="on_poster_cta_text_layer",
+            region_key="description_region",
+            visible_truth_evidence=visible_truth_evidence,
+            geometry_evidence=geometry_evidence,
+        ),
     }
 
     failures: list[str] = []
@@ -1730,6 +1766,10 @@ def _build_template_b_parity_review(
         failures.append("product_secondary_inset_outside_product_hero_region")
     if not all(_parity_passes_when_rendered(targets[key]) for key in ("description_title_layer", "description_body_layer")):
         failures.append("description_content_outside_description_region")
+    if not _parity_passes_when_rendered(targets["availability_badge_layer"]):
+        failures.append("availability_badge_outside_top_copy_region")
+    if not all(_parity_passes_when_rendered(targets[key]) for key in ("tariff_line_layer", "on_poster_cta_text_layer")):
+        failures.append("announcement_footer_copy_outside_description_region")
 
     return {
         "parity_enabled": True,
@@ -1741,6 +1781,10 @@ def _build_template_b_parity_review(
             _parity_passes_when_rendered(targets["product_secondary_inset"])
         ),
         "description_in_region": all(_parity_passes_when_rendered(targets[key]) for key in ("description_title_layer", "description_body_layer")),
+        "announcement_copy_in_region": all(
+            _parity_passes_when_rendered(targets[key])
+            for key in ("availability_badge_layer", "tariff_line_layer", "on_poster_cta_text_layer")
+        ),
         "targets": targets,
     }
 
@@ -3206,6 +3250,144 @@ def _build_description_contract_review(
             "char_budget": _TEMPLATE_B_DESCRIPTION_BODY_CHAR_BUDGET,
             "slot_bounds": _text_slot_bounds(template.description_body_slot) if template.description_body_slot else {"x": 0, "y": 0, "w": 0, "h": 0},
             "owner_region": "description_region",
+        },
+    }
+
+
+def _build_announcement_variant_contract_review(
+    template: TemplateSpec,
+    *,
+    requested_spec: PosterSpec,
+    effective_spec: PosterSpec,
+    layer_render_status: dict[str, dict[str, object]],
+    region_render_status: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    """Diagnostics for the Family B Product Announcement variant.
+
+    Per the approved contract this MUST surface:
+      - the Family B core information area (incl. a description copy core) that
+        drives structure_complete;
+      - explicit materials_strip_region collapsed_by_design evidence;
+      - the three optional copy slots with requested -> sanitized -> rendered
+        chain and collapse reasons;
+      - display-only proof for on_poster_cta_text
+        (render_kind=display_text_only, cta_action_bound=false, stage3_send_untouched=true).
+    """
+    if not _is_template_b_template(template):
+        return {}
+
+    def _rendered(layer_key: str) -> bool:
+        return bool(layer_render_status.get(layer_key, {}).get("rendered", False))
+
+    # --- Family B core information area (review §4.1) ---
+    brand_logo_rendered = _rendered("brand_logo_layer")
+    sku_rendered = _rendered("sku_text_layer")
+    title_rendered = _rendered("top_copy_title_layer")
+    hero_primary_rendered = _rendered("product_image_layer")
+    desc_title_rendered = _rendered("description_title_layer")
+    desc_body_rendered = _rendered("description_body_layer")
+    description_copy_core_rendered = desc_title_rendered or desc_body_rendered
+    description_copy_core_satisfied_by = (
+        "description_title_layer"
+        if desc_title_rendered
+        else ("description_body_layer" if desc_body_rendered else None)
+    )
+
+    core_members = {
+        "brand_logo_slot": {"rendered": brand_logo_rendered},
+        "sku_text_layer": {"rendered": sku_rendered},
+        "top_copy_title_layer": {"rendered": title_rendered},
+        "product_hero_primary": {"rendered": hero_primary_rendered},
+        "description_copy_core": {
+            "rendered": description_copy_core_rendered,
+            "satisfied_by": description_copy_core_satisfied_by,
+        },
+    }
+    missing_core_information_members = [
+        key for key, value in core_members.items() if not value["rendered"]
+    ]
+    core_intact = not missing_core_information_members
+
+    # --- Explicit materials_strip_region collapse evidence (review §4.2) ---
+    materials_region = region_render_status.get("materials_strip_region", {})
+    materials_rendered = bool(materials_region.get("rendered", False))
+    materials_count = int(materials_region.get("count", 0))
+    materials_strip = {
+        "rendered": materials_rendered,
+        "collapsed_by_design": not materials_rendered,
+        "reason_code": None if materials_rendered else "materials_not_used_in_announcement_variant",
+        "count": materials_count,
+        "region_order_unchanged": True,
+        "foreign_content_routed_in": False,
+    }
+
+    # --- Three optional copy slots ---
+    slots = resolve_announcement_copy_slots(effective_spec)
+    avail = slots["availability_badge"]
+    tariff = slots["tariff_line"]
+    cta = slots["on_poster_cta_text"]
+
+    availability_excerpt = (
+        _apply_text_budget(avail["sanitized"], avail["char_budget"]) if avail["present"] else ""
+    )
+    tariff_excerpt = (
+        _apply_text_budget(tariff["sanitized"], tariff["char_budget"]) if tariff["present"] else ""
+    )
+    cta_excerpt = (
+        _apply_text_budget(cta["sanitized"], cta["char_budget"]) if cta["present"] else ""
+    )
+
+    return {
+        "variant_id": "family_b_product_announcement",
+        "template_binding": template.template_id,
+        "structure_complete": core_intact,
+        "core_information_area": {
+            "members": core_members,
+            "intact": core_intact,
+        },
+        "missing_core_information_members": missing_core_information_members,
+        "materials_strip_region": materials_strip,
+        "new_copy_slots": {
+            "availability_badge": {
+                "requested": avail["requested"],
+                "sanitized": avail["sanitized"],
+                "rendered_excerpt": availability_excerpt,
+                "rendered": avail["present"],
+                "collapsed_by_design": not avail["present"],
+                "reason_code": None if avail["present"] else "availability_badge_absent",
+                "char_budget": avail["char_budget"],
+                "owner_region": "top_copy_region",
+            },
+            "tariff_line": {
+                "mode": tariff["mode"] or None,
+                "requested": tariff["requested"],
+                "sanitized": tariff["sanitized"],
+                "rendered_excerpt": tariff_excerpt,
+                "rendered": tariff["present"],
+                "collapsed_by_design": not tariff["present"],
+                "reason_code": None if tariff["present"] else "tariff_mode_unset",
+                "char_budget": tariff["char_budget"],
+                "owner_region": "top_copy_region",
+                "price_supported": False,
+            },
+            "on_poster_cta_text": {
+                "label": cta["label"],
+                "email": cta["email"],
+                "rendered_excerpt": cta_excerpt,
+                "rendered": cta["present"],
+                "collapsed_by_design": not cta["present"],
+                "reason_code": None if cta["present"] else "cta_absent",
+                "char_budget": cta["char_budget"],
+                "owner_region": "description_region",
+                # Display-only proof (review §4.4): this slot is flat poster text;
+                # it binds no action and leaves Stage3 / closure untouched.
+                "render_kind": "display_text_only",
+                "cta_action_bound": False,
+                "stage3_send_untouched": True,
+            },
+        },
+        "product_hero": {
+            "primary_rendered": hero_primary_rendered,
         },
     }
 

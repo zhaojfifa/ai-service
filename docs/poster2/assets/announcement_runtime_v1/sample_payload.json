@@ -1,0 +1,21 @@
+{
+  "brand_name": "CUISTANCE",
+  "agent_name": "Cuistance Europe",
+  "title": "NOUVEAUTE ! CUISEUR A RIZ PROFESSIONNEL",
+  "subtitle": "Cuiseur a riz professionnel 10 litres",
+  "template_id": "template_product_sheet_v1",
+  "renderer_mode": "pillow",
+  "sku_text": "311011 (RC10L)",
+  "description_title": "Inox - maintien au chaud 24h",
+  "description_body": "Structure exterieure en acier inoxydable, revetement interieur antiadhesif, voyants de cuisson, livre avec cuillere et doseur a riz.",
+  "availability_badge": "EN STOCK",
+  "tariff_mode": "on_request",
+  "on_poster_cta_label": "Nous contacter",
+  "on_poster_cta_email": "commercial@cuistance.eu",
+  "product_image": {
+    "url": "https://assets.example/cuistance/rc10l.png"
+  },
+  "logo": {
+    "url": "https://assets.example/cuistance/logo.png"
+  }
+}

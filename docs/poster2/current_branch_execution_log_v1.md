@@ -1,5 +1,64 @@
 # Current Branch Execution Log v1
 
+## Entry — Family B Product Announcement Variant Contract Review
+
+**Task:** `POSTER2-FAMILY-B-ANNOUNCEMENT-CONTRACT-REVIEW`
+**Status:** Complete — review only, no runtime implementation
+**Last updated:** `2026-06-15`
+
+### Scope
+
+- Independently reviewed the docs-only Catalog Campaign Poster Set orchestration spec and the canonical
+  Family B Product Announcement Variant Contract before any runtime slice.
+- No runtime code, template spec, renderer, API, Stage3, registry, or email-send path changed.
+
+### Root rules followed
+
+- Read repo/poster2 anchors first, including `AGENTS.md`, `CLAUDE.md`, `README.md`,
+  `docs/poster2/README.md`, product baseline, Family A architecture anchor, product annotation status,
+  bottom behavior status, current branch log, Family B historical status, orchestration spec, variant
+  contract, and real `.eml` grammar assessment.
+- Stayed contract-first and review-only; did not inspect or modify renderer/runtime for implementation.
+
+### Problem reproduced
+
+- The proposed Announcement contract correctly reuses dormant Family B and avoids mega-poster,
+  Stage3/send-action, `.eml` shell, renderer, and API scope creep.
+- Review found the proposed structure completeness too narrow for existing Family B governance:
+  mandatory slots were framed as logo/title/SKU/primary hero only, while Family B requires a core
+  information area via spec or copy. Since Announcement excludes spec, the copy-region claim/body path must
+  be required for structure completeness.
+
+### Root cause found
+
+- The new variant contract treated the three commercial copy slots as the main delta but did not fully carry
+  forward Family B's broader "spec or copy region" completeness rule into `announcement_variant_contract_review`.
+- The contract also needs explicit acceptance evidence for `materials_strip_region = collapsed_by_design`,
+  `tariff_mode = on_request` only in v1, and display-only CTA / no Stage3 action binding.
+
+### Files changed
+
+- `docs/poster2/family_b_product_announcement_variant_contract_review_v1.md`
+- `docs/poster2/current_branch_execution_log_v1.md`
+
+### Layer changed
+
+- Documentation / architecture review only.
+
+### Validation run
+
+- Document review only; no automated tests run because no runtime code changed.
+
+### Verdict
+
+- **APPROVE WITH REQUIRED CHANGES**
+
+### Remaining risks
+
+- Family B remains dormant and parity-sensitive; runtime should not start until the variant contract requires
+  copy-region core information, collapsed-materials evidence, Family B parity target-map additions for the
+  three new slots, and explicit no-Stage3 CTA proof.
+
 ## Entry — Composition Priority Layer + template_dual_v2_product_hero
 
 **Branch:** `poster2-composition-priority-v1`
@@ -9809,3 +9868,364 @@ After bundle:
 - this closes the current fryer hero/footer blockers only inside the existing Family A system
 - it is still not a Family A redesign track
 - live commercial acceptance should still be rechecked with the full current fryer asset pack if external signoff is needed
+
+## HX-20260615-POSTER2-EMAIL-GRAMMAR-REVIEW (assessment only)
+
+### Type
+
+- `assessment_only` / `review` — no runtime, renderer, registry, Stage3, or API change.
+
+### Input inspected directly
+
+- `/Users/tylerzhao/harness-x/input/poster2_email_samples/20260615/`
+  - `Fw_ Fwd_ Quand les plats ont besoin d'un petit coup de chaud !.eml`
+  - `NOUVEAUTÉ ! LES BLENDERS … CUISTANCE.eml`
+  - `NOUVEAUTÉ ! LES COUPES FRITES … CUISTANCE.eml`
+  - `NOUVEAUTÉ ! LES CUISEURS À RIZ … CUISTANCE.eml`
+- Parsed MIME parts (text/plain + text/html), decoded image roles, links, tracking pixels.
+
+### Key findings
+
+- The three `NOUVEAUTÉ` emails are **one Mailchimp template filled with three products**
+  (blender / coupe-frites / cuiseur à riz): stable section order + stable 5-image role map
+  (shared banner img0, unique product hero img1, unique detail img2, shared footer logo img3,
+  1×1 tracking pixel img4). This is the strongest "stable repeatable poster grammar" evidence.
+- The `coup de chaud` email is the **same Technitalia/Codimatel campaign already analyzed**
+  as `catalog_hero_v1` (`reference_analysis_v1` / `template_classification_v1`). It is a
+  catalog-hero mega-poster that folds Hero Explanation + Product Matrix into one image.
+
+### Verdict
+
+- Stable poster grammar: **YES** (strongest on the single-product `NOUVEAUTÉ` Product Sheet).
+- Existing strategy compatible: **PARTIAL** (NOUVEAUTÉ → Family B Product Sheet anatomy match;
+  catalog hero → unreachable on frozen square canvas, needs portrait family already gated).
+- New flow needed: **PARTIAL** — no new renderer; "Catalog Campaign Poster Set" is best an
+  **orchestration layer above Families A/B**, not a new template engine.
+
+### Net gaps recorded
+
+- No structured spec-table contract (dims/volume/power/reference rows).
+- No reference/SKU slot; no tariff/"price on request" slot.
+- No portrait canvas / RegionDefinition (blocks Catalog Hero variant A).
+- No campaign-level orchestration (shared bundle → N posters).
+- Family B (Product Sheet) is dormant and would need re-activation for variants B/C.
+
+### Output
+
+- New formal doc: `docs/poster2/real_email_to_poster_grammar_assessment_v1.md`
+- `docs/poster2/README.md` updated (new review-only index entry).
+
+### Owner decision pending
+
+- Approve Poster Set as orchestration layer (docs-only first); choose Announcement-first vs
+  Spec-first; re-activate Family B; keep portrait Catalog Hero gated.
+
+### Confirmation
+
+- No implementation code was changed. Stop point honored after report + execution log.
+
+## Owner decision + orchestration spec (2026-06-15, docs-only)
+
+### Owner decision
+
+- APPROVE **Catalog Campaign Poster Set** as the next product direction.
+- Do not implement runtime code yet.
+- First implementation candidate = **Product Announcement / Family B reactivation**.
+- Do not build portrait Catalog Hero mega-poster now.
+- Do not redesign Stage3 email. Do not use `.eml` HTML as a runtime template.
+
+### Deliverable (docs-only)
+
+- New formal architecture doc:
+  `docs/poster2/02_architecture/catalog_campaign_poster_set_orchestration_spec_v1.md`
+- Turns `real_email_to_poster_grammar_assessment_v1.md` into a formal product architecture:
+  shared product input bundle → multiple simple poster variants → per-variant contract + diagnostics,
+  rolled up under a campaign manifest. **Fan-out, not fusion** (no mega-poster). Orchestration layer sits
+  above Families A/B; it never renders and has no authority over their geometry/ownership/SOP/annotation truth.
+
+### Grounding correction recorded
+
+- Family B (`template_product_sheet_v1`) is **dormant, not greenfield**. It already has a frozen region order
+  (`logo_banner_region → top_copy_region → materials_strip_region → product_hero_region → description_region`),
+  an existing **SKU slot** (`sku_text`), `template_b_parity_review` + visible-truth diagnostics, and an
+  API-routable independent path. "Reactivation" = reopen-not-redesign.
+- Announcement variant needs only **three new text/copy slots** inside frozen Family B regions:
+  availability badge ("EN STOCK"), tariff line ("Tarif = Nous contacter", enum price|on_request), and
+  on-poster CTA text ("Nous contacter" mailto display — copy only, NOT a Stage3 send action).
+- The structured **spec-table** (Dimensions/Volume/Puissance/Référence labeled rows) is the only genuinely new
+  contract; it is **deferred** to the Featured Spec variant, gated on its own contract doc.
+
+### Index
+
+- `docs/poster2/README.md` updated with the new 02_architecture index entry.
+
+### Next docs-gated steps (not started)
+
+- Family B Announcement variant contract doc (bundle→slot map, 3 new copy slots, collapse rules, diagnostics).
+- Campaign manifest + variant-selection contract doc (roll-up schema, per-variant diagnostics, shared palette_token).
+
+### Confirmation
+
+- No runtime/template/registry/API/Stage3 code changed. Docs-only.
+
+## Orchestration approved + two docs-gated contracts authored (2026-06-15, docs-only)
+
+### Owner action
+
+- APPROVE the docs-only orchestration spec. **Catalog Campaign Poster Set** is now the approved product
+  direction for real-email-derived poster generation.
+- Approved invariants: orchestration layer is above Family A / Family B; it does not render; does not own
+  geometry; does not change bottom SOP; does not change product annotation truth; does not redesign Stage3
+  email; each variant must still run through the existing single-poster contract path.
+- Next approved work is docs-gated only: (1) Family B Announcement Variant Contract,
+  (2) Campaign Manifest + Variant Selection Contract. No runtime implementation yet.
+
+### Deliverables (docs-only)
+
+- `02_architecture/catalog_campaign_poster_set_orchestration_spec_v1.md` — status stamped **APPROVED (Owner, 2026-06-15)**.
+- `02_architecture/family_b_announcement_variant_contract_v1.md` — NEW.
+  - Reactivate-not-redesign on `template_product_sheet_v1`; frozen region order preserved.
+  - Reuses existing logo/SKU(`sku_text`)/title/subtitle/hero(+inset)/description slots.
+  - Adds only three optional **copy** slots: `availability_badge_slot`, `tariff_line_slot`
+    (enum price|on_request), `cta_text_slot` (display-only; not a Stage3 send).
+  - Spec-table excluded (deferred to Featured Spec). Diagnostics = `announcement_variant_contract_review`.
+- `02_architecture/campaign_manifest_and_variant_selection_contract_v1.md` — NEW.
+  - Closed-enum variant selection → fan-out (one existing single-poster resolve per variant; layer never renders).
+  - `campaign_manifest` references per-variant diagnostics (never merges); no-silent-drop / partial-set semantics.
+  - Shared non-geometric `palette_token` (Composition Priority pattern); per-variant `poster_record` reused
+    read-only + thin referencing manifest; no Stage3/closure change.
+
+### Index
+
+- `docs/poster2/README.md` updated with both new 02_architecture entries and the APPROVED stamp.
+
+### Confirmation
+
+- No runtime/template/registry/API/Stage3 code changed. All field/id names are proposed (docs-only), not committed API.
+
+## POSTER2-FAMILY-B-ANNOUNCEMENT-VARIANT-CONTRACT-V1 (docs-only)
+
+### Owner gate
+
+- Catalog Campaign Poster Set orchestration is approved as docs-only architecture; runtime implementation NOT
+  approved yet. This task defines the first implementable poster variant contract and stops for Owner approval
+  of an implementation slice.
+
+### Required reading completed
+
+- `AGENTS.md`, `CLAUDE.md`, `docs/poster2/README.md`, `current_branch_execution_log_v1.md`,
+  `catalog_campaign_poster_set_orchestration_spec_v1.md`, `real_email_to_poster_grammar_assessment_v1.md`,
+  `poster_generation_product_design_baseline_v1.md`, `template_b_design_baseline_v1.md`,
+  `05_validation/template_b_contract_correction_status_v1.md`,
+  `05_validation/template_b_line2_independent_flow_status_v1.md`.
+
+### Grounding facts confirmed from Family B status docs
+
+- Family B template `template_product_sheet_v1` is an independent, contract-driven line.
+- Frozen region order: `logo_banner_region → top_copy_region → materials_strip_region → product_hero_region → description_region`.
+- `header_mode = logo_banner_lockup`; emits `top_copy_contract_review` (`sku_text_layer`/`top_copy_title_layer`/
+  `top_copy_subtitle_layer`), `description_contract_review` (`description_title_layer`/`description_body_layer`),
+  `bottom_contract_review` scoped `description_region_only`.
+- Real Template B v2 payload fields (dedicated serializer): `brand_name`, `agent_name`, `title`, `subtitle`,
+  `sku_text`, `description_title`, `description_body`, `product_image`, `product_secondary_image`, `materials_images`.
+- Product hero bounds `{x:112,y:348,w:800,h:384}`; reason codes `single_hero_centered_without_secondary_asset` /
+  `…_with_secondary_inset`. Puppeteer disabled in the Template B renderer selector (Pillow operator path today).
+
+### Deliverable
+
+- NEW canonical doc: `02_architecture/family_b_product_announcement_variant_contract_v1.md`.
+  - Defines: purpose; mapping to the Cuistance `NOUVEAUTÉ` grammar; required shared + variant fields; the three
+    minimal new copy slots (`availability_badge`, `tariff_line`, `on_poster_cta_text` — display-only, not a Stage3
+    send); reused Family B regions/slots; field→SKU/title/subtitle/materials/product/description mapping; explicit
+    non-goals; `announcement_variant_contract_review` diagnostics; first-slice acceptance criteria; stop point.
+  - Spec-table excluded (deferred to Featured Spec). Reactivate-not-redesign; no geometry/ownership/region-order change.
+- SUPERSEDED: `02_architecture/family_b_announcement_variant_contract_v1.md` (earlier short sibling) banner-marked
+  and folded into the canonical doc to avoid two competing contracts.
+- `docs/poster2/README.md` index updated (canonical entry + superseded note).
+
+### Confirmation
+
+- No code, template spec, renderer, API, registry, or Stage3 change. Docs-only. All field/id names proposed, not committed.
+
+## Family B Announcement contract — Owner-required doc-fix slice (2026-06-15, docs-only)
+
+### Owner verdict
+
+- APPROVE WITH REQUIRED CHANGES. Do not start runtime. Apply four required doc changes, then return for approval.
+
+### Four required changes applied to `family_b_product_announcement_variant_contract_v1.md`
+
+1. `structure_complete` now anchored on a named **Family B core information area** (§6.1):
+   brand_logo_slot + sku_text_layer + top_copy_title_layer + primary hero must render; gaps listed in
+   `missing_core_information_members`. Reflected in diagnostics (§9) and acceptance (§10.2a).
+2. `materials_strip_region` collapse is now **explicit `collapsed_by_design` evidence** (reason_code + count:0),
+   never silent, never a structure failure (§7, §9, §10.3a).
+3. **tariff v1 = `on_request` only**; `price` deferred and rejected (no silent fallback) (§4, §5.2, §10.3b, §11.3).
+4. `on_poster_cta_text` now **provably display-only**: evidence carries `render_kind: display_text_only` +
+   `stage3_binding: none`; acceptance requires a with/without test proving identical Stage3 behavior (§5.3, §9, §10.4).
+
+### Housekeeping
+
+- §11 open decisions 3 and 6 marked RESOLVED by changes 3 and 2.
+- §12 compliance checklist extended with the four required-change rows.
+- Cross-references normalized (evidence consolidated in §9; no phantom §9.1/§9.2).
+
+### Confirmation
+
+- Docs-only. No code, template spec, renderer, API, registry, or Stage3 change. Doc returns for Owner approval before runtime.
+
+### Alignment with reviewer doc (`family_b_product_announcement_variant_contract_review_v1.md`)
+
+- The Owner review artifact was found in the workspace (`docs/poster2/family_b_product_announcement_variant_contract_review_v1.md`,
+  created by the reviewer — left untouched). Re-read its §4 to align the four changes to the reviewer's exact intent.
+- Correction made: review §4.1 requires the core to ALSO include a `description_region` copy core (>=1 of
+  `description_title_layer` from `copy.feature_claims[0]` or `description_body_layer` from `copy.description`).
+  §6.1 updated so a poster with only brand + SKU + headline + product image FAILS structure. §3 footnote added
+  (at least one of those two fields must render). §9 diagnostics + §10.2a updated accordingly.
+- CTA evidence aligned to the reviewer's named fields: `cta_action_bound: false` + `stage3_send_untouched: true`
+  (replacing the earlier `stage3_binding`), plus `render_kind: display_text_only`.
+- Materials acceptance (§10.3a) strengthened per review §4.2: region order unchanged on collapse; no spec-table/
+  contact/gallery routed into `materials_strip_region`; parity reports the collapsed state.
+- Added reviewer Owner-decision items to §11 (phone/contact footer deferred — not a 4th slot; palette_token
+  default = existing `industrial_sheet_*`) and a matching §8 non-goal.
+
+### Confirmation
+
+- Docs-only. No code, template spec, renderer, API, registry, or Stage3 change. Reviewer artifact left untouched.
+  Doc returns for Owner approval before runtime.
+
+## Family B Product Announcement variant — FIRST RUNTIME SLICE implemented (2026-06-15)
+
+### Owner gate
+
+- APPROVE FIRST RUNTIME SLICE WITH STRICT SCOPE. Implementation landed exactly inside the approved allowed list.
+
+### Files changed (code)
+
+- `app/schemas/poster2.py` — request fields `availability_badge`, `tariff_mode` (Literal["on_request"], price
+  rejected at schema), `on_poster_cta_label`, `on_poster_cta_email`; response `announcement_variant_contract_review`.
+- `app/services/poster2/contracts.py` — PosterSpec fields + RenderManifest field + pure helper
+  `resolve_announcement_copy_slots()` + budgets + `TEMPLATE_B_TARIFF_ON_REQUEST_TEXT`.
+- `app/main.py` — thread the 4 new request fields into PosterSpec; pass `announcement_variant_contract_review`
+  into the response.
+- `app/services/poster2/renderer.py` — 3 Pillow draw blocks; 3 visible-truth selectors; HTML builder placeholders.
+- `app/services/poster2/pipeline.py` — `_build_announcement_variant_contract_review()`; 3 parity targets +
+  `announcement_copy_in_region` summary; 3 visible-truth keys; manifest wiring.
+- `app/templates_html/template_product_sheet_v1.html` / `.css` / `slot_spec.template_product_sheet_v1.json` —
+  3 new optional slots (availability badge in top_copy; tariff + CTA in description lower band).
+- `tests/poster2/test_pipeline.py` (+5 tests), `tests/poster2/test_api.py` (+1 schema test).
+
+### Scope honored
+
+- existing `template_product_sheet_v1` only; existing `/api/v2/generate-poster` path only; 3 additive copy slots
+  only; tariff `on_request` only (price rejected, no silent fallback); display-only CTA (no Stage3 binding);
+  announcement diagnostics; parity target-map additions; with/without tests; explicit materials collapse evidence;
+  explicit `cta_action_bound=false` + `stage3_send_untouched=true`.
+- Not done by design (out of approved list): no Stage1/Stage2 operator UI; no new renderer/family/registry; no
+  Stage3/email change; no price; no phone/contact footer; no spec-table; no Product Matrix; no portrait Catalog
+  Hero; no Family A/bottom/product-annotation truth change; `.eml` HTML not used as runtime template.
+
+### Validation
+
+- `py_compile` of all changed backend modules: OK.
+- New tests: 6 passed (3 slots render-when-supplied; collapse-by-design when absent; materials collapse evidence;
+  structure_complete requires description copy core — fail + pass; tariff on_request accepted / price rejected).
+- Full `tests/poster2/` + `test_stage2_guard_diagnostics_surface.py`: baseline = 53 failed / 550 passed;
+  after change = 53 failed / 556 passed. Failure-set diff (baseline vs change) = EMPTY -> **zero regressions**,
+  +6 new passing. The 53 failures are pre-existing on branch `poster2-heavy-reconstruction-v1` (e.g. `_build_html`
+  signature-drift tests), unrelated to this slice.
+
+### Returns for Owner approval
+
+- Slice is implemented and green. Optional follow-ups noted for Owner: Stage1/Stage2 operator UI for the 3 fields;
+  localization of the on_request tariff phrase.
+
+## Family B Product Announcement — runtime RESULT VALIDATION (2026-06-15)
+
+### Task
+
+- POSTER2-FAMILY-B-ANNOUNCEMENT-RESULT-VALIDATION-V1 — render the implemented variant through the existing
+  /api/v2/generate-poster path and visually validate operator-usability. No contract/slot/Stage3 change.
+
+### What was done
+
+- Added helper `scripts/poster2_announcement_runtime_validation.py` (runs the real PosterPipeline on
+  `template_product_sheet_v1`, Pillow operator path, with a synthesized recognizable rice-cooker packshot + logo).
+- Saved artifacts under `docs/poster2/assets/announcement_runtime_v1/`: `sample_payload.json`, `final_poster.png`
+  (1024x1024), `diagnostics.json`, `visual_review.md`.
+- Stage2 browser screenshot: NOT produced (conditional) — the 3 new fields have no Stage2 input surface in this
+  slice (operator UI deferred), so a capture would not exercise the variant; justification recorded in the review.
+
+### Result
+
+- `structure_complete=true`, `deliverable=true`; announcement core information area intact; all three copy slots
+  render ("EN STOCK", "Tarif : nous contacter", "Nous contacter · commercial@cuistance.eu"); materials
+  collapsed_by_design; CTA proven display-only (cta_action_bound=false, stage3_send_untouched=true).
+- Visual review (all 9 questions answered in visual_review.md): reads as a product announcement; product
+  undistorted; SKU/availability/title/claim/tariff/CTA all visible; title hierarchy strong.
+
+### Environment finding (not a template limitation)
+
+- The workspace `app/assets/fonts/` lacked the font pack, and a stale `NotoSansSC-Regular.ttf` rendered Latin
+  advance-widths with no outlines (invisible small text). Aligning Regular to the working variable font (exactly
+  what `scripts/fetch_fonts.sh` intends — both names = the same VF) fixed it. Operator deployments must have the
+  font pack present. Font files are untracked/ignored (not committed).
+
+### Verdict
+
+- **OPERATOR-TRIAL READY** (with documented, non-blocking polish opportunities). Higher campaign-style punch
+  (product prominence, denser composition) is template-geometry-bound and intentionally out of this slice's scope.
+
+### Scope compliance
+
+- No new template family / Poster Set runtime / Stage3-email / price / phone-contact-footer / Product Matrix /
+  portrait Catalog Hero / Family A-bottom-product-annotation change. No `.eml` HTML used as a template.
+  This validation task added zero runtime-code modifications (only a helper script + artifacts + local font assets).
+
+## Family B Product Announcement — OPERATOR UI CLOSURE (2026-06-15)
+
+### Branch
+
+- `poster2-family-b-announcement-ui-closure-v1` (branched from `poster2-heavy-reconstruction-v1` @ 1d99fdd).
+- Not pushed; no PR. Owner performs human validation before remote push.
+
+### Scope (operator UI only; existing Family B + existing /api/v2/generate-poster path)
+
+- Stage1 (`index.html`): Family-B-only fieldset `#s1-template-b-announcement` (`data-variant-visible="b"`):
+  `availability_badge`, `tariff_on_request` checkbox (→ `tariff_mode=on_request`; no price entry),
+  `on_poster_cta_label`, `on_poster_cta_email`.
+- `app.js`: state defaults/reads/rehydrate; `collectStage1Data` + `serialiseStage1Data` carry the 4 fields;
+  `buildTemplateBPosterPayload` + the Template B `posterPayload` map them into the v2 request; Stage2 summary
+  (`buildTemplateBStage2State` / `renderTemplateBStage2Summary`) shows them.
+- `stage2.html`: read-only `#s2-b-availability` / `#s2-b-tariff` / `#s2-b-cta`.
+- `stage2_request_helpers.js`: request summary surfaces the fields.
+- Mirrored to `docs/` via `sync_frontend_to_docs.sh`; sync check passes.
+
+### Validation
+
+- `node --check` frontend/docs app.js + stage2_request_helpers.js: OK. Frontend/docs sync: in sync.
+- Browser (Playwright, static frontend, mocked endpoints) — `announcement_ui_closure_v1/ui_validation_result.json`:
+  Family B announcement fields visible, Family A bottom/callouts hidden; all 4 fields fillable; the persisted
+  Stage1 snapshot (the object Stage2 consumes) carries `availability_badge/tariff_mode/on_poster_cta_label/email`;
+  no JS errors (only offline resource 404/DNS). Literal /api/v2/generate-poster request capture not obtained
+  (offline multi-base probe aborts before POST) — snapshot proof + reviewed mapping + backend render cover it.
+- Backend render of the same payload → `announcement_ui_closure_v1/final_poster.png` + `diagnostics.json`:
+  structure_complete, 3 slots rendered, CTA display-only (cta_action_bound=false, stage3_send_untouched=true),
+  materials collapsed_by_design.
+- Focused tests: `tests/test_family_b_announcement_ui_wiring.py` (new) + docs-sync + announcement backend = 15 passed.
+- Regression delta (tests/poster2 + stage2 + frontend-sync + new UI test): before slice 53 failed; after slice
+  **53 failed / 573 passed** — failure-set unchanged, **zero regressions** (53 are pre-existing on the
+  heavy-reconstruction branch); passed grew from the added test files.
+
+### Artifacts
+
+- `docs/poster2/assets/announcement_ui_closure_v1/`: stage1_or_stage2_input_screenshot.png,
+  stage2_request_preview_screenshot.png, final_poster.png, diagnostics.json, sample_payload.json,
+  validation_notes.md, ui_validation_result.json.
+
+### Hard-forbidden compliance
+
+- No remote push / PR / deploy. No Poster Set runtime / campaign_manifest runtime / multi-poster. No new template
+  family / renderer. No Stage3/email/send change. No price. No phone/contact footer. No Product Matrix / portrait
+  Catalog Hero. No Family A / bottom SOP / product-annotation change. `.eml` HTML not used as runtime template.
+  No `.DS_Store` / local fonts committed.

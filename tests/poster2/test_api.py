@@ -1454,3 +1454,27 @@ def test_resend_provider_includes_attachment_payload_from_email_assets(monkeypat
     assert response.status_code == 200
     assert response.json()["attachment_types"] == ["poster_png"]
     assert captured["json"]["attachments"][0]["filename"].endswith(".png")
+
+
+def test_announcement_tariff_mode_on_request_accepted_price_rejected():
+    """Family B Product Announcement variant: v1 tariff is on_request only.
+
+    A "price" value must be rejected at the schema boundary (no silent fallback).
+    """
+    import pytest
+    from pydantic import ValidationError
+    from app.schemas.poster2 import GeneratePosterV2Request
+
+    base = dict(
+        brand_name="Cuistance",
+        agent_name="Dealer",
+        title="NOUVEAUTE",
+        product_image={"url": "https://example.com/p.png"},
+    )
+    accepted = GeneratePosterV2Request(**base, tariff_mode="on_request")
+    assert accepted.tariff_mode == "on_request"
+    # Omitted -> None (slot collapses by design).
+    assert GeneratePosterV2Request(**base).tariff_mode is None
+    # price is unsupported in v1 — rejected, not silently downgraded.
+    with pytest.raises(ValidationError):
+        GeneratePosterV2Request(**base, tariff_mode="price")

@@ -66,6 +66,14 @@ class GeneratePosterV2Request(BaseModel):
     description_body: str = Field(default="", max_length=500)
     sku_text: str = Field(default="", max_length=80)
 
+    # Family B Product Announcement variant — three additive optional copy slots.
+    # All display-only; no Stage3 / send behavior. tariff_mode is on_request only
+    # (a "price" value is rejected at the schema boundary — no silent fallback).
+    availability_badge: str = Field(default="", max_length=40)
+    tariff_mode: Optional[Literal["on_request"]] = Field(default=None)
+    on_poster_cta_label: str = Field(default="", max_length=60)
+    on_poster_cta_email: str = Field(default="", max_length=120)
+
     # Style (background only)
     style: StyleInput = Field(default_factory=StyleInput)
     copy_optimization: Poster2CopyOptimizationInput = Field(default_factory=Poster2CopyOptimizationInput)
@@ -150,6 +158,7 @@ class GeneratePosterV2Response(BaseModel):
     scenario_contract_review: dict = Field(default_factory=dict)
     top_copy_contract_review: dict = Field(default_factory=dict)
     description_contract_review: dict = Field(default_factory=dict)
+    announcement_variant_contract_review: dict = Field(default_factory=dict)
     title_text_layer: dict = Field(default_factory=dict)
     subtitle_text_layer: dict = Field(default_factory=dict)
     header_text_layer: dict = Field(default_factory=dict)

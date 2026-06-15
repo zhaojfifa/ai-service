@@ -74,6 +74,12 @@ class PosterSpec:
     description_body: str = ""
     sku_text: str = ""
 
+    # --- Family B Product Announcement variant (three optional display-only copy slots) ---
+    availability_badge: str = ""
+    tariff_mode: str = ""           # "" or "on_request" (price unsupported in v1)
+    on_poster_cta_label: str = ""
+    on_poster_cta_email: str = ""
+
     # --- Style (only for background generation) ---
     style: StyleSpec = field(default_factory=StyleSpec)
     copy_optimization: CopyOptimizationSpec = field(default_factory=CopyOptimizationSpec)
@@ -87,6 +93,70 @@ class PosterSpec:
     # Composition Priority Layer (operator "海报风格策略"; "balanced" = current
     # render). Non-geometric CSS-var bundle. See app/services/poster2/composition.py.
     composition_strategy: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Family B Product Announcement variant — three optional display-only copy slots
+# ---------------------------------------------------------------------------
+# Char budgets for the three additive copy slots (mirrors the sku_text budget
+# pattern; truncation is the only "sanitization" these commercial-metadata slots
+# need — they are not marketing claims).
+TEMPLATE_B_AVAILABILITY_CHAR_BUDGET = 16
+TEMPLATE_B_TARIFF_CHAR_BUDGET = 40
+TEMPLATE_B_CTA_CHAR_BUDGET = 80
+# v1 supports tariff_mode = "on_request" only. The rendered phrase is a fixed,
+# deterministic standing phrase (matches the real Cuistance "Tarif = Nous
+# contacter" evidence). "price" is unsupported in v1 and rejected at the schema
+# boundary; any other/empty mode collapses the slot.
+TEMPLATE_B_TARIFF_ON_REQUEST_TEXT = "Tarif : nous contacter"
+
+
+def resolve_announcement_copy_slots(spec: "PosterSpec") -> dict:
+    """Resolve the three Family B Product Announcement copy slots from a PosterSpec.
+
+    Pure + deterministic. Returns sanitized (stripped/composed) text plus a
+    `present` flag per slot. Callers apply their own char budget for the final
+    rendered excerpt (mirrors how sku_text is handled). Display-only: none of
+    these slots touch Stage3 / email send behavior.
+    """
+    avail = (spec.availability_badge or "").strip()
+    tariff_mode = (spec.tariff_mode or "").strip()
+    cta_label = (spec.on_poster_cta_label or "").strip()
+    cta_email = (spec.on_poster_cta_email or "").strip()
+
+    tariff_text = TEMPLATE_B_TARIFF_ON_REQUEST_TEXT if tariff_mode == "on_request" else ""
+
+    if cta_label and cta_email:
+        cta_text = f"{cta_label} · {cta_email}"
+    elif cta_email:
+        cta_text = cta_email
+    elif cta_label:
+        cta_text = cta_label
+    else:
+        cta_text = ""
+
+    return {
+        "availability_badge": {
+            "requested": spec.availability_badge or "",
+            "sanitized": avail,
+            "present": bool(avail),
+            "char_budget": TEMPLATE_B_AVAILABILITY_CHAR_BUDGET,
+        },
+        "tariff_line": {
+            "mode": tariff_mode,
+            "requested": tariff_mode,
+            "sanitized": tariff_text,
+            "present": bool(tariff_text),
+            "char_budget": TEMPLATE_B_TARIFF_CHAR_BUDGET,
+        },
+        "on_poster_cta_text": {
+            "label": cta_label,
+            "email": cta_email,
+            "sanitized": cta_text,
+            "present": bool(cta_text),
+            "char_budget": TEMPLATE_B_CTA_CHAR_BUDGET,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -430,6 +500,7 @@ class RenderManifest:
     scenario_contract_review: dict = field(default_factory=dict)
     top_copy_contract_review: dict = field(default_factory=dict)
     description_contract_review: dict = field(default_factory=dict)
+    announcement_variant_contract_review: dict = field(default_factory=dict)
     # Text layer evidence — promoted to first-class layer evidence in structural closeout
     title_text_layer: dict = field(default_factory=dict)
     subtitle_text_layer: dict = field(default_factory=dict)

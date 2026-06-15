@@ -48,6 +48,32 @@ Then read only the task-relevant status / plan / validation documents.
 
 - [template_dual_v2_architecture_business_definition.md](02_architecture/template_dual_v2_architecture_business_definition.md)
 - [template_dual_v2_structural_rebuild_baseline_v1.md](02_architecture/template_dual_v2_structural_rebuild_baseline_v1.md)
+- [catalog_campaign_poster_set_orchestration_spec_v1.md](02_architecture/catalog_campaign_poster_set_orchestration_spec_v1.md)
+  Docs-only orchestration architecture for the Owner-approved **Catalog Campaign Poster Set** direction
+  (2026-06-15): shared product input bundle → multiple *simple* poster variants → per-variant contract +
+  diagnostics, rolled up under a campaign manifest. Fan-out (not fusion) above Families A/B; no new renderer.
+  First implementation candidate = **Product Announcement / Family B reactivation** (reactivate-not-redesign;
+  reuses existing `template_product_sheet_v1` regions + SKU slot, adds only availability/tariff/CTA-text copy
+  slots). Portrait Catalog Hero mega-poster, standalone Product Matrix, structured spec-table, and Stage3
+  remain explicitly out of scope. Turns `real_email_to_poster_grammar_assessment_v1.md` into product architecture.
+  **APPROVED (Owner, 2026-06-15).**
+- [family_b_product_announcement_variant_contract_v1.md](02_architecture/family_b_product_announcement_variant_contract_v1.md)
+  **Canonical** docs-only contract for the **Product Announcement** variant on reactivated Family B
+  (`template_product_sheet_v1`) — task `POSTER2-FAMILY-B-ANNOUNCEMENT-VARIANT-CONTRACT-V1`. Reactivate-not-redesign:
+  preserves the frozen Family B region order (`logo_banner` → `top_copy` → `materials_strip` → `product_hero` →
+  `description`) and reuses the real existing fields (`sku_text`, `title`, `subtitle`, `product_image`,
+  `product_secondary_image`, `description_title`, `description_body`); adds only three minimal optional **copy**
+  slots — `availability_badge`, `tariff_line`, `on_poster_cta_text` (display only, **not** a Stage3 send). Maps the
+  real Cuistance `NOUVEAUTÉ` email grammar, defines required shared + variant fields, diagnostics
+  (`announcement_variant_contract_review`), explicit non-goals, and first-slice acceptance criteria. Spec-table
+  excluded (deferred to Featured Spec). Stops for Owner approval of the implementation slice.
+  - [family_b_announcement_variant_contract_v1.md](02_architecture/family_b_announcement_variant_contract_v1.md)
+    — **SUPERSEDED** earlier short sibling; folded into the canonical doc above.
+- [campaign_manifest_and_variant_selection_contract_v1.md](02_architecture/campaign_manifest_and_variant_selection_contract_v1.md)
+  Docs-only roll-up contract: shared bundle + closed-enum **variant selection** → fan-out (one existing
+  single-poster resolve per variant; the layer never renders) → **campaign manifest** that references per-variant
+  diagnostics (never merges them). Defines campaign identity, shared non-geometric `palette_token`, no-silent-drop /
+  partial-set semantics, and read-only reuse of the existing `poster_record` closure (no Stage3 change).
 - [template_family_region_matrix_v1.md](02_architecture/template_family_region_matrix_v1.md)
 - [template_family_slot_contract_baseline_v1.md](02_architecture/template_family_slot_contract_baseline_v1.md)
 - [renderer_routing_and_fallback_rules_v1.md](02_architecture/renderer_routing_and_fallback_rules_v1.md)
@@ -56,6 +82,14 @@ Then read only the task-relevant status / plan / validation documents.
 
 Review-only (no contract change):
 
+- [real_email_to_poster_grammar_assessment_v1.md](real_email_to_poster_grammar_assessment_v1.md)
+  Assessment-only review (HX-20260615-POSTER2-EMAIL-GRAMMAR-REVIEW) of four real customer
+  `.eml` campaigns as evidence for poster-generation grammar. Separates email shell from
+  poster body; finds the three `NOUVEAUTÉ` single-product emails are one Mailchimp template
+  reused across products (stable Product Sheet grammar → Family B), and the `coup de chaud`
+  email is the already-extracted `catalog_hero_v1` portrait mega-poster. Verdict: stable
+  grammar YES, existing strategy PARTIAL, new flow PARTIAL ("Catalog Campaign Poster Set" =
+  orchestration layer above Families A/B, not a new renderer). No code changed.
 - [composition_priority_layer_review_v1.md](composition_priority_layer_review_v1.md)
   Review package for the Composition Priority Layer (HX-POSTER2-COMPOSITION-PRIORITY-V1): the operator "海报风格策略" (Balanced / Studio / Product Hero / Catalog Clean) — a request-level, non-geometric CSS-var bundle (scenario atmosphere recede + product lift + text breathing) plus the `template_dual_v2_product_hero` variant. Raises Product Hero to ~4.6/5 (product focus 4.6, scenario 2.5, bottom 2.5, title 4.5, premium 4.6). Proves all protected region bounds, ownership, bottom-SOP geometry, `visible_item_count`, and annotation truth unchanged; base/airy/studio unaffected.
 - [geometry_variant_studio_review_v1.md](geometry_variant_studio_review_v1.md)

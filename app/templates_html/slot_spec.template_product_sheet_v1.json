@@ -27,7 +27,10 @@
     "product_image_layer":    { "x": 112, "y": 348, "w": 800,  "h": 384  },
     "description_layer":      { "x": 96,  "y": 748, "w": 832,  "h": 228  },
     "description_title_layer":{ "x": 112, "y": 756, "w": 800,  "h": 40   },
-    "description_body_layer": { "x": 128, "y": 804, "w": 768,  "h": 120  }
+    "description_body_layer": { "x": 128, "y": 804, "w": 768,  "h": 120  },
+    "availability_badge_layer":{ "x": 512, "y": 172, "w": 400, "h": 20   },
+    "tariff_line_layer":      { "x": 112, "y": 930, "w": 800,  "h": 20   },
+    "on_poster_cta_text_layer":{ "x": 112, "y": 952, "w": 800, "h": 20   }
   },
   "layer_contracts": {
     "background_base_layer": {
@@ -114,6 +117,24 @@
       "bounds": { "x": 128, "y": 804, "w": 768, "h": 120 },
       "max_lines": 5,
       "collapse_rule": "collapse when description_body is empty"
+    },
+    "availability_badge_layer": {
+      "visible_when": "availability_badge present (Product Announcement variant)",
+      "bounds": { "x": 512, "y": 172, "w": 400, "h": 20 },
+      "max_lines": 1,
+      "collapse_rule": "collapse_by_design when availability_badge is empty"
+    },
+    "tariff_line_layer": {
+      "visible_when": "tariff_mode == on_request (Product Announcement variant)",
+      "bounds": { "x": 112, "y": 930, "w": 800, "h": 20 },
+      "max_lines": 1,
+      "collapse_rule": "collapse_by_design when tariff_mode is unset (price unsupported in v1)"
+    },
+    "on_poster_cta_text_layer": {
+      "visible_when": "on_poster_cta_label or on_poster_cta_email present (Product Announcement variant)",
+      "bounds": { "x": 112, "y": 952, "w": 800, "h": 20 },
+      "max_lines": 1,
+      "collapse_rule": "collapse_by_design when no cta label/email; display-only, no Stage3 action"
     }
   },
   "protected_zones": [

@@ -572,6 +572,56 @@ body {
   display: none;
 }
 
+/* ── Family B Product Announcement variant — 3 optional display-only copy slots ── */
+.text-availability-badge {
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  text-align: right;
+}
+
+.availability-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: var(--sku-chip-border);
+  background: var(--sku-chip-surface);
+  font-size: 11px;
+  color: var(--accent-tone);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-tariff-line {
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-align: left;
+  color: var(--accent-tone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.text-on-poster-cta {
+  font-family: "Poster2BrandRegular", "Noto Sans SC", sans-serif;
+  font-size: 13px;
+  text-align: left;
+  color: #59514b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layer-availability-badge.state-hidden,
+.layer-tariff-line.state-hidden,
+.layer-on-poster-cta.state-hidden {
+  display: none;
+}
+
 /* ── Slot positioning helpers ───────────────────────────────────────── */
 
 .slot {

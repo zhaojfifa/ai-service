@@ -455,6 +455,12 @@
         ? payload.gallery_images.map((entry) => entry?.url || null)
         : [],
       copy_optimization_decision: payload?.copy_optimization?.decision || 'pending',
+      // Family B Product Announcement variant — display-only copy slots.
+      sku_text: payload?.sku_text || null,
+      availability_badge: payload?.availability_badge || null,
+      tariff_mode: payload?.tariff_mode === 'on_request' ? 'on_request' : null,
+      on_poster_cta_label: payload?.on_poster_cta_label || null,
+      on_poster_cta_email: payload?.on_poster_cta_email || null,
     };
   }
 

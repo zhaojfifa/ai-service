@@ -35,6 +35,7 @@ from .contracts import (
     ResolvedAssets,
     TemplateSpec,
     TextSlotSpec,
+    resolve_announcement_copy_slots,
 )
 from .font_registry import FontRegistry
 from .renderer_routing import RendererRoutingError, evaluate_fallback_eligibility, resolve_renderer_routing
@@ -60,6 +61,9 @@ _TEMPLATE_B_VISIBLE_TRUTH_SELECTORS: dict[str, str] = {
     "sku_text_layer": '[data-parity-key="sku_text_layer"]',
     "top_copy_title_layer": '[data-parity-key="top_copy_title_layer"]',
     "top_copy_subtitle_layer": '[data-parity-key="top_copy_subtitle_layer"]',
+    "availability_badge_layer": '[data-parity-key="availability_badge_layer"]',
+    "tariff_line_layer": '[data-parity-key="tariff_line_layer"]',
+    "on_poster_cta_text_layer": '[data-parity-key="on_poster_cta_text_layer"]',
     "materials_strip_region": '[data-parity-key="materials_strip_region"]',
     "materials_item_0": '[data-parity-key="materials_item_0"]',
     "materials_item_1": '[data-parity-key="materials_item_1"]',
@@ -531,6 +535,54 @@ class LayoutRenderer:
                 canvas,
                 replace(spec.description_body_slot, color="#444444"),
                 _apply_char_budget(poster.description_body, 400),
+                draw_background=False,
+            )
+        # Family B Product Announcement variant — three optional display-only copy
+        # slots. Each renders only when present (collapse-by-design otherwise) and
+        # stays inside its frozen region. on_poster_cta_text is display-only text;
+        # it carries no Stage3 / send action.
+        _announcement_slots = resolve_announcement_copy_slots(poster)
+        _avail = _announcement_slots["availability_badge"]
+        if _avail["present"]:
+            # Availability badge: right-aligned accent text on the SKU row, inside
+            # top_copy_region (y168-268), opposite the left-aligned SKU.
+            self._draw_text(
+                canvas,
+                TextSlotSpec(
+                    x=512, y=170, w=400, h=20,
+                    font_key="brand_regular", font_size=13,
+                    color=behavior.accent_color,
+                    align="right", max_lines=1, line_height=1.0, auto_shrink=False,
+                ),
+                _apply_char_budget(_avail["sanitized"], _avail["char_budget"]),
+                draw_background=False,
+            )
+        _tariff = _announcement_slots["tariff_line"]
+        if _tariff["present"]:
+            # Tariff line: lower band of description_region (y748-976).
+            self._draw_text(
+                canvas,
+                TextSlotSpec(
+                    x=112, y=930, w=800, h=20,
+                    font_key="brand_regular", font_size=13,
+                    color=behavior.accent_color,
+                    align="left", max_lines=1, line_height=1.0, auto_shrink=False,
+                ),
+                _apply_char_budget(_tariff["sanitized"], _tariff["char_budget"]),
+                draw_background=False,
+            )
+        _cta = _announcement_slots["on_poster_cta_text"]
+        if _cta["present"]:
+            # On-poster CTA text: description_region footer edge. Display-only.
+            self._draw_text(
+                canvas,
+                TextSlotSpec(
+                    x=112, y=952, w=800, h=20,
+                    font_key="brand_regular", font_size=13,
+                    color="#444444",
+                    align="left", max_lines=1, line_height=1.0, auto_shrink=False,
+                ),
+                _apply_char_budget(_cta["sanitized"], _cta["char_budget"]),
                 draw_background=False,
             )
         layer_timings["text_layer_ms"] = _elapsed(t1)
@@ -1568,6 +1620,14 @@ class PuppeteerStructuredRenderer:
         )).strip()
         description_title_class = "state-show" if (description_policy and description_policy.title_present) else "state-hidden"
         description_body_class = "state-show" if (description_policy and description_policy.body_present) else "state-hidden"
+        # Family B Product Announcement variant — three optional display-only copy slots.
+        announcement_slots = resolve_announcement_copy_slots(poster)
+        avail_slot = announcement_slots["availability_badge"]
+        tariff_slot = announcement_slots["tariff_line"]
+        cta_slot = announcement_slots["on_poster_cta_text"]
+        availability_bounds = {"x": 512, "y": 172, "w": 400, "h": 20}
+        tariff_bounds = {"x": 112, "y": 930, "w": 800, "h": 20}
+        cta_bounds = {"x": 112, "y": 952, "w": 800, "h": 20}
         replacements = {
             "__INLINE_CSS__": css_template,
             "__FONT_FACE_CSS__": font_css,
@@ -1594,6 +1654,9 @@ class PuppeteerStructuredRenderer:
             "__SUBTITLE_STYLE__": _slot_style(_localize_slot(slot_spec["slots"]["subtitle"], top_copy_region)),
             "__SUBTITLE_TEXT__": html.escape(_apply_char_budget(poster.subtitle, 80)),
             "__SUBTITLE_CLASS__": "state-show" if poster.subtitle else "state-hidden",
+            "__AVAILABILITY_BADGE_CLASS__": "state-show" if avail_slot["present"] else "state-hidden",
+            "__AVAILABILITY_BADGE_STYLE__": _slot_style(_localize_slot(availability_bounds, top_copy_region)),
+            "__AVAILABILITY_BADGE_TEXT__": html.escape(_apply_char_budget(avail_slot["sanitized"], avail_slot["char_budget"])),
             "__SCENARIO_LAYER_CLASS__": "state-hidden",
             "__SCENARIO_SHELL_CLASS__": "state-hidden",
             "__SCENARIO_CONTENT_CLASS__": "state-hidden",
@@ -1633,6 +1696,12 @@ class PuppeteerStructuredRenderer:
             "__DESCRIPTION_BODY_CLASS__": description_body_class,
             "__DESCRIPTION_BODY_STYLE__": _slot_style(_localize_slot(desc_body_slot, description_region)),
             "__DESCRIPTION_BODY_TEXT__": html.escape(poster.description_body or ""),
+            "__TARIFF_LINE_CLASS__": "state-show" if tariff_slot["present"] else "state-hidden",
+            "__TARIFF_LINE_STYLE__": _slot_style(_localize_slot(tariff_bounds, description_region)),
+            "__TARIFF_LINE_TEXT__": html.escape(_apply_char_budget(tariff_slot["sanitized"], tariff_slot["char_budget"])),
+            "__ON_POSTER_CTA_CLASS__": "state-show" if cta_slot["present"] else "state-hidden",
+            "__ON_POSTER_CTA_STYLE__": _slot_style(_localize_slot(cta_bounds, description_region)),
+            "__ON_POSTER_CTA_TEXT__": html.escape(_apply_char_budget(cta_slot["sanitized"], cta_slot["char_budget"])),
         }
         rendered = html_template
         for key, value in replacements.items():

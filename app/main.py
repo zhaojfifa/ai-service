@@ -1809,6 +1809,10 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             description_title=payload.description_title or "",
             description_body=payload.description_body or "",
             sku_text=payload.sku_text or "",
+            availability_badge=payload.availability_badge or "",
+            tariff_mode=payload.tariff_mode or "",
+            on_poster_cta_label=payload.on_poster_cta_label or "",
+            on_poster_cta_email=payload.on_poster_cta_email or "",
         )
 
         pipeline = _get_poster2_pipeline()
@@ -1937,6 +1941,7 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             scenario_contract_review=manifest.scenario_contract_review,
             top_copy_contract_review=manifest.top_copy_contract_review,
             description_contract_review=manifest.description_contract_review,
+            announcement_variant_contract_review=manifest.announcement_variant_contract_review,
             title_text_layer=manifest.title_text_layer,
             subtitle_text_layer=manifest.subtitle_text_layer,
             header_text_layer=manifest.header_text_layer,

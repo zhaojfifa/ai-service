@@ -5300,6 +5300,107 @@ class TestTemplateBBackendGenerationFix:
         assert manifest.deliverable is True
         assert manifest.region_render_status["description_region"]["rendered"] is False
 
+    # ------------------------------------------------------------------
+    # Family B Product Announcement variant (first runtime slice)
+    # ------------------------------------------------------------------
+
+    def _announcement_assets(self) -> ResolvedAssets:
+        return ResolvedAssets(
+            logo=PILImage.new("RGBA", (240, 128), (20, 20, 20, 255)),
+            product=PILImage.new("RGBA", (400, 600), (200, 100, 50, 255)),
+        )
+
+    def _announcement_spec(self, **overrides) -> PosterSpec:
+        base = dict(
+            brand_name="Cuistance",
+            agent_name="Dealer Team",
+            title="NOUVEAUTE ! CUISEUR A RIZ PROFESSIONNEL",
+            subtitle="Cuiseur a riz professionnel 10 L",
+            features=(),
+            template_id="template_product_sheet_v1",
+            description_title="Cuiseur a riz professionnel 10 litres",
+            description_body="Structure inox, maintien au chaud 24h.",
+            sku_text="311011 (RC10L)",
+        )
+        base.update(overrides)
+        return _make_spec(**base)
+
+    def test_announcement_three_copy_slots_render_when_supplied(self):
+        spec = self._announcement_spec(
+            availability_badge="EN STOCK",
+            tariff_mode="on_request",
+            on_poster_cta_label="Nous contacter",
+            on_poster_cta_email="commercial@cuistance.eu",
+        )
+        manifest = self._run_template_b(spec, self._announcement_assets())
+        review = manifest.announcement_variant_contract_review
+        assert review["variant_id"] == "family_b_product_announcement"
+        assert review["template_binding"] == "template_product_sheet_v1"
+        slots = review["new_copy_slots"]
+        assert slots["availability_badge"]["rendered"] is True
+        assert slots["availability_badge"]["collapsed_by_design"] is False
+        assert slots["availability_badge"]["rendered_excerpt"] != ""
+        assert slots["tariff_line"]["rendered"] is True
+        assert slots["tariff_line"]["mode"] == "on_request"
+        assert slots["tariff_line"]["rendered_excerpt"] != ""
+        assert slots["tariff_line"]["price_supported"] is False
+        assert slots["on_poster_cta_text"]["rendered"] is True
+        assert "commercial@cuistance.eu" in slots["on_poster_cta_text"]["rendered_excerpt"]
+        # Required change 4 — display-only proof, no Stage3 binding.
+        assert slots["on_poster_cta_text"]["render_kind"] == "display_text_only"
+        assert slots["on_poster_cta_text"]["cta_action_bound"] is False
+        assert slots["on_poster_cta_text"]["stage3_send_untouched"] is True
+
+    def test_announcement_optional_slots_collapse_by_design_when_absent(self):
+        spec = self._announcement_spec()  # none of the 3 slots supplied
+        manifest = self._run_template_b(spec, self._announcement_assets())
+        slots = manifest.announcement_variant_contract_review["new_copy_slots"]
+        for key in ("availability_badge", "tariff_line", "on_poster_cta_text"):
+            assert slots[key]["rendered"] is False, key
+            assert slots[key]["collapsed_by_design"] is True, key
+            assert slots[key]["reason_code"], key
+            assert slots[key]["rendered_excerpt"] == "", key
+
+    def test_announcement_materials_collapsed_by_design_evidence(self):
+        # Required change 2 — explicit, never-silent materials collapse evidence.
+        spec = self._announcement_spec(materials_images=())
+        manifest = self._run_template_b(spec, self._announcement_assets())
+        mat = manifest.announcement_variant_contract_review["materials_strip_region"]
+        assert mat["rendered"] is False
+        assert mat["collapsed_by_design"] is True
+        assert mat["reason_code"] == "materials_not_used_in_announcement_variant"
+        assert mat["count"] == 0
+        assert mat["region_order_unchanged"] is True
+        assert mat["foreign_content_routed_in"] is False
+
+    def test_announcement_structure_requires_description_copy_core(self):
+        # Required change 1 — brand + sku + title + hero present but NO description
+        # copy core must FAIL structure_complete.
+        spec = self._announcement_spec(description_title="", description_body="")
+        manifest = self._run_template_b(spec, self._announcement_assets())
+        review = manifest.announcement_variant_contract_review
+        assert review["structure_complete"] is False
+        assert "description_copy_core" in review["missing_core_information_members"]
+        assert (
+            review["core_information_area"]["members"]["description_copy_core"]["rendered"]
+            is False
+        )
+
+    def test_announcement_structure_complete_with_core_information_area(self):
+        # Required change 1 — full Family B core information area intact.
+        spec = self._announcement_spec(description_title="", description_body="Structure inox.")
+        manifest = self._run_template_b(spec, self._announcement_assets())
+        review = manifest.announcement_variant_contract_review
+        assert review["structure_complete"] is True
+        assert review["missing_core_information_members"] == []
+        members = review["core_information_area"]["members"]
+        assert members["brand_logo_slot"]["rendered"] is True
+        assert members["sku_text_layer"]["rendered"] is True
+        assert members["top_copy_title_layer"]["rendered"] is True
+        assert members["product_hero_primary"]["rendered"] is True
+        assert members["description_copy_core"]["rendered"] is True
+        assert members["description_copy_core"]["satisfied_by"] == "description_body_layer"
+
     def test_template_b_header_keeps_logo_slot_active(self):
         spec = _make_spec(
             brand_name="KitchenWorks",
