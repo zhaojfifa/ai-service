@@ -312,23 +312,63 @@ def render_pillow_fallback(inputs: EmailCampaignCompositeInputs) -> PILImage.Ima
     return im
 
 
-async def render_async(inputs: EmailCampaignCompositeInputs) -> EmailCampaignCompositeResult:
-    engine, degraded = "pillow_fallback", True
-    image: Optional[PILImage.Image] = None
-    try:
-        from playwright.async_api import async_playwright
+import logging as _logging  # module-level, additive
+import os as _os
+import time as _time
 
-        html = build_html(inputs)
-        async with async_playwright() as pw:
-            b = await pw.chromium.launch(headless=True, args=["--disable-dev-shm-usage", "--font-render-hinting=none"])
-            page = await b.new_page(viewport={"width": CANVAS_W, "height": CANVAS_H}, device_scale_factor=2)
+_logger = _logging.getLogger("ai-service")
+
+# Low-memory / bounded Chromium so a constrained host (e.g. Render free tier) can't hang or OOM the worker
+# into a proxy 502: single-process, no-gpu, configurable raster scale + a hard render timeout. On any
+# failure (incl. timeout) we fall back to the Pillow renderer and return a 200 (degraded) — never a 502.
+def _ecc_device_scale() -> int:
+    try:
+        return max(1, min(2, int(_os.getenv("POSTER2_ECC_DEVICE_SCALE", "2"))))
+    except Exception:
+        return 2
+
+
+def _ecc_render_timeout_ms() -> int:
+    try:
+        return max(5000, int(_os.getenv("POSTER2_ECC_RENDER_TIMEOUT_MS", "45000")))
+    except Exception:
+        return 45000
+
+
+async def _chromium_render(html: str) -> bytes:
+    from playwright.async_api import async_playwright
+    args = ["--disable-dev-shm-usage", "--font-render-hinting=none", "--no-sandbox",
+            "--disable-gpu", "--single-process", "--disable-extensions"]
+    async with async_playwright() as pw:
+        b = await pw.chromium.launch(headless=True, args=args)
+        try:
+            page = await b.new_page(viewport={"width": CANVAS_W, "height": CANVAS_H},
+                                    device_scale_factor=_ecc_device_scale())
             await page.set_content(html, wait_until="networkidle")
             await page.locator("#poster-root").wait_for(state="visible")
-            png = await page.locator("#poster-root").screenshot(type="png")
+            return await page.locator("#poster-root").screenshot(type="png")
+        finally:
             await b.close()
+
+
+async def render_async(inputs: EmailCampaignCompositeInputs, *, request_id: str | None = None) -> EmailCampaignCompositeResult:
+    import asyncio as _asyncio
+    rid = request_id or "-"
+    engine, degraded = "pillow_fallback", True
+    image: Optional[PILImage.Image] = None
+    t0 = _time.time()
+    timeout_ms = _ecc_render_timeout_ms()
+    _logger.info("ecc.render chromium_start request_id=%s scale=%s timeout_ms=%s canvas=%sx%s",
+                 rid, _ecc_device_scale(), timeout_ms, CANVAS_W, CANVAS_H)
+    try:
+        html = build_html(inputs)
+        png = await _asyncio.wait_for(_chromium_render(html), timeout=timeout_ms / 1000)
         image = PILImage.open(BytesIO(png)).convert("RGB")
         engine, degraded = "chromium", False
-    except Exception:
+        _logger.info("ecc.render chromium_success request_id=%s dur_ms=%d", rid, int((_time.time() - t0) * 1000))
+    except Exception as exc:
+        _logger.warning("ecc.render chromium_fail request_id=%s dur_ms=%d error_type=%s -> pillow_fallback",
+                        rid, int((_time.time() - t0) * 1000), type(exc).__name__)
         image = render_pillow_fallback(inputs)
         engine, degraded = "pillow_fallback", True
     return EmailCampaignCompositeResult(

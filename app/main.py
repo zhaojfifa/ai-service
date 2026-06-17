@@ -1757,44 +1757,84 @@ async def _generate_email_campaign_composite_v1(
     from app.services.poster2 import email_campaign_composite as _ecc
     from app.services.poster2.asset_loader import AssetLoader as _AssetLoader
 
-    _poster2_lifecycle_log("email_campaign_composite_dispatch", request_id=request_id, template_id=payload.template_id)
-    assets = await _AssetLoader().load(spec)
-    inputs = _ecc.resolve_inputs(
-        title=payload.title or None,
-        strapline=payload.subtitle or None,
-        callouts=list(payload.features) if payload.features else None,
-        contact=None,
-        logo=assets.logo,
-        product=assets.product,
-        gallery_images=list(assets.gallery or []),
-        substrate_image=assets.scenario,  # operator-gated campaign substrate; never business truth
-    )
-    result = await _ecc.render_async(inputs)
-
-    buf = BytesIO()
-    result.image.save(buf, format="PNG")
-    png_bytes = buf.getvalue()
-    final_hash = hashlib.sha256(png_bytes).hexdigest()[:16]
-    trace_id = request_id or final_hash
-    data_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
-    # Additive R2 hosting bridge (this family only): host the PNG so the email flow references a small
-    # HTTPS URL instead of a ~9.5MB inline data: URL. Falls back to the data: URL if R2 is not configured.
-    poster_hosting = "inline_data_url"
-    final_url = data_url
+    # Stage-tracked so any failure returns JSON (never an HTML 502/500) with request_id/stage/error_type.
+    stage = "entry"
     try:
-        from app.services.r2_client import make_key as _r2_make_key, put_bytes as _r2_put_bytes
-
-        hosted_url = _r2_put_bytes(
-            _r2_make_key("poster2/email_campaign_composite", f"{trace_id}.png"),
-            png_bytes,
-            content_type="image/png",
+        n_gallery = len(payload.gallery_images or [])
+        logger.info(
+            "ecc.generate entry request_id=%s template_id=%s renderer_mode=%s assets[product=%s logo=%s scenario=%s gallery=%d]",
+            request_id, payload.template_id, payload.renderer_mode,
+            bool(payload.product_image and payload.product_image.url),
+            bool(payload.logo and payload.logo.url),
+            bool(payload.scenario_image and payload.scenario_image.url), n_gallery,
         )
-        if hosted_url and hosted_url.startswith("https://"):
-            final_url, poster_hosting = hosted_url, "r2"
-    except Exception:  # never fail generation on a hosting error — fall back to inline
+
+        stage = "asset_fetch"
+        logger.info("ecc.generate asset_fetch_start request_id=%s product=1 logo=%d scenario=%d gallery=%d",
+                    request_id, 1 if payload.logo else 0, 1 if payload.scenario_image else 0, n_gallery)
+        assets = await _AssetLoader().load(spec)
+        logger.info("ecc.generate asset_fetch_success request_id=%s resolved[product=%s logo=%s scenario=%s gallery=%d]",
+                    request_id, assets.product is not None, assets.logo is not None,
+                    assets.scenario is not None, len(assets.gallery or []))
+
+        stage = "resolve_inputs"
+        inputs = _ecc.resolve_inputs(
+            title=payload.title or None,
+            strapline=payload.subtitle or None,
+            callouts=list(payload.features) if payload.features else None,
+            contact=None,
+            logo=assets.logo,
+            product=assets.product,
+            gallery_images=list(assets.gallery or []),
+            substrate_image=assets.scenario,  # operator-gated campaign substrate; never business truth
+        )
+
+        stage = "render"
+        logger.info("ecc.generate render_start request_id=%s renderer_selected=email_campaign_composite_v1/puppeteer", request_id)
+        result = await _ecc.render_async(inputs, request_id=request_id)
+        logger.info("ecc.generate render_done request_id=%s engine=%s degraded=%s", request_id, result.engine, result.degraded)
+
+        stage = "encode"
+        buf = BytesIO()
+        result.image.save(buf, format="PNG")
+        png_bytes = buf.getvalue()
+        final_hash = hashlib.sha256(png_bytes).hexdigest()[:16]
+        trace_id = request_id or final_hash
+        data_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
+
+        # Additive R2 hosting bridge (this family only): host the PNG so the email flow references a small
+        # HTTPS URL instead of a ~9.5MB inline data: URL. Falls back to the data: URL if R2 is not configured.
+        stage = "r2_upload"
         poster_hosting = "inline_data_url"
-    review = dict(result.contract_review)
-    review["poster_hosting"] = poster_hosting
+        final_url = data_url
+        try:
+            from app.services.r2_client import make_key as _r2_make_key, put_bytes as _r2_put_bytes
+
+            logger.info("ecc.generate poster_upload_start request_id=%s bytes=%d", request_id, len(png_bytes))
+            hosted_url = _r2_put_bytes(
+                _r2_make_key("poster2/email_campaign_composite", f"{trace_id}.png"),
+                png_bytes,
+                content_type="image/png",
+            )
+            if hosted_url and hosted_url.startswith("https://"):
+                final_url, poster_hosting = hosted_url, "r2"
+            logger.info("ecc.generate poster_upload_done request_id=%s hosting=%s", request_id, poster_hosting)
+        except Exception as _up_exc:  # never fail generation on a hosting error — fall back to inline
+            poster_hosting = "inline_data_url"
+            logger.warning("ecc.generate poster_upload_fail request_id=%s error_type=%s -> inline_data_url",
+                           request_id, type(_up_exc).__name__)
+        stage = "respond"
+        review = dict(result.contract_review)
+        review["poster_hosting"] = poster_hosting
+    except Exception as exc:  # ANY catchable failure -> JSON (no HTML); records request_id/stage/error_type
+        logger.exception("ecc.generate FAILED request_id=%s stage=%s error_type=%s", request_id, stage, type(exc).__name__)
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "email_campaign_composite_generate_failed",
+                     "request_id": request_id, "stage": stage,
+                     "error_type": type(exc).__name__, "message": str(exc)[:300]},
+            headers={"X-Request-ID": request_id} if request_id else None,
+        )
 
     response_payload = GeneratePosterV2Response(
         poster_key=generate_poster_key(),
