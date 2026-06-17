@@ -46,3 +46,14 @@ def test_registry_lists_email_campaign_option_both_mirrors():
         # existing options preserved (no regression)
         for keep in ("template_dual", "template_dual_studio", "template_product_sheet_v1"):
             assert keep in ids
+
+
+def test_ops_campaign_uses_r2_presign_not_base64():
+    """The fix: assets go through /api/r2/presign-put (url/key), never inline base64 in the payload."""
+    js = _read("frontend/ops_campaign.js")
+    assert "/api/r2/presign-put" in js
+    assert "r2UploadFile" in js
+    # must NOT read files as data URLs into the generate payload anymore
+    assert "readAsDataURL" not in js
+    # R2-unavailable must block (no base64 fallback)
+    assert "R2 upload unavailable" in js

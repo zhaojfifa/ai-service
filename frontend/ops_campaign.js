@@ -2,13 +2,16 @@
  * Sends template_id=email_campaign_composite_v1 + renderer_mode=puppeteer DIRECTLY to
  * /api/v2/generate-poster (it never passes through resolvePoster2PilotTemplateId /
  * resolvePoster2CompositionTemplateId, so it can never be remapped to template_dual_v2).
+ *
+ * ASSET PATH: each selected file is uploaded to R2 via /api/r2/presign-put + a presigned PUT (the same
+ * mechanism main Stage1/2 uses). The generate payload then carries ONLY {url, key} — never a data: URL /
+ * base64 (the BodyGuard rejects inline base64 by design). If R2 is not configured / upload fails, the page
+ * shows "R2 upload unavailable" and DOES NOT call generate-poster (never sends base64).
  * No AI calls here; no real email send (send is Owner-gated / disabled). */
 (function () {
   'use strict';
 
-  // operator MVP fallback defaults (case001). The page first TRIES to fetch the repo-local
-  // ops_manual_test_pack_v1/input_fields_case001.json; if the browser cannot read it, these inline
-  // defaults are used (documented as operator MVP fallback in the report).
+  // operator MVP fallback defaults (case001), used inline (no remote JSON fetch -> no 404 noise).
   var CASE001 = {
     brand_name: 'CUISTANCE',
     series_name: 'Electric Fryer Series',
@@ -24,11 +27,6 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var state = { posterKey: null };
-  // Asset-by-URL mode for runtime smoke / R2-backed prod: when window.OPS_TEST_ASSET_BASE is set, "load
-  // pack" fills these URLs and generate sends them (the backend fetches by URL, mirroring R2). Production
-  // operators normally upload files; the inline-base64 request guard means real prod must upload to R2
-  // first and send url/key (existing Stage2 mechanism). __opsAssetUrls stays empty unless test base is set.
-  var __opsAssetUrls = {};
   function setStatus(t) { $('status').textContent = t; }
 
   function prefill(d, src) {
@@ -40,54 +38,34 @@
     $('pack-src').textContent = src;
   }
 
-  async function loadPack() {
-    // try repo-local JSON first; fall back to inline defaults
-    try {
-      var r = await fetch('assets/sop_source_materialization_v1/../ops_manual_test_pack_v1/input_fields_case001.json');
-    } catch (e) { r = null; }
-    var tryPaths = [
-      'docs/poster2/assets/ops_manual_test_pack_v1/input_fields_case001.json',
-      '../docs/poster2/assets/ops_manual_test_pack_v1/input_fields_case001.json'
-    ];
-    for (var i = 0; i < tryPaths.length; i++) {
-      try {
-        var resp = await fetch(tryPaths[i]);
-        if (resp && resp.ok) {
-          var j = await resp.json();
-          prefill({
-            brand_name: j.brand_name, series_name: 'Electric Fryer Series', title: j.title,
-            strapline: j.subtitle, product_ref: j.product_ref, spec_strip: j.spec_strip,
-            callouts: j.callouts, contact_email: j.contact.email, contact_phone: j.contact.phone, contact_web: j.contact.website
-          }, '已从 ops_manual_test_pack_v1/input_fields_case001.json 载入');
-          return;
-        }
-      } catch (e) { /* continue */ }
-    }
-    prefill(CASE001, '已载入内置 case001 默认值（operator MVP fallback；浏览器无法读取 repo 本地 JSON）');
-    maybeFillTestAssetUrls();
+  // load pack = (re)apply the inline case001 copy defaults. Asset files are still uploaded by the operator.
+  function loadPack() {
+    prefill(CASE001, '已载入 case001 文案默认值（素材仍需上传；上传将走 R2 presign，不发 base64）');
   }
 
-  function maybeFillTestAssetUrls() {
-    var base = window.OPS_TEST_ASSET_BASE;
-    if (!base) return;
-    __opsAssetUrls = {
-      logo: base + '/brand_logo.jpg', product: base + '/product_hero_fryer.jpg',
-      g1: base + '/gallery_01.jpg', g2: base + '/gallery_02.jpg', g3: base + '/gallery_03.jpg',
-      atmo: base + '/atmosphere_substrate_fries_hero.png'
-    };
-    var hint = document.getElementById('pack-src');
-    if (hint) hint.textContent += ' · 测试素材 URL 模式（后端按 URL 拉取，等价于 R2）';
-  }
+  function pickFile(id) { var i = $(id); return (i && i.files && i.files[0]) || null; }
 
-  function fileToDataUrl(input) {
-    return new Promise(function (resolve) {
-      var f = input.files && input.files[0];
-      if (!f) { resolve(null); return; }
-      var fr = new FileReader();
-      fr.onload = function () { resolve(fr.result); };
-      fr.onerror = function () { resolve(null); };
-      fr.readAsDataURL(f);
+  // R2 presign + PUT (mirrors main app.js r2PresignPut). Returns {url, key} (no base64). Throws on failure.
+  async function r2UploadFile(folder, file) {
+    var pres = await fetch('/api/r2/presign-put', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        folder: folder || 'uploads', filename: file.name || 'upload.bin',
+        content_type: file.type || 'image/png', size: (typeof file.size === 'number' ? file.size : null)
+      })
     });
+    if (!pres.ok) {
+      var et = await pres.text().catch(function () { return ''; });
+      throw new Error('presign HTTP ' + pres.status + ' ' + et.slice(0, 140));
+    }
+    var d = await pres.json();
+    if (!d || !d.key || !d.put_url) throw new Error('presign 响应缺少 key/put_url');
+    var put = await fetch(d.put_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'image/png' }, body: file });
+    if (!put.ok) { throw new Error('R2 PUT HTTP ' + put.status); }
+    var httpUrl = d.get_url || d.public_url || null;          // prefer HTTPS readable URL
+    var ref = { url: httpUrl || d.r2_url || '', key: d.key };  // r2://key fallback; key always carried
+    if (!ref.url) throw new Error('R2 未返回可读取的 url（缺 get_url/public_url/r2_url）');
+    return ref;
   }
 
   function yn(ok) { return '<span class="badge ' + (ok ? 'b-ok">是' : 'b-bad">否') + '</span>'; }
@@ -110,19 +88,30 @@
   }
 
   async function generate() {
-    setStatus('生成中…（调用 /api/v2/generate-poster · email_campaign_composite_v1）');
-    // In test/R2 URL mode (OPS_TEST_ASSET_BASE set) prefer the asset URL — the backend fetches it by URL,
-    // avoiding the inline-base64 request guard. Otherwise prefer an uploaded file (data URL).
-    async function assetUrl(inputId, slot) {
-      if (window.OPS_TEST_ASSET_BASE && __opsAssetUrls[slot]) return __opsAssetUrls[slot];
-      var d = await fileToDataUrl($(inputId));
-      return d || __opsAssetUrls[slot] || null;
+    // 1) preflight — product hero is required; empty -> block, do NOT call generate-poster
+    var productFile = pickFile('f_product');
+    if (!productFile) { setStatus('请先上传「产品主图 Product hero」后再生成（preflight 已阻止，未调用生成接口）。'); return; }
+
+    // 2) upload each provided asset to R2 (presign + PUT). On any failure -> stop, never send base64.
+    var refs;
+    try {
+      setStatus('上传素材到 R2（presign + PUT）…');
+      refs = { product: await r2UploadFile('product', productFile) };
+      var lf = pickFile('f_logo'); refs.logo = lf ? await r2UploadFile('logo', lf) : null;
+      var af = pickFile('f_atmo'); refs.atmo = af ? await r2UploadFile('scenario', af) : null;
+      refs.gallery = [];
+      var gids = ['f_g1', 'f_g2', 'f_g3'];
+      for (var i = 0; i < gids.length; i++) {
+        var gf = pickFile(gids[i]);
+        if (gf) refs.gallery.push(await r2UploadFile('gallery', gf));
+      }
+    } catch (e) {
+      window.__lastUploadError = String(e);
+      setStatus('R2 upload unavailable / R2 上传不可用：' + e + ' — 已停止，未向生成接口发送任何 base64。');
+      return; // hard stop — never fall back to base64
     }
-    var product = await assetUrl('f_product', 'product');
-    var logo = await assetUrl('f_logo', 'logo');
-    var atmo = await assetUrl('f_atmo', 'atmo');
-    var g1 = await assetUrl('f_g1', 'g1'), g2 = await assetUrl('f_g2', 'g2'), g3 = await assetUrl('f_g3', 'g3');
-    var gallery = [g1, g2, g3].filter(Boolean).map(function (u) { return { url: u, key: null, caption: null }; });
+
+    // 3) build payload with url/key ONLY (no data:/base64)
     var payload = {
       template_id: 'email_campaign_composite_v1',
       renderer_mode: 'puppeteer',
@@ -131,20 +120,28 @@
       title: $('title').value,
       subtitle: $('strapline').value,
       features: [$('callout1').value, $('callout2').value, $('callout3').value].filter(Boolean),
-      product_image: { url: product || '', key: null },
-      logo: logo ? { url: logo, key: null } : null,
-      scenario_image: atmo ? { url: atmo, key: null } : null,
-      gallery_images: gallery
+      product_image: { url: refs.product.url, key: refs.product.key },
+      logo: refs.logo ? { url: refs.logo.url, key: refs.logo.key } : null,
+      scenario_image: refs.atmo ? { url: refs.atmo.url, key: refs.atmo.key } : null,
+      gallery_images: refs.gallery.map(function (r) { return { url: r.url, key: r.key, caption: null }; })
     };
+    // safety assertion: no base64/data: in the outgoing payload
+    var bodyStr = JSON.stringify(payload);
+    if (/data:image|;base64,/.test(bodyStr)) {
+      setStatus('内部错误：payload 仍含 base64，已阻止发送。'); return;
+    }
     window.__lastRequestSummary = {
       template_id: payload.template_id, renderer_mode: payload.renderer_mode,
-      brand_name: payload.brand_name, title: payload.title, subtitle: payload.subtitle,
-      features: payload.features,
-      has_logo: !!payload.logo, has_product: !!product, has_scenario: !!atmo, gallery_count: gallery.length
+      brand_name: payload.brand_name, title: payload.title, subtitle: payload.subtitle, features: payload.features,
+      product_image: payload.product_image, logo: payload.logo, scenario_image: payload.scenario_image,
+      gallery_images: payload.gallery_images,
+      payload_contains_base64: /data:image|;base64,/.test(bodyStr)
     };
+
+    setStatus('生成中…（调用 /api/v2/generate-poster · email_campaign_composite_v1）');
     try {
       var resp = await fetch('/api/v2/generate-poster', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr
       });
       var body = await resp.json();
       window.__lastResponse = body;
@@ -187,6 +184,6 @@
     $('generate').addEventListener('click', generate);
     $('preview').addEventListener('click', emailPreview);
     // send stays disabled — Owner-gated
-    prefill(CASE001, '（默认 case001 已就绪；点击“加载测试素材包”可从 repo JSON 刷新）');
+    prefill(CASE001, '（默认 case001 文案已就绪；上传素材将通过 R2 presign 上传，仅传 url/key）');
   });
 })();
