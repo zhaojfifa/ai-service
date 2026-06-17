@@ -10300,3 +10300,646 @@ After bundle:
 
 - No backend schema / renderer geometry / template family / Stage3 / price / phone-footer / Poster Set / Family A /
   bottom SOP / product-annotation change. Not pushed, not deployed, no PR/merge.
+
+## POSTER2-CATALOG-HERO-ADDITIVE-FAMILY + 1TO1-REPLICATION-P1 (2026-06-15)
+
+### catalog_hero_v1 additive family (READY_TO_REVIEW; HOLD deploy)
+- Additive portrait family `catalog_hero_v1` (family `catalog_hero_portrait`) registered in
+  `template_registry.py`; dedicated render path `app/services/poster2/catalog_hero.py` dispatched by an
+  additive branch in `generate_poster_v2` — never enters PosterPipeline (Family A/B byte-unchanged).
+- Portrait spec `app/templates/specs/catalog_hero_v1.json` (1240x1754). Reuses request schema + slot vocabulary;
+  food hero owner-gated (scenario_image only, no runtime AI); annotation frozen at 3; CTA display-only.
+- Response: optional `catalog_hero_contract_review` + `catalog_hero_grammar_profile` (12-dim). Frontend Stage1
+  card + Stage2 selector entry added to `frontend/` + `docs/` registry (byte-identical) + preview svg.
+- Tests: `tests/poster2/test_catalog_hero.py` 18/18 pass; registry snapshot updated additively.
+- Regression: post-change poster2 suite 51 failures == clean-base 51 failures (set-diff empty) → ZERO new
+  failures; the 51 are pre-existing branch-state failures. Proof:
+  `docs/poster2/assets/catalog_hero_productization/family_b_unchanged_proof.txt`.
+- Visual: `catalog_hero_generated.png` (chromium) reads as catalog-hero grammar, not Family B sheet;
+  end-to-end HTTP handler verified (200, valid PNG data URL, storage ok).
+
+### 1:1 replication P1 (PPT route; docs/artifacts only)
+- Applied PPT 1:1 method (reference dimension extraction -> fillable contract). Target reference =
+  Technitalia LES RECHAUDS GAZ page_1 (present; no new reference needed).
+- Score: current synthetic output ~3.0/5 (NOT commercial); implemented grammar ~4.4; real-asset ceiling
+  ~4.3-4.7 (reconstruction proved 4.47). Gap is ASSET-bound, not grammar-bound.
+- Missing dims classified: asset-related (food hero, product cutout, gallery, logo) dominate; template/typography
+  (title per-line escalation, callout 3-vs-6 owner gate, mass balance, leader polish) are minor in-grammar.
+- Deliverables: `05_validation/catalog_hero_1to1_replication_gap_review_v1.md`,
+  `02_architecture/catalog_hero_1to1_replication_plan_v1.md`,
+  `05_validation/catalog_hero_p1_hardening_acceptance_v1.md`,
+  artifacts under `assets/catalog_hero_1to1_replication_v1/` (annotated ref+current, scorecard, owner-assets,
+  dimension mapping).
+- Recommendation: Option B (collect real assets A1-A4 + decision D1) THEN run a real-asset static trial of the
+  unchanged grammar; harden (Option A) only after the trial reaches >=4.3. No runtime change, no deploy, no push.
+
+### Compliance
+- No Family A/B / Stage3 / Poster-Set / renderer-geometry / runtime-AI-asset change. Not merged, not pushed,
+  not deployed.
+
+## POSTER2-CATALOG-HERO-REAL-ASSET-STATIC-TRIAL-V1 (2026-06-15)
+
+- Ran the real-asset static trial: UNCHANGED catalog_hero_v1 grammar
+  (`app/services/poster2/catalog_hero.py`) fed REAL operator assets (CUISTANCE fryer line at
+  /Users/tylerzhao/poster/: golden-food lifestyle scene, double-basket fryer cutout, 3 real
+  range fryers, CUISTANCE logo). Offline harness `scripts/poster2_catalog_hero_real_asset_trial.py`;
+  chromium engine, not degraded. D1=3 callouts, D3=food/title high mass + product secondary.
+- Result: ~3.8/5, BELOW the 4.3 gate (large lift over ~3.0 synthetic). Family reads correctly.
+- Failure class (per acceptance, <4.3 → no runtime hardening): NOT asset quality and NOT a
+  fundamental grammar limit — three IN-GRAMMAR defects exposed by real assets:
+  (1) logo renders as white block (white-bg JPG x white-on-charcoal filter) = renderer asset-handling;
+  (2) left callout labels collide with the food rail = layout; (3) title line crowding / no
+  per-line escalation = typography. Plus one asset/content gap: golden food vs red-leaning food
+  (caps food-title color coupling).
+- Recommendation: bounded STATIC grammar-refinement pass (logo normalization, callout-vs-food
+  re-anchor, title line-height/escalation) + re-trial; HOLD runtime hardening until re-trial >=4.3.
+  Optionally a red-leaning food asset for the 4.3->4.6 ceiling.
+- Artifacts: docs/poster2/assets/catalog_hero_real_asset_trial_v1/ (input_assets_manifest.md,
+  real_asset_static_output.png, real_asset_vs_reference.png, real_asset_vs_synthetic.png,
+  real_asset_scorecard.md, dimension_pass_fail_matrix.md, owner_decision_needed.md, trial_diagnostics.json).
+- Compliance: no production renderer / pipeline / Stage1-2-3 / Family A/B / runtime-AI change;
+  real assets only (no synthetic-as-real, no AI assets); callout count not increased; not merged,
+  not pushed, not deployed.
+
+## POSTER2-CATALOG-HERO-REAL-ASSET-GRAMMAR-REFINEMENT-V1 (2026-06-16)
+
+- Bounded STATIC grammar-refinement pass on the offline catalog-hero render (same real CUISTANCE
+  assets; D1=3; D3 food/title high mass, product secondary). Refinements live ONLY in
+  `scripts/poster2_catalog_hero_refine_trial.py`; production `app/services/poster2/catalog_hero.py`
+  is byte-UNCHANGED (still HOLD).
+- R1 logo normalization (polarity-aware white chip for dark-on-light logos; no destructive invert)
+  -> CUISTANCE logo reads (was white block). R2 callout anchoring (3 labels stacked in the
+  food<->product gap, leaders to product edge, clamped out of the food rail) -> callouts belong to
+  product (was colliding with food). R3 title per-line escalation + safe line-height (LES 56 ->
+  FRITEUSES/ELECTRIQUES 134, no overlap) -> clean dominant title (was crowded). Each maps to a
+  grammar dimension (#7/#10, #9/#2, #3) with before/after artifacts.
+- Re-score vs Technitalia reference: ~3.8 -> ~4.16/5. Still BELOW the 4.3 gate. Lifts: title
+  3.8->4.5, callout 2.5->4.0, readiness 3.0->4.0. Remaining drag = food-title COLOR COUPLING
+  (criterion 1 = 3.0): golden food vs reference red-leaning food.
+- Remaining-blocker class = ASSET QUALITY (food color coupling), not typography/layout/callout-system
+  (those now PASS). Per acceptance (<4.3): do NOT recommend runtime hardening yet. Recommend Owner
+  supply ONE red-leaning food asset (no AI), re-trial; if >=4.3, approve porting R1/R2/R3 into
+  catalog_hero.py (runtime hardening).
+- Artifacts: docs/poster2/assets/catalog_hero_real_asset_refinement_v1/ (before/after/refined/
+  vs-reference PNGs, refinement_scorecard.md, dimension_delta_matrix.md, logo/callout/title notes,
+  owner_decision_needed.md, refine_diagnostics.json).
+- Compliance: static harness + artifacts only; no production renderer/pipeline/Stage1-2-3/Family A/B
+  change; no runtime AI asset; callout count = 3; not merged, not pushed, not deployed.
+
+## POSTER2-CATALOG-HERO-RED-FOOD-ASSET-GATE-V1 (2026-06-16)
+
+- Asset-gate + static validation. Defined food-hero acceptance criteria (C1-C8: red/warm,
+  cooked/appetite, portrait-croppable, left-rail, couples #E1002A title, not overpower product,
+  no embedded text, licensed+owner-approved).
+- Surveyed the Owner asset kit (/Users/tylerzhao/poster/): only ONE red-leaning candidate exists,
+  demo图/tomato-600x600.jpg (vivid red, but RAW produce, stock/unlicensed, thematically off for
+  fryers). Other food images = golden fryer scenes (not red) or AI mockups with embedded text
+  (the kitchen-1/2 -> rejected C7+AI).
+- Ran a static trial reusing the EXACT refined grammar (R1+R2+R3) + same product/logo/gallery/
+  title/3-callouts, swapping ONLY the food hero to the red tomato candidate (analysis-only, not
+  commercial, not runtime truth). Production catalog_hero.py byte-UNCHANGED.
+- Result: food-title color coupling 3.0 -> 4.4; overall 7-crit ~4.09 -> ~4.27/5 (right AT the gate).
+  VALIDATES the red-food hypothesis: a red food clears the coupling blocker with zero grammar change.
+- But NOT a deploy recommendation: the candidate fails C8 (stock/unlicensed/unapproved), C2 partial
+  (raw not cooked), theme partial (tomato<->fryer incoherent). Remaining blocker reclassified =
+  a LICENSED, COOKED, thematically-matched red-leaning food asset (asset provenance/theme), NOT
+  grammar/typography/callout/product. Do NOT recommend runtime hardening on the tomato.
+- Recommendation: Owner supplies/approves a licensed red-leaning cooked on-theme food (ODN-1) or an
+  approved offline AI candidate (ODN-2, prompts provided, candidate-only), re-trial; if >=4.3,
+  approve hardening (port R1/R2/R3 into catalog_hero.py).
+- Artifacts: docs/poster2/assets/catalog_hero_red_food_asset_gate_v1/ (food_asset_acceptance_criteria.md,
+  candidate_food_asset_review.md, red_food_static_output.png, red_food_vs_previous.png,
+  red_food_vs_reference.png, red_food_scorecard.md, owner_decision_needed.md, red_food_diagnostics.json).
+- Compliance: static harness + artifacts only; no production renderer/pipeline/Stage1-2-3/Family A/B
+  change; no runtime AI asset; candidate marked analysis-only pending approval; callout count = 3;
+  not merged, not pushed, not deployed.
+
+## POSTER2-REFERENCE-REPLICATION-COMPOSITE-ROUTE-REVIEW-V1 (2026-06-16)
+
+- Route-level architecture review (docs only; no runtime/Family A/B/Stage3/deploy). Compared three
+  routes: A Master/PPT 1:1 (extraction, flat ceiling), B Product Sheet/Family B (stability+operator,
+  ~4/10 campaign ceiling), C Catalog Hero (campaign grammar, ~4.16 static / ~4.27 red-food / 4.47
+  reconstruction). Verdict: none reaches 4.8 alone -> COMPOSITE.
+- Composite route: Reference -> PPT 1:1 extraction (offline, advisory) -> visual grammar dimensions
+  -> replication_kernel (blueprint, proposal) -> operator approval -> contract runtime family ->
+  owner-gated asset layer -> Puppeteer precision render -> diagnostics+score gate. Ownership split:
+  PPT owns extraction; grammar owns typography/color/beauty/annotation vocab; contract owns
+  region_graph + frozen truth + A/B isolation; Puppeteer owns precision render; asset layer owns
+  asset_semantic_profile (owner-gated); operator owns owner_gates+diagnostics.
+- Defined the replication_kernel data structure (canvas/object_graph/region_graph/typography/color/
+  asset_semantic/layer_stack/annotation_graph/beauty_tokens/fillable_contract/owner_gates/diagnostics)
+  with risk classes E/V/O/F/U; mapped it to Family B, Catalog Hero, Product Hero, Studio,
+  Reference->Seed, Poster Set (each family = a kernel profile). Incremental build (formalize
+  catalog_hero's existing 12-dim profile + contract review first; object_graph/PPT last).
+- 4.8 requirements: residual 4.27->4.8 dominated by ASSET semantic match (licensed cooked on-theme
+  red food) + PRODUCTION PARITY (runtime port + storage + live render); callout radial-ring + logo
+  prominence are minor. Not grammar.
+- Recommended next slice: P1a port R1/R2/R3 into production catalog_hero.py + P1b owner-gated Asset
+  Gate (gated on cooked-red food asset ODN-1) + P1c runtime parity. Defer Reference->Seed (P3) and
+  Poster Set; do NOT build a separate Product Announcement Hero family; keep Family B as-is.
+- Deliverables: 02_architecture/poster2_composite_replication_route_v1.md,
+  02_architecture/poster_replication_kernel_v1.md,
+  05_validation/poster2_route_decision_matrix_v1.md,
+  05_validation/catalog_hero_to_4_8_gap_plan_v1.md. README index updated.
+- Compliance: docs only; no runtime/Family A/B/Stage3 change; not merged/pushed/deployed.
+
+## POSTER2-REFERENCE-INSPIRED-HYBRID-GENERATION-ROUTE-V1 (2026-06-16)
+
+- Route/design task (docs only; no runtime/external-gen/Family A/B/Stage3/deploy). Reframes Poster2
+  from 1:1 reference COPY to reference-INSPIRED controlled generation.
+- Key insight: Poster2 already does background-gen + deterministic-foreground composite. The hybrid
+  route makes the background a reference-inspired, grammar-guided MODEL generation (warm on-theme
+  scene/food) and keeps ALL business elements (logo/title/SKU/CTA/feature text/product identity) as
+  DETERMINISTIC overlays via the contract renderer. This dissolves the dominant 4.8 blocker (asset
+  semantic matching / cooked-red on-theme food) without sacrificing controllability.
+- Firewall: AI output candidate-only until OPERATOR approval; required text/logo never model-rendered;
+  product identity preserved (real cutout composited; model renders the zone only); no runtime AI truth;
+  no external gen calls without Owner authorization.
+- 6-step pipeline: reference/style analysis -> generation plan -> AI scene candidates (no text/logo) ->
+  deterministic overlay (Catalog Hero foreground) -> validation (text exact-match, logo presence,
+  product identity, visual score, commercial safety, operator approval) -> finalization.
+- Output contract reference_inspired_generation_plan {style_profile, composition_intent,
+  generated_layers, locked_overlay_layers, prompt, negative_prompt, asset_constraints, validation_rules,
+  diagnostics} = a replication-kernel profile split by provenance (generated vs locked).
+- Route comparison: hybrid takes B's control + D's visual quality, rejects D's hallucinated
+  text/logo/product. Recommended as the MAIN 4.8 path, as an additive third render mode
+  (hybrid_generated_bg); deterministic Catalog Hero stays as overlay engine + fallback; Family B
+  unchanged; PPT 1:1 = offline style/grammar extractor (conditioning, not truth).
+- MVP: 1 line (CUISTANCE fryers), 1 style target (Technitalia grammar), 3-5 generated scenes,
+  deterministic overlay, before/after vs deterministic Catalog Hero, >=4.3 + beats baseline + 100%
+  text accuracy + operator approval. Needs Owner authorization of a generation model before running.
+- Deliverables: 02_architecture/reference_inspired_hybrid_generation_route_v1.md,
+  02_architecture/hybrid_generation_contract_v1.md,
+  05_validation/hybrid_vs_replication_route_review_v1.md,
+  05_validation/hybrid_generation_mvp_plan_v1.md. README index updated.
+- Compliance: docs only; no runtime/external-gen/Family A/B/Stage3 change; not merged/pushed/deployed.
+
+## POSTER2-HYBRID-REAL-ASSET-MVP-HEAVY-VALIDATION-V1 (2026-06-16)
+
+- Heavy real-asset MVP for the reference-inspired hybrid route. Parsed the target .eml truth
+  (~/poster/SOP/Fw_ Fwd_ Quand les plats...coup de chaud.eml): Technitalia/Codimatel "LES RÉCHAUDS GAZ"
+  campaign forwarded via Cuistance; slogan "QUAND LES PLATS ONT BESOIN D'UN PETIT COUP DE CHAUD!",
+  brand CUISTANCE, CTA www.cuistance.eu / gabriel.tau@cuistance.eu.
+- TWO findings: (1) MODEL-ACCESS BLOCKER — no generation backend configured (Vertex project/creds unset,
+  OPENAI_API_KEY unset, no local torch/diffusers, no .env); no external call attempted (rules). (2)
+  TRUTH-vs-ASSET MISMATCH — email = gas stoves, kit = electric fryers (no gas-stove cutouts). Ran the
+  fryer line with the email's transferable truth (slogan/CTA/brand/theme), title LES FRITEUSES ÉLECTRIQUES.
+- Delivered Steps 1-3 (truth_copy_extract, asset_manifest, generation_plan.json + generation_prompts) +
+  generation_blocker_report + a FALLBACK static composition: 3 real scene photos (Golden fries/scene02/
+  scenes03) darkened+blurred as background proxy + deterministic Catalog Hero foreground overlay
+  (R1/R2/R3 + legibility scrims). Harness scripts/poster2_hybrid_mvp_fallback.py (no production code touched;
+  catalog_hero.py unchanged).
+- Result: all 3 fallback candidates PASS all HARD gates (title/slogan/CTA exact, logo present & non-AI,
+  product real & non-AI, 3 callouts, scene no text/logo, identity preserved, commercial-safe). Advisory
+  best ~4.1 (indicative); ≈ TIE with deterministic Catalog Hero ~4.16; did NOT reach >=4.3 or beat baseline
+  — capped by the proxy artifact (real scenes contain fryers -> opaque white panels). A true generated
+  empty-zone scene would integrate cleaner.
+- VERDICT: HYBRID_MVP_BLOCKED_BY_MODEL_ACCESS. Route not disproven; deterministic-overlay firewall validated;
+  generative half untested. Next slice: unblock generation (Owner credential) + resolve truth/asset mismatch,
+  then re-run for a real verdict. Route verdict doc: 05_validation/hybrid_real_asset_mvp_result_v1.md.
+- Compliance: no deploy/merge/push; no Stage3; no Family A/B mutation; no Poster Set; AI output candidate-only
+  (none generated); no external service called; source assets read-only (not overwritten); no secrets printed.
+
+## POSTER2-MODEL-COMPOSED-HYBRID-POSTER-MVP-V2 (2026-06-16)
+
+- Heavier MVP: test the Xingliu-like model-COMPOSED full-poster route (not background-only, not 1:1).
+- Re-verified generation access: NONE available (OpenAI/Vertex/Gemini/Stability/Replicate creds all
+  unset; no local torch/diffusers; no .env; no agent image tool; no owner-pre-placed candidates).
+- Per the task's hard rule ("If generation access is unavailable, stop with blocker report. Do not
+  fake success with background proxies"), NO generation attempted and NO proxy candidates fabricated
+  (unlike v1's fallback, which this task forbids).
+- VERDICT: HYBRID_V2_BLOCKED_BY_GENERATION_ACCESS. Route untested (not disproven). Delivered the
+  non-generation artifacts: generation_access_report.md (blocker + unblock options),
+  model_prompt_pack.md (full image-to-image + text-to-image prompt pack, locked-element correction
+  spec reusing R1/R2/R3, negative constraints incl. "no gas stoves / electric fryer", 3-5 variation
+  plan), route_verdict.md, owner_decision_needed.md, validation_diagnostics.json. Generation-dependent
+  artifacts (raw/corrected candidates, contact sheets, best_vs_*) explicitly documented as blocked.
+- Next slice: Owner configures ONE generation path (recommend OpenAI gpt-image-1 image-to-image) +
+  resolves truth-vs-asset mismatch (email=gas stoves, kit=fryers); then run the prompt pack for a real verdict.
+- Compliance: no generation call; no proxy faking; no deploy/merge/push; no Stage3; no Family A/B mutation;
+  no production code touched (catalog_hero.py unchanged); no runtime truth; no secrets printed; assets read-only.
+
+## POSTER2-HYBRID-GEMINI-REAL-GENERATION-VALIDATION-V1 (2026-06-16)
+
+- Step 0 presence-only check (no secret values printed): GEMINI_API_KEY / GOOGLE_API_KEY NOT visible
+  to the agent's profile-initialized non-interactive shell (login shell also unset -> not in profile).
+  Owner's interactive-shell export does not propagate to the agent's Bash tool (fresh shell per call).
+- Found: google.genai SDK installed + repo provider app/services/image_provider/genai_provider.py
+  (reads GOOGLE_API_KEY, model imagen-3.0-generate-001, client.images.generate). No dotenv.
+- Wrote a ready-to-run harness scripts/poster2_hybrid_gemini_mvp.py: probe -> 3 reference-inspired
+  poster candidates (text-to-image) -> deterministic overlay/correction (logo/title/slogan/product/
+  3 callouts/gallery/CTA over the model composition) -> contact sheets + comparisons + diagnostics.
+  It maps GEMINI_API_KEY->GOOGLE_API_KEY in-process (never printed) and, with no key, writes honest
+  BLOCKED presence/probe reports and exits WITHOUT fabricating candidates (no proxy/fake; ran now -> blocked).
+- VERDICT: BLOCKED_KEY_NOT_ON_EXECUTION_PROFILE. Real generation did not run; 0 candidates; no fakes;
+  no secret printed/logged/persisted. Unblock (secret-safe): persist export GOOGLE_API_KEY=... to
+  ~/.zshrc/~/.zprofile (Owner has the value), then re-run the harness; one command yields real candidates.
+- Artifacts: docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/ (generation_env_presence.json,
+  route_verdict.md, validation_diagnostics.json, operator_review_form.md [pending]) +
+  docs/poster2/assets/hybrid_real_generation_probe_v1/generation_probe_report.json.
+- Compliance: no commit/push/merge/deploy; no Stage3; no Family A/B mutation; no production code touched;
+  no runtime truth; no proxy/fake candidates; no secret value printed/logged/persisted.
+
+## POSTER2-HYBRID-GEMINI-REAL-GENERATION-VALIDATION-V1 — re-run from Tyler-local CLI (2026-06-16)
+
+- Re-ran from the Tyler-local Claude CLI session (not Harness-X tmux) per Owner: the Owner exported the
+  key in THIS shell. Presence (booleans only, no value): GEMINI_API_KEY=True, GOOGLE_API_KEY=True,
+  GENAI_IMAGEN_MODEL=imagen-3.0-generate-002. This advances past the prior "key not visible" blocker.
+- SDK-surface fix (validation-only; NO production change): installed google-genai is 1.2.0, which uses
+  client.models.generate_images(...) + GenerateImagesConfig + aspect_ratio — the app provider
+  (app/services/image_provider/genai_provider.py) still targets the older client.images.generate(... size=...)
+  surface (AttributeError: 'Client' has no attribute 'images'). Added validation-only shim
+  scripts/poster2_genai_imagen_shim.py with the same interface over the correct API; harness now imports it.
+  app/ production runtime left unchanged.
+- With the shim the harness reached Google's API cleanly. Real probe generate_images -> HTTP 400
+  API_KEY_INVALID (service generativelanguage.googleapis.com). Independent client.models.list() against the
+  same service ALSO returns 400 API_KEY_INVALID -> the rejection is the credential itself, not the image call.
+- Non-exposing structural diagnostics (no value printed): GOOGLE==GEMINI True; no whitespace/quotes;
+  matches standard Gemini AIza{39} format = False; length bucket long(>39); Vertex path absent
+  (GOOGLE_APPLICATION_CREDENTIALS / GCP_PROJECT_ID / GCP_LOCATION all unset).
+- VERDICT: BLOCKED_CREDENTIAL_INVALID. Real generation did NOT run; 0 candidates; no fakes; fallback
+  proxy NOT used as proof; no secret value printed/logged/persisted. Hardening NOT recommended (premature
+  on zero real output; app provider SDK-surface mismatch must be fixed first).
+- Unblock (secret-safe): Option A — supply a Gemini-Developer-valid AIza... key (AI Studio) as
+  GOOGLE_API_KEY in this shell, re-run the one harness command. Option B — Vertex: export
+  GOOGLE_APPLICATION_CREDENTIALS/GCP_PROJECT_ID/GCP_LOCATION and switch shim to genai.Client(vertexai=True).
+- Artifacts: docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/ (route_verdict.md [updated],
+  credential_validity_probe.json, scorecard.md, generation_env_presence.json) +
+  docs/poster2/assets/hybrid_real_generation_probe_v1/generation_probe_report.json +
+  docs/poster2/assets/model_composed_hybrid_mvp_v2/real_generation_run_status_v1.md +
+  scripts/poster2_genai_imagen_shim.py.
+- Compliance: no commit/push/merge/deploy; no Stage3 change; no Family A/B mutation; no production code
+  touched; AI output remains candidate-only; no proxy/fake candidates; no secret value printed/logged/persisted.
+
+## POSTER2-HYBRID-GEMINI — harness fix + execution-context env mismatch found (2026-06-16)
+
+- Task: "Fix Poster2 Gemini Hybrid MVP Harness Only" (allowed files: the two scripts + log + validation
+  diagnostic artifacts). No app/ / Stage1-3 / Family A-B / renderer changes; no deploy/merge/push/PR.
+- Harness FIXED to the exact verified google-genai 1.x surface:
+  - scripts/poster2_genai_imagen_shim.py: default model imagen-4.0-generate-001;
+    client.models.generate_images(model, prompt, GenerateImagesConfig(number_of_images=1, aspect_ratio))
+    ONLY; dropped imagen-3.0-only knobs (negative_prompt/seed/safety_filter_level/person_generation/
+    add_watermark) that imagen-4.0 rejects; api_key = GOOGLE_API_KEY or GEMINI_API_KEY.
+  - scripts/poster2_hybrid_gemini_mvp.py: prints PROVIDER, MODEL, GOOGLE/GEMINI presence booleans,
+    ERROR_TYPE, ERROR message (first 3000 chars); writes the exact non-secret Google error to
+    diagnostics (no longer masked as bare "ClientError"); per-candidate OK/FAILED diagnostics; 5 variants;
+    optional in-process credential file loader (POSTER2_GENAI_ENV_FILE or ~/.config/poster2/genai.env)
+    to override a stale launch env.
+- ROOT CAUSE (proven, no secret values): EXECUTION_CONTEXT_ENV_MISMATCH, not a harness/model/surface bug.
+  - Agent context shows GENAI_IMAGEN_MODEL=imagen-3.0-generate-002; Owner shell shows imagen-4.0-generate-001.
+  - Agent-context key: does NOT match AIza{39}; length nonAIza_long; GOOGLE==GEMINI.
+  - With the agent-context key, client.models.list() (no model involved) -> HTTP 400 API_KEY_INVALID;
+    generate_images forced to imagen-4.0-generate-001 -> HTTP 400 API_KEY_INVALID. So it is the KEY, not
+    the model/surface. Owner's direct manual imagen-4.0 probes pass -> Google access works with Owner's key.
+  - The Claude CLI / agent process was launched with a STALE env (old invalid key + imagen-3.0); the Owner's
+    later interactive-shell exports do not reach the already-running process, so each Bash call inherits the
+    stale key. No fakes; fallback proxy NOT used as proof; no secret printed/logged.
+- Unblock: (A) relaunch the CLI session from the shell holding the working exports so the agent inherits them,
+  then re-run; or (B) write working values to ~/.config/poster2/genai.env (the harness now loads them in
+  process, file wins) and re-run. Either yields real candidates in one command.
+- Artifacts: docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/ (execution_context_env_mismatch.json,
+  generation_probe_report.json, route_verdict.md, credential_validity_probe.json, scorecard.md) +
+  docs/poster2/assets/hybrid_real_generation_probe_v1/generation_probe_report.json.
+- Compliance: harness-only edits; no app/ or Stage1-3 or Family A/B or renderer changes; no deploy/merge/push/PR;
+  no fake/proxy candidates; no secret value printed/logged/persisted.
+
+## POSTER2-HYBRID-GEMINI — image extraction fix; REAL generation runs end-to-end (2026-06-16)
+
+- Task: "Fix Imagen Response Image Extraction Only" (allowed files: the two scripts + validation diagnostics
+  + log). No app/, Stage1-3, Family A/B, renderer-geometry, or prompt-route changes; no deploy/merge/push/PR.
+- Symptom: PIL.UnidentifiedImageError on candidate 1 despite CANDIDATE_OK — a decode-path defect, NOT a
+  credential/model/access issue (credential-file override works; imagen-4.0-generate-001 returns real bytes).
+- Fix (scripts/poster2_genai_imagen_shim.py): robust extract_image_bytes() that walks every SDK nesting
+  (image.image_bytes / image.data / image.bytes / image.bytes_base64_encoded / inline_data.data /
+  generated_image.*), base64-decodes string payloads, and validates magic bytes (PNG 89504e47 / JPEG ffd8ff /
+  RIFF..WEBP / GIF) before returning (bytes, format); plus a diagnose() that emits SAFE structural info only
+  (type names, field presence, length, first-16-byte hex, magic verdict) — never binary, never secrets.
+- Harness (scripts/poster2_hybrid_gemini_mvp.py): prints IMAGE_DIAG + writes image_extraction_diagnostics.json;
+  saves raw model bytes by detected format (raw_candidate_XX.png) then opens with PIL; per-candidate format/
+  length/header_hex/magic_valid diagnostics; decode-failure branch writes raw_candidate_XX_extraction_failure
+  .json with full structural diag instead of crashing.
+- RESULT: generation_ran=True; provider google-genai Imagen / imagen-4.0-generate-001; probe valid PNG
+  (~1.25MB, magic 89504e47); 5 raw candidates (valid PNG, 0.58-0.85MB) + 5 corrected overlays + both contact
+  sheets + hybrid_vs_catalog_hero_baseline.png + hybrid_vs_reference.png. No UnidentifiedImageError.
+- QUALITY (honest, not the slice goal): best corrected ~3.8/5; does NOT beat deterministic Catalog Hero
+  (~4.16) and does NOT reach >=4.3. Cause: imagen-4.0 (verified surface) rejects negative_prompt, so the
+  model bakes in garbled placeholder text (e.g. "CAMPAIGN POSTER"/"PREMIUM HEADLINE"/"CLOER") that clashes
+  with the deterministic locked overlay. Route now unblocked + exercised; hardening NOT yet recommended.
+- Next slice (separate, prompt-route change -> out of scope here): suppress/mask model-generated text
+  (e.g. mask/inpaint the AI text regions, or shift to an image-to-image/scene-only background route).
+- Compliance: harness-only edits; no app/ / Stage1-3 / Family A-B / renderer-geometry / prompt-route change;
+  no deploy/merge/push/PR; no fake/proxy candidates; no secret value printed/logged; no binary printed.
+
+## POSTER2 Template-A Reference-Style Hybrid 4.8 Validation (2026-06-16)
+
+- Goal: prove/disprove that the system can preserve the REFERENCE email-poster's style/quality while
+  replacing ALL business truth with Template A inputs. Reference EML = STYLE ONLY (Technitalia/Codimatel
+  "LES RÉCHAUDS GAZ" gas stoves — forbidden as final content). Template A = Cuistance electric fryers.
+- Method: fetched + analyzed the reference style banners (header bandeau, hero banniere_1, range
+  banniere_2); extracted grammar (dark hex header, red skew title + accent word, warm-food co-anchor,
+  bright product stage + radial callouts, range/gallery rhythm, contact footer). Generated TEXTLESS warm
+  food atmosphere via the validation shim (imagen-4.0-generate-001); fed each as the food-hero into
+  app/services/poster2/catalog_hero.py (driven from the harness, NOT modified) so logo/title/product/
+  callouts(3)/gallery/CTA stay 100% deterministic Template A. AI produces no text/logo/product.
+- Harness (validation-only, candidate-only): scripts/poster2_refstyle_hybrid_4_8_mvp.py. Reuses the
+  credential-file loader + genai shim. 3 corrected candidates produced (2 variants hit transient 429
+  capacity, not code errors).
+- RESULT: route PROVEN VIABLE. Every hard gate passes — reference logo/product/title replaced; no AI fake
+  text/logo (AI is textless food only); deterministic overlay owns all business truth; quality rises
+  WITHOUT losing content control; no Technitalia/Codimatel/gas leakage. Content-control dims = 5.0.
+  Overall best ≈4.1/5 (kitchen_glow); does NOT reach 4.8 this pass. Gap (~0.7) is deterministic-overlay
+  polish only: (1) title auto-fit (long 3-line title overlaps), (2) left-callout lane vs food zone
+  legibility, (3) white logo chip on the dark header — all in catalog_hero.py (production) => out of scope.
+- Artifacts: docs/poster2/assets/template_a_refstyle_hybrid_4_8_v1/ — reference_style_profile.json,
+  template_a_input_manifest.md, style_to_template_a_mapping.md, generation_prompt_pack.md,
+  raw_atmos_*.png (raw model candidates), corrected_candidate_*.png (deterministic corrected),
+  reference_vs_candidate_contact_sheet.png, 4.8_scorecard.md, route_verdict.md, owner_decision_needed.md,
+  validation_diagnostics.json.
+- Compliance: candidate-only AI; NO app/ production change (catalog_hero driven, not edited); no Stage1-3;
+  no Family A/B mutation; no renderer-geometry edit; no deploy/merge/push/PR; no reference business truth
+  carried; no secret value printed/logged. Stopped after candidates + scorecard + route verdict.
+
+## POSTER2 email_campaign_composite_v1 — heavy composite build + visual validation (2026-06-16)
+
+- Owner decision: heavy engineering validation slice (not docs-only). Route decided: Puppeteer/HTML
+  layered composition = reference style kernel + Template A truth + AI textless visual substrate +
+  deterministic layered overlay + screenshot validation. Chose Option C (real additive validation harness;
+  no production pipeline/renderer rewrite — those are 170KB+ and out of scope).
+- Built: scripts/poster2_email_campaign_composite_v1.py — own layered build_html() with 5 regions
+  (banner / campaign_visual / truth_overlay / gallery / footer) on the 1240x1754 catalog-hero canvas;
+  reuses app/services/poster2/catalog_hero.py HELPERS ONLY (asset prep/fonts/tokens) — catalog_hero.py
+  read+reused, NOT modified. AI substrate via the genai shim + credential loader (~/.config/poster2/
+  genai.env, no secret printed); model fallback ladder imagen-4.0-generate-001 -> -fast- -> -ultra-.
+  Playwright/Chromium render @2x; emits layer_debug.png + contact sheets.
+- Fixed the 3 polish gaps from template_a_refstyle_hybrid_4_8_v1 (~4.1): (1) callouts moved onto the WHITE
+  product stage (food substrate confined to a left 430px column) -> readable; (2) title AUTO-FIT
+  (min(124, 730/(maxlen*0.54)), lh .90) -> long 3-line title no longer overlaps, ink/red/ink accent;
+  (3) CUISTANCE logo on a WHITE rounded chip -> crisp (was a faint inverted box).
+- RESULT: route PROVEN & visually ready. Real generation ran (4 substrates: 3x imagen-4.0-generate-001,
+  1x fell back to imagen-4.0-fast on a transient 429). 4 composites. Best =
+  composite_candidate_02_fries_hero.png at ~4.5/5. Beats deterministic Catalog Hero (~4.16): YES. >=4.3
+  YES, >=4.5 YES(boundary), >=4.8 NO. AI = textless substrate only; no leaked text/logo; no
+  Technitalia/Codimatel/gas; 100% Template A truth. Gate band 4.5-4.7 -> recommend runtime hardening.
+- Next slice (recommended): productionize as an ADDITIVE email_campaign_composite_v1 template family
+  (mirror catalog_hero_v1 registration), reuse this build_html; keep AI substrate operator-gated/flagged
+  (never truth). Bounded 4.5->4.8 polish: soften food<->white seam, widen callout breathing room, add an
+  optional range/spec strip, nudge title lane right. No new AI / no content-control risk.
+- Artifacts: docs/poster2/assets/email_campaign_composite_v1/ — raw_substrate_01..04_*.png,
+  composite_candidate_01..04_*.png, layer_debug.png, reference_vs_baseline_vs_candidate.png,
+  candidate_contact_sheet.png, raw_substrate_contact_sheet.png, scorecard.md, route_verdict.md,
+  implementation_notes.md, validation_diagnostics.json.
+- Compliance: additive validation harness only; NO production runtime change (catalog_hero/pipeline/
+  renderer unmodified); no Stage3/email change; no Family A/B route touched; no deploy/merge/push/PR;
+  candidate-only AI; no AI text/logo as truth; no secret printed/logged/persisted.
+
+## POSTER2 email_campaign_composite_v1 — P1 deterministic polish (2026-06-16)
+
+- Owner-approved bounded deterministic polish on the SAME route (no architecture change, no route switch).
+  scripts/poster2_email_campaign_composite_v1_p1.py (additive). Reused the 4 REAL textless Imagen
+  substrates from the v1 run (operator-gated; no new generation, no secret use this pass). catalog_hero.py
+  helpers reused, NOT modified.
+- Polish landed + screenshot-validated: (1) soft feathered food->white seam (food layer +150px feather,
+  gradient 40->100%, no hard edge); (2) wider callout breathing room (food column 430->392, product left
+  600->648, callout lanes pulled off the seam); (3) title lane nudged right (left 470->524, "LES" clears
+  the column); (4) optional feature/range strip restating the 3 real sell-points (A/B'd vs no-strip; kept).
+- RESULT: best = p1_candidate_02_fries_hero_strip.png ~4.65/5 (up from v1 ~4.5). Beats v1 and Catalog Hero
+  (~4.16). >=4.3 / >=4.5 yes; >=4.7 borderline; >=4.8 no. Truth 100% Template A; no fabricated specs; no
+  Technitalia/gas; AI textless substrate only.
+- Gap to 4.8 is now Owner-gated CONTENT truth (real product specs/dimensions/power + gallery captions to
+  make the strip additive rather than a callout recap), not geometry. Recommend runtime hardening:
+  productionize as an additive email_campaign_composite_v1 template family (mirror catalog_hero_v1).
+- Artifacts (docs/poster2/assets/email_campaign_composite_v1/): p1_candidate_*.png (5),
+  p1_candidate_contact_sheet.png, p1_layer_debug.png, p1_reference_vs_baseline_vs_v1_vs_p1.png,
+  p1_scorecard.md, p1_route_verdict.md, p1_validation_diagnostics.json.
+- Compliance: bounded deterministic polish only; no production runtime change; no Stage3; no Family A/B;
+  no deploy/merge/push/PR; AI candidate-only & reused; no secret printed/logged/persisted.
+
+## POSTER2-SOP-SOURCE-MATERIALIZATION-V1 (2026-06-16)
+
+- Read-only materialization of /Users/tylerzhao/poster/SOP into a structured 2-route asset package.
+  scripts/poster2_sop_source_materialize_v1.py (additive, read-only source; writes ONLY under
+  docs/poster2/assets/sop_source_materialization_v1/). NO poster generation; NO Imagen/Gemini/OpenAI/Vertex
+  or any external model/network call; NO production code touched; safe-fail per file. 48 files materialized.
+- Classification (6 roles): target_email_style_source = "Fw_ Fwd_ Quand les plats..." .eml (Technitalia GAS
+  — STYLE ONLY, business truth rejected); catalogue_style_reference = Catalogue-target.pdf (found to be a
+  TECHNITALIA catalogue, commercial@technitalia.com — texture/quality only, truth rejected);
+  cuistance_product_truth_source = Cuistance_our (Planche).pdf (CUISTANCE 2023 catalogue), 目标海报1/2.jpg
+  (CUISTANCE coupe-frites poster), logo_01.jpg, 产品图/产品图2, Electric Fryer1-2, lit1-4 (CUISTANCE fryer);
+  fallback_email_reference = 3x NOUVEAUTÉ CUISTANCE emails (also truth); reference_only = food scenes;
+  unknown_needs_owner_review = logo_02.png (SANDRIVER AI — NOT CUISTANCE, excluded as brand logo).
+- Evidence-backed CUISTANCE truth extracted (NO fabrication): Coupe-frites FC001/1210025 (L380xP260xH250);
+  Cuiseur riz RC10L (L485xP420xH400, 10/6L; ref discrepancy 311001 vs 311011 -> owner); Blender CBG2000/
+  8010002 (L240xP220xH500, 2L, 1.8kW); Friteuses électriques EF series from Planche p09 (EF101V/EF131V
+  1-cuve, EF102V/EF132V 2-cuve, full dims/power/capacity/price). Contact commercial@cuistance.eu /
+  +33 (0)1 71 84 11 20 / cuistance-europe.com (vs www.cuistance.eu in target chain -> owner confirm canonical).
+- macOS Unicode bug fixed: blender filename is NFD vs NFC -> normalize("NFC") so all 3 NOUVEAUTÉ files
+  classify + dump correctly.
+- Package: source_inventory/, target_email_style_pack/, catalogue_target_style_pack/ (PDF pages rendered
+  via PyMuPDF), fallback_email_reference_pack/, cuistance_our_product_truth_pack/ (manifest + specs/images
+  index + copy candidates + source_evidence + missing_truth_report + logo/product/gallery/planche assets),
+  route_target_map/ (campaign_explainer + product_sheet + fallback), generation_ready_cases/ (5 cases),
+  owner_review_needed.md, _package_manifest.json.
+- Routes: A Campaign Explainer (Template A-like; AI = textless atmosphere only; deterministic truth overlay);
+  B Product Sheet (Template B-like; Catalogue texture; deterministic specs; no fabrication); + deterministic
+  fallback. Strongest ready case = case_001 friteuse électrique (strong images + spec-complete from Planche
+  p09; pending only owner image->ref match EF102V vs EF132V).
+- Compliance: no generation; no external model call; no production/Stage1-3/Family A-B change; no
+  deploy/merge/push/PR; every product claim evidence-backed or marked missing; no secrets. STOP after
+  materialization (no poster generation), per task.
+
+## POSTER2-CASE001-CAMPAIGN-EXPLAINER-HEAVY-GENERATION-V1 (2026-06-16)
+
+- First REAL poster-generation slice after SOP materialization. case_001 friteuse électrique via the
+  Campaign Explainer route. scripts/poster2_case001_campaign_explainer_heavy_v1.py (additive, validation-only;
+  reuses P1 composite geometry + catalog_hero HELPERS + genai shim + credential loader). NO production code
+  modified; Playwright/Chromium render; candidate-only.
+- Real generation: imagen-4.0-generate-001 — 6 TEXTLESS atmosphere substrates, all 6 accepted (no readable
+  text/logo/fake labels/gas stoves/Technitalia/Codimatel/brand leakage; gate = textless prompts + visual
+  review, OCR unavailable in env -> documented). 6 composite candidates rendered.
+- Deterministic CUISTANCE truth only: logo_01, fryer 产品图, owner's 3 callouts, EVIDENCE-BACKED EF132V spec
+  strip (RÉF. EF132V · 2 cuves 13+13 L · 3+3 kW/230V · L630×P520×H345 mm, Planche p09), gallery, contact
+  (commercial@cuistance.eu · +33 (0)1 71 84 11 20 · cuistance-europe.com). AI owns ZERO truth.
+- Owner decisions honored: fryer = EF132V; exactly 3 callouts; CUISTANCE brand/logo/contact only; target
+  email style-only; Technitalia/gas fully rejected.
+- TWO truth flags raised (no fabrication by me): (1) owner callout "Thermostat réglable 0–200°C" CONTRADICTS
+  Planche p09 "température réglable jusqu'à 190°C" -> rendered as owner-instructed but flagged for
+  reconciliation; (2) strapline "Cuisson professionnelle, croustillant maîtrisé" is generic marketing copy ->
+  owner-confirm. EF132V vs EF102V image->ref match also pending owner.
+- RESULT: best = composite_candidate_01_fries_hero.png ~4.7/5 (target reached, boundary). Beats Catalog Hero
+  (~4.16) and prior composite (~4.65); lift from the evidence-backed spec strip + correct CUISTANCE truth.
+  Gates: real gen yes; >=3 candidates yes (6); truth deterministic+evidence-backed yes; no leakage; product/
+  logo correct; >=4.5 yes; >=4.7 yes (boundary); 4.8 no. Gap = minor typography/layout (title/callout lanes)
+  + the 0–200°C truth flag (content) — NOT a route flaw.
+- Recommend runtime hardening (additive email_campaign_composite_v1 template) AFTER owner reconciles the 4
+  decisions. Artifacts: docs/poster2/assets/case001_campaign_explainer_heavy_v1/ (input_case_manifest,
+  business_truth_lock, generation_prompt_pack, raw_substrate_*, substrate_rejection_report,
+  composite_candidate_*, contact sheets, reference_vs_catalog_hero_vs_best_candidate, layer_debug,
+  scorecard, validation_diagnostics, route_verdict, owner_review_needed).
+- Compliance: candidate-only AI; no production/Stage1-3/Family A-B/Product Sheet change; no deploy/merge/
+  push/PR; no fabricated specs (one unsupported figure is owner-supplied + flagged); no secret printed.
+  STOP after candidates+screenshots+scorecard+verdict+owner_review.
+
+## POSTER2-CASE001-P2-PRODUCTIONIZATION-PREP-V1 (2026-06-16)
+
+- Bounded productionization-prep on the case_001 Campaign Explainer best (~4.7). Additive harness
+  scripts/poster2_case001_campaign_explainer_p2_v1.py (imports the case001 harness; reuses the ALREADY-
+  generated fries_hero substrate — NO new AI call). NO production code / Stage1-3 / Family A-B / Product
+  Sheet / email change. Candidate-only.
+- Owner decisions applied: thermostat -> evidence-backed "Thermostat réglable jusqu'à 190°C" (Planche p09;
+  the unsupported "0–200°C" REMOVED); EF132V kept (image↔ref still owner-review); strapline "Cuisson
+  professionnelle, croustillant maîtrisé" approved; canonical contact commercial@cuistance.eu · +33 (0)1 71
+  84 11 20 · cuistance-europe.com.
+- Bounded geometry nudges (deterministic only): title lane right (524->548), left callout lane right
+  (410->448), fries_hero locked, EF132V spec strip preserved.
+- RESULT: p2_composite_candidate_best.png ~4.75/5 (no regression vs case001 ~4.7; truth now fully
+  evidence-backed/owner-approved + cleaner lanes). Gates: >=4.7 yes; >=4.75 yes; 4.8 stretch not yet;
+  no unsupported 0–200°C; no target-business leakage; no AI text/logo/spec. Residual to 4.8: title "LES"
+  still grazes food blend; plain gallery; low-res logo (400×80).
+- Recommend runtime hardening (separate slice, owner go-ahead required): additive email_campaign_composite_v1
+  template family (register in template_registry.py + templates/specs + app/templates_html), reuse this
+  build_html; AI substrate operator-gated. P2 does NOT wire production.
+- Artifacts: docs/poster2/assets/case001_campaign_explainer_p2_v1/ (p2_composite_candidate_best.png,
+  p2_reference_vs_p1_vs_p2.png, p2_layer_debug.png, p2_scorecard.md, p2_business_truth_lock.md,
+  p2_route_verdict.md, p2_owner_review_needed.md, validation_diagnostics.json).
+- Compliance: candidate-only (reused substrate); no deploy/push/merge/PR; no Stage1-3/Family A-B/Product
+  Sheet/email change; no fabricated specs (0–200°C removed); no secret printed. STOP after screenshot +
+  scorecard + verdict + productionization recommendation.
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE-V1-RUNTIME-HARDENING (2026-06-17)
+
+- Owner-authorized ADDITIVE productionization of the validated P2 Campaign Explainer design (~4.75) as a
+  new isolated template family `email_campaign_composite_v1`. Mirrors the catalog_hero additive pattern;
+  does NOT alter Family A/B, Product Sheet, Catalog Hero, the shared PosterPipeline/RendererSelector, or
+  Stage1/2/3. (The shared HTTP-endpoint dispatch branch in main.py was intentionally NOT added — flagged as
+  the final exposure step requiring explicit owner go-ahead.)
+- Files added/changed:
+  - NEW app/services/poster2/email_campaign_composite.py — render module (6-region contract: banner /
+    campaign_visual(operator-gated substrate, never truth) / truth_overlay / restated_band / gallery /
+    footer); P2 geometry; deterministic CUISTANCE case001 truth defaults; build_html + Playwright render +
+    Pillow offline fallback; business_truth_lock + build_contract_review (leakage gate + 0–200°C gate).
+  - NEW app/templates/specs/email_campaign_composite_v1.json — spec/contract truth (regions/slots/canvas +
+    business_truth_lock; thermostat default "jusqu'à 190°C"; 0–200°C forbidden; rejected target-business list).
+  - EDIT app/services/poster2/template_registry.py — ADDITIVE only: family CAMPAIGN_COMPOSITE_PORTRAIT,
+    template metadata email_campaign_composite_v1 (v1.0.0), EMAIL_CAMPAIGN_COMPOSITE_TEMPLATE_IDS +
+    is_email_campaign_composite_template(). Existing entries untouched.
+  - NEW tests/poster2/test_email_campaign_composite.py (14 tests). EDIT tests/poster2/test_template_registry.py
+    snapshot set to include the new additive id (existing ids unchanged).
+  - NEW scripts/poster2_email_campaign_composite_v1_runtime_smoke.py (drives the production module).
+- Truth defaults (deterministic, evidence-backed/owner-approved): brand CUISTANCE; product electric
+  double-basket fryer; ref EF132V (owner-review flag retained); spec strip RÉF. EF132V · 2 cuves 13+13 L ·
+  3+3 kW/230V · L630×P520×H345 mm; callouts [2 cuves inox amovibles · Thermostat réglable jusqu'à 190°C ·
+  Construction inox / usage professionnel]; strapline "Cuisson professionnelle, croustillant maîtrisé";
+  contact commercial@cuistance.eu · +33 (0)1 71 84 11 20 · cuistance-europe.com. AI substrate operator-gated,
+  never business truth (substrate_source = operator_upload|absent; ai_runtime_asset_used=False).
+- Tests: new + registry + catalog_hero = 30 passed. app.main imports cleanly. The 52 failing tests in
+  test_renderer.py / test_slot_contracts.py are PRE-EXISTING and unrelated (those files are UNMODIFIED;
+  failure is a committed `_build_html() gallery_items_status` signature mismatch — no path from my additive
+  registry/module change).
+- Runtime smoke (production module, case001 data + reused fries_hero substrate): ENGINE=chromium,
+  structure_complete=True, callouts=3, leakage_clean=True, unsupported_0_200C=False, ai_substrate_is_truth=
+  False. Output VISUALLY IDENTICAL to the P2 design (runtime_vs_p2_no_regression.png) — no regression.
+  Artifacts: docs/poster2/assets/email_campaign_composite_v1_runtime/ (runtime_smoke_case001.png,
+  runtime_contract_review.json, runtime_vs_p2_no_regression.png).
+- Remaining owner decisions: EF132V vs EF102V image↔ref match; higher-res CUISTANCE logo; explicit go-ahead
+  to wire the main.py endpoint dispatch branch (additive _generate_email_campaign_composite_v1, mirroring
+  _generate_catalog_hero_v1) to expose the family over the API.
+- Compliance: additive + isolated; no Stage1-3/Family A-B/Product Sheet/Catalog Hero/email change; no shared
+  endpoint dispatch change; AI substrate operator-gated/candidate-only; no fabricated specs; no
+  target-business leakage; no deploy/merge/push/PR; no secret printed. STOP after smoke + tests + log.
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE-V1-API-SMOKE (2026-06-17)
+
+- Owner-approved bounded ADDITIVE API smoke for email_campaign_composite_v1. Mirrors the catalog_hero_v1
+  endpoint branch pattern; no shared-behavior change.
+- Files changed (additive only):
+  - app/main.py: import is_email_campaign_composite_template; allow renderer_mode=puppeteer for the new
+    family in _validate_poster2_renderer_request (OR clause); NEW _generate_email_campaign_composite_v1()
+    (dedicated render path via app/services/poster2/email_campaign_composite.render_async, reuses
+    AssetLoader; scenario image = operator-gated substrate, never truth); NEW dispatch branch
+    `if is_email_campaign_composite_template(payload.template_id)` right after the catalog_hero branch.
+    Family A/B / Product Sheet / Catalog Hero dispatch unchanged.
+  - app/schemas/poster2.py: ADD optional GeneratePosterV2Response.email_campaign_composite_contract_review
+    (default None; omitted for other families) — mirrors catalog_hero_contract_review.
+  - NEW tests/poster2/test_email_campaign_composite_api.py (2 API smoke tests, AssetLoader mocked w/ case001
+    images + operator-upload substrate; no network/AI/secrets).
+  - NEW scripts/poster2_email_campaign_composite_v1_api_smoke.py (artifact producer via TestClient).
+- API smoke result (real /api/v2/generate-poster via TestClient): HTTP 200; template_id routes to
+  email_campaign_composite_v1; render_engine_used=chromium; contract review structure_complete=True,
+  callout_count=3, thermostat_uses_unsupported_0_200C=False, leakage_clean=True, ai_substrate_is_truth=False,
+  ai_runtime_asset_used=False, substrate_source=operator_upload. Output VISUALLY IDENTICAL to P2/runtime
+  (api_smoke_vs_p2_no_regression.png) — no regression. Catalog-hero/Family-B review shells omitted.
+- Tests: new module + API smoke + registry + catalog_hero = 32 passed. app.main imports cleanly. Existing
+  template ids unchanged. The 7 failing test_api.py tests (CORS/timeout/error-handling for Family A/B) and
+  the 52 renderer/slot tests are PRE-EXISTING and unrelated — PROVEN: stashing my tracked edits and re-running
+  the sampled 3 still fails identically. Not fixed in this slice (out of scope per task).
+- Artifacts: docs/poster2/assets/email_campaign_composite_v1_runtime/ api_smoke_case001.png,
+  api_smoke_response_review.json, api_smoke_vs_p2_no_regression.png.
+- Compliance: additive + isolated endpoint branch; no Stage1-3 UX / Family A-B / Product Sheet / Catalog
+  Hero / email-sending change; AI substrate operator-gated/candidate-only; no fabricated specs; no
+  target-business leakage; no deploy/merge/push/PR; no secret printed. Did NOT touch the pre-existing 52
+  renderer tests. STOP after API smoke + artifact + tests + log.
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE-BUSINESS-FLOW-MVP (2026-06-17)
+
+- Proved the real business loop INPUT MATERIALS -> GENERATE POSTER -> SEND EMAIL through the EXISTING
+  endpoints (no production code changed this slice; reused /api/v2/generate-poster, /email/preview,
+  /email/send + the existing email provider infra). Single command:
+  scripts/poster2_email_campaign_business_flow_mvp_v1.py (TestClient; AssetLoader mocked w/ case001
+  CUISTANCE assets; no network/AI/secrets). Plus tests/poster2/test_email_campaign_business_flow.py.
+- Results: (1) material input WORKS (case001 logo+fryer+gallery+operator-upload substrate + deterministic
+  copy); (2) poster generation WORKS (HTTP 200, email_campaign_composite_v1, chromium, structure_complete,
+  callouts=3 -> business_flow_poster.png); (3) email preview WORKS (deterministic CUISTANCE draft ->
+  email_preview.html/.txt); (3b) send adapter WORKS (inline_only -> status preview_only); real external
+  send BLOCKED: resend -> status error "Resend is not configured."
+- Business truth review PASS: CUISTANCE only; no Technitalia/Codimatel/gas leakage; thermostat "jusqu'à
+  190°C" (no 0–200°C); AI substrate NOT truth (substrate_source=operator_upload, ai_substrate_is_truth=false).
+- Two exact operational blockers for real delivery: (1) Resend not configured -> set RESEND_API_KEY +
+  verified from-email + real recipient; (2) poster hosting -> the generate endpoint returns a ~9.5MB inline
+  data: URL which the email draft embeds (html+text), exceeding the 2 MiB body guard (MAX_BODY_BYTES) on
+  send (guard hint: upload to R2/GCS, pass key/url). MVP sent a lean deterministic body; full poster-inline
+  email saved as email_preview.html. The record-attachment builder also can't fetch data: URLs (http only).
+- Next smallest step: post-generation upload the email_campaign_composite PNG to R2/GCS (reuse R2 client),
+  set poster_record final_poster.url to the https URL, configure Resend env -> /email/send (resend,
+  attachment_types=[poster_png]) delivers the real poster email.
+- Artifacts: docs/poster2/assets/email_campaign_business_flow_mvp_v1/ (business_flow_poster.png,
+  email_preview.html, email_preview.txt, send_attempt_result.json, business_flow_report.md).
+- Tests: business_flow + composite + api = 15 passed.
+- Compliance: no production code changed this slice; no Stage1-3 rewrite / old-flow refactor / Product
+  Sheet / Catalog Hero change; AI substrate operator-gated/never truth; no fabricated specs; no
+  target-business leakage; no deploy/merge/push/PR; no secret printed.
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE-REMOTE-OPS-SMOKE-V2 (2026-06-17)
+
+- Operational smoke of the deployed business loop for email_campaign_composite_v1. Remote = 
+  https://ai-service-leob.onrender.com. scripts/poster2_remote_ops_smoke_v2.py (safe remote probe +
+  local generation evidence; presence booleans only, no secret printed). No deploy/push/merge.
+- REMOTE evidence: GET /health = 200 (up); POST /api/v2/generate-poster = HTTP 401 (auth-gated);
+  email_campaign_composite_v1 NOT deployed (local/uncommitted: email_campaign_composite.py untracked,
+  app/main.py modified-not-committed; last commit 148269f). => 2 hard blockers: (1) family not deployed
+  (deploy needs push/merge -> forbidden w/o auth); (2) remote endpoint auth-gated (no remote creds; won't
+  expose). Remote env (Gemini/R2/Resend) presence UNKNOWN — cannot read without auth, not fabricated.
+- LOCAL env presence (this run): Gemini/Google=true; R2_configured=false; Resend_configured=false.
+- ADDED (additive, this family only): R2 hosting bridge in _generate_email_campaign_composite_v1 — after
+  render, r2_client.put_bytes(make_key("poster2/email_campaign_composite", trace.png), png, image/png);
+  if R2 configured -> final_url/final_poster.url = HTTPS R2 URL + poster_hosting="r2"; else falls back to
+  inline data: URL (poster_hosting="inline_data_url"). Reuses existing r2_client; never fails generation
+  on hosting error. So on Render (R2 configured) the email draft references a small HTTPS URL (no 9.5MB
+  data: URL) -> 2 MiB body guard no longer blocks /email/send. Tested:
+  tests/poster2/test_email_campaign_composite_hosting.py (configured->https; unconfigured->data: fallback).
+- LOCAL flow evidence (TestClient, AssetLoader mocked w/ case001 + operator substrate): generate 200,
+  chromium, structure_complete=true, callouts=3, poster_hosting=inline_data_url (R2 absent locally) ->
+  generated_poster.png (== accepted P2 design); preview OK (subject "CUISTANCE | Les Friteuses Électriques");
+  send adapter inline_only=preview_only, resend=error "Resend is not configured." (local). NOT claiming a
+  provider-accepted send.
+- Business truth review PASS: CUISTANCE only; EF132V/fryer line; thermostat "jusqu'à 190°C" (not 0–200°C);
+  no Technitalia/Codimatel/gas leakage; AI substrate not truth (operator_upload). Note: this family does NOT
+  call Gemini at render (deterministic overlay over operator substrate).
+- Files changed: app/main.py (additive R2 bridge for this family only) + app/schemas/poster2.py
+  (email_campaign_composite_contract_review, from prior slice). New: scripts/poster2_remote_ops_smoke_v2.py,
+  tests/poster2/test_email_campaign_composite_hosting.py, docs/poster2/assets/remote_ops_smoke_v2/*.
+  Tests: 35 passed (composite+api+hosting+flow+registry+catalog_hero).
+- Owner action to run the real remote loop: (1) deploy the family (push/merge — needs authorization);
+  (2) provide remote ops auth (or run server-side); (3) confirm Render R2 + Resend env + approved recipient.
+- Compliance: additive only; no Stage1-3 UX / Family A-B / Product Sheet / Catalog Hero change; no shared
+  email-semantics change beyond the hosting bridge; AI substrate operator-gated/never truth; no fabricated
+  specs; no secret printed/persisted; no deploy/push/merge/PR. Did not claim a real send success.

@@ -1,0 +1,60 @@
+{
+  "_comment": "Poster 2.0 — email_campaign_composite_v1: ADDITIVE portrait campaign-explainer composite family. Productizes the validated P2 case_001 design (~4.75/5). Rendered by the dedicated additive path app/services/poster2/email_campaign_composite.py — NOT PosterPipeline. Contract truth (regions/slots/canvas/default truth). Does NOT change Family A/B, Product Sheet, or Catalog Hero.",
+  "template_id": "email_campaign_composite_v1",
+  "version": "1.0.0",
+  "contract_version": "poster2.email_campaign_composite_v1.v1",
+
+  "behavior_modes": {
+    "header_mode": "charcoal_brand_bar_logo_chip",
+    "campaign_visual_mode": "operator_gated_atmosphere_substrate",
+    "title_mode": "heavy_caps_autofit_red_accent",
+    "product_annotation_mode": "white_stage_dashed_callouts",
+    "spec_mode": "evidence_backed_spec_strip",
+    "bottom_mode": "restated_title_strapline",
+    "gallery_mode": "isolated_on_white_range",
+    "substrate_provenance": "operator_upload_or_absent_never_ai_truth"
+  },
+
+  "canvas_w": 1240,
+  "canvas_h": 1754,
+  "safe_margin": 40,
+
+  "_runtime_contract_regions": {
+    "_comment": "The 6 required runtime regions. Boxes are x,y,w,h.",
+    "banner_region": {"x": 0, "y": 0, "w": 1240, "h": 130, "role": "brand_bar", "mandatory": true},
+    "campaign_visual_region": {"x": 0, "y": 130, "w": 392, "h": 850, "role": "atmosphere_substrate", "mandatory": false, "operator_gated": true, "ai_substrate_is_truth": false},
+    "truth_overlay_region": {"x": 392, "y": 130, "w": 848, "h": 850, "role": "title_product_callouts_spec", "mandatory": true},
+    "restated_band_region": {"x": 0, "y": 992, "w": 1240, "h": 200, "role": "restated_title_strapline", "mandatory": false},
+    "gallery_region": {"x": 40, "y": 1252, "w": 1160, "h": 316, "role": "product_range_matrix", "mandatory": false},
+    "footer_region": {"x": 0, "y": 1690, "w": 1240, "h": 60, "role": "contact_display", "mandatory": false}
+  },
+
+  "logo_slot": {"x": 110, "y": 38, "w": 220, "h": 54, "fit": "contain", "bg_color": "#FFFFFF", "shadow": true, "radius": 10},
+  "title_slot": {"x": 548, "y": 150, "w": 660, "h": 360, "font_key": "display_heavy", "font_size": 120, "color": "#262626", "accent_line_color": "#E1002A", "align": "left", "max_lines": 3, "line_height": 0.90, "auto_shrink": true, "transform": "uppercase"},
+  "product_slot": {"x": 648, "y": 498, "w": 432, "h": 438, "fit": "contain", "bg_color": "transparent", "shadow": true, "radius": 0},
+  "substrate_slot": {"x": 0, "y": 130, "w": 542, "h": 850, "fit": "cover", "operator_gated": true, "ai_truth": false},
+  "spec_strip_slot": {"x": 200, "y": 884, "w": 840, "h": 60, "font_key": "brand_bold", "font_size": 19, "color": "#262626", "align": "center"},
+  "gallery_slot": {"x": 40, "y": 1252, "w": 1160, "h": 316, "item_count_max": 3, "item_gap": 14, "fit": "contain"},
+
+  "feature_callouts_max": 3,
+
+  "business_truth_lock": {
+    "_comment": "Deterministic, evidence-backed / owner-approved truth defaults for case_001. AI owns NONE of these.",
+    "brand": "CUISTANCE",
+    "product": "electric double-basket fryer",
+    "product_ref": "EF132V",
+    "product_ref_owner_review": true,
+    "title": "Les Friteuses Électriques",
+    "strapline": "Cuisson professionnelle, croustillant maîtrisé",
+    "callouts": [
+      "2 cuves inox amovibles",
+      "Thermostat réglable jusqu'à 190°C",
+      "Construction inox / usage professionnel"
+    ],
+    "spec_row": "RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · L630 × P520 × H345 mm",
+    "contact": "commercial@cuistance.eu · +33 (0)1 71 84 11 20 · cuistance-europe.com",
+    "thermostat_default_evidence_backed": "jusqu'à 190°C (Planche p09)",
+    "thermostat_unsupported_0_200C_forbidden": true,
+    "rejected_target_business_truth": ["Technitalia", "Groupe Codimatel", "Les Réchauds Gaz", "gas stove", "kaly@technitalia.com"]
+  }
+}

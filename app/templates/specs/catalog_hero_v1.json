@@ -1,0 +1,89 @@
+{
+  "_comment": "Poster 2.0 — catalog_hero_v1: ADDITIVE portrait editorial catalog-hero family. Geometry derived from the 4.47/5 reconstruction (scripts/poster2_catalog_hero_heavy.py). Rendered by the dedicated additive path app/services/poster2/catalog_hero.py — NOT PosterPipeline. This spec is contract truth (regions/slots/canvas); it does not change Family A/B.",
+  "template_id": "catalog_hero_v1",
+  "version": "1.0.0",
+  "contract_version": "poster2.catalog_hero_v1.v1",
+  "behavior_modes": {
+    "hero_mode": "dual_co_anchor",
+    "feature_mode": "dashed_radial_callout",
+    "product_annotation_mode": "product_anchor_callouts",
+    "product_layout_mode": "single_primary_callout_ring",
+    "header_mode": "charcoal_brand_bar_lockup",
+    "bottom_mode": "restated_title_gallery",
+    "gallery_mode": "isolated_on_white_range",
+    "top_copy_mode": "heavy_caps_title",
+    "scenario_treatment": "co_anchor_full"
+  },
+  "beauty_tokens": {
+    "shell_surface": "white_editorial_field",
+    "shell_border": "none",
+    "shell_shadow": "product_contact_only",
+    "accent_tone": "dominant_red_ink",
+    "text_emphasis": "heavy_condensed_caps"
+  },
+  "canvas_w": 1240,
+  "canvas_h": 1754,
+  "safe_margin": 40,
+
+  "background_prompt_hint": "flat white editorial poster field, no atmosphere, no gradient",
+
+  "_regions": {
+    "_comment": "Contract truth for the portrait region rhythm (loud->quiet cadence). Boxes are x,y,w,h.",
+    "catalog_header_region": {"x": 0, "y": 0, "w": 1240, "h": 120, "role": "brand_bar", "mandatory": true},
+    "catalog_hero_region": {"x": 0, "y": 125, "w": 406, "h": 846, "role": "food_co_anchor", "mandatory": false, "owner_gated": true},
+    "catalog_title_region": {"x": 462, "y": 146, "w": 770, "h": 340, "role": "title", "mandatory": true},
+    "catalog_product_region": {"x": 640, "y": 498, "w": 452, "h": 444, "role": "product", "mandatory": true},
+    "catalog_callout_layer": {"x": 0, "y": 0, "w": 1240, "h": 930, "role": "annotation", "mandatory": false, "max_items": 3},
+    "catalog_band_region": {"x": 0, "y": 936, "w": 1240, "h": 260, "role": "restated_title", "mandatory": false},
+    "catalog_gallery_region": {"x": 40, "y": 1226, "w": 1160, "h": 360, "role": "product_range_matrix", "mandatory": false},
+    "catalog_contact_region": {"x": 0, "y": 1694, "w": 1240, "h": 40, "role": "contact_display", "mandatory": false}
+  },
+
+  "logo_slot": {
+    "x": 104, "y": 33, "w": 200, "h": 54,
+    "fit": "contain", "bg_color": "transparent", "shadow": false, "radius": 0
+  },
+  "brand_name_slot": {
+    "x": 170, "y": 44, "w": 360, "h": 36,
+    "font_key": "brand_bold", "font_size": 26, "color": "#FFFFFF",
+    "align": "left", "max_lines": 1, "line_height": 1.1, "auto_shrink": true
+  },
+  "agent_name_slot": {
+    "x": 980, "y": 44, "w": 220, "h": 36,
+    "font_key": "brand_regular", "font_size": 18, "color": "#FFFFFF",
+    "align": "right", "max_lines": 1, "line_height": 1.1, "auto_shrink": true
+  },
+  "title_slot": {
+    "x": 462, "y": 146, "w": 770, "h": 340,
+    "font_key": "display_heavy", "font_size": 120, "color": "#E1002A",
+    "align": "left", "max_lines": 3, "line_height": 0.82, "auto_shrink": true,
+    "transform": "uppercase"
+  },
+  "subtitle_slot": {
+    "x": 120, "y": 1120, "w": 1000, "h": 40,
+    "font_key": "brand_bold", "font_size": 22, "color": "#3A3D42",
+    "align": "center", "max_lines": 2, "line_height": 1.2, "auto_shrink": true,
+    "transform": "uppercase"
+  },
+  "product_slot": {
+    "x": 640, "y": 498, "w": 452, "h": 444,
+    "fit": "contain", "bg_color": "transparent", "shadow": true, "radius": 0
+  },
+  "scenario_slot": {
+    "x": 0, "y": 125, "w": 406, "h": 846,
+    "fit": "cover", "bg_color": "transparent", "shadow": false, "radius": 0
+  },
+  "gallery_slot": {
+    "x": 40, "y": 1226, "w": 1160, "h": 360,
+    "item_count_max": 4, "item_gap": 14, "fit": "contain", "caption": true
+  },
+
+  "feature_callouts": [
+    {"label_box": {"x": 300, "y": 506, "w": 160, "h": 40, "font_key": "brand_bold", "font_size": 18, "color": "#262626", "align": "right", "max_lines": 2, "line_height": 1.15},
+     "anchor_x": 690, "anchor_y": 560, "anchor_radius": 6, "anchor_color": "#E1002A", "leader_color": "#262626", "leader_width": 1},
+    {"label_box": {"x": 300, "y": 686, "w": 160, "h": 40, "font_key": "brand_bold", "font_size": 18, "color": "#262626", "align": "right", "max_lines": 2, "line_height": 1.15},
+     "anchor_x": 666, "anchor_y": 706, "anchor_radius": 6, "anchor_color": "#E1002A", "leader_color": "#262626", "leader_width": 1},
+    {"label_box": {"x": 1040, "y": 552, "w": 150, "h": 40, "font_key": "brand_bold", "font_size": 18, "color": "#262626", "align": "left", "max_lines": 2, "line_height": 1.15},
+     "anchor_x": 1058, "anchor_y": 552, "anchor_radius": 6, "anchor_color": "#E1002A", "leader_color": "#262626", "leader_width": 1}
+  ]
+}

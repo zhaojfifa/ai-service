@@ -86,10 +86,14 @@ def test_validate_template_registration_rejects_version_mismatch():
 
 def test_template_registry_snapshot_contains_family_a_template():
     registry = get_template_registry()
+    # Family A/B lineage is unchanged; catalog_hero_v1 and email_campaign_composite_v1 are the
+    # additive portrait families (each isolated to its own dedicated render path).
     assert set(registry) == {
         "template_dual_v2",
         "template_dual_v2_airy",
         "template_dual_v2_studio",
         "template_dual_v2_product_hero",
         "template_product_sheet_v1",
+        "catalog_hero_v1",
+        "email_campaign_composite_v1",
     }

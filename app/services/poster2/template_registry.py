@@ -42,6 +42,17 @@ class TemplateMetadata:
 
 FAMILY_A_CAMPAIGN_EXPLAINER = "family_a_campaign_explainer"
 FAMILY_B_PRODUCT_SHEET_STORY = "family_b_product_sheet_story"
+# Additive portrait family (HX-POSTER2 catalog-hero productization). Does NOT alter
+# Family A/B. Editorial portrait catalog-hero grammar (charcoal brand bar, warm food
+# co-anchor, callout-ringed product, heavy red caps title, range gallery). Rendered by a
+# dedicated additive path (app/services/poster2/catalog_hero.py), not PosterPipeline.
+CATALOG_HERO_PORTRAIT = "catalog_hero_portrait"
+# Additive portrait family (POSTER2-EMAIL-CAMPAIGN-COMPOSITE-V1 productionization). Does NOT alter
+# Family A/B, Product Sheet, or Catalog Hero. Campaign-explainer composite: deterministic CUISTANCE
+# truth overlay (banner/title/product/callouts/spec strip/gallery/contact) over an operator-gated
+# visual atmosphere substrate (never business truth). Rendered by the dedicated additive path
+# app/services/poster2/email_campaign_composite.py — not PosterPipeline.
+CAMPAIGN_COMPOSITE_PORTRAIT = "campaign_composite_portrait"
 
 _FAMILY_REGISTRY: dict[str, TemplateFamilyDefinition] = {
     FAMILY_A_CAMPAIGN_EXPLAINER: TemplateFamilyDefinition(
@@ -66,6 +77,44 @@ _FAMILY_REGISTRY: dict[str, TemplateFamilyDefinition] = {
             "degraded_must_be_explicit",
             "incomplete_structure_must_be_explicit",
             "deliverable_requires_minimum_structure",
+        ),
+    ),
+    CATALOG_HERO_PORTRAIT: TemplateFamilyDefinition(
+        family_id=CATALOG_HERO_PORTRAIT,
+        display_name="Catalog Hero (Portrait)",
+        description=(
+            "Editorial portrait catalog-hero: charcoal brand bar, warm food co-anchor, "
+            "callout-ringed product, heavy red caps title, restated title, isolated-on-"
+            "white product range gallery. Food hero is operator-supplied (owner-gated)."
+        ),
+        default_preferred_renderer="puppeteer",
+        default_fallback_renderer="pillow",
+        output_semantics=(
+            "degraded_must_be_explicit",
+            "incomplete_structure_must_be_explicit",
+            "deliverable_requires_minimum_structure",
+            "portrait_canvas",
+            "food_hero_owner_gated",
+        ),
+    ),
+    CAMPAIGN_COMPOSITE_PORTRAIT: TemplateFamilyDefinition(
+        family_id=CAMPAIGN_COMPOSITE_PORTRAIT,
+        display_name="Campaign Composite (Portrait)",
+        description=(
+            "Campaign-explainer composite: deterministic CUISTANCE truth overlay (charcoal banner + "
+            "logo chip, heavy red title, product hero, 3 callouts, evidence-backed spec strip, range "
+            "gallery, contact) over an operator-gated visual atmosphere substrate. The substrate is "
+            "candidate-only and NEVER business truth; all text/logo/spec/contact are deterministic."
+        ),
+        default_preferred_renderer="puppeteer",
+        default_fallback_renderer="pillow",
+        output_semantics=(
+            "degraded_must_be_explicit",
+            "incomplete_structure_must_be_explicit",
+            "deliverable_requires_minimum_structure",
+            "portrait_canvas",
+            "campaign_substrate_operator_gated",
+            "deterministic_business_truth",
         ),
     ),
 }
@@ -204,6 +253,56 @@ _TEMPLATE_REGISTRY: dict[str, TemplateMetadata] = {
             "product_hero_region",
         ),
     ),
+    # Additive portrait catalog-hero template (productizes catalog_hero_v1 grammar).
+    "catalog_hero_v1": TemplateMetadata(
+        template_id="catalog_hero_v1",
+        template_version="1.0.0",
+        template_family=CATALOG_HERO_PORTRAIT,
+        family_mode="catalog_hero_core",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=(
+            "puppeteer_timeout",
+            "puppeteer_template_render_failed",
+            "puppeteer_navigation_failed",
+            "puppeteer_screenshot_failed",
+            "puppeteer_browser_launch_failed",
+            "puppeteer_asset_load_failed",
+            "puppeteer_missing_chromium",
+            "puppeteer_missing_system_libs",
+            "puppeteer_unknown_error",
+        ),
+        minimum_deliverable_regions=(
+            "catalog_header_region",
+            "catalog_title_region",
+            "catalog_product_region",
+        ),
+    ),
+    # Additive campaign-composite template (productizes the validated P2 case_001 design ~4.75).
+    "email_campaign_composite_v1": TemplateMetadata(
+        template_id="email_campaign_composite_v1",
+        template_version="1.0.0",
+        template_family=CAMPAIGN_COMPOSITE_PORTRAIT,
+        family_mode="campaign_composite_core",
+        preferred_renderer="puppeteer",
+        fallback_renderer="pillow",
+        allowed_fallback_reason_codes=(
+            "puppeteer_timeout",
+            "puppeteer_template_render_failed",
+            "puppeteer_navigation_failed",
+            "puppeteer_screenshot_failed",
+            "puppeteer_browser_launch_failed",
+            "puppeteer_asset_load_failed",
+            "puppeteer_missing_chromium",
+            "puppeteer_missing_system_libs",
+            "puppeteer_unknown_error",
+        ),
+        minimum_deliverable_regions=(
+            "banner_region",
+            "truth_overlay_region",
+            "footer_region",
+        ),
+    ),
 }
 
 
@@ -261,3 +360,25 @@ CAMPAIGN_EXPLAINER_TEMPLATE_IDS: frozenset[str] = frozenset(
 def is_campaign_explainer_template(template_id: str) -> bool:
     """True for the template_dual_v2 Family A campaign-explainer lineage."""
     return template_id in CAMPAIGN_EXPLAINER_TEMPLATE_IDS
+
+
+# Additive portrait catalog-hero family membership. Family A/B ids return False; used by
+# the API endpoint to dispatch catalog_hero requests to the dedicated additive path
+# WITHOUT entering the shared PosterPipeline / RendererSelector (Family A/B untouched).
+CATALOG_HERO_TEMPLATE_IDS: frozenset[str] = frozenset({"catalog_hero_v1"})
+
+
+def is_catalog_hero_template(template_id: str) -> bool:
+    """True for the additive portrait catalog-hero family."""
+    return template_id in CATALOG_HERO_TEMPLATE_IDS
+
+
+# Additive campaign-composite family membership. Family A/B, Product Sheet, and Catalog Hero ids return
+# False; intended for a dedicated additive render path (app/services/poster2/email_campaign_composite.py),
+# never the shared PosterPipeline / RendererSelector.
+EMAIL_CAMPAIGN_COMPOSITE_TEMPLATE_IDS: frozenset[str] = frozenset({"email_campaign_composite_v1"})
+
+
+def is_email_campaign_composite_template(template_id: str) -> bool:
+    """True for the additive campaign-composite family."""
+    return template_id in EMAIL_CAMPAIGN_COMPOSITE_TEMPLATE_IDS

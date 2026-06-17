@@ -1605,7 +1605,11 @@ from app.services.poster2.pipeline import (
     reset_request_lifecycle_id,
     set_request_lifecycle_id,
 )
-from app.services.poster2.template_registry import is_campaign_explainer_template
+from app.services.poster2.template_registry import (
+    is_campaign_explainer_template,
+    is_catalog_hero_template,
+    is_email_campaign_composite_template,
+)
 
 _poster2_pipeline: P2Pipeline | None = None
 
@@ -1626,11 +1630,224 @@ def _to_asset_ref(ref) -> P2AssetRef:
 def _validate_poster2_renderer_request(template_id: str, renderer_mode: str) -> None:
     if renderer_mode != "puppeteer":
         return
-    if not is_campaign_explainer_template(template_id):
+    # Family A campaign-explainer lineage and the additive portrait catalog-hero family
+    # may use the Chromium engine. Family B still rejects an explicit puppeteer request.
+    if not (
+        is_campaign_explainer_template(template_id)
+        or is_catalog_hero_template(template_id)
+        or is_email_campaign_composite_template(template_id)
+    ):
         raise ValueError(
             "renderer_mode=puppeteer is only enabled for the template_dual_v2 "
             "campaign-explainer lineage during the pilot"
         )
+
+
+async def _generate_catalog_hero_v1(
+    request_id: str | None,
+    spec: "P2PosterSpec",
+    payload: GeneratePosterV2Request,
+) -> JSONResponse:
+    """Additive portrait catalog-hero render path. Dispatched ONLY for catalog-hero
+    template ids; does NOT enter PosterPipeline / RendererSelector (Family A/B untouched).
+    Reuses the existing AssetLoader for asset resolution and the request schema/slots."""
+    import base64
+    import hashlib
+    from io import BytesIO
+
+    from app.services.poster2 import catalog_hero as _ch
+    from app.services.poster2.asset_loader import AssetLoader as _AssetLoader
+
+    _poster2_lifecycle_log("catalog_hero_dispatch", request_id=request_id, template_id=payload.template_id)
+    assets = await _AssetLoader().load(spec)
+    inputs = _ch.resolve_inputs(
+        brand_name=payload.brand_name,
+        agent_name=payload.agent_name,
+        title=payload.title,
+        subtitle=payload.subtitle or "",
+        sku_text=payload.sku_text or "",
+        features=list(payload.features or []),
+        cta_label=payload.on_poster_cta_label or "",
+        cta_email=payload.on_poster_cta_email or "",
+        logo=assets.logo,
+        product=assets.product,
+        scenario_image=assets.scenario,
+        gallery_images=list(assets.gallery or []),
+    )
+    result = await _ch.render_catalog_hero_async(inputs)
+
+    buf = BytesIO()
+    result.image.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
+    final_hash = hashlib.sha256(png_bytes).hexdigest()[:16]
+    final_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
+    trace_id = request_id or final_hash
+
+    response_payload = GeneratePosterV2Response(
+        poster_key=generate_poster_key(),
+        trace_id=trace_id,
+        final_url=final_url,
+        final_hash=final_hash,
+        foreground_url=final_url,
+        background_url="",
+        background_seed=0,
+        background_model="none",
+        template_id=_ch.CATALOG_HERO_TEMPLATE_ID,
+        template_version=_ch.CATALOG_HERO_TEMPLATE_VERSION,
+        template_contract_version=_ch.CATALOG_HERO_CONTRACT_VERSION,
+        engine_version="catalog_hero_v1",
+        renderer_mode=payload.renderer_mode,
+        render_engine_used=result.engine,
+        foreground_renderer=result.engine,
+        background_renderer="none",
+        poster_spec_hash=final_hash,
+        timings_ms=result.timings_ms,
+        debug_artifacts=Poster2DebugArtifacts(),
+        degraded=result.degraded,
+        degraded_reason="chromium_unavailable_pillow_fallback" if result.degraded else None,
+        structure_complete=result.contract_review["structure_complete"],
+        incomplete_structure=not result.contract_review["structure_complete"],
+        deliverable=result.contract_review["structure_complete"],
+        missing_required_slots=result.contract_review["missing_required_slots"],
+        catalog_hero_contract_review=result.contract_review,
+        catalog_hero_grammar_profile=result.grammar_profile,
+    )
+    response_payload_dict = _model_dump(response_payload)
+    # omit empty optional reviews that belong to the Family A/B response shape
+    for empty_key in ("template_b_parity_review",):
+        if response_payload_dict.get(empty_key) is None:
+            response_payload_dict.pop(empty_key, None)
+
+    poster_key = response_payload.poster_key
+    create_poster_record(
+        poster_key=poster_key,
+        request_snapshot=_model_dump(payload),
+        render_result=response_payload_dict,
+        final_poster={
+            "filename": f"{trace_id}-catalog-hero.png",
+            "media_type": "image/png",
+            "width": result.image.width,
+            "height": result.image.height,
+            "storage_key": trace_id,
+            "url": final_url,
+            "key": None,
+        },
+    )
+    _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=200, trace_id=trace_id)
+    return JSONResponse(
+        content=response_payload_dict,
+        headers={"X-Request-ID": request_id} if request_id else None,
+    )
+
+
+async def _generate_email_campaign_composite_v1(
+    request_id: str | None,
+    spec: "P2PosterSpec",
+    payload: GeneratePosterV2Request,
+) -> JSONResponse:
+    """Additive campaign-composite render path. Dispatched ONLY for the email_campaign_composite_v1
+    template id; does NOT enter PosterPipeline / RendererSelector (Family A/B / Product Sheet / Catalog
+    Hero untouched). Reuses the existing AssetLoader + the dedicated email_campaign_composite renderer.
+    All business truth is deterministic (defaults = the validated case001 truth); the scenario image is an
+    operator-gated visual substrate only and is NEVER treated as business truth."""
+    import base64
+    import hashlib
+    from io import BytesIO
+
+    from app.services.poster2 import email_campaign_composite as _ecc
+    from app.services.poster2.asset_loader import AssetLoader as _AssetLoader
+
+    _poster2_lifecycle_log("email_campaign_composite_dispatch", request_id=request_id, template_id=payload.template_id)
+    assets = await _AssetLoader().load(spec)
+    inputs = _ecc.resolve_inputs(
+        title=payload.title or None,
+        strapline=payload.subtitle or None,
+        callouts=list(payload.features) if payload.features else None,
+        contact=None,
+        logo=assets.logo,
+        product=assets.product,
+        gallery_images=list(assets.gallery or []),
+        substrate_image=assets.scenario,  # operator-gated campaign substrate; never business truth
+    )
+    result = await _ecc.render_async(inputs)
+
+    buf = BytesIO()
+    result.image.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
+    final_hash = hashlib.sha256(png_bytes).hexdigest()[:16]
+    trace_id = request_id or final_hash
+    data_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
+    # Additive R2 hosting bridge (this family only): host the PNG so the email flow references a small
+    # HTTPS URL instead of a ~9.5MB inline data: URL. Falls back to the data: URL if R2 is not configured.
+    poster_hosting = "inline_data_url"
+    final_url = data_url
+    try:
+        from app.services.r2_client import make_key as _r2_make_key, put_bytes as _r2_put_bytes
+
+        hosted_url = _r2_put_bytes(
+            _r2_make_key("poster2/email_campaign_composite", f"{trace_id}.png"),
+            png_bytes,
+            content_type="image/png",
+        )
+        if hosted_url and hosted_url.startswith("https://"):
+            final_url, poster_hosting = hosted_url, "r2"
+    except Exception:  # never fail generation on a hosting error — fall back to inline
+        poster_hosting = "inline_data_url"
+    review = dict(result.contract_review)
+    review["poster_hosting"] = poster_hosting
+
+    response_payload = GeneratePosterV2Response(
+        poster_key=generate_poster_key(),
+        trace_id=trace_id,
+        final_url=final_url,
+        final_hash=final_hash,
+        foreground_url=final_url,
+        background_url="",
+        background_seed=0,
+        background_model="none",
+        template_id=_ecc.EMAIL_CAMPAIGN_COMPOSITE_TEMPLATE_ID,
+        template_version=_ecc.EMAIL_CAMPAIGN_COMPOSITE_TEMPLATE_VERSION,
+        template_contract_version=_ecc.EMAIL_CAMPAIGN_COMPOSITE_CONTRACT_VERSION,
+        engine_version="email_campaign_composite_v1",
+        renderer_mode=payload.renderer_mode,
+        render_engine_used=result.engine,
+        foreground_renderer=result.engine,
+        background_renderer="none",
+        poster_spec_hash=final_hash,
+        timings_ms=result.timings_ms,
+        debug_artifacts=Poster2DebugArtifacts(),
+        degraded=result.degraded,
+        degraded_reason="chromium_unavailable_pillow_fallback" if result.degraded else None,
+        structure_complete=review["structure_complete"],
+        incomplete_structure=not review["structure_complete"],
+        deliverable=review["structure_complete"],
+        missing_required_slots=review["missing_required_slots"],
+        email_campaign_composite_contract_review=review,
+    )
+    response_payload_dict = _model_dump(response_payload)
+    for empty_key in ("template_b_parity_review", "catalog_hero_contract_review", "catalog_hero_grammar_profile"):
+        if response_payload_dict.get(empty_key) is None:
+            response_payload_dict.pop(empty_key, None)
+
+    create_poster_record(
+        poster_key=response_payload.poster_key,
+        request_snapshot=_model_dump(payload),
+        render_result=response_payload_dict,
+        final_poster={
+            "filename": f"{trace_id}-email-campaign-composite.png",
+            "media_type": "image/png",
+            "width": result.image.width,
+            "height": result.image.height,
+            "storage_key": trace_id,
+            "url": final_url,
+            "key": None,
+        },
+    )
+    _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=200, trace_id=trace_id)
+    return JSONResponse(
+        content=response_payload_dict,
+        headers={"X-Request-ID": request_id} if request_id else None,
+    )
 
 
 def _poster2_request_log_fields(request: Request, payload: GeneratePosterV2Request) -> dict[str, Any]:
@@ -1814,6 +2031,19 @@ async def generate_poster_v2(request: Request, payload: GeneratePosterV2Request)
             on_poster_cta_label=payload.on_poster_cta_label or "",
             on_poster_cta_email=payload.on_poster_cta_email or "",
         )
+
+        # Additive portrait catalog-hero family: dispatched to a dedicated render path
+        # that never enters PosterPipeline (Family A/B code paths untouched).
+        if is_catalog_hero_template(payload.template_id):
+            response = await _generate_catalog_hero_v1(request_id, spec, payload)
+            _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=200)
+            return response
+
+        # Additive campaign-composite family: dedicated render path, never enters PosterPipeline.
+        if is_email_campaign_composite_template(payload.template_id):
+            response = await _generate_email_campaign_composite_v1(request_id, spec, payload)
+            _poster2_lifecycle_log("response_ready", request_id=request_id, status_code=200)
+            return response
 
         pipeline = _get_poster2_pipeline()
         queue_timeout_ms = _generate_queue_timeout_ms()

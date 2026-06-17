@@ -165,6 +165,13 @@ class GeneratePosterV2Response(BaseModel):
     copy_optimization_review: dict = Field(default_factory=dict)
     visible_truth_evidence: dict = Field(default_factory=dict)
     template_b_parity_review: Optional[dict] = None
+    # Additive portrait catalog-hero family diagnostics (12-dim grammar profile +
+    # contract review). Defaults None and is omitted for Family A/B responses.
+    catalog_hero_contract_review: Optional[dict] = None
+    catalog_hero_grammar_profile: Optional[dict] = None
+    # Additive campaign-composite family diagnostics (email_campaign_composite_v1). Defaults None
+    # and is omitted for Family A/B, Product Sheet, and Catalog Hero responses.
+    email_campaign_composite_contract_review: Optional[dict] = None
 
 
 class PosterRecordPoster(BaseModel):
