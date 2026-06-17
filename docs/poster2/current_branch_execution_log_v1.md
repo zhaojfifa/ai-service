@@ -10943,3 +10943,60 @@ After bundle:
 - Compliance: additive only; no Stage1-3 UX / Family A-B / Product Sheet / Catalog Hero change; no shared
   email-semantics change beyond the hosting bridge; AI substrate operator-gated/never truth; no fabricated
   specs; no secret printed/persisted; no deploy/push/merge/PR. Did not claim a real send success.
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE-REMOTE-DEPLOY-SMOKE-V1 (2026-06-17)
+
+- Deploy-branch validation. Pre-commit safety check PASSED: full tracked diff = 1102 insertions / 2
+  deletions; the 2 deletions are a single import line replaced by a multi-import block + the
+  renderer-validation `if` broadened to an OR (template_dual_v2 behavior preserved). Confirmed additive
+  route-only; no Family A/B / Product Sheet / Catalog-Hero-behavior / renderer / Stage1-3 change.
+- Created branch feature/poster2-email-campaign-composite-remote-smoke-v1; committed ONLY the additive
+  route (16 files: app/main.py additive dispatch+R2 bridge, app/schemas/poster2.py optional field,
+  template_registry.py additive entries, email_campaign_composite.py, catalog_hero.py [REQUIRED import
+  dependency], 2 specs, 2 NotoSansSC fonts, 5 poster2 tests, execution log) as commit 2b36b01. PUSH to
+  origin SUCCEEDED (github.com/zhaojfifa/ai-service). Branch is deploy-ready.
+- DEPLOY BLOCKED (exact): render.yaml is a Blueprint with no `branch:` override -> Render auto-deploys the
+  default branch (main) only; this env has no RENDER_API_KEY / deploy hook / service id / dashboard access,
+  so I cannot trigger or configure a branch deploy. Did NOT merge main (forbidden w/o approval).
+- REMOTE AUTH BLOCKED (exact): /api/auth/me={enabled:true,authenticated:false}; OPS_PASSWORD is a dashboard
+  secret (sync:false); no creds locally and pulling Render secrets is forbidden -> remote endpoints not
+  callable by me.
+- R2/Resend on remote UNVERIFIABLE: render.yaml declares neither (only GCP/Vertex/Firefly + OPS); if present
+  they were set in the dashboard. Cannot verify without auth. Remote /health=200, /version=404.
+- Proof separation: LOCAL proof = REAL (same code; generate 200/chromium/structure_complete/3 callouts/
+  truth PASS; R2 bridge unit-tested); DEPLOYED proof = BLOCKED; EMAIL PREVIEW = REAL (local); REAL SEND =
+  BLOCKED (no provider message id; not claimed). generated_poster_remote.png is the byte-identical LOCAL
+  render (visual reference), explicitly not remote-served.
+- Owner actions to finish: (1) deploy the pushed branch (dashboard branch switch + manual deploy / staging
+  service / deploy hook / approved merge); (2) provide ops auth or run server-side; (3) confirm Render R2 +
+  Resend env + approved recipient.
+- Deliverables: docs/poster2/assets/remote_deploy_smoke_v1/ (remote_deploy_smoke_report.md, deploy_evidence.md,
+  remote_config_presence.json, generated_poster_remote.png, generated_poster_url.txt, email_preview_remote.html,
+  email_preview_remote.txt, email_send_result_remote.json, business_truth_review_remote.json).
+- Compliance: additive only; branch push authorized by owner; no merge to main; no Render secret pulled;
+  no secret printed; no Stage1-3/Family A-B/Product Sheet/Catalog Hero change; no fabricated specs; AI
+  substrate not truth; no claim of real send.
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE UI exposure slice (2026-06-17)
+
+- Diagnosis: email_campaign_composite_v1 absent from templates/registry.json (dropdown source) AND the
+  Stage2 generate remapped non-pilot ids to template_dual_v2 via resolvePoster2PilotTemplateId/
+  resolvePoster2CompositionTemplateId fallback -> selection would not reach the new backend route.
+- Fix (additive, isolated; frontend/ + docs/ mirror kept in sync): (1) added email_campaign_composite_v1
+  entry to frontend+docs templates/registry.json; (2) added POSTER2_DIRECT_TEMPLATE_IDS set
+  {catalog_hero_v1, email_campaign_composite_v1} and made both resolvers pass those ids through unchanged.
+  No backend renderer change; no UI redesign; no Stage1-3/Family A-B/Product Sheet/Catalog Hero behavior change.
+- Validation: Playwright UI proof (served frontend/) — dropdown populated with all 5 options incl. the new
+  "Email Campaign Composite · Campaign Explainer"; existing options preserved; selecting it -> value
+  email_campaign_composite_v1 (ui_dropdown_option.png, ui_proof.json). Local backend route via TestClient:
+  HTTP 200, template_id=email_campaign_composite_v1, structure_complete=true, callouts=3, leakage_clean=true,
+  0_200C=false, ai_substrate_is_truth=false (api_response_review.json, generated_poster.png). Tests:
+  frontend_docs_sync + api + registry = 17 passed.
+- Remote: /health=200; POST /api/v2/generate-poster(email_campaign_composite_v1)=401 (ops-auth-gated) ->
+  remote generation/email smoke NOT executable (no ops creds; pulling Render secrets forbidden). Live UI is
+  GitHub Pages -> owner must publish docs/ for the option to show in production.
+- Artifacts: docs/poster2/assets/email_campaign_composite_ui_v1/ (ui_dropdown_option.png, ui_full_page.png,
+  ui_proof.json, generated_poster.png, api_response_review.json, ui_exposure_report.md).
+- Compliance: additive only; frontend+docs in sync; no Stage1-3/Family A-B/Product Sheet/Catalog Hero/
+  email-semantics/backend-renderer change; no fabricated specs; no secret printed; no deploy/merge/push (UI
+  changes uncommitted on the working branch).

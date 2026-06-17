@@ -314,8 +314,16 @@ const POSTER2_PILOT_TEMPLATE_BY_SOURCE = {
   [POSTER2_PILOT_SOURCE_TEMPLATE_ID]: POSTER2_PILOT_TEMPLATE_ID,
   [POSTER2_PILOT_STUDIO_SOURCE_TEMPLATE_ID]: 'template_dual_v2_studio',
 };
+// Additive isolated portrait families dispatched by their own backend render path (NOT the Family A
+// pilot pipeline). Their registry id IS the backend template_id, so it must pass through unchanged
+// instead of falling back to the pilot template_dual_v2. Family A/B routing is unaffected.
+const POSTER2_DIRECT_TEMPLATE_IDS = new Set([
+  'catalog_hero_v1',
+  'email_campaign_composite_v1',
+]);
 function resolvePoster2PilotTemplateId(stage1Data) {
   const source = (stage1Data && stage1Data.template_id) || '';
+  if (POSTER2_DIRECT_TEMPLATE_IDS.has(source)) return source;
   return POSTER2_PILOT_TEMPLATE_BY_SOURCE[source] || POSTER2_PILOT_TEMPLATE_ID;
 }
 // Composition Priority Layer ("海报风格策略"). Closed business-language presets.
@@ -339,6 +347,8 @@ function normalizePoster2CompositionStrategy(value) {
   return POSTER2_COMPOSITION_STRATEGIES.includes(value) ? value : 'balanced';
 }
 function resolvePoster2CompositionTemplateId(stage1Data, strategy) {
+  const source = (stage1Data && stage1Data.template_id) || '';
+  if (POSTER2_DIRECT_TEMPLATE_IDS.has(source)) return source;  // additive families bypass composition remap
   return POSTER2_COMPOSITION_TEMPLATE[strategy] || resolvePoster2PilotTemplateId(stage1Data);
 }
 const POSTER2_BOTTOM_TITLE_MAX_CHARS = 120;

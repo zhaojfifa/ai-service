@@ -18,5 +18,17 @@
     "name": "Product Sheet",
     "preview": "template_product_sheet_preview.svg",
     "description": "Minimal product sheet preview with banner, SKU copy, product hero, detail strip, and description area."
+  },
+  {
+    "id": "catalog_hero_v1",
+    "name": "Catalog Hero · Portrait",
+    "preview": "catalog_hero_v1_preview.svg",
+    "description": "Editorial portrait catalog poster: charcoal brand bar, warm food co-anchor, callout-ringed product, heavy red title, restated title, and an isolated-on-white product range gallery. The food scene is operator-supplied."
+  },
+  {
+    "id": "email_campaign_composite_v1",
+    "name": "Email Campaign Composite · Campaign Explainer",
+    "preview": "catalog_hero_v1_preview.svg",
+    "description": "Campaign-explainer composite (email_campaign_composite_v1): charcoal banner + logo chip, heavy red title, product hero, 3 callouts, evidence-backed spec strip, range gallery, and contact, over an operator-gated visual atmosphere substrate. Deterministic business truth; renders via /api/v2/generate-poster (puppeteer)."
   }
 ]
