@@ -57,3 +57,12 @@ def test_ops_campaign_uses_r2_presign_not_base64():
     assert "readAsDataURL" not in js
     # R2-unavailable must block (no base64 fallback)
     assert "R2 upload unavailable" in js
+
+
+def test_ops_campaign_handles_non_json_and_sends_request_id():
+    """502 fix: ops_campaign must NOT blind-parse responses (no 'Unexpected token <') and must send X-Request-ID."""
+    js = _read("frontend/ops_campaign.js")
+    assert "fetchSafe" in js          # safe response reader (text + content-type)
+    assert "X-Request-ID" in js       # traceable in Render logs
+    assert "content-type" in js       # shows content-type on failure
+    assert "newRequestId" in js

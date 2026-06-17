@@ -155,3 +155,11 @@ def test_missing_product_marks_incomplete():
     review = ecc.build_contract_review(ecc.resolve_inputs(product=None), engine="pillow_fallback", degraded=True)
     assert "product_slot" in review["missing_required_slots"]
     assert review["structure_complete"] is False
+
+
+def test_render_device_scale_defaults_to_1(monkeypatch):
+    """502 fix: default raster scale must be 1 (match the proven Family A renderer), not 2 (4x memory)."""
+    monkeypatch.delenv("POSTER2_ECC_DEVICE_SCALE", raising=False)
+    assert ecc._ecc_device_scale() == 1
+    monkeypatch.setenv("POSTER2_ECC_DEVICE_SCALE", "2")
+    assert ecc._ecc_device_scale() == 2

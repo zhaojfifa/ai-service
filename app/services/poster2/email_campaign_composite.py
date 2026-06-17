@@ -322,10 +322,13 @@ _logger = _logging.getLogger("ai-service")
 # into a proxy 502: single-process, no-gpu, configurable raster scale + a hard render timeout. On any
 # failure (incl. timeout) we fall back to the Pillow renderer and return a 200 (degraded) — never a 502.
 def _ecc_device_scale() -> int:
+    # Default 1 to MATCH the proven Family A renderer (renderer.py uses device_scale_factor=1). scale=2 is
+    # 4x the pixels (2480x3508) and OOM'd Render free-tier workers -> proxy HTML 502. Raster scale only; the
+    # geometry/layout is unchanged. Owner may set POSTER2_ECC_DEVICE_SCALE=2 on a larger host for crisper output.
     try:
-        return max(1, min(2, int(_os.getenv("POSTER2_ECC_DEVICE_SCALE", "2"))))
+        return max(1, min(2, int(_os.getenv("POSTER2_ECC_DEVICE_SCALE", "1"))))
     except Exception:
-        return 2
+        return 1
 
 
 def _ecc_render_timeout_ms() -> int:
@@ -337,8 +340,9 @@ def _ecc_render_timeout_ms() -> int:
 
 async def _chromium_render(html: str) -> bytes:
     from playwright.async_api import async_playwright
-    args = ["--disable-dev-shm-usage", "--font-render-hinting=none", "--no-sandbox",
-            "--disable-gpu", "--single-process", "--disable-extensions"]
+    # Match the proven Family A renderer args exactly (renderer.py). --single-process was dropped: it lowers
+    # memory but is crash-prone in headless Chromium; the working Family A path runs without it.
+    args = ["--disable-dev-shm-usage", "--font-render-hinting=none"]
     async with async_playwright() as pw:
         b = await pw.chromium.launch(headless=True, args=args)
         try:

@@ -29,6 +29,26 @@
   var state = { posterKey: null };
   function setStatus(t) { $('status').textContent = t; }
 
+  function newRequestId(prefix) {
+    return (prefix || 'ops-ecc') + '-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+  }
+
+  // Robust fetch: NEVER blindly JSON.parse a response. Returns the parsed JSON only when the response is
+  // actually JSON; otherwise returns the raw text + status + content-type so the UI can show an HTTP 502/
+  // HTML excerpt instead of throwing "Unexpected token '<'".
+  async function fetchSafe(url, opts) {
+    var resp = await fetch(url, opts);
+    var ct = resp.headers.get('content-type') || '';
+    var text = await resp.text();
+    var rid = resp.headers.get('x-request-id') ||
+      (opts && opts.headers && (opts.headers['X-Request-ID'] || opts.headers['x-request-id'])) || null;
+    var json = null;
+    if (ct.indexOf('json') !== -1) { try { json = JSON.parse(text); } catch (e) { json = null; } }
+    return { ok: resp.ok, status: resp.status, contentType: ct, text: text, json: json, requestId: rid };
+  }
+
+  function excerpt(t) { return (t || '').replace(/\s+/g, ' ').trim().slice(0, 200); }
+
   function prefill(d, src) {
     $('brand_name').value = d.brand_name; $('series_name').value = d.series_name;
     $('title').value = d.title; $('strapline').value = d.strapline;
@@ -46,19 +66,18 @@
   function pickFile(id) { var i = $(id); return (i && i.files && i.files[0]) || null; }
 
   // R2 presign + PUT (mirrors main app.js r2PresignPut). Returns {url, key} (no base64). Throws on failure.
-  async function r2UploadFile(folder, file) {
-    var pres = await fetch('/api/r2/presign-put', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+  async function r2UploadFile(folder, file, rid) {
+    var pres = await fetchSafe('/api/r2/presign-put', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-ID': rid || newRequestId('ops-presign') },
       body: JSON.stringify({
         folder: folder || 'uploads', filename: file.name || 'upload.bin',
         content_type: file.type || 'image/png', size: (typeof file.size === 'number' ? file.size : null)
       })
     });
-    if (!pres.ok) {
-      var et = await pres.text().catch(function () { return ''; });
-      throw new Error('presign HTTP ' + pres.status + ' ' + et.slice(0, 140));
+    if (!pres.ok || !pres.json) {
+      throw new Error('presign HTTP ' + pres.status + ' (' + (pres.contentType || '?') + ') ' + excerpt(pres.text));
     }
-    var d = await pres.json();
+    var d = pres.json;
     if (!d || !d.key || !d.put_url) throw new Error('presign 响应缺少 key/put_url');
     var put = await fetch(d.put_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'image/png' }, body: file });
     if (!put.ok) { throw new Error('R2 PUT HTTP ' + put.status); }
@@ -92,18 +111,21 @@
     var productFile = pickFile('f_product');
     if (!productFile) { setStatus('请先上传「产品主图 Product hero」后再生成（preflight 已阻止，未调用生成接口）。'); return; }
 
+    var rid = newRequestId('ops-ecc');  // one id for the whole upload+generate flow (Render-log traceable)
+    state.lastRequestId = rid;
+
     // 2) upload each provided asset to R2 (presign + PUT). On any failure -> stop, never send base64.
     var refs;
     try {
-      setStatus('上传素材到 R2（presign + PUT）…');
-      refs = { product: await r2UploadFile('product', productFile) };
-      var lf = pickFile('f_logo'); refs.logo = lf ? await r2UploadFile('logo', lf) : null;
-      var af = pickFile('f_atmo'); refs.atmo = af ? await r2UploadFile('scenario', af) : null;
+      setStatus('上传素材到 R2（presign + PUT）… request_id=' + rid);
+      refs = { product: await r2UploadFile('product', productFile, rid) };
+      var lf = pickFile('f_logo'); refs.logo = lf ? await r2UploadFile('logo', lf, rid) : null;
+      var af = pickFile('f_atmo'); refs.atmo = af ? await r2UploadFile('scenario', af, rid) : null;
       refs.gallery = [];
       var gids = ['f_g1', 'f_g2', 'f_g3'];
       for (var i = 0; i < gids.length; i++) {
         var gf = pickFile(gids[i]);
-        if (gf) refs.gallery.push(await r2UploadFile('gallery', gf));
+        if (gf) refs.gallery.push(await r2UploadFile('gallery', gf, rid));
       }
     } catch (e) {
       window.__lastUploadError = String(e);
@@ -138,14 +160,22 @@
       payload_contains_base64: /data:image|;base64,/.test(bodyStr)
     };
 
-    setStatus('生成中…（调用 /api/v2/generate-poster · email_campaign_composite_v1）');
+    setStatus('生成中…（/api/v2/generate-poster · email_campaign_composite_v1 · request_id=' + rid + '）');
     try {
-      var resp = await fetch('/api/v2/generate-poster', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr
+      var r = await fetchSafe('/api/v2/generate-poster', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-ID': rid }, body: bodyStr
       });
-      var body = await resp.json();
-      window.__lastResponse = body;
-      if (!resp.ok) { setStatus('生成失败 HTTP ' + resp.status + '：' + JSON.stringify(body).slice(0, 200)); return; }
+      window.__lastResponse = r.json;
+      window.__lastHttp = { status: r.status, contentType: r.contentType, requestId: r.requestId || rid };
+      // NEVER blind-parse: an HTML 502 here would otherwise throw "Unexpected token '<'".
+      if (!r.ok || !r.json) {
+        setStatus('生成失败 · HTTP ' + r.status + ' · content-type=' + (r.contentType || '?') +
+          ' · request_id=' + (r.requestId || rid) + ' · body: ' + excerpt(r.text));
+        $('meta').innerHTML = '失败：HTTP ' + r.status + ' / ' + (r.contentType || '?') +
+          ' / request_id=' + (r.requestId || rid);
+        return;
+      }
+      var body = r.json;
       $('poster').src = body.final_url || '';
       state.posterKey = body.poster_key || null;
       var hosted = (body.final_url || '').slice(0, 5) === 'data:' ? '内联 data URL' : (body.final_url || '').slice(0, 40);
@@ -163,12 +193,19 @@
     if (!state.posterKey) { setStatus('无 poster_key，无法预览。'); return; }
     setStatus('生成邮件预览…');
     try {
-      var resp = await fetch('/api/v2/email/preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ poster_key: state.posterKey })
+      var prid = newRequestId('ops-preview');
+      var r = await fetchSafe('/api/v2/email/preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Request-ID': prid },
+        body: JSON.stringify({ poster_key: state.posterKey })
       });
-      var b = await resp.json();
-      window.__lastPreview = { http: resp.status, subject: b.subject, generated_from: b.generated_from };
-      if (!resp.ok) { $('mail-meta').textContent = '预览 blocker：HTTP ' + resp.status + ' ' + JSON.stringify(b).slice(0, 200); return; }
+      window.__lastPreview = { http: r.status, contentType: r.contentType, requestId: r.requestId || prid,
+        subject: r.json && r.json.subject, generated_from: r.json && r.json.generated_from };
+      if (!r.ok || !r.json) {
+        $('mail-meta').textContent = '预览 blocker · HTTP ' + r.status + ' · content-type=' + (r.contentType || '?') +
+          ' · request_id=' + (r.requestId || prid) + ' · body: ' + excerpt(r.text);
+        return;
+      }
+      var b = r.json;
       $('mail-meta').innerHTML = '主题：<b>' + (b.subject || '') + '</b> · 来源：' + (b.generated_from || '-');
       $('mail-text').textContent = (b.text || '').slice(0, 600);
       var doc = $('mail').contentWindow.document; doc.open(); doc.write(b.html || ''); doc.close();
