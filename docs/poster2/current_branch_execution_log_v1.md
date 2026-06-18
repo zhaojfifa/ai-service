@@ -12035,3 +12035,10 @@ After bundle:
   refresh.
 - Operator visual review: can resume after deploy refresh. Files: frontend/cuistance_trial.html, docs/cuistance_
   trial.html, docs/poster2/cuistance_commercial_trial_operator_ui_alignment_status_v1.md, README, log.
+
+## POSTER2-CUISTANCE-V1-OPERATOR-UI-MOCKUP-ALIGNMENT-FIRST — remote deploy note (2026-06-18)
+- Aligned page pushed as 9718d59. Remote leob /cuistance_trial.html=200 but still serves the PREVIOUS commit
+  (143a7f0 pre-alignment: has 商业试用工作台 header but old body w/ visible EmailBodyPlan/send_attempts). After
+  ~4 min the trial service had not rebuilt to 9718d59 -> deploy lag / deploy-trigger needed (no console/API
+  access to force rebuild). Local aligned version fully green (200, stepper + diagnostics drawer + business
+  buttons + NONE visible forbidden terms). Remote alignment appears once the trial service deploys 9718d59.

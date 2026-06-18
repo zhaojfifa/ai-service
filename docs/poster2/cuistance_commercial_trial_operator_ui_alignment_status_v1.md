@@ -76,3 +76,13 @@ URL/key only / no base64 / template_id / renderer / API / payload / fixture / ge
 `/cuistance_trial.html` 进行运营视觉评审与 test 模式主路线走查。
 
 **STATUS: OPERATOR UI MOCKUP ALIGNMENT SUBMITTED FOR OWNER REVIEW**
+
+## 10. 远程部署状态（push 后）/ Remote deploy status after push
+
+- 推送：`9718d59` → origin trial 分支（aligned 版本）。
+- `https://ai-service-leob.onrender.com/cuistance_trial.html` → **HTTP 200**，但**仍提供上一提交**（`143a7f0` 预对齐
+  版：header 有「商业试用工作台」但正文仍是旧形态，含 EmailBodyPlan/send_attempts 等可见工程字段）。
+- 等待 ~4 分钟后远程仍未刷新到 `9718d59` → **部署滞后 / 需触发部署**（Render 自动部署延迟或服务部署提交未跟进；
+  我无控制台/API 访问，无法强制 rebuild）。本地 aligned 版校验全绿。
+- **远程对齐前置：** 将 trial 服务部署刷新到 `9718d59`。刷新后 `/cuistance_trial.html` 应显示 3 步 stepper + 业务按钮
+  + 折叠「内部诊断」，且可见区无工程术语（本地已验证）。
