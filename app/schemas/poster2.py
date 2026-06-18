@@ -7,7 +7,7 @@ Internal pipeline uses dataclasses from app.services.poster2.contracts.
 from __future__ import annotations
 
 from typing import Any, Literal, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic import EmailStr
 
 
@@ -269,3 +269,256 @@ class EmailSendV2Response(BaseModel):
     provider_message_id: Optional[str] = None
     error: Optional[str] = None
     attachment_types: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# CUISTANCE commercial trial — PR-1 workbench truth model (backend-owned).
+# Minimal, additive, URL/key-only. No binary/base64. No renderer/email behavior
+# change. poster_candidates / selected_email_body_visual / email_package_ref /
+# recipients / send_attempts are PR-2…PR-4 placeholders only.
+# ---------------------------------------------------------------------------
+
+WorkbenchLanguage = Literal["zh", "fr"]
+WorkbenchStatus = Literal["draft", "assets", "candidates", "email_ready", "sent"]
+ParameterKey = Literal[
+    "reference", "capacity", "power", "voltage", "dimensions", "material", "thermostat", "other"
+]
+ParameterSource = Literal["manual", "imported", "recognized"]
+ParameterState = Literal["pending", "confirmed"]
+
+
+def _reject_base64(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return value
+    text = value.strip()
+    low = text.lower()
+    if low.startswith("data:") or ";base64," in low:
+        raise ValueError("base64/data URL not allowed; use a url/key reference")
+    return text
+
+
+class WorkbenchAssetRef(BaseModel):
+    """URL/key-only asset reference. Rejects inline base64/data URLs by design."""
+    url: str = Field(..., min_length=1, max_length=2048)
+    key: Optional[str] = Field(default=None, max_length=1024)
+
+    @field_validator("url")
+    @classmethod
+    def _url_no_base64(cls, v: str) -> str:
+        cleaned = _reject_base64(v)
+        if not cleaned:
+            raise ValueError("asset url must not be empty")
+        return cleaned
+
+    @field_validator("key")
+    @classmethod
+    def _key_no_base64(cls, v: Optional[str]) -> Optional[str]:
+        return _reject_base64(v)
+
+
+class WorkbenchAtmosphereAsset(WorkbenchAssetRef):
+    """Atmosphere/scene image — visual-only; never business truth."""
+    is_truth: Literal[False] = False
+
+
+class ProductParameterRow(BaseModel):
+    key: ParameterKey
+    label: str = Field(default="", max_length=80)
+    value: str = Field(default="", max_length=200)
+    source: ParameterSource = "manual"
+    state: ParameterState = "pending"
+    locked: bool = False
+
+    @model_validator(mode="after")
+    def _locked_requires_confirmed(self) -> "ProductParameterRow":
+        if self.locked and self.state != "confirmed":
+            raise ValueError("a locked parameter row must be confirmed first")
+        return self
+
+
+class ProductTruth(BaseModel):
+    product_name: str = Field(default="", max_length=120)
+    reference: str = Field(default="", max_length=80)
+    description: str = Field(default="", max_length=2000)
+    parameters: list[ProductParameterRow] = Field(default_factory=list, max_length=16)
+    parameters_locked: bool = False
+
+    @model_validator(mode="after")
+    def _lock_requires_all_confirmed(self) -> "ProductTruth":
+        if self.parameters_locked:
+            if not self.parameters:
+                raise ValueError("parameters_locked requires at least one confirmed parameter row")
+            if any(row.state != "confirmed" for row in self.parameters):
+                raise ValueError("parameters_locked requires all parameter rows to be confirmed")
+        return self
+
+
+class ProductAssets(BaseModel):
+    product_images: list[WorkbenchAssetRef] = Field(default_factory=list, max_length=2)
+    gallery_images: list[WorkbenchAssetRef] = Field(default_factory=list, max_length=3)
+    atmosphere: Optional[WorkbenchAtmosphereAsset] = None
+
+
+class EmailBanner(BaseModel):
+    logo: Optional[WorkbenchAssetRef] = None
+    background: Optional[WorkbenchAssetRef] = None
+    pattern: Optional[WorkbenchAssetRef] = None
+    channel_name: str = Field(default="", max_length=80)
+    campaign_label: str = Field(default="", max_length=80)
+    selected_banner_ref: Optional[str] = Field(default=None, max_length=200)
+
+
+class WorkbenchCreateRequest(BaseModel):
+    language: WorkbenchLanguage = "zh"
+    status: WorkbenchStatus = "draft"
+    product_truth: Optional[ProductTruth] = None
+    product_assets: Optional[ProductAssets] = None
+    email_banner: Optional[EmailBanner] = None
+
+
+class WorkbenchPatchRequest(BaseModel):
+    language: Optional[WorkbenchLanguage] = None
+    status: Optional[WorkbenchStatus] = None
+    product_truth: Optional[ProductTruth] = None
+    product_assets: Optional[ProductAssets] = None
+    email_banner: Optional[EmailBanner] = None
+
+
+# PR-2 — Step 2 email body visual candidates + selection.
+CandidateType = Literal["affiche", "fiche"]
+
+
+class WorkbenchSelectVisualRequest(BaseModel):
+    selected_email_body_visual: CandidateType
+
+
+# PR-3 — Email Banner Module + Email Assembly preview (workbench-level).
+class EmailAssemblyBannerView(BaseModel):
+    """First-class email-level banner module, assembled from workbench.email_banner (NOT poster body truth)."""
+    logo_url: Optional[str] = None
+    background_url: Optional[str] = None
+    pattern_url: Optional[str] = None
+    channel_name: str = ""
+    campaign_label: str = ""
+    selected_banner_ref: Optional[str] = None
+
+
+class EmailAssemblyBodyVisual(BaseModel):
+    candidate_type: CandidateType
+    poster_key: str
+    url: Optional[str] = None
+    template_id: Optional[str] = None
+
+
+# PR-3S — explicit, deterministic Email Body Plan (the selected visual enters ONLY via the planned slot).
+EmailBodyModuleKey = Literal[
+    "email_banner", "title_intro", "selected_body_visual", "product_description",
+    "cta", "contact_footer", "legal_footer",
+]
+
+
+class SelectedBodyVisualSlot(BaseModel):
+    source: str = "workbench.selected_email_body_visual"
+    candidate_type: CandidateType
+    poster_key: str
+    final_poster_url: Optional[str] = None
+
+
+class EmailBodyPlanModule(BaseModel):
+    order: int
+    key: EmailBodyModuleKey
+    present: bool = True
+
+
+class EmailBodyPlanCta(BaseModel):
+    label: str = "Nous contacter"
+    href: str = "#"
+
+
+class EmailBodyPlanView(BaseModel):
+    layout_type: Literal["single_product_promo"] = "single_product_promo"
+    container_width: int = 600
+    modules: list[EmailBodyPlanModule] = Field(default_factory=list)
+    selected_body_visual_slot: SelectedBodyVisualSlot
+    cta: EmailBodyPlanCta = Field(default_factory=EmailBodyPlanCta)
+
+
+class EmailAssemblyPreviewResponse(BaseModel):
+    workbench_key: str
+    selected_email_body_visual: CandidateType
+    email_body_plan: EmailBodyPlanView
+    banner: EmailAssemblyBannerView
+    body_visual: EmailAssemblyBodyVisual
+    subject: str
+    preview_text: str
+    intro: str
+    cta_label: str = "Nous contacter"
+    html: str
+    text: str
+    generated_from: Literal["deterministic", "gemini", "gemini_fallback_deterministic"] = "deterministic"
+    email_assets: dict[str, PosterRecordEmailAsset] = Field(default_factory=dict)
+    available_attachment_types: list[str] = Field(default_factory=list)
+    buildable_attachment_types: list[str] = Field(default_factory=list)
+    # transitional note surfaced for diagnostics (banner decoupling status)
+    body_visual_contains_own_banner: bool = False
+
+
+# PR-4 — manual multi-recipient confirmed send + evidence.
+# The send path consumes the deterministic PR-3S package verbatim; it does NOT accept arbitrary HTML/subject
+# overrides (no body reconstruction).
+SendMode = Literal["test", "real"]
+
+
+class WorkbenchEmailSendRequest(BaseModel):
+    # recipients are manual free-text strings (NOT EmailStr) so one bad address does not 422 the whole batch;
+    # per-recipient validation + isolation happens server-side.
+    recipients: list[str] = Field(default_factory=list, max_length=50)
+    mode: SendMode = "test"
+    confirm_send: bool = False
+    delivery_mode: Literal["inline_only", "resend"] = "inline_only"
+    attachment_types: list[Literal["poster_png", "poster_pdf"]] = Field(default_factory=list, max_length=2)
+
+
+class WorkbenchSendAttempt(BaseModel):
+    recipient: str
+    mode: SendMode
+    status: Literal["sent", "error", "skipped"]
+    provider: str
+    provider_message_id: Optional[str] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    attachment_types: list[str] = Field(default_factory=list)
+    at: str
+    selected_email_body_visual: Optional[CandidateType] = None
+    body_visual_poster_key: Optional[str] = None
+    layout_type: Optional[str] = None
+    subject: Optional[str] = None
+    deduplicated: bool = False
+
+
+class WorkbenchEmailSendResponse(BaseModel):
+    workbench_key: str
+    mode: SendMode
+    total: int
+    sent_count: int
+    failed_count: int
+    skipped_count: int
+    deduplicated_count: int
+    attempts: list[WorkbenchSendAttempt] = Field(default_factory=list)
+
+
+class WorkbenchRecordResponse(BaseModel):
+    workbench_key: str
+    created_at: str
+    updated_at: str
+    language: WorkbenchLanguage
+    status: WorkbenchStatus
+    product_truth: ProductTruth
+    product_assets: ProductAssets
+    email_banner: EmailBanner
+    # PR-2…PR-4 placeholders (kept inert in PR-1)
+    poster_candidates: dict[str, Any] = Field(default_factory=dict)
+    selected_email_body_visual: Optional[Literal["affiche", "fiche"]] = None
+    email_package_ref: Optional[str] = None
+    recipients: list[Any] = Field(default_factory=list)
+    send_attempts: list[Any] = Field(default_factory=list)

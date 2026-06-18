@@ -11000,3 +11000,952 @@ After bundle:
 - Compliance: additive only; frontend+docs in sync; no Stage1-3/Family A-B/Product Sheet/Catalog Hero/
   email-semantics/backend-renderer change; no fabricated specs; no secret printed; no deploy/merge/push (UI
   changes uncommitted on the working branch).
+
+## POSTER2-EMAIL-CAMPAIGN-COMPOSITE-UI-PUBLISH-AND-REMOTE-FLOW-VERIFY-V1 (2026-06-17)
+
+- Task A safety check: tracked diff since 2b36b01 = 184 insertions / 0 deletions; app.js +10 (resolver
+  passthrough only), registry +12 (data entry); frontend↔docs byte-synced. Excluded .DS_Store + pre-existing
+  docs/poster2/README.md (out of scope) + the ui_proof helper script. No backend/Stage/Family A-B/Product
+  Sheet/Catalog Hero behavior change.
+- Task B: committed 7374b37 "feat(poster2): expose email campaign composite template in UI" (frontend+docs
+  app.js + registry.json + ui_v1 artifacts + log) and PUSHED to origin (2b36b01..7374b37). No merge to main.
+- Task C (Pages mechanism, determined): .github/workflows/deploy-frontend.yml deploys frontend/ to Pages,
+  triggered ONLY by push to main (frontend/**) or manual workflow_dispatch; last 3 runs all main. Live site
+  https://zhaojfifa.github.io/ai-service/ currently exposes only [template_dual, template_dual_studio,
+  template_product_sheet_v1] (live even predates catalog_hero_v1). Feature-branch push did NOT trigger Pages.
+  New option goes live only via (A) merge to main (forbidden here) or (B) gh workflow run deploy-frontend.yml
+  --ref <branch> (publishes branch frontend live without merge; also brings catalog_hero_v1 + any drift live).
+  gh is authed (zhaojfifa, workflow scope); I did NOT run it (outward-facing publish is owner-gated).
+- Task D (live UI verify): BLOCKED pending publish — live registry confirms 3 options only. Local UI proof of
+  the committed code stands (email_campaign_composite_ui_v1/). Re-run after publish for the live screenshot.
+- Task E (remote generation smoke): BLOCKED — POST /api/v2/generate-poster(email_campaign_composite_v1) =
+  HTTP 401 ops_auth_required. No ops creds; auth not bypassed; no Render secret pulled; remote generation NOT
+  claimed. Local proof of same code = 200 + all truth gates pass.
+- Task F (remote business flow): BLOCKED (depends on E + R2/Resend + approved recipient). No send claimed.
+- Artifacts: docs/poster2/assets/email_campaign_composite_ui_publish_v1/ (publish_verification_report.md,
+  live_registry_current.json, remote_generation_blocker.json).
+- Compliance: additive; pushed (authorized); no merge to main; no UI redesign / Stage1-3 / Family A-B /
+  Product Sheet / Catalog Hero / backend-render / Gemini-prompt change; no fabricated specs; no 0–200°C; no
+  Technitalia/Codimatel/gas; no secret printed; no production email send.
+
+## POSTER2-OPS-MANUAL-TEST-PACK-V1 (2026-06-17)
+
+- Built an operator-facing manual test package for email_campaign_composite_v1 (case001 CUISTANCE
+  Friteuses Électriques / EF132V) under docs/poster2/assets/ops_manual_test_pack_v1/. COPY-ONLY of
+  already-validated assets; NO image generation, NO model calls, NO new poster generation, NO remote
+  smoke/R2/email/Pages/deploy, NO production code change.
+- Copied (source -> package): cuistance_logo_01.jpg -> upload_assets/brand_logo.jpg; fryer_产品图.jpg ->
+  product_hero_fryer.jpg; Electric Fryer1.jpg/fryer_产品图2.jpg/Electric Fryer2.jpg -> gallery_01..03.jpg;
+  case001_..._heavy_v1/raw_substrate_01_fries_hero.png -> atmosphere_substrate_fries_hero.png (style-only,
+  ai_substrate_is_truth=false); p2_composite_candidate_best.png -> accepted_expected_output.png +
+  expected_output/accepted_p2_poster.png; runtime_smoke_case001.png -> expected_output/runtime_smoke_poster.png;
+  p2_reference_vs_p1_vs_p2.png -> expected_output/comparison_*.png. All 10 verified openable (PIL).
+- Authored: README_OPERATOR_TEST.md, input_fields_case001.json (valid) + .md, upload_checklist.md,
+  business_truth_lock.md, operator_test_steps.md, qa_acceptance_sheet.md, package_manifest.json (valid).
+- Truth locked: CUISTANCE only; EF132V (image↔ref still owner-review); thermostat "jusqu'à 190°C" (0–200°C
+  forbidden); Technitalia/Codimatel/gas = style-only, business-truth rejected; AI substrate = operator
+  upload, never truth. Operator entry point: operator_test_steps.md.
+- Compliance: no generation/model calls; no remote smoke/send/R2/Pages/deploy/merge/push; no production code
+  / Stage1-3 / template geometry change; no fabricated specs; no 0–200°C; no Technitalia/Codimatel/gas; no
+  secret printed.
+
+## POSTER2-OPS-UI-FLOW-HEAVY-V1-LOCAL-CLI (2026-06-17)
+
+- Built a dedicated, isolated operator page frontend/ops_campaign.html + ops_campaign.js (mirrored to docs/)
+  for the CUISTANCE Email Campaign Composite 3-step flow (input → generate → email preview/send-prep). It
+  sends template_id=email_campaign_composite_v1 + renderer_mode=puppeteer DIRECTLY to /api/v2/generate-poster
+  (bypasses the Stage2 pilot/composition resolvers entirely → cannot be remapped to template_dual_v2). No
+  Stage1-3/Family A-B/Product Sheet/Catalog Hero change; no backend renderer/geometry change.
+- Runtime-heavy validation: launched local uvicorn (auth off; body/base64 limits raised LOCAL-ONLY) + a local
+  static asset server; Playwright drove load-pack → prefill case001 → select 6 assets → generate → Chinese
+  contract review → email preview. Assets fetched by URL (mirrors R2; the RejectHugeOrBase64 guard blocks
+  data: URLs by design — documented, not bypassed). ui_flow_validation.json = ALL TRUE: routes to
+  email_campaign_composite_v1, structure_complete, callout_count=3, leakage_clean, thermostat 190°C (not
+  0–200°C), ai_substrate_is_truth=false, send_owner_gated, email_preview_ok. Backend response (HTTP 200,
+  chromium, all gates) matches the UI-rendered Chinese contract review.
+- Email preview works (/api/v2/email/preview, subject "CUISTANCE | Les Friteuses Électriques", poster inline
+  in iframe). Send button disabled/Owner-gated; no real email sent.
+- Tests: frontend_docs_sync + email_campaign(composite/api/hosting/business_flow) + registry + catalog_hero =
+  43 passed; new tests/poster2/test_ops_campaign_ui.py = 4 passed (page exists+synced, routes directly,
+  resolver passthrough present, registry option in both mirrors; old options preserved).
+- Files changed: frontend/ops_campaign.html, frontend/ops_campaign.js, docs/ops_campaign.html,
+  docs/ops_campaign.js (new); tests/poster2/test_ops_campaign_ui.py (new); scripts/
+  poster2_ops_campaign_ui_smoke.py (new); docs/poster2/assets/ops_campaign_ui_flow_heavy_v1/* (artifacts);
+  execution log. No backend code changed this slice.
+- Compliance: no AI generation; no real send; no deploy/merge/push; no Stage1-3/Family A-B/Product Sheet/
+  Catalog Hero/geometry/Gemini change; no fabricated specs; no 0–200°C; no Technitalia/Codimatel/gas; no
+  secret printed/pulled. Local test env knobs (auth off, raised limits) not committed to production config.
+
+## POSTER2-OPS-CAMPAIGN-UI-REMOTE-404-FIX-V1 (2026-06-17)
+
+- Root cause: Render serves frontend/ via StaticFiles mount at / (app/main.py: FRONTEND_DIR=<repo>/frontend,
+  app.mount("/", StaticFiles(frontend, html=True))) — serves any file in frontend/. But ops_campaign.html/.js
+  were never committed (untracked; not in deployed HEAD 7374b37) -> /ops_campaign.html 404. Dropdown worked
+  because templates/registry.json WAS committed in 7374b37. Not a mount/SPA bug.
+- Fix (minimal additive, no code change): committed existing static files (frontend + docs mirror) + guard
+  test as 3f8ce02. Files: frontend/ops_campaign.html, frontend/ops_campaign.js, docs/ops_campaign.html,
+  docs/ops_campaign.js, tests/poster2/test_ops_campaign_ui.py. No app/ / static-mount / geometry / backend
+  render / Family A-B / Product Sheet / Catalog Hero change.
+- Local verify (uvicorn serving frontend/): /ops_campaign.html=200 (contains "CUISTANCE 邮件营销海报"),
+  /ops_campaign.js=200, /=200 (index intact), generate email_campaign_composite_v1 still works (chromium),
+  guard test 4 passed. Screenshots: ops_campaign_remote_route_local_200.png, ops_campaign_after_generate.png
+  under docs/poster2/assets/ops_campaign_remote_404_fix_v1/.
+- Remote still 404 (3f8ce02 not pushed/deployed); remote / still 200. Needs push + Render redeploy of the
+  branch -> NOT done (awaiting Owner approval per stop point). Diff scope = 5 additive files only.
+- Remaining remote blockers unchanged: /api/v2/generate-poster ops-auth-gated (401); prod assets via R2;
+  Resend env + approved recipient for real send (send stays Owner-gated).
+- Compliance: no real send; no secrets read/printed; no Gemini/R2/Resend config change; no Stage1-3 refactor;
+  no poster geometry change; no push/deploy without approval.
+
+## POSTER2-OPS-CAMPAIGN-UI-REMOTE-404-FIX-V1-PUSH-AND-VERIFY (2026-06-17)
+
+- Owner approved push of 3f8ce02. Verified HEAD contains 3f8ce02 (branch
+  feature/poster2-email-campaign-composite-remote-smoke-v1). PUSH SUCCEEDED: 7374b37..3f8ce02 -> origin.
+- No merge to main, no PR, no deploy, no code change.
+- Remote verify after push (curl, ~6 min polling): /ops_campaign.html = 404 (title_count 0),
+  /ops_campaign.js = 404, / = 200 throughout. => Render has NOT yet redeployed 3f8ce02; it is still serving
+  an older commit (consistent with 7374b37: dropdown option present from committed registry.json, but
+  ops_campaign.html absent because it only landed in 3f8ce02). NOT claiming remote success (still 404).
+- Judgment: "Render 尚未 redeploy" (most likely) — the branch render.yaml buildCommand runs
+  `pip install + playwright install chromium` (slow; redeploy can take many minutes), and/or auto-deploy on
+  this branch needs a manual trigger. No /version endpoint to read the live commit; inference from
+  dropdown-present + ops_campaign.html-absent indicates the live commit is 7374b37, not 3f8ce02.
+- Next: await Render auto-redeploy OR Owner triggers a manual deploy of this branch to 3f8ce02, then re-run:
+  curl -sS -o /dev/null -w '%{http_code}\n' https://ai-service-leob.onrender.com/ops_campaign.html  (expect 200)
+- Compliance: no merge/PR/deploy/code change; no real send; no secrets read/printed; no Gemini/R2/Resend
+  change; no geometry change; no ops-auth bypass; no false remote-success claim.
+
+## POSTER2 ops_campaign R2 upload bridge fix (2026-06-17)
+
+- Root cause: ops_campaign.js read each File via FileReader.readAsDataURL and put the data: URL straight
+  into the generate payload; it never called /api/r2/presign-put. The BodyGuard (RejectHugeOrBase64)
+  rejects any inline data:image/base64 in /api/* requests by design -> 422 REQUEST_BODY_BLOCKED reason=base64.
+  (Main Stage1/2 avoids this via /api/r2/presign-put + presigned PUT, sending only url/key.) The console 404s
+  were only the optional repo-local input_fields_case001.json fetch (cosmetic; inline defaults cover it) —
+  not the generate blocker.
+- Fix (additive, minimal; commit d41fc88, NOT pushed): ops_campaign.js now uploads each selected file via
+  /api/r2/presign-put + presigned PUT and sends ONLY {url,key} (mirrors main app.js r2PresignPut). Adds a
+  product-required preflight (empty -> blocks, no generate call) and an explicit "R2 upload unavailable" hard
+  stop with NO base64 fallback when presign/upload fails. Removed readAsDataURL and the 404-noisy JSON fetch
+  (inline case001 defaults). Added guard test test_ops_campaign_uses_r2_presign_not_base64. frontend+docs
+  synced. No backend/renderer/geometry/case001-truth/190°C change.
+- before payload: product_image.url = "data:image/jpeg;base64,<~1MB>" -> 422 base64.
+  after payload : product_image = {url:"http(s).../key", key:"ops/..."}, payload_contains_base64=false -> 200.
+- Local validation (uvicorn :8015 default guards + auth off; presign+PUT mocked to local asset server for the
+  success path; real presign -> 503 for the unavailable path): ALL 7 acceptance true —
+  1 empty preflight blocks (no generate call); 2 presign called on upload (6 calls); 3 no base64 in payload;
+  4 assets url/key only; 5 no REQUEST_BODY_BLOCKED (generate 200, chromium); 6 R2 unavailable shows
+  "R2 upload unavailable" and blocks (no base64); 7 enters contract review (structure_complete, callouts=3,
+  leakage_clean, 190°C not 0–200°C, ai_substrate_is_truth=false). Tests: ops_campaign_ui + frontend_docs_sync
+  + email_campaign_api = 15 passed.
+- Artifacts: docs/poster2/assets/ops_campaign_r2_bridge_v1/ (preflight_blocks_empty.png, r2_unavailable.png,
+  r2_success_after_generate.png, generate_payload_after.json, ui_r2_validation.json).
+- Remaining blockers: prod needs R2 env configured (presign currently 503 locally — expected); /api/v2/
+  generate-poster remote still ops-auth-gated (401); Resend env + approved recipient for real send.
+- Compliance: no BodyGuard relaxation; generate never receives base64; no renderer/geometry/truth change; no
+  Gemini runtime substrate; no real send; no secrets; commit not pushed (awaiting Owner approval).
+
+## POSTER2 ops_campaign R2 bridge — push d41fc88 + remote verify (2026-06-17)
+
+- Owner approved push. PUSH SUCCEEDED: 3f8ce02..d41fc88 -> origin (branch
+  feature/poster2-email-campaign-composite-remote-smoke-v1). No merge/PR/deploy/code change.
+- Remote verify (curl, ~14 min total incl. ~7 min polling):
+  - /ops_campaign.html = 200, /ops_campaign.js = 200, / = 200.
+  - BUT deployed /ops_campaign.js is the OLD 3f8ce02 version: r2UploadFile=0, /api/r2/presign-put=0,
+    readAsDataURL=1, differs from local d41fc88. => Render has NOT redeployed d41fc88 (still serving 3f8ce02).
+  - /api/r2/presign-put (direct curl) = 401 ops_auth_required (auth-gated; cannot reach R2-config/503 check
+    without ops auth).
+- Answers: (1) pushed d41fc88; (2) Render deployed to d41fc88 = NO (still 3f8ce02, old base64 JS);
+  (3) html 200; (4) js 200 but old; (5) presign not called by deployed old JS (it uses readAsDataURL);
+  direct presign reachable; (6) presign = 401 (not 503/200); (7) deployed old JS would still send base64
+  (the no-base64 fix is in d41fc88, verified locally, NOT yet live remotely); (8) contract review not
+  reached remotely; (9) failure point = Render redeploy lag (d41fc88 not deployed) + behind it ops auth on
+  presign (401) + R2 env unverifiable until authed.
+- The R2 bridge fix is correct & locally validated (7/7 acceptance); remote verification BLOCKED on Render
+  redeploy of d41fc88 (likely needs manual deploy, as with 3f8ce02) and then ops auth + R2 env.
+- Compliance: no BodyGuard relaxation; no renderer/case001/190°C change; no Gemini substrate; no real send;
+  no secrets; only the approved push performed.
+
+## POSTER2-OPS-CAMPAIGN-REMOTE-GENERATE-502-DIAG-V1 (2026-06-17)
+
+- Gemini ruled OUT: no genai/vertex/imagen in email_campaign_composite.py / catalog_hero.py render path
+  (deterministic Chromium overlay over operator substrate). Gemini = startup init noise only.
+- Root cause (high confidence): Chromium render exceeds Render free-tier time/memory -> worker timeout/OOM
+  -> Render proxy HTML 502 -> frontend "Unexpected token '<'". Local lifecycle trace: chromium_success
+  dur_ms=26262 (~26s at scale=2) on a fast dev box; Render free tier slower -> 502. Not 404/422/base64/
+  missing-asset.
+- Minimal fix (email_campaign route only; no renderer rewrite / no geometry / no truth change):
+  (1) bounded render asyncio.wait_for(POSTER2_ECC_RENDER_TIMEOUT_MS=45000) -> hang/slow becomes TimeoutError
+  -> Pillow fallback -> 200 degraded (no 502); (2) low-memory Chromium args (--single-process/--no-sandbox/
+  --disable-gpu/--disable-dev-shm-usage/--disable-extensions); (3) POSTER2_ECC_DEVICE_SCALE knob (default 2;
+  set 1 on Render for ~4x speed); (4) stage-tracked dispatch returns JSON {ok,request_id,stage,error_type,
+  message} on any catchable failure (no HTML); (5) structured lifecycle logging (entry/asset_fetch/render/
+  chromium start+success+duration+fail/upload) — no signed-URL tokens logged.
+- Files: app/services/poster2/email_campaign_composite.py (render_async timeout+logging+hardening,
+  render_async(request_id=)); app/main.py (_generate_email_campaign_composite_v1 stage logging + JSON
+  exception wrapper); tests/poster2/test_email_campaign_composite_502_diag.py (NEW: failure->JSON,
+  chromium-fail->pillow 200). Trace artifact: docs/poster2/assets/ops_campaign_generate_502_diag_v1/.
+- Tests: 502_diag + composite + api + hosting + ops_ui = 23 passed. App imports clean.
+- Remote: not reproduced (ops-auth 401) / needs Render redeploy of this commit; after deploy a slow render
+  degrades to 200 (pillow) JSON instead of 502; recommend POSTER2_ECC_DEVICE_SCALE=1 on Render.
+- Compliance: no BodyGuard relaxation; no base64 fallback restored; no renderer architecture rewrite; no
+  geometry/case001/190°C change; no Gemini substrate; no real send; no secret/signed-URL token printed.
+
+## POSTER2-OPS-CAMPAIGN-COMPARE-MAIN-GENERATE-PATH-V1 (2026-06-17)
+
+- Path compare (origin/main vs branch): the whole email_campaign/ops stack is branch-only. main Stage2
+  (Family A, works on Render) renders Chromium at device_scale_factor=1 (renderer.py:1859) with args
+  ["--disable-dev-shm-usage","--font-render-hinting=none"]; ops_campaign email_campaign_composite rendered
+  at device_scale_factor=2 (4x pixels 2480x3508) -> higher peak memory -> OOM on 512MB Render free tier ->
+  worker killed -> Render proxy HTML 502. b8cc7fb DOES wrap the route (template_id -> _generate_email_
+  campaign_composite_v1 with JSON wrapper + bounded render), but an OS OOM kill is not a Python exception so
+  the JSON wrapper never runs and asyncio.wait_for can't stop it. Frontend then blind-parsed the HTML 502
+  (resp.json()) -> "Unexpected token '<'". No X-Request-ID -> untraceable.
+- Fix (minimal): (backend email_campaign_composite.py) default POSTER2_ECC_DEVICE_SCALE=1 (match Family A) +
+  launch args identical to Family A -> lower peak memory; (frontend ops_campaign.js) fetchSafe() never
+  blind-parses -> on non-JSON/HTML shows HTTP status + content-type + body excerpt + request_id; sends
+  X-Request-ID ops-ecc-<ts> on presign/generate/preview. No geometry/truth/renderer-arch change; no
+  BodyGuard relax; no base64; no Gemini.
+- Local evidence: request_id ops-ecc-... flows through entry/asset_fetch/render/chromium/upload lines;
+  chromium_start scale=1; chromium_success dur_ms~26000 (time dominated by shared CJK font embedding, not
+  raster scale; scale=1's win is peak memory = the OOM lever); 200 + contract review. Tests: 31 passed
+  (composite incl. scale-default + ops_ui incl. non-JSON/X-Request-ID guard + 502_diag + api + sync).
+- HONEST: I cannot reach Render logs or call remote generate (ops-auth 401) -> remote ecc.generate-entry /
+  request_id verification is an OWNER action (X-Request-ID added to enable it). If 502 persists at scale=1 =>
+  confirmed OOM on 512MB tier => Owner Decision: upgrade RAM / async render job / font subsetting.
+- Files: app/services/poster2/email_campaign_composite.py, frontend/ops_campaign.js, docs/ops_campaign.js,
+  tests/poster2/test_email_campaign_composite.py, tests/poster2/test_ops_campaign_ui.py,
+  docs/poster2/assets/ops_campaign_path_compare_v1/main_vs_ops_path_compare.md.
+- Compliance: no real send; no case001/190°C change; no BodyGuard relax; no base64; no Gemini; no UI
+  beautify / geometry polish / renderer rewrite; commit not pushed (awaiting Owner approval).
+
+## POSTER2-OPS-CAMPAIGN-COMPARE ... push 11ece26 + remote verify (2026-06-17)
+
+- Owner approved push. PUSH SUCCEEDED: b8cc7fb..11ece26 -> origin (branch
+  feature/poster2-email-campaign-composite-remote-smoke-v1). No merge/PR/deploy/code change.
+- Remote verify (~11 min polling): /ops_campaign.html=200, /ops_campaign.js=200, but deployed js has
+  fetchSafe=0, X-Request-ID=0, ops-ecc=0, readAsDataURL=0 => Render is serving d41fc88, NOT 11ece26. After
+  ~9.5 min of 70s polls fetchSafe never appeared => Render has NOT redeployed 11ece26 (consistent with prior
+  commits needing a manual Render deploy). NOT claiming remote success.
+- Verification status vs the 11-item checklist:
+  1 html=200 OK; 2 js=200 OK (but OLD d41fc88); 3 fetchSafe live = NO (await redeploy); 4 X-Request-ID
+  ops-ecc live = NO (await redeploy); 5-7 presign/generate/non-JSON remotely = cannot drive (ops-auth 401 +
+  need 11ece26); 8-11 Render logs (request_id / ecc.generate entry / chromium_start scale=1 / chromium_success
+  / pillow_fallback / OOM / worker exited) = I have NO Render log access -> OWNER action.
+- Next: Owner triggers Render Manual Deploy -> 11ece26, then (a) curl ops_campaign.js | grep fetchSafe (=1),
+  (b) authed generate with X-Request-ID: ops-ecc-<ts>, (c) read Render logs for the ecc.* lifecycle lines.
+- Owner Decision Needed (pending): only if, after 11ece26 deploys, scale=1 STILL 502s and Render logs show
+  OOM/worker killed -> request Owner approval to scale up Render RAM (or async render job).
+- Compliance: only the approved push performed; no real send / no secrets / no Gemini / no BodyGuard relax /
+  no base64 / no geometry-renderer change.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PRODUCT-DESIGN-V1 (2026-06-17)
+
+- DESIGN ONLY (no code change). Authored docs/poster2/cuistance_commercial_trial_product_design_v1.md:
+  reframes the proven POSTER2/CUISTANCE backend as the "CUISTANCE Campaign Production Platform" (NOT a poster
+  generator). Grounded in the proven run (poster_key=p2_7f7d2f3649024ceb, trace_id=ops-ecc-1781683072440-4206,
+  email_campaign_composite_v1, chromium, degraded=false, structure_complete/deliverable=true, R2 final_url,
+  email preview returns subject/html/text/summary_points/email_assets) AND the client workflow research
+  (文件1 工作流确认与AI替代评估图 / 文件2 工作流细节调研表, 2026-06-17, ~/poster/SOP).
+- Covers all 13 required sections: positioning (Campaign Production Platform; non-technical fr operators +
+  Owner approver + Admin); core scenarios; the 6-step main flow (Create→Materials→TruthLock→PosterPackage→
+  EmailPackage→Review&Owner-gated Send) with per-step input/output/UI/error/owner-review; 7 data objects
+  (CampaignJob/AssetPack/TruthLock/PosterPackage/EmailPackage/ApprovalRecord/SendRecord); UI IA (Dashboard +
+  Materials/TruthLock/Poster/Email/Review&Send/History tabs); 3 roles; ops_campaign.html demo->product
+  migration (absorb, reuse r2UploadFile/fetchSafe/contract-review; keep as internal smoke; remove demo-only
+  test mode); v1 scope + explicit non-scope; A/B/C employee replacement (A green full-auto, B yellow draft+
+  review, C green auto + send approval); 4 Mermaid diagrams (overall workflow / A-B-C replacement / data
+  lifecycle / approval-send gate); v1 validation metrics; backend capability ledger; next engineering slice;
+  open Owner decisions (pricing Q1, brand Q2, single-vs-series Q3, EF132V↔image, Render redeploy/RAM).
+- Index updated: docs/poster2/README.md (01 Product). No code, no real send, no renderer/case001/190°C change,
+  no Gemini-as-truth, ops_campaign.html not wrapped as final product, no UI beautify / 4.8 polish / multi-
+  product generation.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-V1-MULTI-ROLE-DESIGN-REVIEW (2026-06-18)
+
+- DESIGN / REVIEW ONLY (no code change, no email sent). Authored
+  docs/poster2/cuistance_commercial_trial_v1_multi_role_design_review.md, which scopes-DOWN the platform
+  blueprint (cuistance_commercial_trial_product_design_v1.md) per the Owner/PM ruling: v1 = a result-oriented
+  commercial-trial workbench, NOT the full Campaign Production Platform.
+- v1 core = single-product new-launch promotion email; 4-step flow (Créer / Importer / Générer l'affiche /
+  Assembler & envoyer). Two key revisions captured: (1) send is MANUAL operator-confirmed multi-recipient only
+  (no address-book / no Excel import / no CRM/Mailchimp/Sendinblue / no grouping / no scheduling / no open-click
+  analytics / no mass automation); (2) Logo/Banner are DECOUPLED from the poster body into a separate Email
+  Assembly HTML layer.
+- Route A (primary) = poster body (email_campaign_composite_v1, no logo inside) + Email Assembly. Route B
+  (fallback only) = HTML product sheet sharing the same assembly header/footer; used when assets insufficient /
+  Chromium render fails / degraded / quick note needed.
+- Covers all 12 required sections: Owner Summary; Product Designer view (4-step pages/input/output/failure,
+  Route A/B, Email Assembly, manual-recipient send); Engineering review (capability ledger TABLE vs live code);
+  Operator view (10–15 min feasibility, French fixed strings); Scope Controller ruling (must/can/won't/future/
+  safety/creep); v1 IA (5 tabs); 7 lightweight data objects (TrialCampaign/AssetInputs/PosterBodyPackage/
+  EmailAssemblyPackage/RecipientInput/SendAttempt/EvidenceRecord); Route A/B decision rules; Email Assembly
+  design; 4 Mermaid diagrams; 3-PR slice plan; final verdict.
+- Engineering findings grounded in live code: HAVE = R2 presign (/api/r2/presign-put), generate
+  (/api/v2/generate-poster email_campaign_composite_v1), contract review, /api/v2/email/preview, PNG/PDF assets
+  (build_email_assets_for_record), send (/api/v2/email/send, inline_only+resend). GAPS = G1 logo/banner baked
+  into the composite poster body (banner_region + logo chip) — conflicts with "strip logo/banner"; G2 Email
+  Assembly missing (current email HTML is poster image + title + bullets only, no header/CTA/footer/social);
+  G3 send is single-recipient (EmailSendV2Request.recipient: EmailStr) — needs manual multi-recipient; G4 no
+  Route B HTML product sheet; G5 no TrialCampaign persistence (only poster_record); G6 explicit confirm gate +
+  SendAttempt/EvidenceRecord.
+- 3-PR plan: PR-1 docs + lightweight 4-tab UI shell/state (reuse r2UploadFile/fetchSafe/contract render);
+  PR-2 decouple logo + build Email Assembly composer; PR-3 manual multi-recipient confirmed send + Route B +
+  evidence. Verdict: APPROVE → enter engineering plan; START with PR-1, do NOT code PR-2/PR-3 before PR-1 lands.
+  Biggest risk = G1 logo decoupling without disturbing contract gates / 190°C / case001 truth / geometry.
+- Index updated: docs/poster2/README.md (01 Product). Compliance: no code change, no real send, no address-book/
+  Excel/CRM/scheduling/analytics, no full Campaign Dashboard, no multi-role permission system, no multi-product
+  generation, no 4.8 polish, HTML fallback kept as fallback (not main), logo/banner not re-bound to poster body,
+  case001/190°C truth unchanged, Gemini stays suggestion-only (never business truth).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-BRANCH-AWARE-HEAVY-ENGINEERING-DESIGN-V1 (2026-06-18)
+
+- DESIGN / REVIEW ONLY (no code change, no branch merge, no push, no email sent). Authored
+  docs/poster2/cuistance_commercial_trial_branch_aware_heavy_engineering_design_v1.md.
+- VERIFIED GIT REALITY (inspected, not assumed): current branch =
+  feature/poster2-email-campaign-composite-remote-smoke-v1; merge-base with main = 21ebba2; main..HEAD = 9
+  commits; HEAD..main = 0 commits. => feature is a STRICT SUPERSET of main (merge would be a fast-forward, not a
+  divergent reconciliation).
+- The 9 feature commits add: catalog_hero (experiment), family-b announcement UI, email_campaign_composite_v1
+  family + R2 hosting bridge, ops_campaign static page, R2-presign upload (no base64), bounded render + JSON-on-
+  failure, scale=1 render, tests. These are FEATURE-ONLY (absent on main): confirmed email_campaign_composite /
+  catalog_hero / ops_campaign do not exist on main.
+- Product Sheet (template_product_sheet_v1.{json,html,css,svg,slot_spec,anchor_map}) EXISTS ON MAIN and therefore
+  also in the feature tree (feature superset). So "reuse Product Sheet from main" needs NO cherry-pick — it is
+  already present. /api/v2/generate-poster already DISPATCHES by template_id (catalog_hero / email_campaign_
+  composite dedicated paths at main.py:2077/2083; else PosterPipeline handles template_dual_v2* and
+  template_product_sheet_v1). => Route B (Product Sheet) is reachable at the API level today; only the email-chain
+  SELECTION of it is missing. email_campaign_composite.py never references product_sheet (fallback NOT integrated).
+- Honest correction surfaced in the doc: the Owner framing "Product Sheet not yet merged with the activity chain"
+  is true at the INTEGRATION level (not selected as Route B) but NOT at the TREE level (Product Sheet files
+  already coexist with the email chain on the feature branch). main does NOT contain feature work (consistent),
+  but feature DOES contain main's Product Sheet.
+- Gaps (branch-located): G1 logo/banner baked into BOTH bodies (email_campaign_composite.banner_region +
+  template_product_sheet_v1.logo_banner_region) -> must move to Email Assembly; G2 Email Assembly HTML missing
+  (current draft = poster image + title + bullets, app/services/email/drafts.py); G3 send single-recipient
+  (EmailSendV2Request.recipient: EmailStr) -> need manual recipients[]; G4 Route B not selected by email chain;
+  G5 no TrialCampaign/recipient persistence (only poster_record); G6 confirm gate + SendAttempt/EvidenceRecord.
+- Recommendation: Option A (build v1 on feature branch first, then controlled fast-forward merge to main after
+  PR-3 gates pass). Rejected B (would promote experimental catalog_hero + binaries into main prematurely) and C
+  (cherry-pick unnecessary given linear history + Product Sheet already present). 3-PR plan: PR-1 docs + 4-step UI
+  shell/state; PR-2 Email Assembly + logo decoupling (both templates) + Route B selection; PR-3 manual recipient
+  send + evidence + A->B fallback rule. Biggest risk = G1 decoupling without disturbing contract gates / 190°C /
+  case001 / geometry. Verdict: APPROVE.
+- Commit-hygiene note for any future merge: working tree has many UNTRACKED docs (02_architecture/*,
+  05_validation/*, this review, harness-x/, asset dirs) + .DS_Store churn that are NOT part of the 9 commits and
+  must be committed deliberately (and .DS_Store ignored) before merge.
+- Index updated: docs/poster2/README.md (01 Product). Compliance: no code, no merge, no push, no real send, no
+  contact/Excel/CRM import, no scheduling/analytics/automation, no multi-product generation, no 4.8 polish, HTML/
+  Product-Sheet kept as fallback (not main), logo/banner not re-bound to body, case001/190°C truth unchanged,
+  Gemini stays suggestion-only.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-BASELINE-AND-UI-FLOW-DESIGN-V1 (2026-06-18)
+
+- DOCS-ONLY (no code, no branch merge, no push, NO TAG created, no email sent, PR-1 NOT started). Owner re-
+  prioritization: UI flow BEFORE engineering — past passes produced heavy backend but no operator-usable product.
+- Authored docs/poster2/cuistance_commercial_trial_ui_flow_design_v1.md with Part A (baseline freeze plan) +
+  Part B (operator UI flow).
+- PART A baseline facts (verified): branch=feature/poster2-email-campaign-composite-remote-smoke-v1; HEAD=
+  11ece2616ad9664480e8468deebd8cf3efe416a7 (11ece26); merge-base w/ main=21ebba2; ahead=9 behind=0 (feature is a
+  STRICT SUPERSET of main, fast-forward). Proven remote pass anchor: poster_key=p2_7f7d2f3649024ceb,
+  trace_id=ops-ecc-1781683072440-4206, email_campaign_composite_v1, chromium, degraded=false,
+  structure_complete=true, deliverable=true, poster_hosting=r2, R2 final_url; committed in-tree proof under
+  docs/poster2/assets/email_campaign_composite_ui_v1/ shows chromium + structure_complete but inline_data_url
+  (local capture). Dirty tree: 4 modified-tracked (2 are .DS_Store noise, 2 are intended doc updates), 87
+  untracked docs/assets NOT part of the 9 commits — must be committed deliberately before any merge; add .DS_Store
+  to .gitignore.
+- PROPOSED baseline tag (DO NOT create without explicit Owner approval): 
+  baseline/poster2-cuistance-commercial-trial-remote-pass-v1 at 11ece26. Exact git tag/push commands documented;
+  merge of main DEFERRED. Stop point = no tag, no merge, no PR-1.
+- PART B UI flow (operator-first): single workbench + 4-step stepper (① Créer la tâche ② Importer les éléments
+  ③ Générer l'affiche produit ④ Assembler l'email & envoyer) + optional ⓘ Diagnostic drawer. Route A (affiche
+  produit) default; Route B (fiche produit simplifiée) shown as fallback only on degraded/échec/thin-assets, flows
+  into the SAME Step 4. Logo/Banner presented as Email Assembly header element ("Logo (pour l'email)"), NOT inside
+  the poster body. Manual recipient chip input + Test/Réel send with explicit confirm dialog (no contact import /
+  Excel / CRM / segmentation / scheduling / analytics / automation). Error table maps each failure to an operator
+  message + next action (never raw "Unexpected token '<'"). Documented French fixed strings, CAN-edit vs CANNOT-
+  edit vs business-truth-locked (spec/contact/190°C/case001/ambiance≠fait; Gemini=suggestion only), text+Mermaid
+  wireframes, engineering implications mapped to the existing 3-PR plan (after approval only), and 10 open
+  questions for Owner/PM/operator.
+- Index updated: docs/poster2/README.md (01 Product). Compliance: no code change, no merge, no push, no tag, no
+  real send, no renderer change, no TrialCampaign/Email-Assembly/Route-B/multi-recipient implementation, no
+  contact import / scheduling / analytics / CRM, no full Campaign Dashboard, no Gemini-as-truth, case001/190°C
+  truth unchanged, doc not backend-heavy (operator-facing flow is the focus).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-BASELINE-AND-UI-FLOW-DESIGN-V1 — REVISE (4→3 steps + 商用化, 2026-06-18)
+
+- DOCS-ONLY (no code, no merge, no push, NO TAG, no email sent, PR-1 NOT started). Owner REVISE applied to
+  docs/poster2/cuistance_commercial_trial_ui_flow_design_v1.md (full rewrite).
+- LANGUAGE: doc is now Chinese-primary / internal-review oriented; English only for technical identifiers
+  (branch/API/template_id/request_id/poster_key); French ONLY as UI copy examples (no separate French document).
+- FLOW: 4 steps -> 3 steps. Old Step1(create)+Step2(materials) MERGED into new Step1 "产品与素材 / Produit &
+  éléments" (task name + product name + ref/model + product hero 1-2 [>=1 required, gates Step2] + gallery 0-3 +
+  logo-for-email + optional atmosphere + upload states; logo marked "en-tête de l'email, pas dans l'affiche";
+  atmosphere marked "Visuel uniquement"). Old Step3 -> new Step2 "生成产品海报主体 / Affiche produit". Old Step4
+  -> new Step3 "拼接邮件、预览并发送 / Email & envoi". All stepper labels, wireframes, Mermaid, Chinese
+  explanations, French copy examples, open questions, engineering implications updated for 3 steps.
+- COMMERCIAL-FACING RULE: operator screens hide ALL engineering language (branch, git tag, template_id,
+  renderer_mode, chromium, R2, Route A/B, API paths, JSON, contract_review, request_id, poster_key, Gemini,
+  internal fallback names). These appear ONLY in the ⓘ diagnostics drawer / engineering appendix / Part A (marked
+  engineering-internal). Business-language replacements documented: Affiche produit (main poster), Fiche produit
+  simplifiée (fallback, not "Route B"), Vérification / Informations vérifiées / Prêt pour l'email (not
+  "contract review"), Téléversement terminé / Image prête (not "R2 upload"), Version simplifiée disponible (not
+  "degraded").
+- KEPT: poster route PRIMARY + simplified product sheet SECONDARY/fallback; Logo/Banner separated into Email
+  Assembly (not poster body); manual one-or-many recipient send with explicit confirm; no contact import / no
+  Excel / no CRM / no segmentation / no scheduling / no analytics / no automation.
+- ADDED per Owner structure: 14-section internal-review layout; French UI copy table (中文含义 / French UI label /
+  internal note) covering all required labels incl. Confirmer l'envoi à N destinataire(s); visible-vs-internal
+  split; business-language error table; 3-step engineering implications (PR-1 = 3-step commercial trial workbench
+  shell, NOT 4-step); 11 open questions (incl. baseline tag approval).
+- Part A baseline freeze UNCHANGED in facts (branch feature/...remote-smoke-v1, HEAD 11ece26, ahead=9 behind=0,
+  proposed tag baseline/poster2-cuistance-commercial-trial-remote-pass-v1 — propose only, defer main merge) but
+  explicitly marked ENGINEERING/INTERNAL ONLY.
+- Index updated: docs/poster2/README.md (01 Product). Compliance: no code/tag/merge/push/send/PR-1; no
+  TrialCampaign / Email-Assembly / fallback-route / multi-recipient implementation; no renderer/case001/190°C
+  change; Gemini not a truth source; no separate French doc; no engineering language on operator-facing screens;
+  no full Campaign Dashboard / no contact import / scheduling / analytics / CRM.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-UI-FLOW — REVISE (Email Banner Module + parameter truth, 2026-06-18)
+
+- DOCS-ONLY (no code, no merge, no push, NO TAG, no email sent, PR-1 NOT started). Owner REVISE applied to
+  docs/poster2/cuistance_commercial_trial_ui_flow_design_v1.md. 3-step flow UNCHANGED.
+- CORRECTION 1 — Email Banner Module is FIRST-CLASS (not removed): Logo/Banner is SEPARATED from the Product
+  Poster Body and designed as an independent "Module Bannière / Email Banner Module" (logo + dark/brand
+  background + pattern/texture + optional channel name + optional group/partner mark + optional campaign label),
+  reused across the main poster route AND the simplified product-sheet route. Email Package = (1) Email Banner
+  Module (2) Product Poster Body (3) Body Copy/CTA (4) Footer Contact/Social (5) Attachments (6) Recipients/Send.
+  Operator-facing wording forbidden to say "removed / not part of product / no banner in final email"; must say
+  "banner is the email header / poster focuses on product / final email contains BOTH banner and poster".
+  Updated: Owner Summary, design-principle table (+row "不说移除"), Step1 (added Bannière de l'email fond/motif +
+  Contact/Réseaux), Step2 (poster body PAS de bannière email; brand colors ok but banner not baked in), Step3
+  (defined Banner Module as 1st block w/ logo + fond/motif + canal/campagne), both Mermaid (added Email Package
+  structure with Banner as first block), French copy table (+Bannière/En-tête/Fond·motif/Nom du canal/Libellé de
+  campagne), visible-content, engineering implications (PR-2 = Email Banner Module + Assembly), open questions
+  (+banner style / channel·campaign label / logo source / banner wording).
+- CORRECTION 2 — product parameter truth: REMOVED hard-coded "Thermostat jusqu'à 190°C" as a platform rule.
+  Product parameters now come from CONFIRMED INPUT (manual / imported material pack / future PDF·manual
+  extraction / confirmed product data). AI may organize wording but must NOT invent or change technical
+  parameters. 190°C is ONLY a case001 / EF132V sample validation fact, not a per-product rule. UI now uses
+  generic "Caractéristiques techniques" / "Paramètres produit" / "Informations confirmées" / "Information
+  vérifiée"; replaced "Thermostat locked 190°C" with "Technical parameters confirmed from input". Internal note
+  retained: for EF132V/case001, 190°C remains a sample truth gate (engineering-only, not shown to operators).
+- KEPT: 3 steps (① 产品与素材/Produit & éléments ② 生成产品海报主体/Affiche produit ③ 拼接邮件、预览并发送/Email &
+  envoi); poster route PRIMARY + simplified product sheet SECONDARY/fallback; manual one-or-many recipient send
+  w/ explicit confirm; engineering language hidden from operator screens (diagnostics drawer / appendix only);
+  no contact import / no Excel / no CRM / no segmentation / no scheduling / no analytics / no automation.
+- Index updated: docs/poster2/README.md (01 Product). Compliance: no code/tag/merge/push/send/PR-1; no
+  Email-Banner-Module / Email-Assembly / fallback-route / multi-recipient implementation; no renderer/case001/
+  EF132V-sample-truth change; Gemini not a truth source; banner NOT removed from final email; 190°C NOT
+  hard-coded as a platform-wide rule.
+
+## ENGINEERING-SKILL-BASELINE-AND-INSTALLATION-REVIEW (2026-06-18)
+
+- CUISTANCE commercial UI design PAUSED by Owner (do not continue UI design; do not create/use a custom
+  poster2-commercial-ui-design skill — unverified, must not drive the critical product-design baseline).
+- REPORT ONLY (no config change, no skill/plugin install, no marketplace add, no product code touched, no UI
+  design continued). Authored docs/poster2/engineering_skill_baseline_review_v1.md.
+- Skill setup inspected on disk: user skills ~/.claude/skills = {harness-x-workflow} only; project .claude/skills
+  = none; ~/.claude/plugins = empty (no marketplaces); no Superpowers/external pack local. All other Skill-tool
+  entries (code-review, simplify, verify, run, review, security-review, init, deep-research, claude-api,
+  update-config, keybindings-help, fewer-permission-prompts, loop) are Claude Code BUILT-INS, already enabled.
+  Planning covered by Plan subagent + plan mode + Explore agent. settings: ~/.claude/settings.json =
+  {skipWorkflowUsageWarning:true}; project settings.local.json = Bash permission allowlist only (no skill config).
+- Recommendation: INSTALL NOTHING — minimal verified set (code-review/simplify/verify/run/security-review +
+  Plan/Explore + harness-x-workflow) already installed/enabled. DEFER external brainstorming/writing-plans/UX
+  packs (not local, unverified) until Owner vets a trusted marketplace. Do NOT create the custom commercial-UI
+  skill. Install/marketplace commands documented as PROPOSED only (config change → Owner approval required;
+  none executed).
+- Compliance: no product code change, no UI design continuation, no custom skill, no renderer change, no merge,
+  no tag, no push, no email send, no PR-1.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-CLAUDE-DESIGN-UI-V1 (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner decision: start commercial UI design; process = Design -> Verify -> Submit (do NOT self-approve; final
+  status must be SUBMITTED FOR OWNER REVIEW, not PASS). Skill baseline: existing verified Claude Code
+  capabilities only (read approved flow doc); no external/custom skill installed or created.
+- DOCS-ONLY: no code, no UI implementation, no renderer change, no merge, no tag, no push, no email sent, no
+  PR-1. Authored docs/poster2/cuistance_commercial_trial_claude_design_ui_v1.md (commercial VISUAL UI design over
+  the approved 3-step flow).
+- Read source docs: cuistance_commercial_trial_ui_flow_design_v1.md (approved 3-step flow + semantics),
+  branch_aware_heavy_engineering_design_v1.md, README.md, this log (in context).
+- Design content: positioning = single-product promotional EMAIL WORKBENCH (not a poster generator); visual
+  direction = clean B2B SaaS / modern-European, preview-first, strong whitespace + hierarchy, neutral palette
+  (#F6F7F9/#FFF/#E6E8EC, ink #1F2024, muted #6B7178) + CUISTANCE red #E1002A accent ONLY on active step/primary
+  CTA; calm cards, no debug dashboards. IA = single workbench, top bar (brand + 3-step + état chip + ⓘ), left
+  edit / right live preview, bottom single primary CTA. 3 screens (Produit & éléments / Affiche produit / Email &
+  envoi) each with one primary action. Email Banner Module = first-class (logo + dark/brand fond + motif +
+  optional canal/groupe/campagne; reused across poster + simplified-sheet routes; final email = bannière +
+  affiche produit). Simplified product sheet = amber, useful OPTION not a failure (no Route B/degraded wording).
+  Product params from confirmed input; 190°C = case001/EF132V sample only (internal note isolated), not a
+  platform rule; AI/Gemini = "suggestion" only, never a truth source.
+- Self-verification (A-G) performed and reported IN the doc: A commercial usability (1-min understandable,
+  10-15 min first email [conditional on generation time, mitigated by simplified option], B2B look, one primary
+  action/screen) = satisfied; B 3-step (Step1 merges product+materials, no separate create-task step) =
+  satisfied; C banner first-class/not removed/separate/final email shows both = satisfied; D params confirmed
+  input / 190°C not platform rule / Gemini not truth source = satisfied; E no engineering leakage on operator
+  screens (terms isolated to ⓘ drawer/internal notes) = satisfied; F French operator copy + business-friendly
+  errors + simplified sheet as useful option = satisfied; G scope control (no contact import/scheduling/
+  analytics/CRM/full dashboard/code) = satisfied. Open design risks + 9 open questions left for Owner.
+- Status: NOT self-approved. STATUS: SUBMITTED FOR OWNER REVIEW.
+- Index updated: docs/poster2/README.md (01 Product).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-STATIC-UI-MOCKUP-V1 (2026-06-18) — STATIC UI MOCKUP SUBMITTED FOR OWNER REVIEW
+
+- Owner decision: Claude Design UI doc accepted for visualization -> move to static UI mockup / visual prototype.
+  NOT production implementation, NOT PR-1 engineering. Design artifact for Owner/PM/operator review.
+- DOCS/ARTIFACT-ONLY: no app/frontend production code changed, no backend API connected, no real upload/
+  generate/send, no renderer change, no tag/merge/push, no PR-1. Read approved design + flow docs first.
+- Created static prototype under docs/poster2/ui_mockups/cuistance_commercial_trial_v1/:
+  index.html (single page, 3 screens + banner module + confirm modal + hidden diagnostics drawer; local
+  view-switching JS only, no network), styles.css (B2B SaaS tokens: neutral surfaces + CUISTANCE red #E1002A
+  accent only on active step/primary CTA, quiet cards, subtle borders, restrained shadows, preview-first
+  two-column), assets/product.svg + assets/gallery.svg (SVG placeholders), README.md (purpose / covered / not
+  implemented / how-to-view / Owner-PM-operator review checklist).
+- Screens: (1) Produit & éléments — campaign/product fields, confirmed Caractéristiques techniques, product +
+  gallery + ambiance uploads, Logo de l'email + Bannière fond/motif uploads, contact/social, Image prête state;
+  (2) Affiche produit — title/accroche/arguments editor, confirmed params (read-only inflow), poster body
+  preview WITHOUT banner, Vérification card (business sentences + Prêt pour l'email), Générer/Régénérer,
+  simplified product sheet as AMBER useful option (not red); (3) Email & envoi — Module Bannière editor, full
+  email preview (banner -> poster body -> copy+CTA -> footer/social), Objet/Intro (suggestion), PNG/PDF toggles,
+  recipient chips (incl. one invalid example), Envoi test/Envoyer, confirm modal, per-recipient results.
+- Email Banner Module = first-class (dark charcoal header + hex/dot pattern + white logo chip + red filet +
+  optional canal/campagne), SEPARATE from poster body; final email preview shows banner + poster body.
+- Self-review (10 pts) result: commercial look ✓; 1-min understandable 3 steps ✓; banner first-class ✓; poster
+  body separate from banner ✓; final email shows banner+poster ✓; simplified sheet as useful amber option ✓;
+  operator labels business French ✓; engineering language absent from main UI ✓ (grep scan = NONE FOUND on
+  index.html); send clearly confirmed (modal + per-recipient results) ✓; ready for Owner/PM/operator visual
+  review ✓. HTML well-formedness check = OK (no unclosed/stray tags); all referenced assets exist.
+- 190°C not present as a platform rule (UI uses generic "Informations confirmées / Caractéristiques techniques");
+  Gemini not shown (intro labeled "suggestion"); no contact import / scheduling / analytics / CRM / full
+  dashboard.
+- Index updated: docs/poster2/README.md (01 Product). Status: SUBMITTED FOR OWNER REVIEW (not self-approved).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-STATIC-UI-MOCKUP-V1 — REVISE (real logo/banner + zh/fr test UI, 2026-06-18)
+
+- Owner REVISE: replace placeholder logo/banner with REAL assets; UI language = Chinese-primary explanatory +
+  French UI labels (system supports zh/fr; not French-only). Still static design, NOT production / NOT PR-1.
+- ARTIFACT-ONLY: no production app/frontend code changed, no backend API connected, no real upload/generate/send,
+  no renderer change, no tag/merge/push, no PR-1.
+- Real assets materialized into docs/poster2/ui_mockups/cuistance_commercial_trial_v1/assets/:
+  - logo_01.jpg = copied from ~/poster/SOP/logo_01.jpg (real CUISTANCE logo; PNG content 400x80, .jpg name).
+  - banner_option_01.jpg = real CUISTANCE NOUVEAUTÉ Mailchimp email header (image 0a50184e-…png, PNG 2451x457),
+    referenced by the target .eml "NOUVEAUTÉ … COUPES FRITES …"; set as DEFAULT banner.
+  - banner_option_02.jpg = real Technitalia banner (…banniere_1_(6).png, PNG 1080x720) referenced by the
+    "Fw_ … coup de chaud …" .eml. Provenance: .eml banners are REMOTE-hosted (Mailchimp/Zoho), not embedded;
+    "extract" = fetch the .eml-referenced URLs and save under the Owner-required filenames. .jpg names carry PNG
+    content (browsers render by content). Provenance table written into the mockup README.md.
+- index.html revised: real logo in Logo de l'email cell + email-header preview; Email Banner Module on Screen 3
+  shows TWO real banner options (Option 1 default-selected) with a live JS swap that updates BOTH the editor
+  preview and the final email preview; final email preview = real banner (en-tête) + product poster body
+  (separate) + copy + CTA + footer; added a top "internal test-review" note + Chinese explanatory hints (.zh /
+  .zh-hint) alongside French UI labels + Chinese sub-labels under each stepper step.
+- styles.css revised: polished real-banner styling (.banner-real / .email-banner with brand red filet, restrained
+  shadow), .banner-opt selector with red selected ring, .logo-real, review-note bar, zh accent styling, stepper
+  wrap for zh sub-labels; clean B2B SaaS kept, CUISTANCE red restrained.
+- Self-review (10): real logo ✓; real banner candidates (2, default selected) ✓; final email shows banner +
+  poster body ✓; zh/fr test UI ✓ (Chinese explanatory + French UI); clean European B2B SaaS ✓; no engineering
+  language in main UI ✓ (grep on index.html = NONE FOUND); banner module visibly first-class ✓; placeholder
+  logo/banner avoided (real used) ✓; README updated with asset provenance ✓; still static design (no backend/
+  upload/generate/send) ✓. HTML well-formedness = OK; all 5 referenced assets exist; real assets verified as
+  valid PNG images; no stale placeholder banner refs.
+- Semantics kept: 3-step flow; banner first-class & not removed; final email = banner + poster body; poster body
+  separate from banner; params from confirmed input; 190°C not a platform rule (UI uses generic Informations
+  confirmées / Caractéristiques techniques); simplified product sheet = useful amber option; manual recipients
+  only; no contact import / scheduling / analytics / CRM.
+- Index updated: docs/poster2/README.md (01 Product). Status: SUBMITTED FOR OWNER REVIEW (not self-approved).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-STATIC-UI-MOCKUP-V1 — V2 REVISE (lang switch + structured params + description + 2-image sheet + real assets, 2026-06-18)
+
+- Owner REVISE V2 of docs/poster2/ui_mockups/cuistance_commercial_trial_v1/. ARTIFACT-ONLY: no production code,
+  no backend, no real upload/generate/send, no renderer change, no tag/merge/push, no PR-1.
+- (1) LANGUAGE SWITCH: header toggle 中文 / Français; Chinese is the DEFAULT for this test; French is the target
+  operator language. Implemented via data-zh/data-fr attributes + JS textContent swap (verified: 0 data-zh
+  parents have child elements, so swap is safe). No longer permanently mixed. Email PREVIEW content stays French
+  (the email is a French deliverable). Stepper/bar/etat strings switch via JS dictionaries.
+- (2) REAL LOGO (assets/logo_01.jpg) applied to workbench header (brand-logo), Step 1 "邮件 Logo" cell + asset
+  preview, Step 3 Email Banner Module + final email preview (the real banner image itself carries CUISTANCE
+  branding/logo).
+- (3) REAL BANNERS: banner_option_01 (CUISTANCE NOUVEAUTÉ header, default) + banner_option_02 (Technitalia),
+  extracted from the target .eml-referenced remote URLs (provenance in mockup README). Live swap updates editor
+  preview + final email preview.
+- (4) STRUCTURED PARAMETERS (not free textarea): import/recognition entry button + param-table with 8 rows
+  (Référence/型号, Capacité/容量, Puissance/功率, Tension/电压, Dimensions/尺寸, Matière/材质, Thermostat/温控,
+  Autres/其他) each with value input + confirm state badge; format-requirements hint; truth-model explain block
+  (params from confirmed input; AI wording-only, never invents/changes technical params; 190°C = case001 sample
+  only, NOT a platform rule — thermostat row tagged "样例(case001)/Exemple (case001)").
+- (5) PRODUCT DESCRIPTION (产品介绍 / Description produit) as a separate editable card, explicitly separated from
+  confirmed technical parameters; purpose documented (email intro / sheet body / poster support copy / optimizer
+  weak input).
+- (6) SIMPLIFIED PRODUCT SHEET upgraded to a real product-sheet visual: shared Email Banner + 1–2 real product
+  images + description + confirmed params (Capacité/Puissance/Tension/Matière) + CTA; presented as an AMBER
+  "useful option" (badge 有用选项/Option utile); no fallback/degraded/Route B wording.
+- (7) REAL PRODUCT IMAGES added: product_01.jpg / product_02.jpg copied from ~/poster/SOP/Electric Fryer1/2.jpg
+  (1280×1280 JPEG), used in poster hero, simplified sheet (two images), and Step 1 preview.
+- (8) REFERENCE ALIGNMENT CHECKLIST added to mockup README (Technitalia target + 3 CUISTANCE fallback emails +
+  Email Campaign Composite): top banner strength / real logo clarity / dark brand header / restrained red /
+  product explanation area / product-sheet fallback visual / footer-contact pattern / final email looks like an
+  email (sectioned email layout, not a generic SaaS card).
+- styles.css V2 additions: .brand-logo, .lang-switch/.lang, .param-import/.param-table/.input.cell/.badge.sample,
+  .explain, .email-banner small/mini, .sheet/.sheet-body/.sheet-imgs/.sheet-title/.sheet-desc/.sheet-specs,
+  .p-hero img, segmented preview label. Clean B2B SaaS kept; CUISTANCE red restrained.
+- Self-review (10): lang switch + Chinese default ✓; French mode available ✓; real logo ✓; 2 real banners ✓;
+  structured params (8 rows, not free textarea) ✓; description present & separated ✓; simplified sheet supports
+  1–2 product images ✓; final email aligns better w/ target + fallback emails ✓; no engineering leakage (grep on
+  index.html = NONE FOUND) ✓; still static mockup ✓. HTML well-formedness = OK; all 5 referenced assets exist
+  (all real); 190°C not a platform rule.
+- Kept: 3-step flow; banner first-class & separate from poster body; final email = banner + poster/sheet body;
+  manual recipients only; no contact import / scheduling / analytics / CRM.
+- Index updated: docs/poster2/README.md (01 Product). Status: SUBMITTED FOR OWNER REVIEW (not self-approved).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-STATIC-UI-MOCKUP — V2 Step 2 selection/save mechanism (2026-06-18)
+
+- ARTIFACT-ONLY (no production code / backend / upload / generate / send / renderer / tag / merge / push / PR-1).
+  Updated docs/poster2/ui_mockups/cuistance_commercial_trial_v1/{index.html,styles.css,README.md} per Owner.
+- Step 2 now has a clear SELECT/SAVE mechanism: both previews (Affiche produit card #card-affiche, Fiche produit
+  simplifiée card #card-sheet) are .selectable with a "选为邮件主体 / Choisir pour l'email" button + a hidden
+  "已选用 / Sélectionné" badge; the in-card notice buttons also act as selectors (选用海报主体 / 选用简化产品页).
+- Only ONE visual can be selected (selecting one clears the other); selected card shows red ring + corner ✓ +
+  badge. selectedVisual = 'affiche' | 'sheet'.
+- "Continue ▶" (nextBtn) is GATED on Step 2: disabled until a visual is selected; action-bar hint switches to
+  "请先选择邮件主体 / Choisissez d'abord le visuel de l'email" while unselected. Step 1 and Step 3 unaffected.
+- The selected visual reflects into the Step 3 final email preview body: #emailBodyAffiche vs #emailBodySheet
+  toggled (only one shown), under the shared real banner.
+- "Régénérer / Regenerate" remains available and CLEARS the current selection (forces re-select). NO version
+  history / NO multi-version management added (only a code comment notes their intentional absence).
+- styles.css: .card.selectable(.selected) red ring + corner ✓, .btn.select-visual (becomes primary when its card
+  is selected), .selected-badge shown only when selected. Clean B2B SaaS kept; red restrained.
+- Verify: HTML well-formedness = OK; gating line present (nextBtn.disabled = step===2 && !selectedVisual);
+  selectVisual fn + .select-visual wiring + Régénérer-clears wiring present; emailBody swap present; no
+  engineering-language leak (grep = NONE FOUND). Real assets unchanged.
+- Status: SUBMITTED FOR OWNER REVIEW (not self-approved).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-BACKEND-ALIGNMENT-PLAN-V1 (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner: UI Mockup V2 approved as the product-interaction baseline for backend alignment. Produce a backend
+  alignment + heavy-engineering plan FIRST; do NOT start heavy implementation / PR-1.
+- DOCS-ONLY (no code / no backend / no renderer / no send / no tag / no merge / no push / no PR-1; mockup NOT
+  connected to backend). Authored docs/poster2/cuistance_commercial_trial_backend_alignment_plan_v1.md.
+- Reading note (surfaced honestly): two Owner-listed must-read docs are MISSING in-tree —
+  docs/poster2/poster2_generation_routes_design_baseline_v1.md (absent) and root
+  docs/poster2/email_copy_optimizer_and_optional_attachment_status_v1.md (absent; content lives under
+  03_engineering/). Planned against ACTUAL backend code instead (main.py, schemas/poster2.py, poster_records.py,
+  services/email/*, poster2/email_campaign_composite.py, template_product_sheet_v1, r2_client.py) + AGENTS.md /
+  CLAUDE.md / README / log.
+- Verified backend reality: /api/v2/generate-poster dispatches by template_id — email_campaign_composite_v1 =
+  Affiche produit candidate (logo baked into banner_region), template_product_sheet_v1 = Fiche produit
+  simplifiée (ALREADY 2-image via product_image + product_secondary_image; logo in logo_banner_region). Each
+  generate -> create_poster_record(poster_key) (R2 JSON + /tmp fallback). GET /api/v2/posters/{poster_key};
+  /api/v2/email/preview (deterministic draft + optional Gemini non-truth + PNG/PDF via build_email_assets_for_
+  record, flag-gated); /api/v2/email/send single-recipient (EmailStr), inline_only+resend; /api/r2/presign-put
+  url/key only.
+- 5 real gaps: (1) workbench/TrialCampaign + structured product params (rows + pending/confirmed/locked) +
+  separate product description; (2) Step-2 two candidates + selected_email_body_visual persistence + regenerate
+  reset; (3) Email Banner Module decoupling (logo out of banner_region/logo_banner_region) + Email Assembly
+  preview; (4) manual multi-recipient confirmed send + send_attempts evidence; (5) small items (language pref).
+- Proposed: minimal records (workbench_record/product_truth/product_assets/email_banner/poster_candidates/
+  selected_email_body_visual/email_package/recipients·send_attempts) layered OVER poster_record (reference, not
+  copy); endpoint REUSE (only 2 thin new: POST/PATCH /api/v2/workbench; reuse generate-poster for both candidates
+  by template_id, reuse preview/send extended); asset flow url/key no base64; parameter truth (AI wording-only,
+  never invents/changes params; 190°C = case001 sample, not platform rule); Email Assembly (banner module +
+  selected body visual consumed deterministically by poster_key); PR-0..PR-4 sequence w/ per-PR files/tests/
+  smoke/owner-gates/forbiddens; 10 risks (no dashboard overbuild, no poster_record duplication, no frontend-as-
+  truth, no banner-in-body, no fail-looking sheet, no hard-coded 190°C, no engineering leakage, no premature
+  renderer change).
+- Index updated: docs/poster2/README.md (01 Product). Status: SUBMITTED FOR OWNER REVIEW (not self-approved).
+
+## POSTER2-DOCS-INDEX-ROUTER-SKILL-PILOT-V1 (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- docs-index-router skill pilot STARTED + COMPLETED (docs-governance only). NO product code changed
+  (no app/**, frontend/**, renderer, email behavior, mockup files, deployment config). PR-1 REMAINS PAUSED
+  until Owner approves docs governance.
+- Skill availability (honest record): the `docs-index-router` skill is NOT installed/invokable here (absent
+  from the Skill list and ~/.claude/skills). Router + script authored from the task's explicit spec (used as
+  the skill template), adapted to the real repo layout.
+- Created: docs/DOCS_INDEX_AND_ROUTER.md (repo-level routing/governance, 15 sections; does NOT replace
+  docs/poster2/README.md — that remains the formal POSTER2 index); scripts/check_docs_router.py (git-aware
+  governance check); PROJECT_STATUS.md (governance ACTIVE + router/script/poster2-index pointers + PR-1 paused).
+- Missing-file honesty: required-read docs/poster2/template_dual_v2_architecture_business_definition.md does NOT
+  exist at the poster2 root; real formal path = docs/poster2/02_architecture/...; legacy duplicate at
+  01_architecture/... (reference-only). Recorded in the router; missing root path NOT treated as truth.
+- Validation: `python3 scripts/check_docs_router.py --all` -> RESULT: PASS, EXIT=0, OK=5 WARN=15 ERROR=0.
+  First run produced 1 ERROR on a pre-existing legacy file (docs/harness-x/ai_service_harness_x_pilot_status_
+  20260609.md, untracked, not created by this task). Per Owner guidance (warnings for legacy, errors for new),
+  the metadata-ERROR rule was narrowed to the GOVERNANCE HOME only (top-level docs/*.md + root governance);
+  auxiliary/legacy docs/ subdirs (harness-x, architecture, execution, ...) and the docs/poster2/** corpus are
+  advisory (warn). Did NOT mass-move or archive any file.
+- Warnings recorded (legacy/advisory, non-blocking): 8 legacy root one-offs (archive-later: APPLY_EDIT_ENABLE_
+  PATCH.md, DEPLOYMENT_CONFIG_TRUTH.md, KITPOSTER_EDIT_QUALITY_AUDIT.md, POSTER_EDIT_PATH_REVIEW.md, POST_
+  RECOVERY_AUDIT.md, SAFE_PATCH_PLAN.md, VERIFICATION_CHECKLIST.md, task4_handoff.md); 1 auxiliary harness-x
+  doc; 6 CUISTANCE active docs missing the new metadata block (advisory — add when next touched).
+- docs/poster2/README.md left UNCHANGED (no strictly-needed index entry; router/PROJECT_STATUS point to it).
+- Status: SUBMITTED FOR OWNER REVIEW. PR-1 may resume only after Owner approves this docs governance.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PR1-WORKBENCH-TRUTH-MODEL (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner lifted the PR-1 pause (docs router pilot approved; documentation governance ACTIVE). Implemented PR-1:
+  minimal backend-owned workbench truth model ONLY.
+- Docs router preflight: `python3 scripts/check_docs_router.py --all` -> PASS (EXIT=0, ERROR=0, legacy/advisory
+  warnings only).
+- Files changed: app/schemas/poster2.py (workbench models + model_validator import); app/services/
+  workbench_records.py (NEW: R2 JSON + /tmp fallback store, mirrors poster_records); app/main.py (import models +
+  store; 3 endpoints); tests/poster2/test_workbench_truth_model.py (NEW: 19 tests); docs status + README + log.
+- Endpoints: POST /api/v2/workbench, GET /api/v2/workbench/{workbench_key}, PATCH /api/v2/workbench/{workbench_key}.
+- Model fields: workbench_key/created_at/updated_at/language(zh|fr)/status(draft|assets|candidates|email_ready|
+  sent)/product_truth/product_assets/email_banner + PR-2..PR-4 placeholders (poster_candidates={}, 
+  selected_email_body_visual=null, email_package_ref=null, recipients=[], send_attempts=[]). product_truth =
+  product_name/reference/description/parameters[]/parameters_locked. parameter row = key(reference|capacity|power|
+  voltage|dimensions|material|thermostat|other)/label/value/source(manual|imported|recognized)/state(pending|
+  confirmed)/locked. product_assets = product_images(<=2)/gallery_images(<=3)/atmosphere(is_truth false only).
+  email_banner = logo/background/pattern/channel_name/campaign_label/selected_banner_ref.
+- Validation: url/key only (base64/data: rejected); locked row requires confirmed; parameters_locked requires >=1
+  row all-confirmed; invalid param key/state rejected; atmosphere is_truth=true rejected; >2 product images
+  rejected; invalid status rejected; unknown/missing workbench -> 404; 190°C accepted as ordinary thermostat value
+  AND a product with no thermostat row is valid (190°C NOT a platform rule); round-trip read returns identical
+  truth. Tests: 19 passed. Regression: with CORS_ALLOW_ORIGINS set, test_workbench + test_api = 54 passed.
+- Pre-existing artifact recorded: 6 generate-poster error/timeout/CORS tests assert access-control-allow-origin ==
+  origin; without CORS_ALLOW_ORIGINS env they get '*' and fail — reproduced with my changes stashed out, so
+  PRE-EXISTING + unrelated to PR-1. (Also: a pre-existing unrelated git stash "WIP on PosterSop06-beautification-
+  phase1" was observed and left intact/parked — NOT created or dropped by this task.)
+- Not implemented (boundaries kept): no Affiche/Fiche candidate generation; selected_email_body_visual nullable
+  placeholder only; no Email Banner decoupling / Email Assembly; no renderer change (email_campaign_composite /
+  template_product_sheet_v1 untouched); no /api/v2/email/preview or send change; no multi-recipient; no real
+  email; no tag/merge/push; no deployment config; 190°C not hard-coded as platform rule; no contact import /
+  scheduling / analytics / CRM / dashboard / automation.
+- PR-2 readiness: READY to request after Owner approval (workbench base + placeholders in place).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PR2-CANDIDATES-AND-SELECTED-VISUAL (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner approved PR-1; start PR-2 only. Implemented Step-2 candidate generation + selected-visual persistence.
+- Docs router preflight + final: `python3 scripts/check_docs_router.py --all` -> PASS (ERROR=0).
+- Files changed: app/schemas/poster2.py (CandidateType + WorkbenchSelectVisualRequest); app/services/
+  workbench_candidate_generation.py (NEW: build_candidate_payload, pure truth->payload, no renderer); app/services/
+  workbench_records.py (set_poster_candidate + select_email_body_visual); app/main.py (2 endpoints, reuse
+  generate_poster_v2); tests/poster2/test_workbench_candidates.py (NEW: 15 tests); docs status + README + log.
+- Endpoints added (thin orchestration, REUSE /api/v2/generate-poster, no renderer fork):
+  POST /api/v2/workbench/{workbench_key}/candidates/{candidate_type}/generate ;
+  PATCH /api/v2/workbench/{workbench_key}/selected-visual.
+- Candidate types: affiche -> template_id=email_campaign_composite_v1 (renderer_mode=puppeteer, business truth
+  deterministic case001); fiche -> template_id=template_product_sheet_v1 (renderer_mode=auto, primary +
+  product_secondary_image when 2 images present). Input mapping from workbench truth (product_name/reference/
+  description/product_images/gallery/atmosphere is_truth=false/banner.logo kept in path — banner decoupling is
+  PR-3). features=[] so candidates keep their validated default contract gates (composite callout_count=3).
+- Candidate model fields: poster_candidates[type] = {poster_key (REF only; truth stays in poster_record), status
+  (ready|failed), generated_at, template_id, contract_review_summary (lightweight)}. selected_email_body_visual:
+  null|affiche|fiche (scalar, exactly one).
+- Selection rules: cannot select candidate without poster_key or not ready (422 candidate_not_ready); selecting
+  one replaces previous; regenerating the SELECTED candidate clears selected_email_body_visual to null;
+  regenerating the NON-selected candidate keeps the selection; no version history; manual selection only.
+- Validation: test_workbench_candidates.py = 15 passed (generate affiche/fiche store poster_key; fiche primary+
+  secondary + single-image no-secondary; poster_key loadable via /api/v2/posters/{key}; select affiche/fiche;
+  cannot select unready; select replaces; regen-selected clears; regen-unselected keeps; GET returns candidates+
+  selection; 190°C ordinary param incl. no-thermostat product also generates; product_image_required 422;
+  invalid_candidate_type 422; unknown workbench 404). Regression: test_workbench_truth_model.py = 19 passed;
+  test_api.py = 35 passed (CORS_ALLOW_ORIGINS set). Pre-existing CORS env artifact unchanged (PR-1 recorded).
+- Not implemented (boundaries kept): no Email Banner decoupling / Email Assembly (PR-3); no /api/v2/email/preview
+  or send change; no multi-recipient; no real email; no renderer-internal change; no email_campaign_composite
+  truth-gate or template_product_sheet_v1 contract change; 190°C not a platform rule; no contact import /
+  scheduling / analytics / CRM / dashboard / automation; no tag/merge/push/deploy-config.
+- PR-3 readiness: READY to request after Owner approval (selected candidate poster_key available for Assembly).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PR3-EMAIL-BANNER-AND-ASSEMBLY-PREVIEW (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner approved PR-2; start PR-3 only. Implemented email-level Email Banner Module + Email Assembly preview.
+- Docs router preflight + final: `python3 scripts/check_docs_router.py --all` -> PASS (ERROR=0).
+- Files changed: app/schemas/poster2.py (EmailAssemblyBannerView/EmailAssemblyBodyVisual/EmailAssemblyPreview
+  Response); app/services/email/assembly.py (NEW: build_email_assembly — email-level banner + selected visual +
+  intro/CTA + footer, no renderer); app/main.py (import + 1 thin endpoint, reuse draft + attachment path);
+  tests/poster2/test_workbench_email_assembly.py (NEW: 12 tests); docs status + README + log.
+- Endpoint added: POST /api/v2/workbench/{workbench_key}/email/preview. Existing POST /api/v2/email/preview
+  (poster_key) and /api/v2/email/send UNTOUCHED (backward compatible).
+- Email Banner Module: source = workbench.email_banner (logo/background/pattern/channel_name/campaign_label/
+  selected_banner_ref); assembled at the email layer (dark brand header + logo + channel/campaign + red filet);
+  NOT poster-body truth; shared by affiche + fiche; echoed in response.banner + present in assembled html.
+- Selected visual consumption (deterministic): read workbench.selected_email_body_visual (affiche|fiche) ->
+  poster_candidates[selected].poster_key -> load_poster_record -> final_poster.url as the body visual image.
+  Gemini/frontend never choose. Failures: no selection -> 422 no_selected_email_body_visual; selected not ready
+  -> 422 selected_candidate_not_ready; poster_record missing -> 404 selected_poster_record_not_found.
+- Subject/preview from build_email_draft_for_poster_record (deterministic + optional grounded Gemini); intro
+  from product_truth.description (fallback draft preview); CTA default Nous contacter; attachment readiness
+  reuses build_email_assets_for_record (flag-gated) + available/buildable types. Preview-ready only; no send.
+- AI/parameter safety: canonical copy input excludes product_truth.parameters by construction -> Gemini cannot
+  invent/change technical parameters (test asserts canonical has no 'parameters'/no '190'; workbench params
+  unchanged after preview). 190°C remains an ordinary parameter, not a platform rule.
+- Banner decoupling boundary: done ADDITIVELY at the email-assembly layer, NO renderer change. Candidate bodies
+  still carry their own baked banner today -> documented transitional state, surfaced via
+  body_visual_contains_own_banner flag. Full body-only render = renderer contract change, explicitly out of PR-3.
+  NO Owner Decision Needed (boundary not crossed).
+- Validation: test_workbench_email_assembly.py = 12 passed; test_workbench_truth_model.py + test_workbench_
+  candidates.py = 34 passed; test_api.py = 35 passed (CORS_ALLOW_ORIGINS set; pre-existing CORS env artifact
+  unchanged). Existing email preview/send tests compatible.
+- Not implemented (boundaries kept): no PR-4; no /api/v2/email/send change; no multi-recipient; no real email;
+  no renderer-internal change; no email_campaign_composite_v1 / template_product_sheet_v1 rewrite; no composite
+  truth-gate change; 190°C not a platform rule; no contact import/scheduling/analytics/CRM/dashboard/automation;
+  no tag/merge/push/deploy-config.
+- PR-4 readiness: READY to request after Owner approval (assembly preview package available for manual send).
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PR3R-REFERENCE-EMAIL-HTML-EXTRACTION-PATCH (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner approved PR-3; small PR-3R patch before PR-4. Inspected reference emails ~/poster/SOP/ttt.html (CUISTANCE
+  Mailchimp NOUVEAUTÉ, 22.7KB/666L/31 tables) + ttt2.html (Technitalia Zoho, 114KB/2091L/40 tables). Both are
+  table-based 600px emails. Code+docs (minimal additive); did NOT start PR-4.
+- Docs router preflight + final: `python3 scripts/check_docs_router.py --all` -> PASS (ERROR=0).
+- Files changed: docs/poster2/cuistance_commercial_trial_reference_email_html_extraction_v1.md (NEW extraction
+  doc); app/services/email/assembly.py (minimal alignment); tests/poster2/test_workbench_email_assembly_
+  reference.py (NEW: 7 tests); PR-3 status doc (PR-3R note) + README + log.
+- Extracted email grammar: 600px container; top banner module; red/orange filet (#df3004 / #db4b38 / #eb7a00 ->
+  platform keeps #E1002A); title/intro; body-visual placement; CTA; contact/footer + 4-icon contact row
+  (telephone/email/catalogue/site) + FB/LinkedIn/Instagram social row; legal/unsubscribe placeholder; asset-URL
+  inventory (mailchimp 0a50184e header + product imgs; zoho bandeau_technitalia / banniere_1 / banniere_2 /
+  rechauds / contact+social icons).
+- Adopted assembly changes (assembly.py only): container 640px -> 600px wrapped in a table-safe shell
+  (<table role="presentation" width="600" max-width:600px>); explicit red filet <div height:3px background:#E1002A>;
+  footer legal/unsubscribe placeholder (non-functional href="#", "Se désabonner" + "contact professionnel").
+  Preserved: Email Banner Module, selected body visual, intro/CTA, attachment readiness; endpoint
+  POST /api/v2/workbench/{key}/email/preview unchanged; /api/v2/email/send untouched.
+- NOT copied: Zoho/Mailchimp scripts, tracking pixels, list-manage/campaign-image tracking, share/comment
+  widgets, view-in-browser overlays, hidden campaign IDs, third-party unsubscribe implementation, raw email HTML
+  wholesale. Test asserts assembled html has NO <script/list-manage/mcusercontent/campaign-image/zoho/mailchimp/
+  track.
+- Validation: test_workbench_email_assembly_reference.py = 7 passed (600px table-safe shell; banner module; red
+  filet; selected body visual; CTA; footer+legal placeholder; no third-party tracking). Regression: PR-3
+  assembly 12 + PR-3R 7 = 19; PR-1+PR-2 = 34; test_api.py = 35 (CORS env). Existing PR-3 assembly tests still
+  pass (preserved #1f2329 / logo / channel / body url / intro / cta substrings).
+- Future work (documented, not done): contact icon row + social icon row (need workbench contact/social model);
+  real body-only banner decoupling (renderer contract change, out of scope).
+- PR-4 readiness: READY to request after Owner approval.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PR3S-EMAIL-BODY-PLAN-BEFORE-SEND (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner PAUSED PR-4; added PR-3S (Email Body Plan before send). Reason: email body needs a planned deterministic
+  structure; the selected poster/product visual must enter a planned slot, not loose concatenation.
+- BACKOUT of prematurely-started PR-4: removed the workbench send endpoint + WorkbenchEmailSend* schemas +
+  app/services/email/workbench_send.py + workbench_records.append_send_attempts + their main.py imports. Branch
+  now has NO send path; existing single-recipient /api/v2/email/send UNTOUCHED. Verified grep clean.
+- Docs router preflight + final: `python3 scripts/check_docs_router.py --all` -> PASS (ERROR=0).
+- Files changed: app/schemas/poster2.py (SelectedBodyVisualSlot/EmailBodyPlanModule/EmailBodyPlanCta/
+  EmailBodyPlanView + email_body_plan on EmailAssemblyPreviewResponse); app/services/email/assembly.py
+  (build_email_assembly now generates HTML FROM the plan order; +poster_key param; returns email_body_plan);
+  app/main.py (preview passes poster_key + returns email_body_plan); tests/poster2/test_workbench_email_body_
+  plan.py (NEW: 11 tests); docs status + README + log.
+- EmailBodyPlan fields: layout_type=single_product_promo; container_width=600; modules[order,key,present] with
+  fixed order email_banner -> title_intro -> selected_body_visual -> product_description -> cta -> contact_footer
+  -> legal_footer; selected_body_visual_slot{source=workbench.selected_email_body_visual, candidate_type,
+  poster_key, final_poster_url}; cta{label=Nous contacter, href=#}.
+- selected_body_visual_slot behavior: backend-only selection -> poster_candidates[selected].poster_key ->
+  load_poster_record -> final_poster.url; the URL enters HTML ONLY via the selected_body_visual module (test
+  asserts single occurrence + banner precedes it). Gemini/frontend never choose; final_poster_url from loaded
+  poster_record not request input.
+- Validation: test_workbench_email_body_plan.py = 11 passed; PR-3+PR-3R assembly = 19; +PR-1+PR-2 = 53;
+  test_api.py = 35 (CORS env). Existing /api/v2/email/preview + /send compatible. Pre-existing CORS env artifact
+  unchanged (PR-1 recorded). PR-3/PR-3R assertions preserved (plan-driven refactor kept #1f2329/logo/channel/
+  body-url/Nous contacter/#E1002A/height:3px/Se désabonner/contact professionnel/width=600/role=presentation).
+- Not implemented (boundaries kept): no PR-4; no send endpoint; no /api/v2/email/send change; no multi-recipient;
+  no real email; no renderer change; no email_campaign_composite_v1 / template_product_sheet_v1 rewrite; 190°C
+  not a platform rule; no contact import/CRM/scheduling/analytics/dashboard/automation; no tag/merge/push/deploy.
+- PR-4 readiness: NOW READY to request — PR-4 will send the planned package (email_body_plan + deterministic
+  assembly), auditable + reproducible. Awaiting Owner approval.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-PR4-MANUAL-MULTI-RECIPIENT-SEND-EVIDENCE (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Owner approved PR-3S; resumed PR-4. Implemented manual multi-recipient confirmed send of the deterministic
+  PR-3S package + per-recipient evidence. Completes the v1 commercial backend loop.
+- Docs router preflight + final: `python3 scripts/check_docs_router.py --all` -> PASS (ERROR=0).
+- Files changed: app/schemas/poster2.py (SendMode/WorkbenchEmailSendRequest [no html/subject override]/
+  WorkbenchSendAttempt [+layout_type +deduplicated]/WorkbenchEmailSendResponse); app/services/email/
+  workbench_send.py (RE-ADDED: normalize_recipients + is_valid_email); app/services/workbench_records.py
+  (RE-ADDED: append_send_attempts); app/main.py (NEW _resolve_workbench_email_package shared by preview+send;
+  preview refactored to reuse it; NEW send endpoint); tests/poster2/test_workbench_email_send.py (NEW: 14 tests);
+  docs status + README + log.
+- Endpoint added: POST /api/v2/workbench/{workbench_key}/email/send. UNCHANGED: /api/v2/email/send (single
+  recipient, backward compatible); /api/v2/workbench/{key}/email/preview (refactored to reuse resolver, same
+  behavior).
+- Send confirmation: confirm_send must be true (test AND real); no implicit send. Guard order: resolve
+  deterministic package (no_selected_email_body_visual / selected_candidate_not_ready / email_body_plan_
+  unavailable / selected_poster_record_not_found) -> confirm_send_required -> recipients_required.
+- Recipient handling: manual recipients[] only (free-text, not EmailStr); empty -> 422; case-insensitive
+  order-preserving dedup with deduplicated_count; per-recipient isolation (invalid_recipient / provider_exception
+  do not erase others' evidence). No contact import/Excel/CRM/scheduling/segmentation/analytics.
+- EmailBodyPlan consumption: send consumes the SAME package as preview via _resolve_workbench_email_package
+  (email_body_plan + subject/preview_text/html/text). Send does NOT reconstruct body, NOT choose candidate,
+  NOT call Gemini to change facts, NOT generate a new poster; request accepts NO arbitrary html/subject override.
+- Evidence fields (workbench.send_attempts, no provider secrets): recipient, mode, status(sent|error|skipped),
+  provider, provider_message_id, error_code, error_message, attachment_types, at(ISO), selected_email_body_visual,
+  body_visual_poster_key, layout_type(=email_body_plan.layout_type), subject snapshot, deduplicated. Response:
+  total/sent_count/failed_count/skipped_count/deduplicated_count/attempts[]. inline_only -> preview_only -> skipped;
+  resend -> sent; real+sent marks workbench status=sent.
+- Validation: test_workbench_email_send.py = 14 passed (no-selection 422; not-ready 422; plan-unavailable 422;
+  empty recipients 422; confirm_send false 422 [test+real]; valid recipients produce attempts; mixed valid/invalid
+  isolate; dedup deterministic; attempt has selected_visual+poster_key; layout_type; subject+timestamp; unknown
+  404; real marks sent). NO real email sent (inline / fake provider). Regression: workbench PR-1..PR-4 = 78
+  passed; test_api.py = 35 passed (CORS env). Existing /api/v2/email/send compatible.
+- Not implemented (boundaries kept): no contact import/Excel/CRM/scheduling/analytics/open-click/dashboard/
+  automation; no renderer change; no email_campaign_composite_v1 / template_product_sheet_v1 rewrite; no arbitrary
+  HTML/subject override; 190C not platform rule; no tag/merge/push/deploy; tests do not send real email.
+- v1 commercial backend loop: COMPLETE (PR-1 truth -> PR-2 candidates+selection -> PR-3 banner+assembly -> PR-3R
+  reference grammar -> PR-3S body plan -> PR-4 confirmed manual send + evidence).
+- Operator trial: READY to request (backend complete/deterministic/auditable). Pre-trial ops config (not code):
+  real resend provider + verified sender domain; test-mode dry run; then real send to small manual list.
+
+## POSTER2-CUISTANCE-COMMERCIAL-TRIAL-FULL-FLOW-SMOKE-V1 (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Runtime-heavy full-flow smoke (in-process FastAPI TestClient against the real app; no new features). Docs
+  router preflight + final: PASS (ERROR=0). Secret-safe config inspection only (no secrets printed).
+- Environment (no secrets): Resend is_configured=False (NO real delivery possible); Vertex Imagen3 not
+  initialised; R2 not configured (poster hosting -> inline_data_url, records -> /tmp); Gemini optimizer disabled;
+  attachments disabled; network + Chromium available (affiche real render feasible).
+- Flow ran end-to-end on the affiche main route: create wb_33656232431e46a4 -> patch product_truth (EF132V; 190C
+  as ordinary confirmed thermostat param) -> patch product_assets + email_banner (real public image URLs) ->
+  generate affiche + fiche -> select affiche -> preview -> test send -> read send_attempts.
+- affiche: poster_key p2_4fb82bb4ba5e4120, status=ready, render_engine=chromium, degraded=false,
+  structure_complete=true, callout_count=3 (REAL Chromium composite render).
+- fiche: HTTP 422 FAILED, stage=material_prepare, code=background_prepare_failed, detail="Vertex Imagen3 client
+  is not initialised" -> poster_candidates.fiche.status=failed (no poster_key). affiche unaffected.
+- selected_email_body_visual=affiche. Preview HTTP 200, ALL checks pass: email_body_plan present;
+  layout_type=single_product_promo; container_width=600; slot.poster_key=p2_4fb82bb4ba5e4120; final_poster_url
+  present (data: URL, R2 unconfigured); 600px table shell; banner module (#1f2329); red filet (#E1002A); CTA
+  (Nous contacter); footer/legal (Se désabonner). body_visual.url from loaded poster_record, not frontend.
+- Send (test, inline_only): recipients [owner-internal-test@cuistance.eu, dup@, DUP@, bad@@]; total unique=3,
+  deduplicated_count=1, sent_count=0, skipped_count=2 (preview_only), failed_count=1 (bad@@ invalid_recipient).
+  Each attempt carries layout_type=single_product_promo, body_visual_poster_key, subject snapshot, at timestamp.
+  workbench status stayed draft (test mode). Resend probe (delivery_mode=resend): status=error,
+  error_message="Resend is not configured.", no provider_message_id.
+- REAL EMAIL SENT: NO (no provider_message_id from any attempt; inline_only=preview_only, resend=not configured).
+  real mode NOT run (Resend unconfigured + no Owner-approved address).
+- Blockers (runtime config only, NOT workbench logic): (1) Resend not configured -> no real send; (2) Vertex
+  Imagen3 not initialised -> fiche candidate fails (affiche does not need it); (3) R2 not configured -> inline
+  data URL hosting; (4) non-blocking: Gemini/attachments disabled.
+- Validation: check_docs_router --all PASS; pytest test_workbench_email_send.py + test_workbench_email_body_plan.py
+  = 25 passed.
+- Recommendation: HOLD for real customer send -> GO after configuring Resend (API key + verified sender domain),
+  Vertex (only if fiche needed; affiche works without), R2 (HTTPS poster URLs); then test-mode dry run to confirm
+  provider_message_id, then real mode to a small Owner-approved internal list; re-run smoke.
+- Evidence doc: docs/poster2/cuistance_commercial_trial_full_flow_smoke_result_v1.md. No tag/merge/push; no
+  secrets printed; internal test recipient only; no customer list.
+
+## POSTER2-CUISTANCE-V1-OPERATOR-TRIAL-BRANCH-PREP (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Prepared (NOT created) operator-trial branch trial/poster2-cuistance-v1-operator-trial off base
+  feature/poster2-email-campaign-composite-remote-smoke-v1 @ 11ece26. Docs-only + validation package; no branch
+  create/commit/push/merge/tag; no deploy change; no secrets printed.
+- Docs router: PASS (ERROR=0). Trial tests: test_workbench_truth_model + candidates + email_assembly +
+  email_assembly_reference + email_body_plan + email_send = 78 passed. Existing test_api.py = 35 with
+  CORS_ALLOW_ORIGINS set (pre-existing CORS-env caveat unchanged).
+- Scope confirmed clean: app/ changes are ONLY workbench/email PR-1..PR-4 files (main.py, schemas/poster2.py [M];
+  services/workbench_records.py, services/workbench_candidate_generation.py, services/email/assembly.py,
+  services/email/workbench_send.py [new]). NO tracked frontend modifications; NO deploy/render/CI/requirements/
+  .env changes.
+- Runtime config (secret-safe, this env): EMAIL_PROVIDER/EMAIL_SEND_ENABLED/EMAIL_PREVIEW_ENABLED/
+  EMAIL_OUTBOX_ENABLED unset; RESEND_API_KEY missing; RESEND_FROM_EMAIL/EMAIL_FROM/EMAIL_FROM_NAME missing/unset;
+  resend.is_configured=False; R2 configured=False; Vertex configured=False; attachment enabled=False; gemini
+  optimizer enabled=False.
+- Known limitations: fiche fails without Vertex; real send unavailable without Resend; inline data URL without R2.
+  affiche main route + preview + test-send(inline)/evidence are validatable in this env.
+- KEY FINDING: PR-1..PR-4 + governance + CUISTANCE docs are UNCOMMITTED in the working tree (HEAD still 11ece26)
+  amid heavy unrelated untracked churn (catalog_hero/hybrid docs, .DS_Store, fonts, harness-x). A clean trial
+  branch needs a precise SCOPED commit (NOT git add -A). Exact proposed commands documented in the prep doc;
+  held for Owner approval. Recommend adding .DS_Store to .gitignore.
+- Recommendation: logic GO (loop complete/deterministic/auditable; tests pass); real-customer send HOLD until
+  Resend + verified sender (and Vertex if fiche needed, R2 for HTTPS posters) configured. Push/deploy NOT
+  requested; awaiting Owner approval to create the scoped branch+commit.
+- Evidence doc: docs/poster2/cuistance_commercial_trial_operator_validation_branch_prep_v1.md.

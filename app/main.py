@@ -1588,10 +1588,35 @@ from app.schemas.poster2 import (
     EmailPreviewResponse,
     EmailSendV2Request,
     EmailSendV2Response,
+    EmailBanner,
     GeneratePosterV2Request,
     GeneratePosterV2Response,
     PosterRecordResponse,
     Poster2DebugArtifacts,
+    EmailAssemblyPreviewResponse,
+    ProductAssets,
+    ProductTruth,
+    WorkbenchCreateRequest,
+    WorkbenchEmailSendRequest,
+    WorkbenchEmailSendResponse,
+    WorkbenchPatchRequest,
+    WorkbenchRecordResponse,
+    WorkbenchSelectVisualRequest,
+)
+from app.services.email.assembly import build_email_assembly
+from app.services.email.workbench_send import normalize_recipients
+from app.services.workbench_records import (
+    append_send_attempts,
+    create_workbench_record,
+    generate_workbench_key,
+    load_workbench_record,
+    select_email_body_visual,
+    set_poster_candidate,
+    update_workbench_record,
+)
+from app.services.workbench_candidate_generation import (
+    CANDIDATE_TEMPLATE,
+    build_candidate_payload,
 )
 from app.services.poster2.contracts import (
     AssetRef as P2AssetRef,
@@ -2313,6 +2338,345 @@ def get_poster_v2_record(poster_key: str) -> PosterRecordResponse:
     if record is None:
         raise HTTPException(status_code=404, detail="poster_record_not_found")
     return PosterRecordResponse.model_validate(record)
+
+
+@app.post(
+    "/api/v2/workbench",
+    response_model=WorkbenchRecordResponse,
+    summary="CUISTANCE commercial trial — create workbench truth record (PR-1)",
+    tags=["poster-v2"],
+)
+def create_workbench_v2(payload: WorkbenchCreateRequest) -> WorkbenchRecordResponse:
+    record = create_workbench_record(
+        workbench_key=generate_workbench_key(),
+        language=payload.language,
+        status=payload.status,
+        product_truth=_model_dump(payload.product_truth or ProductTruth()),
+        product_assets=_model_dump(payload.product_assets or ProductAssets()),
+        email_banner=_model_dump(payload.email_banner or EmailBanner()),
+    )
+    return WorkbenchRecordResponse.model_validate(record)
+
+
+@app.get(
+    "/api/v2/workbench/{workbench_key}",
+    response_model=WorkbenchRecordResponse,
+    summary="CUISTANCE commercial trial — load workbench truth record (PR-1)",
+    tags=["poster-v2"],
+)
+def get_workbench_v2(workbench_key: str) -> WorkbenchRecordResponse:
+    record = load_workbench_record(workbench_key)
+    if record is None:
+        raise HTTPException(status_code=404, detail="workbench_record_not_found")
+    return WorkbenchRecordResponse.model_validate(record)
+
+
+@app.patch(
+    "/api/v2/workbench/{workbench_key}",
+    response_model=WorkbenchRecordResponse,
+    summary="CUISTANCE commercial trial — update workbench truth record (PR-1)",
+    tags=["poster-v2"],
+)
+def patch_workbench_v2(workbench_key: str, payload: WorkbenchPatchRequest) -> WorkbenchRecordResponse:
+    if load_workbench_record(workbench_key) is None:
+        raise HTTPException(status_code=404, detail="workbench_record_not_found")
+    # Only provided fields are replaced; validation (param keys/states, lock rule, no base64,
+    # atmosphere-not-truth) already ran at the WorkbenchPatchRequest boundary.
+    updates = payload.model_dump(exclude_unset=True, exclude_none=True)
+    record = update_workbench_record(workbench_key, updates)
+    return WorkbenchRecordResponse.model_validate(record)
+
+
+@app.post(
+    "/api/v2/workbench/{workbench_key}/candidates/{candidate_type}/generate",
+    response_model=WorkbenchRecordResponse,
+    summary="CUISTANCE commercial trial — generate a Step-2 email body visual candidate (PR-2)",
+    tags=["poster-v2"],
+)
+async def generate_workbench_candidate_v2(
+    workbench_key: str, candidate_type: str, request: Request
+) -> Any:
+    """Generate one email body visual candidate (affiche|fiche) from workbench truth by REUSING the existing
+    /api/v2/generate-poster code path (no renderer fork). Stores only the poster_key reference under the
+    workbench; the candidate truth stays in the poster_record."""
+    if candidate_type not in CANDIDATE_TEMPLATE:
+        raise HTTPException(status_code=422, detail="invalid_candidate_type")
+    record = load_workbench_record(workbench_key)
+    if record is None:
+        raise HTTPException(status_code=404, detail="workbench_record_not_found")
+
+    try:
+        payload_dict = build_candidate_payload(record, candidate_type)
+        payload = _model_validate(GeneratePosterV2Request, payload_dict)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    # Reuse the existing generation handler in-process (it always returns a JSONResponse).
+    result = await generate_poster_v2(request, payload)
+    body: dict[str, Any] = {}
+    raw = getattr(result, "body", None)
+    if raw is not None:
+        try:
+            body = json.loads(bytes(raw).decode("utf-8"))
+        except Exception:  # pragma: no cover - defensive
+            body = {}
+    status_code = getattr(result, "status_code", 200)
+    poster_key = body.get("poster_key")
+
+    if status_code != 200 or not poster_key:
+        set_poster_candidate(
+            workbench_key,
+            candidate_type,
+            poster_key=None,
+            status="failed",
+            template_id=CANDIDATE_TEMPLATE[candidate_type],
+            contract_review_summary={"http_status": status_code},
+        )
+        return JSONResponse(status_code=status_code, content=body or {"error": "candidate_generation_failed"})
+
+    summary = {
+        key: body.get(key)
+        for key in ("template_id", "render_engine_used", "degraded", "structure_complete")
+        if body.get(key) is not None
+    }
+    composite_review = body.get("email_campaign_composite_contract_review")
+    if isinstance(composite_review, dict):
+        summary["callout_count"] = composite_review.get("callout_count")
+        summary["structure_complete"] = composite_review.get("structure_complete", summary.get("structure_complete"))
+
+    record = set_poster_candidate(
+        workbench_key,
+        candidate_type,
+        poster_key=poster_key,
+        status="ready",
+        template_id=body.get("template_id") or CANDIDATE_TEMPLATE[candidate_type],
+        contract_review_summary=summary,
+    )
+    return WorkbenchRecordResponse.model_validate(record)
+
+
+@app.patch(
+    "/api/v2/workbench/{workbench_key}/selected-visual",
+    response_model=WorkbenchRecordResponse,
+    summary="CUISTANCE commercial trial — select the email body visual (PR-2)",
+    tags=["poster-v2"],
+)
+def select_workbench_visual_v2(
+    workbench_key: str, payload: WorkbenchSelectVisualRequest
+) -> WorkbenchRecordResponse:
+    if load_workbench_record(workbench_key) is None:
+        raise HTTPException(status_code=404, detail="workbench_record_not_found")
+    try:
+        record = select_email_body_visual(workbench_key, payload.selected_email_body_visual)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return WorkbenchRecordResponse.model_validate(record)
+
+
+def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
+    """Resolve the deterministic PR-3S email package for a workbench: load workbench -> selected visual ->
+    selected candidate poster_key -> poster_record -> draft -> assembly (with email_body_plan). Raises
+    HTTPException for the same guards used by preview. BOTH preview and send consume this single source so the
+    sent email is byte-identical to the previewed one (no reconstruction in the send path)."""
+    workbench = load_workbench_record(workbench_key)
+    if workbench is None:
+        raise HTTPException(status_code=404, detail="workbench_record_not_found")
+
+    selected = workbench.get("selected_email_body_visual")
+    if selected not in ("affiche", "fiche"):
+        raise HTTPException(status_code=422, detail="no_selected_email_body_visual")
+
+    candidate = (workbench.get("poster_candidates") or {}).get(selected) or {}
+    poster_key = candidate.get("poster_key")
+    if not poster_key or candidate.get("status") != "ready":
+        raise HTTPException(status_code=422, detail="selected_candidate_not_ready")
+
+    record = load_poster_record(poster_key)
+    if record is None:
+        raise HTTPException(status_code=404, detail="selected_poster_record_not_found")
+
+    # Deterministic draft (parameters never exposed to Gemini) + plan-driven assembly.
+    draft = build_email_draft_for_poster_record(record)
+    body_url = (record.get("final_poster") or {}).get("url") or (record.get("render_result") or {}).get("final_url")
+    try:
+        assembly = build_email_assembly(
+            workbench=workbench,
+            draft=draft,
+            body_visual_url=body_url,
+            candidate_type=selected,
+            template_id=candidate.get("template_id"),
+            poster_key=poster_key,
+        )
+    except Exception as exc:  # plan/assembly could not be built
+        raise HTTPException(status_code=422, detail="email_body_plan_unavailable") from exc
+
+    return {
+        "workbench": workbench,
+        "selected": selected,
+        "candidate": candidate,
+        "poster_key": poster_key,
+        "record": record,
+        "draft": draft,
+        "assembly": assembly,
+        "body_url": body_url,
+    }
+
+
+@app.post(
+    "/api/v2/workbench/{workbench_key}/email/preview",
+    response_model=EmailAssemblyPreviewResponse,
+    summary="CUISTANCE commercial trial — assemble email preview (banner + selected visual) (PR-3)",
+    tags=["poster-v2"],
+)
+def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewResponse:
+    """Assemble the final email preview at the email level: Email Banner Module (from workbench.email_banner)
+    + the deterministically-selected body visual (the selected candidate's poster_record final_poster URL)
+    + intro/CTA + footer/contact + attachment readiness. The visual is chosen ONLY by
+    workbench.selected_email_body_visual — never by Gemini or frontend state. Does not change the existing
+    poster_key-based /api/v2/email/preview."""
+    pkg = _resolve_workbench_email_package(workbench_key)
+    selected, poster_key = pkg["selected"], pkg["poster_key"]
+    candidate, record, draft, assembly, body_url = (
+        pkg["candidate"], pkg["record"], pkg["draft"], pkg["assembly"], pkg["body_url"]
+    )
+
+    settings = get_settings()
+    if settings.email_attachment.enabled and settings.email_attachment.build_on_preview:
+        record = build_email_assets_for_record(poster_key)
+    email_assets = record.get("email_assets") or {}
+
+    return EmailAssemblyPreviewResponse(
+        workbench_key=workbench_key,
+        selected_email_body_visual=selected,
+        email_body_plan=assembly["email_body_plan"],
+        banner=assembly["banner"],
+        body_visual={
+            "candidate_type": selected,
+            "poster_key": poster_key,
+            "url": body_url,
+            "template_id": candidate.get("template_id"),
+        },
+        subject=assembly["subject"],
+        preview_text=assembly["preview_text"],
+        intro=assembly["intro"],
+        cta_label=assembly["cta_label"],
+        html=assembly["html"],
+        text=assembly["text"],
+        generated_from=draft.get("generated_from") or "deterministic",
+        email_assets=email_assets,
+        available_attachment_types=sorted(email_assets.keys()),
+        buildable_attachment_types=list(SUPPORTED_ATTACHMENT_TYPES) if settings.email_attachment.enabled else [],
+        body_visual_contains_own_banner=assembly["body_visual_contains_own_banner"],
+    )
+
+
+@app.post(
+    "/api/v2/workbench/{workbench_key}/email/send",
+    response_model=WorkbenchEmailSendResponse,
+    summary="CUISTANCE commercial trial — manual multi-recipient confirmed send + evidence (PR-4)",
+    tags=["poster-v2"],
+)
+def send_workbench_email_v2(
+    workbench_key: str, payload: WorkbenchEmailSendRequest
+) -> WorkbenchEmailSendResponse:
+    """Send the deterministic PR-3S email package to manually-entered recipients. Requires explicit
+    confirm_send; sends per recipient with isolated results; persists evidence on workbench.send_attempts.
+    Consumes the SAME assembled package as the preview (no body reconstruction, no candidate re-selection, no
+    Gemini fact change, no new poster). Reuses the existing provider path; does NOT change the single-recipient
+    /api/v2/email/send. Manual recipients only — no contact import / Excel / CRM / scheduling / segmentation /
+    analytics."""
+    # deterministic package (raises the same 404/422 guards as preview, incl. email_body_plan_unavailable)
+    pkg = _resolve_workbench_email_package(workbench_key)
+    selected, poster_key, candidate = pkg["selected"], pkg["poster_key"], pkg["candidate"]
+    record, assembly = pkg["record"], pkg["assembly"]
+
+    # explicit confirmation — neither test nor real send happens implicitly
+    if not payload.confirm_send:
+        raise HTTPException(status_code=422, detail="confirm_send_required")
+
+    norm = normalize_recipients(payload.recipients)
+    if not norm["unique"]:
+        raise HTTPException(status_code=422, detail="recipients_required")
+
+    settings = get_settings()
+    requested_types = list(payload.attachment_types or [])
+    attachments: list[dict[str, Any]] = []
+    if payload.delivery_mode == "resend" and requested_types:
+        if settings.email_attachment.enabled:
+            record = build_email_assets_for_record(poster_key, asset_types=requested_types)
+        try:
+            attachments = resolve_email_assets(record, requested_types)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    # consume the planned package verbatim — never reconstruct the body
+    subject = assembly["subject"]
+    preview_text = assembly["preview_text"]
+    html = assembly["html"]
+    text = assembly["text"]
+    layout_type = (assembly.get("email_body_plan") or {}).get("layout_type")
+
+    provider = get_email_provider(payload.delivery_mode)
+    invalid_set = set(norm["invalid"])
+    attempts: list[dict[str, Any]] = []
+    sent_count = failed_count = skipped_count = 0
+
+    for recipient in norm["unique"]:
+        base = {
+            "recipient": recipient,
+            "mode": payload.mode,
+            "attachment_types": requested_types,
+            "at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+            "selected_email_body_visual": selected,
+            "body_visual_poster_key": poster_key,
+            "layout_type": layout_type,
+            "subject": subject,
+            "deduplicated": False,
+            "provider_message_id": None,
+            "error_code": None,
+            "error_message": None,
+        }
+        if recipient in invalid_set:
+            attempts.append({**base, "status": "error", "provider": "validation",
+                             "error_code": "invalid_recipient", "error_message": "invalid email address"})
+            failed_count += 1
+            continue
+        try:
+            result = provider.send(
+                recipient=recipient, subject=subject, preview_text=preview_text,
+                html=html, text=text, attachments=attachments,
+            )
+            if result.status == "sent":
+                attempts.append({**base, "status": "sent", "provider": result.provider,
+                                 "provider_message_id": result.provider_message_id})
+                sent_count += 1
+            elif result.status == "preview_only":
+                attempts.append({**base, "status": "skipped", "provider": result.provider,
+                                 "error_code": "preview_only"})
+                skipped_count += 1
+            else:
+                attempts.append({**base, "status": "error", "provider": result.provider,
+                                 "error_code": result.status or "send_error", "error_message": result.error})
+                failed_count += 1
+        except Exception as exc:  # per-recipient isolation — never erase other recipients' evidence
+            attempts.append({**base, "status": "error", "provider": payload.delivery_mode,
+                             "error_code": "provider_exception", "error_message": str(exc)[:300]})
+            failed_count += 1
+
+    append_send_attempts(workbench_key, attempts, mark_sent=(payload.mode == "real" and sent_count > 0))
+
+    return WorkbenchEmailSendResponse(
+        workbench_key=workbench_key,
+        mode=payload.mode,
+        total=len(norm["unique"]),
+        sent_count=sent_count,
+        failed_count=failed_count,
+        skipped_count=skipped_count,
+        deduplicated_count=norm["deduplicated_count"],
+        attempts=attempts,
+    )
 
 
 @app.post(
