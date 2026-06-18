@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160" role="img" aria-label="Image produit (placeholder)">
+  <rect width="240" height="160" fill="#eef0f3"/>
+  <rect x="64" y="44" width="112" height="74" rx="6" fill="#cfd4da"/>
+  <rect x="74" y="54" width="44" height="54" rx="4" fill="#aeb4bd"/>
+  <rect x="122" y="54" width="44" height="54" rx="4" fill="#aeb4bd"/>
+  <rect x="84" y="120" width="72" height="8" rx="4" fill="#cfd4da"/>
+  <text x="120" y="146" font-family="Inter,Arial,sans-serif" font-size="11" fill="#9aa0a6" text-anchor="middle">Image produit</text>
+</svg>

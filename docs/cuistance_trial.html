@@ -3,403 +3,522 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CUISTANCE 商业试用工作台</title>
+  <title>CUISTANCE · 商业试用工作台</title>
   <!--
-    CUISTANCE v1 operator workbench — commercial-facing page aligned with the approved mockup
-    (docs/poster2/ui_mockups/cuistance_commercial_trial_v1/). Chinese default; French via toggle.
-    Engineering/runtime details live ONLY in the collapsed "内部诊断 / 工程证据" drawer.
-    Wired to the existing v1 backend endpoints; no backend change. Default test mode; real send needs explicit confirm.
+    CUISTANCE v1 operator workbench — migrated FROM the approved mockup
+    (docs/poster2/ui_mockups/cuistance_commercial_trial_v1/index.html): same structure / CSS / real assets /
+    3-step wizard (one screen visible at a time) / Chinese-first / collapsed diagnostics. The mockup's demo JS is
+    replaced with real backend wiring (existing v1 endpoints). No backend change. Default test mode; explicit confirm.
+    Engineering terms appear ONLY in the off-screen 内部诊断 / 工程证据 drawer.
   -->
+  <link rel="stylesheet" href="cuistance_trial.css" />
   <style>
-    :root{--ink:#1f2329;--muted:#6b7178;--faint:#9aa0a6;--line:#e6e8ec;--line2:#d7dade;--bg:#f6f7f9;--card:#fff;
-      --red:#E1002A;--red-soft:#fdecee;--ok:#188a42;--ok-soft:#e7f6ec;--amber:#9a7b06;--amber-soft:#fbf3d8;--err:#c0392b;--err-soft:#fdecea;--charcoal:#1f2329;}
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,"Helvetica Neue",Arial,"PingFang SC","Noto Sans SC","Segoe UI",sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-    /* header */
-    .app-header{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;min-height:60px;padding:10px 28px;background:var(--card);border-bottom:1px solid var(--line)}
-    .brand{display:flex;align-items:center;gap:11px}
-    .brand .emblem{width:22px;height:26px;background:var(--red);clip-path:polygon(50% 0,100% 27%,100% 73%,50% 100%,0 73%,0 27%)}
-    .brand .name{font-weight:800;letter-spacing:.3px}
-    .brand .sub{color:var(--muted);font-weight:400}
-    .brand .tagline{display:block;font-size:11px;color:var(--faint);margin-top:1px}
-    .stepper{display:flex;align-items:center;gap:6px;margin:0 auto}
-    .stepper .step{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:14px;color:var(--muted);font-size:13px;border:1px solid transparent;white-space:nowrap}
-    .stepper .step .dot{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;background:#eceef1;color:var(--muted)}
-    .stepper .step.active{color:var(--ink);background:var(--red-soft);border-color:#f6c9d2}
-    .stepper .step.active .dot{background:var(--red);color:#fff}
-    .stepper .step.done .dot{background:var(--ok);color:#fff}
-    .stepper .sep{width:16px;height:1px;background:var(--line2)}
-    .header-right{display:flex;align-items:center;gap:12px}
-    .lang-switch{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
-    .lang-switch button{font:inherit;font-size:12.5px;font-weight:600;padding:5px 12px;background:#fff;color:var(--muted);border:0;cursor:pointer}
-    .lang-switch button.active{background:var(--red);color:#fff}
-    .etat{font-size:12px;color:var(--muted);background:#f1f3f5;border:1px solid var(--line);padding:4px 10px;border-radius:999px}
-    /* layout */
-    main{max-width:1240px;margin:0 auto;padding:22px 28px 90px;display:grid;grid-template-columns:1.05fr 1fr;gap:20px;align-items:start}
-    @media(max-width:960px){main{grid-template-columns:1fr}.stepper{display:none}}
-    .panel-title{font-size:12px;font-weight:700;letter-spacing:.4px;color:var(--muted);text-transform:uppercase;margin:0 0 10px}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,23,28,.04)}
-    .card h2{font-size:14.5px;margin:0 0 4px;font-weight:700;display:flex;align-items:center;gap:8px}
-    .card .step-pin{width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
-    .card .hint{font-size:11px;color:var(--faint);margin:2px 0 8px}
-    label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
-    .zh-sub{color:var(--faint);font-weight:400;font-size:.86em;margin-left:4px}
-    input[type=text],textarea{width:100%;padding:8px 10px;border:1px solid var(--line2);border-radius:8px;font:inherit;font-size:13px;color:var(--ink);background:#fff}
-    input:focus,textarea:focus{outline:none;border-color:var(--red);box-shadow:0 0 0 3px var(--red-soft)}
-    input.readonly{background:#f7f8fa;color:#3a3d42}
-    textarea{min-height:44px;resize:vertical}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-    button.btn{font:inherit;font-weight:600;font-size:13px;padding:9px 15px;border-radius:8px;border:1px solid transparent;cursor:pointer}
-    .btn.primary{background:var(--red);color:#fff}.btn.primary:hover{background:#c40026}
-    .btn.secondary{background:#fff;color:var(--ink);border-color:var(--line2)}.btn.secondary:hover{border-color:var(--muted)}
-    .btn.amber{background:var(--amber-soft);color:var(--amber);border-color:#ecd98f}
-    .btn.ghost{background:transparent;color:var(--muted);border-color:transparent}
-    .btn[disabled]{background:#eceef1;color:var(--faint);border-color:transparent;cursor:not-allowed}
-    .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 9px;border-radius:999px;font-weight:600}
-    .b-ok{background:var(--ok-soft);color:var(--ok)}.b-amber{background:var(--amber-soft);color:var(--amber)}.b-bad{background:var(--err-soft);color:var(--err)}.b-muted{background:#eef0f3;color:var(--muted)}
-    .group-label{font-size:11px;font-weight:700;letter-spacing:.5px;color:var(--faint);text-transform:uppercase;margin:14px 0 8px}
-    .verif{display:flex;flex-direction:column;gap:7px}
-    .verif .row{display:flex;align-items:center;gap:8px;font-size:13px}.verif .row .ok{color:var(--ok);font-weight:700}
-    .state-pill{align-self:flex-start;margin-top:4px;background:var(--ok-soft);color:var(--ok);font-weight:600;padding:5px 12px;border-radius:999px;font-size:12px}
-    /* email preview */
-    .preview-frame{background:#eef0f3;border:1px solid var(--line);border-radius:10px;padding:14px}
-    iframe.mail{width:100%;height:420px;border:1px solid var(--line);border-radius:8px;background:#fff}
-    .legend{font-size:11px;color:var(--faint);text-align:center;margin-top:8px}
-    /* banner mini preview */
-    .banner-mini{display:flex;align-items:center;gap:12px;background:var(--charcoal);border-radius:8px;padding:12px 16px;border-bottom:3px solid var(--red);min-height:56px}
-    .banner-mini img{height:34px}
-    .banner-mini .meta{margin-left:auto;text-align:right;color:#cfd3d8;font-size:11px}
-    /* evidence */
-    table.ev{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px}
-    table.ev th,table.ev td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
-    table.ev th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
-    .notice{display:flex;gap:10px;align-items:flex-start;background:var(--amber-soft);border:1px solid #ecd98f;color:#7a5f06;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:12.5px}
-    .progress{font-size:12.5px;color:var(--muted);white-space:pre-wrap;background:#f7f8fa;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:160px;overflow:auto}
-    /* diagnostics drawer */
-    details.diag{margin-top:6px;border:1px dashed var(--line2);border-radius:10px;background:#fbfbfc}
-    details.diag>summary{cursor:pointer;padding:12px 16px;font-size:12.5px;color:var(--muted);font-weight:600;list-style:none}
-    details.diag>summary::-webkit-details-marker{display:none}
-    details.diag>summary::before{content:"▸ ";color:var(--faint)}
-    details.diag[open]>summary::before{content:"▾ "}
-    details.diag .diag-body{padding:0 16px 14px}
-    details.diag pre{background:#0f1115;color:#cdd3da;border-radius:8px;padding:10px;font-size:11px;overflow:auto;max-height:240px}
-    .toggle{display:flex;align-items:center;gap:7px;font-size:13px}
-    .seg{display:inline-flex;border:1px solid var(--line2);border-radius:999px;overflow:hidden}
-    .seg button{border:0;background:#fff;color:var(--muted);padding:5px 12px;cursor:pointer;font:inherit;font-size:12.5px}
-    .seg button.on{background:var(--red);color:#fff}
-    .action-bar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-top:1px solid var(--line);padding:12px 28px}
-    .action-bar .inner{max-width:1240px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    /* minimal additions on top of the mockup CSS (kept verbatim) */
+    .mail-frame{width:100%;max-width:420px;height:560px;border:1px solid var(--line);border-radius:8px;background:#fff;margin:0 auto;display:block}
+    .diag-drawer .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+    .diag-drawer label{font-size:11px;color:#9aa0a6;display:block;margin-bottom:3px}
+    .diag-drawer input{width:100%;padding:6px 8px;border:1px solid #2a2f37;border-radius:6px;background:#0f1115;color:#cdd3da;font-size:12px}
+    .diag-drawer .dbtn{margin-top:8px;font:inherit;font-size:12px;font-weight:600;padding:6px 12px;border-radius:6px;border:1px solid #2a2f37;background:#2a2f37;color:#fff;cursor:pointer}
   </style>
 </head>
 <body data-lang="zh">
 
+  <!-- ============ TOP HEADER ============ -->
   <header class="app-header">
     <div class="brand">
-      <span class="emblem"></span>
-      <span class="name">CUISTANCE</span>
+      <img class="brand-logo" src="assets/logo_01.jpg" alt="CUISTANCE"
+           onerror="this.onerror=null;this.src='https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png'" />
       <span class="sub" data-zh="· 商业试用工作台" data-fr="· Atelier Email Produit">· 商业试用工作台</span>
-      <span class="tagline" data-zh="生成产品推广邮件，先预览测试，再确认发送" data-fr="Créez l'email produit : aperçu &amp; test d'abord, puis envoi confirmé">生成产品推广邮件，先预览测试，再确认发送</span>
+      <span class="tagline" data-zh="生成产品推广邮件，先预览测试，再确认发送" data-fr="Créez l'email produit : aperçu &amp; test, puis envoi confirmé" style="display:block;font-size:11px;color:#9aa0a6;margin-top:1px">生成产品推广邮件，先预览测试，再确认发送</span>
     </div>
+
     <nav class="stepper" id="stepper">
-      <div class="step active" data-step="1"><span class="dot">1</span><span data-zh="产品与素材" data-fr="Produit &amp; éléments">产品与素材</span></div>
+      <div class="step active" data-step="1"><span class="dot">1</span><span class="lbl" data-zh="产品与素材" data-fr="Produit &amp; éléments">产品与素材</span></div>
       <span class="sep"></span>
-      <div class="step" data-step="2"><span class="dot">2</span><span data-zh="生成海报主体" data-fr="Affiche produit">生成海报主体</span></div>
+      <div class="step" data-step="2"><span class="dot">2</span><span class="lbl" data-zh="生成海报主体" data-fr="Affiche produit">生成海报主体</span></div>
       <span class="sep"></span>
-      <div class="step" data-step="3"><span class="dot">3</span><span data-zh="邮件预览与测试发送" data-fr="Email &amp; envoi">邮件预览与测试发送</span></div>
+      <div class="step" data-step="3"><span class="dot">3</span><span class="lbl" data-zh="邮件预览与测试发送" data-fr="Email &amp; envoi">邮件预览与测试发送</span></div>
     </nav>
+
     <div class="header-right">
-      <div class="lang-switch" id="langSwitch"><button class="active" data-lang="zh">中文</button><button data-lang="fr">Français</button></div>
+      <div class="lang-switch" id="langSwitch">
+        <button class="lang active" data-lang="zh">中文</button>
+        <button class="lang" data-lang="fr">Français</button>
+      </div>
       <span class="etat" id="etat" data-zh="草稿" data-fr="Brouillon">草稿</span>
+      <button class="diag-btn" id="diagBtn" title="内部诊断">ⓘ</button>
     </div>
   </header>
 
-  <main>
-    <!-- LEFT: operator inputs -->
-    <div>
-      <div class="card">
-        <h2><span class="step-pin">1</span> <span data-zh="产品信息" data-fr="Informations produit">产品信息</span></h2>
-        <div class="hint" data-zh="填写产品名称、型号与已确认参数。" data-fr="Renseignez le nom, la référence et les caractéristiques confirmées.">填写产品名称、型号与已确认参数。</div>
-        <div class="row2">
-          <div><label><span data-zh="产品名称" data-fr="Nom du produit">产品名称</span></label><input type="text" id="pname" value="Friteuse électrique double"/></div>
-          <div><label><span data-zh="型号" data-fr="Référence">型号</span></label><input type="text" id="pref" value="EF132V"/></div>
-        </div>
-        <label><span data-zh="产品介绍" data-fr="Description produit">产品介绍</span></label>
-        <textarea id="pdesc">Deux cuves inox amovibles, montée en température maîtrisée, construction robuste.</textarea>
-        <label><span data-zh="技术参数" data-fr="Caractéristiques techniques">技术参数</span> <span class="badge b-ok">✓ <span data-zh="已确认" data-fr="confirmé">已确认</span></span></label>
-        <input type="text" id="pparams" class="readonly" readonly value="2 cuves 13 + 13 L · 3 + 3 kW / 230 V · jusqu'à 190°C"/>
-        <div class="btnrow">
-          <button class="btn secondary" id="btn-sample" data-zh="加载 EF132V 示例" data-fr="Charger l'exemple EF132V">加载 EF132V 示例</button>
-          <button class="btn primary" id="btn-save" data-zh="保存产品信息" data-fr="Enregistrer le produit">保存产品信息</button>
-        </div>
-      </div>
+  <main class="workspace">
 
-      <div class="card">
-        <h2><span data-zh="素材与品牌" data-fr="Éléments &amp; marque">素材与品牌</span></h2>
-        <div class="hint" data-zh="产品图与品牌横幅。横幅用于邮件页眉，不进海报主体。" data-fr="Images produit + bannière. La bannière est l'en-tête de l'email.">产品图与品牌横幅。横幅用于邮件页眉，不进海报主体。</div>
-        <label><span data-zh="产品主图" data-fr="Image produit">产品主图</span></label>
-        <input type="text" id="prodimg" value="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg"/>
-        <label><span data-zh="产品第二张图（可选）" data-fr="2e image produit (option)">产品第二张图（可选）</span></label>
-        <input type="text" id="prodimg2" value="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg"/>
-        <div class="group-label" data-zh="品牌（邮件页眉）" data-fr="Marque (en-tête email)">品牌（邮件页眉）</div>
-        <label><span data-zh="品牌横幅 / Logo" data-fr="Logo de l'email">品牌横幅 / Logo</span></label>
-        <input type="text" id="logo" value="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png"/>
-        <div class="row2">
-          <div><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input type="text" id="channel" value="CUISTANCE Europe"/></div>
-          <div><label><span data-zh="活动标签" data-fr="Libellé de campagne">活动标签</span></label><input type="text" id="campaign" value="Nouveauté"/></div>
-        </div>
-      </div>
+    <!-- ============ SCREEN 1 — 产品与素材 ============ -->
+    <section class="screen active" id="screen-1">
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <h3 data-zh="产品与素材" data-fr="Produit &amp; éléments">产品与素材</h3>
+            <p class="hint" data-zh="第一步：填写产品信息、确认技术参数、填写产品介绍，并准备素材。" data-fr="Étape 1 : renseignez le produit, confirmez les caractéristiques, ajoutez la description et les éléments.">第一步：填写产品信息、确认技术参数、填写产品介绍，并准备素材。</p>
 
-      <div class="card">
-        <h2><span class="step-pin">2</span> <span data-zh="海报主体" data-fr="Affiche produit">海报主体</span></h2>
-        <div class="hint" data-zh="生成产品海报主体；素材不足时可改用简化产品页。二选一作为邮件主体。" data-fr="Générez l'affiche produit ; sinon utilisez la fiche simplifiée. Choisissez-en une.">生成产品海报主体；素材不足时可改用简化产品页。二选一作为邮件主体。</div>
-        <div class="btnrow">
-          <button class="btn primary" id="btn-poster" data-zh="生成产品海报" data-fr="Générer l'affiche">生成产品海报</button>
-          <button class="btn secondary" id="btn-sheet" data-zh="生成简化产品页" data-fr="Fiche produit simplifiée">生成简化产品页</button>
-        </div>
-        <div class="notice" id="poster-note" style="display:none"><span>🛈</span><div id="poster-note-text"></div></div>
-        <div class="btnrow">
-          <button class="btn secondary" id="btn-select-poster" data-zh="选为邮件主体（海报）" data-fr="Choisir l'affiche" disabled>选为邮件主体（海报）</button>
-          <button class="btn amber" id="btn-select-sheet" data-zh="选为邮件主体（简化页）" data-fr="Choisir la fiche" disabled>选为邮件主体（简化页）</button>
-        </div>
-      </div>
+            <div class="group-label" data-zh="产品信息" data-fr="Produit">产品信息</div>
+            <div class="field">
+              <label><span data-zh="活动名称" data-fr="Nom de la campagne">活动名称</span> <span class="req">*</span></label>
+              <input class="input" id="f-campaign" value="Lancement Friteuses Électriques" />
+            </div>
+            <div class="grid-2">
+              <div class="field"><label><span data-zh="产品名称" data-fr="Nom du produit">产品名称</span></label><input class="input" id="f-pname" value="Friteuse électrique double" /></div>
+              <div class="field"><label><span data-zh="型号" data-fr="Référence / modèle">型号</span></label><input class="input" id="f-pref" value="EF132V" /></div>
+            </div>
 
-      <div class="card">
-        <h2><span class="step-pin">3</span> <span data-zh="测试发送" data-fr="Envoi test">测试发送</span></h2>
-        <div class="hint" data-zh="先预览邮件，再向内部地址做测试发送（默认不真实投递）。" data-fr="Prévisualisez, puis envoi test vers une adresse interne (pas d'envoi réel par défaut).">先预览邮件，再向内部地址做测试发送（默认不真实投递）。</div>
-        <label><span data-zh="内部收件人" data-fr="Destinataire interne">内部收件人</span></label>
-        <input type="text" id="recipient" value="owner-internal-test@cuistance.eu"/>
-        <div style="display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap">
-          <span data-zh="方式：" data-fr="Mode :">方式：</span>
-          <span class="seg" id="modeseg"><button data-mode="test" class="on" data-zh="测试" data-fr="Test">测试</button><button data-mode="real" data-zh="正式" data-fr="Réel">正式</button></span>
-          <label class="toggle"><input type="checkbox" id="confirm"/> <span data-zh="确认发送" data-fr="Confirmer">确认发送</span></label>
-        </div>
-        <div class="btnrow">
-          <button class="btn secondary" id="btn-preview" data-zh="预览邮件" data-fr="Aperçu email">预览邮件</button>
-          <button class="btn primary" id="btn-send" data-zh="发送测试邮件" data-fr="Envoyer le test">发送测试邮件</button>
-          <button class="btn ghost" id="btn-evidence" data-zh="查看发送证据" data-fr="Voir les preuves">查看发送证据</button>
-        </div>
-        <div class="hint" data-zh="正式发送需：方式=正式 且 勾选确认。" data-fr="Envoi réel : Mode=Réel + Confirmer.">正式发送需：方式=正式 且 勾选确认。</div>
-      </div>
-    </div>
-
-    <!-- RIGHT: preview / status -->
-    <div>
-      <p class="panel-title" data-zh="邮件预览" data-fr="Aperçu de l'email">邮件预览</p>
-      <div class="card">
-        <div class="banner-mini" id="bannerMini"><span style="color:#cfd3d8;font-size:12px" data-zh="品牌页眉" data-fr="En-tête">品牌页眉</span></div>
-        <div style="margin:12px 0">
-          <table class="ev"><tbody id="planinfo">
-            <tr><td data-zh="状态" data-fr="État">状态</td><td><span class="badge b-muted" data-zh="未生成" data-fr="non généré">未生成</span></td></tr>
-          </tbody></table>
-        </div>
-        <div class="preview-frame"><iframe class="mail" id="mail" title="aperçu email"></iframe></div>
-        <div class="legend" data-zh="最终邮件 = 品牌页眉 + 产品主体 + 正文 + 联系方式" data-fr="Email final = bannière + corps produit + texte + contact">最终邮件 = 品牌页眉 + 产品主体 + 正文 + 联系方式</div>
-      </div>
-
-      <div class="card">
-        <h2 data-zh="生成检查" data-fr="Vérification">生成检查</h2>
-        <div class="verif" id="verif">
-          <div class="row hint" data-zh="生成海报主体后显示。" data-fr="Disponible après génération.">生成海报主体后显示。</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2 data-zh="测试发送已记录" data-fr="Envois enregistrés">测试发送已记录</h2>
-        <div class="hint" id="ev-summary" data-zh="尚未发送。" data-fr="Aucun envoi.">尚未发送。</div>
-        <table class="ev" id="evtable" style="display:none"><thead><tr>
-          <th data-zh="收件人" data-fr="Destinataire">收件人</th><th data-zh="状态" data-fr="Statut">状态</th><th data-zh="时间" data-fr="Heure">时间</th></tr></thead><tbody></tbody></table>
-      </div>
-
-      <p class="panel-title" data-zh="进度" data-fr="Progression">进度</p>
-      <div class="card"><div class="progress" id="progress" data-zh="就绪。" data-fr="Prêt.">就绪。</div></div>
-
-      <!-- collapsed engineering diagnostics drawer -->
-      <details class="diag" id="diag">
-        <summary data-zh="内部诊断 / 工程证据（默认折叠）" data-fr="Diagnostic interne (replié)">内部诊断 / 工程证据（默认折叠）</summary>
-        <div class="diag-body">
-          <div class="hint" data-zh="仅供支持/排障；主流程不展示这些技术字段。" data-fr="Support uniquement.">仅供支持/排障；主流程不展示这些技术字段。</div>
-          <div class="group-label">Connexion (remote)</div>
-          <div class="row2">
-            <div><label>ops user</label><input type="text" id="opsuser" autocomplete="off"/></div>
-            <div><label>ops pass</label><input type="text" id="opspass" autocomplete="off"/></div>
+            <div class="group-label">
+              <span data-zh="技术参数（结构化）" data-fr="Caractéristiques techniques (structurées)">技术参数（结构化）</span>
+              <span class="badge verified">✓ <span data-zh="已确认信息" data-fr="Informations confirmées">已确认信息</span></span>
+            </div>
+            <div class="param-import">
+              <button class="btn secondary sm" type="button" data-zh="导入 / 识别规格表" data-fr="Importer / reconnaître les spécifications">导入 / 识别规格表</button>
+              <span class="hint" data-zh="识别后自动填入下方各行，需逐项手动确认。" data-fr="La reconnaissance pré-remplit les lignes ci-dessous ; chaque ligne doit être confirmée manuellement.">识别后自动填入下方各行，需逐项手动确认。</span>
+            </div>
+            <table class="param-table">
+              <thead><tr><th data-zh="参数" data-fr="Paramètre">参数</th><th data-zh="值" data-fr="Valeur">值</th><th data-zh="状态" data-fr="État">状态</th></tr></thead>
+              <tbody>
+                <tr><td><span data-zh="型号" data-fr="Référence">型号</span></td><td><input class="input cell" value="EF132V" /></td><td><span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></td></tr>
+                <tr><td><span data-zh="容量" data-fr="Capacité">容量</span></td><td><input class="input cell" value="2 cuves 13 + 13 L" /></td><td><span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></td></tr>
+                <tr><td><span data-zh="功率" data-fr="Puissance">功率</span></td><td><input class="input cell" value="3 + 3 kW" /></td><td><span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></td></tr>
+                <tr><td><span data-zh="电压" data-fr="Tension">电压</span></td><td><input class="input cell" value="230 V" /></td><td><span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></td></tr>
+                <tr><td><span data-zh="尺寸" data-fr="Dimensions">尺寸</span></td><td><input class="input cell" value="L630 × P520 × H345 mm" /></td><td><span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></td></tr>
+                <tr><td><span data-zh="材质" data-fr="Matière">材质</span></td><td><input class="input cell" value="Inox / acier inoxydable" /></td><td><span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></td></tr>
+                <tr><td><span data-zh="温控" data-fr="Thermostat">温控</span></td><td><input class="input cell" value="jusqu'à 190°C" /></td><td><span class="badge sample" title="exemple case001">◔ <span data-zh="样例(case001)" data-fr="Exemple (case001)">样例(case001)</span></span></td></tr>
+                <tr><td><span data-zh="其他参数" data-fr="Autres spécifications">其他参数</span></td><td><input class="input cell" placeholder="—" /></td><td><span class="badge lock" data-zh="可选" data-fr="Optionnel">可选</span></td></tr>
+              </tbody>
+            </table>
+            <div class="hint" data-zh="格式要求：数值 + 单位（如 13 L、3 kW、230 V、190°C）；尺寸用 L×P×H mm。" data-fr="Format : valeur + unité (ex. 13 L, 3 kW, 230 V, 190°C) ; dimensions en L×P×H mm.">格式要求：数值 + 单位（如 13 L、3 kW、230 V、190°C）；尺寸用 L×P×H mm。</div>
+            <div class="explain">
+              <span class="ic">🛈</span>
+              <div>
+                <div data-zh="技术参数来自「确认输入」。" data-fr="Les caractéristiques techniques proviennent d'informations confirmées.">技术参数来自「确认输入」。</div>
+                <div data-zh="AI 可帮助组织文字，但不会发明或更改技术参数。" data-fr="L'IA peut aider à la formulation, mais ne doit jamais inventer ni modifier un paramètre technique.">AI 可帮助组织文字，但不会发明或更改技术参数。</div>
+                <div data-zh="190°C 仅为 case001 样例参数，不是平台规则。" data-fr="190°C est seulement un paramètre d'exemple (case001), pas une règle de la plateforme.">190°C 仅为 case001 样例参数，不是平台规则。</div>
+              </div>
+            </div>
           </div>
-          <label>API base（留空=同源）</label><input type="text" id="apibase" placeholder="(same origin)"/>
-          <div class="btnrow"><button class="btn secondary" id="btn-login">登录 / Se connecter</button></div>
-          <div class="group-label">Evidence (raw)</div>
-          <pre id="diagdump">—</pre>
+
+          <div class="card">
+            <h3><span data-zh="产品介绍" data-fr="Description produit">产品介绍</span> <span class="badge lock" data-zh="可编辑 · 与参数分离" data-fr="modifiable · séparé des paramètres">可编辑 · 与参数分离</span></h3>
+            <div class="field">
+              <textarea class="textarea" id="f-desc" rows="3">Découvrez notre gamme de friteuses électriques professionnelles : deux cuves inox amovibles, montée en température maîtrisée et construction robuste pour un usage intensif en cuisine.</textarea>
+            </div>
+            <div class="hint" data-zh="用途：邮件引言 · 产品页正文 · 海报副标语支持文案。与「技术参数」分离，不影响已确认参数。" data-fr="Usage : intro de l'email · corps de la fiche · support de l'affiche. Séparé des caractéristiques confirmées.">用途：邮件引言 · 产品页正文 · 海报副标语支持文案。与「技术参数」分离，不影响已确认参数。</div>
+          </div>
+
+          <div class="card">
+            <div class="group-label" data-zh="产品素材" data-fr="Éléments produit">产品素材</div>
+            <div class="upload-row">
+              <div class="upload has-image"><img class="thumb" src="assets/product_01.jpg" alt="produit" /><span class="cap"><span data-zh="产品主图" data-fr="Image produit">产品主图</span> <span class="req">*</span></span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
+              <div class="upload has-image"><img class="thumb" src="assets/product_02.jpg" alt="détail" /><span class="cap" data-zh="第二张 / 细节图" data-fr="2e image / détail">第二张 / 细节图</span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
+              <div class="upload"><span class="plus">+</span><span class="cap" data-zh="画廊 0–3" data-fr="Galerie 0–3">画廊 0–3</span><span class="state hint" data-zh="可选" data-fr="Optionnel">可选</span></div>
+            </div>
+            <div class="upload-row" style="margin-top:12px">
+              <div class="upload"><div class="ph">🌫️</div><span class="cap" data-zh="氛围 / 场景图" data-fr="Visuel d'ambiance">氛围 / 场景图</span><span class="badge visual" data-zh="仅作视觉" data-fr="Visuel uniquement">仅作视觉</span></div>
+              <div class="upload note-cell"><span class="hint" data-zh="氛围图仅作视觉，不作为产品事实。" data-fr="Le visuel d'ambiance est décoratif, pas une caractéristique du produit.">氛围图仅作视觉，不作为产品事实。</span></div>
+            </div>
+            <div class="group-label" data-zh="邮件素材（页眉横幅 + 页脚）" data-fr="Éléments email (en-tête + pied)">邮件素材（页眉横幅 + 页脚）</div>
+            <div class="upload-row">
+              <div class="upload has-image logo-cell"><img class="logo-real" src="assets/logo_01.jpg" alt="logo" /><span class="cap" data-zh="邮件 Logo" data-fr="Logo de l'email">邮件 Logo</span><span class="state hint" data-zh="用于邮件页眉" data-fr="En-tête de l'email">用于邮件页眉</span></div>
+              <div class="upload has-image"><img class="thumb" src="assets/banner_option_01.jpg" alt="bannière" /><span class="cap" data-zh="邮件横幅" data-fr="Bannière de l'email">邮件横幅</span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
+              <div class="upload note-cell"><span class="hint" data-zh="Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。" data-fr="Le logo et la bannière s'affichent dans l'en-tête, pas dans l'affiche. La bannière est un module de premier plan.">Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。</span></div>
+            </div>
+            <div class="group-label" data-zh="联系方式（邮件页脚）" data-fr="Contact &amp; réseaux (pied de l'email)">联系方式（邮件页脚）</div>
+            <div class="grid-2">
+              <div class="field"><label><span data-zh="联系邮箱" data-fr="Email de contact">联系邮箱</span></label><input class="input readonly" readonly value="commercial@cuistance.eu" /></div>
+              <div class="field"><label><span data-zh="电话" data-fr="Téléphone">电话</span></label><input class="input readonly" readonly value="+33 (0)1 71 84 11 20" /></div>
+            </div>
+          </div>
         </div>
-      </details>
-    </div>
+
+        <div>
+          <p class="panel-title" data-zh="素材预览" data-fr="Aperçu des éléments">素材预览</p>
+          <div class="card">
+            <div class="email-banner small"><img class="banner-img" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+            <div class="poster-tag" data-zh="邮件页眉（en-tête）：真实 Logo / 横幅，与产品海报主体分离。" data-fr="En-tête : logo / bannière réels, séparés de l'affiche.">邮件页眉（en-tête）：真实 Logo / 横幅，与产品海报主体分离。</div>
+            <div style="display:flex; gap:10px; margin-top:16px;">
+              <img class="thumb" src="assets/product_01.jpg" style="height:104px;flex:1" alt="" />
+              <img class="thumb" src="assets/product_02.jpg" style="height:104px;flex:1" alt="" />
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+              <span class="badge ready" id="s1-ready" data-zh="素材就绪" data-fr="Éléments prêts">素材就绪</span>
+              <span class="hint" id="s1-hint" data-zh="点击「继续」保存并进入下一步。" data-fr="Cliquez sur « Continuer » pour enregistrer et passer à l'étape suivante.">点击「继续」保存并进入下一步。</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN 2 — 生成海报主体 ============ -->
+    <section class="screen" id="screen-2">
+      <div class="two-col">
+        <div>
+          <div class="card">
+            <h3 data-zh="生成产品海报主体" data-fr="Affiche produit">生成产品海报主体</h3>
+            <p class="hint" data-zh="第二步：海报主体聚焦产品视觉 / 标题 / 卖点 / 已确认参数 / 画廊。邮件横幅在第三步加入。" data-fr="Étape 2 : l'affiche met en avant le produit. La bannière est ajoutée à l'étape 3.">第二步：海报主体聚焦产品视觉 / 标题 / 卖点 / 已确认参数 / 画廊。邮件横幅在第三步加入。</p>
+            <div class="field"><label><span data-zh="标题" data-fr="Titre">标题</span></label><input class="input" id="f-title" value="LES FRITEUSES ÉLECTRIQUES" /></div>
+            <div class="field"><label><span data-zh="副标语" data-fr="Accroche">副标语</span></label><input class="input" id="f-accroche" value="Cuisson professionnelle, croustillant maîtrisé" /></div>
+            <div class="field">
+              <label><span data-zh="技术参数（自第一步流入）" data-fr="Caractéristiques (depuis l'étape 1)">技术参数（自第一步流入）</span> <span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></label>
+              <input class="input readonly" readonly value="EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · Inox" />
+            </div>
+            <div class="btn-row" style="margin-top:6px">
+              <button class="btn primary" id="btn-gen-affiche" type="button" data-zh="生成产品海报" data-fr="Générer l'affiche">生成产品海报</button>
+              <button class="btn secondary" id="btn-gen-sheet" type="button" data-zh="生成简化产品页" data-fr="Fiche produit simplifiée">生成简化产品页</button>
+            </div>
+            <div class="notice" id="sheet-note" style="display:none">
+              <span class="ic">🛈</span>
+              <div class="body" id="sheet-note-text" data-zh="简化产品页暂不可用，建议改用产品海报作为邮件主体。" data-fr="Fiche simplifiée indisponible — utilisez l'affiche comme corps de l'email.">简化产品页暂不可用，建议改用产品海报作为邮件主体。</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p class="panel-title"><span data-zh="预览" data-fr="Aperçu">预览</span> · <span class="seg active" data-zh="海报主体" data-fr="Affiche produit">海报主体</span> / <span class="seg" data-zh="简化产品页" data-fr="Fiche simplifiée">简化产品页</span></p>
+
+          <div class="card selectable" id="card-affiche">
+            <div class="preview-frame">
+              <div class="poster">
+                <div class="p-hero"><img src="assets/product_01.jpg" alt="produit" /></div>
+                <div class="p-body">
+                  <div class="p-title">LES FRITEUSES ÉLECTRIQUES</div>
+                  <div class="p-sub">Cuisson professionnelle, croustillant maîtrisé</div>
+                  <ul class="p-args"><li>2 cuves inox amovibles</li><li>Thermostat réglable</li><li>Construction inox / usage professionnel</li></ul>
+                  <div class="p-gallery"><span></span><span></span><span></span></div>
+                  <div class="p-spec">RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · L630 × P520 × H345 mm</div>
+                </div>
+              </div>
+            </div>
+            <div class="poster-tag" data-zh="产品海报主体 —— 不含邮件横幅（横幅在第三步加入）。" data-fr="Affiche produit — sans bannière (ajoutée à l'étape 3).">产品海报主体 —— 不含邮件横幅（横幅在第三步加入）。</div>
+            <div class="select-row">
+              <button class="btn select-visual" type="button" data-visual="affiche" data-zh="选为邮件主体" data-fr="Choisir pour l'email">选为邮件主体</button>
+              <span class="badge selected-badge">✓ <span data-zh="已选用" data-fr="Sélectionné">已选用</span></span>
+            </div>
+          </div>
+
+          <div class="card selectable" id="card-sheet">
+            <h3 style="margin-bottom:6px"><span data-zh="简化产品页（预览）" data-fr="Fiche produit simplifiée (aperçu)">简化产品页（预览）</span> <span class="badge ready" data-zh="有用选项" data-fr="Option utile">有用选项</span></h3>
+            <div class="preview-frame">
+              <div class="sheet">
+                <div class="email-banner mini"><img class="banner-img" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+                <div class="sheet-body">
+                  <div class="sheet-imgs"><img src="assets/product_01.jpg" alt="produit 1" /><img src="assets/product_02.jpg" alt="produit 2" /></div>
+                  <div class="sheet-title">Friteuse électrique double — EF132V</div>
+                  <p class="sheet-desc">Deux cuves inox amovibles, montée en température maîtrisée, construction robuste pour un usage intensif.</p>
+                  <ul class="sheet-specs"><li><b>Capacité</b> 2 × 13 L</li><li><b>Puissance</b> 3 + 3 kW</li><li><b>Tension</b> 230 V</li><li><b>Matière</b> Inox</li></ul>
+                  <a class="e-cta" href="#" onclick="return false;">Nous contacter</a>
+                </div>
+              </div>
+            </div>
+            <div class="poster-tag" data-zh="简化产品页：共用同一横幅 + 1–2 张产品图 + 产品介绍 + 已确认参数 + CTA。它是有用选项，不是失败。" data-fr="Fiche simplifiée : même bannière + 1–2 images + description + caractéristiques + CTA. Option utile, pas un échec.">简化产品页：共用同一横幅 + 1–2 张产品图 + 产品介绍 + 已确认参数 + CTA。它是有用选项，不是失败。</div>
+            <div class="select-row">
+              <button class="btn select-visual" type="button" data-visual="sheet" data-zh="选为邮件主体" data-fr="Choisir pour l'email">选为邮件主体</button>
+              <span class="badge selected-badge">✓ <span data-zh="已选用" data-fr="Sélectionné">已选用</span></span>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="margin-bottom:14px" data-zh="生成检查" data-fr="Vérification">生成检查</h3>
+            <div class="verif" id="verif">
+              <div class="row"><span class="ok">✔</span> <span data-zh="结构完整" data-fr="Structure complète">结构完整</span></div>
+              <div class="row"><span class="ok">✔</span> <span data-zh="无错误品牌" data-fr="Aucune marque incorrecte">无错误品牌</span></div>
+              <div class="row"><span class="ok">✔</span> <span data-zh="技术参数已确认" data-fr="Caractéristiques confirmées">技术参数已确认</span></div>
+              <div class="row"><span class="ok">✔</span> <span data-zh="氛围仅作视觉" data-fr="Ambiance = visuel uniquement">氛围仅作视觉</span></div>
+              <span class="state-pill" id="s2-state" data-zh="状态：可进入邮件" data-fr="État : Prêt pour l'email">状态：可进入邮件</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCREEN 3 — 邮件预览与测试发送 ============ -->
+    <section class="screen" id="screen-3">
+      <div class="two-col">
+        <div>
+          <div class="card banner-editor">
+            <h3><span data-zh="邮件横幅模块" data-fr="Module Bannière">邮件横幅模块</span> <span class="badge ready" data-zh="一等模块" data-fr="premier bloc">一等模块</span></h3>
+            <p class="hint" data-zh="邮件页眉（第一块），主路线与简化产品页共用。" data-fr="En-tête de l'email (premier bloc), partagé.">邮件页眉（第一块），主路线与简化产品页共用。</p>
+            <div class="email-banner selected-banner" id="bannerPreview"><img class="banner-img" id="bannerPreviewImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+            <div class="banner-options" id="bannerOptions">
+              <button class="banner-opt selected" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
+              <button class="banner-opt" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
+            </div>
+            <div class="grid-2" style="margin-top:8px">
+              <div class="field"><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input class="input" id="f-channel" value="CUISTANCE Europe" /></div>
+              <div class="field"><label><span data-zh="活动标签" data-fr="Libellé de campagne">活动标签</span></label><input class="input" id="f-camplabel" value="Nouveauté" /></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 data-zh="邮件内容" data-fr="Email">邮件内容</h3>
+            <div class="field"><label><span data-zh="主题" data-fr="Objet">主题</span></label><input class="input" id="f-subject" value="CUISTANCE | Les friteuses électriques" /></div>
+            <div class="field">
+              <label><span data-zh="引言（来自产品介绍 · 可改）" data-fr="Texte d'introduction (depuis la description · modifiable)">引言（来自产品介绍 · 可改）</span> <span class="badge lock">suggestion</span></label>
+              <textarea class="textarea">Découvrez notre gamme de friteuses électriques professionnelles : deux cuves inox amovibles et une construction robuste.</textarea>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><span data-zh="测试发送" data-fr="Envoi test">测试发送</span> <span class="badge lock" data-zh="仅内部" data-fr="interne">仅内部</span></h3>
+            <p class="hint" data-zh="先预览邮件，再向内部地址做测试发送（默认不真实投递客户）。" data-fr="Prévisualisez, puis envoi test vers une adresse interne (pas d'envoi client par défaut).">先预览邮件，再向内部地址做测试发送（默认不真实投递客户）。</p>
+            <div class="field"><label><span data-zh="内部收件人" data-fr="Destinataire interne">内部收件人</span></label><input class="input" id="f-recipient" value="owner-internal-test@cuistance.eu" /></div>
+            <div class="radio-row">
+              <label><input type="radio" name="mode" value="test" checked /> <span data-zh="测试发送" data-fr="Envoi test">测试发送</span></label>
+              <label><input type="radio" name="mode" value="real" /> <span data-zh="正式发送" data-fr="Envoyer">正式发送</span></label>
+              <label style="margin-left:auto"><input type="checkbox" id="f-confirm" /> <span data-zh="确认发送" data-fr="Confirmer">确认发送</span></label>
+            </div>
+            <div class="btn-row">
+              <button class="btn secondary" id="btn-preview" type="button" data-zh="预览邮件" data-fr="Aperçu email">预览邮件</button>
+              <button class="btn primary" id="btn-send" type="button" data-zh="发送测试邮件" data-fr="Envoyer le test">发送测试邮件</button>
+              <button class="btn ghost" id="btn-evidence" type="button" data-zh="查看发送证据" data-fr="Voir les preuves">查看发送证据</button>
+            </div>
+            <div class="hint" id="send-summary" data-zh="尚未发送。" data-fr="Aucun envoi.">尚未发送。</div>
+            <div class="results" id="results"></div>
+          </div>
+        </div>
+
+        <div>
+          <p class="panel-title" data-zh="邮件最终预览（横幅 + 海报主体）" data-fr="Aperçu de l'email (bannière + affiche)">邮件最终预览（横幅 + 海报主体）</p>
+          <div class="card">
+            <div class="preview-frame" id="emailPreviewFrame">
+              <div class="email" id="emailStatic">
+                <div class="email-banner"><img class="banner-img" id="emailBannerImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+                <div class="e-poster" id="emailBodyAffiche">
+                  <div class="poster" style="max-width:100%; box-shadow:none; border:1px solid var(--line)">
+                    <div class="p-hero" style="height:150px"><img src="assets/product_01.jpg" alt="produit" /></div>
+                    <div class="p-body">
+                      <div class="p-title" style="font-size:14px">LES FRITEUSES ÉLECTRIQUES</div>
+                      <div class="p-sub">Cuisson professionnelle, croustillant maîtrisé</div>
+                      <ul class="p-args"><li>2 cuves inox amovibles</li><li>Thermostat réglable</li></ul>
+                      <div class="p-spec">RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="e-poster" id="emailBodySheet" style="display:none">
+                  <div class="sheet-body" style="padding:14px 16px">
+                    <div class="sheet-imgs"><img src="assets/product_01.jpg" alt="produit 1" /><img src="assets/product_02.jpg" alt="produit 2" /></div>
+                    <div class="sheet-title">Friteuse électrique double — EF132V</div>
+                    <p class="sheet-desc">Deux cuves inox amovibles, montée en température maîtrisée, construction robuste.</p>
+                    <ul class="sheet-specs"><li><b>Capacité</b> 2 × 13 L</li><li><b>Puissance</b> 3 + 3 kW</li><li><b>Tension</b> 230 V</li><li><b>Matière</b> Inox</li></ul>
+                  </div>
+                </div>
+                <div class="e-copy"><p>Découvrez notre gamme de friteuses électriques professionnelles : deux cuves inox amovibles et une construction robuste.</p><a class="e-cta" href="#" onclick="return false;">Nous contacter</a></div>
+                <div class="e-footer">commercial@cuistance.eu · +33 (0)1 71 84 11 20 · cuistance-europe.com<div class="social"><span></span><span></span><span></span></div></div>
+              </div>
+              <iframe class="mail-frame" id="mailFrame" title="aperçu email" style="display:none"></iframe>
+            </div>
+            <div class="email-legend" data-zh="邮件最终 = 真实横幅（en-tête） + 产品海报主体（或简化产品页） + 正文 + CTA + 联系方式。" data-fr="Email final = bannière (en-tête) + affiche (ou fiche) + texte + CTA + contact.">邮件最终 = 真实横幅（en-tête） + 产品海报主体（或简化产品页） + 正文 + CTA + 联系方式。</div>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
-  <div class="action-bar"><div class="inner">
-    <span class="hint" id="barhint" data-zh="① 产品与素材 → ② 海报主体 → ③ 邮件预览与测试发送" data-fr="① Produit → ② Affiche → ③ Email &amp; test">① 产品与素材 → ② 海报主体 → ③ 邮件预览与测试发送</span>
-    <span class="hint" data-zh="不真实投递客户；仅内部测试。" data-fr="Aucun envoi client ; test interne uniquement.">不真实投递客户；仅内部测试。</span>
-  </div></div>
+  <!-- ============ BOTTOM ACTION BAR ============ -->
+  <div class="action-bar">
+    <div class="inner">
+      <button class="btn ghost" id="prevBtn" data-zh="◀ 上一步" data-fr="◀ Précédent">◀ 上一步</button>
+      <span class="hint" id="barHint" data-zh="第 1 步 / 共 3 步" data-fr="Étape 1 sur 3">第 1 步 / 共 3 步</span>
+      <button class="btn primary" id="nextBtn" data-zh="保存并进入下一步 ▶" data-fr="Enregistrer &amp; continuer ▶">保存并进入下一步 ▶</button>
+    </div>
+  </div>
+
+  <!-- ============ CONFIRM MODAL ============ -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h4 data-zh="确认发送" data-fr="Confirmer l'envoi">确认发送</h4>
+      <p id="modal-text" data-zh="确认向内部地址做测试发送？" data-fr="Confirmer l'envoi test vers l'adresse interne ?">确认向内部地址做测试发送？</p>
+      <div class="modal-actions">
+        <button class="btn secondary" id="modalCancel" data-zh="取消" data-fr="Annuler">取消</button>
+        <button class="btn primary" id="modalConfirm" data-zh="确认" data-fr="Confirmer">确认</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DIAGNOSTICS DRAWER (internal · off-screen by default) ============ -->
+  <aside class="diag-drawer" id="diag">
+    <button class="close" id="diagClose">×</button>
+    <h4 data-zh="内部诊断 / 工程证据" data-fr="Diagnostic interne">内部诊断 / 工程证据</h4>
+    <div class="muted" data-zh="仅供支持/排障；主流程不展示这些技术字段。" data-fr="Support uniquement.">仅供支持/排障；主流程不展示这些技术字段。</div>
+    <div class="field-row">
+      <div><label>ops user</label><input type="text" id="opsuser" autocomplete="off"/></div>
+      <div><label>ops pass</label><input type="text" id="opspass" autocomplete="off"/></div>
+    </div>
+    <label style="margin-top:8px">API base（留空=同源）</label><input type="text" id="apibase" placeholder="(same origin)"/>
+    <button class="dbtn" id="btn-login">登录 / Se connecter</button>
+    <pre id="diagdump" style="margin-top:12px">—</pre>
+  </aside>
 
   <script>
-  (function(){
-    var $=function(id){return document.getElementById(id)};
-    var lang="zh";
-    var S={wb:null,poster:null,sheet:null,sheetState:null,sheetErr:null,selected:null,mode:"test",diag:{}};
+  (function () {
+    var lang='zh', step=1, selectedVisual=null;
+    var S={wb:null, affiche:null, sheet:null};
+    function $(id){return document.getElementById(id)}
+    function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
+    function diag(k,v){S[k+'_diag']=v; var d={workbench_key:S.wb,affiche:S.affiche,fiche:S.sheet,selected:selectedVisual};
+      for(var kk in S){if(kk.indexOf('_diag')>0)d[kk]=S[kk]} $('diagdump').textContent=JSON.stringify(d,null,2);}
+    async function api(method,path,body){
+      var o={method:method,headers:{'Content-Type':'application/json'},credentials:'include'};
+      if(body!==undefined)o.body=JSON.stringify(body);
+      var r=await fetch(base()+path,o);var ct=r.headers.get('content-type')||'';var tx=await r.text();
+      var j=null;if(ct.indexOf('json')!==-1){try{j=JSON.parse(tx)}catch(e){}} return{ok:r.ok,status:r.status,json:j,text:tx};
+    }
+    function bizErr(r){return r.status===401?(lang==='zh'?'需要登录（展开 ⓘ 内部诊断登录）':'Connexion requise (voir ⓘ).'):(lang==='zh'?'操作失败，请重试。':'Échec, réessayez.')}
 
+    // ---- i18n + stepper (preserved from mockup) ----
+    var H={zh:['第 1 步 / 共 3 步','第 2 步 / 共 3 步','第 3 步 / 共 3 步'],fr:['Étape 1 sur 3','Étape 2 sur 3','Étape 3 sur 3']};
+    var NEXT={zh:['保存并进入下一步 ▶','继续 ▶','发送 ▶'],fr:['Enregistrer & continuer ▶','Continuer ▶','Envoyer ▶']};
+    var ETAT={zh:['草稿','可进入邮件','待发送'],fr:['Brouillon',"Prêt pour l'email",'Prêt à envoyer']};
     function applyLang(){
       document.documentElement.lang=lang;document.body.dataset.lang=lang;
-      document.querySelectorAll('[data-zh]').forEach(function(el){var v=el.getAttribute('data-'+lang);if(v!==null)el.textContent=v;});
-      document.querySelectorAll('#langSwitch button').forEach(function(b){b.classList.toggle('active',b.dataset.lang===lang)});
+      document.querySelectorAll('[data-zh]').forEach(function(el){var v=el.getAttribute('data-'+lang);if(v!==null)el.textContent=v});
+      document.querySelectorAll('[data-ph-zh]').forEach(function(el){var v=el.getAttribute('data-ph-'+lang);if(v!==null)el.placeholder=v});
+      document.querySelectorAll('#langSwitch .lang').forEach(function(b){b.classList.toggle('active',b.dataset.lang===lang)});
+      barHint();
     }
-    function t(zh,fr){return lang==='fr'?fr:zh}
-    function prog(m){var el=$('progress');var cur=(el.dataset.started?el.textContent:'');el.dataset.started='1';el.textContent=(cur?cur+"\n":"")+m;el.scrollTop=el.scrollHeight}
-    function setEtat(zh,fr){$('etat').setAttribute('data-zh',zh);$('etat').setAttribute('data-fr',fr);$('etat').textContent=t(zh,fr)}
-    function stepDone(n){document.querySelectorAll('#stepper .step').forEach(function(el){var s=+el.dataset.step;el.classList.toggle('done',s<n);el.classList.toggle('active',s===n)})}
-    function diagSet(k,v){S.diag[k]=v;$('diagdump').textContent=JSON.stringify(S.diag,null,2)}
-
-    function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
-    async function api(method,path,body){
-      var opts={method:method,headers:{'Content-Type':'application/json'},credentials:'include'};
-      if(body!==undefined)opts.body=JSON.stringify(body);
-      var r=await fetch(base()+path,opts);var ct=r.headers.get('content-type')||'';var txt=await r.text();
-      var j=null;if(ct.indexOf('json')!==-1){try{j=JSON.parse(txt)}catch(e){}}
-      return{ok:r.ok,status:r.status,json:j,text:txt};
+    function barHint(){
+      $('nextBtn').textContent=NEXT[lang][step-1];$('etat').textContent=ETAT[lang][step-1];
+      if(step===2&&!selectedVisual)$('barHint').textContent=(lang==='zh'?'请先选择邮件主体（海报主体或简化产品页）':"Choisissez d'abord le visuel de l'email");
+      else $('barHint').textContent=H[lang][step-1];
     }
-    function businessError(r,zh){
-      if(r.status===401)return t('需要登录（请展开「内部诊断」登录）','Connexion requise (voir Diagnostic).');
-      return zh;
+    function render(){
+      document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active')});
+      $('screen-'+step).classList.add('active');
+      document.querySelectorAll('#stepper .step').forEach(function(el){var n=+el.dataset.step;el.classList.toggle('active',n===step);el.classList.toggle('done',n<step)});
+      $('prevBtn').style.visibility=step===1?'hidden':'visible';
+      $('nextBtn').disabled=(step===2&&!selectedVisual);
+      barHint();window.scrollTo({top:0,behavior:'smooth'});
     }
+    document.querySelectorAll('#langSwitch .lang').forEach(function(b){b.addEventListener('click',function(){lang=b.dataset.lang;applyLang()})});
+    document.querySelectorAll('#stepper .step').forEach(function(el){el.addEventListener('click',function(){step=+el.dataset.step;render()})});
+    $('prevBtn').addEventListener('click',function(){if(step>1){step--;render()}});
 
-    // language
-    document.querySelectorAll('#langSwitch button').forEach(function(b){b.addEventListener('click',function(){lang=b.dataset.lang;applyLang();})});
-    // mode toggle
-    document.querySelectorAll('#modeseg button').forEach(function(b){b.addEventListener('click',function(){document.querySelectorAll('#modeseg button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');S.mode=b.dataset.mode;})});
-
-    $('btn-sample').addEventListener('click',function(){
-      $('pname').value="Friteuse électrique double";$('pref').value="EF132V";
-      $('pdesc').value="Deux cuves inox amovibles, montée en température maîtrisée, construction robuste.";
-      prog(t('已加载 EF132V 示例。','Exemple EF132V chargé.'));
-    });
-
-    async function ensureWb(){
+    // ---- backend payload from real served + reference assets ----
+    var PROD="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg";
+    var PROD2="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg";
+    var LOGO="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png";
+    async function ensureWorkbench(){
       if(S.wb)return true;
       var r=await api('POST','/api/v2/workbench',{language:lang});
-      if(!r.ok||!r.json){prog('✖ '+businessError(r,t('创建工作台失败。','Échec de création.')));return false}
-      S.wb=r.json.workbench_key;diagSet('workbench_key',S.wb);setEtat('进行中','En cours');return true;
-    }
-    $('btn-save').addEventListener('click',async function(){
-      if(!await ensureWb())return;
-      var r1=await api('PATCH','/api/v2/workbench/'+S.wb,{product_truth:{
-        product_name:$('pname').value,reference:$('pref').value,description:$('pdesc').value,
-        parameters:[{key:'reference',value:$('pref').value,state:'confirmed'},
+      if(!r.ok||!r.json){$('s1-hint').textContent=bizErr(r);return false}
+      S.wb=r.json.workbench_key;diag('create',1);
+      await api('PATCH','/api/v2/workbench/'+S.wb,{product_truth:{
+        product_name:$('f-pname').value,reference:$('f-pref').value,description:$('f-desc').value,
+        parameters:[{key:'reference',value:$('f-pref').value,state:'confirmed'},
           {key:'capacity',value:'2 cuves 13 + 13 L',state:'confirmed'},
           {key:'power',value:'3 + 3 kW',state:'confirmed'},
           {key:'thermostat',value:"jusqu'à 190°C",state:'confirmed'}]}});
-      var imgs=[{url:$('prodimg').value}];if($('prodimg2').value)imgs.push({url:$('prodimg2').value});
-      var r2=await api('PATCH','/api/v2/workbench/'+S.wb,{product_assets:{product_images:imgs},
-        email_banner:{logo:{url:$('logo').value},channel_name:$('channel').value,campaign_label:$('campaign').value}});
-      if(r1.ok&&r2.ok){prog('✔ '+t('产品信息与素材已保存。','Produit & éléments enregistrés.'));
-        // banner mini preview
-        $('bannerMini').innerHTML='<img src="'+$('logo').value+'" alt="logo"/><div class="meta">'+($('channel').value||'')+'<br>'+($('campaign').value||'')+'</div>';
-        stepDone(2);
-      } else prog('✖ '+businessError(r1.ok?r2:r1,t('保存失败。','Échec.')));
+      await api('PATCH','/api/v2/workbench/'+S.wb,{product_assets:{product_images:[{url:PROD},{url:PROD2}]},
+        email_banner:{logo:{url:LOGO},channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value}});
+      diag('saved',1);return true;
+    }
+
+    // nextBtn: step1 saves then advances; step2 advances (gated); step3 opens confirm modal
+    $('nextBtn').addEventListener('click',async function(){
+      if(step===1){ $('s1-hint').textContent=(lang==='zh'?'正在保存…':'Enregistrement…');
+        var ok=await ensureWorkbench(); if(!ok)return; $('s1-hint').textContent=(lang==='zh'?'已保存。':'Enregistré.'); step=2; render(); return; }
+      if(step===2){ if(!selectedVisual)return; step=3; render(); return; }
+      // step 3 -> send
+      openSendModal();
     });
 
-    async function genVisual(kind){ // kind: poster->affiche, sheet->fiche  (engineering terms not shown)
-      if(!await ensureWb()){return}
-      var biz = kind==='poster'? t('产品海报','l\'affiche') : t('简化产品页','la fiche simplifiée');
-      prog('… '+t('正在生成','Génération de ')+biz+'…');
-      var endpoint = kind==='poster' ? 'affiche' : 'fiche';
-      var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+endpoint+'/generate');
-      if(r.ok&&r.json){
-        var c=(r.json.poster_candidates||{})[endpoint]||{};
-        if(kind==='poster'){S.poster=c.poster_key;diagSet('poster_key',c.poster_key);$('btn-select-poster').disabled=false;}
-        else{S.sheet=c.poster_key;S.sheetState=c.status||'ready';diagSet('sheet_poster_key',c.poster_key);$('btn-select-sheet').disabled=false;}
-        prog('✔ '+biz+' '+t('已就绪。','prête.'));
-      } else {
-        if(kind==='sheet'){S.sheetState='failed';S.sheetErr=(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||('HTTP '+r.status);
-          diagSet('sheet_error',S.sheetErr);
-          $('poster-note').style.display='';$('poster-note-text').textContent=t('简化产品页暂不可用，请使用「产品海报」作为邮件主体。','Fiche simplifiée indisponible — utilisez l\'affiche.');
-          prog('⚠ '+t('简化产品页暂不可用（建议改用产品海报）。','Fiche simplifiée indisponible.'));
-        } else prog('✖ '+businessError(r,t('产品海报生成失败。','Échec affiche.')));
+    // ---- Step 2: generate + select (real) ----
+    async function genVisual(kind){ // kind affiche|sheet ; sheet -> fiche endpoint
+      if(!await ensureWorkbench())return false;
+      var ep=kind==='affiche'?'affiche':'fiche';
+      var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+ep+'/generate');
+      if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[ep]||{};
+        if(kind==='affiche')S.affiche=c.poster_key; else {S.sheet=c.poster_key;}
+        diag(kind,c.status||'ready');return true;
       }
+      if(kind==='sheet'){ S.sheet=null; $('sheet-note').style.display='';
+        diag('sheet_fail',(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||r.status); return false; }
+      diag('affiche_fail',r.status); return false;
     }
-    $('btn-poster').addEventListener('click',function(){genVisual('poster')});
-    $('btn-sheet').addEventListener('click',function(){genVisual('sheet')});
-
-    async function selectVisual(kind){
-      var ep=kind==='poster'?'affiche':'fiche';
-      var r=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:ep});
-      if(r.ok){S.selected=kind;diagSet('selected',ep);
-        prog('✔ '+t('已选为邮件主体：','Choisi comme corps :')+(kind==='poster'?t('产品海报','affiche'):t('简化产品页','fiche')));
-        stepDone(3);
-      } else prog('✖ '+businessError(r,t('选择失败。','Échec sélection.')));
+    function applySelectVisual(v){ // mockup visual behavior
+      selectedVisual=v;
+      $('card-affiche').classList.toggle('selected',v==='affiche');
+      $('card-sheet').classList.toggle('selected',v==='sheet');
+      $('emailBodyAffiche').style.display=(v==='affiche')?'':'none';
+      $('emailBodySheet').style.display=(v==='sheet')?'':'none';
+      var segs=document.querySelectorAll('.panel-title .seg');
+      if(segs.length>=2){segs[0].classList.toggle('active',v==='affiche');segs[1].classList.toggle('active',v==='sheet')}
+      render();
     }
-    $('btn-select-poster').addEventListener('click',function(){selectVisual('poster')});
-    $('btn-select-sheet').addEventListener('click',function(){selectVisual('sheet')});
+    document.querySelectorAll('.select-visual').forEach(function(b){b.addEventListener('click',async function(){
+      var v=b.dataset.visual; b.disabled=true;
+      var key = v==='affiche'?S.affiche:S.sheet;
+      if(!key){ var ok=await genVisual(v); key=v==='affiche'?S.affiche:S.sheet; if(!ok||!key){b.disabled=false; if(v==='sheet'){applyToast();} return;} }
+      var r=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:v});
+      b.disabled=false;
+      if(r.ok){applySelectVisual(v);diag('selected_ok',v);} else {diag('select_fail',r.status);}
+    })});
+    function applyToast(){ $('sheet-note').style.display=''; }
+    $('btn-gen-affiche').addEventListener('click',function(){genVisual('affiche')});
+    $('btn-gen-sheet').addEventListener('click',function(){genVisual('sheet')});
 
+    // banner option swap (mockup)
+    document.querySelectorAll('.banner-opt').forEach(function(b){b.addEventListener('click',function(){
+      document.querySelectorAll('.banner-opt').forEach(function(x){x.classList.remove('selected')});b.classList.add('selected');
+      $('bannerPreviewImg').src=b.dataset.img;$('emailBannerImg').src=b.dataset.img;})});
+
+    // ---- Step 3: preview + send (real) ----
     $('btn-preview').addEventListener('click',async function(){
-      if(!S.wb||!S.selected){prog('✖ '+t('请先生成并「选为邮件主体」。','Sélectionnez d\'abord un corps.'));return}
+      if(!S.wb||!selectedVisual){$('send-summary').textContent=(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.');return}
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/preview');
-      if(!r.ok||!r.json){prog('✖ '+businessError(r,t('预览失败。','Échec aperçu.')));return}
-      var b=r.json,plan=b.email_body_plan||{};
-      diagSet('preview',{layout:plan.layout_type,width:plan.container_width,slot:plan.selected_body_visual_slot});
-      var layoutZh=(plan.layout_type==='single_product_promo')?t('单产品推广','Promo produit unique'):(plan.layout_type||'-');
-      var bodyZh=(S.selected==='poster')?t('产品海报','Affiche'):t('简化产品页','Fiche');
-      $('planinfo').innerHTML=[
-        [t('状态','État'),'<span class="badge b-ok">'+t('可发送','Prêt')+'</span>'],
-        [t('版式','Format'),layoutZh],
-        [t('宽度','Largeur'),(plan.container_width||600)+'px'],
-        [t('邮件主体','Corps'),bodyZh],
-        [t('主题','Objet'),(b.subject||'-')]
-      ].map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'}).join('');
-      var doc=$('mail').contentWindow.document;doc.open();doc.write(b.html||'');doc.close();
-      // verification card (business sentences)
-      $('verif').innerHTML=[
-        t('结构完整','Structure complète'),t('品牌正确','Marque correcte'),
-        t('参数已确认','Caractéristiques confirmées'),t('品牌页眉与产品主体分离','En-tête séparé du corps')
-      ].map(function(x){return '<div class="row"><span class="ok">✔</span> '+x+'</div>'}).join('')+
-        '<span class="state-pill">'+t('状态：可发送','État : prêt')+'</span>';
-      setEtat('可发送','Prêt');prog('✔ '+t('邮件预览已生成。','Aperçu généré.'));
+      if(!r.ok||!r.json){$('send-summary').textContent=bizErr(r);return}
+      diag('preview',{format:(r.json.email_body_plan||{}).layout_type,width:(r.json.email_body_plan||{}).container_width});
+      var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
+      var doc=f.contentWindow.document;doc.open();doc.write(r.json.html||'');doc.close();
+      $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
+      $('send-summary').textContent=(lang==='zh'?'邮件预览已生成。':'Aperçu généré.');
     });
-
-    $('btn-send').addEventListener('click',async function(){
-      if(!S.wb||!S.selected){prog('✖ '+t('请先预览邮件。','Prévisualisez d\'abord.'));return}
-      if(!$('confirm').checked){prog('✖ '+t('请勾选「确认发送」（不会自动发送）。','Cochez « Confirmer ».'));return}
-      var rcpt=$('recipient').value.trim();if(!rcpt){prog('✖ '+t('请填写内部收件人。','Destinataire requis.'));return}
-      prog('… '+t('正在发送（','Envoi (')+(S.mode==='real'?t('正式','réel'):t('测试','test'))+'）…');
-      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[rcpt],mode:S.mode,confirm_send:true,delivery_mode:'inline_only'});
-      if(!r.ok||!r.json){prog('✖ '+businessError(r,t('发送失败。','Échec envoi.')));return}
-      renderEvidence(r.json);diagSet('send_result',r.json);
-      setEtat('已发送','Envoyé');prog('✔ '+t('测试发送已记录。','Envoi enregistré.'));
+    function curMode(){var el=document.querySelector('input[name=mode]:checked');return el?el.value:'test'}
+    function openSendModal(){
+      if(!S.wb||!selectedVisual){$('send-summary').textContent=(lang==='zh'?'请先预览邮件。':'Prévisualisez d\'abord.');return}
+      if(!$('f-confirm').checked){$('send-summary').textContent=(lang==='zh'?'请勾选「确认发送」。':'Cochez « Confirmer ».');return}
+      $('modal-text').textContent=(lang==='zh'? ('确认'+(curMode()==='real'?'正式':'测试')+'发送给：'+$('f-recipient').value+'？') : ('Confirmer envoi '+(curMode()==='real'?'réel':'test')+' à : '+$('f-recipient').value+' ?'));
+      $('modal').classList.add('open');
+    }
+    $('btn-send').addEventListener('click',openSendModal);
+    $('modalCancel').addEventListener('click',function(){$('modal').classList.remove('open')});
+    $('modalConfirm').addEventListener('click',async function(){
+      $('modal').classList.remove('open');
+      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:'inline_only'});
+      if(!r.ok||!r.json){$('send-summary').textContent=bizErr(r);return}
+      diag('send',r.json);renderResults(r.json);$('etat').textContent=(lang==='zh'?'已发送':'Envoyé');
     });
-
-    function statusZh(st){return st==='sent'?t('成功','Réussi'):(st==='error'?t('失败','Échec'):t('已跳过','Ignoré'))}
-    function renderEvidence(b){
-      $('ev-summary').textContent=t('测试发送已记录','Envoi enregistré')+' · '+t('成功','réussi')+' '+b.sent_count+' / '+t('失败','échec')+' '+b.failed_count+' / '+t('已跳过','ignoré')+' '+b.skipped_count;
-      var tb=$('evtable').querySelector('tbody');tb.innerHTML='';
-      (b.attempts||[]).forEach(function(a){
-        var badge=a.status==='sent'?'b-ok':(a.status==='error'?'b-bad':'b-amber');
+    function stZh(s){return s==='sent'?(lang==='zh'?'已发送':'Envoyé'):(s==='error'?(lang==='zh'?'失败':'Échec'):(lang==='zh'?'已跳过':'Ignoré'))}
+    function renderResults(b){
+      $('send-summary').textContent=(lang==='zh'?'测试发送已记录':'Envoi enregistré')+' · '+(lang==='zh'?'成功':'réussi')+' '+(b.sent_count||0)+' / '+(lang==='zh'?'失败':'échec')+' '+(b.failed_count||0)+' / '+(lang==='zh'?'已跳过':'ignoré')+' '+(b.skipped_count||0);
+      var res=$('results');res.innerHTML='';
+      (b.attempts||[]).forEach(function(a){var cls=a.status==='sent'?'r ok':(a.status==='error'?'r fail':'r ok');
         var time=(a.at||'').replace('T',' ').replace('+00:00','');
-        tb.innerHTML+='<tr><td>'+a.recipient+'</td><td><span class="badge '+badge+'">'+statusZh(a.status)+'</span></td><td>'+time+'</td></tr>';
-      });
-      $('evtable').style.display='';
+        res.innerHTML+='<div class="'+cls+'"><span>'+(a.status==='error'?'✖':'✔')+'</span> '+a.recipient+' <span class="tag">'+stZh(a.status)+' · '+time+'</span></div>';});
     }
     $('btn-evidence').addEventListener('click',async function(){
-      if(!S.wb){prog('✖ '+t('暂无记录。','Aucune donnée.'));return}
+      if(!S.wb){$('send-summary').textContent=(lang==='zh'?'暂无记录。':'Aucune donnée.');return}
       var r=await api('GET','/api/v2/workbench/'+S.wb);
-      if(r.ok&&r.json){var sa=r.json.send_attempts||[];diagSet('send_attempts',sa);
-        renderEvidence({attempts:sa,sent_count:sa.filter(function(a){return a.status==='sent'}).length,
+      if(r.ok&&r.json){var sa=r.json.send_attempts||[];diag('evidence',sa);
+        renderResults({attempts:sa,sent_count:sa.filter(function(a){return a.status==='sent'}).length,
           failed_count:sa.filter(function(a){return a.status==='error'}).length,
-          skipped_count:sa.filter(function(a){return a.status==='skipped'}).length});
-        prog('✔ '+t('已刷新发送证据。','Preuves rafraîchies.'));
-      } else prog('✖ '+businessError(r,t('读取失败。','Échec.')));
+          skipped_count:sa.filter(function(a){return a.status==='skipped'}).length});}
+      else $('send-summary').textContent=bizErr(r);
     });
 
+    // diagnostics drawer + login
+    $('diagBtn').addEventListener('click',function(){$('diag').classList.add('open')});
+    $('diagClose').addEventListener('click',function(){$('diag').classList.remove('open')});
     $('btn-login').addEventListener('click',async function(){
       var r=await api('POST','/api/auth/ops-login',{username:$('opsuser').value,password:$('opspass').value});
-      prog(r.ok?t('✔ 已登录。','✔ Connecté.'):t('✖ 登录失败。','✖ Échec connexion.'));
+      diag('login',r.ok?'ok':('http '+r.status));
     });
 
-    applyLang();
+    applyLang();render();
   })();
   </script>
 </body>

@@ -12042,3 +12042,28 @@ After bundle:
   ~4 min the trial service had not rebuilt to 9718d59 -> deploy lag / deploy-trigger needed (no console/API
   access to force rebuild). Local aligned version fully green (200, stepper + diagnostics drawer + business
   buttons + NONE visible forbidden terms). Remote alignment appears once the trial service deploys 9718d59.
+
+## POSTER2-CUISTANCE-V1-MOCKUP-FIRST-UI-AND-ASSET-SYNC-FIX (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Mockup-FIRST migration (not a rewrite). Asset audit: mockup references assets/{logo_01.jpg, banner_option_01/02.jpg,
+  product_01/02.jpg, product.svg, gallery.svg}. Real CUISTANCE logo source = repo mockup asset
+  docs/poster2/ui_mockups/cuistance_commercial_trial_v1/assets/logo_01.jpg (= ~/poster/SOP/logo_01.jpg, 400x80
+  wordmark). Copied all mockup assets + styles.css into served paths: frontend/assets/ + docs/assets/ +
+  frontend/cuistance_trial.css + docs/cuistance_trial.css (renamed from styles.css to avoid clash with old
+  frontend/styles.css). Logo <img> has onerror fallback to the real CUISTANCE email logo URL.
+- frontend/cuistance_trial.html (+docs mirror) now = mockup markup verbatim (header w/ real brand-logo img, 3
+  <section class="screen">, stepper, two-col, action bar, confirm modal, off-screen diagnostics aside) with the
+  demo JS replaced by real backend wiring. NO backend/API/send/renderer/deploy change.
+- Fixes vs rejection: (1) WRONG LOGO -> real assets/logo_01.jpg (no red hexagon emblem). (2) MERGED STEPS ->
+  3-step wizard, ONE screen visible at a time (CSS .screen{display:none}/.screen.active{display:block}; only
+  screen-N active). (3) Chinese-first default; French via toggle. (4) Engineering terms only in off-screen
+  内部诊断/工程证据 drawer (raw evidence + ops login + api base).
+- Wiring: step1 保存并进入下一步 -> create + patch truth + patch assets/banner (public reference URLs for backend
+  payload); step2 生成产品海报/简化产品页 + 选为邮件主体 -> real candidates/affiche|fiche/generate + select-visual
+  (fiche failure -> amber business note, not red); step3 预览邮件 -> real preview injected into iframe; 发送测试邮件
+  -> confirm modal -> real send (test/inline default) -> business results (已发送/已跳过/失败 + time). Diagnostics
+  pre holds raw workbench_key/poster_key/send result.
+- Validation: docs router PASS; served 200 for /cuistance_trial.html, /cuistance_trial.css, /assets/logo_01.jpg,
+  /assets/banner_option_01.jpg, /assets/product_01.jpg; real logo path referenced; CSS single-screen rule present;
+  3 .screen sections; Chinese default; visible forbidden-term scan = NONE.
+- Remaining deviation: backend candidate generation depends on remote config (image-gen for fiche; send provider
+  for real send) — page shows business pending/amber states; this is config-layer, structure matches mockup.

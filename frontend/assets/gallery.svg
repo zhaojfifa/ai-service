@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160" role="img" aria-label="Galerie (placeholder)">
+  <rect width="240" height="160" fill="#f1f3f5"/>
+  <circle cx="84" cy="64" r="20" fill="#cfd4da"/>
+  <path d="M40 124 L96 78 L132 110 L168 70 L208 124 Z" fill="#d8dce1"/>
+  <text x="120" y="146" font-family="Inter,Arial,sans-serif" font-size="11" fill="#9aa0a6" text-anchor="middle">Galerie</text>
+</svg>

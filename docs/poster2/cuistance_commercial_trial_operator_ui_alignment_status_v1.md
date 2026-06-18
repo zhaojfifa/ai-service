@@ -86,3 +86,21 @@ URL/key only / no base64 / template_id / renderer / API / payload / fixture / ge
   我无控制台/API 访问，无法强制 rebuild）。本地 aligned 版校验全绿。
 - **远程对齐前置：** 将 trial 服务部署刷新到 `9718d59`。刷新后 `/cuistance_trial.html` 应显示 3 步 stepper + 业务按钮
   + 折叠「内部诊断」，且可见区无工程术语（本地已验证）。
+
+## 11. Mockup-first 迁移 + 资产同步修复（2026-06-18）
+
+- 方法：**mockup-first 迁移**（非重写）。直接以 `docs/poster2/ui_mockups/cuistance_commercial_trial_v1/index.html`
+  结构/CSS/资产为视觉契约，复制到部署静态路径，再把现有后端动作接线进该结构。
+- 资产同步（确定性静态路径）：`frontend/assets/` + `docs/assets/` 同时落入真实资产
+  `logo_01.jpg`（真实 CUISTANCE wordmark 400×80）、`banner_option_01.jpg`、`banner_option_02.jpg`、
+  `product_01.jpg`、`product_02.jpg`、`product.svg`、`gallery.svg`；mockup `styles.css` → `cuistance_trial.css`
+  （frontend+docs，重命名避免与旧 `frontend/styles.css` 冲突）。
+- Logo 来源：仓库内 mockup 真实资产 `…/assets/logo_01.jpg`（= `~/poster/SOP/logo_01.jpg`）；并加 `onerror` 回退到
+  真实 CUISTANCE 邮件 logo URL。**不再使用红色六边形占位 logo。**
+- 三步分屏修复：保留 mockup 的 3 个 `<section class="screen">`，CSS `.screen{display:none}` + `.screen.active
+  {display:block}` —— **同一时刻只显示一个步骤**；底部 `上一步 / 保存并进入下一步` 导航；步骤间不再纵向堆叠。
+- 后端接线（结构内）：第一步「保存并进入下一步」→ create + 保存产品/素材；第二步生成产品海报 / 简化产品页 + 选为
+  邮件主体（真实候选 + 选定）；第三步预览（真实 HTML 注入 iframe）+ 测试发送（确认弹窗 + 内部收件人 + 业务化结果）。
+  简化产品页失败 → 业务琥珀提示「暂不可用，改用产品海报」（非红色工程错误）。
+- 校验：所有静态资源 `/cuistance_trial.html`、`/cuistance_trial.css`、`/assets/logo_01.jpg|banner_option_01.jpg|
+  product_01.jpg` 均 200；real logo 引用真实路径；CSS 单屏规则在位；中文默认；**可见区禁用工程术语扫描 = NONE**。
