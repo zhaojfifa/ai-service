@@ -12003,3 +12003,10 @@ After bundle:
   refresh.
 - Operator manual validation: READY (test mode) after deploy refresh; real internal send HOLD pending Resend +
   Owner-approved internal address.
+
+## POSTER2-CUISTANCE-V1-EXPOSE-OPERATOR-TRIAL-UI — remote probe note (2026-06-18)
+- Pushed UI page commit 143a7f0 to origin trial branch. Remote probe: leob /cuistance_trial.html=404 after push
+  +~45s wait, while leob /ops_campaign.html=200 and /health=200 (static serving works). => leob does NOT yet
+  serve the trial-branch new page: either deploy not refreshed OR leob is not pointed at trial/poster2-cuistance-
+  v1-operator-trial. Deploy-target/refresh matter (same Owner-Decision as prior task); not a page/backend defect.
+  Remote operator validation HOLD until the trial service deploys commit 143a7f0.
