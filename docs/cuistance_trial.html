@@ -15,6 +15,22 @@
   <style>
     /* minimal additions on top of the mockup CSS (kept verbatim) */
     .mail-frame{width:100%;max-width:420px;height:560px;border:1px solid var(--line);border-radius:8px;background:#fff;margin:0 auto;display:block}
+    /* connection bar (always visible, not hidden in diagnostics) */
+    .connbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,23,28,.04)}
+    .conn-pill{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px}
+    .conn-off{background:#eef0f3;color:#6b7178}.conn-on{background:var(--ok-soft,#e7f6ec);color:var(--ok,#188a42)}.conn-fail{background:var(--err-soft,#fdecea);color:var(--err,#c0392b)}
+    .connbar input{padding:6px 9px;border:1px solid var(--line2,#d7dade);border-radius:7px;font:inherit;font-size:12.5px;width:130px}
+    .connbar .grow{flex:1;min-width:8px}
+    /* global business-readable flash */
+    .flash{display:none;margin-bottom:12px;padding:10px 14px;border-radius:10px;font-size:13px}
+    .flash.show{display:block}
+    .flash.info{background:#eef4ff;border:1px solid #cfe0ff;color:#274690}
+    .flash.warn{background:#fbf3d8;border:1px solid #ecd98f;color:#7a5f06}
+    .flash.err{background:#fdecea;border:1px solid #f3b8b1;color:#9a2b22}
+    .flash.ok{background:#e7f6ec;border:1px solid #bfe6cd;color:#176a35}
+    .asset-src{margin-top:10px;border-top:1px dashed var(--line2,#d7dade);padding-top:10px}
+    .asset-src .row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
+    .asset-src input[type=text]{flex:1;min-width:160px}
     .diag-drawer .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
     .diag-drawer label{font-size:11px;color:#9aa0a6;display:block;margin-bottom:3px}
     .diag-drawer input{width:100%;padding:6px 8px;border:1px solid #2a2f37;border-radius:6px;background:#0f1115;color:#cdd3da;font-size:12px}
@@ -51,6 +67,19 @@
   </header>
 
   <main class="workspace">
+
+    <!-- ============ CONNECTION BAR (always visible) ============ -->
+    <div class="connbar">
+      <span data-zh="后端连接" data-fr="Connexion" style="font-size:12px;color:#6b7178">后端连接</span>
+      <span class="conn-pill conn-off" id="connState" data-zh="未连接" data-fr="Non connecté">未连接</span>
+      <span class="grow"></span>
+      <input type="text" id="opsuser" autocomplete="off" data-ph-zh="操作员账号" data-ph-fr="Utilisateur" placeholder="操作员账号" />
+      <input type="password" id="opspass" autocomplete="off" data-ph-zh="密码" data-ph-fr="Mot de passe" placeholder="密码" />
+      <button class="btn secondary sm" id="btn-connect" type="button" data-zh="连接后端" data-fr="Se connecter">连接后端</button>
+    </div>
+
+    <!-- global business-readable flash -->
+    <div class="flash" id="flash"></div>
 
     <!-- ============ SCREEN 1 — 产品与素材 ============ -->
     <section class="screen active" id="screen-1">
@@ -112,7 +141,26 @@
 
           <div class="card">
             <div class="group-label" data-zh="产品素材" data-fr="Éléments produit">产品素材</div>
-            <div class="upload-row">
+
+            <!-- asset source: upload (presign) OR sample URLs; affiche route runs with sample assets if upload is unavailable -->
+            <div class="asset-src">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <button class="btn secondary sm" id="btn-sample" type="button" data-zh="使用示例素材" data-fr="Utiliser les éléments d'exemple">使用示例素材</button>
+                <span class="hint" id="asset-hint" data-zh="可上传图片，或一键使用示例素材运行主路线。" data-fr="Téléversez des images, ou utilisez les éléments d'exemple pour la route principale.">可上传图片，或一键使用示例素材运行主路线。</span>
+              </div>
+              <div class="row">
+                <label style="min-width:64px" data-zh="产品主图" data-fr="Image produit">产品主图</label>
+                <input type="file" id="file-prod" accept="image/*" />
+                <input type="text" id="url-prod" data-ph-zh="或粘贴图片 URL" data-ph-fr="ou collez une URL" placeholder="或粘贴图片 URL" />
+              </div>
+              <div class="row">
+                <label style="min-width:64px" data-zh="邮件 Logo" data-fr="Logo email">邮件 Logo</label>
+                <input type="file" id="file-logo" accept="image/*" />
+                <input type="text" id="url-logo" data-ph-zh="或粘贴 Logo URL" data-ph-fr="ou collez une URL" placeholder="或粘贴 Logo URL" />
+              </div>
+            </div>
+
+            <div class="upload-row" style="margin-top:12px">
               <div class="upload has-image"><img class="thumb" src="assets/product_01.jpg" alt="produit" /><span class="cap"><span data-zh="产品主图" data-fr="Image produit">产品主图</span> <span class="req">*</span></span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
               <div class="upload has-image"><img class="thumb" src="assets/product_02.jpg" alt="détail" /><span class="cap" data-zh="第二张 / 细节图" data-fr="2e image / détail">第二张 / 细节图</span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
               <div class="upload"><span class="plus">+</span><span class="cap" data-zh="画廊 0–3" data-fr="Galerie 0–3">画廊 0–3</span><span class="state hint" data-zh="可选" data-fr="Optionnel">可选</span></div>
@@ -343,31 +391,45 @@
   <aside class="diag-drawer" id="diag">
     <button class="close" id="diagClose">×</button>
     <h4 data-zh="内部诊断 / 工程证据" data-fr="Diagnostic interne">内部诊断 / 工程证据</h4>
-    <div class="muted" data-zh="仅供支持/排障；主流程不展示这些技术字段。" data-fr="Support uniquement.">仅供支持/排障；主流程不展示这些技术字段。</div>
-    <div class="field-row">
-      <div><label>ops user</label><input type="text" id="opsuser" autocomplete="off"/></div>
-      <div><label>ops pass</label><input type="text" id="opspass" autocomplete="off"/></div>
-    </div>
+    <div class="muted" data-zh="仅供支持/排障；主流程不展示这些技术字段。连接/登录在主界面顶部「后端连接」。" data-fr="Support uniquement. La connexion est en haut de l'écran principal.">仅供支持/排障；主流程不展示这些技术字段。连接/登录在主界面顶部「后端连接」。</div>
     <label style="margin-top:8px">API base（留空=同源）</label><input type="text" id="apibase" placeholder="(same origin)"/>
-    <button class="dbtn" id="btn-login">登录 / Se connecter</button>
     <pre id="diagdump" style="margin-top:12px">—</pre>
   </aside>
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null;
+    var lang='zh', step=1, selectedVisual=null, connected=false;
     var S={wb:null, affiche:null, sheet:null};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
-    function diag(k,v){S[k+'_diag']=v; var d={workbench_key:S.wb,affiche:S.affiche,fiche:S.sheet,selected:selectedVisual};
+    function diag(k,v){S[k+'_diag']=v; var d={workbench_key:S.wb,affiche:S.affiche,fiche:S.sheet,selected:selectedVisual,connected:connected};
       for(var kk in S){if(kk.indexOf('_diag')>0)d[kk]=S[kk]} $('diagdump').textContent=JSON.stringify(d,null,2);}
+    function flash(kind,msg){var f=$('flash');f.className='flash show '+kind;f.textContent=msg;}
+    function clearFlash(){$('flash').className='flash';}
+    function setConn(state){ // 'off' | 'on' | 'fail'
+      connected=(state==='on');
+      var p=$('connState');p.className='conn-pill conn-'+state;
+      var zh={off:'未连接',on:'已连接',fail:'连接失败'},fr={off:'Non connecté',on:'Connecté',fail:'Échec'};
+      p.setAttribute('data-zh',zh[state]);p.setAttribute('data-fr',fr[state]);p.textContent=(lang==='zh'?zh[state]:fr[state]);
+    }
     async function api(method,path,body){
       var o={method:method,headers:{'Content-Type':'application/json'},credentials:'include'};
       if(body!==undefined)o.body=JSON.stringify(body);
       var r=await fetch(base()+path,o);var ct=r.headers.get('content-type')||'';var tx=await r.text();
       var j=null;if(ct.indexOf('json')!==-1){try{j=JSON.parse(tx)}catch(e){}} return{ok:r.ok,status:r.status,json:j,text:tx};
     }
-    function bizErr(r){return r.status===401?(lang==='zh'?'需要登录（展开 ⓘ 内部诊断登录）':'Connexion requise (voir ⓘ).'):(lang==='zh'?'操作失败，请重试。':'Échec, réessayez.')}
+    // business-readable error mapping (no raw JSON on main screen)
+    function bizMsg(r,ctx){
+      var detail=(r.json&&(r.json.detail||(r.json.failure&&r.json.failure.code)))||'';
+      if(r.status===401){setConn('fail');return (lang==='zh'?'请先连接后端':'Connectez-vous d\'abord');}
+      if(detail==='product_image_required')return (lang==='zh'?'产品主图缺失，请使用示例素材或上传图片':'Image produit manquante');
+      if(detail==='no_selected_email_body_visual')return (lang==='zh'?'请先选为邮件主体':'Choisissez d\'abord le corps');
+      if(detail==='selected_candidate_not_ready')return (lang==='zh'?'请先生成并选定海报主体':'Générez puis sélectionnez');
+      if(detail==='workbench_record_not_found')return (lang==='zh'?'请先保存产品信息':'Enregistrez d\'abord le produit');
+      if(r.status===422)return (lang==='zh'?'请先保存产品信息或检查必填项':'Vérifiez les champs requis');
+      if(ctx==='gen')return (lang==='zh'?'当前环境暂不可用，请改用产品海报或查看内部诊断':'Indisponible — voir diagnostic');
+      return (lang==='zh'?'生成失败，请查看内部诊断':'Échec — voir diagnostic');
+    }
 
     // ---- i18n + stepper (preserved from mockup) ----
     var H={zh:['第 1 步 / 共 3 步','第 2 步 / 共 3 步','第 3 步 / 共 3 步'],fr:['Étape 1 sur 3','Étape 2 sur 3','Étape 3 sur 3']};
@@ -397,14 +459,18 @@
     document.querySelectorAll('#stepper .step').forEach(function(el){el.addEventListener('click',function(){step=+el.dataset.step;render()})});
     $('prevBtn').addEventListener('click',function(){if(step>1){step--;render()}});
 
-    // ---- backend payload from real served + reference assets ----
-    var PROD="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg";
-    var PROD2="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg";
-    var LOGO="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png";
+    // ---- asset sources: operator URL fields / upload / sample (hosted) ----
+    var SAMPLE={
+      prod:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg",
+      prod2:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg",
+      logo:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png"
+    };
+    function prodUrl(){return (($('url-prod')&&$('url-prod').value)||'').trim()||SAMPLE.prod}
+    function logoUrl(){return (($('url-logo')&&$('url-logo').value)||'').trim()||SAMPLE.logo}
     async function ensureWorkbench(){
       if(S.wb)return true;
       var r=await api('POST','/api/v2/workbench',{language:lang});
-      if(!r.ok||!r.json){$('s1-hint').textContent=bizErr(r);return false}
+      if(!r.ok||!r.json){flash('err',bizMsg(r));return false}
       S.wb=r.json.workbench_key;diag('create',1);
       await api('PATCH','/api/v2/workbench/'+S.wb,{product_truth:{
         product_name:$('f-pname').value,reference:$('f-pref').value,description:$('f-desc').value,
@@ -412,8 +478,8 @@
           {key:'capacity',value:'2 cuves 13 + 13 L',state:'confirmed'},
           {key:'power',value:'3 + 3 kW',state:'confirmed'},
           {key:'thermostat',value:"jusqu'à 190°C",state:'confirmed'}]}});
-      await api('PATCH','/api/v2/workbench/'+S.wb,{product_assets:{product_images:[{url:PROD},{url:PROD2}]},
-        email_banner:{logo:{url:LOGO},channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value}});
+      await api('PATCH','/api/v2/workbench/'+S.wb,{product_assets:{product_images:[{url:prodUrl()},{url:SAMPLE.prod2}]},
+        email_banner:{logo:{url:logoUrl()},channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value}});
       diag('saved',1);return true;
     }
 
@@ -432,12 +498,14 @@
       var ep=kind==='affiche'?'affiche':'fiche';
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+ep+'/generate');
       if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[ep]||{};
-        if(kind==='affiche')S.affiche=c.poster_key; else {S.sheet=c.poster_key;}
+        if(kind==='affiche'){S.affiche=c.poster_key; flash('ok', lang==='zh'?'产品海报已生成。可在右侧「选为邮件主体」。':'Affiche générée.');}
+        else {S.sheet=c.poster_key; flash('ok', lang==='zh'?'简化产品页已生成。':'Fiche générée.');}
         diag(kind,c.status||'ready');return true;
       }
       if(kind==='sheet'){ S.sheet=null; $('sheet-note').style.display='';
+        flash('warn', lang==='zh'?'简化产品页暂不可用，建议改用产品海报。':'Fiche indisponible — utilisez l\'affiche.');
         diag('sheet_fail',(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||r.status); return false; }
-      diag('affiche_fail',r.status); return false;
+      flash('err',bizMsg(r,'gen')); diag('affiche_fail',r.status); return false;
     }
     function applySelectVisual(v){ // mockup visual behavior
       selectedVisual=v;
@@ -468,9 +536,9 @@
 
     // ---- Step 3: preview + send (real) ----
     $('btn-preview').addEventListener('click',async function(){
-      if(!S.wb||!selectedVisual){$('send-summary').textContent=(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.');return}
+      if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.'));return}
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/preview');
-      if(!r.ok||!r.json){$('send-summary').textContent=bizErr(r);return}
+      if(!r.ok||!r.json){flash('err',bizMsg(r));return}
       diag('preview',{format:(r.json.email_body_plan||{}).layout_type,width:(r.json.email_body_plan||{}).container_width});
       var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
       var doc=f.contentWindow.document;doc.open();doc.write(r.json.html||'');doc.close();
@@ -489,7 +557,7 @@
     $('modalConfirm').addEventListener('click',async function(){
       $('modal').classList.remove('open');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:'inline_only'});
-      if(!r.ok||!r.json){$('send-summary').textContent=bizErr(r);return}
+      if(!r.ok||!r.json){flash('err',bizMsg(r));return}
       diag('send',r.json);renderResults(r.json);$('etat').textContent=(lang==='zh'?'已发送':'Envoyé');
     });
     function stZh(s){return s==='sent'?(lang==='zh'?'已发送':'Envoyé'):(s==='error'?(lang==='zh'?'失败':'Échec'):(lang==='zh'?'已跳过':'Ignoré'))}
@@ -507,18 +575,50 @@
         renderResults({attempts:sa,sent_count:sa.filter(function(a){return a.status==='sent'}).length,
           failed_count:sa.filter(function(a){return a.status==='error'}).length,
           skipped_count:sa.filter(function(a){return a.status==='skipped'}).length});}
-      else $('send-summary').textContent=bizErr(r);
+      else flash('err',bizMsg(r));
     });
 
-    // diagnostics drawer + login
+    // diagnostics drawer
     $('diagBtn').addEventListener('click',function(){$('diag').classList.add('open')});
     $('diagClose').addEventListener('click',function(){$('diag').classList.remove('open')});
-    $('btn-login').addEventListener('click',async function(){
+
+    // ---- connection / OPS login (main-screen connection bar) ----
+    async function checkConn(){
+      var r=await api('GET','/api/auth/me');
+      if(r.ok&&r.json){ if(r.json.enabled===false||r.json.authenticated){setConn('on');} else {setConn('off');} }
+      else setConn('off');
+      diag('me',r.json||r.status);
+    }
+    $('btn-connect').addEventListener('click',async function(){
       var r=await api('POST','/api/auth/ops-login',{username:$('opsuser').value,password:$('opspass').value});
+      if(r.ok){setConn('on');flash('ok',lang==='zh'?'已连接后端。':'Connecté au service.');}
+      else {setConn('fail');flash('err',lang==='zh'?'连接失败，请检查账号/密码。':'Échec de connexion.');}
       diag('login',r.ok?'ok':('http '+r.status));
     });
 
-    applyLang();render();
+    // ---- use sample assets (hosted) so the main route runs without upload ----
+    $('btn-sample').addEventListener('click',function(){
+      if($('url-prod'))$('url-prod').value=SAMPLE.prod; if($('url-logo'))$('url-logo').value=SAMPLE.logo;
+      flash('ok',lang==='zh'?'已使用示例素材，可直接「保存并进入下一步」。':'Éléments d\'exemple chargés.');
+    });
+
+    // ---- upload via R2 presign (graceful business fallback if upload unavailable) ----
+    async function presignUpload(file,folder,targetInput){
+      try{
+        var pre=await api('POST','/api/r2/presign-put',{folder:folder,filename:(file.name||'upload.png'),content_type:(file.type||'image/png'),size:(file.size||null)});
+        if(pre.status===401){setConn('fail');flash('err',lang==='zh'?'请先连接后端':'Connectez-vous d\'abord');return}
+        if(!pre.ok||!pre.json||!pre.json.put_url){flash('warn',lang==='zh'?'当前环境未启用上传，请使用示例素材':'Téléversement indisponible — utilisez les éléments d\'exemple');diag('presign',pre.status);return}
+        var put=await fetch(pre.json.put_url,{method:'PUT',headers:{'Content-Type':(file.type||'image/png')},body:file});
+        if(!put.ok){flash('warn',lang==='zh'?'上传失败，请使用示例素材':'Échec téléversement — utilisez les éléments d\'exemple');return}
+        var url=pre.json.get_url||pre.json.public_url||pre.json.r2_url||'';
+        if(!url){flash('warn',lang==='zh'?'上传完成但无可读地址，请使用示例素材':'URL indisponible — utilisez les éléments d\'exemple');return}
+        if($(targetInput))$(targetInput).value=url; flash('ok',lang==='zh'?'图片已上传。':'Image téléversée.');
+      }catch(e){flash('warn',lang==='zh'?'当前环境未启用上传，请使用示例素材':'Téléversement indisponible — utilisez les éléments d\'exemple');}
+    }
+    if($('file-prod'))$('file-prod').addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],'product','url-prod')});
+    if($('file-logo'))$('file-logo').addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],'logo','url-logo')});
+
+    applyLang();render();checkConn();
   })();
   </script>
 </body>

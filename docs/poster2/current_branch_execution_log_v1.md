@@ -12092,3 +12092,26 @@ After bundle:
 - Recommendation: operator trial GO (affiche main route) — logic+UI proven; remote functional walkthrough just
   needs operator OPS login; real send awaits provider config + Owner-approved internal address. Evidence doc:
   docs/poster2/cuistance_commercial_trial_operator_ui_functional_validation_result_v1.md.
+
+## POSTER2-CUISTANCE-V1-OPERATOR-UI-BACKEND-CONTRACT-ALIGNMENT (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Diagnosis (remote page is the wired mockup-first version): UPLOAD root cause = no upload control + no editable
+  asset field (assets hardcoded sample URLs in JS); GEN root cause = /api/v2/* OPS-gated 401 + no visible main-
+  screen connection/login (login buried in ⓘ) + errors routed to hidden Step-1 hint -> silent failure on Step 2.
+- Frontend-only fixes (NO backend change; presign + auth endpoints already existed):
+  (1) visible connection bar 未连接/已连接/连接失败 + OPS login + auto GET /api/auth/me on load;
+  (2) 401 -> business「请先连接后端」, global flash, business 422/500 mapping on the active step;
+  (3) upload controls (产品主图/邮件Logo) wired to /api/r2/presign-put + PUT, graceful fallback「当前环境未启用上传，
+      请使用示例素材」on 503/no-R2; (4)「使用示例素材」button + editable asset URL fields so affiche runs w/o upload;
+  (5) 生成产品海报 reliably calls .../candidates/affiche/generate with session + saved workbench, results surfaced;
+  (6) business error messages (请先连接后端 / 请先保存产品信息 / 产品主图缺失 / 当前环境暂不可用，请改用产品海报 /
+      生成失败，请查看内部诊断); (7) engineering detail only in collapsed diagnostics; (8) test send default.
+- Files: frontend/cuistance_trial.html (+docs mirror), docs status doc, README, log. Backend unchanged.
+- UI->endpoint contract table documented in the status doc.
+- Local validation: page/css/assets 200; /api/auth/me enabled=false -> 已连接; 使用示例素材 -> 保存 -> 生成产品海报
+  200 ready -> 选为邮件主体 -> 预览邮件 200 (single_product_promo); presign-put 503 (R2 off) -> business fallback;
+  visible forbidden-term scan NONE; docs router PASS.
+- Remote: page aligned + assets 200; full browser flow requires operator OPS login (no creds held here -> cannot
+  complete remotely myself). Did NOT claim GO from local alone.
+- Remaining blockers: remote needs operator OPS login; remote upload needs R2 config (else 使用示例素材); real send
+  needs provider config; new page visible remotely after trial deploy refresh.
+- Operator functional validation: CAN resume (affiche route) after operator OPS login on the remote page.
