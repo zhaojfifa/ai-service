@@ -12115,3 +12115,24 @@ After bundle:
 - Remaining blockers: remote needs operator OPS login; remote upload needs R2 config (else 使用示例素材); real send
   needs provider config; new page visible remotely after trial deploy refresh.
 - Operator functional validation: CAN resume (affiche route) after operator OPS login on the remote page.
+
+## POSTER2-CUISTANCE-V1-UI-ASSET-SLOT-AND-SELECTION-CONTRACT-FIX (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Frontend-only (NO backend change; backend schema already supports all slots). Root causes confirmed: (1) Step1
+  upload controls were OUTSIDE the cards and only product_images was patched (gallery/atmosphere/banner background
+  empty); (2) select did not persist/unlock Step 3 reliably; (3) ready affiche was force-regenerated -> timeout.
+- Step1 fix: per-slot upload controls INSIDE each visual card (prod1/prod2/g1-3/atmo/logo/banner); buildAssetsPatch
+  patches product_images[0..1] + gallery_images[0..3] + atmosphere{is_truth:false} + email_banner.logo+background;
+  presign upload per slot with R2-unavailable business fallback; 使用示例素材 fills all required slots; missing
+  product main image -> 请先添加产品主图或使用示例素材.
+- Step2 fix: ready affiche (status=ready+poster_key) reusable, NO forced regen; 选为邮件主体 -> PATCH selected-visual
+  -> GET confirm selected_email_body_visual -> applySelectVisual + unlock Step3 + 已选为邮件主体; select requires an
+  existing ready candidate (else 请先生成产品海报); 重新生成 separated from 生成产品海报; 504 timeout keeps ready
+  candidate (生成超时，可继续使用已生成版本或稍后重试); refreshState() reflects ready/selected on Step2 entry/reentry.
+- Step3 gate: unlocked when selected_email_body_visual set + ready candidate; NOT gated on fiche/R2/send/optional
+  assets.
+- Errors business-readable on main screen; engineering only in collapsed 内部诊断. Test send default.
+- Local validation: HTML well-formed; 8 slot file inputs; forbidden-term scan NONE; docs router PASS. Flow: save
+  (product_images=2, gallery_images=1, email_banner.background set) -> 生成产品海报 ready -> 选为邮件主体 ->
+  selected_email_body_visual=affiche -> Step3 unlock -> 预览邮件 200 (single_product_promo); presign 503 -> fallback.
+- Remote: page aligned+200; full browser flow needs operator OPS login (no creds held; not claiming GO from local).
+- Files: frontend/cuistance_trial.html (+docs mirror), status doc, README, log. Backend unchanged.

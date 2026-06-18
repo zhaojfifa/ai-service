@@ -28,9 +28,8 @@
     .flash.warn{background:#fbf3d8;border:1px solid #ecd98f;color:#7a5f06}
     .flash.err{background:#fdecea;border:1px solid #f3b8b1;color:#9a2b22}
     .flash.ok{background:#e7f6ec;border:1px solid #bfe6cd;color:#176a35}
-    .asset-src{margin-top:10px;border-top:1px dashed var(--line2,#d7dade);padding-top:10px}
-    .asset-src .row{display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap}
-    .asset-src input[type=text]{flex:1;min-width:160px}
+    .slot-file{font-size:10px;width:100%;margin-top:4px}
+    .upload .slot-thumb{width:100%;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--line,#e6e8ec)}
     .diag-drawer .field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
     .diag-drawer label{font-size:11px;color:#9aa0a6;display:block;margin-bottom:3px}
     .diag-drawer input{width:100%;padding:6px 8px;border:1px solid #2a2f37;border-radius:6px;background:#0f1115;color:#cdd3da;font-size:12px}
@@ -140,40 +139,45 @@
           </div>
 
           <div class="card">
-            <div class="group-label" data-zh="产品素材" data-fr="Éléments produit">产品素材</div>
-
-            <!-- asset source: upload (presign) OR sample URLs; affiche route runs with sample assets if upload is unavailable -->
-            <div class="asset-src">
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-                <button class="btn secondary sm" id="btn-sample" type="button" data-zh="使用示例素材" data-fr="Utiliser les éléments d'exemple">使用示例素材</button>
-                <span class="hint" id="asset-hint" data-zh="可上传图片，或一键使用示例素材运行主路线。" data-fr="Téléversez des images, ou utilisez les éléments d'exemple pour la route principale.">可上传图片，或一键使用示例素材运行主路线。</span>
-              </div>
-              <div class="row">
-                <label style="min-width:64px" data-zh="产品主图" data-fr="Image produit">产品主图</label>
-                <input type="file" id="file-prod" accept="image/*" />
-                <input type="text" id="url-prod" data-ph-zh="或粘贴图片 URL" data-ph-fr="ou collez une URL" placeholder="或粘贴图片 URL" />
-              </div>
-              <div class="row">
-                <label style="min-width:64px" data-zh="邮件 Logo" data-fr="Logo email">邮件 Logo</label>
-                <input type="file" id="file-logo" accept="image/*" />
-                <input type="text" id="url-logo" data-ph-zh="或粘贴 Logo URL" data-ph-fr="ou collez une URL" placeholder="或粘贴 Logo URL" />
-              </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+              <span class="group-label" style="margin:0" data-zh="产品素材" data-fr="Éléments produit">产品素材</span>
+              <button class="btn secondary sm" id="btn-sample" type="button" data-zh="使用示例素材" data-fr="Utiliser les éléments d'exemple">使用示例素材</button>
+              <span class="hint" data-zh="每个卡片内可上传/更换；或一键使用示例素材。" data-fr="Téléversez dans chaque carte, ou utilisez les éléments d'exemple.">每个卡片内可上传/更换；或一键使用示例素材。</span>
             </div>
-
-            <div class="upload-row" style="margin-top:12px">
-              <div class="upload has-image"><img class="thumb" src="assets/product_01.jpg" alt="produit" /><span class="cap"><span data-zh="产品主图" data-fr="Image produit">产品主图</span> <span class="req">*</span></span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
-              <div class="upload has-image"><img class="thumb" src="assets/product_02.jpg" alt="détail" /><span class="cap" data-zh="第二张 / 细节图" data-fr="2e image / détail">第二张 / 细节图</span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
-              <div class="upload"><span class="plus">+</span><span class="cap" data-zh="画廊 0–3" data-fr="Galerie 0–3">画廊 0–3</span><span class="state hint" data-zh="可选" data-fr="Optionnel">可选</span></div>
-            </div>
-            <div class="upload-row" style="margin-top:12px">
-              <div class="upload"><div class="ph">🌫️</div><span class="cap" data-zh="氛围 / 场景图" data-fr="Visuel d'ambiance">氛围 / 场景图</span><span class="badge visual" data-zh="仅作视觉" data-fr="Visuel uniquement">仅作视觉</span></div>
-              <div class="upload note-cell"><span class="hint" data-zh="氛围图仅作视觉，不作为产品事实。" data-fr="Le visuel d'ambiance est décoratif, pas une caractéristique du produit.">氛围图仅作视觉，不作为产品事实。</span></div>
-            </div>
-            <div class="group-label" data-zh="邮件素材（页眉横幅 + 页脚）" data-fr="Éléments email (en-tête + pied)">邮件素材（页眉横幅 + 页脚）</div>
+            <!-- per-slot upload cards: upload control lives INSIDE each visual card -->
             <div class="upload-row">
-              <div class="upload has-image logo-cell"><img class="logo-real" src="assets/logo_01.jpg" alt="logo" /><span class="cap" data-zh="邮件 Logo" data-fr="Logo de l'email">邮件 Logo</span><span class="state hint" data-zh="用于邮件页眉" data-fr="En-tête de l'email">用于邮件页眉</span></div>
-              <div class="upload has-image"><img class="thumb" src="assets/banner_option_01.jpg" alt="bannière" /><span class="cap" data-zh="邮件横幅" data-fr="Bannière de l'email">邮件横幅</span><span class="badge ready" data-zh="图片就绪" data-fr="Image prête">图片就绪</span></div>
-              <div class="upload note-cell"><span class="hint" data-zh="Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。" data-fr="Le logo et la bannière s'affichent dans l'en-tête, pas dans l'affiche. La bannière est un module de premier plan.">Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。</span></div>
+              <div class="upload" id="slot-prod1">
+                <img class="thumb slot-thumb" id="thumb-prod1" alt="produit" style="display:none" />
+                <div class="ph" id="ph-prod1">🖼️</div>
+                <span class="cap"><span data-zh="产品主图" data-fr="Image produit">产品主图</span> <span class="req">*</span></span>
+                <input type="file" id="file-prod1" accept="image/*" class="slot-file" />
+              </div>
+              <div class="upload" id="slot-prod2">
+                <img class="thumb slot-thumb" id="thumb-prod2" alt="détail" style="display:none" />
+                <div class="ph" id="ph-prod2">🖼️</div>
+                <span class="cap" data-zh="第二产品图" data-fr="2e image">第二产品图</span>
+                <input type="file" id="file-prod2" accept="image/*" class="slot-file" />
+              </div>
+              <div class="upload" id="slot-atmo">
+                <img class="thumb slot-thumb" id="thumb-atmo" alt="ambiance" style="display:none" />
+                <div class="ph" id="ph-atmo">🌫️</div>
+                <span class="cap" data-zh="氛围 / 场景图" data-fr="Visuel d'ambiance">氛围 / 场景图</span>
+                <span class="badge visual" data-zh="仅作视觉" data-fr="Visuel uniquement">仅作视觉</span>
+                <input type="file" id="file-atmo" accept="image/*" class="slot-file" />
+              </div>
+            </div>
+            <div class="group-label" data-zh="画廊图 0–3（可选）" data-fr="Galerie 0–3 (option)">画廊图 0–3（可选）</div>
+            <div class="upload-row">
+              <div class="upload" id="slot-g1"><img class="thumb slot-thumb" id="thumb-g1" style="display:none" /><div class="ph" id="ph-g1">＋</div><span class="cap" data-zh="画廊 1" data-fr="Galerie 1">画廊 1</span><input type="file" id="file-g1" accept="image/*" class="slot-file" /></div>
+              <div class="upload" id="slot-g2"><img class="thumb slot-thumb" id="thumb-g2" style="display:none" /><div class="ph" id="ph-g2">＋</div><span class="cap" data-zh="画廊 2" data-fr="Galerie 2">画廊 2</span><input type="file" id="file-g2" accept="image/*" class="slot-file" /></div>
+              <div class="upload" id="slot-g3"><img class="thumb slot-thumb" id="thumb-g3" style="display:none" /><div class="ph" id="ph-g3">＋</div><span class="cap" data-zh="画廊 3" data-fr="Galerie 3">画廊 3</span><input type="file" id="file-g3" accept="image/*" class="slot-file" /></div>
+            </div>
+
+            <div class="group-label" data-zh="邮件素材（页眉横幅）" data-fr="Éléments email (en-tête)">邮件素材（页眉横幅）</div>
+            <div class="upload-row">
+              <div class="upload logo-cell" id="slot-logo"><img class="logo-real slot-thumb" id="thumb-logo" alt="logo" style="display:none" /><div class="ph" id="ph-logo">🅒</div><span class="cap" data-zh="邮件 Logo" data-fr="Logo de l'email">邮件 Logo</span><input type="file" id="file-logo" accept="image/*" class="slot-file" /></div>
+              <div class="upload" id="slot-banner"><img class="thumb slot-thumb" id="thumb-banner" alt="bannière" style="display:none" /><div class="ph" id="ph-banner">▦</div><span class="cap" data-zh="邮件横幅 / 背景" data-fr="Bannière de l'email">邮件横幅 / 背景</span><input type="file" id="file-banner" accept="image/*" class="slot-file" /></div>
+              <div class="upload note-cell"><span class="hint" data-zh="Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。" data-fr="Logo et bannière dans l'en-tête, pas dans l'affiche. Bannière = module de premier plan.">Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。</span></div>
             </div>
             <div class="group-label" data-zh="联系方式（邮件页脚）" data-fr="Contact &amp; réseaux (pied de l'email)">联系方式（邮件页脚）</div>
             <div class="grid-2">
@@ -216,7 +220,12 @@
             </div>
             <div class="btn-row" style="margin-top:6px">
               <button class="btn primary" id="btn-gen-affiche" type="button" data-zh="生成产品海报" data-fr="Générer l'affiche">生成产品海报</button>
+              <button class="btn secondary" id="btn-regen-affiche" type="button" data-zh="重新生成" data-fr="Régénérer">重新生成</button>
               <button class="btn secondary" id="btn-gen-sheet" type="button" data-zh="生成简化产品页" data-fr="Fiche produit simplifiée">生成简化产品页</button>
+            </div>
+            <div class="hint" id="affiche-state" data-zh="尚未生成产品海报。" data-fr="Affiche non générée.">尚未生成产品海报。</div>
+            <div style="display:none">
+              <!-- spacer kept; original btn-row closed above -->
             </div>
             <div class="notice" id="sheet-note" style="display:none">
               <span class="ic">🛈</span>
@@ -456,18 +465,33 @@
       barHint();window.scrollTo({top:0,behavior:'smooth'});
     }
     document.querySelectorAll('#langSwitch .lang').forEach(function(b){b.addEventListener('click',function(){lang=b.dataset.lang;applyLang()})});
-    document.querySelectorAll('#stepper .step').forEach(function(el){el.addEventListener('click',function(){step=+el.dataset.step;render()})});
+    document.querySelectorAll('#stepper .step').forEach(function(el){el.addEventListener('click',function(){step=+el.dataset.step;render();if(step===2)refreshState()})});
     $('prevBtn').addEventListener('click',function(){if(step>1){step--;render()}});
 
-    // ---- asset sources: operator URL fields / upload / sample (hosted) ----
+    // ---- asset slot registry (each Step-1 visual card owns its url) ----
     var SAMPLE={
-      prod:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg",
+      prod1:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg",
       prod2:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg",
-      logo:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png"
+      logo:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png",
+      banner:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png"
     };
-    function prodUrl(){return (($('url-prod')&&$('url-prod').value)||'').trim()||SAMPLE.prod}
-    function logoUrl(){return (($('url-logo')&&$('url-logo').value)||'').trim()||SAMPLE.logo}
+    var SLOTS={prod1:'',prod2:'',g1:'',g2:'',g3:'',atmo:'',logo:'',banner:''};
+    function setSlot(slot,url){
+      SLOTS[slot]=url||'';
+      var t=$('thumb-'+slot),ph=$('ph-'+slot);
+      if(t){ if(url){t.src=url;t.style.display='';if(ph)ph.style.display='none';} else {t.style.display='none';if(ph)ph.style.display='';} }
+    }
+    function buildAssetsPatch(){
+      var prod=[]; if(SLOTS.prod1)prod.push({url:SLOTS.prod1}); if(SLOTS.prod2)prod.push({url:SLOTS.prod2});
+      var gal=['g1','g2','g3'].filter(function(g){return SLOTS[g]}).map(function(g){return{url:SLOTS[g]}});
+      var pa={product_images:prod,gallery_images:gal};
+      if(SLOTS.atmo)pa.atmosphere={url:SLOTS.atmo,is_truth:false};   // visual-only, never business fact
+      var eb={logo:(SLOTS.logo?{url:SLOTS.logo}:null),channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value};
+      if(SLOTS.banner)eb.background={url:SLOTS.banner};
+      return {product_assets:pa,email_banner:eb};
+    }
     async function ensureWorkbench(){
+      if(!SLOTS.prod1){flash('warn',lang==='zh'?'请先添加产品主图或使用示例素材':'Ajoutez l\'image produit ou utilisez l\'exemple');return false}
       if(S.wb)return true;
       var r=await api('POST','/api/v2/workbench',{language:lang});
       if(!r.ok||!r.json){flash('err',bizMsg(r));return false}
@@ -478,36 +502,46 @@
           {key:'capacity',value:'2 cuves 13 + 13 L',state:'confirmed'},
           {key:'power',value:'3 + 3 kW',state:'confirmed'},
           {key:'thermostat',value:"jusqu'à 190°C",state:'confirmed'}]}});
-      await api('PATCH','/api/v2/workbench/'+S.wb,{product_assets:{product_images:[{url:prodUrl()},{url:SAMPLE.prod2}]},
-        email_banner:{logo:{url:logoUrl()},channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value}});
-      diag('saved',1);return true;
+      var pr=await api('PATCH','/api/v2/workbench/'+S.wb,buildAssetsPatch());
+      diag('saved_assets',pr.ok?buildAssetsPatch():pr.status);
+      return pr.ok;
     }
 
     // nextBtn: step1 saves then advances; step2 advances (gated); step3 opens confirm modal
     $('nextBtn').addEventListener('click',async function(){
       if(step===1){ $('s1-hint').textContent=(lang==='zh'?'正在保存…':'Enregistrement…');
-        var ok=await ensureWorkbench(); if(!ok)return; $('s1-hint').textContent=(lang==='zh'?'已保存。':'Enregistré.'); step=2; render(); return; }
-      if(step===2){ if(!selectedVisual)return; step=3; render(); return; }
+        var ok=await ensureWorkbench(); if(!ok)return; $('s1-hint').textContent=(lang==='zh'?'已保存。':'Enregistré.'); step=2; render(); refreshState(); return; }
+      if(step===2){ if(!selectedVisual){flash('warn',lang==='zh'?'请先选择邮件主体':'Choisissez d\'abord le corps');return} step=3; render(); return; }
       // step 3 -> send
       openSendModal();
     });
 
-    // ---- Step 2: generate + select (real) ----
-    async function genVisual(kind){ // kind affiche|sheet ; sheet -> fiche endpoint
+    // ---- Step 2: generate (reusable) + select ----
+    function markAfficheReady(ready){
+      $('affiche-state').textContent = ready
+        ? (lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche prête — choisissez-la comme corps.')
+        : (lang==='zh'?'尚未生成产品海报。':'Affiche non générée.');
+    }
+    // kind: 'affiche'|'sheet'; regen=true forces re-generation. A ready candidate is NOT erased on timeout.
+    async function genVisual(kind,regen){
       if(!await ensureWorkbench())return false;
       var ep=kind==='affiche'?'affiche':'fiche';
+      if(!regen && kind==='affiche' && S.affiche){ flash('ok',lang==='zh'?'已有产品海报，可直接「选为邮件主体」。':'Affiche déjà prête.'); markAfficheReady(true); return true; }
+      flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+ep+'/generate');
       if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[ep]||{};
-        if(kind==='affiche'){S.affiche=c.poster_key; flash('ok', lang==='zh'?'产品海报已生成。可在右侧「选为邮件主体」。':'Affiche générée.');}
-        else {S.sheet=c.poster_key; flash('ok', lang==='zh'?'简化产品页已生成。':'Fiche générée.');}
+        if(kind==='affiche'){S.affiche=c.poster_key; markAfficheReady(true); flash('ok',lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche générée.');}
+        else {S.sheet=c.poster_key; flash('ok',lang==='zh'?'简化产品页已生成。':'Fiche générée.');}
         diag(kind,c.status||'ready');return true;
       }
+      if(r.status===504){ flash('warn',lang==='zh'?'生成超时，可继续使用已生成版本或稍后重试':'Délai dépassé — réutilisez la version prête ou réessayez');
+        diag(kind+'_timeout',r.status); return false; } // keep any existing ready candidate
       if(kind==='sheet'){ S.sheet=null; $('sheet-note').style.display='';
-        flash('warn', lang==='zh'?'简化产品页暂不可用，建议改用产品海报。':'Fiche indisponible — utilisez l\'affiche.');
+        flash('warn',lang==='zh'?'简化产品页暂不可用，建议改用产品海报。':'Fiche indisponible — utilisez l\'affiche.');
         diag('sheet_fail',(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||r.status); return false; }
       flash('err',bizMsg(r,'gen')); diag('affiche_fail',r.status); return false;
     }
-    function applySelectVisual(v){ // mockup visual behavior
+    function applySelectVisual(v){
       selectedVisual=v;
       $('card-affiche').classList.toggle('selected',v==='affiche');
       $('card-sheet').classList.toggle('selected',v==='sheet');
@@ -515,19 +549,38 @@
       $('emailBodySheet').style.display=(v==='sheet')?'':'none';
       var segs=document.querySelectorAll('.panel-title .seg');
       if(segs.length>=2){segs[0].classList.toggle('active',v==='affiche');segs[1].classList.toggle('active',v==='sheet')}
-      render();
+      render(); // unlocks Step 3 (nextBtn no longer disabled once selectedVisual set)
     }
+    // select reuses an existing ready candidate; never forces a second generation
     document.querySelectorAll('.select-visual').forEach(function(b){b.addEventListener('click',async function(){
-      var v=b.dataset.visual; b.disabled=true;
-      var key = v==='affiche'?S.affiche:S.sheet;
-      if(!key){ var ok=await genVisual(v); key=v==='affiche'?S.affiche:S.sheet; if(!ok||!key){b.disabled=false; if(v==='sheet'){applyToast();} return;} }
+      var v=b.dataset.visual; var key=(v==='affiche'?S.affiche:S.sheet);
+      if(!key){ flash('warn', v==='affiche'?(lang==='zh'?'请先生成产品海报。':'Générez d\'abord l\'affiche.'):(lang==='zh'?'请先生成简化产品页。':'Générez d\'abord la fiche.')); return; }
+      b.disabled=true;
       var r=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:v});
       b.disabled=false;
-      if(r.ok){applySelectVisual(v);diag('selected_ok',v);} else {diag('select_fail',r.status);}
+      if(!r.ok){flash('err',bizMsg(r));diag('select_fail',r.status);return}
+      // confirm persisted selection from backend, then unlock Step 3
+      var g=await api('GET','/api/v2/workbench/'+S.wb);
+      var sel=(g.json&&g.json.selected_email_body_visual)||v;
+      diag('selected',sel);
+      if(sel===v){applySelectVisual(v);flash('ok',lang==='zh'?'已选为邮件主体，可进入下一步。':'Choisi comme corps — étape suivante.');}
+      else flash('err',lang==='zh'?'选择未保存，请重试。':'Sélection non enregistrée.');
     })});
-    function applyToast(){ $('sheet-note').style.display=''; }
-    $('btn-gen-affiche').addEventListener('click',function(){genVisual('affiche')});
-    $('btn-gen-sheet').addEventListener('click',function(){genVisual('sheet')});
+    $('btn-gen-affiche').addEventListener('click',function(){genVisual('affiche',false)});
+    $('btn-regen-affiche').addEventListener('click',function(){genVisual('affiche',true)});
+    $('btn-gen-sheet').addEventListener('click',function(){genVisual('sheet',false)});
+
+    // refresh candidate + selection state from backend (reflect ready/selected on load or re-entry)
+    async function refreshState(){
+      if(!S.wb)return;
+      var g=await api('GET','/api/v2/workbench/'+S.wb); if(!g.ok||!g.json)return;
+      var pc=g.json.poster_candidates||{};
+      if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key;markAfficheReady(true);}
+      if((pc.fiche||{}).status==='ready'&&(pc.fiche||{}).poster_key){S.sheet=pc.fiche.poster_key;}
+      var sel=g.json.selected_email_body_visual;
+      if(sel&&!selectedVisual)applySelectVisual(sel);
+      diag('refresh',{affiche:S.affiche,fiche:S.sheet,selected:sel});
+    }
 
     // banner option swap (mockup)
     document.querySelectorAll('.banner-opt').forEach(function(b){b.addEventListener('click',function(){
@@ -596,27 +649,32 @@
       diag('login',r.ok?'ok':('http '+r.status));
     });
 
-    // ---- use sample assets (hosted) so the main route runs without upload ----
+    // ---- use sample assets (hosted): fills all required slots so the affiche route runs without upload ----
     $('btn-sample').addEventListener('click',function(){
-      if($('url-prod'))$('url-prod').value=SAMPLE.prod; if($('url-logo'))$('url-logo').value=SAMPLE.logo;
-      flash('ok',lang==='zh'?'已使用示例素材，可直接「保存并进入下一步」。':'Éléments d\'exemple chargés.');
+      setSlot('prod1',SAMPLE.prod1);setSlot('prod2',SAMPLE.prod2);
+      setSlot('g1',SAMPLE.prod2);setSlot('logo',SAMPLE.logo);setSlot('banner',SAMPLE.banner);
+      flash('ok',lang==='zh'?'已使用示例素材（产品图/画廊/Logo/横幅），可「保存并进入下一步」。':'Éléments d\'exemple chargés.');
     });
 
-    // ---- upload via R2 presign (graceful business fallback if upload unavailable) ----
-    async function presignUpload(file,folder,targetInput){
+    // ---- per-slot upload via R2 presign (graceful business fallback if upload unavailable) ----
+    async function presignUpload(file,slot,folder){
       try{
         var pre=await api('POST','/api/r2/presign-put',{folder:folder,filename:(file.name||'upload.png'),content_type:(file.type||'image/png'),size:(file.size||null)});
         if(pre.status===401){setConn('fail');flash('err',lang==='zh'?'请先连接后端':'Connectez-vous d\'abord');return}
         if(!pre.ok||!pre.json||!pre.json.put_url){flash('warn',lang==='zh'?'当前环境未启用上传，请使用示例素材':'Téléversement indisponible — utilisez les éléments d\'exemple');diag('presign',pre.status);return}
         var put=await fetch(pre.json.put_url,{method:'PUT',headers:{'Content-Type':(file.type||'image/png')},body:file});
-        if(!put.ok){flash('warn',lang==='zh'?'上传失败，请使用示例素材':'Échec téléversement — utilisez les éléments d\'exemple');return}
+        if(!put.ok){flash('warn',lang==='zh'?'上传失败，请使用示例素材':'Échec — utilisez les éléments d\'exemple');return}
         var url=pre.json.get_url||pre.json.public_url||pre.json.r2_url||'';
-        if(!url){flash('warn',lang==='zh'?'上传完成但无可读地址，请使用示例素材':'URL indisponible — utilisez les éléments d\'exemple');return}
-        if($(targetInput))$(targetInput).value=url; flash('ok',lang==='zh'?'图片已上传。':'Image téléversée.');
-      }catch(e){flash('warn',lang==='zh'?'当前环境未启用上传，请使用示例素材':'Téléversement indisponible — utilisez les éléments d\'exemple');}
+        if(!url){flash('warn',lang==='zh'?'上传完成但无可读地址，请使用示例素材':'URL indisponible — utilisez l\'exemple');return}
+        setSlot(slot,url); flash('ok',lang==='zh'?'图片已上传。':'Image téléversée.');
+      }catch(e){flash('warn',lang==='zh'?'当前环境未启用上传，请使用示例素材':'Téléversement indisponible — utilisez l\'exemple');}
     }
-    if($('file-prod'))$('file-prod').addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],'product','url-prod')});
-    if($('file-logo'))$('file-logo').addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],'logo','url-logo')});
+    // wire each slot's file input -> presign upload into that slot
+    [['file-prod1','prod1','product'],['file-prod2','prod2','product'],['file-atmo','atmo','scenario'],
+     ['file-g1','g1','gallery'],['file-g2','g2','gallery'],['file-g3','g3','gallery'],
+     ['file-logo','logo','logo'],['file-banner','banner','banner']].forEach(function(m){
+      var el=$(m[0]); if(el)el.addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],m[1],m[2])});
+    });
 
     applyLang();render();checkConn();
   })();
