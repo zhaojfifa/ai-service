@@ -12010,3 +12010,28 @@ After bundle:
   serve the trial-branch new page: either deploy not refreshed OR leob is not pointed at trial/poster2-cuistance-
   v1-operator-trial. Deploy-target/refresh matter (same Owner-Decision as prior task); not a page/backend defect.
   Remote operator validation HOLD until the trial service deploys commit 143a7f0.
+
+## POSTER2-CUISTANCE-V1-OPERATOR-UI-MOCKUP-ALIGNMENT-FIRST (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Rebuilt frontend/cuistance_trial.html (+docs/ mirror) to visually/structurally match the approved mockup
+  (docs/poster2/ui_mockups/cuistance_commercial_trial_v1/index.html). NO backend/API/send/renderer/deploy change.
+- First screen now commercial workbench (not a smoke runner): dark brand header + "CUISTANCE 商业试用工作台" +
+  subtitle 生成产品推广邮件，先预览测试，再确认发送 + 中文/Français toggle (Chinese DEFAULT); 3-step stepper
+  (产品与素材 / 生成海报主体 / 邮件预览与测试发送); left input cards (产品信息 / 素材与品牌 / 海报主体 / 测试发送),
+  right preview+status (邮件预览 / 生成检查 / 测试发送已记录 / 进度); B2B SaaS cards, red accent only on primary/active.
+- Business-language buttons + evidence (成功/失败/已跳过, 收件人/时间/状态). Banner shown as 品牌页眉 mini preview,
+  separate from product body; simplified-sheet failure shown as amber "暂不可用，改用产品海报" (not red error).
+- Forbidden engineering terms (EmailBodyPlan/send_attempts/poster_key/workbench_key/inline_only/provider_message_id/
+  Vertex/R2/URL-key-only/no base64/template_id/renderer/API/payload/fixture/generate affiche|fiche) — automated scan
+  of visible markup (script + collapsed <details> + comments stripped) = NONE. They appear ONLY inside the collapsed
+  「内部诊断 / 工程证据」 <details> drawer (default closed) + JS. Remote OPS login moved into that drawer.
+- Functional wiring preserved (existing endpoints): create workbench / generate product poster (affiche) /
+  generate simplified product sheet (fiche, may fail w/o image-gen -> business "暂不可用") / select body visual /
+  preview / test send / evidence. Default test mode; real send needs Mode=正式 + 确认发送 checkbox.
+- Validation: docs router PASS; GET /cuistance_trial.html=200 (商业试用工作台 + stepper 产品与素材 + 内部诊断
+  present); create->poster(affiche ready)->select->preview(200, layout single_product_promo) green; visible
+  forbidden-term scan = NONE.
+- Known gaps retained (config-layer, business-worded on UI): simplified sheet needs image-gen; real send needs
+  send config; remote /api/v2/* OPS-gated (login in diagnostics drawer); page visible remotely after trial deploy
+  refresh.
+- Operator visual review: can resume after deploy refresh. Files: frontend/cuistance_trial.html, docs/cuistance_
+  trial.html, docs/poster2/cuistance_commercial_trial_operator_ui_alignment_status_v1.md, README, log.
