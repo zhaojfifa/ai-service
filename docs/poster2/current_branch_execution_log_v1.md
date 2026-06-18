@@ -11949,3 +11949,31 @@ After bundle:
   Resend + verified sender (and Vertex if fiche needed, R2 for HTTPS posters) configured. Push/deploy NOT
   requested; awaiting Owner approval to create the scoped branch+commit.
 - Evidence doc: docs/poster2/cuistance_commercial_trial_operator_validation_branch_prep_v1.md.
+
+## POSTER2-CUISTANCE-V1-TRIAL-BRANCH-PUSH-AND-REMOTE-SMOKE (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+
+- Phase A: created branch trial/poster2-cuistance-v1-operator-trial off feature@11ece26; staged ONLY the 25
+  approved files (no git add -A); verified staged set (no .DS_Store/.env/deploy/frontend/unrelated churn);
+  router PASS; 78 trial tests passed; committed 972bdc3f5190a7cde73377b2e2dad06ff84084b9 "poster2: prepare
+  cuistance v1 operator trial loop" (25 files, +4706/-1).
+- Phase B: pushed trial branch to origin (https://github.com/zhaojfifa/ai-service) — new branch. NO merge, NO
+  tag, NO main push.
+- Phase C: render.yaml = single service marketing-poster-api, NO branch pin, NO validation service -> Render
+  won't auto-deploy trial/*; deploy needs a dashboard action (no console/API access; deploy-config change
+  forbidden). Live host ai-service-leob.onrender.com /health=200 but serves dashboard branch (not trial);
+  ai-service-x758 /health=404. All /api/v2/* return 401 (OPS auth gated); /api/auth/me=200. No OPS credentials
+  used/printed.
+- Phase D: remote full-flow smoke NOT executed (blocked: trial branch not deployed + OPS 401 + Resend/R2 not
+  declared remotely). No workbench created remotely; no email sent; no provider_message_id.
+- Secret-safe remote config inference (render.yaml env NAMES only): Vertex (GCP_*/VERTEX_*) + Firefly
+  (FIREFLY_*) + Chromium (playwright install in buildCommand) declared -> affiche/fiche may render remotely;
+  RESEND_* and R2_/S3_ NOT declared -> real send + HTTPS posters likely unavailable; OPS_* declared (matches
+  401).
+- OWNER DECISION NEEDED (deploy target): Option A new Render validation service pinned to trial branch (+env +
+  OPS cred delivery) [recommended]; Option B temporarily repoint marketing-poster-api to trial branch
+  (changes prod; needs explicit approval); Option C Render PR-preview env. All require Resend (+ R2 optional)
+  config in the target.
+- Recommendation: code/branch GO (pushed, scoped, local green); remote operator validation HOLD pending Owner
+  deploy choice + provider config + OPS credentials. Then re-run remote smoke: test mode (verify
+  provider_message_id) then real mode to Owner-approved internal address only (no customer list).
+- Evidence doc: docs/poster2/cuistance_commercial_trial_remote_full_flow_smoke_result_v1.md.
