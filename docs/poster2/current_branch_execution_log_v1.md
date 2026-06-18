@@ -12067,3 +12067,10 @@ After bundle:
   3 .screen sections; Chinese default; visible forbidden-term scan = NONE.
 - Remaining deviation: backend candidate generation depends on remote config (image-gen for fiche; send provider
   for real send) — page shows business pending/amber states; this is config-layer, structure matches mockup.
+
+## POSTER2-CUISTANCE-V1-MOCKUP-FIRST-UI-AND-ASSET-SYNC-FIX — remote deploy note (2026-06-18)
+- Pushed 280a026. Remote leob still serves OLD page after ~5 min: /cuistance_trial.css=404, /assets/logo_01.jpg
+  =404, page has 0 .screen sections + old emblem. Trial service NOT refreshed to 280a026 -> deploy lag / deploy
+  trigger needed (no console/API access to force rebuild). Local aligned version fully green. Remote alignment
+  appears once trial service deploys 280a026 (then css + /assets/* should be 200; page shows 3-step wizard +
+  real logo).

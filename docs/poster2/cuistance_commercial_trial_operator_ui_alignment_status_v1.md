@@ -104,3 +104,12 @@ URL/key only / no base64 / template_id / renderer / API / payload / fixture / ge
   简化产品页失败 → 业务琥珀提示「暂不可用，改用产品海报」（非红色工程错误）。
 - 校验：所有静态资源 `/cuistance_trial.html`、`/cuistance_trial.css`、`/assets/logo_01.jpg|banner_option_01.jpg|
   product_01.jpg` 均 200；real logo 引用真实路径；CSS 单屏规则在位；中文默认；**可见区禁用工程术语扫描 = NONE**。
+
+## 12. 远程部署状态（mockup-first 提交后）
+
+- 推送 `280a026`（mockup-first：真实 logo + 3 步分屏 + 资产同步 + cuistance_trial.css）。
+- 远程探针（push 后 + 等待 ~5 分钟）：`/cuistance_trial.html` 仍 200 但**为旧版本**（`/cuistance_trial.css` 404、
+  `/assets/logo_01.jpg` 404、无 `.screen` 分屏、仍含旧 emblem）。→ **trial 服务未刷新到 `280a026`**（部署滞后 /
+  需触发部署；无 Render 控制台/API 访问，无法强制 rebuild）。
+- 本地校验全绿（真实 logo、单屏分步、资产 200、无可见工程术语）。**远程对齐前置 = 将 trial 服务部署刷新到
+  `280a026`**（届时 `/cuistance_trial.css` 与 `/assets/*` 应 200，页面显示 3 步分屏 + 真实 CUISTANCE logo）。
