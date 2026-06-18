@@ -12136,3 +12136,20 @@ After bundle:
   selected_email_body_visual=affiche -> Step3 unlock -> 预览邮件 200 (single_product_promo); presign 503 -> fallback.
 - Remote: page aligned+200; full browser flow needs operator OPS login (no creds held; not claiming GO from local).
 - Files: frontend/cuistance_trial.html (+docs mirror), status doc, README, log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-REMOTE-BROWSER-FUNCTIONAL-VALIDATION-WITH-OPS-AUTH (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Remote /cuistance_trial.html confirmed deployed at ed99ee5-or-later (per-card upload slots file-prod1/g1-3/atmo/
+  logo/banner, 使用示例素材, connection bar, refreshState, real logo, 3-step, diagnostics collapsed). Visible
+  forbidden-term scan NONE.
+- OPS auth: read from Owner-provided /tmp/cuistance_ops.json (NEVER printed/echoed/committed); login HTTP 200,
+  authenticated=true -> 已连接. Creds file DELETED after validation (confirmed gone).
+- Full remote main-route flow (same OPS-gated endpoints the page calls): create workbench wb_a3b6e54e3fa343f0 ->
+  使用示例素材 + save (product_images=2, gallery_images=1, email_banner.background set) -> 生成产品海报 affiche
+  ready (real remote render) -> 选为邮件主体 -> selected_email_body_visual=affiche -> Step 3 unlock -> 预览邮件 200
+  (single_product_promo, width 600; banner + selected poster visual + CTA Nous contacter + footer/legal Se
+  désabonner) -> 测试发送 (internal owner-internal-test@cuistance.eu, mode=test, confirm_send=true, inline) 200:
+  total 1 / sent 0 / skipped 1 (preview_only) / failed 0. REAL EMAIL SENT = No (no provider_message_id).
+- Acceptance = GO (affiche main route): all GO criteria met; no customer email; no engineering terms on main UI.
+- Allowed non-blockers: remote upload needs R2 (used 使用示例素材); fiche needs image-gen; real send needs provider.
+- Security: no secret printed/logged/committed; creds file deleted. No backend/renderer/send change; no merge/tag/
+  main deploy. Result doc: docs/poster2/cuistance_commercial_trial_remote_browser_functional_validation_v1.md.
