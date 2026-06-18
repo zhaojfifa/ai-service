@@ -1,0 +1,23 @@
+{
+  "step1_ready_badge": "素材就绪",
+  "readiness_rows": {
+    "prod1": "已就绪",
+    "prod2": "已就绪",
+    "gallery": "1 / 3 张",
+    "atmo": "视觉素材，可选",
+    "logo": "已就绪",
+    "banner": "已就绪"
+  },
+  "affiche_card_badge": "产品海报已生成",
+  "after_regen_flash": "生成超时，可继续使用已生成版本或稍后重试",
+  "after_regen_affiche_badge": "产品海报已生成",
+  "selected_email_body_visual_after_patch": "affiche",
+  "next_btn_disabled_after_select": false,
+  "affiche_select_btn_label": "已选为邮件主体",
+  "step3_active": true,
+  "send_summary": "邮件预览已生成。",
+  "diag_dump": "{\n  \"workbench_key\": \"wb_af43f59a05944611\",\n  \"affiche\": \"p2_2b0c5b002c59455d\",\n  \"fiche\": null,\n  \"selected\": \"affiche\",\n  \"connected\": true,\n  \"me_diag\": {\n    \"authenticated\": true,\n    \"enabled\": true\n  },\n  \"create_diag\": 1,\n  \"saved_assets_diag\": {\n    \"product_assets\": {\n      \"product_images\": [\n        {\n          \"url\": \"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg\"\n        },\n        {\n          \"url\": \"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg\"\n        }\n      ],\n      \"gallery_images\": [\n        {\n          \"url\": \"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg\"\n        }\n      ]\n    },\n    \"email_banner\": {\n      \"logo\": {\n        \"url\": \"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png\"\n      },\n      \"channel_name\": \"CUISTANCE Europe\",\n      \"campaign_label\": \"Nouveauté\",\n      \"background\": {\n        \"url\": \"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png\"\n      }\n    }\n  },\n  \"refresh_diag\": {\n    \"affiche\": \"p2_2b0c5b002c59455d\",\n    \"fiche\": null,\n    \"selected\": null\n  },\n  \"affiche_timeout_diag\": 504,\n  \"selected_diag\": \"affiche\",\n  \"preview_diag\": {\n    \"format\": \"single_product_promo\",\n    \"width\": 600\n  }\n}",
+  "generate_calls": {
+    "affiche": 1
+  }
+}

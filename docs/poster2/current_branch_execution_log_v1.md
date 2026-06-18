@@ -12153,3 +12153,34 @@ After bundle:
 - Allowed non-blockers: remote upload needs R2 (used 使用示例素材); fiche needs image-gen; real send needs provider.
 - Security: no secret printed/logged/committed; creds file deleted. No backend/renderer/send change; no merge/tag/
   main deploy. Result doc: docs/poster2/cuistance_commercial_trial_remote_browser_functional_validation_v1.md.
+
+## POSTER2-CUISTANCE-V1-UI-CANDIDATE-SELECTION-AND-PREVIEW-STATE-FIX-WITH-SCREENSHOT-VERIFY (2026-06-19) — SUBMITTED FOR OWNER REVIEW
+- Frontend-only (NO backend/renderer/send change). Root cause confirmed for the Owner-observed state
+  (wb_af43f59a05944611 / affiche status=ready / poster_key p2_2b0c5b002c59455d / selected_email_body_visual=null /
+  Step3 locked): candidate generation can return a gateway 504 even though the backend completed the candidate
+  (status=ready); the old 504 branch did NOT re-read backend state, so the in-memory candidate key stayed null,
+  the 选为邮件主体 button refused to PATCH, selection never persisted, Step3 stayed locked. Secondary: Step1 right
+  panel was a fake assembled poster (not asset readiness). Tertiary: Step2 card did not clearly mark the
+  backend-ready candidate.
+- Fixes: (1) Step1 right panel replaced with a dynamic 素材就绪检查 readiness checklist (产品主图 已就绪/缺失 必需;
+  第二产品图 已就绪/可选; 画廊图 N/3 计数; 氛围/场景图 视觉素材,可选; 邮件 Logo 已就绪/缺失; 邮件横幅 已就绪/可选);
+  upload controls stay inside each visual card. (2) Step2 affiche card shows in-card backend-ready badge
+  尚未生成 -> 产品海报已生成 + 使用后端生成结果; select button relabels 已选为邮件主体 on selection. (3) 选为邮件主体
+  calls refreshState() first when no in-memory key, so a backend-ready candidate (e.g. after a timeout) becomes
+  selectable; then PATCH selected-visual -> GET confirm selected_email_body_visual -> applySelectVisual ->
+  unlock Step3. (4) 504/502 now shows 生成超时，可继续使用已生成版本或稍后重试 AND calls refreshState() to recover the
+  backend-completed ready candidate (never erased). (5) Step3 unlock = selected visual + ready candidate +
+  poster_key; not gated on fiche/R2/provider/optional assets.
+- Browser screenshot self-verification (Playwright serving the real page, stubbing v1 endpoints to reproduce the
+  Owner state: affiche ready, selected null, generate -> 504): docs/poster2/assets/
+  cuistance_ui_candidate_selection_state_fix_v1/ — 01 readiness / 02 ready / 02b timeout-retained / 03 selected /
+  04 Step3 preview / 05 diagnostics + evidence.json. Asserted: readiness rows prod1/prod2/logo/banner 已就绪,
+  gallery 1/3, atmo 视觉素材可选; affiche card 产品海报已生成; after 504 flash 生成超时… + badge retained;
+  selected_email_body_visual=affiche; nextBtn disabled=false (Step3 unlocked); preview single_product_promo/600;
+  diagnostics carry workbench_key/poster_key/selected (NOT on main UI). Visible-UI forbidden-term scan NONE;
+  inline JS node --check OK; docs router PASS.
+- Local browser validation = PASS (affiche main route). Remote: pending trial-branch deploy + operator OPS login
+  (no creds held this pass; not claiming remote GO). Resume-by-workbench_key after full page reload is out of
+  scope (recovery here covers in-session timeout).
+- Files: frontend/cuistance_trial.html (+docs/cuistance_trial.html mirror), scripts/
+  poster2_cuistance_ui_candidate_selection_proof.py, status doc, README, this log. Backend unchanged.
