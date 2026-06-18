@@ -11977,3 +11977,29 @@ After bundle:
   deploy choice + provider config + OPS credentials. Then re-run remote smoke: test mode (verify
   provider_message_id) then real mode to Owner-approved internal address only (no customer list).
 - Evidence doc: docs/poster2/cuistance_commercial_trial_remote_full_flow_smoke_result_v1.md.
+
+## POSTER2-CUISTANCE-V1-EXPOSE-OPERATOR-TRIAL-UI (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Added static operator page /cuistance_trial.html (frontend/cuistance_trial.html + docs/ mirror), served by the
+  existing StaticFiles mount. NO backend API change; NO route added; NO renderer/send-behavior/deploy-config
+  change. Title "CUISTANCE v1 · Operator Trial · 商业试用工作台", explicitly distinct from / and /ops_campaign.html.
+- Page drives the full v1 loop via existing endpoints: create workbench -> patch EF132V product_truth -> patch
+  product_assets+email_banner (URL/key) -> generate affiche -> generate fiche (allowed to fail w/o Vertex,
+  shown as failure, non-blocking) -> select (default affiche) -> email/preview (shows EmailBodyPlan: layout_type/
+  container_width/selected_body_visual_slot/final_poster_url + HTML iframe) -> email/send (default test+inline;
+  real requires Mode=real + Confirmer checkbox) -> send_attempts table. Shows workbench_key/affiche poster_key/
+  fiche status/selected visual/preview status/send mode/provider result/whether real email sent (only 'yes' if
+  provider_message_id present).
+- Safety: default test mode (not real), manual single internal recipient only, double confirm for real send, no
+  contact import/Excel/CRM/scheduling/analytics/dashboard, URL/key assets only, OPS-login affordance for gated
+  /api/v2/*, no secrets hard-coded.
+- Validation (local, in-process): GET /cuistance_trial.html=200 (title + 商业试用工作台 present); API wiring
+  create->affiche(ready, p2_25fdb43b2e5f4ad8)->select->preview(200, layout=single_product_promo, width=600,
+  slot poster_key match, 600px shell) green. Example workbench_key wb_7d17dce109fc475f. Send: local inline_only
+  -> preview_only (no real delivery); real send is remote-capability pending Resend config.
+- Docs router: PASS (ERROR=0). Files: frontend/cuistance_trial.html, docs/cuistance_trial.html,
+  docs/poster2/cuistance_commercial_trial_operator_ui_exposure_status_v1.md, README, log.
+- Blockers: remote real send needs Resend+verified sender on target service; fiche remote needs Vertex; remote
+  /api/v2/* OPS-gated (operator logs in on page); new page visible remotely only after trial-service deploy
+  refresh.
+- Operator manual validation: READY (test mode) after deploy refresh; real internal send HOLD pending Resend +
+  Owner-approved internal address.

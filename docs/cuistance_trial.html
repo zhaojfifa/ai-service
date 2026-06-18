@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CUISTANCE v1 · Operator Trial / 商业试用工作台</title>
+  <!--
+    CUISTANCE v1 OPERATOR TRIAL workbench page.
+    Distinct from "/" (old marketing poster workbench) and /ops_campaign.html (old diagnostic page).
+    Drives the v1 backend loop ONLY (workbench truth -> candidates -> selected visual -> EmailBodyPlan preview
+    -> manual confirmed send -> send_attempts evidence). No backend logic changed. Default = test mode; real
+    send requires an explicit confirm checkbox. No customer recipients, no import, no CRM, no scheduling.
+  -->
+  <style>
+    :root{--ink:#1f2329;--muted:#6b7178;--line:#e6e8ec;--red:#E1002A;--ok:#188a42;--amber:#9a7b06;--err:#c0392b;--bg:#f6f7f9;}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,-apple-system,"Helvetica Neue",Arial,"PingFang SC","Noto Sans SC",sans-serif;font-size:14px;line-height:1.5}
+    header{background:#1f2329;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:12px;border-bottom:3px solid var(--red)}
+    header .logo{width:22px;height:26px;background:var(--red);clip-path:polygon(50% 0,100% 27%,100% 73%,50% 100%,0 73%,0 27%)}
+    header h1{font-size:16px;margin:0;font-weight:800;letter-spacing:.3px}
+    header .zh{color:#cfd3d8;font-weight:400;font-size:13px}
+    header .tag{margin-left:auto;font-size:11px;color:#cfd3d8}
+    main{max-width:1200px;margin:0 auto;padding:18px 22px 80px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    @media(max-width:920px){main{grid-template-columns:1fr}}
+    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,23,28,.04)}
+    .card h2{font-size:14px;margin:0 0 10px;font-weight:700}
+    label{display:block;font-size:12px;color:var(--muted);margin:8px 0 3px}
+    input[type=text],textarea{width:100%;padding:8px 10px;border:1px solid #d7dade;border-radius:8px;font:inherit;font-size:13px}
+    textarea{min-height:42px;resize:vertical}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    button{font:inherit;font-weight:700;font-size:13px;padding:9px 14px;border-radius:8px;border:1px solid transparent;cursor:pointer}
+    .primary{background:var(--red);color:#fff}.primary:hover{background:#c40026}
+    .secondary{background:#fff;color:var(--ink);border-color:#d7dade}
+    .ghost{background:transparent;color:var(--muted)}
+    button[disabled]{background:#eceef1;color:#9aa0a6;cursor:not-allowed;border-color:transparent}
+    .btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .kv{font-size:12.5px;border-collapse:collapse;width:100%}
+    .kv td{padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+    .kv td:first-child{color:var(--muted);width:42%}
+    .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
+    .b-ok{background:#e7f6ec;color:var(--ok)}.b-amber{background:#fbf3d8;color:var(--amber)}.b-bad{background:#fdecea;color:var(--err)}.b-muted{background:#eef0f3;color:var(--muted)}
+    pre{background:#0f1115;color:#cdd3da;border-radius:8px;padding:10px;font-size:11px;overflow:auto;max-height:220px}
+    iframe{width:100%;height:360px;border:1px solid var(--line);border-radius:8px;background:#fff}
+    .note{font-size:11px;background:#fff8e6;border:1px solid #f0e2b8;border-radius:8px;padding:8px 10px;color:#7a5b00;margin-top:8px}
+    #log{font-size:12px;white-space:pre-wrap;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;max-height:200px;overflow:auto}
+    table.att{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:8px}
+    table.att th,table.att td{border:1px solid var(--line);padding:4px 6px;text-align:left}
+    .seg{display:inline-flex;border:1px solid #d7dade;border-radius:999px;overflow:hidden}
+    .seg button{border:0;background:#fff;color:var(--muted);padding:5px 12px}
+    .seg button.on{background:var(--red);color:#fff}
+    .hint{font-size:11px;color:#9aa0a6}
+    .authbar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+    .authbar > div{flex:1;min-width:120px}
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo"></span>
+    <h1>CUISTANCE v1 · Operator Trial <span class="zh">· 商业试用工作台</span></h1>
+    <span class="tag">v1 workbench loop · NOT the old poster workbench / ops_campaign</span>
+  </header>
+
+  <main>
+    <!-- LEFT: controls -->
+    <div>
+      <div class="card">
+        <h2>0 · Connexion & API</h2>
+        <label>API base（留空=同源 / same origin）</label>
+        <input type="text" id="apibase" placeholder="(same origin)"/>
+        <div class="authbar" style="margin-top:8px">
+          <div><label>OPS user（仅鉴权开启时）</label><input type="text" id="opsuser" autocomplete="off"/></div>
+          <div><label>OPS pass</label><input type="text" id="opspass" autocomplete="off"/></div>
+          <button class="secondary" id="btn-login">Se connecter</button>
+        </div>
+        <div class="hint">远程 /api/v2/* 受 OPS 鉴权门控；本地未开启鉴权时无需登录。凭据仅用于 /api/auth/ops-login（cookie 会话）。</div>
+      </div>
+
+      <div class="card">
+        <h2>1 · Produit & paramètres（EF132V 样例）</h2>
+        <div class="row2">
+          <div><label>Nom du produit</label><input type="text" id="pname" value="Friteuse électrique double"/></div>
+          <div><label>Référence</label><input type="text" id="pref" value="EF132V"/></div>
+        </div>
+        <label>Description</label>
+        <textarea id="pdesc">Deux cuves inox amovibles, montée en température maîtrisée, construction robuste.</textarea>
+        <label>Paramètres confirmés（只读样例：190°C 仅样例值，非平台规则）</label>
+        <input type="text" id="pparams" value="EF132V · 2 cuves 13+13 L · 3+3 kW / 230 V · jusqu'à 190°C" readonly/>
+      </div>
+
+      <div class="card">
+        <h2>2 · Éléments（URL/key only · 无 base64）</h2>
+        <label>Image produit URL</label>
+        <input type="text" id="prodimg" value="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg"/>
+        <label>Image produit 2 URL (option)</label>
+        <input type="text" id="prodimg2" value="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg"/>
+        <label>Logo de l'email URL</label>
+        <input type="text" id="logo" value="https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png"/>
+        <div class="row2">
+          <div><label>Nom du canal</label><input type="text" id="channel" value="CUISTANCE Europe"/></div>
+          <div><label>Libellé de campagne</label><input type="text" id="campaign" value="Nouveauté"/></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3 · Exécuter le flux</h2>
+        <div class="btnrow">
+          <button class="primary" id="btn-run">▶ Lancer le flux d'essai (test)</button>
+          <button class="secondary" id="btn-affiche">Générer affiche</button>
+          <button class="secondary" id="btn-fiche">Générer fiche</button>
+          <button class="secondary" id="btn-preview">Aperçu email</button>
+        </div>
+        <div class="note">「Lancer le flux」= 创建→参数→素材→affiche(+fiche)→选定→预览（test 模式不发送）。fiche 缺 Vertex 时允许失败。</div>
+      </div>
+
+      <div class="card">
+        <h2>4 · Envoi（默认 test · 不默认真实发送）</h2>
+        <label>Destinataire interne（手动单个内部地址；禁止客户名单）</label>
+        <input type="text" id="recipient" value="owner-internal-test@cuistance.eu"/>
+        <div style="display:flex;gap:14px;align-items:center;margin-top:8px">
+          <span>Mode：</span>
+          <span class="seg" id="modeseg">
+            <button data-mode="test" class="on">Envoi test</button>
+            <button data-mode="real">Envoyer (réel)</button>
+          </span>
+          <label style="margin:0;display:flex;align-items:center;gap:6px;color:var(--ink)">
+            <input type="checkbox" id="confirm"/> Confirmer l'envoi
+          </label>
+        </div>
+        <div class="row2" style="margin-top:8px">
+          <div><label>Provider</label>
+            <span class="seg" id="provseg">
+              <button data-prov="inline_only" class="on">inline_only</button>
+              <button data-prov="resend">resend</button>
+            </span>
+          </div>
+        </div>
+        <div class="btnrow"><button class="primary" id="btn-send">Envoyer</button></div>
+        <div class="note">真实发送需：① Mode=Envoyer(réel) ② 勾选 Confirmer。否则保持 test/inline（仅预览，不投递）。</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: state + preview + evidence -->
+    <div>
+      <div class="card">
+        <h2>État / 状态</h2>
+        <table class="kv"><tbody id="state">
+          <tr><td>workbench_key</td><td>—</td></tr>
+        </tbody></table>
+      </div>
+
+      <div class="card">
+        <h2>EmailBodyPlan · 预览</h2>
+        <table class="kv"><tbody id="planinfo"><tr><td>plan</td><td>—</td></tr></tbody></table>
+        <iframe id="mail" title="email preview"></iframe>
+      </div>
+
+      <div class="card">
+        <h2>send_attempts · 证据</h2>
+        <div id="sendsummary" class="hint">未发送。</div>
+        <table class="att" id="atttable" style="display:none"><thead><tr>
+          <th>recipient</th><th>status</th><th>provider</th><th>error_code</th><th>message_id</th></tr></thead>
+          <tbody></tbody></table>
+        <div class="note" id="realsent">真实发送：—</div>
+      </div>
+
+      <div class="card">
+        <h2>Journal / 日志</h2>
+        <div id="log"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+  (function(){
+    var $=function(id){return document.getElementById(id)};
+    var state={wb:null,affiche:null,fiche:null,selected:null,mode:"test",prov:"inline_only"};
+    function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
+    function log(m){var el=$('log');el.textContent+= (m+"\n");el.scrollTop=el.scrollHeight}
+    function setState(){
+      var s=state;
+      $('state').innerHTML=[
+        ['workbench_key',s.wb||'—'],
+        ['affiche',(s.affiche?('<span class="badge b-ok">ready</span> '+s.affiche):'—')],
+        ['fiche',(s.ficheStatus?('<span class="badge '+(s.fiche?'b-ok':'b-amber')+'">'+s.ficheStatus+'</span> '+(s.fiche||(s.ficheErr||''))):'—')],
+        ['selected_email_body_visual',s.selected||'—']
+      ].map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'}).join('');
+    }
+    async function api(method,path,body){
+      var url=base()+path;
+      var opts={method:method,headers:{'Content-Type':'application/json'},credentials:'include'};
+      if(body!==undefined)opts.body=JSON.stringify(body);
+      var r=await fetch(url,opts);var ct=r.headers.get('content-type')||'';var txt=await r.text();
+      var j=null; if(ct.indexOf('json')!==-1){try{j=JSON.parse(txt)}catch(e){}}
+      return {ok:r.ok,status:r.status,json:j,text:txt};
+    }
+    function fail(tag,r){log('✖ '+tag+' HTTP '+r.status+(r.status===401?' (OPS 鉴权需登录)':'')+' '+(r.json?JSON.stringify(r.json).slice(0,200):r.text.slice(0,160)));}
+
+    $('btn-login').addEventListener('click',async function(){
+      var r=await api('POST','/api/auth/ops-login',{username:$('opsuser').value,password:$('opspass').value});
+      log(r.ok?'✔ ops-login ok':'✖ ops-login HTTP '+r.status);
+    });
+    document.querySelectorAll('#modeseg button').forEach(function(b){b.addEventListener('click',function(){
+      document.querySelectorAll('#modeseg button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');state.mode=b.dataset.mode;});});
+    document.querySelectorAll('#provseg button').forEach(function(b){b.addEventListener('click',function(){
+      document.querySelectorAll('#provseg button').forEach(function(x){x.classList.remove('on')});b.classList.add('on');state.prov=b.dataset.prov;});});
+
+    async function ensureWorkbench(){
+      if(state.wb)return true;
+      var r=await api('POST','/api/v2/workbench',{language:'fr'});
+      if(!r.ok||!r.json){fail('create workbench',r);return false}
+      state.wb=r.json.workbench_key;log('✔ workbench '+state.wb);setState();
+      // patch truth
+      var pr=await api('PATCH','/api/v2/workbench/'+state.wb,{product_truth:{
+        product_name:$('pname').value,reference:$('pref').value,description:$('pdesc').value,
+        parameters:[
+          {key:'reference',value:$('pref').value,state:'confirmed'},
+          {key:'capacity',value:'2 cuves 13 + 13 L',state:'confirmed'},
+          {key:'power',value:'3 + 3 kW',state:'confirmed'},
+          {key:'thermostat',value:"jusqu'à 190°C",state:'confirmed'}
+        ]}});
+      if(!pr.ok){fail('patch truth',pr);return false}log('✔ product_truth (EF132V)');
+      // patch assets + banner
+      var imgs=[{url:$('prodimg').value}]; if($('prodimg2').value)imgs.push({url:$('prodimg2').value});
+      var ar=await api('PATCH','/api/v2/workbench/'+state.wb,{
+        product_assets:{product_images:imgs},
+        email_banner:{logo:{url:$('logo').value},channel_name:$('channel').value,campaign_label:$('campaign').value}});
+      if(!ar.ok){fail('patch assets',ar);return false}log('✔ product_assets + email_banner');
+      return true;
+    }
+    async function genCandidate(kind){
+      if(!await ensureWorkbench())return;
+      log('… génération '+kind+' (peut prendre du temps)');
+      var r=await api('POST','/api/v2/workbench/'+state.wb+'/candidates/'+kind+'/generate');
+      if(r.ok&&r.json){
+        var c=(r.json.poster_candidates||{})[kind]||{};
+        if(kind==='affiche'){state.affiche=c.poster_key}else{state.fiche=c.poster_key;state.ficheStatus=c.status||'ready'}
+        log('✔ '+kind+' '+(c.status||'ready')+' '+(c.poster_key||''));
+      }else{
+        if(kind==='fiche'){state.ficheStatus='failed';state.ficheErr=(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||('HTTP '+r.status);log('⚠ fiche failed: '+state.ficheErr+'（Vertex 缺失时为预期）');}
+        else fail(kind,r);
+      }
+      setState();
+    }
+    async function selectAndPreview(){
+      var sel = state.affiche?'affiche':(state.fiche?'fiche':null);
+      if(!sel){log('✖ 无 ready 候选，无法选择');return false}
+      var sr=await api('PATCH','/api/v2/workbench/'+state.wb+'/selected-visual',{selected_email_body_visual:sel});
+      if(!sr.ok){fail('select',sr);return false}
+      state.selected=sel;setState();log('✔ selected '+sel);
+      var pv=await api('POST','/api/v2/workbench/'+state.wb+'/email/preview');
+      if(!pv.ok||!pv.json){fail('preview',pv);return false}
+      var b=pv.json,plan=b.email_body_plan||{},slot=plan.selected_body_visual_slot||{};
+      $('planinfo').innerHTML=[
+        ['layout_type',plan.layout_type||'—'],['container_width',plan.container_width||'—'],
+        ['slot.candidate_type',slot.candidate_type||'—'],['slot.poster_key',slot.poster_key||'—'],
+        ['final_poster_url',(slot.final_poster_url||'').slice(0,48)+'…'],
+        ['subject',b.subject||'—'],['cta',b.cta_label||'—'],
+        ['generated_from',b.generated_from||'—']
+      ].map(function(r){return '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>'}).join('');
+      var doc=$('mail').contentWindow.document;doc.open();doc.write(b.html||'');doc.close();
+      log('✔ preview ok（plan='+plan.layout_type+' / '+plan.container_width+'px）');
+      return true;
+    }
+    $('btn-affiche').addEventListener('click',function(){genCandidate('affiche')});
+    $('btn-fiche').addEventListener('click',function(){genCandidate('fiche')});
+    $('btn-preview').addEventListener('click',selectAndPreview);
+    $('btn-run').addEventListener('click',async function(){
+      $('log').textContent='';state={wb:null,affiche:null,fiche:null,selected:null,mode:state.mode,prov:state.prov};setState();
+      if(!await ensureWorkbench())return;
+      await genCandidate('affiche');
+      await genCandidate('fiche'); // expected to fail without Vertex
+      await selectAndPreview();
+      log('— flux terminé (test). 发送请用「Envoyer」（需 Confirmer）。');
+    });
+    $('btn-send').addEventListener('click',async function(){
+      if(!state.wb||!state.selected){log('✖ 请先完成预览/选定');return}
+      if(!$('confirm').checked){log('✖ 请勾选 Confirmer l\'envoi（不会隐式发送）');return}
+      var rcpt=$('recipient').value.trim(); if(!rcpt){log('✖ 收件人为空');return}
+      log('… envoi '+state.mode+' / '+state.prov+' → '+rcpt);
+      var r=await api('POST','/api/v2/workbench/'+state.wb+'/email/send',{
+        recipients:[rcpt],mode:state.mode,confirm_send:true,delivery_mode:state.prov});
+      if(!r.ok||!r.json){fail('send',r);return}
+      var b=r.json;
+      $('sendsummary').textContent='mode='+b.mode+' · total='+b.total+' · sent='+b.sent_count+' · skipped='+b.skipped_count+' · failed='+b.failed_count+' · dedup='+b.deduplicated_count;
+      var tb=$('atttable').querySelector('tbody');tb.innerHTML='';
+      var anySent=false;
+      (b.attempts||[]).forEach(function(a){
+        if(a.status==='sent'&&a.provider_message_id)anySent=true;
+        tb.innerHTML+='<tr><td>'+a.recipient+'</td><td>'+a.status+'</td><td>'+a.provider+'</td><td>'+(a.error_code||'')+'</td><td>'+(a.provider_message_id||'')+'</td></tr>';
+      });
+      $('atttable').style.display='';
+      $('realsent').textContent='真实发送：'+(anySent?'是（有 provider_message_id）':'否（无 message_id / preview_only / 未投递）');
+      log('✔ send done（sent='+b.sent_count+'）');
+    });
+    setState();
+  })();
+  </script>
+</body>
+</html>
