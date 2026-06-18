@@ -12074,3 +12074,21 @@ After bundle:
   trigger needed (no console/API access to force rebuild). Local aligned version fully green. Remote alignment
   appears once trial service deploys 280a026 (then css + /assets/* should be 200; page shows 3-step wizard +
   real logo).
+
+## POSTER2-CUISTANCE-V1-OPERATOR-UI-FUNCTIONAL-VALIDATION (2026-06-18) — SUBMITTED FOR OWNER REVIEW
+- Remote /cuistance_trial.html now ALIGNED + functional-asset live: page/cuistance_trial.css/assets/logo_01.jpg/
+  banner_option_01.jpg all 200; real logo; 3 .screen sections; Chinese stepper; old emblem absent; visible
+  forbidden-term scan = NONE. (Prior deploy lag resolved.)
+- Remote API OPS-gated: POST /api/v2/workbench=401, /api/auth/me=200. No OPS creds locally (MISSING; not printed/
+  guessed) -> remote functional walkthrough requires operator/Owner OPS login via the page's ⓘ 内部诊断 login.
+- LOCAL functional validation (in-process auth-off; same backend + same page API contract): Step1 save ✓;
+  Step2 产品海报(affiche) generate 200 ready (real Chromium); select 邮件主体=affiche ✓; Step3 preview 200 with
+  all commercial-body checks (brand header / selected poster visual / CTA Nous contacter / footer-legal Se
+  désabonner / layout single_product_promo / container 600); test send (test/inline/internal/confirm) 200 ->
+  skipped=1 preview_only, REAL EMAIL SENT = No (no provider_message_id). fiche NOT tested (optional; non-blocking).
+  workbench_key wb_467be491724b415b, affiche poster_key p2_16339662144d44cd (diagnostics-only).
+- No customer send; no contacts/Excel/CRM/scheduling/analytics; no backend/API/renderer/send change; no
+  merge/tag/main; no secrets printed.
+- Recommendation: operator trial GO (affiche main route) — logic+UI proven; remote functional walkthrough just
+  needs operator OPS login; real send awaits provider config + Owner-approved internal address. Evidence doc:
+  docs/poster2/cuistance_commercial_trial_operator_ui_functional_validation_result_v1.md.
