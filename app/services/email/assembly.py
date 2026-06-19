@@ -97,23 +97,22 @@ def build_email_assembly(
     meta_bits = " · ".join([b for b in (channel_name, campaign_label) if b])
 
     # ---- per-module HTML fragments (reference-aligned PR-3R grammar) ----
-    banner_bg = f"background-image:url('{escape(str(background_url), quote=True)}');background-size:cover;" if background_url else ""
-    pattern_layer = (
-        f'background-image:url(\'{escape(str(pattern_url), quote=True)}\');background-repeat:repeat;'
-        if pattern_url and not background_url else ""
-    )
-    banner_inner = []
+    # email header = ttt.html-style clean dark bar: a CONTAINED brand logo (object-fit:contain, never stretched) or
+    # a CUISTANCE wordmark fallback + optional campaign meta + red filet. NO stretched background-image (that was the
+    # PSD dark-header logo-fit distortion), NO body/product/CTA/footer. Header source = ttt_html_header.
     if logo_url:
-        banner_inner.append(_img(logo_url, style="height:40px;display:block;", alt="logo"))
-    if meta_bits:
-        banner_inner.append(f'<div style="margin-left:auto;color:#cfd3d8;font-size:12px;">{escape(meta_bits)}</div>')
+        brand_html = _img(logo_url, style="height:34px;max-height:34px;width:auto;max-width:220px;display:block;object-fit:contain;", alt="CUISTANCE")
+    else:
+        brand_html = '<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px;font-family:Arial,sans-serif;">CUISTANCE</span>'
+    meta_html = (
+        f'<div style="margin-left:auto;color:#cfd3d8;font-size:12px;">{escape(meta_bits)}</div>' if meta_bits else ""
+    )
 
     fragments: dict[str, str] = {
-        # banner module + explicit red filet (reference grammar)
+        # ttt_html_header: clean dark bar + contained brand + meta, then explicit red filet (reference grammar)
         "email_banner": (
-            '<div style="background:#1f2329;' + banner_bg + pattern_layer
-            + 'padding:16px 20px;display:flex;align-items:center;gap:14px;border-bottom:3px solid #E1002A;">'
-            + "".join(banner_inner) + "</div>"
+            '<div style="background:#1f2329;padding:14px 20px;display:flex;align-items:center;gap:14px;">'
+            + brand_html + meta_html + "</div>"
             + '<div style="height:3px;line-height:3px;font-size:0;background:#E1002A;">&nbsp;</div>'
         ),
         "title_intro": (
@@ -210,12 +209,21 @@ def build_email_assembly(
         # PSD email container (design-shell grammar) — additive; Workbench remains the only business truth source
         "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
         "email_fill_format": fill_format,
+        "email_header_source": "ttt_html_header",
         "email_container": {
             "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
             "email_fill_format": fill_format,
             "body_visual_poster_key": poster_key,
             "uses_current_selected_visual": True,
-            "header_source": "psd_slice_manifest",
+            # header is now the ttt.html-style clean bar (contained logo/wordmark), NOT the PSD dark-header overlay
+            "email_header_source": "ttt_html_header",
+            "header_only": True,
+            "no_body_content_in_header": True,
+            "no_product_visual_in_header": True,
+            "no_cta_in_header": True,
+            "no_footer_in_header": True,
+            "psd_header_logo_fit_known_issue_closed": True,
+            "header_source": "ttt_html_header",  # supersedes psd_slice_manifest header overlay (PSD = fallback only)
             "legacy_truth_rejected": True,  # no PSD/old-product fact ever enters this assembly
             "workbench_truth_used": True,   # banner/intro/contact all come from workbench truth
         },

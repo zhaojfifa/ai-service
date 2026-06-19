@@ -53,10 +53,28 @@ def test_preview_exposes_psd_email_container(client):
     assert body["email_fill_format"] == "campaign_poster_email"  # affiche default
     ec = body["email_container"]
     assert ec["uses_current_selected_visual"] is True
-    assert ec["header_source"] == "psd_slice_manifest"
+    # header is now the ttt.html-style clean bar (PSD dark-header overlay distortion closed)
+    assert body["email_header_source"] == "ttt_html_header"
+    assert ec["email_header_source"] == "ttt_html_header"
+    assert ec["header_source"] == "ttt_html_header"
+    assert ec["header_only"] is True
+    assert ec["no_body_content_in_header"] is True
+    assert ec["no_product_visual_in_header"] is True
+    assert ec["no_cta_in_header"] is True
+    assert ec["no_footer_in_header"] is True
+    assert ec["psd_header_logo_fit_known_issue_closed"] is True
     assert ec["legacy_truth_rejected"] is True
     assert ec["workbench_truth_used"] is True
     assert ec["body_visual_poster_key"] == body["body_visual"]["poster_key"]
+
+
+def test_frontend_has_full_preview_button():
+    from pathlib import Path
+    html = Path("frontend/cuistance_trial.html").read_text(encoding="utf-8")
+    assert "btn-full-preview" in html
+    assert "打开完整预览" in html
+    # full preview opens the backend HTML in a new window via a Blob URL (not a clipped card)
+    assert "createObjectURL" in html and "window.open" in html
 
 
 def test_assembled_email_has_no_legacy_gas_truth(client):

@@ -12517,3 +12517,37 @@ After bundle:
 - Owner Decision Needed: provide OPS credentials/session securely so save->generate->select->Step3 preview->send can
   be exercised; then the 3 fixes will be implemented + remote-validated in one focused pass on this branch.
 - No merge, no tag push, no real email, no auth bypass, no branch switch.
+
+## CONTINUE WITH TEMP OPS CREDS — REMOTE LAST-MILE SELECTION/HEADER/PREVIEW FIX (2026-06-19) — FIXES IMPLEMENTED + LOCAL REAL-BACKEND PASS; REMOTE PENDING OPS CREDS
+- Branch guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, clean worktree). Start HEAD d71f175.
+  Temporary OPS creds were authorized by Owner but NOT physically present this run (env unset; no
+  /tmp/cuistance_ops_auth/creds.env); remote v2 API still returns 401 ops_auth_required, so REMOTE browser
+  validation could not run. Implemented + LOCAL REAL-backend validated the 3 fixes instead (Owner: "do not stop
+  merely because remote is OPS-gated").
+- Fix 1 (selected truth): the select handler already PATCH selected-visual -> GET workbench -> only applySelectVisual
+  if backend confirms sel===v (else 选择邮件主体失败，请重试); Step3 preview uses backend _resolve_workbench_email_
+  package -> poster_candidates[selected].poster_key (NOT send_attempts); Step3 preview null-gate message aligned to
+  请先选择邮件主体. Local proof: selected before=null -> after=affiche; step3_uses_current_candidate=true;
+  old_send_attempt_ignored=true.
+- Fix 2 (ttt_html_header): assembly.py email header rewritten to a clean ttt.html-style dark bar — CONTAINED brand
+  logo (object-fit:contain, max 34px, never stretched) or CUISTANCE wordmark fallback + optional campaign meta + red
+  filet; removed the stretched background-image cover that caused the PSD dark-header logo distortion. Added
+  email_header_source=ttt_html_header + header evidence (header_only / no_body_content_in_header /
+  no_product_visual_in_header / no_cta_in_header / no_footer_in_header / psd_header_logo_fit_known_issue_closed) to
+  the assembly return + EmailAssemblyPreviewResponse + email_container evidence. Local proof: email_header_source=
+  ttt_html_header, header_only=true, no background-image in header, no legacy gas/Technitalia leakage.
+- Fix 3 (full preview): added 打开完整预览 button -> opens the backend-assembled email HTML in a new tab via a Blob
+  URL wrapped in a UTF-8 shell (accents render correctly), full 600px, unclipped, scrollable, uses the current
+  selected poster. Local proof: full_preview_available=true / not_clipped=true / uses_current_selected_poster=true.
+- refresh_recovery_ok=true; send mode=real/provider=inline_only/status=skipped/error_code=preview_only/
+  provider_message_id null/real_email_sent=false/inline_only_not_claimed_as_real_send=true.
+- Tests: tests/poster2/test_workbench_psd_email_container.py updated (ttt_html_header + header-only fields +
+  full-preview-button exists) -> 3 PASS; 26 container/assembly/body-plan PASS; api email/workbench/selected 6 PASS.
+  node-Function JS check OK; docs router not re-run (no doc-router-tracked change). No backend renderer change; no PSD
+  reparse; no frozen-source move.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  remote_last_mile_fix_evidence.json (remote_pass=false, validation_surface=local_real_backend) + local_validation/
+  02-08 screenshots + local_last_mile_evidence.json. Credentials never printed/committed/stored.
+- Owner Decision Needed: place temp OPS creds at /tmp/cuistance_ops_auth/creds.env (CUISTANCE_OPS_USER /
+  CUISTANCE_OPS_PASSWORD) so the OPS-gated remote flow + screenshots 01-08 can complete -> remote_pass. Real send
+  stays HOLD.

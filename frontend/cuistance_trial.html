@@ -410,6 +410,7 @@
             </div>
             <div class="btn-row">
               <button class="btn secondary" id="btn-preview" type="button" data-zh="预览邮件" data-fr="Aperçu email">预览邮件</button>
+              <button class="btn secondary" id="btn-full-preview" type="button" data-zh="打开完整预览" data-fr="Ouvrir l'aperçu complet">打开完整预览</button>
               <button class="btn primary" id="btn-send" type="button" data-zh="发送测试邮件" data-fr="Envoyer le test">发送测试邮件</button>
               <button class="btn ghost" id="btn-evidence" type="button" data-zh="查看发送证据" data-fr="Voir les preuves">查看发送证据</button>
             </div>
@@ -957,8 +958,9 @@
       }catch(e){}
       return out;
     }
+    var lastPreviewHtml='';  // last backend-assembled email HTML (for the full-size preview window)
     $('btn-preview').addEventListener('click',async function(){
-      if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.'));return}
+      if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先选择邮件主体':'Choisissez d\'abord le corps'));return}
       // ensure the selected candidate is ready + has a poster_key/url before asking the backend to assemble
       var key=S[selectedVisual]; if(!key){ await refreshState(); key=S[selectedVisual]; }
       if(!key){ flash('warn',lang==='zh'?'请先生成并选定邮件主体。':'Générez et choisissez d\'abord le corps.'); return; }
@@ -972,6 +974,7 @@
       var bv=r.json.body_visual||{};
       // accept whichever assembled-email field the backend returns
       var htmlContent=r.json.html||r.json.assembled_html||r.json.email_html||r.json.preview_html||'';
+      lastPreviewHtml=htmlContent;  // keep for 打开完整预览 (full-size window)
       var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
       var cdoc=f.contentWindow.document;cdoc.open();cdoc.write(htmlContent);cdoc.close();
       // auto-fit the iframe so the COMPLETE send-ready email shows (scrollable container if very tall)
@@ -980,9 +983,23 @@
       setEmailPreviewBadge(previewGenerated?'ready':'needs'); updateBindingLabels(); updateSendGate();
       var ins=inspectPreview(cdoc,bv.url||'');
       var ec=r.json.email_container||{};
-      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,header_source:ec.header_source,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual});
+      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual});
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
+    });
+    // 打开完整预览 — open the full 600px backend-assembled email in a new tab (Blob URL), unclipped + scrollable
+    $('btn-full-preview').addEventListener('click',function(){
+      if(!previewGenerated||!lastPreviewHtml){flash('warn',lang==='zh'?'请先生成邮件预览':'Générez d\'abord l\'aperçu');return}
+      try{
+        // wrap with a UTF-8 shell so accents render correctly in the standalone window (the backend HTML is a fragment)
+        var full='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>CUISTANCE — aperçu email</title></head><body style="margin:0;background:#eef0f3;padding:20px 0;">'+lastPreviewHtml+'</body></html>';
+        var blob=new Blob([full],{type:'text/html;charset=utf-8'});
+        var url=URL.createObjectURL(blob);
+        var w=window.open(url,'_blank');
+        if(!w){flash('warn',lang==='zh'?'浏览器拦截了新窗口，请允许弹窗。':'Pop-up bloqué — autorisez les fenêtres.');}
+        setTimeout(function(){URL.revokeObjectURL(url)},60000);
+        diag('full_preview',{opened:!!w,full_preview_uses_current_selected_poster:!!(S[selectedVisual+'Url'])});
+      }catch(e){flash('warn',lang==='zh'?'无法打开完整预览。':'Impossible d\'ouvrir l\'aperçu.');}
     });
     function curMode(){var el=document.querySelector('input[name=mode]:checked');return el?el.value:'test'}
     function openSendModal(){

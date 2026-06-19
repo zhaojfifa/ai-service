@@ -1,0 +1,30 @@
+{
+  "validation_surface": "local_real_backend",
+  "was_stubbed": false,
+  "current_candidate_poster_key": "p2_017a04322299495a",
+  "selected_email_body_visual_before": null,
+  "selected_email_body_visual_after": "affiche",
+  "email_header_source": "ttt_html_header",
+  "no_body_content_in_header": true,
+  "no_product_visual_in_header": true,
+  "no_cta_in_header": true,
+  "no_footer_in_header": true,
+  "psd_header_logo_fit_known_issue_closed": true,
+  "header_only": true,
+  "step3_uses_current_candidate": true,
+  "old_send_attempt_ignored": true,
+  "full_preview_available": true,
+  "full_preview_uses_current_selected_poster": true,
+  "full_preview_not_clipped": true,
+  "refresh_recovery_ok": true,
+  "send": {
+    "mode": "real",
+    "provider": "inline_only",
+    "status": "skipped",
+    "error_code": "preview_only",
+    "provider_message_id": null,
+    "real_email_sent": false,
+    "inline_only_not_claimed_as_real_send": true
+  },
+  "workbench_key": "wb_f911ce8675ab4e8e"
+}

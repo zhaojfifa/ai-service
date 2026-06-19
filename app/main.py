@@ -2571,6 +2571,7 @@ def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewRespon
         body_visual_contains_own_banner=assembly["body_visual_contains_own_banner"],
         email_container_template_id=assembly.get("email_container_template_id", "cuistance_email_container_psd_v1"),
         email_fill_format=assembly.get("email_fill_format"),
+        email_header_source=assembly.get("email_header_source", "ttt_html_header"),
         email_container=assembly.get("email_container", {}),
     )
 

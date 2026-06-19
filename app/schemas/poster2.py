@@ -465,6 +465,7 @@ class EmailAssemblyPreviewResponse(BaseModel):
     # The container GRAMMAR derives from the frozen PSD slice manifest; all business facts come from Workbench.
     email_container_template_id: str = "cuistance_email_container_psd_v1"
     email_fill_format: Optional[Literal["campaign_poster_email", "product_sheet_email"]] = None
+    email_header_source: str = "ttt_html_header"
     email_container: dict[str, Any] = Field(default_factory=dict)
 
 
