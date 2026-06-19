@@ -1,0 +1,52 @@
+{
+  "source_dir": "~/poster/ingredient/",
+  "frozen_from": "~/poster/ingredient/",
+  "frozen_at": "2026-06-19",
+  "rollback_commit": "ae5e527",
+  "rollback_tag": "poster2-cuistance-asset-chain-pass-ae5e527",
+  "psd_canvas": {"w": 600, "h": 1577},
+  "files": [
+    {
+      "filename": "产品海报.psd",
+      "role": "psd_master",
+      "sha256": "7b30d3593e6348122d16fb1b5a02706dc47fbf8c7b9cc67384429ad55196851d",
+      "expected_runtime_use": "design_shell"
+    },
+    {
+      "filename": "ttt.html",
+      "role": "html_reference",
+      "sha256": "5407abbaab1b8c1542b871af07bd0b6166f67a8f5f4c3baddde0121b8d3c7d26",
+      "expected_runtime_use": "reference_only"
+    },
+    {
+      "filename": "ttt2.html",
+      "role": "html_reference",
+      "sha256": "cbedbe8cd755f83233612ca2709cdb58d55797710880bc27b3398631700fa5ba",
+      "expected_runtime_use": "reference_only"
+    },
+    {
+      "filename": "logo_01.jpg",
+      "role": "logo_asset",
+      "sha256": "f2889585617ce20ac3925049c5801c44887287d14d2d53a6aefc9fe910eed0a5",
+      "expected_runtime_use": "truth_asset"
+    },
+    {
+      "filename": "logo banner.png",
+      "role": "logo_asset",
+      "sha256": "8b7549b1c35f86279395df326735374389d26883fb43ebd0cb64a33105c8fbba",
+      "expected_runtime_use": "design_shell"
+    },
+    {
+      "filename": "图层示意.png",
+      "role": "layer_screenshot",
+      "sha256": "65b239dab881da01718d99ec0848195c9389b4927cb5488290c37df064e98e72",
+      "expected_runtime_use": "reference_only"
+    },
+    {
+      "filename": "图层细节.png",
+      "role": "layer_screenshot",
+      "sha256": "55f9af4424179b57f86a627005107f973b93fd05c09cb8ae2d5a19dc854afade",
+      "expected_runtime_use": "reference_only"
+    }
+  ]
+}
