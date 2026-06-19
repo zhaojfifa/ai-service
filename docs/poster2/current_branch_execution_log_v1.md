@@ -12642,3 +12642,17 @@ After bundle:
   email_body_visual_no_inner_banner_v1/ (evidence.json local_pass=true, remote_pass=false [creds+redeploy gated] +
   screenshots 01-05).
 - Owner Decision Needed: re-place OPS creds + confirm Render redeploys this branch -> remote validation.
+
+## REMOTE VALIDATE EMAIL BODY VISUAL NO-INNER-BANNER (2026-06-19) — REMOTE_AUTH_BLOCKED (no code change)
+- Branch guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, clean, HEAD f5801c1). Deployed frontend
+  carries the f5801c1 markers (email_body_visual_url / body_visual_variant present in the served page). Remote v2 API
+  OPS-gated: POST /api/v2/workbench (no auth) -> 401 ops_auth_required; /api/auth/me -> authenticated:false. OPS creds
+  NOT available this run (deleted after the prior pass per security; not re-placed at /tmp/cuistance_ops_auth/creds.env).
+- Therefore the OPS-gated preview contract (email_body_visual_url / variant / contains_own_banner / contract_pass)
+  and the single-header full preview could NOT be authenticated/verified remotely. No product code changed (the local
+  fix f5801c1 is accepted; no remote blocker proven — validation simply could not run). No remote evidence fabricated.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  email_body_visual_no_inner_banner_v1/remote_validation/ (evidence.json status=REMOTE_AUTH_BLOCKED, remote_pass=false
+  + honest BLOCKED cards 01-06). Local REAL-backend PASS (f5801c1) stands.
+- Owner Decision Needed: re-place OPS creds + confirm Render serves >= f5801c1, then the OPS-authenticated remote
+  validation completes.
