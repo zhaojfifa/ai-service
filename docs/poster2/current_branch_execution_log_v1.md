@@ -12327,3 +12327,37 @@ After bundle:
   No real email sent.
 - Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_step2_step3_layout_proof.py, status
   doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-STATE-RECOVERY-STEP2-SUMMARY-STEP3-CONSISTENCY-FIX (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend only (NO backend/renderer/provider/send change). P0 state recovery: workbench key ->
+  localStorage["cuistance_trial_last_workbench_key"] + step -> cuistance_trial_last_step (boot step captured before
+  the first render so init render() doesn't clobber it); on load a recovery bar shows when a last key exists and,
+  once connected, the page auto GET /api/v2/workbench/{key} and restores product_truth (name/ref/desc), product_
+  assets (product_images/gallery/atmosphere -> SLOTS+thumbs), email_banner (logo/background/channel/campaign/
+  selected_banner_ref), poster_candidates affiche/fiche (+ GET /api/v2/posters/{poster_key} to rebind final_poster.
+  url), selected_email_body_visual, landing on a safe step (3 if selected else 2). Manual 恢复上次工作台 + 输入工作台编号继续
+  affordances; failure -> 未能恢复上次工作台，请重新连接后端或重新开始 (raw detail diagnostics only). No reliance on in-memory
+  JS alone.
+- P1 Step2 product summary card 当前产品摘要 (当前产品：name · ref / 参数 / 素材：产品图 N 张 · 画廊 N 张 · 氛围状态 / selected
+  mode / 返回修改产品素材). P1 preview state backend-driven: 尚未生成(预览示意) / generating(正在生成，请稍候 + gen buttons
+  disabled) / generated(已生成·使用后端生成结果 + final_poster.url + 查看大图/复制图片链接) / timeout-recovery; placeholder
+  and generated never mixed. P1 selection backend-confirmed (PATCH -> GET -> selected_email_body_visual -> unlock +
+  persist step/key; failure -> 选择邮件主体失败，请重试).
+- P2 Step3 email assembly stage: 邮件主体 (目标海报/简单产品页 · 已使用生成结果) + 邮件填充格式 (默认按所选主体映射) + 邮件页眉/
+  Banner (默认品牌页眉; email-layer only) + 邮件内容 + 600px 最终预览 (页眉 + 主体视觉 + 正文 + CTA + 页脚) + 测试发送/证据.
+  Backend preview -> 邮件预览已生成; local illustrative -> 预览示意，尚未生成邮件预览. Honest send semantics retained
+  (inline_only/preview_only -> 当前环境未配置真实发送服务，已记录预览发送证据，未真实投递; never 发送成功/真实发送成功/已发送).
+- REAL (non-stubbed) browser verification across TWO hard refreshes: real app.main backend; real page; Playwright NO
+  route stubbing; localStorage persists across reload. evidence: was_stubbed=false; localStorage_key_present=true;
+  initial==recovered workbench key -> recovered_after_refresh=true; product_truth_restored=true; assets_restored=
+  true; affiche url present before+after refresh; on_step2_after_refresh=true; selected_email_body_visual=affiche;
+  step3_unlocked=true; step3_has_fill_format=true; step3_has_banner=true; preview_status=200; preview_uses_body_
+  visual_poster_key=true; final_preview_rendered=true; selected_state_restored_after_refresh=true; step3_active_
+  after_2nd_refresh=true; send mode=real/provider=inline_only/status=skipped/error_code=preview_only/provider_
+  message_id absent/real_email_sent=false; ui_send_label_correct=true. Screenshots docs/poster2/assets/
+  cuistance_state_recovery_step2_step3_consistency_v1/ 01-09 + evidence.json. Forbidden-term + fallback scan NONE;
+  inline JS node --check OK; docs router PASS; fill-format advisory PASS.
+- Local real-backend validation = GO. Remote: pending trial-branch deploy + operator OPS login (auto-restore runs
+  after OPS login; recovery bar lets the operator trigger it). No real email sent.
+- Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_state_recovery_proof.py, status
+  doc, README, this log. Backend unchanged.

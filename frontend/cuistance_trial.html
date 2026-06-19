@@ -97,6 +97,15 @@
       <button class="btn secondary sm" id="btn-connect" type="button" data-zh="连接后端" data-fr="Se connecter">连接后端</button>
     </div>
 
+    <!-- ============ RECOVERY BAR (shown when a previous workbench is remembered) ============ -->
+    <div class="connbar" id="recoverbar" style="display:none">
+      <span data-zh="检测到上次工作台" data-fr="Atelier précédent détecté" style="font-size:12px;color:#6b7178">检测到上次工作台</span>
+      <button class="btn secondary sm" id="btn-recover" type="button" data-zh="恢复上次工作台" data-fr="Restaurer l'atelier">恢复上次工作台</button>
+      <span class="grow"></span>
+      <input type="text" id="recoverKey" autocomplete="off" data-ph-zh="输入工作台编号继续" data-ph-fr="Saisir un identifiant d'atelier" placeholder="输入工作台编号继续" style="width:200px" />
+      <button class="btn secondary sm" id="btn-recover-key" type="button" data-zh="继续" data-fr="Continuer">继续</button>
+    </div>
+
     <!-- global business-readable flash -->
     <div class="flash" id="flash"></div>
 
@@ -230,6 +239,18 @@
 
     <!-- ============ SCREEN 2 — 生成邮件主体（两种正式模式） ============ -->
     <section class="screen" id="screen-2">
+      <!-- compact product context summary (so the operator knows what is being generated/regenerated) -->
+      <div class="card" id="s2-summary" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="group-label" style="margin:0" data-zh="当前产品摘要" data-fr="Résumé produit">当前产品摘要</span>
+          <span class="badge ready" id="sum-mode" style="display:none"></span>
+          <span class="grow" style="flex:1"></span>
+          <button class="btn ghost sm" id="btn-back-step1" type="button" data-zh="返回修改产品素材" data-fr="Modifier le produit / éléments">返回修改产品素材</button>
+        </div>
+        <div class="hint" id="sum-product" style="margin-top:6px">—</div>
+        <div class="hint" id="sum-params">—</div>
+        <div class="hint" id="sum-assets">—</div>
+      </div>
       <!-- segmented mode tabs (two EQUAL official modes) -->
       <div class="mode-tabs" id="modeTabs">
         <button class="mode-tab active" type="button" data-mode="affiche"><span data-zh="目标海报模式" data-fr="Affiche promotionnelle">目标海报模式</span><span class="tab-dot" id="tabdot-affiche"></span><small data-zh="视觉营销 · 活动推广" data-fr="Affiche marketing · campagnes">视觉营销 · 活动推广</small></button>
@@ -522,7 +543,59 @@
       document.querySelectorAll('#stepper .step').forEach(function(el){var n=+el.dataset.step;el.classList.toggle('active',n===step);el.classList.toggle('done',n<step)});
       $('prevBtn').style.visibility=step===1?'hidden':'visible';
       $('nextBtn').disabled=(step===2&&!selectedVisual);
+      if(step===2)updateS2Summary();
+      try{localStorage.setItem(LSSTEP,String(step))}catch(e){}
       barHint();window.scrollTo({top:0,behavior:'smooth'});
+    }
+    // ---- P0 state recovery: persist workbench key + step; restore from backend truth after refresh ----
+    var LSKEY='cuistance_trial_last_workbench_key', LSSTEP='cuistance_trial_last_step', restoredOnce=false;
+    var bootStep=0; try{bootStep=parseInt(localStorage.getItem(LSSTEP)||'0',10)||0}catch(e){} // captured before init render() overwrites it
+    function rememberWb(){ try{ if(S.wb){localStorage.setItem(LSKEY,S.wb);} }catch(e){} }
+    function lastWb(){ try{ return localStorage.getItem(LSKEY)||''; }catch(e){ return ''; } }
+    function updateS2Summary(){
+      var name=($('f-pname').value||'').trim(), ref=($('f-pref').value||'').trim();
+      var pi=['prod1','prod2'].filter(function(s){return SLOTS[s]}).length;
+      var gc=['g1','g2','g3'].filter(function(s){return SLOTS[s]}).length;
+      var atmo=SLOTS.atmo?(lang==='zh'?'氛围图已提供':'ambiance fournie'):(lang==='zh'?'无氛围图':'pas d\'ambiance');
+      $('sum-product').textContent=(lang==='zh'?'当前产品：':'Produit : ')+(name||'—')+(ref?(' · '+ref):'');
+      $('sum-params').textContent=(lang==='zh'?'参数：':'Caract. : ')+'2 cuves 13+13 L · 3+3 kW · 230 V · jusqu\'à 190°C';
+      $('sum-assets').textContent=(lang==='zh'?('素材：产品图 '+pi+' 张 · 画廊 '+gc+' 张 · '+atmo):('Éléments : '+pi+' image(s) · galerie '+gc+' · '+atmo));
+      var sm=$('sum-mode');
+      if(sm){ if(selectedVisual){sm.style.display='';var t=(lang==='zh'?('已选邮件主体：'+(selectedVisual==='affiche'?'目标海报':'简单产品页')):('Corps : '+selectedVisual));sm.textContent=t;} else sm.style.display='none'; }
+    }
+    async function restoreWorkbench(key){
+      if(!key)return false;
+      flash('info',lang==='zh'?'正在恢复上次工作台…':'Restauration de l\'atelier…');
+      var g=await api('GET','/api/v2/workbench/'+key);
+      if(!g.ok||!g.json){ flash('err',lang==='zh'?'未能恢复上次工作台，请重新连接后端或重新开始':'Échec de restauration — reconnectez-vous ou recommencez'); diag('restore_fail',g.status); return false; }
+      var j=g.json; S.wb=key; rememberWb();
+      var savedStep=bootStep; // captured at boot, before init render() overwrote LSSTEP
+      var pt=j.product_truth||{};
+      if(pt.product_name)$('f-pname').value=pt.product_name;
+      if(pt.reference)$('f-pref').value=pt.reference;
+      if(pt.description!=null&&pt.description!=='')$('f-desc').value=pt.description;
+      var pa=j.product_assets||{}, pi=pa.product_images||[], gi=pa.gallery_images||[];
+      if(pi[0]&&pi[0].url)setSlot('prod1',pi[0].url); if(pi[1]&&pi[1].url)setSlot('prod2',pi[1].url);
+      ['g1','g2','g3'].forEach(function(g,i){ if(gi[i]&&gi[i].url)setSlot(g,gi[i].url); });
+      if(pa.atmosphere&&pa.atmosphere.url)setSlot('atmo',pa.atmosphere.url);
+      var eb=j.email_banner||{};
+      if(eb.logo&&eb.logo.url)setSlot('logo',eb.logo.url);
+      if(eb.background&&eb.background.url){setSlot('banner',eb.background.url);var i3=$('emailBannerImg');if(i3)i3.src=eb.background.url;var p3=$('bannerPreviewImg');if(p3)p3.src=eb.background.url;}
+      if(eb.channel_name)$('f-channel').value=eb.channel_name;
+      if(eb.campaign_label)$('f-camplabel').value=eb.campaign_label;
+      if(eb.selected_banner_ref)selectedBannerRef=eb.selected_banner_ref;
+      var pc=j.poster_candidates||{};
+      if((pc.affiche||{}).status==='ready'&&pc.affiche.poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
+      if((pc.fiche||{}).status==='ready'&&pc.fiche.poster_key){S.fiche=pc.fiche.poster_key; await loadModePoster('fiche');}
+      var sel=j.selected_email_body_visual;
+      if(sel){ selectedVisual=null; applySelectVisual(sel); }
+      restoredOnce=true;
+      // restore to a safe step: 3 only if a visual is selected, else 2 (product already saved)
+      var maxStep=sel?3:2; step=Math.min(savedStep>=2?savedStep:2,maxStep)||2; render();
+      $('recoverbar').style.display='none';
+      diag('restore',{workbench_key:key,affiche:S.affiche,fiche:S.fiche,selected:sel,step:step});
+      flash('ok',lang==='zh'?'已恢复上次工作台。':'Atelier restauré.');
+      return true;
     }
     document.querySelectorAll('#langSwitch .lang').forEach(function(b){b.addEventListener('click',function(){lang=b.dataset.lang;applyLang()})});
     document.querySelectorAll('#stepper .step').forEach(function(el){el.addEventListener('click',function(){step=+el.dataset.step;render();if(step===2)refreshState()})});
@@ -602,7 +675,7 @@
       if(S.wb)return true;
       var r=await api('POST','/api/v2/workbench',{language:lang});
       if(!r.ok||!r.json){flash('err',bizMsg(r));return false}
-      S.wb=r.json.workbench_key;diag('create',1);
+      S.wb=r.json.workbench_key;rememberWb();diag('create',1);
       await api('PATCH','/api/v2/workbench/'+S.wb,{product_truth:{
         product_name:$('f-pname').value,reference:$('f-pref').value,description:$('f-desc').value,
         parameters:[{key:'reference',value:$('f-pref').value,state:'confirmed'},
@@ -653,6 +726,13 @@
         if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='block';
         badge('miss','生成记录不完整','Enregistrement incomplet'); hint('请查看内部诊断。','Voir le diagnostic.');
         if(dot){dot.textContent='!';dot.style.color='var(--err,#c0392b)';}
+      } else if(state==='generating'){
+        // keep the illustrative mock visible but clearly labeled as in-progress (NOT generated)
+        if(real)real.style.display='none'; if(mock)mock.style.display='';
+        if(lbl){lbl.style.display='';lbl.setAttribute('data-zh','正在生成，请稍候');lbl.setAttribute('data-fr','Génération en cours…');lbl.textContent=(lang==='zh'?'正在生成，请稍候':'Génération en cours…');}
+        if(inc)inc.style.display='none';
+        badge('lock','正在生成','Génération'); hint('正在生成，请稍候…','Veuillez patienter…');
+        if(dot){dot.textContent='…';dot.style.color='var(--muted,#9aa0a6)';}
       } else if(state==='unavailable'){
         S[mode+'Url']='';
         if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
@@ -661,7 +741,9 @@
         if(dot){dot.textContent='•';dot.style.color='var(--amber,#b8860b)';}
       } else {
         S[mode+'Url']='';
-        if(real)real.style.display='none'; if(mock)mock.style.display=''; if(lbl)lbl.style.display=''; if(inc)inc.style.display='none';
+        if(real)real.style.display='none'; if(mock)mock.style.display='';
+        if(lbl){lbl.style.display='';lbl.setAttribute('data-zh','预览示意，尚未生成');lbl.setAttribute('data-fr','Aperçu indicatif — non générée');lbl.textContent=(lang==='zh'?'预览示意，尚未生成':'Aperçu indicatif — non générée');}
+        if(inc)inc.style.display='none';
         badge('lock','尚未生成','Non générée'); hint('点击「生成'+MODE_NAME[mode].zh+'」生成主体。','Cliquez pour générer.');
         if(dot){dot.textContent='';}
       }
@@ -691,8 +773,10 @@
       if(!await ensureWorkbench())return false;
       switchMode(mode); // keep the active tab on the mode being generated
       if(!regen && S[mode]){ flash('ok',lang==='zh'?'已生成，可直接「选为邮件主体」。':'Déjà prêt.'); await loadModePoster(mode); return true; }
-      flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
+      var gb=$('btn-gen-'+mode),rb=$('btn-regen-'+mode); if(gb)gb.disabled=true; if(rb)rb.disabled=true;
+      setModeCard(mode,'generating'); flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+mode+'/generate');
+      if(gb)gb.disabled=false; if(rb)rb.disabled=false;
       if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[mode]||{};
         S[mode]=c.poster_key; diag(mode,c.status||'ready');
         await loadModePoster(mode); // fetch poster_record.final_poster.url and show the REAL visual
@@ -874,16 +958,27 @@
     // ---- connection / OPS login (main-screen connection bar) ----
     async function checkConn(){
       var r=await api('GET','/api/auth/me');
-      if(r.ok&&r.json){ if(r.json.enabled===false||r.json.authenticated){setConn('on');} else {setConn('off');} }
+      var on=false;
+      if(r.ok&&r.json){ on=(r.json.enabled===false||r.json.authenticated); setConn(on?'on':'off'); }
       else setConn('off');
       diag('me',r.json||r.status);
+      return on;
+    }
+    // auto-recover the last workbench once a connection exists (P0 refresh recovery)
+    async function maybeRestore(){
+      if(restoredOnce||S.wb)return; var k=lastWb(); if(!k||!connected)return;
+      await restoreWorkbench(k);
     }
     $('btn-connect').addEventListener('click',async function(){
       var r=await api('POST','/api/auth/ops-login',{username:$('opsuser').value,password:$('opspass').value});
-      if(r.ok){setConn('on');flash('ok',lang==='zh'?'已连接后端。':'Connecté au service.');}
+      if(r.ok){setConn('on');flash('ok',lang==='zh'?'已连接后端。':'Connecté au service.');await maybeRestore();}
       else {setConn('fail');flash('err',lang==='zh'?'连接失败，请检查账号/密码。':'Échec de connexion.');}
       diag('login',r.ok?'ok':('http '+r.status));
     });
+    // ---- recovery bar: restore last / restore by typed key / back to Step 1 ----
+    $('btn-recover').addEventListener('click',async function(){ if(!connected){flash('warn',lang==='zh'?'请先连接后端':'Connectez-vous d\'abord');return} var k=lastWb(); if(!k){flash('warn',lang==='zh'?'没有可恢复的工作台。':'Aucun atelier à restaurer.');return} await restoreWorkbench(k); });
+    $('btn-recover-key').addEventListener('click',async function(){ if(!connected){flash('warn',lang==='zh'?'请先连接后端':'Connectez-vous d\'abord');return} var k=($('recoverKey').value||'').trim(); if(!k){flash('warn',lang==='zh'?'请输入工作台编号。':'Saisir un identifiant.');return} await restoreWorkbench(k); });
+    $('btn-back-step1').addEventListener('click',function(){ step=1; render(); });
 
     // ---- use sample assets (hosted): fills all required slots so the affiche route runs without upload ----
     $('btn-sample').addEventListener('click',function(){
@@ -913,7 +1008,10 @@
       var el=$(m[0]); if(el)el.addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],m[1],m[2])});
     });
 
-    applyLang();render();checkConn();setModeCard('affiche','placeholder');setModeCard('fiche','placeholder');
+    applyLang();render();setModeCard('affiche','placeholder');setModeCard('fiche','placeholder');
+    // P0: surface a recovery affordance + auto-restore the last workbench once connected
+    if(lastWb())$('recoverbar').style.display='';
+    checkConn().then(function(){ maybeRestore(); });
   })();
   </script>
 </body>
