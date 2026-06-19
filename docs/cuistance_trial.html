@@ -186,18 +186,12 @@
               <div class="upload" id="slot-g3"><img class="thumb slot-thumb" id="thumb-g3" style="display:none" /><div class="ph" id="ph-g3">＋</div><span class="cap" data-zh="画廊 3" data-fr="Galerie 3">画廊 3</span><input type="file" id="file-g3" accept="image/*" class="slot-file" /></div>
             </div>
 
-            <div class="group-label" data-zh="邮件素材（页眉横幅）" data-fr="Éléments email (en-tête)">邮件素材（页眉横幅）</div>
+            <div class="group-label" data-zh="品牌素材（用于后续邮件页眉）" data-fr="Éléments de marque (pour l'en-tête email plus tard)">品牌素材（用于后续邮件页眉）</div>
             <div class="upload-row">
               <div class="upload logo-cell" id="slot-logo"><img class="logo-real slot-thumb" id="thumb-logo" alt="logo" style="display:none" /><div class="ph" id="ph-logo">🅒</div><span class="cap" data-zh="邮件 Logo" data-fr="Logo de l'email">邮件 Logo</span><input type="file" id="file-logo" accept="image/*" class="slot-file" /></div>
               <div class="upload" id="slot-banner"><img class="thumb slot-thumb" id="thumb-banner" alt="bannière" style="display:none" /><div class="ph" id="ph-banner">▦</div><span class="cap" data-zh="邮件横幅 / 背景" data-fr="Bannière de l'email">邮件横幅 / 背景</span><input type="file" id="file-banner" accept="image/*" class="slot-file" /></div>
-              <div class="upload note-cell"><span class="hint" data-zh="Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。" data-fr="Logo et bannière dans l'en-tête, pas dans l'affiche. Bannière = module de premier plan.">Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。</span></div>
+              <div class="upload note-cell"><span class="hint" data-zh="Logo 与横幅是品牌素材，用于第三步的邮件页眉，不进产品主体。邮件横幅格式在第三步选择。" data-fr="Logo et bannière sont des éléments de marque pour l'en-tête (étape 3), pas le corps. Le format de bannière se choisit à l'étape 3.">Logo 与横幅是品牌素材，用于第三步的邮件页眉，不进产品主体。邮件横幅格式在第三步选择。</span></div>
             </div>
-            <div class="group-label" data-zh="邮件横幅选择（页眉，非产品真值）" data-fr="Choix de bannière email (en-tête, pas une donnée produit)">邮件横幅选择（页眉，非产品真值）</div>
-            <div class="banner-options" id="s1-bannerOptions">
-              <button class="banner-opt" data-ref="option_1" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
-              <button class="banner-opt" data-ref="option_2" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
-            </div>
-            <div class="hint" id="s1-banner-hint" data-zh="未选择则使用默认品牌页眉。横幅是邮件层素材，不会进入产品海报主体。" data-fr="Sinon, en-tête de marque par défaut. La bannière est un élément email, pas l'affiche.">未选择则使用默认品牌页眉。横幅是邮件层素材，不会进入产品海报主体。</div>
             <div class="group-label" data-zh="联系方式（邮件页脚）" data-fr="Contact &amp; réseaux (pied de l'email)">联系方式（邮件页脚）</div>
             <div class="grid-2">
               <div class="field"><label><span data-zh="联系邮箱" data-fr="Email de contact">联系邮箱</span></label><input class="input readonly" readonly value="commercial@cuistance.eu" /></div>
@@ -227,39 +221,37 @@
       </div>
     </section>
 
-    <!-- ============ SCREEN 2 — 生成海报主体 ============ -->
+    <!-- ============ SCREEN 2 — 生成邮件主体（两种正式模式） ============ -->
     <section class="screen" id="screen-2">
       <div class="two-col">
         <div>
           <div class="card">
-            <h3 data-zh="生成产品海报主体" data-fr="Affiche produit">生成产品海报主体</h3>
-            <p class="hint" data-zh="第二步：海报主体聚焦产品视觉 / 标题 / 卖点 / 已确认参数 / 画廊。邮件横幅在第三步加入。" data-fr="Étape 2 : l'affiche met en avant le produit. La bannière est ajoutée à l'étape 3.">第二步：海报主体聚焦产品视觉 / 标题 / 卖点 / 已确认参数 / 画廊。邮件横幅在第三步加入。</p>
+            <h3 data-zh="生成邮件主体 · 选择展示模式" data-fr="Corps de l'email · choisir le mode">生成邮件主体 · 选择展示模式</h3>
+            <p class="hint" data-zh="第二步：两种正式展示模式，地位对等。任选其一生成并「选为邮件主体」。" data-fr="Étape 2 : deux modes d'affichage officiels, à égalité. Générez l'un et choisissez-le comme corps.">第二步：两种正式展示模式，地位对等。任选其一生成并「选为邮件主体」。</p>
             <div class="field"><label><span data-zh="标题" data-fr="Titre">标题</span></label><input class="input" id="f-title" value="LES FRITEUSES ÉLECTRIQUES" /></div>
             <div class="field"><label><span data-zh="副标语" data-fr="Accroche">副标语</span></label><input class="input" id="f-accroche" value="Cuisson professionnelle, croustillant maîtrisé" /></div>
             <div class="field">
               <label><span data-zh="技术参数（自第一步流入）" data-fr="Caractéristiques (depuis l'étape 1)">技术参数（自第一步流入）</span> <span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></label>
               <input class="input readonly" readonly value="EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · Inox" />
             </div>
-            <div class="btn-row" style="margin-top:6px">
-              <button class="btn primary" id="btn-gen-affiche" type="button" data-zh="生成产品海报" data-fr="Générer l'affiche">生成产品海报</button>
-              <button class="btn secondary" id="btn-regen-affiche" type="button" data-zh="重新生成" data-fr="Régénérer">重新生成</button>
-              <button class="btn secondary" id="btn-gen-sheet" type="button" data-zh="生成简化产品页" data-fr="Fiche produit simplifiée">生成简化产品页</button>
-            </div>
-            <div class="hint" id="affiche-state" data-zh="尚未生成产品海报。" data-fr="Affiche non générée.">尚未生成产品海报。</div>
-            <div style="display:none">
-              <!-- spacer kept; original btn-row closed above -->
-            </div>
-            <div class="notice" id="sheet-note" style="display:none">
+            <div class="explain">
               <span class="ic">🛈</span>
-              <div class="body" id="sheet-note-text" data-zh="简化产品页暂不可用，建议改用产品海报作为邮件主体。" data-fr="Fiche simplifiée indisponible — utilisez l'affiche comme corps de l'email.">简化产品页暂不可用，建议改用产品海报作为邮件主体。</div>
+              <div>
+                <div data-zh="目标海报模式：视觉营销海报，适合活动推广与新品主推。" data-fr="Mode affiche : affiche marketing, pour les campagnes et nouveautés.">目标海报模式：视觉营销海报，适合活动推广与新品主推。</div>
+                <div data-zh="简单产品页模式：稳定产品展示，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。" data-fr="Mode fiche : présentation produit stable, HTML + rendu, contrôlable, par défaut pour les emails produit.">简单产品页模式：稳定产品展示，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。</div>
+                <div data-zh="邮件横幅 / 页眉在第三步配置；横幅是邮件层素材，不进产品主体。" data-fr="La bannière / en-tête se configure à l'étape 3 ; c'est un élément email, pas le corps.">邮件横幅 / 页眉在第三步配置；横幅是邮件层素材，不进产品主体。</div>
+              </div>
             </div>
           </div>
         </div>
 
         <div>
-          <p class="panel-title"><span data-zh="预览" data-fr="Aperçu">预览</span> · <span class="seg active" data-zh="海报主体" data-fr="Affiche produit">海报主体</span> / <span class="seg" data-zh="简化产品页" data-fr="Fiche simplifiée">简化产品页</span></p>
+          <p class="panel-title"><span data-zh="邮件主体 · 两种正式模式" data-fr="Corps · deux modes officiels">邮件主体 · 两种正式模式</span></p>
 
+          <!-- Card A — 目标海报模式 (affiche) -->
           <div class="card selectable" id="card-affiche">
+            <h3 style="margin-bottom:4px"><span data-zh="目标海报模式" data-fr="Affiche promotionnelle">目标海报模式</span> <span class="badge ready" data-zh="正式模式" data-fr="Mode officiel">正式模式</span></h3>
+            <p class="hint" data-zh="视觉营销海报，适合活动推广和新品主推。" data-fr="Affiche marketing — campagnes et nouveautés.">视觉营销海报，适合活动推广和新品主推。</p>
             <div class="poster-tag" id="affiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
             <div class="preview-frame">
               <div class="poster" id="affiche-mock">
@@ -272,16 +264,20 @@
                   <div class="p-spec">RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · L630 × P520 × H345 mm</div>
                 </div>
               </div>
-              <img class="poster-real" id="affiche-real" alt="产品海报" style="display:none" />
+              <img class="poster-real" id="affiche-real" alt="目标海报" style="display:none" />
             </div>
-            <div class="poster-tag" data-zh="产品海报主体 —— 不含邮件横幅（横幅在第三步加入）。" data-fr="Affiche produit — sans bannière (ajoutée à l'étape 3).">产品海报主体 —— 不含邮件横幅（横幅在第三步加入）。</div>
             <div class="card-state" id="affiche-card-state">
               <span class="badge lock" id="affiche-card-badge" data-zh="尚未生成" data-fr="Non générée">尚未生成</span>
-              <span class="hint" id="affiche-card-hint" data-zh="点击「生成产品海报」生成主体。" data-fr="Cliquez sur « Générer l'affiche ».">点击「生成产品海报」生成主体。</span>
+              <span class="hint" id="affiche-card-hint" data-zh="点击「生成目标海报」生成主体。" data-fr="Cliquez sur « Générer l'affiche ».">点击「生成目标海报」生成主体。</span>
             </div>
             <div class="affiche-incomplete" id="affiche-incomplete" data-zh="已生成记录不完整，请查看内部诊断。" data-fr="Enregistrement incomplet — voir le diagnostic.">已生成记录不完整，请查看内部诊断。</div>
+            <div class="notice" id="affiche-unavailable" style="display:none"><span class="ic">🛈</span><div class="body" id="affiche-unavailable-text" data-zh="目标海报模式暂不可用，可先使用简单产品页模式继续。" data-fr="Mode affiche indisponible — continuez avec le mode fiche.">目标海报模式暂不可用，可先使用简单产品页模式继续。</div></div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn primary" id="btn-gen-affiche" type="button" data-zh="生成目标海报" data-fr="Générer l'affiche">生成目标海报</button>
+              <button class="btn secondary" id="btn-regen-affiche" type="button" data-zh="重新生成" data-fr="Régénérer">重新生成</button>
+            </div>
             <div class="card-actions" id="affiche-actions" style="display:none">
-              <a class="btn ghost sm" id="affiche-open" target="_blank" rel="noopener" href="#" data-zh="查看生成大图" data-fr="Voir en grand">查看生成大图</a>
+              <a class="btn ghost sm" id="affiche-open" target="_blank" rel="noopener" href="#" data-zh="查看大图" data-fr="Voir en grand">查看大图</a>
               <button class="btn ghost sm" id="affiche-copy" type="button" data-zh="复制图片链接" data-fr="Copier le lien">复制图片链接</button>
             </div>
             <div class="select-row">
@@ -290,10 +286,13 @@
             </div>
           </div>
 
-          <div class="card selectable" id="card-sheet">
-            <h3 style="margin-bottom:6px"><span data-zh="简化产品页（预览）" data-fr="Fiche produit simplifiée (aperçu)">简化产品页（预览）</span> <span class="badge ready" data-zh="有用选项" data-fr="Option utile">有用选项</span></h3>
+          <!-- Card B — 简单产品页模式 (fiche) — equal official mode, NOT a fallback -->
+          <div class="card selectable" id="card-fiche">
+            <h3 style="margin-bottom:4px"><span data-zh="简单产品页模式" data-fr="Fiche produit simple">简单产品页模式</span> <span class="badge ready" data-zh="正式模式 · 默认产品介绍" data-fr="Mode officiel · produit par défaut">正式模式 · 默认产品介绍</span></h3>
+            <p class="hint" data-zh="稳定产品展示页，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。" data-fr="Présentation produit stable, HTML + rendu, contrôlable, par défaut pour les emails produit.">稳定产品展示页，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。</p>
+            <div class="poster-tag" id="fiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
             <div class="preview-frame">
-              <div class="sheet">
+              <div class="sheet" id="fiche-mock">
                 <div class="email-banner mini"><img class="banner-img" src="assets/banner_option_01.jpg" alt="bannière" /></div>
                 <div class="sheet-body">
                   <div class="sheet-imgs"><img src="assets/product_01.jpg" alt="produit 1" /><img src="assets/product_02.jpg" alt="produit 2" /></div>
@@ -303,10 +302,24 @@
                   <a class="e-cta" href="#" onclick="return false;">Nous contacter</a>
                 </div>
               </div>
+              <img class="poster-real" id="fiche-real" alt="简单产品页" style="display:none" />
             </div>
-            <div class="poster-tag" data-zh="简化产品页：共用同一横幅 + 1–2 张产品图 + 产品介绍 + 已确认参数 + CTA。它是有用选项，不是失败。" data-fr="Fiche simplifiée : même bannière + 1–2 images + description + caractéristiques + CTA. Option utile, pas un échec.">简化产品页：共用同一横幅 + 1–2 张产品图 + 产品介绍 + 已确认参数 + CTA。它是有用选项，不是失败。</div>
+            <div class="card-state" id="fiche-card-state">
+              <span class="badge lock" id="fiche-card-badge" data-zh="尚未生成" data-fr="Non générée">尚未生成</span>
+              <span class="hint" id="fiche-card-hint" data-zh="点击「生成简单产品页」生成主体。" data-fr="Cliquez sur « Générer la fiche ».">点击「生成简单产品页」生成主体。</span>
+            </div>
+            <div class="affiche-incomplete" id="fiche-incomplete" data-zh="已生成记录不完整，请查看内部诊断。" data-fr="Enregistrement incomplet — voir le diagnostic.">已生成记录不完整，请查看内部诊断。</div>
+            <div class="notice" id="fiche-unavailable" style="display:none"><span class="ic">🛈</span><div class="body" id="fiche-unavailable-text" data-zh="简单产品页模式暂不可用，可先使用目标海报模式继续。" data-fr="Mode fiche indisponible — continuez avec le mode affiche.">简单产品页模式暂不可用，可先使用目标海报模式继续。</div></div>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn primary" id="btn-gen-fiche" type="button" data-zh="生成简单产品页" data-fr="Générer la fiche">生成简单产品页</button>
+              <button class="btn secondary" id="btn-regen-fiche" type="button" data-zh="重新生成" data-fr="Régénérer">重新生成</button>
+            </div>
+            <div class="card-actions" id="fiche-actions" style="display:none">
+              <a class="btn ghost sm" id="fiche-open" target="_blank" rel="noopener" href="#" data-zh="查看大图" data-fr="Voir en grand">查看大图</a>
+              <button class="btn ghost sm" id="fiche-copy" type="button" data-zh="复制图片链接" data-fr="Copier le lien">复制图片链接</button>
+            </div>
             <div class="select-row">
-              <button class="btn select-visual" type="button" data-visual="sheet" data-zh="选为邮件主体" data-fr="Choisir pour l'email">选为邮件主体</button>
+              <button class="btn select-visual" type="button" id="btn-select-fiche" data-visual="fiche" data-zh="选为邮件主体" data-fr="Choisir pour l'email">选为邮件主体</button>
               <span class="badge selected-badge">✓ <span data-zh="已选用" data-fr="Sélectionné">已选用</span></span>
             </div>
           </div>
@@ -317,7 +330,7 @@
               <div class="row"><span class="ok">✔</span> <span data-zh="结构完整" data-fr="Structure complète">结构完整</span></div>
               <div class="row"><span class="ok">✔</span> <span data-zh="无错误品牌" data-fr="Aucune marque incorrecte">无错误品牌</span></div>
               <div class="row"><span class="ok">✔</span> <span data-zh="技术参数已确认" data-fr="Caractéristiques confirmées">技术参数已确认</span></div>
-              <div class="row"><span class="ok">✔</span> <span data-zh="氛围仅作视觉" data-fr="Ambiance = visuel uniquement">氛围仅作视觉</span></div>
+              <div class="row"><span class="ok">✔</span> <span data-zh="两种模式地位对等" data-fr="Deux modes à égalité">两种模式地位对等</span></div>
               <span class="state-pill" id="s2-state" data-zh="状态：可进入邮件" data-fr="État : Prêt pour l'email">状态：可进入邮件</span>
             </div>
           </div>
@@ -329,6 +342,14 @@
     <section class="screen" id="screen-3">
       <div class="two-col">
         <div>
+          <div class="card">
+            <h3><span data-zh="邮件填充格式" data-fr="Format d'email">邮件填充格式</span> <span class="badge ready" data-zh="两种正式格式" data-fr="Deux formats officiels">两种正式格式</span></h3>
+            <p class="hint" id="fill-default-hint" data-zh="默认按所选展示模式映射；可在两种正式格式间切换并重新预览。" data-fr="Mappé par défaut selon le mode choisi ; permutable, puis régénérer l'aperçu.">默认按所选展示模式映射；可在两种正式格式间切换并重新预览。</p>
+            <div class="banner-options" id="fillFormatOptions">
+              <button class="banner-opt" id="fmt-campaign" data-fmt="campaign_poster_email" type="button"><span class="opt-cap" style="padding:10px 8px"><b data-zh="目标海报邮件格式" data-fr="Format affiche campagne">目标海报邮件格式</b><br><span class="hint" data-zh="600px · 顶部横幅 · 红色分隔 · 海报主视觉 · 引言 · CTA · 页脚" data-fr="600px · bandeau · filet rouge · visuel · intro · CTA · pied">600px · 顶部横幅 · 红色分隔 · 海报主视觉 · 引言 · CTA · 页脚</span></span></button>
+              <button class="banner-opt" id="fmt-sheet" data-fmt="product_sheet_email" type="button"><span class="opt-cap" style="padding:10px 8px"><b data-zh="简单产品页邮件格式" data-fr="Format fiche produit">简单产品页邮件格式</b><br><span class="hint" data-zh="600px · 品牌页眉 · 标题/型号 · 产品图 · 描述 · 参数 · CTA · 页脚" data-fr="600px · en-tête · titre/réf · image · desc · specs · CTA · pied">600px · 品牌页眉 · 标题/型号 · 产品图 · 描述 · 参数 · CTA · 页脚</span></span></button>
+            </div>
+          </div>
           <div class="card banner-editor">
             <h3><span data-zh="邮件横幅模块" data-fr="Module Bannière">邮件横幅模块</span> <span class="badge ready" data-zh="一等模块" data-fr="premier bloc">一等模块</span></h3>
             <p class="hint" data-zh="邮件页眉（第一块），主路线与简化产品页共用。" data-fr="En-tête de l'email (premier bloc), partagé.">邮件页眉（第一块），主路线与简化产品页共用。</p>
@@ -376,7 +397,10 @@
           <div class="card">
             <div class="card-state" id="email-preview-state">
               <span class="badge lock" id="email-preview-badge" data-zh="预览示意，尚未生成邮件预览" data-fr="Aperçu indicatif — aperçu non généré">预览示意，尚未生成邮件预览</span>
-              <span class="hint" id="email-body-binding" data-zh="邮件主体：产品海报" data-fr="Corps : affiche produit">邮件主体：产品海报</span>
+            </div>
+            <div class="card-state" style="margin-top:4px">
+              <span class="hint" id="email-body-binding" data-zh="邮件主体：—" data-fr="Corps : —">邮件主体：—</span>
+              <span class="hint" id="email-format-binding" data-zh="邮件格式：—" data-fr="Format : —">邮件格式：—</span>
             </div>
             <div class="preview-frame" id="emailPreviewFrame">
               <div class="email" id="emailStatic">
@@ -444,11 +468,11 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='';
-    var S={wb:null, affiche:null, sheet:null, afficheUrl:''};
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='';
+    var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:''};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
-    function diag(k,v){S[k+'_diag']=v; var d={workbench_key:S.wb,affiche:S.affiche,fiche:S.sheet,selected:selectedVisual,connected:connected};
+    function diag(k,v){S[k+'_diag']=v; var d={workbench_key:S.wb,affiche:S.affiche,fiche:S.fiche,selected:selectedVisual,connected:connected};
       for(var kk in S){if(kk.indexOf('_diag')>0)d[kk]=S[kk]} $('diagdump').textContent=JSON.stringify(d,null,2);}
     function flash(kind,msg){var f=$('flash');f.className='flash show '+kind;f.textContent=msg;}
     function clearFlash(){$('flash').className='flash';}
@@ -601,134 +625,152 @@
       openSendModal();
     });
 
-    // ---- Step 2: real backend poster binding + generate (reusable) + select ----
-    // The Step-2 card must show the REAL generated poster (poster_record.final_poster.url), never the static mock
-    // as "generated". state: 'placeholder' | 'ready' | 'incomplete'.
-    function setAfficheCard(state,url){
-      var real=$('affiche-real'),mock=$('affiche-mock'),lbl=$('affiche-preview-label'),inc=$('affiche-incomplete'),acts=$('affiche-actions'),opn=$('affiche-open');
-      var cb=$('affiche-card-badge'),ch=$('affiche-card-hint'),ls=$('affiche-state');
+    // ---- Step 2: two EQUAL first-class body visual modes (affiche | fiche) with real backend poster binding ----
+    // Each card shows the REAL generated visual (poster_record.final_poster.url), never the static mock as
+    // "generated". Fiche is an EQUAL official mode — never a fallback/degraded/backup. state:
+    // 'placeholder' | 'ready' | 'incomplete' | 'unavailable'.
+    var MODE_NAME={affiche:{zh:'目标海报',fr:'affiche'}, fiche:{zh:'简单产品页',fr:'fiche'}};
+    var BODY_NAME={affiche:{zh:'目标海报',fr:'affiche produit'}, fiche:{zh:'简单产品页',fr:'fiche produit'}};
+    var FILL_NAME={campaign_poster_email:{zh:'目标海报邮件格式',fr:'Format affiche campagne'}, product_sheet_email:{zh:'简单产品页邮件格式',fr:'Format fiche produit'}};
+    function setModeCard(mode,state,url){
+      var real=$(mode+'-real'),mock=$(mode+'-mock'),lbl=$(mode+'-preview-label'),inc=$(mode+'-incomplete'),
+          acts=$(mode+'-actions'),opn=$(mode+'-open'),un=$(mode+'-unavailable'),
+          cb=$(mode+'-card-badge'),ch=$(mode+'-card-hint');
       function badge(cls,zh,fr){ if(cb){cb.className='badge '+cls;cb.setAttribute('data-zh',zh);cb.setAttribute('data-fr',fr);cb.textContent=(lang==='zh'?zh:fr);} }
       function hint(zh,fr){ if(ch){ch.setAttribute('data-zh',zh);ch.setAttribute('data-fr',fr);ch.textContent=(lang==='zh'?zh:fr);} }
       if(acts)acts.style.display=(state==='ready')?'flex':'none';
+      if(un)un.style.display=(state==='unavailable')?'':'none';
       if(state==='ready'){
-        S.afficheUrl=url||'';
-        if(real){real.src=url;real.style.display='';}
-        if(opn)opn.href=url||'#';
+        S[mode+'Url']=url||'';
+        if(real){real.src=url;real.style.display='';} if(opn)opn.href=url||'#';
         if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
-        badge('ready','产品海报已生成','Affiche générée');
-        hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
-        if(ls)ls.textContent=(lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche prête — choisissez-la comme corps.');
-        // keep the Step-3 static email-body image coherent with the real poster (preview iframe is the truth)
-        var ei=$('emailBodyAffiche'),eimg=ei&&ei.querySelector('img'); if(eimg&&url)eimg.src=url;
+        badge('ready','已生成','Généré'); hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
+        // keep the Step-3 static email-body image coherent with the real generated visual (preview iframe is truth)
+        var ei=$(mode==='affiche'?'emailBodyAffiche':'emailBodySheet'),eimg=ei&&ei.querySelector('img'); if(eimg&&url)eimg.src=url;
       } else if(state==='incomplete'){
-        S.afficheUrl='';
-        if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none';
-        if(inc)inc.style.display='block';
+        S[mode+'Url']='';
+        if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='block';
         badge('miss','生成记录不完整','Enregistrement incomplet'); hint('请查看内部诊断。','Voir le diagnostic.');
-        if(ls)ls.textContent=(lang==='zh'?'已生成记录不完整。':'Enregistrement incomplet.');
+      } else if(state==='unavailable'){
+        S[mode+'Url']='';
+        if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
+        badge('lock','暂不可用','Indisponible');
+        hint(mode==='fiche'?'可先使用目标海报模式继续。':'可先使用简单产品页模式继续。', mode==='fiche'?'Continuez avec le mode affiche.':'Continuez avec le mode fiche.');
       } else {
-        S.afficheUrl='';
-        if(real)real.style.display='none'; if(mock)mock.style.display=''; if(lbl)lbl.style.display='';
-        if(inc)inc.style.display='none';
-        badge('lock','尚未生成','Non générée'); hint('点击「生成产品海报」生成主体。','Cliquez sur « Générer l\'affiche ».');
-        if(ls)ls.textContent=(lang==='zh'?'尚未生成产品海报。':'Affiche non générée.');
+        S[mode+'Url']='';
+        if(real)real.style.display='none'; if(mock)mock.style.display=''; if(lbl)lbl.style.display=''; if(inc)inc.style.display='none';
+        badge('lock','尚未生成','Non générée'); hint('点击「生成'+MODE_NAME[mode].zh+'」生成主体。','Cliquez pour générer.');
       }
     }
-    // Fetch the persisted poster record and bind its final_poster.url into the card (the real generated poster).
-    async function loadAffichePoster(){
-      if(!S.affiche)return false;
-      var r=await api('GET','/api/v2/posters/'+S.affiche);
+    // Fetch the persisted poster record and bind its final_poster.url into the mode card (real generated visual).
+    async function loadModePoster(mode){
+      if(!S[mode])return false;
+      var r=await api('GET','/api/v2/posters/'+S[mode]);
       if(r.ok&&r.json){
         var fp=r.json.final_poster||{}; var url=fp.url||(r.json.render_result||{}).final_url||'';
-        diag('poster_record',{loaded:true,final_poster_url_present:!!url,width:fp.width,height:fp.height,template_id:r.json.template_id,render_engine_used:(r.json.render_result||{}).render_engine_used});
-        if(url){ setAfficheCard('ready',url); return true; }
-        setAfficheCard('incomplete'); flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return false;
+        diag(mode+'_poster_record',{loaded:true,final_poster_url_present:!!url,width:fp.width,height:fp.height,template_id:r.json.template_id,render_engine_used:(r.json.render_result||{}).render_engine_used});
+        if(url){ setModeCard(mode,'ready',url); return true; }
+        setModeCard(mode,'incomplete'); flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return false;
       }
-      diag('poster_record_fail',r.status); setAfficheCard('incomplete'); return false;
+      diag(mode+'_poster_record_fail',r.status); setModeCard(mode,'incomplete'); return false;
     }
-    // kind: 'affiche'|'sheet'; regen=true forces re-generation. A ready candidate is NOT erased on timeout.
-    async function genVisual(kind,regen){
+    // generate one mode (affiche|fiche). A ready candidate is never erased on timeout. Failure is mode-specific.
+    async function genVisual(mode,regen){
       if(!await ensureWorkbench())return false;
-      var ep=kind==='affiche'?'affiche':'fiche';
-      if(!regen && kind==='affiche' && S.affiche){ flash('ok',lang==='zh'?'已有产品海报，可直接「选为邮件主体」。':'Affiche déjà prête.'); await loadAffichePoster(); return true; }
+      if(!regen && S[mode]){ flash('ok',lang==='zh'?'已生成，可直接「选为邮件主体」。':'Déjà prêt.'); await loadModePoster(mode); return true; }
       flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
-      var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+ep+'/generate');
-      if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[ep]||{};
-        if(kind==='affiche'){S.affiche=c.poster_key; diag(kind,c.status||'ready');
-          await loadAffichePoster(); // fetch poster_record.final_poster.url and show the REAL poster
-          flash('ok',lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche générée.'); return true;}
-        else {S.sheet=c.poster_key; flash('ok',lang==='zh'?'简化产品页已生成。':'Fiche générée.'); diag(kind,c.status||'ready');return true;}
+      var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+mode+'/generate');
+      if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[mode]||{};
+        S[mode]=c.poster_key; diag(mode,c.status||'ready');
+        await loadModePoster(mode); // fetch poster_record.final_poster.url and show the REAL visual
+        flash('ok',(lang==='zh'?(MODE_NAME[mode].zh+'已生成，可「选为邮件主体」。'):'Généré.')); return true;
       }
       if(r.status===504||r.status===502||r.status===0){ // gateway timeout: backend may have completed anyway
-        diag(kind+'_timeout',r.status); await refreshState(); // pick up + bind a candidate the backend finished after the timeout
-        var have=!!(kind==='affiche'?S.affiche:S.sheet);
+        diag(mode+'_timeout',r.status); await refreshState();
+        var have=!!S[mode];
         flash('warn', have
-          ? (lang==='zh'?'生成超时，但已找到可用生成结果，可继续选择':'Délai dépassé — un résultat exploitable a été trouvé, vous pouvez continuer')
+          ? (lang==='zh'?'生成超时，但已找到可用生成结果，可继续选择':'Délai dépassé — un résultat exploitable a été trouvé')
           : (lang==='zh'?'生成超时，可继续使用已生成版本或稍后重试':'Délai dépassé — réutilisez la version prête ou réessayez'));
-        return have; } // keep/recover any ready candidate
-      if(kind==='sheet'){ S.sheet=null; $('sheet-note').style.display='';
-        flash('warn',lang==='zh'?'简化产品页暂不可用，建议改用产品海报。':'Fiche indisponible — utilisez l\'affiche.');
-        diag('sheet_fail',(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||r.status); return false; }
-      flash('err',bizMsg(r,'gen')); diag('affiche_fail',r.status); return false;
+        return have; }
+      // mode-specific unavailability — NEVER a global failure, NEVER a fallback framing
+      S[mode]=null; setModeCard(mode,'unavailable');
+      flash('warn', mode==='fiche'
+        ? (lang==='zh'?'简单产品页模式暂不可用，可先使用目标海报模式继续。':'Mode fiche indisponible — continuez avec le mode affiche.')
+        : (lang==='zh'?'目标海报模式暂不可用，可先使用简单产品页模式继续。':'Mode affiche indisponible — continuez avec le mode fiche.'));
+      diag(mode+'_unavailable',(r.json&&r.json.failure&&r.json.failure.code)||(r.json&&r.json.detail)||r.status); return false;
     }
     function applySelectVisual(v){
       selectedVisual=v;
       $('card-affiche').classList.toggle('selected',v==='affiche');
-      $('card-sheet').classList.toggle('selected',v==='sheet');
+      $('card-fiche').classList.toggle('selected',v==='fiche');
       $('emailBodyAffiche').style.display=(v==='affiche')?'':'none';
-      $('emailBodySheet').style.display=(v==='sheet')?'':'none';
-      var segs=document.querySelectorAll('.panel-title .seg');
-      if(segs.length>=2){segs[0].classList.toggle('active',v==='affiche');segs[1].classList.toggle('active',v==='sheet')}
-      // relabel each candidate's select button so the chosen body reads "已选为邮件主体"
+      $('emailBodySheet').style.display=(v==='fiche')?'':'none';
       document.querySelectorAll('.select-visual').forEach(function(b){
         var on=(b.dataset.visual===v);
         b.setAttribute('data-zh',on?'已选为邮件主体':'选为邮件主体');
         b.setAttribute('data-fr',on?'Choisi pour l\'email':'Choisir pour l\'email');
         b.textContent=b.getAttribute('data-'+lang);
       });
+      applyFillFormat(defaultFillFor(v),true); // default-map the email fill format from the selected body visual
       render(); // unlocks Step 3 (nextBtn no longer disabled once selectedVisual set)
     }
     // select reuses an existing ready candidate; never forces a second generation
     document.querySelectorAll('.select-visual').forEach(function(b){b.addEventListener('click',async function(){
-      var v=b.dataset.visual; var key=(v==='affiche'?S.affiche:S.sheet);
-      // owner scenario: a ready candidate may already exist on the backend (e.g. after a gateway timeout) while
-      // in-memory state is empty. Refresh from backend truth before deciding we have nothing to select.
-      if(!key){ await refreshState(); key=(v==='affiche'?S.affiche:S.sheet); }
-      if(!key){ flash('warn', v==='affiche'?(lang==='zh'?'请先生成产品海报。':'Générez d\'abord l\'affiche.'):(lang==='zh'?'请先生成简化产品页。':'Générez d\'abord la fiche.')); return; }
-      // affiche may only be selected once its real poster_record.final_poster.url is loaded/verified
-      if(v==='affiche'&&!S.afficheUrl){ await loadAffichePoster(); if(!S.afficheUrl){ flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return; } }
+      var v=b.dataset.visual; var key=S[v];
+      // a ready candidate may already exist on the backend (e.g. after a timeout) while in-memory state is empty
+      if(!key){ await refreshState(); key=S[v]; }
+      if(!key){ flash('warn', lang==='zh'?('请先生成'+MODE_NAME[v].zh+'。'):'Générez d\'abord.'); return; }
+      // a mode may only be selected once its real poster_record.final_poster.url is loaded/verified
+      if(!S[v+'Url']){ await loadModePoster(v); if(!S[v+'Url']){ flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return; } }
       b.disabled=true;
       var r=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:v});
       b.disabled=false;
       if(!r.ok){flash('err',bizMsg(r));diag('select_fail',r.status);return}
-      // confirm persisted selection from backend, then unlock Step 3
+      // confirm persisted selection from backend GET, then (only then) unlock Step 3
       var g=await api('GET','/api/v2/workbench/'+S.wb);
-      var sel=(g.json&&g.json.selected_email_body_visual)||v;
+      var sel=(g.json&&g.json.selected_email_body_visual);
       diag('selected',sel);
       if(sel===v){applySelectVisual(v);flash('ok',lang==='zh'?'已选为邮件主体，可进入下一步。':'Choisi comme corps — étape suivante.');}
       else flash('err',lang==='zh'?'选择邮件主体失败，请重试':'Échec du choix du corps — réessayez');
     })});
-    // open/copy the REAL generated poster url (poster_record.final_poster.url) — no poster_key on the main UI
-    $('affiche-copy').addEventListener('click',async function(){
-      if(!S.afficheUrl){flash('warn',lang==='zh'?'尚无可复制的图片链接。':'Aucun lien à copier.');return}
-      try{ await navigator.clipboard.writeText(S.afficheUrl); flash('ok',lang==='zh'?'图片链接已复制。':'Lien copié.'); }
-      catch(e){ flash('warn',lang==='zh'?'复制失败，请手动「查看生成大图」。':'Échec — utilisez « Voir en grand ».'); }
+    // open/copy the REAL generated visual url (poster_record.final_poster.url) — no poster_key on the main UI
+    ['affiche','fiche'].forEach(function(mode){
+      var cp=$(mode+'-copy'); if(cp)cp.addEventListener('click',async function(){
+        if(!S[mode+'Url']){flash('warn',lang==='zh'?'尚无可复制的图片链接。':'Aucun lien à copier.');return}
+        try{ await navigator.clipboard.writeText(S[mode+'Url']); flash('ok',lang==='zh'?'图片链接已复制。':'Lien copié.'); }
+        catch(e){ flash('warn',lang==='zh'?'复制失败，请手动「查看大图」。':'Échec — utilisez « Voir en grand ».'); } });
     });
     $('btn-gen-affiche').addEventListener('click',function(){genVisual('affiche',false)});
     $('btn-regen-affiche').addEventListener('click',function(){genVisual('affiche',true)});
-    $('btn-gen-sheet').addEventListener('click',function(){genVisual('sheet',false)});
+    $('btn-gen-fiche').addEventListener('click',function(){genVisual('fiche',false)});
+    $('btn-regen-fiche').addEventListener('click',function(){genVisual('fiche',true)});
 
-    // refresh candidate + selection state from backend (reflect ready/selected on load or re-entry)
+    // ---- email fill format (Step 3): default-mapped from the selected body visual; switchable ----
+    function defaultFillFor(v){ return v==='fiche'?'product_sheet_email':'campaign_poster_email'; }
+    function updateBindingLabels(){
+      var bd=$('email-body-binding'); if(bd&&selectedVisual){bd.textContent=(lang==='zh'?'邮件主体：'+BODY_NAME[selectedVisual].zh:'Corps : '+BODY_NAME[selectedVisual].fr);}
+      var fb=$('email-format-binding'); if(fb&&selectedFillFormat){fb.textContent=(lang==='zh'?'邮件格式：'+FILL_NAME[selectedFillFormat].zh:'Format : '+FILL_NAME[selectedFillFormat].fr);}
+    }
+    function applyFillFormat(fmt,isDefault){
+      selectedFillFormat=fmt;
+      document.querySelectorAll('#fillFormatOptions .banner-opt').forEach(function(b){b.classList.toggle('selected',b.dataset.fmt===fmt)});
+      updateBindingLabels();
+      diag('fill_format',{selected_email_fill_format:fmt,default_mapping_applied:!!isDefault,selected_email_body_visual:selectedVisual});
+    }
+    document.querySelectorAll('#fillFormatOptions .banner-opt').forEach(function(b){b.addEventListener('click',function(){
+      applyFillFormat(b.dataset.fmt,false);
+      flash('info',lang==='zh'?'已切换邮件格式，请重新「预览邮件」。':'Format changé — relancez l\'aperçu.'); })});
+
+    // refresh both mode candidates + selection state from backend (reflect ready/selected on load or re-entry)
     async function refreshState(){
       if(!S.wb)return;
       var g=await api('GET','/api/v2/workbench/'+S.wb); if(!g.ok||!g.json)return;
       var pc=g.json.poster_candidates||{};
-      if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key; await loadAffichePoster();}
-      else { setAfficheCard('placeholder'); }
-      if((pc.fiche||{}).status==='ready'&&(pc.fiche||{}).poster_key){S.sheet=pc.fiche.poster_key;}
+      if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
+      if((pc.fiche||{}).status==='ready'&&(pc.fiche||{}).poster_key){S.fiche=pc.fiche.poster_key; await loadModePoster('fiche');}
       var sel=g.json.selected_email_body_visual;
       if(sel&&!selectedVisual)applySelectVisual(sel);
-      diag('refresh',{affiche:S.affiche,fiche:S.sheet,selected:sel});
+      diag('refresh',{affiche:S.affiche,fiche:S.fiche,selected:sel});
     }
 
     // banner selection — Step 1 chooses the email-layer banner; Step 3 options may re-choose and persist it.
@@ -746,13 +788,14 @@
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/preview');
       if(!r.ok||!r.json){flash('err',bizMsg(r));return}
       var bv=r.json.body_visual||{};
-      diag('preview',{selected_email_body_visual:r.json.selected_email_body_visual,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url});
+      if(!selectedFillFormat)applyFillFormat(defaultFillFor(selectedVisual),true);
+      diag('preview',{selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,assembled_html_from_backend:!!r.json.html});
       // render the REAL assembled backend HTML (not a local mock)
       var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
       var doc=f.contentWindow.document;doc.open();doc.write(r.json.html||'');doc.close();
-      // label: backend preview generated + clearly bound to the selected generated poster
+      // label: backend preview generated + clearly bound to the selected body visual + fill format
       var eb=$('email-preview-badge'); if(eb){eb.className='badge ready';eb.setAttribute('data-zh','邮件预览已生成');eb.setAttribute('data-fr','Aperçu généré');eb.textContent=(lang==='zh'?'邮件预览已生成':'Aperçu généré');}
-      var bd=$('email-body-binding'); if(bd){bd.setAttribute('data-zh','邮件主体：产品海报 · 已使用生成海报');bd.setAttribute('data-fr','Corps : affiche produit · poster généré utilisé');bd.textContent=(lang==='zh'?'邮件主体：产品海报 · 已使用生成海报':'Corps : affiche produit · poster généré utilisé');}
+      updateBindingLabels();
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?'邮件预览已生成。':'Aperçu généré.');
     });
@@ -856,7 +899,7 @@
       var el=$(m[0]); if(el)el.addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],m[1],m[2])});
     });
 
-    applyLang();render();checkConn();setAfficheCard('placeholder');
+    applyLang();render();checkConn();setModeCard('affiche','placeholder');setModeCard('fiche','placeholder');
   })();
   </script>
 </body>

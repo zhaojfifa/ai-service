@@ -12261,3 +12261,40 @@ After bundle:
   (no creds held this pass; not claiming remote GO). No real email sent (provider_message_id absent).
 - Files: frontend/cuistance_trial.html (+docs mirror), scripts/
   poster2_cuistance_email_preview_send_semantics_proof.py, status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-DUAL-BODY-MODE-AND-EMAIL-FILL-FORMAT-ALIGNMENT (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend/product-flow alignment (NO renderer/provider/send change; backend unchanged). Corrects the product model
+  to TWO EQUAL official body visual modes: affiche=目标海报模式 (email_campaign_composite_v1, chromium) /
+  fiche=简单产品页模式 (template_product_sheet_v1). Fiche is NOT a fallback/degraded/backup. Connected to two email
+  fill formats: ttt.html->product_sheet_email/简单产品页邮件格式, ttt2.html->campaign_poster_email/目标海报邮件格式;
+  default mapping affiche->campaign_poster_email, fiche->product_sheet_email (frontend-inferred + diagnostics; backend
+  assembly unchanged, single deterministic package wrapping the selected final_poster.url).
+- Fixes: (1) Step1 simplified — removed Step-1 banner-format chooser; logo/banner relabeled 品牌素材（用于后续邮件页眉）;
+  readiness checklist kept. (2) Step2 dual EQUAL cards 目标海报模式/简单产品页模式, each 生成/重新生成/查看大图/复制图片链接/
+  选为邮件主体; mode-specific amber on failure (简单产品页模式暂不可用，可先使用目标海报模式继续。 / symmetric for affiche),
+  never global failure, affiche unaffected. Fixed fiche select/generate to backend candidate type 'fiche' (was the
+  invalid 'sheet' which the backend Literal would reject). (3) both modes bind real poster_record.final_poster.url
+  via GET /api/v2/posters/{poster_key}; missing url -> 已生成记录不完整，请查看内部诊断. (4) select -> PATCH -> GET confirm
+  selected_email_body_visual=mode -> unlock Step3. (5) Step3 邮件填充格式 selector default-mapped from selected visual
+  + 邮件主体：…/邮件格式：… labels; banner config stays Step3 email-layer. (6) preview backend-rendered + labeled
+  邮件预览已生成 (pre 预览示意，尚未生成邮件预览); diag records selected_email_body_visual/selected_email_fill_format/
+  body_visual_poster_key/layout_type/final_poster_url_present/preview_status/assembled_html_from_backend.
+  (7) deterministic email package relationship documented. (8) honest send semantics retained (inline_only/
+  preview_only -> 当前环境未配置真实发送服务，已记录预览发送证据，未真实投递; never 发送成功/真实发送成功/已发送).
+- HTML Reference Fill Format Alignment documented (status doc §3) + advisory check scripts/
+  check_email_fill_format_alignment.py (warns if reference/status doc missing, Step3 UI omits a format name, or
+  ttt/ttt2 mapping undocumented; non-blocking; does not touch legacy docs).
+- REAL (non-stubbed) browser verification: real app.main backend; real page; Playwright NO route stubbing. evidence:
+  was_stubbed=false; step1_has_banner_format_chooser=false; affiche+fiche cards present (正式模式); affiche ready+bound
+  (open/copy actions); fiche image-gen unavailable -> fiche_unavailable_shown=true (mode-specific amber);
+  selected_email_body_visual=affiche; selected_email_fill_format=campaign_poster_email; default_mapping_applied=true;
+  邮件主体：目标海报 / 邮件格式：目标海报邮件格式; preview_status=200; preview_uses_body_visual_poster_key=true; send
+  mode=real/provider=inline_only/status=skipped/error_code=preview_only/provider_message_id absent/real_email_sent=
+  false; ui_send_label_correct=true; html_reference_alignment_checked=true; ttt->product_sheet_email & ttt2->
+  campaign_poster_email = true. Screenshots docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_
+  v1/ 01-09 + evidence.json. Forbidden-term scan NONE; no user-facing fallback/degraded wording; inline JS
+  node --check OK; docs router PASS; advisory check PASS.
+- Local real-backend validation = GO. Remote: pending trial-branch deploy + operator OPS login (no creds this pass).
+  No real email sent.
+- Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_dual_body_mode_proof.py, scripts/
+  check_email_fill_format_alignment.py, status doc, README, this log. Backend unchanged.
