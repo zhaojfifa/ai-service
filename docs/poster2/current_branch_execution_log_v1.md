@@ -12688,3 +12688,24 @@ After bundle:
 - Remote: NOT validated this run (v2 API OPS-gated; creds not re-placed). REMOTE_AUTH_BLOCKED — no remote blocker
   proven; the local REAL-backend fix stands. Owner Decision Needed: re-place OPS creds + confirm Render serves this
   branch -> OPS-authenticated remote validation.
+
+## REMOTE VALIDATE FICHE PRODUCT SHEET EMAIL CLOSURE (2026-06-19) — REMOTE_AUTH_BLOCKED (no code change)
+- Task: remote-validate commit 83a58ee (Fiche = deterministic product_sheet_email from workbench_truth, no poster
+  runtime) against https://ai-service-leob.onrender.com/cuistance_trial.html.
+- Branch guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, HEAD 83a58ee; no modified tracked
+  files — git status shows only pre-existing untracked artifacts from other tasks + .DS_Store, identical to the
+  session-start snapshot; no drift from this work).
+- Remote reachable (healthz=200). Served frontend CARRIES the 83a58ee fiche markers (btn-gen-fiche, btn-select-fiche,
+  generated_fiche, product_sheet_email, workbench_truth) -> remote is NOT behind 83a58ee; this is NOT deploy lag.
+  No /version endpoint, so exact deployed backend commit is unverifiable by hash.
+- BLOCKER = OPS auth. Remote v2 API is OPS-gated: POST /api/v2/workbench (no auth) -> 401 ops_auth_required;
+  /api/auth/me -> authenticated:false (enabled:true). OPS creds NOT available this run (no /tmp/cuistance_ops_auth/
+  creds.env). Therefore the authenticated Fiche generate/select/preview, the product_sheet_email preview contract,
+  the Affiche no-inner-banner regression, and the send-safety check COULD NOT be executed remotely.
+- No product code changed (no remote blocker proven; the local REAL-backend PASS at 83a58ee stands). No authenticated
+  remote evidence fabricated.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  fiche_product_sheet_email_closure_v1/remote_validation/ (evidence.json status=REMOTE_AUTH_BLOCKED, remote_pass=false
+  + honest BLOCKED cards 00_remote_ops_auth_blocked, 01_remote_page_unauthenticated, 02_remote_v2_api_ops_gate).
+- Owner Decision Needed: provide OPS creds via the secure temporary method (/tmp/cuistance_ops_auth/creds.env) and
+  confirm Render serves >= 83a58ee, then the OPS-authenticated remote Fiche validation completes.

@@ -1,0 +1,39 @@
+{
+  "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
+  "expected_commit": "83a58ee",
+  "deployed_commit_observed": "unknown_no_version_endpoint",
+  "deployed_frontend_carries_fiche_markers": [
+    "btn-gen-fiche",
+    "btn-select-fiche",
+    "generated_fiche",
+    "product_sheet_email",
+    "workbench_truth"
+  ],
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "remote_healthz": 200,
+  "ops_creds_available": false,
+  "ops_auth_ok": false,
+  "remote_v2_api_gate": {
+    "workbench_post_status": 401,
+    "ops_auth_required": true,
+    "auth_me_status": 200,
+    "auth_me_body": "{\"enabled\":true,\"authenticated\":false,\"username\":null}"
+  },
+  "workbench_key": "",
+  "fiche_generate_timeout": null,
+  "fiche_uses_poster_generation": null,
+  "fiche_generated_from": "",
+  "fiche_has_poster_key": null,
+  "selected_email_body_visual_after": "",
+  "email_fill_format": "",
+  "product_sheet_email_preview_ok": false,
+  "product_sheet_email_contract_pass": false,
+  "email_header_source": "ttt_html_header",
+  "affiche_regression_still_ok": false,
+  "affiche_body_visual_contains_own_banner": null,
+  "affiche_email_body_visual_contract_pass": false,
+  "real_email_sent": false,
+  "status": "REMOTE_AUTH_BLOCKED",
+  "blocked_reason": "OPS creds not available at /tmp/cuistance_ops_auth/creds.env; remote v2 API is OPS-gated (ops_auth_required). Authenticated Fiche/Affiche/send checks cannot run. Remote is NOT behind 83a58ee (served frontend carries fiche markers) -> NOT deploy lag.",
+  "remote_pass": false
+}
