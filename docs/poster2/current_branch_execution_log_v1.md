@@ -12497,3 +12497,23 @@ After bundle:
   poster2_cuistance_psd_container_operator_proof.py; app/services/email/assembly.py, app/schemas/poster2.py,
   app/main.py (preview endpoint), frontend/cuistance_trial.html (+docs mirror), tests/poster2/
   test_workbench_psd_email_container.py; README, this log.
+
+## POSTER2-CUISTANCE-REMOTE-LAST-MILE-SELECTION-BANNER-PREVIEW-FIX-V1 (2026-06-19) — REMOTE_AUTH_BLOCKED (no code changes)
+- Branch guard PASS: on trial/poster2-cuistance-psd-email-container-last-mile-v1, worktree clean (only .DS_Store
+  noise), HEAD 0aed029. Pre-fix tag (local, NOT pushed): poster2-cuistance-psd-last-mile-before-selection-banner-
+  preview-fix-0aed029.
+- Task is remote-validation-first ("Remote State Collection First — No Code Changes Yet; STOP + report
+  REMOTE_AUTH_BLOCKED if OPS creds required and unavailable; do not fake remote evidence").
+- Remote probe: page HTTP 200 (PSD-container frontend deployed — email_container_template_id marker present);
+  /healthz {ok:true}; GET /api/auth/me -> {enabled:true, authenticated:false}; POST /api/v2/workbench (no auth) ->
+  401 ops_auth_required. NO OPS credentials/session available (no env vars; no creds file in /tmp, ~, ~/poster,
+  ~/.config). Owner said the auth issue was "resolved (unauthorized login)", but remote is still OPS-gated and no
+  creds were provided to this run.
+- Therefore STOPPED at the remote-collection gate per task instruction: NO code changes made (the 3 last-mile fixes
+  — backend-confirmed selected_email_body_visual, ttt_html_header, full 600px preview — are deferred until the
+  OPS-gated flow can be remote-validated). No remote functional evidence fabricated.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  remote_last_mile_fix_evidence.json (status=REMOTE_AUTH_BLOCKED, remote_pass=false).
+- Owner Decision Needed: provide OPS credentials/session securely so save->generate->select->Step3 preview->send can
+  be exercised; then the 3 fixes will be implemented + remote-validated in one focused pass on this branch.
+- No merge, no tag push, no real email, no auth bypass, no branch switch.
