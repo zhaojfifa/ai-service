@@ -12184,3 +12184,21 @@ After bundle:
   scope (recovery here covers in-session timeout).
 - Files: frontend/cuistance_trial.html (+docs/cuistance_trial.html mirror), scripts/
   poster2_cuistance_ui_candidate_selection_proof.py, status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-REMOTE-CANDIDATE-SELECTION-STATE-VERIFY-B9F3DF5 (2026-06-19) — SUBMITTED FOR OWNER REVIEW (HOLD)
+- Goal: verify on the deployed remote /cuistance_trial.html that a ready affiche candidate can be selected and
+  Step 3 unlocks (commit b9f3df5+). Result: HOLD — remote prerequisites unmet at validation time.
+- Deploy: push confirmed (origin trial HEAD = b9f3df5…768068), but the deployed remote page still served the OLD
+  version. New-version markers absent across 5 polls over ~4 min (09:14–09:17): 素材就绪检查=0, id="rb-prod1"=0,
+  affiche-card-badge=0. Render deploy lag (documented pattern: remote runs a prior commit for a window).
+- Auth: GET /api/auth/me (no creds) → {enabled:true, authenticated:false}; OPS login required for the API-backed
+  flow; NO OPS credentials were available this pass (no /tmp/cuistance_ops.json, no env). No password printed.
+- Therefore the remote browser flow (使用示例素材→save→generate/reuse→选为邮件主体→selected=affiche→Step3→preview)
+  could NOT be run. Remote screenshots PENDING (not fabricated). selected_email_body_visual: not verified remotely;
+  Step 3 unlock: not verified remotely; preview: not verified remotely; test send: not run; real email sent: No.
+- No code/backend/renderer/send change (blockers are deploy + creds, not a code defect). The local b9f3df5
+  implementation + screenshot verification were already Owner-accepted.
+- Clear the HOLD by (1) confirming the b9f3df5 deploy landed (page shows 素材就绪检查 / rb-prod1 / affiche-card-badge)
+  and (2) providing OPS creds securely; then re-run remote validation.
+- Files: docs/poster2/cuistance_commercial_trial_remote_candidate_selection_state_verify_b9f3df5.md, README, this
+  log, screenshots dir placeholder README. No frontend/backend change.
