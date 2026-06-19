@@ -2,7 +2,7 @@
   "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
   "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
   "base_commit": "754084d",
-  "ending_commit": "20cfa36",
+  "ending_commit": "a968f6d",
   "validation_surface": "local_real_backend (REMOTE pending: OPS creds + branch redeploy)",
   "ops_auth_ok": false,
   "workbench_key": "wb_16fc9aef766348aa",
