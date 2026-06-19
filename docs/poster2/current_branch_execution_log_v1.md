@@ -12388,3 +12388,35 @@ After bundle:
   No real email sent.
 - Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_final_email_preview_binding_proof.py,
   status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-STEP3-EMAIL-FILL-FORMAT-PREVIEW-CORRECTION (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Step-3 frontend only (NO Step1/Step2 redesign, NO poster-gen/renderer/provider/send change; backend unchanged).
+  Root cause: final-preview iframe .mail-frame had fixed height:560px + max-width:420px, cropping the 600px-wide
+  ~1200px-tall assembled email to its top band (header + sliver of poster) -> "banner dominates / body cropped".
+  Backend assembly is correct (header = dark strip w/ email_banner.background CSS + logo; body visual = separate
+  <img> final_poster.url).
+- Fixes: (1) format != banner: Step3 keeps 邮件填充格式 selector + separate 邮件页眉/Header module; internal keys +
+  ttt/ttt2 only in diagnostics. (2) header boundary: 邮件页眉/Header relabeled + constrained to a header band
+  (max-height 108px, object-fit cover) + caption 仅邮件页眉（不含产品主体）; per-format header mapping
+  (campaign->option_2 Technitalia banner, product_sheet->option_1 brand header) unless operator overrides
+  (bannerManual); header persisted via PATCH before preview. (3) complete preview: .mail-frame max-width 600 + height
+  auto-fitted to assembled scrollHeight (cap 1800) inside scrollable #emailPreviewFrame (max-height 78vh, overflow
+  auto) -> full email (header->body visual->copy->CTA->footer), scrollable; banner no longer dominates. (4) two-format
+  advisory check extended (both formats present, ttt/ttt2 mapping, 邮件页眉 + 邮件最终预览 separation, no third-party
+  tracking/list-manage/zcsclwgt/mc_eid copied). (5) preview inspects same-origin iframe doc -> diag
+  preview_contains_header/body_visual/cta/footer + header_boundary_valid + no_body_content_in_header_banner. (6) Step3
+  layout clear (left format/header/content/send; right full preview). (7) send gating unchanged + honest semantics.
+- REAL (non-stubbed) browser verification: real app.main backend; real page; Playwright NO route stubbing. evidence:
+  was_stubbed=false; campaign_format_present + product_sheet_format_present=true; ttt2->campaign & ttt->product_sheet
+  =true; preview_http_status=200; backend_preview_html_present=true; final_preview_rendered=true; preview_contains_
+  header/body_visual/cta/footer all true; campaign_header_boundary_valid=true; no_body_content_in_header_banner=true;
+  preview_uses_body_visual_poster_key=true; preview_iframe_height_px=1218 -> final_preview_scrollable_or_complete=true;
+  product_sheet_preview_status=200; product_sheet_header_boundary_valid=true; send mode=real/provider=inline_only/
+  status=skipped/error_code=preview_only/provider_message_id absent/real_email_sent=false; ui_send_label_correct=true.
+  Screenshots docs/poster2/assets/cuistance_step3_email_fill_format_preview_correction_v1/ 01-07 + evidence.json.
+  Forbidden-term + fallback scan NONE; no raw ttt/ttt2 HTML or tracking copied; inline JS syntax OK; docs router PASS;
+  fill-format advisory PASS.
+- Local real-backend validation = GO. Remote: pending trial-branch deploy + operator OPS login (no creds this pass).
+  No real email sent.
+- Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_step3_fill_format_preview_proof.py,
+  scripts/check_email_fill_format_alignment.py, status doc, README, this log. Backend unchanged.

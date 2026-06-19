@@ -21,6 +21,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 REF_DOC = REPO / "docs/poster2/cuistance_commercial_trial_reference_email_html_extraction_v1.md"
 STATUS_DOC = REPO / "docs/poster2/cuistance_commercial_trial_dual_body_mode_email_fill_format_alignment_status_v1.md"
+CORR_DOC = REPO / "docs/poster2/cuistance_commercial_trial_step3_email_fill_format_preview_correction_status_v1.md"
 UI = REPO / "frontend/cuistance_trial.html"
 
 
@@ -49,7 +50,7 @@ def main() -> int:
         else:
             warns.append(f"Step-3 UI does NOT mention fill format: {name}")
 
-    docs_blob = _read(REF_DOC) + _read(STATUS_DOC)
+    docs_blob = _read(REF_DOC) + _read(STATUS_DOC) + _read(CORR_DOC)
     mapping_ok = (
         "ttt.html" in docs_blob and "ttt2.html" in docs_blob
         and "product_sheet_email" in docs_blob and "campaign_poster_email" in docs_blob
@@ -58,6 +59,24 @@ def main() -> int:
         oks.append("docs record ttt.html->product_sheet_email and ttt2.html->campaign_poster_email mapping")
     else:
         warns.append("docs do NOT clearly record ttt.html/ttt2.html -> fill-format mapping")
+
+    # Step-3 separates the email HEADER module from the fill format, and exposes the final preview
+    for needle, label in (("邮件页眉", "Step-3 UI separates 邮件页眉 (header) from fill format"),
+                          ("邮件最终预览", "Step-3 UI exposes 邮件最终预览 (final preview)")):
+        (oks if needle in ui else warns).append(label if needle in ui else label + " — MISSING")
+
+    # the two formats must be present as internal keys somewhere the UI can drive them (diagnostics-grade)
+    for key in ("campaign_poster_email", "product_sheet_email"):
+        (oks if key in ui else warns).append(
+            ("Step-3 UI carries fill-format key: " + key) if key in ui else ("Step-3 UI missing fill-format key: " + key))
+
+    # no third-party tracking/scripts/pixels/list-manage/Zoho/Mailchimp tracking copied into the UI
+    tracking = [t for t in ("list-manage", "campaign-image", "mc_eid", "zcsclwgt", "googletagmanager",
+                            "facebook.com/tr", "/track/open") if t in ui]
+    if tracking:
+        warns.append("third-party tracking markers found in UI (must NOT be copied): " + ", ".join(tracking))
+    else:
+        oks.append("no third-party tracking/scripts/pixels copied into the UI")
 
     for line in oks:
         print(f"  [ok]    {line}")

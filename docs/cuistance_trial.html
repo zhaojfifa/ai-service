@@ -14,7 +14,13 @@
   <link rel="stylesheet" href="cuistance_trial.css" />
   <style>
     /* minimal additions on top of the mockup CSS (kept verbatim) */
-    .mail-frame{width:100%;max-width:420px;height:560px;border:1px solid var(--line);border-radius:8px;background:#fff;margin:0 auto;display:block}
+    /* final email preview: full 600px send-ready email, height auto-fitted by JS, scrollable when very tall */
+    .mail-frame{width:100%;max-width:600px;min-height:560px;border:1px solid var(--line);border-radius:8px;background:#fff;margin:0 auto;display:block}
+    #emailPreviewFrame{max-height:78vh;overflow:auto;align-items:flex-start}
+    /* Step-3 header module preview = email header band ONLY (never the full email / never product body) */
+    #bannerPreview{max-height:108px;overflow:hidden}
+    #bannerPreview .banner-img{height:108px;width:100%;object-fit:cover;object-position:center}
+    .header-only-cap{font-size:11px;color:var(--faint,#9aa0a6);margin-top:6px}
     /* connection bar (always visible, not hidden in diagnostics) */
     .connbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 16px;margin-bottom:14px;box-shadow:0 1px 2px rgba(20,23,28,.04)}
     .conn-pill{font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px}
@@ -370,9 +376,10 @@
             </div>
           </div>
           <div class="card banner-editor">
-            <h3><span data-zh="邮件横幅模块" data-fr="Module Bannière">邮件横幅模块</span> <span class="badge ready" data-zh="一等模块" data-fr="premier bloc">一等模块</span></h3>
-            <p class="hint" data-zh="邮件页眉（第一块），主路线与简化产品页共用。" data-fr="En-tête de l'email (premier bloc), partagé.">邮件页眉（第一块），主路线与简化产品页共用。</p>
+            <h3><span data-zh="邮件页眉 / Header" data-fr="En-tête de l'email">邮件页眉 / Header</span> <span class="badge ready" data-zh="邮件层 · 仅页眉" data-fr="couche email · en-tête">邮件层 · 仅页眉</span></h3>
+            <p class="hint" data-zh="邮件第一块（页眉）。只包含品牌页眉，不含产品主体 / 描述 / CTA / 页脚。" data-fr="Premier bloc (en-tête) : marque uniquement — pas le corps produit / description / CTA / pied.">邮件第一块（页眉）。只包含品牌页眉，不含产品主体 / 描述 / CTA / 页脚。</p>
             <div class="email-banner selected-banner" id="bannerPreview"><img class="banner-img" id="bannerPreviewImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+            <div class="header-only-cap" data-zh="仅邮件页眉（不含产品主体）。" data-fr="En-tête seul (sans le corps produit).">仅邮件页眉（不含产品主体）。</div>
             <div class="banner-options" id="bannerOptions">
               <button class="banner-opt selected" data-ref="option_1" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
               <button class="banner-opt" data-ref="option_2" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
@@ -412,7 +419,7 @@
         </div>
 
         <div>
-          <p class="panel-title" data-zh="邮件最终预览（横幅 + 海报主体）" data-fr="Aperçu de l'email (bannière + affiche)">邮件最终预览（横幅 + 海报主体）</p>
+          <p class="panel-title" data-zh="邮件最终预览" data-fr="Aperçu final de l'email">邮件最终预览</p>
           <div class="card">
             <div class="card-state" id="email-preview-state">
               <span class="badge lock" id="email-preview-badge" data-zh="预览示意，尚未生成邮件预览" data-fr="Aperçu indicatif — aperçu non généré">预览示意，尚未生成邮件预览</span>
@@ -487,7 +494,9 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false;
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false;
+    // email-layer header asset per fill format (ttt2/campaign -> Technitalia banner; ttt/sheet -> brand header)
+    var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/banner_option_02.jpg'}, product_sheet_email:{ref:'option_1',img:'assets/banner_option_01.jpg'}};
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:''};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
@@ -854,8 +863,10 @@
     function applyFillFormat(fmt,isDefault){
       selectedFillFormat=fmt;
       document.querySelectorAll('#fillFormatOptions .banner-opt').forEach(function(b){b.classList.toggle('selected',b.dataset.fmt===fmt)});
+      // map the email-layer HEADER to the format grammar unless the operator manually overrode it
+      var hdr=FORMAT_HEADER[fmt]; if(hdr&&!bannerManual)selectBanner(hdr.ref,hdr.img);
       updateBindingLabels();
-      diag('fill_format',{selected_email_fill_format:fmt,default_mapping_applied:!!isDefault,selected_email_body_visual:selectedVisual});
+      diag('fill_format',{selected_email_fill_format:fmt,default_mapping_applied:!!isDefault,header_ref:selectedBannerRef,selected_email_body_visual:selectedVisual});
     }
     // Step-3 final-preview badge state + send gating (send is only possible after a backend preview is generated).
     function setEmailPreviewBadge(state){
@@ -898,28 +909,50 @@
       flash('ok',lang==='zh'?'已选择邮件横幅。':'Bannière sélectionnée.');})});
     document.querySelectorAll('#bannerOptions .banner-opt').forEach(function(b){b.addEventListener('click',async function(){
       var ref=b.dataset.ref||(b.dataset.img&&b.dataset.img.indexOf('02')>=0?'option_2':'option_1');
-      selectBanner(ref,b.dataset.img);
+      bannerManual=true; // operator explicitly chose a header; stop format-default overriding it
+      selectBanner(ref,b.dataset.img); markPreviewStale();
       if(S.wb){ await api('PATCH','/api/v2/workbench/'+S.wb,buildAssetsPatch()); } })});
 
     // ---- Step 3: preview (backend) + send (real) ----
+    // inspect the assembled email (same-origin iframe doc): header / body visual / cta / footer + header boundary
+    function inspectPreview(cdoc,bodyUrl){
+      var out={header:false,body:false,cta:false,footer:false,headerHasBody:false};
+      try{
+        var txt=(cdoc.body&&cdoc.body.innerText)||'';
+        var header=null,all=cdoc.querySelectorAll('div');
+        for(var i=0;i<all.length;i++){var s=all[i].getAttribute('style')||'';if(s.indexOf('#1f2329')>=0||s.indexOf('3px solid #E1002A')>=0){header=all[i];break;}}
+        out.header=!!header;
+        var imgs=Array.prototype.slice.call(cdoc.images||[]);
+        out.body = bodyUrl ? imgs.some(function(im){return im.getAttribute('src')===bodyUrl}) : (imgs.length>0);
+        out.cta = Array.prototype.slice.call(cdoc.querySelectorAll('a')).some(function(a){return /contact/i.test(a.textContent||'')});
+        out.footer = /désabonner|unsubscribe|abonn/i.test(txt);
+        if(header&&bodyUrl){ out.headerHasBody=Array.prototype.slice.call(header.querySelectorAll('img')).some(function(im){return im.getAttribute('src')===bodyUrl}); }
+      }catch(e){}
+      return out;
+    }
     $('btn-preview').addEventListener('click',async function(){
       if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.'));return}
       // ensure the selected candidate is ready + has a poster_key/url before asking the backend to assemble
       var key=S[selectedVisual]; if(!key){ await refreshState(); key=S[selectedVisual]; }
       if(!key){ flash('warn',lang==='zh'?'请先生成并选定邮件主体。':'Générez et choisissez d\'abord le corps.'); return; }
       if(!S[selectedVisual+'Url']){ await loadModePoster(selectedVisual); }
+      if(!selectedFillFormat)applyFillFormat(defaultFillFor(selectedVisual),true);
       flash('info',lang==='zh'?'正在生成邮件预览…':'Génération de l\'aperçu…');
+      // persist the email-layer header (per the chosen fill format) so the assembled header matches the format
+      await api('PATCH','/api/v2/workbench/'+S.wb,buildAssetsPatch());
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/preview');
       if(!r.ok||!r.json){ flash('err',lang==='zh'?'邮件预览生成失败，请检查邮件主体和素材':'Échec de l\'aperçu — vérifiez le corps et les éléments'); diag('preview_fail',r.status); return; }
       var bv=r.json.body_visual||{};
-      if(!selectedFillFormat)applyFillFormat(defaultFillFor(selectedVisual),true);
       // accept whichever assembled-email field the backend returns
       var htmlContent=r.json.html||r.json.assembled_html||r.json.email_html||r.json.preview_html||'';
       var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
-      var doc=f.contentWindow.document;doc.open();doc.write(htmlContent);doc.close();
+      var cdoc=f.contentWindow.document;cdoc.open();cdoc.write(htmlContent);cdoc.close();
+      // auto-fit the iframe so the COMPLETE send-ready email shows (scrollable container if very tall)
+      try{ var hh=Math.min(Math.max((cdoc.body?cdoc.body.scrollHeight:560)+24,560),1800); f.style.height=hh+'px'; }catch(e){}
       previewGenerated=!!htmlContent;
       setEmailPreviewBadge(previewGenerated?'ready':'needs'); updateBindingLabels(); updateSendGate();
-      diag('preview',{workbench_key:S.wb,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated});
+      var ins=inspectPreview(cdoc,bv.url||'');
+      diag('preview',{workbench_key:S.wb,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody});
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
     });
