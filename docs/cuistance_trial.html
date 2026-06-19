@@ -47,6 +47,13 @@
     .affiche-incomplete{font-size:12.5px;color:var(--err,#c0392b);margin-top:8px;display:none}
     .card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .btn.sm{font-size:12px;padding:5px 11px}
+    /* Step-2 dual-mode segmented tabs */
+    .mode-tabs{display:flex;gap:8px;background:#eef0f3;border:1px solid var(--line,#e6e8ec);border-radius:12px;padding:6px;margin-bottom:14px}
+    .mode-tab{flex:1;font:inherit;font-size:14px;font-weight:600;padding:10px 14px;border:1px solid transparent;border-radius:9px;background:transparent;color:#6b7178;cursor:pointer;text-align:center;line-height:1.3}
+    .mode-tab small{display:block;font-size:11px;font-weight:500;opacity:.8;margin-top:2px}
+    .mode-tab.active{background:#fff;color:#141b22;border-color:var(--line,#e6e8ec);box-shadow:0 1px 2px rgba(20,23,28,.05)}
+    .mode-tab .tab-dot{display:inline-block;font-size:11px;font-weight:700;margin-left:6px}
+    .mode-pv{margin-top:0}
   </style>
 </head>
 <body data-lang="zh">
@@ -223,55 +230,23 @@
 
     <!-- ============ SCREEN 2 — 生成邮件主体（两种正式模式） ============ -->
     <section class="screen" id="screen-2">
+      <!-- segmented mode tabs (two EQUAL official modes) -->
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" type="button" data-mode="affiche"><span data-zh="目标海报模式" data-fr="Affiche promotionnelle">目标海报模式</span><span class="tab-dot" id="tabdot-affiche"></span><small data-zh="视觉营销 · 活动推广" data-fr="Affiche marketing · campagnes">视觉营销 · 活动推广</small></button>
+        <button class="mode-tab" type="button" data-mode="fiche"><span data-zh="简单产品页模式" data-fr="Fiche produit simple">简单产品页模式</span><span class="tab-dot" id="tabdot-fiche"></span><small data-zh="稳定产品展示 · 默认产品介绍" data-fr="Fiche stable · produit par défaut">稳定产品展示 · 默认产品介绍</small></button>
+      </div>
       <div class="two-col">
         <div>
-          <div class="card">
-            <h3 data-zh="生成邮件主体 · 选择展示模式" data-fr="Corps de l'email · choisir le mode">生成邮件主体 · 选择展示模式</h3>
-            <p class="hint" data-zh="第二步：两种正式展示模式，地位对等。任选其一生成并「选为邮件主体」。" data-fr="Étape 2 : deux modes d'affichage officiels, à égalité. Générez l'un et choisissez-le comme corps.">第二步：两种正式展示模式，地位对等。任选其一生成并「选为邮件主体」。</p>
-            <div class="field"><label><span data-zh="标题" data-fr="Titre">标题</span></label><input class="input" id="f-title" value="LES FRITEUSES ÉLECTRIQUES" /></div>
-            <div class="field"><label><span data-zh="副标语" data-fr="Accroche">副标语</span></label><input class="input" id="f-accroche" value="Cuisson professionnelle, croustillant maîtrisé" /></div>
-            <div class="field">
-              <label><span data-zh="技术参数（自第一步流入）" data-fr="Caractéristiques (depuis l'étape 1)">技术参数（自第一步流入）</span> <span class="badge verified">✓ <span data-zh="已确认" data-fr="Confirmé">已确认</span></span></label>
-              <input class="input readonly" readonly value="EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · Inox" />
-            </div>
-            <div class="explain">
-              <span class="ic">🛈</span>
-              <div>
-                <div data-zh="目标海报模式：视觉营销海报，适合活动推广与新品主推。" data-fr="Mode affiche : affiche marketing, pour les campagnes et nouveautés.">目标海报模式：视觉营销海报，适合活动推广与新品主推。</div>
-                <div data-zh="简单产品页模式：稳定产品展示，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。" data-fr="Mode fiche : présentation produit stable, HTML + rendu, contrôlable, par défaut pour les emails produit.">简单产品页模式：稳定产品展示，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。</div>
-                <div data-zh="邮件横幅 / 页眉在第三步配置；横幅是邮件层素材，不进产品主体。" data-fr="La bannière / en-tête se configure à l'étape 3 ; c'est un élément email, pas le corps.">邮件横幅 / 页眉在第三步配置；横幅是邮件层素材，不进产品主体。</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <p class="panel-title"><span data-zh="邮件主体 · 两种正式模式" data-fr="Corps · deux modes officiels">邮件主体 · 两种正式模式</span></p>
-
-          <!-- Card A — 目标海报模式 (affiche) -->
-          <div class="card selectable" id="card-affiche">
+          <!-- LEFT: active mode controls -->
+          <div class="card selectable mode-ctl" id="card-affiche" data-mode="affiche">
             <h3 style="margin-bottom:4px"><span data-zh="目标海报模式" data-fr="Affiche promotionnelle">目标海报模式</span> <span class="badge ready" data-zh="正式模式" data-fr="Mode officiel">正式模式</span></h3>
             <p class="hint" data-zh="视觉营销海报，适合活动推广和新品主推。" data-fr="Affiche marketing — campagnes et nouveautés.">视觉营销海报，适合活动推广和新品主推。</p>
-            <div class="poster-tag" id="affiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
-            <div class="preview-frame">
-              <div class="poster" id="affiche-mock">
-                <div class="p-hero"><img src="assets/product_01.jpg" alt="produit" /></div>
-                <div class="p-body">
-                  <div class="p-title">LES FRITEUSES ÉLECTRIQUES</div>
-                  <div class="p-sub">Cuisson professionnelle, croustillant maîtrisé</div>
-                  <ul class="p-args"><li>2 cuves inox amovibles</li><li>Thermostat réglable</li><li>Construction inox / usage professionnel</li></ul>
-                  <div class="p-gallery"><span></span><span></span><span></span></div>
-                  <div class="p-spec">RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · L630 × P520 × H345 mm</div>
-                </div>
-              </div>
-              <img class="poster-real" id="affiche-real" alt="目标海报" style="display:none" />
-            </div>
             <div class="card-state" id="affiche-card-state">
               <span class="badge lock" id="affiche-card-badge" data-zh="尚未生成" data-fr="Non générée">尚未生成</span>
               <span class="hint" id="affiche-card-hint" data-zh="点击「生成目标海报」生成主体。" data-fr="Cliquez sur « Générer l'affiche ».">点击「生成目标海报」生成主体。</span>
             </div>
             <div class="affiche-incomplete" id="affiche-incomplete" data-zh="已生成记录不完整，请查看内部诊断。" data-fr="Enregistrement incomplet — voir le diagnostic.">已生成记录不完整，请查看内部诊断。</div>
-            <div class="notice" id="affiche-unavailable" style="display:none"><span class="ic">🛈</span><div class="body" id="affiche-unavailable-text" data-zh="目标海报模式暂不可用，可先使用简单产品页模式继续。" data-fr="Mode affiche indisponible — continuez avec le mode fiche.">目标海报模式暂不可用，可先使用简单产品页模式继续。</div></div>
+            <div class="notice" id="affiche-unavailable" style="display:none"><span class="ic">🛈</span><div class="body" id="affiche-unavailable-text" data-zh="目标海报模式暂不可用，当前环境缺少图像生成配置；可先使用简单产品页模式继续。" data-fr="Mode affiche indisponible — génération d'image non configurée ; continuez avec le mode fiche.">目标海报模式暂不可用，当前环境缺少图像生成配置；可先使用简单产品页模式继续。</div></div>
             <div class="btn-row" style="margin-top:8px">
               <button class="btn primary" id="btn-gen-affiche" type="button" data-zh="生成目标海报" data-fr="Générer l'affiche">生成目标海报</button>
               <button class="btn secondary" id="btn-regen-affiche" type="button" data-zh="重新生成" data-fr="Régénérer">重新生成</button>
@@ -286,30 +261,15 @@
             </div>
           </div>
 
-          <!-- Card B — 简单产品页模式 (fiche) — equal official mode, NOT a fallback -->
-          <div class="card selectable" id="card-fiche">
+          <div class="card selectable mode-ctl" id="card-fiche" data-mode="fiche" style="display:none">
             <h3 style="margin-bottom:4px"><span data-zh="简单产品页模式" data-fr="Fiche produit simple">简单产品页模式</span> <span class="badge ready" data-zh="正式模式 · 默认产品介绍" data-fr="Mode officiel · produit par défaut">正式模式 · 默认产品介绍</span></h3>
             <p class="hint" data-zh="稳定产品展示页，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。" data-fr="Présentation produit stable, HTML + rendu, contrôlable, par défaut pour les emails produit.">稳定产品展示页，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。</p>
-            <div class="poster-tag" id="fiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
-            <div class="preview-frame">
-              <div class="sheet" id="fiche-mock">
-                <div class="email-banner mini"><img class="banner-img" src="assets/banner_option_01.jpg" alt="bannière" /></div>
-                <div class="sheet-body">
-                  <div class="sheet-imgs"><img src="assets/product_01.jpg" alt="produit 1" /><img src="assets/product_02.jpg" alt="produit 2" /></div>
-                  <div class="sheet-title">Friteuse électrique double — EF132V</div>
-                  <p class="sheet-desc">Deux cuves inox amovibles, montée en température maîtrisée, construction robuste pour un usage intensif.</p>
-                  <ul class="sheet-specs"><li><b>Capacité</b> 2 × 13 L</li><li><b>Puissance</b> 3 + 3 kW</li><li><b>Tension</b> 230 V</li><li><b>Matière</b> Inox</li></ul>
-                  <a class="e-cta" href="#" onclick="return false;">Nous contacter</a>
-                </div>
-              </div>
-              <img class="poster-real" id="fiche-real" alt="简单产品页" style="display:none" />
-            </div>
             <div class="card-state" id="fiche-card-state">
               <span class="badge lock" id="fiche-card-badge" data-zh="尚未生成" data-fr="Non générée">尚未生成</span>
               <span class="hint" id="fiche-card-hint" data-zh="点击「生成简单产品页」生成主体。" data-fr="Cliquez sur « Générer la fiche ».">点击「生成简单产品页」生成主体。</span>
             </div>
             <div class="affiche-incomplete" id="fiche-incomplete" data-zh="已生成记录不完整，请查看内部诊断。" data-fr="Enregistrement incomplet — voir le diagnostic.">已生成记录不完整，请查看内部诊断。</div>
-            <div class="notice" id="fiche-unavailable" style="display:none"><span class="ic">🛈</span><div class="body" id="fiche-unavailable-text" data-zh="简单产品页模式暂不可用，可先使用目标海报模式继续。" data-fr="Mode fiche indisponible — continuez avec le mode affiche.">简单产品页模式暂不可用，可先使用目标海报模式继续。</div></div>
+            <div class="notice" id="fiche-unavailable" style="display:none"><span class="ic">🛈</span><div class="body" id="fiche-unavailable-text" data-zh="简单产品页模式暂不可用，当前环境缺少图像生成配置；可先使用目标海报模式继续。" data-fr="Mode fiche indisponible — génération d'image non configurée ; continuez avec le mode affiche.">简单产品页模式暂不可用，当前环境缺少图像生成配置；可先使用目标海报模式继续。</div></div>
             <div class="btn-row" style="margin-top:8px">
               <button class="btn primary" id="btn-gen-fiche" type="button" data-zh="生成简单产品页" data-fr="Générer la fiche">生成简单产品页</button>
               <button class="btn secondary" id="btn-regen-fiche" type="button" data-zh="重新生成" data-fr="Régénérer">重新生成</button>
@@ -328,11 +288,49 @@
             <h3 style="margin-bottom:14px" data-zh="生成检查" data-fr="Vérification">生成检查</h3>
             <div class="verif" id="verif">
               <div class="row"><span class="ok">✔</span> <span data-zh="结构完整" data-fr="Structure complète">结构完整</span></div>
-              <div class="row"><span class="ok">✔</span> <span data-zh="无错误品牌" data-fr="Aucune marque incorrecte">无错误品牌</span></div>
               <div class="row"><span class="ok">✔</span> <span data-zh="技术参数已确认" data-fr="Caractéristiques confirmées">技术参数已确认</span></div>
               <div class="row"><span class="ok">✔</span> <span data-zh="两种模式地位对等" data-fr="Deux modes à égalité">两种模式地位对等</span></div>
               <span class="state-pill" id="s2-state" data-zh="状态：可进入邮件" data-fr="État : Prêt pour l'email">状态：可进入邮件</span>
             </div>
+          </div>
+        </div>
+
+        <div>
+          <!-- RIGHT: active mode preview (prominent) -->
+          <p class="panel-title"><span id="pv-title" data-zh="预览 · 目标海报模式" data-fr="Aperçu · mode affiche">预览 · 目标海报模式</span></p>
+          <div class="card mode-pv" id="pv-affiche" data-mode="affiche">
+            <div class="poster-tag" id="affiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
+            <div class="preview-frame">
+              <div class="poster" id="affiche-mock">
+                <div class="p-hero"><img src="assets/product_01.jpg" alt="produit" /></div>
+                <div class="p-body">
+                  <div class="p-title">LES FRITEUSES ÉLECTRIQUES</div>
+                  <div class="p-sub">Cuisson professionnelle, croustillant maîtrisé</div>
+                  <ul class="p-args"><li>2 cuves inox amovibles</li><li>Thermostat réglable</li><li>Construction inox / usage professionnel</li></ul>
+                  <div class="p-gallery"><span></span><span></span><span></span></div>
+                  <div class="p-spec">RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · L630 × P520 × H345 mm</div>
+                </div>
+              </div>
+              <img class="poster-real" id="affiche-real" alt="目标海报" style="display:none" />
+            </div>
+            <div class="poster-tag" data-zh="目标海报主体 —— 邮件横幅在第三步加入。" data-fr="Corps affiche — bannière ajoutée à l'étape 3.">目标海报主体 —— 邮件横幅在第三步加入。</div>
+          </div>
+          <div class="card mode-pv" id="pv-fiche" data-mode="fiche" style="display:none">
+            <div class="poster-tag" id="fiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
+            <div class="preview-frame">
+              <div class="sheet" id="fiche-mock">
+                <div class="email-banner mini"><img class="banner-img" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+                <div class="sheet-body">
+                  <div class="sheet-imgs"><img src="assets/product_01.jpg" alt="produit 1" /><img src="assets/product_02.jpg" alt="produit 2" /></div>
+                  <div class="sheet-title">Friteuse électrique double — EF132V</div>
+                  <p class="sheet-desc">Deux cuves inox amovibles, montée en température maîtrisée, construction robuste pour un usage intensif.</p>
+                  <ul class="sheet-specs"><li><b>Capacité</b> 2 × 13 L</li><li><b>Puissance</b> 3 + 3 kW</li><li><b>Tension</b> 230 V</li><li><b>Matière</b> Inox</li></ul>
+                  <a class="e-cta" href="#" onclick="return false;">Nous contacter</a>
+                </div>
+              </div>
+              <img class="poster-real" id="fiche-real" alt="简单产品页" style="display:none" />
+            </div>
+            <div class="poster-tag" data-zh="简单产品页主体 —— HTML 拼接 + 渲染；邮件横幅在第三步加入。" data-fr="Corps fiche — HTML + rendu ; bannière ajoutée à l'étape 3.">简单产品页主体 —— HTML 拼接 + 渲染；邮件横幅在第三步加入。</div>
           </div>
         </div>
       </div>
@@ -503,7 +501,7 @@
 
     // ---- i18n + stepper (preserved from mockup) ----
     var H={zh:['第 1 步 / 共 3 步','第 2 步 / 共 3 步','第 3 步 / 共 3 步'],fr:['Étape 1 sur 3','Étape 2 sur 3','Étape 3 sur 3']};
-    var NEXT={zh:['保存并进入下一步 ▶','继续 ▶','发送 ▶'],fr:['Enregistrer & continuer ▶','Continuer ▶','Envoyer ▶']};
+    var NEXT={zh:['保存并进入下一步 ▶','进入邮件预览与测试发送 ▶','发送 ▶'],fr:['Enregistrer & continuer ▶','Aperçu & envoi ▶','Envoyer ▶']};
     var ETAT={zh:['草稿','可进入邮件','待发送'],fr:['Brouillon',"Prêt pour l'email",'Prêt à envoyer']};
     function applyLang(){
       document.documentElement.lang=lang;document.body.dataset.lang=lang;
@@ -515,7 +513,7 @@
     }
     function barHint(){
       $('nextBtn').textContent=NEXT[lang][step-1];$('etat').textContent=ETAT[lang][step-1];
-      if(step===2&&!selectedVisual)$('barHint').textContent=(lang==='zh'?'请先选择邮件主体（海报主体或简化产品页）':"Choisissez d'abord le visuel de l'email");
+      if(step===2&&!selectedVisual)$('barHint').textContent=(lang==='zh'?'请先选择邮件主体':"Choisissez d'abord le corps de l'email");
       else $('barHint').textContent=H[lang][step-1];
     }
     function render(){
@@ -638,30 +636,44 @@
           cb=$(mode+'-card-badge'),ch=$(mode+'-card-hint');
       function badge(cls,zh,fr){ if(cb){cb.className='badge '+cls;cb.setAttribute('data-zh',zh);cb.setAttribute('data-fr',fr);cb.textContent=(lang==='zh'?zh:fr);} }
       function hint(zh,fr){ if(ch){ch.setAttribute('data-zh',zh);ch.setAttribute('data-fr',fr);ch.textContent=(lang==='zh'?zh:fr);} }
+      var dot=$('tabdot-'+mode);
       if(acts)acts.style.display=(state==='ready')?'flex':'none';
       if(un)un.style.display=(state==='unavailable')?'':'none';
       if(state==='ready'){
         S[mode+'Url']=url||'';
         if(real){real.src=url;real.style.display='';} if(opn)opn.href=url||'#';
         if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
-        badge('ready','已生成','Généré'); hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
+        badge('ready', mode==='affiche'?'产品海报已生成':'简单产品页已生成', mode==='affiche'?'Affiche générée':'Fiche générée');
+        hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
+        if(dot){dot.textContent='✓';dot.style.color='var(--ok,#188a42)';}
         // keep the Step-3 static email-body image coherent with the real generated visual (preview iframe is truth)
         var ei=$(mode==='affiche'?'emailBodyAffiche':'emailBodySheet'),eimg=ei&&ei.querySelector('img'); if(eimg&&url)eimg.src=url;
       } else if(state==='incomplete'){
         S[mode+'Url']='';
         if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='block';
         badge('miss','生成记录不完整','Enregistrement incomplet'); hint('请查看内部诊断。','Voir le diagnostic.');
+        if(dot){dot.textContent='!';dot.style.color='var(--err,#c0392b)';}
       } else if(state==='unavailable'){
         S[mode+'Url']='';
         if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
         badge('lock','暂不可用','Indisponible');
-        hint(mode==='fiche'?'可先使用目标海报模式继续。':'可先使用简单产品页模式继续。', mode==='fiche'?'Continuez avec le mode affiche.':'Continuez avec le mode fiche.');
+        hint(mode==='fiche'?'当前环境缺少图像生成配置；可先使用目标海报模式继续。':'当前环境缺少图像生成配置；可先使用简单产品页模式继续。', mode==='fiche'?'Génération d\'image non configurée ; continuez avec le mode affiche.':'Génération d\'image non configurée ; continuez avec le mode fiche.');
+        if(dot){dot.textContent='•';dot.style.color='var(--amber,#b8860b)';}
       } else {
         S[mode+'Url']='';
         if(real)real.style.display='none'; if(mock)mock.style.display=''; if(lbl)lbl.style.display=''; if(inc)inc.style.display='none';
         badge('lock','尚未生成','Non générée'); hint('点击「生成'+MODE_NAME[mode].zh+'」生成主体。','Cliquez pour générer.');
+        if(dot){dot.textContent='';}
       }
     }
+    // segmented tab switching: show the active mode's controls (left) + preview (right)
+    function switchMode(mode){
+      document.querySelectorAll('#modeTabs .mode-tab').forEach(function(t){t.classList.toggle('active',t.dataset.mode===mode)});
+      document.querySelectorAll('.mode-ctl').forEach(function(c){c.style.display=(c.dataset.mode===mode)?'':'none'});
+      document.querySelectorAll('.mode-pv').forEach(function(c){c.style.display=(c.dataset.mode===mode)?'':'none'});
+      var t=$('pv-title'); if(t){t.setAttribute('data-zh','预览 · '+(mode==='affiche'?'目标海报模式':'简单产品页模式'));t.setAttribute('data-fr','Aperçu · '+(mode==='affiche'?'mode affiche':'mode fiche'));t.textContent=t.getAttribute('data-'+lang);}
+    }
+    document.querySelectorAll('#modeTabs .mode-tab').forEach(function(b){b.addEventListener('click',function(){switchMode(b.dataset.mode)})});
     // Fetch the persisted poster record and bind its final_poster.url into the mode card (real generated visual).
     async function loadModePoster(mode){
       if(!S[mode])return false;
@@ -677,6 +689,7 @@
     // generate one mode (affiche|fiche). A ready candidate is never erased on timeout. Failure is mode-specific.
     async function genVisual(mode,regen){
       if(!await ensureWorkbench())return false;
+      switchMode(mode); // keep the active tab on the mode being generated
       if(!regen && S[mode]){ flash('ok',lang==='zh'?'已生成，可直接「选为邮件主体」。':'Déjà prêt.'); await loadModePoster(mode); return true; }
       flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+mode+'/generate');
@@ -711,6 +724,7 @@
         b.setAttribute('data-fr',on?'Choisi pour l\'email':'Choisir pour l\'email');
         b.textContent=b.getAttribute('data-'+lang);
       });
+      switchMode(v); // surface the selected mode
       applyFillFormat(defaultFillFor(v),true); // default-map the email fill format from the selected body visual
       render(); // unlocks Step 3 (nextBtn no longer disabled once selectedVisual set)
     }

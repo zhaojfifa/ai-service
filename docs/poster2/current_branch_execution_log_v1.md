@@ -12298,3 +12298,32 @@ After bundle:
   No real email sent.
 - Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_dual_body_mode_proof.py, scripts/
   check_email_fill_format_alignment.py, status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-STEP2-STEP3-LAYOUT-AND-PREVIEW-CONSISTENCY-FIX (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend UX/layout + preview-consistency only (NO backend/renderer/provider/send change). Step 1 unchanged
+  (simplified; no banner-format chooser). Step 2 reworked from empty-left + stacked-right previews into a BALANCED
+  segmented-tab workspace: tabs 目标海报模式 / 简单产品页模式 (status dots ✓/•); active mode's controls fill the left
+  (description, status badge, 生成/重新生成, 查看大图/复制图片链接, 选为邮件主体) and its preview shows prominently on the
+  right; switchMode() on tab click + on generate/select. Mode-specific ready badges 产品海报已生成 / 简单产品页已生成.
+  Fiche unavailable now reads 简单产品页模式暂不可用，当前环境缺少图像生成配置；可先使用目标海报模式继续。 (equal official mode,
+  NOT fallback/degraded/backup; does not block affiche). Continue button = 进入邮件预览与测试发送; unselected hint
+  请先选择邮件主体. Dropped vestigial unused Step-2 title/accroche inputs (not Step 1).
+- Step 3 keeps left (邮件填充格式 / 邮件页眉Banner / 邮件内容 / 测试发送 / 发送证据) + right coherent 600px final preview
+  (header/banner + selected body visual + copy + CTA + footer); banner/header is Step-3 email-layer only; backend
+  preview rendered + labeled 邮件预览已生成 (pre 预览示意，尚未生成邮件预览). Honest send semantics retained (inline_only/
+  preview_only -> 当前环境未配置真实发送服务，已记录预览发送证据，未真实投递; never 发送成功/真实发送成功/已发送).
+- REAL (non-stubbed) browser verification: real app.main backend; real page; Playwright NO route stubbing. evidence:
+  was_stubbed=false; step1_has_banner_format_chooser=false; step2_has_mode_tabs=true; affiche_controls_visible=true;
+  affiche_preview_visible=true; affiche ready+open action (poster href); fiche_status=failed -> fiche_unavailable_
+  shown=true (当前环境缺少图像生成配置...); fiche_official_mode_present=true; fiche_not_labeled_fallback=true;
+  selected_email_body_visual=affiche; continue_btn_label=进入邮件预览与测试发送 ▶; step3_banner_controls_present=true;
+  step3_fill_format_present=true; selected_or_inferred_email_fill_format=campaign_poster_email; preview_status=200;
+  preview_uses_body_visual_poster_key=true; final_preview_rendered=true; preview_badge=邮件预览已生成; send mode=real/
+  provider=inline_only/status=skipped/error_code=preview_only/provider_message_id absent/real_email_sent=false;
+  ui_send_label_correct=true. Screenshots docs/poster2/assets/cuistance_step2_step3_layout_preview_consistency_v1/
+  01-09 + evidence.json. Forbidden-term scan NONE; no user-facing fallback/degraded; inline JS node --check OK; docs
+  router PASS; fill-format advisory PASS.
+- Local real-backend validation = GO. Remote: pending trial-branch deploy + operator OPS login (no creds this pass).
+  No real email sent.
+- Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_step2_step3_layout_proof.py, status
+  doc, README, this log. Backend unchanged.
