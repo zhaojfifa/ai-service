@@ -461,6 +461,11 @@ class EmailAssemblyPreviewResponse(BaseModel):
     buildable_attachment_types: list[str] = Field(default_factory=list)
     # transitional note surfaced for diagnostics (banner decoupling status)
     body_visual_contains_own_banner: bool = False
+    # PSD email container (cuistance_email_container_psd_v1) — additive, deterministic, design-shell only.
+    # The container GRAMMAR derives from the frozen PSD slice manifest; all business facts come from Workbench.
+    email_container_template_id: str = "cuistance_email_container_psd_v1"
+    email_fill_format: Optional[Literal["campaign_poster_email", "product_sheet_email"]] = None
+    email_container: dict[str, Any] = Field(default_factory=dict)
 
 
 # PR-4 — manual multi-recipient confirmed send + evidence.

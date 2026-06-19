@@ -2569,6 +2569,9 @@ def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewRespon
         available_attachment_types=sorted(email_assets.keys()),
         buildable_attachment_types=list(SUPPORTED_ATTACHMENT_TYPES) if settings.email_attachment.enabled else [],
         body_visual_contains_own_banner=assembly["body_visual_contains_own_banner"],
+        email_container_template_id=assembly.get("email_container_template_id", "cuistance_email_container_psd_v1"),
+        email_fill_format=assembly.get("email_fill_format"),
+        email_container=assembly.get("email_container", {}),
     )
 
 

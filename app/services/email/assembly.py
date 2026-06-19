@@ -46,6 +46,20 @@ def resolve_intro(product_truth: dict[str, Any] | None, draft: dict[str, Any]) -
 # ONLY through the selected_body_visual slot; HTML is generated from this plan (not loosely concatenated).
 EMAIL_BODY_LAYOUT_TYPE = "single_product_promo"
 EMAIL_BODY_CONTAINER_WIDTH = 600
+
+# PSD email container (design-shell grammar frozen from 产品海报.psd slice manifest; business facts come ONLY from
+# Workbench). The container region order below matches the PSD slice manifest:
+#   email_header_region -> (red filet) -> body_visual_region -> intro -> cta -> social_contact_region -> legal_footer
+EMAIL_CONTAINER_TEMPLATE_ID = "cuistance_email_container_psd_v1"
+
+
+def fill_format_for(candidate_type: str) -> str:
+    """Default-map the body visual mode to its reference-derived email fill format.
+
+    affiche -> campaign_poster_email (ttt2.html / Technitalia-Zoho grammar)
+    fiche   -> product_sheet_email   (ttt.html  / Cuistance-Mailchimp grammar)
+    """
+    return "product_sheet_email" if candidate_type == "fiche" else "campaign_poster_email"
 EMAIL_BODY_MODULE_ORDER = [
     "email_banner",
     "title_intro",
@@ -175,6 +189,7 @@ def build_email_assembly(
         "cta": {"label": cta_label, "href": cta_href},
     }
 
+    fill_format = fill_format_for(candidate_type)
     return {
         "banner": {
             "logo_url": logo_url,
@@ -192,6 +207,18 @@ def build_email_assembly(
         "text": text,
         "body_visual_contains_own_banner": (template_id in _BODY_VISUALS_WITH_OWN_BANNER),
         "email_body_plan": email_body_plan,
+        # PSD email container (design-shell grammar) — additive; Workbench remains the only business truth source
+        "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
+        "email_fill_format": fill_format,
+        "email_container": {
+            "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
+            "email_fill_format": fill_format,
+            "body_visual_poster_key": poster_key,
+            "uses_current_selected_visual": True,
+            "header_source": "psd_slice_manifest",
+            "legacy_truth_rejected": True,  # no PSD/old-product fact ever enters this assembly
+            "workbench_truth_used": True,   # banner/intro/contact all come from workbench truth
+        },
     }
 
 
