@@ -69,14 +69,20 @@ def test_preview_selected_affiche_uses_affiche_poster_key(client):
 
 # 2
 def test_preview_selected_fiche_uses_fiche_poster_key(client):
+    # fiche = product_sheet_email built from workbench truth (no poster generation / no poster_key)
     wb = _make_workbench(client)
     _gen(client, wb, "fiche")
     _select(client, wb, "fiche")
-    fiche_pk = client.get(f"/api/v2/workbench/{wb}").json()["poster_candidates"]["fiche"]["poster_key"]
-    r = client.post(f"/api/v2/workbench/{wb}/email/preview")
-    assert r.status_code == 200
-    assert r.json()["body_visual"]["poster_key"] == fiche_pk
-    assert r.json()["body_visual"]["template_id"] == "template_product_sheet_v1"
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["selected_email_body_visual"] == "fiche"
+    assert body["email_fill_format"] == "product_sheet_email"
+    assert body["fiche_uses_poster_generation"] is False
+    assert body["fiche_generated_from"] == "workbench_truth"
+    assert body["product_sheet_email_contract_pass"] is True
+    # body visual is the product image (NOT a generated poster), and there is no poster_key
+    assert body["body_visual"]["candidate_type"] == "fiche"
+    assert body["body_visual"]["poster_key"] in (None, "")
+    assert body["body_visual"]["url"] == "https://r2.example/p1.png"
 
 
 # 3
@@ -142,7 +148,7 @@ def test_switching_selected_visual_changes_preview_body(client):
     _select(client, wb, "fiche")
     f = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
     assert f["body_visual"]["candidate_type"] == "fiche"
-    assert f["body_visual"]["url"] == "https://example.com/final.png"
+    assert f["body_visual"]["url"] == "https://r2.example/p1.png"  # fiche embeds the product image (no poster)
 
 
 # 8

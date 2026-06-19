@@ -819,6 +819,9 @@
     }
     // Fetch the persisted poster record and bind its final_poster.url into the mode card (real generated visual).
     async function loadModePoster(mode){
+      // fiche = product_sheet_email built from Workbench truth — NO poster_key / poster_record. Its body visual is
+      // the product image; bind the card from the product image rather than fetching a poster record.
+      if(mode==='fiche'){ S.ficheUrl=S.ficheUrl||SLOTS.prod1||''; setModeCard('fiche', S.ficheUrl?'ready':'placeholder', S.ficheUrl); return !!S.ficheUrl; }
       if(!S[mode])return false;
       var r=await api('GET','/api/v2/posters/'+S[mode]);
       if(r.ok&&r.json){
@@ -847,6 +850,13 @@
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+mode+'/generate');
       if(gb)gb.disabled=false; if(rb)rb.disabled=false;
       if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[mode]||{};
+        if(mode==='fiche'){
+          // fiche is a deterministic product sheet from workbench truth (no poster generation / no poster_key)
+          S.fiche=c.poster_key||'fiche_sheet'; S.ficheUrl=SLOTS.prod1||''; S.ficheStale=false; refreshModeStaleUI('fiche');
+          diag('generated_fiche',{candidate_type:'fiche',status:c.status||'ready',generated_from:'workbench_truth',uses_poster_generation:false});
+          setModeCard('fiche', S.ficheUrl?'ready':'incomplete', S.ficheUrl);
+          flash('ok',(lang==='zh'?'简单产品页已可生成，请选择为邮件主体。':'Fiche prête — choisissez-la.')); return true;
+        }
         S[mode]=c.poster_key; S[mode+'Stale']=false; refreshModeStaleUI(mode);
         diag('generated_poster',{candidate_type:mode,generated_poster_key:c.poster_key,status:c.status||'ready'});
         await loadModePoster(mode); // fetch poster_record.final_poster.url and show the REAL visual
@@ -976,7 +986,8 @@
       var g=await api('GET','/api/v2/workbench/'+S.wb); if(!g.ok||!g.json)return;
       var pc=g.json.poster_candidates||{};
       if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
-      if((pc.fiche||{}).status==='ready'&&(pc.fiche||{}).poster_key){S.fiche=pc.fiche.poster_key; await loadModePoster('fiche');}
+      // fiche is ready by STATUS (workbench-truth product sheet) — no poster_key required
+      if((pc.fiche||{}).status==='ready'){S.fiche=pc.fiche.poster_key||'fiche_sheet'; S.ficheUrl=SLOTS.prod1||''; await loadModePoster('fiche');}
       var sel=g.json.selected_email_body_visual;
       if(sel&&!selectedVisual)applySelectVisual(sel);
       diag('refresh',{affiche:S.affiche,fiche:S.fiche,selected:sel});

@@ -60,8 +60,10 @@ def test_assembly_has_600px_table_safe_shell(client):
 def test_assembly_has_email_banner_module(client):
     _, html = _preview_html(client)
     assert "#1f2329" in html or "1f2329" in html  # dark brand header
-    assert "https://r2.example/logo.png" in html
+    # ttt_html_header: clean dark bar + CUISTANCE CSS WORDMARK + channel meta (logo image is NOT stretched in)
+    assert "CUISTANCE" in html
     assert "CUISTANCE Europe" in html
+    assert "https://r2.example/logo.png" not in html
 
 
 def test_assembly_has_red_filet_divider(client):

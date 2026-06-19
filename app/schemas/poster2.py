@@ -405,7 +405,7 @@ class EmailAssemblyBannerView(BaseModel):
 
 class EmailAssemblyBodyVisual(BaseModel):
     candidate_type: CandidateType
-    poster_key: str
+    poster_key: Optional[str] = None  # None for fiche/product_sheet_email (built from workbench truth, no poster runtime)
     url: Optional[str] = None
     template_id: Optional[str] = None
 
@@ -420,7 +420,7 @@ EmailBodyModuleKey = Literal[
 class SelectedBodyVisualSlot(BaseModel):
     source: str = "workbench.selected_email_body_visual"
     candidate_type: CandidateType
-    poster_key: str
+    poster_key: Optional[str] = None  # None for fiche/product_sheet_email (no poster runtime)
     final_poster_url: Optional[str] = None
 
 
@@ -472,6 +472,10 @@ class EmailAssemblyPreviewResponse(BaseModel):
     email_body_visual_url: Optional[str] = None
     body_visual_variant: Optional[str] = None
     email_body_visual_contract_pass: bool = True
+    # fiche / product_sheet_email (deterministic from Workbench truth — no poster generation)
+    fiche_uses_poster_generation: Optional[bool] = None
+    fiche_generated_from: Optional[str] = None
+    product_sheet_email_contract_pass: Optional[bool] = None
 
 
 # PR-4 — manual multi-recipient confirmed send + evidence.

@@ -12656,3 +12656,35 @@ After bundle:
   + honest BLOCKED cards 01-06). Local REAL-backend PASS (f5801c1) stands.
 - Owner Decision Needed: re-place OPS creds + confirm Render serves >= f5801c1, then the OPS-authenticated remote
   validation completes.
+
+## FICHE PRODUCT SHEET EMAIL CLOSURE (2026-06-19) — LOCAL REAL-backend PASS
+- Task: POSTER2-CUISTANCE-FICHE-PRODUCT-SHEET-EMAIL-CLOSURE-V1. Fix ONLY the Fiche / simple product sheet mode,
+  which timed out (`generate_timeout`, 80000ms, stage=generate_runtime) because it incorrectly entered poster
+  generation runtime (build_candidate_payload -> template_product_sheet_v1 -> PosterPipeline / Vertex+Chromium).
+- Fix (no image generation / no Gemini / no Imagen / not routed through email_campaign_composite_v1; Affiche & real
+  send untouched): Fiche is now a pure DETERMINISTIC product_sheet_email built from Workbench truth.
+  - generate endpoint `/candidates/fiche/generate`: short-circuits the pipeline; validates product_name|reference +
+    >=1 product image (else 422 fiche_requires_product_name_and_image); stores a ready candidate with NO poster_key,
+    template_id=product_sheet_email, contract_review_summary={generated_from:workbench_truth,
+    uses_poster_generation:false, email_fill_format:product_sheet_email}.
+  - select / resolver / preview / send relaxed to tolerate Fiche's missing poster_key (poster_key now Optional on
+    EmailAssemblyBodyVisual + SelectedBodyVisualSlot); Fiche body visual = the product image (no poster).
+  - assembly: product_sheet_email path renders ttt_html_header (CSS dark-bar CUISTANCE wordmark + red filet, NO logo
+    image, NO header-band cover) + product image + name + reference + spec list + description + CTA + footer.
+  - frontend cuistance_trial.html: fiche tab generates/selects deterministically (product image as its visual);
+    docs/cuistance_trial.html mirror synced.
+- Tests: 35 email/workbench/candidate/assembly-domain tests PASS (test_workbench_candidates 15, _email_assembly 12,
+  _email_assembly_reference updated to ttt_html_header wordmark contract, business_flow). My changes introduce ZERO
+  new failures (verified by stash: the only domain test that was red — _assembly_has_email_banner_module — was already
+  red on baseline from the prior committed ttt_html_header redesign, now aligned). The other ~52 full-suite failures
+  are pre-existing renderer/pipeline/api Chromium/Vertex/CORS environmental baseline failures, untouched by this task.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  fiche_product_sheet_email_closure_v1/ (evidence.json local_pass=true: fiche_generate_timeout=false [0.05s],
+  fiche_uses_poster_generation=false, fiche_generated_from=workbench_truth, fiche_has_poster_key=false,
+  selected_email_body_visual_after=fiche, email_fill_format=product_sheet_email, product_sheet_email_preview_ok=true,
+  email_header_source=ttt_html_header, affiche_still_works=true, body_visual_contains_own_banner=false,
+  email_body_visual_contract_pass=true, real_email_sent=false; remote_pass=false [OPS creds + redeploy gated]) +
+  screenshots 01-06.
+- Remote: NOT validated this run (v2 API OPS-gated; creds not re-placed). REMOTE_AUTH_BLOCKED — no remote blocker
+  proven; the local REAL-backend fix stands. Owner Decision Needed: re-place OPS creds + confirm Render serves this
+  branch -> OPS-authenticated remote validation.

@@ -2406,6 +2406,21 @@ async def generate_workbench_candidate_v2(
     if record is None:
         raise HTTPException(status_code=404, detail="workbench_record_not_found")
 
+    # Fiche = simple product sheet email built DETERMINISTICALLY from Workbench truth. It must NOT enter the heavy
+    # poster generation runtime (email_campaign_composite / Chromium / Imagen) — that path timed out. Mark the
+    # candidate ready from truth (no poster_key); Step 3 assembles product_sheet_email from workbench truth.
+    if candidate_type == "fiche":
+        truth = record.get("product_truth") or {}
+        images = [i for i in ((record.get("product_assets") or {}).get("product_images") or []) if i and i.get("url")]
+        if not (truth.get("product_name") or truth.get("reference")) or not images:
+            raise HTTPException(status_code=422, detail="fiche_requires_product_name_and_image")
+        record = set_poster_candidate(
+            workbench_key, "fiche", poster_key=None, status="ready", template_id="product_sheet_email",
+            contract_review_summary={"generated_from": "workbench_truth", "uses_poster_generation": False,
+                                     "email_fill_format": "product_sheet_email"},
+        )
+        return WorkbenchRecordResponse.model_validate(record)
+
     try:
         payload_dict = build_candidate_payload(record, candidate_type)
         payload = _model_validate(GeneratePosterV2Request, payload_dict)
@@ -2490,6 +2505,38 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="no_selected_email_body_visual")
 
     candidate = (workbench.get("poster_candidates") or {}).get(selected) or {}
+
+    # Fiche / product_sheet_email: deterministic email product sheet from Workbench truth (NO poster generation,
+    # NO poster_record, NO Chromium). The body visual is the product image; specs come from product_truth.parameters.
+    if selected == "fiche":
+        if candidate.get("status") != "ready":
+            raise HTTPException(status_code=422, detail="selected_candidate_not_ready")
+        truth = workbench.get("product_truth") or {}
+        images = [i.get("url") for i in ((workbench.get("product_assets") or {}).get("product_images") or []) if i and i.get("url")]
+        product_image_url = images[0] if images else None
+        draft = {
+            "subject": (truth.get("product_name") or truth.get("reference") or "CUISTANCE"),
+            "preview_text": (truth.get("description") or "")[:140],
+            "intro": truth.get("description") or "",
+            "generated_from": "deterministic",
+        }
+        try:
+            assembly = build_email_assembly(
+                workbench=workbench, draft=draft, body_visual_url=product_image_url,
+                candidate_type="fiche", template_id="product_sheet_email", poster_key=None,
+                body_visual_variant="product_image", body_visual_contains_own_banner=False,
+                standalone_poster_url=None,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail="email_body_plan_unavailable") from exc
+        return {
+            "workbench": workbench, "selected": "fiche", "candidate": candidate, "poster_key": None,
+            "record": None, "draft": draft, "assembly": assembly, "body_url": product_image_url,
+            "standalone_poster_url": None,
+            "email_body_visual": {"variant": "product_sheet_html", "url": product_image_url,
+                                  "contains_own_banner": False, "generated_from": "workbench_truth"},
+        }
+
     poster_key = candidate.get("poster_key")
     if not poster_key or candidate.get("status") != "ready":
         raise HTTPException(status_code=422, detail="selected_candidate_not_ready")
@@ -2552,9 +2599,10 @@ def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewRespon
     )
 
     settings = get_settings()
-    if settings.email_attachment.enabled and settings.email_attachment.build_on_preview:
+    # fiche/product_sheet_email has no poster_key/poster_record -> no poster attachments to build
+    if poster_key and settings.email_attachment.enabled and settings.email_attachment.build_on_preview:
         record = build_email_assets_for_record(poster_key)
-    email_assets = record.get("email_assets") or {}
+    email_assets = (record or {}).get("email_assets") or {}
 
     return EmailAssemblyPreviewResponse(
         workbench_key=workbench_key,
@@ -2586,6 +2634,9 @@ def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewRespon
         email_body_visual_url=assembly.get("email_body_visual_url") or body_url,
         body_visual_variant=assembly.get("body_visual_variant"),
         email_body_visual_contract_pass=assembly.get("email_body_visual_contract_pass", True),
+        fiche_uses_poster_generation=assembly.get("fiche_uses_poster_generation"),
+        fiche_generated_from=assembly.get("fiche_generated_from"),
+        product_sheet_email_contract_pass=assembly.get("product_sheet_email_contract_pass"),
     )
 
 
@@ -2620,7 +2671,8 @@ def send_workbench_email_v2(
     settings = get_settings()
     requested_types = list(payload.attachment_types or [])
     attachments: list[dict[str, Any]] = []
-    if payload.delivery_mode == "resend" and requested_types:
+    # fiche/product_sheet_email has no poster_record -> no poster attachments (inline body only)
+    if payload.delivery_mode == "resend" and requested_types and poster_key:
         if settings.email_attachment.enabled:
             record = build_email_assets_for_record(poster_key, asset_types=requested_types)
         try:

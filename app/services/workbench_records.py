@@ -150,12 +150,17 @@ def set_poster_candidate(
 
 
 def select_email_body_visual(workbench_key: str, candidate_type: str) -> dict[str, Any]:
-    """Persist exactly one selected visual. Rejects a candidate that has no poster_key or is not ready."""
+    """Persist exactly one selected visual. A candidate must be ready; it must carry a poster_key UNLESS it is a
+    deterministic workbench-truth product sheet (fiche / product_sheet_email — no poster generation, no poster_key)."""
     record = load_workbench_record(workbench_key)
     if record is None:
         raise KeyError(workbench_key)
     candidate = (record.get("poster_candidates") or {}).get(candidate_type) or {}
-    if not candidate.get("poster_key") or candidate.get("status") != "ready":
+    if candidate.get("status") != "ready":
+        raise ValueError("candidate_not_ready")
+    summary = candidate.get("contract_review_summary") or {}
+    is_workbench_truth_sheet = summary.get("generated_from") == "workbench_truth"
+    if not candidate.get("poster_key") and not is_workbench_truth_sheet:
         raise ValueError("candidate_not_ready")
     record["selected_email_body_visual"] = candidate_type
     record["updated_at"] = _utc_now()

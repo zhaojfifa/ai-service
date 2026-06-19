@@ -110,34 +110,37 @@ def test_generate_affiche_stores_poster_key(client):
 
 # 2
 def test_generate_fiche_stores_poster_key(client):
+    # fiche is now a DETERMINISTIC product sheet from workbench truth: ready WITHOUT poster generation / poster_key
     wb = _make_workbench(client)
     r = _gen(client, wb, "fiche")
     assert r.status_code == 200
     cand = r.json()["poster_candidates"]["fiche"]
-    assert cand["poster_key"].startswith("p2_")
     assert cand["status"] == "ready"
-    assert cand["template_id"] == "template_product_sheet_v1"
+    assert not cand.get("poster_key")  # no poster generation runtime -> no poster_key
+    assert cand["template_id"] == "product_sheet_email"
+    summary = cand.get("contract_review_summary") or {}
+    assert summary.get("generated_from") == "workbench_truth"
+    assert summary.get("uses_poster_generation") is False
 
 
 # 3
 def test_fiche_accepts_primary_and_secondary_images(client):
+    # fiche no longer renders a poster; with product images present it is deterministically ready (no poster_key)
     wb = _make_workbench(client, two_images=True)
     r = _gen(client, wb, "fiche")
     assert r.status_code == 200
-    poster_key = r.json()["poster_candidates"]["fiche"]["poster_key"]
-    record = client.get(f"/api/v2/posters/{poster_key}").json()
-    snap = record["request_snapshot"]
-    assert snap["product_image"]["url"] == "https://r2.example/p1.png"
-    assert snap["product_secondary_image"]["url"] == "https://r2.example/p2.png"
+    cand = r.json()["poster_candidates"]["fiche"]
+    assert cand["status"] == "ready" and not cand.get("poster_key")
 
 
 def test_fiche_single_image_has_no_secondary(client):
+    # fiche is ready from workbench truth with a single product image; no poster generation involved
     wb = _make_workbench(client, two_images=False)
     r = _gen(client, wb, "fiche")
     assert r.status_code == 200
-    poster_key = r.json()["poster_candidates"]["fiche"]["poster_key"]
-    record = client.get(f"/api/v2/posters/{poster_key}").json()
-    assert record["request_snapshot"].get("product_secondary_image") is None
+    cand = r.json()["poster_candidates"]["fiche"]
+    assert cand["status"] == "ready" and not cand.get("poster_key")
+    assert (cand.get("contract_review_summary") or {}).get("uses_poster_generation") is False
 
 
 # 4

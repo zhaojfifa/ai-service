@@ -99,6 +99,21 @@ def build_email_assembly(
     intro = resolve_intro(product_truth, draft)
     meta_bits = " · ".join([b for b in (channel_name, campaign_label) if b])
 
+    # product sheet (fiche / product_sheet_email): reference line + spec list from CONFIRMED workbench parameters
+    is_product_sheet = (candidate_type == "fiche")
+    sheet_extra = ""
+    if is_product_sheet:
+        reference = clean_copy_text(product_truth.get("reference") or "")
+        spec_items = "".join(
+            f'<li style="margin:3px 0;"><b>{escape(str(p.get("label") or p.get("key") or ""))}</b> '
+            f'{escape(str(p.get("value") or ""))}</li>'
+            for p in (product_truth.get("parameters") or []) if p and p.get("value")
+        )
+        if reference:
+            sheet_extra += f'<p style="margin:0 0 8px;color:#6b7178;font-size:13px;font-weight:700;">RÉF. {escape(reference)}</p>'
+        if spec_items:
+            sheet_extra += f'<ul style="margin:0 0 12px;padding-left:18px;font-size:13px;color:#33363b;list-style:disc;">{spec_items}</ul>'
+
     # ---- per-module HTML fragments (reference-aligned PR-3R grammar) ----
     # email header = ttt.html-style clean dark bar with a CSS CUISTANCE WORDMARK (deterministic, never distorted) +
     # optional campaign meta + red filet. We do NOT use email_banner.background.url / header-band cover / a stretched
@@ -128,9 +143,11 @@ def build_email_assembly(
             + "</div>"
         ),
         "product_description": (
-            f'<div style="padding:12px 16px 0;"><p style="margin:0 0 12px;">{escape(intro)}</p></div>'
-            if intro else ""
-        ),
+            '<div style="padding:12px 16px 0;">'
+            + (f'<p style="margin:0 0 12px;">{escape(intro)}</p>' if intro else "")
+            + sheet_extra
+            + "</div>"
+        ) if (intro or sheet_extra) else "",
         "cta": (
             '<div style="padding:0 16px 16px;">'
             + f'<a href="{escape(cta_href, quote=True)}" style="display:inline-block;background:#E1002A;color:#fff;'
@@ -219,6 +236,10 @@ def build_email_assembly(
         "email_body_visual_url": body_visual_url,
         "email_body_visual_contract_pass": contract_pass,
         "email_body_visual_contract_reason": contract_reason,
+        # fiche / product_sheet_email evidence (deterministic from Workbench truth — never poster generation)
+        "fiche_uses_poster_generation": (False if is_product_sheet else None),
+        "fiche_generated_from": ("workbench_truth" if is_product_sheet else None),
+        "product_sheet_email_contract_pass": (bool(is_product_sheet and not own_banner) if is_product_sheet else None),
         "email_body_plan": email_body_plan,
         # PSD email container (design-shell grammar) — additive; Workbench remains the only business truth source
         "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
