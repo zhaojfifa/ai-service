@@ -12420,3 +12420,39 @@ After bundle:
   No real email sent.
 - Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_step3_fill_format_preview_proof.py,
   scripts/check_email_fill_format_alignment.py, status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-ASSET-PERSISTENCE-GENERATE-PAYLOAD-AND-HEADER-ASSET-FIX (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend + assets (NO renderer/provider/send/backend-API change). Root cause: ensureWorkbench() early-returned
+  if(S.wb)return true; so Step-1 save never re-PATCHed assets after the workbench existed -> gallery_images=[] in
+  backend truth despite UI selection (Owner wb_9308b112feb0436e). Also banner_option_02.jpg was 1080x720 (3:2), not a
+  header strip -> cover-cropped body content as header.
+- Fixes: (1) ensureWorkbench now creates-if-needed then ALWAYS PATCHes product_truth + assets, GETs workbench to
+  verify, and blocks with 素材未保存成功，请重新保存产品与素材 if UI gallery>0 but backend gallery=[]. (2) genVisual GETs
+  workbench and records generation_assets (product_images_count/gallery_images_count/atmosphere_present/logo_present/
+  banner_background_present); generation from backend-confirmed state, not stale memory. (3) after generate, GET
+  candidate poster_key -> GET /api/v2/posters -> render final_poster.url; diag generated_poster_key (not conflated
+  with historical send_attempts). (4) deterministic selection rule: regenerating the selected mode -> clearSelection()
+  (re-click required); UI shows selected only when backend GET confirms; ready+null -> 产品海报已生成，请选择为邮件主体.
+  (5) header assets corrected: new header-only bands frontend/assets/header_band_01.png (品牌页眉) + header_band_02.png
+  (活动页眉), 1200x200 6:1 charcoal+wordmark+red filet (no product/body/CTA/footer); wired into Step3 options +
+  FORMAT_HEADER map (campaign->band_02, product_sheet->band_01) + header preview + static mock + 使用示例素材; CSS
+  header-band constraint. (6) preview PATCHes header then assembles -> diag header_boundary_valid +
+  no_body_content_in_header_banner + preview_contains_header/body_visual/cta/footer. (7) advisory check extended:
+  header_band_0{1,2}.png aspect >=3:1 header-only + no third-party tracking copied.
+- REAL (non-stubbed) browser verification: real app.main backend; real page; Playwright NO route stubbing. evidence:
+  was_stubbed=false; product_images_count_after_save=2; gallery_images_count_after_save=2; atmosphere_present=true;
+  logo_present=true; banner_background_present=true; selected_banner_ref=option_1; resave_field_persisted=true;
+  resave_gallery_still_present=true; generation_product_images_count=2; generation_gallery_images_count=2;
+  generation_atmosphere_present=true; generated_poster_key set; final_poster_url_present=true; selected before=null/
+  after=affiche; selected_poster_key_matches_current_candidate=true; old_send_attempt_poster_key_ignored=true;
+  banner_option_01/02_header_only=true; no_body_content_in_header_banner=true; header_boundary_valid=true;
+  banner_background_url_is_header_band=true; preview_http_status=200; preview_contains_header/body_visual/cta/footer=
+  true; send provider=inline_only/status=skipped/error_code=preview_only/provider_message_id absent/real_email_sent=
+  false; ui_send_label_correct=true. Screenshots docs/poster2/assets/
+  cuistance_asset_persistence_generate_payload_header_fix_v1/ 01-09 + evidence.json. Forbidden-term + fallback scan
+  NONE; inline JS syntax OK; docs router PASS; fill-format advisory PASS (header bands 6:1 header-only).
+- Local real-backend validation = GO. Remote: pending trial-branch deploy + operator OPS login (no creds this pass).
+  No real email sent.
+- Files: frontend/cuistance_trial.html (+docs mirror), frontend/assets/header_band_0{1,2}.png (+docs/assets mirror),
+  scripts/poster2_cuistance_header_band_assets.py, scripts/poster2_cuistance_asset_persistence_header_proof.py,
+  scripts/check_email_fill_format_alignment.py, status doc, README, this log. Backend unchanged.

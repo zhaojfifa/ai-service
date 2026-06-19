@@ -346,7 +346,7 @@
             <div class="poster-tag" id="fiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
             <div class="preview-frame">
               <div class="sheet" id="fiche-mock">
-                <div class="email-banner mini"><img class="banner-img" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+                <div class="email-banner mini"><img class="banner-img" src="assets/header_band_01.png" alt="en-tête" /></div>
                 <div class="sheet-body">
                   <div class="sheet-imgs"><img src="assets/product_01.jpg" alt="produit 1" /><img src="assets/product_02.jpg" alt="produit 2" /></div>
                   <div class="sheet-title">Friteuse électrique double — EF132V</div>
@@ -378,11 +378,11 @@
           <div class="card banner-editor">
             <h3><span data-zh="邮件页眉 / Header" data-fr="En-tête de l'email">邮件页眉 / Header</span> <span class="badge ready" data-zh="邮件层 · 仅页眉" data-fr="couche email · en-tête">邮件层 · 仅页眉</span></h3>
             <p class="hint" data-zh="邮件第一块（页眉）。只包含品牌页眉，不含产品主体 / 描述 / CTA / 页脚。" data-fr="Premier bloc (en-tête) : marque uniquement — pas le corps produit / description / CTA / pied.">邮件第一块（页眉）。只包含品牌页眉，不含产品主体 / 描述 / CTA / 页脚。</p>
-            <div class="email-banner selected-banner" id="bannerPreview"><img class="banner-img" id="bannerPreviewImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+            <div class="email-banner selected-banner" id="bannerPreview"><img class="banner-img" id="bannerPreviewImg" src="assets/header_band_01.png" alt="en-tête" /></div>
             <div class="header-only-cap" data-zh="仅邮件页眉（不含产品主体）。" data-fr="En-tête seul (sans le corps produit).">仅邮件页眉（不含产品主体）。</div>
             <div class="banner-options" id="bannerOptions">
-              <button class="banner-opt selected" data-ref="option_1" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
-              <button class="banner-opt" data-ref="option_2" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
+              <button class="banner-opt selected" data-ref="option_1" data-img="assets/header_band_01.png" type="button"><img src="assets/header_band_01.png" alt="Option 1" /><span class="opt-cap"><span data-zh="品牌页眉" data-fr="En-tête marque">品牌页眉</span> <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
+              <button class="banner-opt" data-ref="option_2" data-img="assets/header_band_02.png" type="button"><img src="assets/header_band_02.png" alt="Option 2" /><span class="opt-cap" data-zh="活动页眉" data-fr="En-tête campagne">活动页眉</span></button>
             </div>
             <div class="grid-2" style="margin-top:8px">
               <div class="field"><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input class="input" id="f-channel" value="CUISTANCE Europe" /></div>
@@ -430,7 +430,7 @@
             </div>
             <div class="preview-frame" id="emailPreviewFrame">
               <div class="email" id="emailStatic">
-                <div class="email-banner"><img class="banner-img" id="emailBannerImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
+                <div class="email-banner"><img class="banner-img" id="emailBannerImg" src="assets/header_band_01.png" alt="en-tête" /></div>
                 <div class="e-poster" id="emailBodyAffiche">
                   <div class="poster" style="max-width:100%; box-shadow:none; border:1px solid var(--line)">
                     <div class="p-hero" style="height:150px"><img src="assets/product_01.jpg" alt="produit" /></div>
@@ -496,7 +496,7 @@
   (function () {
     var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false;
     // email-layer header asset per fill format (ttt2/campaign -> Technitalia banner; ttt/sheet -> brand header)
-    var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/banner_option_02.jpg'}, product_sheet_email:{ref:'option_1',img:'assets/banner_option_01.jpg'}};
+    var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/header_band_02.png'}, product_sheet_email:{ref:'option_1',img:'assets/header_band_01.png'}};
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:''};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
@@ -680,12 +680,15 @@
         bh.textContent=bh.getAttribute('data-'+lang); }
       diag('banner',{selected_banner_ref:selectedBannerRef,background_url_present:!!SLOTS.banner});
     }
+    // Save Step 1: create the workbench if needed, then ALWAYS persist the latest truth + assets to backend truth
+    // (the previous early-return on an existing workbench dropped gallery/asset edits made after creation).
     async function ensureWorkbench(){
       if(!SLOTS.prod1){flash('warn',lang==='zh'?'请先添加产品主图或使用示例素材':'Ajoutez l\'image produit ou utilisez l\'exemple');return false}
-      if(S.wb)return true;
-      var r=await api('POST','/api/v2/workbench',{language:lang});
-      if(!r.ok||!r.json){flash('err',bizMsg(r));return false}
-      S.wb=r.json.workbench_key;rememberWb();diag('create',1);
+      if(!S.wb){
+        var r=await api('POST','/api/v2/workbench',{language:lang});
+        if(!r.ok||!r.json){flash('err',bizMsg(r));return false}
+        S.wb=r.json.workbench_key;rememberWb();diag('create',1);
+      }
       await api('PATCH','/api/v2/workbench/'+S.wb,{product_truth:{
         product_name:$('f-pname').value,reference:$('f-pref').value,description:$('f-desc').value,
         parameters:[{key:'reference',value:$('f-pref').value,state:'confirmed'},
@@ -694,6 +697,13 @@
           {key:'thermostat',value:"jusqu'à 190°C",state:'confirmed'}]}});
       var pr=await api('PATCH','/api/v2/workbench/'+S.wb,buildAssetsPatch());
       diag('saved_assets',pr.ok?buildAssetsPatch():pr.status);
+      // verify backend truth actually reflects the UI asset selection (gallery especially)
+      var g=await api('GET','/api/v2/workbench/'+S.wb);
+      if(g.ok&&g.json){var pa=g.json.product_assets||{};
+        diag('saved_verify',{product_images:(pa.product_images||[]).length,gallery_images:(pa.gallery_images||[]).length,atmosphere:!!pa.atmosphere,logo:!!((g.json.email_banner||{}).logo),banner_background:!!((g.json.email_banner||{}).background)});
+        var uiGal=['g1','g2','g3'].filter(function(s){return SLOTS[s]}).length;
+        if(uiGal>0 && (pa.gallery_images||[]).length===0){ flash('err',lang==='zh'?'素材未保存成功，请重新保存产品与素材':'Éléments non enregistrés — réenregistrez le produit et les éléments'); return false; }
+      }
       return pr.ok;
     }
 
@@ -727,7 +737,8 @@
         if(real){real.src=url;real.style.display='';} if(opn)opn.href=url||'#';
         if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
         badge('ready', mode==='affiche'?'产品海报已生成':'简单产品页已生成', mode==='affiche'?'Affiche générée':'Fiche générée');
-        hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
+        if(selectedVisual===mode) hint('已选为邮件主体。','Choisi comme corps de l\'email.');
+        else hint('产品海报已生成，请选择为邮件主体。','Généré — choisissez-le comme corps de l\'email.');
         if(dot){dot.textContent='✓';dot.style.color='var(--ok,#188a42)';}
         // keep the Step-3 static email-body image coherent with the real generated visual (preview iframe is truth)
         var ei=$(mode==='affiche'?'emailBodyAffiche':'emailBodySheet'),eimg=ei&&ei.querySelector('img'); if(eimg&&url)eimg.src=url;
@@ -780,17 +791,23 @@
     }
     // generate one mode (affiche|fiche). A ready candidate is never erased on timeout. Failure is mode-specific.
     async function genVisual(mode,regen){
-      if(!await ensureWorkbench())return false;
+      if(!await ensureWorkbench())return false; // ensureWorkbench now always persists + verifies backend assets
       switchMode(mode); // keep the active tab on the mode being generated
-      if(!regen && S[mode]){ flash('ok',lang==='zh'?'已生成，可直接「选为邮件主体」。':'Déjà prêt.'); await loadModePoster(mode); return true; }
+      // generation runs from BACKEND-confirmed workbench state; record the asset counts actually used
+      var gw=await api('GET','/api/v2/workbench/'+S.wb);
+      if(gw.ok&&gw.json){var pa=gw.json.product_assets||{},eb=gw.json.email_banner||{};
+        diag('generation_assets',{product_images_count:(pa.product_images||[]).length,gallery_images_count:(pa.gallery_images||[]).length,atmosphere_present:!!pa.atmosphere,logo_present:!!eb.logo,banner_background_present:!!eb.background}); }
+      // deterministic rule: regenerating the currently-selected mode clears the selection (require re-confirm)
+      if(regen && selectedVisual===mode){ clearSelection(); }
+      if(!regen && S[mode]){ flash('ok',lang==='zh'?'已生成，请选择为邮件主体。':'Déjà prêt — choisissez-le.'); await loadModePoster(mode); return true; }
       var gb=$('btn-gen-'+mode),rb=$('btn-regen-'+mode); if(gb)gb.disabled=true; if(rb)rb.disabled=true;
       setModeCard(mode,'generating'); flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+mode+'/generate');
       if(gb)gb.disabled=false; if(rb)rb.disabled=false;
       if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[mode]||{};
-        S[mode]=c.poster_key; diag(mode,c.status||'ready');
+        S[mode]=c.poster_key; diag('generated_poster',{candidate_type:mode,generated_poster_key:c.poster_key,status:c.status||'ready'});
         await loadModePoster(mode); // fetch poster_record.final_poster.url and show the REAL visual
-        flash('ok',(lang==='zh'?(MODE_NAME[mode].zh+'已生成，可「选为邮件主体」。'):'Généré.')); return true;
+        flash('ok',(lang==='zh'?(MODE_NAME[mode].zh+'已生成，请选择为邮件主体。'):'Généré — choisissez-le.')); return true;
       }
       if(r.status===504||r.status===502||r.status===0){ // gateway timeout: backend may have completed anyway
         diag(mode+'_timeout',r.status); await refreshState();
@@ -821,7 +838,17 @@
       switchMode(v); // surface the selected mode
       applyFillFormat(defaultFillFor(v),true); // default-map the email fill format from the selected body visual
       previewGenerated=false; // selecting/re-selecting a body visual invalidates any prior preview
+      if(S[v])setModeCard(v,'ready',S[v+'Url']); // refresh the card hint to "已选为邮件主体"
       render(); // unlocks Step 3 (nextBtn no longer disabled once selectedVisual set)
+    }
+    // deterministic rule: clear selection (used when regenerating a previously-selected mode); requires re-click
+    function clearSelection(){
+      var prev=selectedVisual; selectedVisual=null; previewGenerated=false;
+      $('card-affiche').classList.remove('selected'); $('card-fiche').classList.remove('selected');
+      document.querySelectorAll('.select-visual').forEach(function(b){b.setAttribute('data-zh','选为邮件主体');b.setAttribute('data-fr','Choisir pour l\'email');b.textContent=b.getAttribute('data-'+lang);});
+      if(prev&&S[prev])setModeCard(prev,'ready',S[prev+'Url']); // hint back to "请选择为邮件主体"
+      diag('selection_cleared',{previous:prev});
+      render(); // re-locks Step 3
     }
     // select reuses an existing ready candidate; never forces a second generation
     document.querySelectorAll('.select-visual').forEach(function(b){b.addEventListener('click',async function(){
@@ -1043,8 +1070,8 @@
     // ---- use sample assets (hosted): fills all required slots so the affiche route runs without upload ----
     $('btn-sample').addEventListener('click',function(){
       setSlot('prod1',SAMPLE.prod1);setSlot('prod2',SAMPLE.prod2);
-      setSlot('g1',SAMPLE.prod2);setSlot('logo',SAMPLE.logo);
-      selectBanner('option_1','assets/banner_option_01.jpg');   // explicit email-banner choice (Option 1)
+      setSlot('g1',SAMPLE.prod2);setSlot('g2',SAMPLE.prod1);setSlot('atmo',SAMPLE.prod1);setSlot('logo',SAMPLE.logo);
+      selectBanner('option_1','assets/header_band_01.png');   // explicit email header choice (brand header band)
       flash('ok',lang==='zh'?'已使用示例素材（产品图/画廊/Logo/横幅），可「保存并进入下一步」。':'Éléments d\'exemple chargés.');
     });
 

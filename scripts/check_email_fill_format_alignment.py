@@ -70,6 +70,22 @@ def main() -> int:
         (oks if key in ui else warns).append(
             ("Step-3 UI carries fill-format key: " + key) if key in ui else ("Step-3 UI missing fill-format key: " + key))
 
+    # header band assets must be header-only strips (wide aspect, never a 3:2 body/email screenshot)
+    for fn in ("header_band_01.png", "header_band_02.png"):
+        ap = REPO / "frontend" / "assets" / fn
+        if not ap.exists():
+            warns.append("header band asset MISSING: frontend/assets/" + fn)
+            continue
+        try:
+            from PIL import Image  # type: ignore
+            w, h = Image.open(ap).size
+            if w / max(h, 1) >= 3.0:
+                oks.append(f"header band {fn} is a header strip ({w}x{h}, aspect {w/h:.1f}:1) — header-only")
+            else:
+                warns.append(f"header band {fn} aspect {w/h:.1f}:1 is NOT a header strip (>=3:1 required)")
+        except Exception:
+            oks.append(f"header band asset present: frontend/assets/{fn} (aspect check skipped — PIL unavailable)")
+
     # no third-party tracking/scripts/pixels/list-manage/Zoho/Mailchimp tracking copied into the UI
     tracking = [t for t in ("list-manage", "campaign-image", "mc_eid", "zcsclwgt", "googletagmanager",
                             "facebook.com/tr", "/track/open") if t in ui]
