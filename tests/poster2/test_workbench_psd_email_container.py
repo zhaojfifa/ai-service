@@ -57,6 +57,9 @@ def test_preview_exposes_psd_email_container(client):
     assert body["email_header_source"] == "ttt_html_header"
     assert ec["email_header_source"] == "ttt_html_header"
     assert ec["header_source"] == "ttt_html_header"
+    assert ec["header_visual_mode"] == "css_dark_bar_wordmark"
+    assert ec["uses_header_band_cover"] is False
+    assert ec["logo_not_stretched"] is True and ec["logo_not_clipped"] is True
     assert ec["header_only"] is True
     assert ec["no_body_content_in_header"] is True
     assert ec["no_product_visual_in_header"] is True
@@ -68,13 +71,24 @@ def test_preview_exposes_psd_email_container(client):
     assert ec["body_visual_poster_key"] == body["body_visual"]["poster_key"]
 
 
-def test_frontend_has_full_preview_button():
+def test_frontend_has_full_preview_modal():
     from pathlib import Path
     html = Path("frontend/cuistance_trial.html").read_text(encoding="utf-8")
     assert "btn-full-preview" in html
     assert "打开完整预览" in html
-    # full preview opens the backend HTML in a new window via a Blob URL (not a clipped card)
-    assert "createObjectURL" in html and "window.open" in html
+    # full preview = in-page modal (not popup-blockable) with iframe srcdoc + a Blob new-tab backup link
+    assert "fullPreviewModal" in html and "fullPreviewFrame" in html
+    assert "srcdoc" in html and "createObjectURL" in html
+
+
+def test_frontend_step1_banner_selection_removed():
+    from pathlib import Path
+    html = Path("frontend/cuistance_trial.html").read_text(encoding="utf-8")
+    # Step 1 no longer collects a banner skin; Step 3 has no header-band option picker
+    assert 'id="slot-banner"' not in html
+    assert 'id="bannerOptions"' not in html
+    # header is the clean ttt wordmark, not a header-band cover
+    assert "ttt-header-preview" in html and "ttt-wordmark" in html
 
 
 def test_assembled_email_has_no_legacy_gas_truth(client):

@@ -97,21 +97,20 @@ def build_email_assembly(
     meta_bits = " · ".join([b for b in (channel_name, campaign_label) if b])
 
     # ---- per-module HTML fragments (reference-aligned PR-3R grammar) ----
-    # email header = ttt.html-style clean dark bar: a CONTAINED brand logo (object-fit:contain, never stretched) or
-    # a CUISTANCE wordmark fallback + optional campaign meta + red filet. NO stretched background-image (that was the
-    # PSD dark-header logo-fit distortion), NO body/product/CTA/footer. Header source = ttt_html_header.
-    if logo_url:
-        brand_html = _img(logo_url, style="height:34px;max-height:34px;width:auto;max-width:220px;display:block;object-fit:contain;", alt="CUISTANCE")
-    else:
-        brand_html = '<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1px;font-family:Arial,sans-serif;">CUISTANCE</span>'
+    # email header = ttt.html-style clean dark bar with a CSS CUISTANCE WORDMARK (deterministic, never distorted) +
+    # optional campaign meta + red filet. We do NOT use email_banner.background.url / header-band cover / a stretched
+    # logo image (those caused the "强覆盖 / 配色不对" header). Header = header only (no body/product/CTA/footer).
+    header_visual_mode = "css_dark_bar_wordmark"
+    brand_html = ('<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1.5px;'
+                  'font-family:Arial,Helvetica,sans-serif;">CUISTANCE</span>')
     meta_html = (
         f'<div style="margin-left:auto;color:#cfd3d8;font-size:12px;">{escape(meta_bits)}</div>' if meta_bits else ""
     )
 
     fragments: dict[str, str] = {
-        # ttt_html_header: clean dark bar + contained brand + meta, then explicit red filet (reference grammar)
+        # ttt_html_header: clean ~58px dark bar + CUISTANCE wordmark + meta, then explicit red filet (reference grammar)
         "email_banner": (
-            '<div style="background:#1f2329;padding:14px 20px;display:flex;align-items:center;gap:14px;">'
+            '<div style="background:#1f2329;padding:18px 20px;display:flex;align-items:center;gap:14px;">'
             + brand_html + meta_html + "</div>"
             + '<div style="height:3px;line-height:3px;font-size:0;background:#E1002A;">&nbsp;</div>'
         ),
@@ -215,8 +214,12 @@ def build_email_assembly(
             "email_fill_format": fill_format,
             "body_visual_poster_key": poster_key,
             "uses_current_selected_visual": True,
-            # header is now the ttt.html-style clean bar (contained logo/wordmark), NOT the PSD dark-header overlay
+            # header is the ttt.html-style clean CSS dark bar + CUISTANCE wordmark — NOT a header-band cover overlay
             "email_header_source": "ttt_html_header",
+            "header_visual_mode": header_visual_mode,
+            "uses_header_band_cover": False,
+            "logo_not_stretched": True,
+            "logo_not_clipped": True,
             "header_only": True,
             "no_body_content_in_header": True,
             "no_product_visual_in_header": True,

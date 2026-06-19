@@ -107,14 +107,17 @@ def test_preview_includes_email_banner_module(client):
     _gen(client, wb, "affiche")
     _select(client, wb, "affiche")
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
-    assert body["banner"]["logo_url"] == "https://r2.example/logo.png"
+    assert body["banner"]["logo_url"] == "https://r2.example/logo.png"  # banner metadata still carries the logo
     assert body["banner"]["channel_name"] == "CUISTANCE Europe"
     assert body["banner"]["campaign_label"] == "Nouveauté"
     assert body["banner"]["selected_banner_ref"] == "banner_option_01"
-    # the assembled HTML contains the dark banner header + logo + channel
-    assert "1f2329" in body["html"]
-    assert "https://r2.example/logo.png" in body["html"]
-    assert "CUISTANCE Europe" in body["html"]
+    # ttt_html_header: clean dark bar + CUISTANCE wordmark + red filet + channel meta.
+    # The header uses a CSS WORDMARK (not the logo image) and NO header-band background cover.
+    assert "1f2329" in body["html"]            # dark bar
+    assert "CUISTANCE" in body["html"]         # wordmark
+    assert "CUISTANCE Europe" in body["html"]  # channel/campaign meta
+    assert "https://r2.example/logo.png" not in body["html"]  # logo image NOT stretched into the header
+    assert "background-image" not in body["html"].split("selected_body_visual")[0]  # no header-band cover
 
 
 # 6

@@ -12574,3 +12574,37 @@ After bundle:
 - Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
   remote_141c612_validation/ (evidence.json remote_pass=true + screenshots 01-09). No renderer/PSD/frozen-asset/auth
   change; no real email; no merge/tag push.
+
+## MANUAL OPERATOR UX CLOSURE V1 (2026-06-19) — 4 FIXES IMPLEMENTED + LOCAL REAL-BACKEND PASS; REMOTE PENDING (creds+redeploy)
+- Branch guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, clean, base 754084d). Note:
+  remote_usability_final_fix/evidence.json (a must-read) does not exist — non-blocking. OPS creds absent (deleted
+  after prior pass per security); remote validation deferred until creds re-placed + branch redeploys.
+- Fix 1 (Step1 banner removed): removed the Step-1 邮件横幅/背景 upload card + the 邮件横幅 readiness row; relabeled the
+  group to 品牌 Logo（用于邮件页眉）; buildAssetsPatch no longer sends email_banner.background (no header-band cover);
+  sample no longer selects a banner. Step3 header-band option picker (#bannerOptions) removed too. Evidence:
+  step1_banner_selection_visible=false, operator_banner_choice_required=false.
+- Fix 2 (Step2 stale state machine): assets relevant to generation (prod1/prod2/g1-3/atmo) mark the candidate STALE
+  on change (S[mode+'Stale']); the 生成 button is never disabled and relabels to 基于新素材生成… with a stale notice
+  素材已变更，请基于新素材重新生成海报; a stale 生成 click regenerates (effRegen) and clears any selection. Evidence:
+  asset_change_marks_candidate_stale=true, generate_enabled_when_assets_changed=true,
+  candidate_ready_can_select_current=true, selected_state_backend_confirmed=true.
+- Fix 3 (Step3 preview obvious + reliable): moved 预览邮件 (primary) to the top of the right preview panel with help
+  copy (请先点击「预览邮件」… / 邮件预览已生成，可打开完整预览检查最终效果。 / 请先选择邮件主体); 打开完整预览 appears after
+  preview and opens an IN-PAGE MODAL (iframe srcdoc, not popup-blockable) showing the full 600px email + a 在新标签打开
+  Blob backup link. Evidence: step3_preview_button_visible=true, full_preview_button_visible_after_preview=true,
+  full_preview_modal_available=true, full_preview_not_clipped=true, full_preview_uses_current_selected_poster=true.
+- Fix 4 (clean ttt header): assembly header is a CSS dark-bar CUISTANCE WORDMARK + red filet + channel/campaign meta;
+  removed the contained-logo image and ANY background-image/header-band cover. Evidence: email_header_source=
+  ttt_html_header, header_visual_mode=css_dark_bar_wordmark, uses_header_band_cover=false, logo_not_stretched/clipped
+  =true, header_only=true (no body/product/CTA/footer in header). No Technitalia/Codimatel/Gaz leakage.
+- Tests: tests/poster2/test_workbench_psd_email_container.py updated (header_visual_mode/uses_header_band_cover; full
+  preview modal; Step1 banner removed) + test_workbench_email_assembly banner-module test updated to wordmark header;
+  33 focused tests PASS (container/assembly/body-plan + api email/workbench/selected). node-Function JS check OK.
+- LOCAL REAL-backend (non-stubbed) proof: scripts/poster2_cuistance_manual_ux_local_proof.py -> all manual UX
+  acceptance items PASS (local_manual_ux_all_pass=true). Send mode=real/inline_only -> real_email_sent=false. Backend
+  send semantics unchanged.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  manual_operator_ux_closure_v1/ (evidence.json manual_operator_ux_pass=false [remote pending] + local_validation/
+  01-08 + local_manual_ux_evidence.json). No renderer/PSD/frozen-asset/auth change; no real email; no merge/tag push.
+- Owner Decision Needed: re-place OPS creds at /tmp/cuistance_ops_auth/creds.env + confirm Render redeploys this
+  branch, then I run the OPS-authenticated REMOTE manual UX validation (screenshots 01-08, manual_operator_ux_pass).
