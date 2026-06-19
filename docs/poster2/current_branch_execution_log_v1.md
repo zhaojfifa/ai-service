@@ -12551,3 +12551,26 @@ After bundle:
 - Owner Decision Needed: place temp OPS creds at /tmp/cuistance_ops_auth/creds.env (CUISTANCE_OPS_USER /
   CUISTANCE_OPS_PASSWORD) so the OPS-gated remote flow + screenshots 01-08 can complete -> remote_pass. Real send
   stays HOLD.
+
+## REMOTE VALIDATE AFTER OPS AUTH — 141c612 (2026-06-19) — REMOTE PASS (no code change)
+- Branch guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, clean, HEAD 141c612). OPS creds were
+  provided by Owner at /tmp/cuistance_ops_auth/creds.env (read securely, never printed/committed; deleted after).
+- Remote deployed at 141c612 (frontend markers btn-full-preview + email_container present). Phase B not triggered
+  (no deploy lag).
+- OPS auth: /api/auth/me -> authenticated:true (username ops). Phase A remote validation on a FRESH workbench
+  (did not touch Owner's): step1 save OK (product_images>=1, gallery>=1); step2 affiche generate OK (chromium,
+  ready); 选为邮件主体 -> PATCH selected-visual -> GET confirm selected_email_body_visual=affiche;
+  step3_uses_current_candidate=true (preview body_visual.poster_key == current affiche poster_key);
+  old_send_attempt_ignored=true; email_header_source=ttt_html_header; header_only=true (no body/product/cta/footer
+  in header); full_preview_available=true + not_clipped=true; refresh_recovery_ok=true; send (mode=real,
+  inline_only) -> status=skipped/error_code=preview_only/provider_message_id=null -> real_email_sent=false. ALL 12
+  required acceptance items pass -> remote_pass=true.
+- Authoritative backend confirmation via authenticated API: /email/preview 200 with email_header_source=
+  ttt_html_header + email_container_template_id=cuistance_email_container_psd_v1 + html present + body_visual.
+  poster_key=current candidate; /email/send 200 attempt skipped/preview_only/no message id (no real send). The first
+  UI run under-waited on the remote preview round-trip (preview_diag empty / send modal not captured) — a harness
+  timing issue, NOT a product blocker; hardened the validation waits and re-ran -> PASS. NO product code changed
+  (Phase C not needed); evidence + validation scripts only.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  remote_141c612_validation/ (evidence.json remote_pass=true + screenshots 01-09). No renderer/PSD/frozen-asset/auth
+  change; no real email; no merge/tag push.
