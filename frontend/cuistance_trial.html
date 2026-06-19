@@ -487,7 +487,7 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='';
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false;
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:''};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
@@ -544,6 +544,7 @@
       $('prevBtn').style.visibility=step===1?'hidden':'visible';
       $('nextBtn').disabled=(step===2&&!selectedVisual);
       if(step===2)updateS2Summary();
+      if(step===3)updateStep3Preview();
       try{localStorage.setItem(LSSTEP,String(step))}catch(e){}
       barHint();window.scrollTo({top:0,behavior:'smooth'});
     }
@@ -810,6 +811,7 @@
       });
       switchMode(v); // surface the selected mode
       applyFillFormat(defaultFillFor(v),true); // default-map the email fill format from the selected body visual
+      previewGenerated=false; // selecting/re-selecting a body visual invalidates any prior preview
       render(); // unlocks Step 3 (nextBtn no longer disabled once selectedVisual set)
     }
     // select reuses an existing ready candidate; never forces a second generation
@@ -855,8 +857,27 @@
       updateBindingLabels();
       diag('fill_format',{selected_email_fill_format:fmt,default_mapping_applied:!!isDefault,selected_email_body_visual:selectedVisual});
     }
+    // Step-3 final-preview badge state + send gating (send is only possible after a backend preview is generated).
+    function setEmailPreviewBadge(state){
+      var eb=$('email-preview-badge'); if(!eb)return;
+      var M={ none:{cls:'badge lock',zh:'预览示意，尚未生成邮件预览',fr:'Aperçu indicatif — aperçu non généré'},
+        needs:{cls:'badge visual',zh:'需要重新生成邮件预览',fr:'Aperçu à régénérer'},
+        ready:{cls:'badge ready',zh:'邮件预览已生成',fr:'Aperçu généré'} }[state]||{cls:'badge lock',zh:'',fr:''};
+      eb.className=M.cls; eb.setAttribute('data-zh',M.zh); eb.setAttribute('data-fr',M.fr); eb.textContent=(lang==='zh'?M.zh:M.fr);
+    }
+    function updateSendGate(){
+      var sb=$('btn-send'); if(sb)sb.disabled=!previewGenerated;
+      if(!previewGenerated && step===3) $('send-summary').textContent=(lang==='zh'?'请先生成邮件预览':'Générez d\'abord l\'aperçu');
+    }
+    // entering Step 3 (incl. after Command+R recovery): without a fresh backend preview, never claim one exists
+    function updateStep3Preview(){
+      if(selectedVisual && !previewGenerated){ setEmailPreviewBadge('needs');
+        var f=$('mailFrame'); if(f)f.style.display='none'; var es=$('emailStatic'); if(es)es.style.display=''; }
+      updateBindingLabels(); updateSendGate();
+    }
+    function markPreviewStale(){ previewGenerated=false; if(step===3)setEmailPreviewBadge('needs'); updateSendGate(); }
     document.querySelectorAll('#fillFormatOptions .banner-opt').forEach(function(b){b.addEventListener('click',function(){
-      applyFillFormat(b.dataset.fmt,false);
+      applyFillFormat(b.dataset.fmt,false); markPreviewStale();
       flash('info',lang==='zh'?'已切换邮件格式，请重新「预览邮件」。':'Format changé — relancez l\'aperçu.'); })});
 
     // refresh both mode candidates + selection state from backend (reflect ready/selected on load or re-entry)
@@ -880,26 +901,32 @@
       selectBanner(ref,b.dataset.img);
       if(S.wb){ await api('PATCH','/api/v2/workbench/'+S.wb,buildAssetsPatch()); } })});
 
-    // ---- Step 3: preview + send (real) ----
+    // ---- Step 3: preview (backend) + send (real) ----
     $('btn-preview').addEventListener('click',async function(){
       if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.'));return}
+      // ensure the selected candidate is ready + has a poster_key/url before asking the backend to assemble
+      var key=S[selectedVisual]; if(!key){ await refreshState(); key=S[selectedVisual]; }
+      if(!key){ flash('warn',lang==='zh'?'请先生成并选定邮件主体。':'Générez et choisissez d\'abord le corps.'); return; }
+      if(!S[selectedVisual+'Url']){ await loadModePoster(selectedVisual); }
+      flash('info',lang==='zh'?'正在生成邮件预览…':'Génération de l\'aperçu…');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/preview');
-      if(!r.ok||!r.json){flash('err',bizMsg(r));return}
+      if(!r.ok||!r.json){ flash('err',lang==='zh'?'邮件预览生成失败，请检查邮件主体和素材':'Échec de l\'aperçu — vérifiez le corps et les éléments'); diag('preview_fail',r.status); return; }
       var bv=r.json.body_visual||{};
       if(!selectedFillFormat)applyFillFormat(defaultFillFor(selectedVisual),true);
-      diag('preview',{selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,assembled_html_from_backend:!!r.json.html});
-      // render the REAL assembled backend HTML (not a local mock)
+      // accept whichever assembled-email field the backend returns
+      var htmlContent=r.json.html||r.json.assembled_html||r.json.email_html||r.json.preview_html||'';
       var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
-      var doc=f.contentWindow.document;doc.open();doc.write(r.json.html||'');doc.close();
-      // label: backend preview generated + clearly bound to the selected body visual + fill format
-      var eb=$('email-preview-badge'); if(eb){eb.className='badge ready';eb.setAttribute('data-zh','邮件预览已生成');eb.setAttribute('data-fr','Aperçu généré');eb.textContent=(lang==='zh'?'邮件预览已生成':'Aperçu généré');}
-      updateBindingLabels();
+      var doc=f.contentWindow.document;doc.open();doc.write(htmlContent);doc.close();
+      previewGenerated=!!htmlContent;
+      setEmailPreviewBadge(previewGenerated?'ready':'needs'); updateBindingLabels(); updateSendGate();
+      diag('preview',{workbench_key:S.wb,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated});
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
-      $('send-summary').textContent=(lang==='zh'?'邮件预览已生成。':'Aperçu généré.');
+      $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
     });
     function curMode(){var el=document.querySelector('input[name=mode]:checked');return el?el.value:'test'}
     function openSendModal(){
       if(!S.wb||!selectedVisual){$('send-summary').textContent=(lang==='zh'?'请先预览邮件。':'Prévisualisez d\'abord.');return}
+      if(!previewGenerated){$('send-summary').textContent=(lang==='zh'?'请先生成邮件预览':'Générez d\'abord l\'aperçu');return}
       if(!$('f-confirm').checked){$('send-summary').textContent=(lang==='zh'?'请勾选「确认发送」。':'Cochez « Confirmer ».');return}
       $('modal-text').textContent=(lang==='zh'? ('确认'+(curMode()==='real'?'正式':'测试')+'发送给：'+$('f-recipient').value+'？') : ('Confirmer envoi '+(curMode()==='real'?'réel':'test')+' à : '+$('f-recipient').value+' ?'));
       $('modal').classList.add('open');

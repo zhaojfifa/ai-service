@@ -12361,3 +12361,30 @@ After bundle:
   after OPS login; recovery bar lets the operator trigger it). No real email sent.
 - Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_state_recovery_proof.py, status
   doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-FINAL-EMAIL-PREVIEW-BINDING-FIX (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend wiring only (NO backend/renderer/provider/send change). Step 3 final preview now bound to the backend:
+  预览邮件 pre-checks selected ready candidate (refresh + loadModePoster if needed) -> POST /api/v2/workbench/{key}/
+  email/preview -> on HTTP 200 render returned assembled email HTML (accepts html/assembled_html/email_html/
+  preview_html) into the right 600px frame, badge 邮件预览已生成 + summary 邮件主体：…·邮件格式：…; on failure
+  邮件预览生成失败，请检查邮件主体和素材 (raw diagnostics only). previewGenerated flag drives state.
+- Send gating: btn-send disabled until previewGenerated; openSendModal -> 请先生成邮件预览 if not previewed; after
+  preview send enabled. Honest send semantics retained (real requires provider_message_id; inline_only/preview_only/
+  skipped -> 当前环境未配置真实发送服务，已记录预览发送证据，未真实投递; never 发送成功/真实发送成功/已发送).
+- Recovery interaction: entering Step 3 after Command+R with selection restored shows 需要重新生成邮件预览 (amber) +
+  illustrative panel + send disabled (markPreviewStale on select/format change too); a fake final email is never
+  shown as confirmed unless backend preview is (re)generated.
+- Diagnostics record workbench_key, selected_email_body_visual, body_visual_poster_key, preview_status, layout_type,
+  selected_email_fill_format, final_poster_url_present, backend_preview_html_present, final_preview_rendered.
+- REAL (non-stubbed) browser verification: real app.main backend; real page; Playwright NO route stubbing. evidence:
+  was_stubbed=false; before_preview_badge=需要重新生成邮件预览; send_disabled_before_preview=true; preview_http_status=
+  200; after_preview_badge=邮件预览已生成; send_disabled_after_preview=false; backend_preview_html_present=true;
+  final_preview_rendered=true; preview_contains_generated_poster=true; selected_email_body_visual=affiche;
+  selected_or_inferred_email_fill_format=campaign_poster_email; layout_type=single_product_promo; send mode=real/
+  provider=inline_only/status=skipped/error_code=preview_only/provider_message_id absent/real_email_sent=false;
+  ui_send_label_correct=true. Screenshots docs/poster2/assets/cuistance_final_email_preview_binding_v1/ 01-05 +
+  evidence.json. Forbidden-term + fallback scan NONE; inline JS syntax OK; docs router PASS; fill-format advisory PASS.
+- Local real-backend validation = GO. Remote: pending trial-branch deploy + operator OPS login (no creds this pass).
+  No real email sent.
+- Files: frontend/cuistance_trial.html (+docs mirror), scripts/poster2_cuistance_final_email_preview_binding_proof.py,
+  status doc, README, this log. Backend unchanged.
