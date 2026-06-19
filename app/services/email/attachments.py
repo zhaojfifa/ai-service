@@ -87,6 +87,80 @@ def _load_source_poster_bytes(final_poster: dict[str, Any]) -> bytes:
     raise RuntimeError("final_poster has no readable source")
 
 
+# ---- email body visual variant (no inner poster banner) ----
+# The email container already renders a ttt_html_header; the standalone poster (email_campaign_composite_v1) bakes
+# its OWN top banner (.header region = top 130px of the 1240x1754 canvas). Embedding the full standalone poster as
+# the email body visual therefore double-headers. We derive an "email_embedded_no_header" variant by deterministically
+# cropping that banner region (a named contract constant — NO AI, NO product-fact change). Ratio is used (not raw px)
+# so it is robust to any raster scale of the stored poster.
+EMAIL_CAMPAIGN_COMPOSITE_CANVAS_H = 1754
+EMAIL_CAMPAIGN_COMPOSITE_HEADER_CROP_PX = 130          # .header region height in email_campaign_composite.py
+EMAIL_CAMPAIGN_COMPOSITE_HEADER_CROP_RATIO = EMAIL_CAMPAIGN_COMPOSITE_HEADER_CROP_PX / EMAIL_CAMPAIGN_COMPOSITE_CANVAS_H
+_TEMPLATE_HEADER_CROP_RATIO = {"email_campaign_composite_v1": EMAIL_CAMPAIGN_COMPOSITE_HEADER_CROP_RATIO}
+_TEMPLATES_WITH_OWN_BANNER = {"email_campaign_composite_v1", "template_product_sheet_v1"}
+
+
+def _read_any_poster_bytes(final_poster: dict[str, Any]) -> bytes:
+    url = final_poster.get("url")
+    if isinstance(url, str) and url.startswith("data:"):
+        import base64
+        _, _, b64 = url.partition(",")
+        return base64.b64decode(b64)
+    return _load_source_poster_bytes(final_poster)
+
+
+def derive_email_body_visual(record: dict[str, Any]) -> dict[str, Any]:
+    """Derive the email-embedded body visual (no inner poster banner) from the selected standalone poster.
+
+    Deterministic image processing only (PIL crop of the named banner region). The standalone poster URL is left
+    untouched for download/standalone use; the result is cached on the poster_record under 'email_body_visual'.
+    """
+    poster_key = record.get("poster_key") or ""
+    template_id = record.get("template_id") or (record.get("render_result") or {}).get("template_id") or ""
+    final_poster = record.get("final_poster") or {}
+    standalone_url = final_poster.get("url") or (record.get("render_result") or {}).get("final_url")
+    ratio = _TEMPLATE_HEADER_CROP_RATIO.get(template_id, 0.0)
+
+    cached = record.get("email_body_visual")
+    if isinstance(cached, dict) and cached.get("source_poster_key") == poster_key and cached.get("url"):
+        return cached
+
+    if ratio <= 0:
+        # unknown banner geometry -> embed the standalone poster unchanged (flag its banner state honestly)
+        result = {"variant": "standalone_passthrough", "url": standalone_url, "key": final_poster.get("key"),
+                  "source_poster_key": poster_key, "contains_own_banner": template_id in _TEMPLATES_WITH_OWN_BANNER,
+                  "cropped": False}
+    else:
+        try:
+            with Image.open(io.BytesIO(_read_any_poster_bytes(final_poster))) as im:
+                im = im.convert("RGB")
+                w, h = im.size
+                top = int(round(h * ratio))
+                data_buf = io.BytesIO()
+                im.crop((0, top, w, h)).save(data_buf, format="PNG")
+                data = data_buf.getvalue()
+            stored = _store_asset_bytes(poster_key=poster_key, asset_type="email_body_visual",
+                                        filename="email_body_visual.png", content_type="image/png", data=data)
+            url = stored.get("url")
+            if not url:  # local (no R2) -> inline data URL so the email preview can render it
+                import base64
+                url = "data:image/png;base64," + base64.b64encode(data).decode()
+            result = {"variant": "email_embedded_no_header", "url": url, "key": stored.get("key"),
+                      "source_poster_key": poster_key, "contains_own_banner": False, "cropped": True,
+                      "crop_top_px": top, "crop_ratio": ratio}
+        except Exception as exc:  # safe fallback: standalone poster (still flagged as containing its own banner)
+            result = {"variant": "standalone_fallback", "url": standalone_url, "key": final_poster.get("key"),
+                      "source_poster_key": poster_key, "contains_own_banner": template_id in _TEMPLATES_WITH_OWN_BANNER,
+                      "cropped": False, "error": str(exc)[:120]}
+
+    record["email_body_visual"] = result
+    try:
+        save_poster_record(record)
+    except Exception:
+        pass
+    return result
+
+
 def _build_pdf_from_png_bytes(png_bytes: bytes) -> bytes:
     with Image.open(io.BytesIO(png_bytes)) as image:
         rgb = image.convert("RGB")

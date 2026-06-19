@@ -1,0 +1,23 @@
+{
+  "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
+  "was_stubbed": false,
+  "workbench_key": "wb_ed08498fc3744504",
+  "selected_email_body_visual": "affiche",
+  "current_poster_key": "p2_3a11500ee19d4da0",
+  "standalone_poster_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABNgAAAbaCAIAAA …",
+  "email_body_visual_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAABNgAAAZYCAIAAA …",
+  "body_visual_variant": "email_embedded_no_header",
+  "body_visual_contains_own_banner_before": true,
+  "body_visual_contains_own_banner_after": false,
+  "email_header_source": "ttt_html_header",
+  "email_container_uses_header_band_cover": false,
+  "email_body_visual_contract_pass": true,
+  "step3_uses_email_body_visual_variant": true,
+  "old_send_attempt_ignored": true,
+  "standalone_height": 1754,
+  "email_body_visual_height": 1624,
+  "double_header_removed": true,
+  "real_email_sent": false,
+  "local_pass": true,
+  "remote_pass": false
+}

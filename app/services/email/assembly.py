@@ -81,6 +81,9 @@ def build_email_assembly(
     poster_key: str | None = None,
     cta_label: str = "Nous contacter",
     cta_href: str = "#",
+    body_visual_variant: str | None = None,
+    body_visual_contains_own_banner: bool | None = None,
+    standalone_poster_url: str | None = None,
 ) -> dict[str, Any]:
     banner = workbench.get("email_banner") or {}
     product_truth = workbench.get("product_truth") or {}
@@ -188,6 +191,11 @@ def build_email_assembly(
     }
 
     fill_format = fill_format_for(candidate_type)
+    # contract guard: a campaign_poster_email with a ttt_html_header must embed a body visual WITHOUT its own banner
+    own_banner = (body_visual_contains_own_banner if body_visual_contains_own_banner is not None
+                  else (template_id in _BODY_VISUALS_WITH_OWN_BANNER))
+    contract_pass = not own_banner
+    contract_reason = "" if contract_pass else "embedded_body_visual_contains_own_banner"
     return {
         "banner": {
             "logo_url": logo_url,
@@ -203,7 +211,14 @@ def build_email_assembly(
         "cta_label": cta_label,
         "html": html,
         "text": text,
-        "body_visual_contains_own_banner": (template_id in _BODY_VISUALS_WITH_OWN_BANNER),
+        # the EMBEDDED body visual's banner state (the resolver passes the no-header variant's flag); fall back to the
+        # template default only if the caller did not supply it.
+        "body_visual_contains_own_banner": (own_banner if own_banner is not None else (template_id in _BODY_VISUALS_WITH_OWN_BANNER)),
+        "body_visual_variant": body_visual_variant,
+        "standalone_poster_url": standalone_poster_url,
+        "email_body_visual_url": body_visual_url,
+        "email_body_visual_contract_pass": contract_pass,
+        "email_body_visual_contract_reason": contract_reason,
         "email_body_plan": email_body_plan,
         # PSD email container (design-shell grammar) — additive; Workbench remains the only business truth source
         "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
@@ -213,6 +228,10 @@ def build_email_assembly(
             "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
             "email_fill_format": fill_format,
             "body_visual_poster_key": poster_key,
+            "body_visual_variant": body_visual_variant,
+            "body_visual_contains_own_banner": (own_banner if own_banner is not None else (template_id in _BODY_VISUALS_WITH_OWN_BANNER)),
+            "email_body_visual_contract_pass": contract_pass,
+            "email_body_visual_contract_reason": contract_reason,
             "uses_current_selected_visual": True,
             # header is the ttt.html-style clean CSS dark bar + CUISTANCE wordmark — NOT a header-band cover overlay
             "email_header_source": "ttt_html_header",

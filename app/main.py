@@ -74,6 +74,7 @@ from app.services.email_sender import send_email
 from app.services.email.attachments import (
     SUPPORTED_ATTACHMENT_TYPES,
     build_email_assets_for_record,
+    derive_email_body_visual,
     resolve_email_assets,
 )
 from app.services.email.copy_optimizer import build_email_draft_for_poster_record
@@ -2499,15 +2500,21 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
 
     # Deterministic draft (parameters never exposed to Gemini) + plan-driven assembly.
     draft = build_email_draft_for_poster_record(record)
-    body_url = (record.get("final_poster") or {}).get("url") or (record.get("render_result") or {}).get("final_url")
+    standalone_url = (record.get("final_poster") or {}).get("url") or (record.get("render_result") or {}).get("final_url")
+    # derive the email-embedded body visual (no inner poster banner) deterministically — NEVER the standalone poster
+    ebv = derive_email_body_visual(record)
+    email_body_visual_url = ebv.get("url") or standalone_url
     try:
         assembly = build_email_assembly(
             workbench=workbench,
             draft=draft,
-            body_visual_url=body_url,
+            body_visual_url=email_body_visual_url,
             candidate_type=selected,
             template_id=candidate.get("template_id"),
             poster_key=poster_key,
+            body_visual_variant=ebv.get("variant"),
+            body_visual_contains_own_banner=bool(ebv.get("contains_own_banner")),
+            standalone_poster_url=standalone_url,
         )
     except Exception as exc:  # plan/assembly could not be built
         raise HTTPException(status_code=422, detail="email_body_plan_unavailable") from exc
@@ -2520,7 +2527,9 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
         "record": record,
         "draft": draft,
         "assembly": assembly,
-        "body_url": body_url,
+        "body_url": email_body_visual_url,
+        "standalone_poster_url": standalone_url,
+        "email_body_visual": ebv,
     }
 
 
@@ -2573,6 +2582,10 @@ def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewRespon
         email_fill_format=assembly.get("email_fill_format"),
         email_header_source=assembly.get("email_header_source", "ttt_html_header"),
         email_container=assembly.get("email_container", {}),
+        standalone_poster_url=pkg.get("standalone_poster_url"),
+        email_body_visual_url=assembly.get("email_body_visual_url") or body_url,
+        body_visual_variant=assembly.get("body_visual_variant"),
+        email_body_visual_contract_pass=assembly.get("email_body_visual_contract_pass", True),
     )
 
 

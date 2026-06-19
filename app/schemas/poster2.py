@@ -467,6 +467,11 @@ class EmailAssemblyPreviewResponse(BaseModel):
     email_fill_format: Optional[Literal["campaign_poster_email", "product_sheet_email"]] = None
     email_header_source: str = "ttt_html_header"
     email_container: dict[str, Any] = Field(default_factory=dict)
+    # email body visual variant (no inner poster banner) vs the standalone poster (download/standalone artifact)
+    standalone_poster_url: Optional[str] = None
+    email_body_visual_url: Optional[str] = None
+    body_visual_variant: Optional[str] = None
+    email_body_visual_contract_pass: bool = True
 
 
 # PR-4 — manual multi-recipient confirmed send + evidence.

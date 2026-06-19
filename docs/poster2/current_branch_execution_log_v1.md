@@ -12608,3 +12608,37 @@ After bundle:
   01-08 + local_manual_ux_evidence.json). No renderer/PSD/frozen-asset/auth change; no real email; no merge/tag push.
 - Owner Decision Needed: re-place OPS creds at /tmp/cuistance_ops_auth/creds.env + confirm Render redeploys this
   branch, then I run the OPS-authenticated REMOTE manual UX validation (screenshots 01-08, manual_operator_ux_pass).
+
+## EMAIL BODY VISUAL — NO INNER BANNER (2026-06-19) — IMPLEMENTED + LOCAL REAL-BACKEND PASS; REMOTE PENDING (creds+redeploy)
+- Branch guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, clean, base b0edffa). OPS creds absent
+  -> remote deferred. Root cause confirmed: Step3 embedded the FULL standalone poster (email_campaign_composite_v1
+  bakes its own top banner .header = top 130px of the 1240x1754 canvas) as selected_body_visual -> double header
+  under the ttt_html_header container.
+- Fix: derive an email-embedded body visual variant deterministically (NO AI). app/services/email/attachments.py
+  derive_email_body_visual(record): loads the standalone poster (data-url or R2), crops the top banner by a NAMED
+  contract ratio EMAIL_CAMPAIGN_COMPOSITE_HEADER_CROP_RATIO=130/1754, stores to R2 (or inline data-url locally),
+  caches on the poster_record under email_body_visual, returns {variant:email_embedded_no_header, url,
+  contains_own_banner:false, crop_top_px}. Unknown-geometry templates fall back to standalone (flagged honestly).
+- _resolve_workbench_email_package now derives ebv and passes email_body_visual_url (NOT the standalone poster) as
+  build_email_assembly body_visual_url + body_visual_variant + body_visual_contains_own_banner + standalone_poster_url.
+  build_email_assembly adds the contract guard: campaign_poster_email + ttt_html_header => body_visual_contains_own_
+  banner must be false (email_body_visual_contract_pass + reason). EmailAssemblyPreviewResponse exposes
+  standalone_poster_url, email_body_visual_url, body_visual_variant, email_body_visual_contract_pass; body_visual.url
+  is now the email body visual; standalone preserved separately for download/Step2.
+- Step2 still shows the full standalone poster; Step3/full preview show the cropped no-header body visual.
+- LOCAL REAL-backend (non-stubbed) proof scripts/poster2_cuistance_no_inner_banner_local_proof.py: real composite
+  render -> standalone_height=1754, email_body_visual_height=1624 (exactly -130px banner); body_visual_variant=
+  email_embedded_no_header; body_visual_contains_own_banner before=true/after=false; step3_uses_email_body_visual_
+  variant=true; email_header_source=ttt_html_header; email_container_uses_header_band_cover=false;
+  email_body_visual_contract_pass=true; double_header_removed=true; old_send_attempt_ignored=true; real_email_sent=
+  false; local_pass=true.
+- Tests: tests/poster2/test_workbench_psd_email_container.py +2 (derive crops composite banner; preview uses no-header
+  variant + exposes standalone/email_body_visual urls + contract_pass + body_visual.url==email_body_visual_url);
+  35 focused tests PASS (container/assembly/body-plan + api email/workbench/selected). node-Function JS check OK.
+  No AI/Gemini/Imagen; no product-fact change; no renderer/PSD/frozen-asset change; no real email; no merge/tag push.
+- Note: the poster's bottom contact line is still present in the embedded visual (duplicated with the email footer) —
+  the OPTIONAL footer trim; the REQUIRED double-HEADER fix is done.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  email_body_visual_no_inner_banner_v1/ (evidence.json local_pass=true, remote_pass=false [creds+redeploy gated] +
+  screenshots 01-05).
+- Owner Decision Needed: re-place OPS creds + confirm Render redeploys this branch -> remote validation.
