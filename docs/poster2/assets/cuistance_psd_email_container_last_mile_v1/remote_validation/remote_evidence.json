@@ -1,0 +1,27 @@
+{
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
+  "expected_commit": "9aee266",
+  "deployed_commit_observed": "unknown (no version endpoint); frontend includes email_container_template_id marker (>= Phase 2 ebdfea7)",
+  "step1_assets_saved": false,
+  "step2_affiche_generated": false,
+  "selected_visual_confirmed": false,
+  "step3_psd_container_preview_ok": false,
+  "refresh_recovery_ok": false,
+  "legacy_truth_leakage": false,
+  "real_email_sent": false,
+  "known_issue_header_logo_fit": true,
+  "remote_pass": false,
+  "auth_me": {
+    "enabled": true,
+    "authenticated": false,
+    "username": null
+  },
+  "workbench_create_status_no_auth": 401,
+  "api_ops_gated": true,
+  "frontend_psd_container_marker_present": true,
+  "frontend_asset_chain_marker_present": true,
+  "step1_save_flash": "请先连接后端",
+  "diag_excerpt": "{\n  \"workbench_key\": null,\n  \"affiche\": null,\n  \"fiche\": null,\n  \"selected\": null,\n  \"connected\": false,\n  \"me_diag\": {\n    \"enabled\": true,\n    \"authenticated\": false,\n    \"username\": null\n  },\n  \"banner_diag\": {\n    \"selected_banner_ref\": \"option_1\",\n    \"background_url_present\": true\n  }\n}",
+  "hold_reason": "Remote v2 API is OPS-gated (401 ops_auth_required) and no OPS credentials were provided; Step1 save -> Step3 preview -> send could not be executed remotely. The PSD-container frontend IS deployed (marker present). Local REAL-backend validation already PASSED (see evidence.json). remote_pass=false (HOLD)."
+}
