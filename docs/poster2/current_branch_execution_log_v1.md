@@ -12202,3 +12202,34 @@ After bundle:
   and (2) providing OPS creds securely; then re-run remote validation.
 - Files: docs/poster2/cuistance_commercial_trial_remote_candidate_selection_state_verify_b9f3df5.md, README, this
   log, screenshots dir placeholder README. No frontend/backend change.
+
+## POSTER2-CUISTANCE-V1-REAL-POSTER-BINDING-AND-SELECTION-FIX (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend wiring only (NO backend/renderer/send change; no backend bug found). Root cause for the Owner-observed
+  state (wb_fafd04a9d0264ad1: affiche status=ready, poster_key p2_feb400a9f22f4d36, template
+  email_campaign_composite_v1, chromium, degraded=false, structure_complete=true, selected_email_body_visual=null):
+  Step 2 rendered the STATIC mock .poster; the UI never called GET /api/v2/posters/{poster_key} and never showed
+  poster_record.final_poster.url, so the real poster was never loaded/verified, selection did not persist, Step 3
+  stayed locked.
+- Fix: (1) setAfficheCard()/loadAffichePoster() — when affiche ready+poster_key, GET /api/v2/posters/{poster_key},
+  read final_poster.url (fallback render_result.final_url), render it as <img id="affiche-real"> labeled
+  产品海报已生成 / 使用后端生成结果; hide the static mock. (2) static mock only ever labeled 预览示意，尚未生成 (never
+  产品海报已生成). (3) missing final_poster.url -> 已生成记录不完整，请查看内部诊断 + selection blocked. (4) generate
+  binds the real poster; 504/502 refreshes + binds a ready candidate (生成超时，但已找到可用生成结果，可继续选择), never
+  erases a usable ready candidate. (5) 选为邮件主体 gated on loaded final_poster.url -> PATCH selected-visual -> GET
+  confirm selected_email_body_visual=affiche -> 已选为邮件主体 -> Step3 unlock; failure -> 选择邮件主体失败，请重试.
+  (6) Step3 unlock = selected + ready + poster_key; not gated on fiche/R2/provider/optional assets. (7) connection
+  bar stays a slim in-page bar near top (未连接/已连接/连接失败; 401 -> 请先连接后端).
+- REAL (non-stubbed) browser verification: ran the actual app.main backend locally (OPS auth inactive; R2 absent ->
+  final_poster.url = real data:image/png of the real chromium email_campaign_composite_v1 render, 1240x1754,
+  degraded=false), served the real page, drove it with Playwright NO route stubbing. evidence.json: was_stubbed=
+  false; generate_http_status=200; affiche_status=ready; poster_key present; poster_record_loaded=true;
+  final_poster_url_present=true; final_poster_url_origin=poster_record.final_poster.url; render_engine_used=chromium;
+  degraded=false; structure_complete=true; ui_image_bound_to_final_poster=TRUE; selected_email_body_visual=affiche;
+  step3_unlocked=true; preview_status=200. Screenshots docs/poster2/assets/
+  cuistance_real_poster_binding_selection_fix_v1/ 01 placeholder-labeled / 02 real-backend-poster-loaded / 03
+  selected / 04 Step3 preview-with-backend-poster / 05 diagnostics + evidence.json. Forbidden-term scan NONE; inline
+  JS node --check OK; docs router PASS.
+- Local real-backend validation = GO (affiche main route). Remote: pending trial-branch deploy + operator OPS login
+  (no creds held this pass; not claiming remote GO).
+- Files: frontend/cuistance_trial.html (+docs/cuistance_trial.html mirror), scripts/
+  poster2_cuistance_real_poster_binding_proof.py, status doc, README, this log. Backend unchanged.

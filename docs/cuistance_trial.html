@@ -42,6 +42,9 @@
     /* Step-2 affiche card backend-ready status line */
     .card-state{font-size:12.5px;margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .card-state .badge{flex:0 0 auto}
+    /* Step-2 real backend-generated poster image (replaces the static mock once ready) */
+    .poster-real{width:100%;display:block;border-radius:8px;border:1px solid var(--line,#e6e8ec);background:#fff}
+    .affiche-incomplete{font-size:12.5px;color:var(--err,#c0392b);margin-top:8px;display:none}
   </style>
 </head>
 <body data-lang="zh">
@@ -249,8 +252,9 @@
           <p class="panel-title"><span data-zh="预览" data-fr="Aperçu">预览</span> · <span class="seg active" data-zh="海报主体" data-fr="Affiche produit">海报主体</span> / <span class="seg" data-zh="简化产品页" data-fr="Fiche simplifiée">简化产品页</span></p>
 
           <div class="card selectable" id="card-affiche">
+            <div class="poster-tag" id="affiche-preview-label" data-zh="预览示意，尚未生成" data-fr="Aperçu indicatif — non générée">预览示意，尚未生成</div>
             <div class="preview-frame">
-              <div class="poster">
+              <div class="poster" id="affiche-mock">
                 <div class="p-hero"><img src="assets/product_01.jpg" alt="produit" /></div>
                 <div class="p-body">
                   <div class="p-title">LES FRITEUSES ÉLECTRIQUES</div>
@@ -260,12 +264,14 @@
                   <div class="p-spec">RÉF. EF132V · 2 cuves 13 + 13 L · 3 + 3 kW / 230 V · L630 × P520 × H345 mm</div>
                 </div>
               </div>
+              <img class="poster-real" id="affiche-real" alt="产品海报" style="display:none" />
             </div>
             <div class="poster-tag" data-zh="产品海报主体 —— 不含邮件横幅（横幅在第三步加入）。" data-fr="Affiche produit — sans bannière (ajoutée à l'étape 3).">产品海报主体 —— 不含邮件横幅（横幅在第三步加入）。</div>
             <div class="card-state" id="affiche-card-state">
               <span class="badge lock" id="affiche-card-badge" data-zh="尚未生成" data-fr="Non générée">尚未生成</span>
               <span class="hint" id="affiche-card-hint" data-zh="点击「生成产品海报」生成主体。" data-fr="Cliquez sur « Générer l'affiche ».">点击「生成产品海报」生成主体。</span>
             </div>
+            <div class="affiche-incomplete" id="affiche-incomplete" data-zh="已生成记录不完整，请查看内部诊断。" data-fr="Enregistrement incomplet — voir le diagnostic.">已生成记录不完整，请查看内部诊断。</div>
             <div class="select-row">
               <button class="btn select-visual" type="button" id="btn-select-affiche" data-visual="affiche" data-zh="选为邮件主体" data-fr="Choisir pour l'email">选为邮件主体</button>
               <span class="badge selected-badge">✓ <span data-zh="已选用" data-fr="Sélectionné">已选用</span></span>
@@ -423,7 +429,7 @@
   <script>
   (function () {
     var lang='zh', step=1, selectedVisual=null, connected=false;
-    var S={wb:null, affiche:null, sheet:null};
+    var S={wb:null, affiche:null, sheet:null, afficheUrl:''};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
     function diag(k,v){S[k+'_diag']=v; var d={workbench_key:S.wb,affiche:S.affiche,fiche:S.sheet,selected:selectedVisual,connected:connected};
@@ -565,36 +571,69 @@
       openSendModal();
     });
 
-    // ---- Step 2: generate (reusable) + select ----
-    function markAfficheReady(ready){
-      $('affiche-state').textContent = ready
-        ? (lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche prête — choisissez-la comme corps.')
-        : (lang==='zh'?'尚未生成产品海报。':'Affiche non générée.');
-      // in-card backend-ready signal (clearly: this candidate came from the backend)
-      var cb=$('affiche-card-badge'),ch=$('affiche-card-hint');
-      if(cb){ if(ready){cb.className='badge ready';cb.setAttribute('data-zh','产品海报已生成');cb.setAttribute('data-fr','Affiche générée');}
-        else {cb.className='badge lock';cb.setAttribute('data-zh','尚未生成');cb.setAttribute('data-fr','Non générée');}
-        cb.textContent=cb.getAttribute('data-'+lang); }
-      if(ch){ if(ready){ch.setAttribute('data-zh','使用后端生成结果，可直接「选为邮件主体」。');ch.setAttribute('data-fr','Résultat du service — choisissez-le comme corps.');}
-        else {ch.setAttribute('data-zh','点击「生成产品海报」生成主体。');ch.setAttribute('data-fr','Cliquez sur « Générer l\'affiche ».');}
-        ch.textContent=ch.getAttribute('data-'+lang); }
+    // ---- Step 2: real backend poster binding + generate (reusable) + select ----
+    // The Step-2 card must show the REAL generated poster (poster_record.final_poster.url), never the static mock
+    // as "generated". state: 'placeholder' | 'ready' | 'incomplete'.
+    function setAfficheCard(state,url){
+      var real=$('affiche-real'),mock=$('affiche-mock'),lbl=$('affiche-preview-label'),inc=$('affiche-incomplete');
+      var cb=$('affiche-card-badge'),ch=$('affiche-card-hint'),ls=$('affiche-state');
+      function badge(cls,zh,fr){ if(cb){cb.className='badge '+cls;cb.setAttribute('data-zh',zh);cb.setAttribute('data-fr',fr);cb.textContent=(lang==='zh'?zh:fr);} }
+      function hint(zh,fr){ if(ch){ch.setAttribute('data-zh',zh);ch.setAttribute('data-fr',fr);ch.textContent=(lang==='zh'?zh:fr);} }
+      if(state==='ready'){
+        S.afficheUrl=url||'';
+        if(real){real.src=url;real.style.display='';}
+        if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
+        badge('ready','产品海报已生成','Affiche générée');
+        hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
+        if(ls)ls.textContent=(lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche prête — choisissez-la comme corps.');
+        // keep the Step-3 static email-body image coherent with the real poster (preview iframe is the truth)
+        var ei=$('emailBodyAffiche'),eimg=ei&&ei.querySelector('img'); if(eimg&&url)eimg.src=url;
+      } else if(state==='incomplete'){
+        S.afficheUrl='';
+        if(real)real.style.display='none'; if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none';
+        if(inc)inc.style.display='block';
+        badge('miss','生成记录不完整','Enregistrement incomplet'); hint('请查看内部诊断。','Voir le diagnostic.');
+        if(ls)ls.textContent=(lang==='zh'?'已生成记录不完整。':'Enregistrement incomplet.');
+      } else {
+        S.afficheUrl='';
+        if(real)real.style.display='none'; if(mock)mock.style.display=''; if(lbl)lbl.style.display='';
+        if(inc)inc.style.display='none';
+        badge('lock','尚未生成','Non générée'); hint('点击「生成产品海报」生成主体。','Cliquez sur « Générer l\'affiche ».');
+        if(ls)ls.textContent=(lang==='zh'?'尚未生成产品海报。':'Affiche non générée.');
+      }
+    }
+    // Fetch the persisted poster record and bind its final_poster.url into the card (the real generated poster).
+    async function loadAffichePoster(){
+      if(!S.affiche)return false;
+      var r=await api('GET','/api/v2/posters/'+S.affiche);
+      if(r.ok&&r.json){
+        var fp=r.json.final_poster||{}; var url=fp.url||(r.json.render_result||{}).final_url||'';
+        diag('poster_record',{loaded:true,final_poster_url_present:!!url,width:fp.width,height:fp.height,template_id:r.json.template_id,render_engine_used:(r.json.render_result||{}).render_engine_used});
+        if(url){ setAfficheCard('ready',url); return true; }
+        setAfficheCard('incomplete'); flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return false;
+      }
+      diag('poster_record_fail',r.status); setAfficheCard('incomplete'); return false;
     }
     // kind: 'affiche'|'sheet'; regen=true forces re-generation. A ready candidate is NOT erased on timeout.
     async function genVisual(kind,regen){
       if(!await ensureWorkbench())return false;
       var ep=kind==='affiche'?'affiche':'fiche';
-      if(!regen && kind==='affiche' && S.affiche){ flash('ok',lang==='zh'?'已有产品海报，可直接「选为邮件主体」。':'Affiche déjà prête.'); markAfficheReady(true); return true; }
+      if(!regen && kind==='affiche' && S.affiche){ flash('ok',lang==='zh'?'已有产品海报，可直接「选为邮件主体」。':'Affiche déjà prête.'); await loadAffichePoster(); return true; }
       flash('info',lang==='zh'?'正在生成，请稍候…':'Génération en cours…');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/candidates/'+ep+'/generate');
       if(r.ok&&r.json){var c=(r.json.poster_candidates||{})[ep]||{};
-        if(kind==='affiche'){S.affiche=c.poster_key; markAfficheReady(true); flash('ok',lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche générée.');}
-        else {S.sheet=c.poster_key; flash('ok',lang==='zh'?'简化产品页已生成。':'Fiche générée.');}
-        diag(kind,c.status||'ready');return true;
+        if(kind==='affiche'){S.affiche=c.poster_key; diag(kind,c.status||'ready');
+          await loadAffichePoster(); // fetch poster_record.final_poster.url and show the REAL poster
+          flash('ok',lang==='zh'?'产品海报已生成，可「选为邮件主体」。':'Affiche générée.'); return true;}
+        else {S.sheet=c.poster_key; flash('ok',lang==='zh'?'简化产品页已生成。':'Fiche générée.'); diag(kind,c.status||'ready');return true;}
       }
       if(r.status===504||r.status===502||r.status===0){ // gateway timeout: backend may have completed anyway
-        flash('warn',lang==='zh'?'生成超时，可继续使用已生成版本或稍后重试':'Délai dépassé — réutilisez la version prête ou réessayez');
-        diag(kind+'_timeout',r.status); await refreshState(); // pick up a candidate the backend finished after the timeout
-        return !!(kind==='affiche'?S.affiche:S.sheet); } // keep/recover any ready candidate
+        diag(kind+'_timeout',r.status); await refreshState(); // pick up + bind a candidate the backend finished after the timeout
+        var have=!!(kind==='affiche'?S.affiche:S.sheet);
+        flash('warn', have
+          ? (lang==='zh'?'生成超时，但已找到可用生成结果，可继续选择':'Délai dépassé — un résultat exploitable a été trouvé, vous pouvez continuer')
+          : (lang==='zh'?'生成超时，可继续使用已生成版本或稍后重试':'Délai dépassé — réutilisez la version prête ou réessayez'));
+        return have; } // keep/recover any ready candidate
       if(kind==='sheet'){ S.sheet=null; $('sheet-note').style.display='';
         flash('warn',lang==='zh'?'简化产品页暂不可用，建议改用产品海报。':'Fiche indisponible — utilisez l\'affiche.');
         diag('sheet_fail',(r.json&&r.json.failure&&r.json.failure.detail)||(r.json&&r.json.detail)||r.status); return false; }
@@ -624,6 +663,8 @@
       // in-memory state is empty. Refresh from backend truth before deciding we have nothing to select.
       if(!key){ await refreshState(); key=(v==='affiche'?S.affiche:S.sheet); }
       if(!key){ flash('warn', v==='affiche'?(lang==='zh'?'请先生成产品海报。':'Générez d\'abord l\'affiche.'):(lang==='zh'?'请先生成简化产品页。':'Générez d\'abord la fiche.')); return; }
+      // affiche may only be selected once its real poster_record.final_poster.url is loaded/verified
+      if(v==='affiche'&&!S.afficheUrl){ await loadAffichePoster(); if(!S.afficheUrl){ flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return; } }
       b.disabled=true;
       var r=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:v});
       b.disabled=false;
@@ -633,7 +674,7 @@
       var sel=(g.json&&g.json.selected_email_body_visual)||v;
       diag('selected',sel);
       if(sel===v){applySelectVisual(v);flash('ok',lang==='zh'?'已选为邮件主体，可进入下一步。':'Choisi comme corps — étape suivante.');}
-      else flash('err',lang==='zh'?'选择未保存，请重试。':'Sélection non enregistrée.');
+      else flash('err',lang==='zh'?'选择邮件主体失败，请重试':'Échec du choix du corps — réessayez');
     })});
     $('btn-gen-affiche').addEventListener('click',function(){genVisual('affiche',false)});
     $('btn-regen-affiche').addEventListener('click',function(){genVisual('affiche',true)});
@@ -644,7 +685,8 @@
       if(!S.wb)return;
       var g=await api('GET','/api/v2/workbench/'+S.wb); if(!g.ok||!g.json)return;
       var pc=g.json.poster_candidates||{};
-      if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key;markAfficheReady(true);}
+      if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key; await loadAffichePoster();}
+      else { setAfficheCard('placeholder'); }
       if((pc.fiche||{}).status==='ready'&&(pc.fiche||{}).poster_key){S.sheet=pc.fiche.poster_key;}
       var sel=g.json.selected_email_body_visual;
       if(sel&&!selectedVisual)applySelectVisual(sel);
@@ -745,7 +787,7 @@
       var el=$(m[0]); if(el)el.addEventListener('change',function(e){if(e.target.files[0])presignUpload(e.target.files[0],m[1],m[2])});
     });
 
-    applyLang();render();checkConn();
+    applyLang();render();checkConn();setAfficheCard('placeholder');
   })();
   </script>
 </body>
