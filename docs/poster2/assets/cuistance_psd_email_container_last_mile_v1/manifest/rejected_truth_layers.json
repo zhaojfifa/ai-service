@@ -1,0 +1,132 @@
+{
+  "policy": "OLD business facts (gas réchaud / Technitalia / Codimatel / old phone / email / website / product refs / params / social handles) are NEVER runtime_allowed.",
+  "rejected_count": 21,
+  "rejected_layers": [
+    {
+      "layer_name": "01 41 53 12 12",
+      "path": "Root/分享方式/01 41 53 12 12",
+      "contains": "01 41 53 12 12",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "COMM ANDES",
+      "path": "Root/分享方式/COMM ANDES",
+      "contains": "COMM ANDES",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "Pour être sûr de recevoir nos offres, pensez à ajouter kaly@tec",
+      "path": "Root/分享方式/Pour être sûr de recevoir nos offres, pensez à ajouter kaly@tec",
+      "contains": "Pour être sûr de recevoir nos offres, pensez à ajouter kaly@technitalia.com à votre carnet d'adresses.",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "CATALOGUES",
+      "path": "Root/分享方式/CATALOGUES",
+      "contains": "CATALOGUES",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "SITE IN TERNET",
+      "path": "Root/分享方式/SITE IN TERNET",
+      "contains": "SITE IN TERNET",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "场景配图",
+      "path": "Root/产品参数说明/场景配图",
+      "contains": "场景配图",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "产品",
+      "path": "Root/产品参数说明/产品",
+      "contains": "产品",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "XR 144 4 BRULEURS",
+      "path": "Root/产品参数说明/XR 144 4 BRULEURS",
+      "contains": "XR 144\r4 BRULEURS",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "DIMENSIONS     800*700*270",
+      "path": "Root/产品参数说明/DIMENSIONS     800*700*270",
+      "contains": "DIMENSIONS     800*700*270",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "2*6kW+ 2*3.5kW",
+      "path": "Root/产品参数说明/2*6kW+ 2*3.5kW",
+      "contains": "2*6kW+\r2*3.5kW",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "DISPOSITION  ",
+      "path": "Root/产品参数说明/DISPOSITION  ",
+      "contains": "DISPOSITION",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "PUISSANCE",
+      "path": "Root/产品参数说明/PUISSANCE",
+      "contains": "PUISSANCE",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "6 kW",
+      "path": "Root/产品参数说明/6 kW",
+      "contains": "6\rkW",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "3.5 kW",
+      "path": "Root/产品参数说明/3.5 kW",
+      "contains": "3.5\rkW",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "6 kW",
+      "path": "Root/产品参数说明/6 kW",
+      "contains": "6\rkW",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "3.5 kW",
+      "path": "Root/产品参数说明/3.5 kW",
+      "contains": "3.5\rkW",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "NOTRE COUP DE COEUR",
+      "path": "Root/产品参数说明/NOTRE COUP DE COEUR",
+      "contains": "NOTRE\rCOUP\rDE COEUR",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "LES RÉCHAUDS GAZ",
+      "path": "Root/产品介绍/LES RÉCHAUDS GAZ",
+      "contains": "LES RÉCHAUDS GAZ",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "EN PLUSIEURS DÉCLINAISONS",
+      "path": "Root/产品介绍/EN PLUSIEURS DÉCLINAISONS",
+      "contains": "EN PLUSIEURS DÉCLINAISONS",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "Alternez les températures pour cuire, saisir, mijoter, et même ",
+      "path": "Root/产品介绍/Alternez les températures pour cuire, saisir, mijoter, et même ",
+      "contains": "Alternez les températures pour cuire, saisir, mijoter, et même flamber en toute\r sécurité grâce à son dispositif de sécu",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    },
+    {
+      "layer_name": "产品图片",
+      "path": "Root/产品介绍/产品图片",
+      "contains": "产品图片",
+      "reason": "old reference truth cannot enter CUISTANCE runtime"
+    }
+  ]
+}

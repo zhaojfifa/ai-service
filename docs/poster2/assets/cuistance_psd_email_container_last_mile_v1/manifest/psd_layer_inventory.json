@@ -1,0 +1,746 @@
+{
+  "template_id": "cuistance_email_container_psd_v1",
+  "canvas": {
+    "w": 600,
+    "h": 1577
+  },
+  "layer_count": 49,
+  "visible_layer_count": 49,
+  "layers": [
+    {
+      "layer_name": "背景",
+      "path": "Root/背景",
+      "kind": "pixel",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 600,
+        "h": 1577
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "分享方式",
+      "path": "Root/分享方式",
+      "kind": "group",
+      "bbox": {
+        "x": -2,
+        "y": 1310,
+        "w": 606,
+        "h": 268
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "矩形 1",
+      "path": "Root/分享方式/矩形 1",
+      "kind": "shape",
+      "bbox": {
+        "x": -2,
+        "y": 1310,
+        "w": 606,
+        "h": 268
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "图层 6",
+      "path": "Root/分享方式/图层 6",
+      "kind": "pixel",
+      "bbox": {
+        "x": 442,
+        "y": 1435,
+        "w": 54,
+        "h": 50
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "图层 5",
+      "path": "Root/分享方式/图层 5",
+      "kind": "pixel",
+      "bbox": {
+        "x": 331,
+        "y": 1434,
+        "w": 54,
+        "h": 54
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "Facebook",
+      "path": "Root/分享方式/Facebook",
+      "kind": "type",
+      "bbox": {
+        "x": 192,
+        "y": 1386,
+        "w": 59,
+        "h": 10
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "social label (layout shell, not a fact)"
+    },
+    {
+      "layer_name": "01 41 53 12 12",
+      "path": "Root/分享方式/01 41 53 12 12",
+      "kind": "type",
+      "bbox": {
+        "x": 84,
+        "y": 1498,
+        "w": 82,
+        "h": 10
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched '01 41 53')"
+    },
+    {
+      "layer_name": "COMM ANDES",
+      "path": "Root/分享方式/COMM ANDES",
+      "kind": "type",
+      "bbox": {
+        "x": 201,
+        "y": 1499,
+        "w": 80,
+        "h": 9
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'comm andes')"
+    },
+    {
+      "layer_name": "Pour être sûr de recevoir nos offres, pensez à ajouter kaly@tec",
+      "path": "Root/分享方式/Pour être sûr de recevoir nos offres, pensez à ajouter kaly@tec",
+      "kind": "type",
+      "bbox": {
+        "x": 22,
+        "y": 1539,
+        "w": 552,
+        "h": 13
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'technitalia')"
+    },
+    {
+      "layer_name": "CATALOGUES",
+      "path": "Root/分享方式/CATALOGUES",
+      "kind": "type",
+      "bbox": {
+        "x": 317,
+        "y": 1499,
+        "w": 77,
+        "h": 9
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'catalogues')"
+    },
+    {
+      "layer_name": "SITE IN TERNET",
+      "path": "Root/分享方式/SITE IN TERNET",
+      "kind": "type",
+      "bbox": {
+        "x": 424,
+        "y": 1499,
+        "w": 89,
+        "h": 9
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'site in ternet')"
+    },
+    {
+      "layer_name": "Linkedln",
+      "path": "Root/分享方式/Linkedln",
+      "kind": "type",
+      "bbox": {
+        "x": 277,
+        "y": 1386,
+        "w": 50,
+        "h": 10
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "social label (layout shell, not a fact)"
+    },
+    {
+      "layer_name": "Instagram",
+      "path": "Root/分享方式/Instagram",
+      "kind": "type",
+      "bbox": {
+        "x": 348,
+        "y": 1387,
+        "w": 61,
+        "h": 12
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "social label (layout shell, not a fact)"
+    },
+    {
+      "layer_name": "facebook_facebook51",
+      "path": "Root/分享方式/facebook_facebook51",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 203,
+        "y": 1338,
+        "w": 41,
+        "h": 41
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "邮箱",
+      "path": "Root/分享方式/邮箱",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 216,
+        "y": 1434,
+        "w": 50,
+        "h": 50
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "电话- icon-copy",
+      "path": "Root/分享方式/电话- icon-copy",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 101,
+        "y": 1435,
+        "w": 49,
+        "h": 49
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "邮箱 拷贝",
+      "path": "Root/分享方式/邮箱 拷贝",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 443,
+        "y": 1434,
+        "w": 50,
+        "h": 50
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "电话- icon-copy 拷贝",
+      "path": "Root/分享方式/电话- icon-copy 拷贝",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 331,
+        "y": 1435,
+        "w": 49,
+        "h": 49
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "instagram",
+      "path": "Root/分享方式/instagram",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 361,
+        "y": 1341,
+        "w": 35,
+        "h": 35
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "Linkedln",
+      "path": "Root/分享方式/Linkedln",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 281,
+        "y": 1338,
+        "w": 41,
+        "h": 41
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "C",
+      "path": "Root/分享方式/C",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 454,
+        "y": 1445,
+        "w": 28,
+        "h": 27
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "书",
+      "path": "Root/分享方式/书",
+      "kind": "smartobject",
+      "bbox": {
+        "x": 341,
+        "y": 1448,
+        "w": 29,
+        "h": 21
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "产品参数说明",
+      "path": "Root/产品参数说明",
+      "kind": "group",
+      "bbox": {
+        "x": -2,
+        "y": 912,
+        "w": 607,
+        "h": 402
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "场景配图",
+      "path": "Root/产品参数说明/场景配图",
+      "kind": "pixel",
+      "bbox": {
+        "x": 415,
+        "y": 912,
+        "w": 185,
+        "h": 398
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old gas product/scene raster image"
+    },
+    {
+      "layer_name": "产品",
+      "path": "Root/产品参数说明/产品",
+      "kind": "pixel",
+      "bbox": {
+        "x": 3,
+        "y": 1123,
+        "w": 200,
+        "h": 142
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old gas product/scene raster image"
+    },
+    {
+      "layer_name": "矩形 3",
+      "path": "Root/产品参数说明/矩形 3",
+      "kind": "shape",
+      "bbox": {
+        "x": 207,
+        "y": 1084,
+        "w": 193,
+        "h": 205
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "XR 144 4 BRULEURS",
+      "path": "Root/产品参数说明/XR 144 4 BRULEURS",
+      "kind": "type",
+      "bbox": {
+        "x": 266,
+        "y": 1090,
+        "w": 79,
+        "h": 23
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'bruleur')"
+    },
+    {
+      "layer_name": "DIMENSIONS     800*700*270",
+      "path": "Root/产品参数说明/DIMENSIONS     800*700*270",
+      "kind": "type",
+      "bbox": {
+        "x": 214,
+        "y": 1137,
+        "w": 177,
+        "h": 9
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'dimensions')"
+    },
+    {
+      "layer_name": "2*6kW+ 2*3.5kW",
+      "path": "Root/产品参数说明/2*6kW+ 2*3.5kW",
+      "kind": "type",
+      "bbox": {
+        "x": 308,
+        "y": 1245,
+        "w": 54,
+        "h": 27
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'kw+')"
+    },
+    {
+      "layer_name": "DISPOSITION  ",
+      "path": "Root/产品参数说明/DISPOSITION  ",
+      "kind": "type",
+      "bbox": {
+        "x": 214,
+        "y": 1192,
+        "w": 77,
+        "h": 9
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'disposition')"
+    },
+    {
+      "layer_name": "PUISSANCE",
+      "path": "Root/产品参数说明/PUISSANCE",
+      "kind": "type",
+      "bbox": {
+        "x": 214,
+        "y": 1248,
+        "w": 68,
+        "h": 9
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'puissance')"
+    },
+    {
+      "layer_name": "矩形 4",
+      "path": "Root/产品参数说明/矩形 4",
+      "kind": "shape",
+      "bbox": {
+        "x": 307,
+        "y": 1171,
+        "w": 28,
+        "h": 26
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "6 kW",
+      "path": "Root/产品参数说明/6 kW",
+      "kind": "type",
+      "bbox": {
+        "x": 314,
+        "y": 1177,
+        "w": 12,
+        "h": 13
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'kw')"
+    },
+    {
+      "layer_name": "矩形 4 拷贝",
+      "path": "Root/产品参数说明/矩形 4 拷贝",
+      "kind": "shape",
+      "bbox": {
+        "x": 335,
+        "y": 1171,
+        "w": 28,
+        "h": 26
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "3.5 kW",
+      "path": "Root/产品参数说明/3.5 kW",
+      "kind": "type",
+      "bbox": {
+        "x": 342,
+        "y": 1177,
+        "w": 12,
+        "h": 13
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'kw')"
+    },
+    {
+      "layer_name": "矩形 4 拷贝 2",
+      "path": "Root/产品参数说明/矩形 4 拷贝 2",
+      "kind": "shape",
+      "bbox": {
+        "x": 335,
+        "y": 1198,
+        "w": 28,
+        "h": 26
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "6 kW",
+      "path": "Root/产品参数说明/6 kW",
+      "kind": "type",
+      "bbox": {
+        "x": 342,
+        "y": 1204,
+        "w": 12,
+        "h": 13
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'kw')"
+    },
+    {
+      "layer_name": "矩形 4 拷贝 3",
+      "path": "Root/产品参数说明/矩形 4 拷贝 3",
+      "kind": "shape",
+      "bbox": {
+        "x": 307,
+        "y": 1198,
+        "w": 28,
+        "h": 26
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "3.5 kW",
+      "path": "Root/产品参数说明/3.5 kW",
+      "kind": "type",
+      "bbox": {
+        "x": 314,
+        "y": 1204,
+        "w": 12,
+        "h": 13
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'kw')"
+    },
+    {
+      "layer_name": "NOTRE COUP DE COEUR",
+      "path": "Root/产品参数说明/NOTRE COUP DE COEUR",
+      "kind": "type",
+      "bbox": {
+        "x": 19,
+        "y": 938,
+        "w": 270,
+        "h": 122
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'coup de coeur')"
+    },
+    {
+      "layer_name": "矩形 2",
+      "path": "Root/产品参数说明/矩形 2",
+      "kind": "shape",
+      "bbox": {
+        "x": -2,
+        "y": 1309,
+        "w": 607,
+        "h": 5
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "产品介绍",
+      "path": "Root/产品介绍",
+      "kind": "group",
+      "bbox": {
+        "x": 15,
+        "y": 490,
+        "w": 570,
+        "h": 386
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "container shell (structure/geometry)"
+    },
+    {
+      "layer_name": "LES RÉCHAUDS GAZ",
+      "path": "Root/产品介绍/LES RÉCHAUDS GAZ",
+      "kind": "type",
+      "bbox": {
+        "x": 77,
+        "y": 490,
+        "w": 445,
+        "h": 40
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'gaz')"
+    },
+    {
+      "layer_name": "EN PLUSIEURS DÉCLINAISONS",
+      "path": "Root/产品介绍/EN PLUSIEURS DÉCLINAISONS",
+      "kind": "type",
+      "bbox": {
+        "x": 108,
+        "y": 772,
+        "w": 381,
+        "h": 24
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'déclinaison')"
+    },
+    {
+      "layer_name": "QUAND LES PLATS ONT BESOIN D'UN PETIT COUP DE CHAUD !",
+      "path": "Root/产品介绍/QUAND LES PLATS ONT BESOIN D'UN PETIT COUP DE CHAUD !",
+      "kind": "type",
+      "bbox": {
+        "x": 123,
+        "y": 561,
+        "w": 351,
+        "h": 10
+      },
+      "visible": true,
+      "classification": "reference_only",
+      "runtime_allowed": false,
+      "reason": "old campaign copy — reference only, not runtime"
+    },
+    {
+      "layer_name": "Alternez les températures pour cuire, saisir, mijoter, et même ",
+      "path": "Root/产品介绍/Alternez les températures pour cuire, saisir, mijoter, et même ",
+      "kind": "type",
+      "bbox": {
+        "x": 44,
+        "y": 820,
+        "w": 513,
+        "h": 56
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old business fact (matched 'gaz')"
+    },
+    {
+      "layer_name": "产品图片",
+      "path": "Root/产品介绍/产品图片",
+      "kind": "pixel",
+      "bbox": {
+        "x": 15,
+        "y": 584,
+        "w": 570,
+        "h": 188
+      },
+      "visible": true,
+      "classification": "rejected_truth",
+      "runtime_allowed": false,
+      "reason": "old gas product/scene raster image"
+    },
+    {
+      "layer_name": "产品功能海报",
+      "path": "Root/产品功能海报",
+      "kind": "pixel",
+      "bbox": {
+        "x": 0,
+        "y": 54,
+        "w": 598,
+        "h": 400
+      },
+      "visible": true,
+      "classification": "replaceable_slot",
+      "runtime_allowed": true,
+      "reason": "body visual stage (selected poster goes here)"
+    },
+    {
+      "layer_name": "logo banner",
+      "path": "Root/logo banner",
+      "kind": "pixel",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 600,
+        "h": 54
+      },
+      "visible": true,
+      "classification": "design_shell",
+      "runtime_allowed": true,
+      "reason": "email header band (brand header region)"
+    }
+  ]
+}

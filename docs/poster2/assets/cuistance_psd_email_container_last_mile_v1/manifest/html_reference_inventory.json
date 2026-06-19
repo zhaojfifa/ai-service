@@ -1,0 +1,58 @@
+{
+  "ttt.html": {
+    "classified_format": "product_sheet_email",
+    "bytes": 22690,
+    "table_count": 31,
+    "img_count": 4,
+    "link_count": 8,
+    "img_hosts": [
+      "mcusercontent.com"
+    ],
+    "regions": {
+      "container_600px": true,
+      "email_header": true,
+      "body_visual": true,
+      "intro_copy": true,
+      "cta": true,
+      "footer": true,
+      "legal": true,
+      "social_contact": true
+    },
+    "third_party_tracking_present_in_source": [
+      "list-manage"
+    ],
+    "tracking_copied_into_runtime": false,
+    "note": "structure grammar only — no raw HTML / scripts / tracking copied into CUISTANCE runtime"
+  },
+  "ttt2.html": {
+    "classified_format": "campaign_poster_email",
+    "bytes": 114277,
+    "table_count": 40,
+    "img_count": 36,
+    "link_count": 20,
+    "img_hosts": [
+      "stratus.campaign-image.eu"
+    ],
+    "regions": {
+      "container_600px": true,
+      "email_header": true,
+      "body_visual": true,
+      "intro_copy": true,
+      "cta": true,
+      "footer": true,
+      "legal": true,
+      "social_contact": true
+    },
+    "third_party_tracking_present_in_source": [
+      "campaign-image",
+      "list-manage",
+      "zcsclwgt"
+    ],
+    "tracking_copied_into_runtime": false,
+    "note": "structure grammar only — no raw HTML / scripts / tracking copied into CUISTANCE runtime"
+  },
+  "_mapping": {
+    "ttt.html": "product_sheet_email / 简单产品页邮件格式 (Cuistance-Mailchimp product-style)",
+    "ttt2.html": "campaign_poster_email / 目标海报邮件格式 (Technitalia-Zoho campaign-style)"
+  }
+}

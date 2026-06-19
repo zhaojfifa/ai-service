@@ -1,0 +1,145 @@
+{
+  "template_id": "cuistance_email_container_psd_v1",
+  "source": "产品海报.psd",
+  "canvas": {
+    "w": 600,
+    "h": 1577
+  },
+  "regions": [
+    {
+      "region_id": "email_header_region",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 600,
+        "h": 54
+      },
+      "runtime_role": "design_shell",
+      "source_layers": [
+        "logo banner"
+      ]
+    },
+    {
+      "region_id": "body_visual_region",
+      "bbox": {
+        "x": 0,
+        "y": 54,
+        "w": 598,
+        "h": 400
+      },
+      "runtime_role": "replaceable_slot",
+      "source_layers": [
+        "产品功能海报"
+      ]
+    },
+    {
+      "region_id": "intro_copy_region",
+      "bbox": {
+        "x": 15,
+        "y": 490,
+        "w": 570,
+        "h": 386
+      },
+      "runtime_role": "design_shell",
+      "source_layers": [
+        "产品介绍"
+      ]
+    },
+    {
+      "region_id": "spec_region",
+      "bbox": {
+        "x": -2,
+        "y": 912,
+        "w": 607,
+        "h": 402
+      },
+      "runtime_role": "design_shell",
+      "source_layers": [
+        "产品参数说明"
+      ]
+    },
+    {
+      "region_id": "social_contact_region",
+      "bbox": {
+        "x": -2,
+        "y": 1310,
+        "w": 606,
+        "h": 218
+      },
+      "runtime_role": "design_shell",
+      "source_layers": [
+        "分享方式"
+      ]
+    },
+    {
+      "region_id": "legal_footer_region",
+      "bbox": {
+        "x": 0,
+        "y": 1528,
+        "w": 600,
+        "h": 50
+      },
+      "runtime_role": "design_shell",
+      "source_layers": [
+        "分享方式"
+      ]
+    }
+  ],
+  "replaceable_slots": [
+    {
+      "slot_id": "brand_logo_slot",
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 600,
+        "h": 54
+      },
+      "truth_source": "workbench.email_banner.logo",
+      "required": true
+    },
+    {
+      "slot_id": "body_visual_slot",
+      "bbox": {
+        "x": 0,
+        "y": 54,
+        "w": 598,
+        "h": 400
+      },
+      "truth_source": "workbench.selected_email_body_visual.poster.final_poster.url",
+      "required": true
+    },
+    {
+      "slot_id": "contact_email_slot",
+      "bbox": {
+        "x": 22,
+        "y": 1539,
+        "w": 552,
+        "h": 13
+      },
+      "truth_source": "workbench.contact.email",
+      "required": true
+    },
+    {
+      "slot_id": "contact_phone_slot",
+      "bbox": {
+        "x": 84,
+        "y": 1498,
+        "w": 82,
+        "h": 10
+      },
+      "truth_source": "workbench.contact.phone",
+      "required": false
+    },
+    {
+      "slot_id": "website_slot",
+      "bbox": {
+        "x": 424,
+        "y": 1499,
+        "w": 89,
+        "h": 9
+      },
+      "truth_source": "workbench.contact.website",
+      "required": false
+    }
+  ]
+}
