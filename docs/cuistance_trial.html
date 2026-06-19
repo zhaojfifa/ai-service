@@ -45,6 +45,8 @@
     /* Step-2 real backend-generated poster image (replaces the static mock once ready) */
     .poster-real{width:100%;display:block;border-radius:8px;border:1px solid var(--line,#e6e8ec);background:#fff}
     .affiche-incomplete{font-size:12.5px;color:var(--err,#c0392b);margin-top:8px;display:none}
+    .card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .btn.sm{font-size:12px;padding:5px 11px}
   </style>
 </head>
 <body data-lang="zh">
@@ -190,6 +192,12 @@
               <div class="upload" id="slot-banner"><img class="thumb slot-thumb" id="thumb-banner" alt="bannière" style="display:none" /><div class="ph" id="ph-banner">▦</div><span class="cap" data-zh="邮件横幅 / 背景" data-fr="Bannière de l'email">邮件横幅 / 背景</span><input type="file" id="file-banner" accept="image/*" class="slot-file" /></div>
               <div class="upload note-cell"><span class="hint" data-zh="Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。" data-fr="Logo et bannière dans l'en-tête, pas dans l'affiche. Bannière = module de premier plan.">Logo 与横幅显示在邮件页眉，不进产品海报主体。横幅是一等模块。</span></div>
             </div>
+            <div class="group-label" data-zh="邮件横幅选择（页眉，非产品真值）" data-fr="Choix de bannière email (en-tête, pas une donnée produit)">邮件横幅选择（页眉，非产品真值）</div>
+            <div class="banner-options" id="s1-bannerOptions">
+              <button class="banner-opt" data-ref="option_1" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
+              <button class="banner-opt" data-ref="option_2" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
+            </div>
+            <div class="hint" id="s1-banner-hint" data-zh="未选择则使用默认品牌页眉。横幅是邮件层素材，不会进入产品海报主体。" data-fr="Sinon, en-tête de marque par défaut. La bannière est un élément email, pas l'affiche.">未选择则使用默认品牌页眉。横幅是邮件层素材，不会进入产品海报主体。</div>
             <div class="group-label" data-zh="联系方式（邮件页脚）" data-fr="Contact &amp; réseaux (pied de l'email)">联系方式（邮件页脚）</div>
             <div class="grid-2">
               <div class="field"><label><span data-zh="联系邮箱" data-fr="Email de contact">联系邮箱</span></label><input class="input readonly" readonly value="commercial@cuistance.eu" /></div>
@@ -272,6 +280,10 @@
               <span class="hint" id="affiche-card-hint" data-zh="点击「生成产品海报」生成主体。" data-fr="Cliquez sur « Générer l'affiche ».">点击「生成产品海报」生成主体。</span>
             </div>
             <div class="affiche-incomplete" id="affiche-incomplete" data-zh="已生成记录不完整，请查看内部诊断。" data-fr="Enregistrement incomplet — voir le diagnostic.">已生成记录不完整，请查看内部诊断。</div>
+            <div class="card-actions" id="affiche-actions" style="display:none">
+              <a class="btn ghost sm" id="affiche-open" target="_blank" rel="noopener" href="#" data-zh="查看生成大图" data-fr="Voir en grand">查看生成大图</a>
+              <button class="btn ghost sm" id="affiche-copy" type="button" data-zh="复制图片链接" data-fr="Copier le lien">复制图片链接</button>
+            </div>
             <div class="select-row">
               <button class="btn select-visual" type="button" id="btn-select-affiche" data-visual="affiche" data-zh="选为邮件主体" data-fr="Choisir pour l'email">选为邮件主体</button>
               <span class="badge selected-badge">✓ <span data-zh="已选用" data-fr="Sélectionné">已选用</span></span>
@@ -322,8 +334,8 @@
             <p class="hint" data-zh="邮件页眉（第一块），主路线与简化产品页共用。" data-fr="En-tête de l'email (premier bloc), partagé.">邮件页眉（第一块），主路线与简化产品页共用。</p>
             <div class="email-banner selected-banner" id="bannerPreview"><img class="banner-img" id="bannerPreviewImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
             <div class="banner-options" id="bannerOptions">
-              <button class="banner-opt selected" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
-              <button class="banner-opt" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
+              <button class="banner-opt selected" data-ref="option_1" data-img="assets/banner_option_01.jpg" type="button"><img src="assets/banner_option_01.jpg" alt="Option 1" /><span class="opt-cap">Option 1 <span class="badge ready" data-zh="默认" data-fr="Par défaut">默认</span></span></button>
+              <button class="banner-opt" data-ref="option_2" data-img="assets/banner_option_02.jpg" type="button"><img src="assets/banner_option_02.jpg" alt="Option 2" /><span class="opt-cap">Option 2</span></button>
             </div>
             <div class="grid-2" style="margin-top:8px">
               <div class="field"><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input class="input" id="f-channel" value="CUISTANCE Europe" /></div>
@@ -362,6 +374,10 @@
         <div>
           <p class="panel-title" data-zh="邮件最终预览（横幅 + 海报主体）" data-fr="Aperçu de l'email (bannière + affiche)">邮件最终预览（横幅 + 海报主体）</p>
           <div class="card">
+            <div class="card-state" id="email-preview-state">
+              <span class="badge lock" id="email-preview-badge" data-zh="预览示意，尚未生成邮件预览" data-fr="Aperçu indicatif — aperçu non généré">预览示意，尚未生成邮件预览</span>
+              <span class="hint" id="email-body-binding" data-zh="邮件主体：产品海报" data-fr="Corps : affiche produit">邮件主体：产品海报</span>
+            </div>
             <div class="preview-frame" id="emailPreviewFrame">
               <div class="email" id="emailStatic">
                 <div class="email-banner"><img class="banner-img" id="emailBannerImg" src="assets/banner_option_01.jpg" alt="bannière" /></div>
@@ -428,7 +444,7 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false;
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='';
     var S={wb:null, affiche:null, sheet:null, afficheUrl:''};
     function $(id){return document.getElementById(id)}
     function base(){return ($('apibase').value||'').replace(/\/+$/,'')}
@@ -542,8 +558,22 @@
       var pa={product_images:prod,gallery_images:gal};
       if(SLOTS.atmo)pa.atmosphere={url:SLOTS.atmo,is_truth:false};   // visual-only, never business fact
       var eb={logo:(SLOTS.logo?{url:SLOTS.logo}:null),channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value};
-      if(SLOTS.banner)eb.background={url:SLOTS.banner};
+      if(SLOTS.banner)eb.background={url:SLOTS.banner};               // banner is email-layer material, NOT product truth
+      if(selectedBannerRef)eb.selected_banner_ref=selectedBannerRef;
       return {product_assets:pa,email_banner:eb};
+    }
+    // Explicit email-banner selection (email-layer; never product truth; never baked into the poster body).
+    function selectBanner(ref,img){
+      selectedBannerRef=ref||'';
+      if(img){ var abs=new URL(img,location.href).href; setSlot('banner',abs);
+        var i3=$('emailBannerImg'); if(i3)i3.src=img; var p3=$('bannerPreviewImg'); if(p3)p3.src=img; }
+      document.querySelectorAll('#s1-bannerOptions .banner-opt').forEach(function(x){x.classList.toggle('selected',x.dataset.ref===ref)});
+      document.querySelectorAll('#bannerOptions .banner-opt').forEach(function(x){x.classList.toggle('selected',x.dataset.img===img)});
+      var bh=$('s1-banner-hint');
+      if(bh){ if(ref){bh.setAttribute('data-zh','已选择邮件横幅（页眉）。');bh.setAttribute('data-fr','Bannière email (en-tête) sélectionnée.');}
+        else {bh.setAttribute('data-zh','未选择则使用默认品牌页眉。横幅是邮件层素材，不会进入产品海报主体。');bh.setAttribute('data-fr','Sinon, en-tête de marque par défaut. La bannière est un élément email, pas l\'affiche.');}
+        bh.textContent=bh.getAttribute('data-'+lang); }
+      diag('banner',{selected_banner_ref:selectedBannerRef,background_url_present:!!SLOTS.banner});
     }
     async function ensureWorkbench(){
       if(!SLOTS.prod1){flash('warn',lang==='zh'?'请先添加产品主图或使用示例素材':'Ajoutez l\'image produit ou utilisez l\'exemple');return false}
@@ -575,13 +605,15 @@
     // The Step-2 card must show the REAL generated poster (poster_record.final_poster.url), never the static mock
     // as "generated". state: 'placeholder' | 'ready' | 'incomplete'.
     function setAfficheCard(state,url){
-      var real=$('affiche-real'),mock=$('affiche-mock'),lbl=$('affiche-preview-label'),inc=$('affiche-incomplete');
+      var real=$('affiche-real'),mock=$('affiche-mock'),lbl=$('affiche-preview-label'),inc=$('affiche-incomplete'),acts=$('affiche-actions'),opn=$('affiche-open');
       var cb=$('affiche-card-badge'),ch=$('affiche-card-hint'),ls=$('affiche-state');
       function badge(cls,zh,fr){ if(cb){cb.className='badge '+cls;cb.setAttribute('data-zh',zh);cb.setAttribute('data-fr',fr);cb.textContent=(lang==='zh'?zh:fr);} }
       function hint(zh,fr){ if(ch){ch.setAttribute('data-zh',zh);ch.setAttribute('data-fr',fr);ch.textContent=(lang==='zh'?zh:fr);} }
+      if(acts)acts.style.display=(state==='ready')?'flex':'none';
       if(state==='ready'){
         S.afficheUrl=url||'';
         if(real){real.src=url;real.style.display='';}
+        if(opn)opn.href=url||'#';
         if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
         badge('ready','产品海报已生成','Affiche générée');
         hint('使用后端生成结果，可直接「选为邮件主体」。','Résultat du service — choisissez-le comme corps.');
@@ -676,6 +708,12 @@
       if(sel===v){applySelectVisual(v);flash('ok',lang==='zh'?'已选为邮件主体，可进入下一步。':'Choisi comme corps — étape suivante.');}
       else flash('err',lang==='zh'?'选择邮件主体失败，请重试':'Échec du choix du corps — réessayez');
     })});
+    // open/copy the REAL generated poster url (poster_record.final_poster.url) — no poster_key on the main UI
+    $('affiche-copy').addEventListener('click',async function(){
+      if(!S.afficheUrl){flash('warn',lang==='zh'?'尚无可复制的图片链接。':'Aucun lien à copier.');return}
+      try{ await navigator.clipboard.writeText(S.afficheUrl); flash('ok',lang==='zh'?'图片链接已复制。':'Lien copié.'); }
+      catch(e){ flash('warn',lang==='zh'?'复制失败，请手动「查看生成大图」。':'Échec — utilisez « Voir en grand ».'); }
+    });
     $('btn-gen-affiche').addEventListener('click',function(){genVisual('affiche',false)});
     $('btn-regen-affiche').addEventListener('click',function(){genVisual('affiche',true)});
     $('btn-gen-sheet').addEventListener('click',function(){genVisual('sheet',false)});
@@ -693,19 +731,28 @@
       diag('refresh',{affiche:S.affiche,fiche:S.sheet,selected:sel});
     }
 
-    // banner option swap (mockup)
-    document.querySelectorAll('.banner-opt').forEach(function(b){b.addEventListener('click',function(){
-      document.querySelectorAll('.banner-opt').forEach(function(x){x.classList.remove('selected')});b.classList.add('selected');
-      $('bannerPreviewImg').src=b.dataset.img;$('emailBannerImg').src=b.dataset.img;})});
+    // banner selection — Step 1 chooses the email-layer banner; Step 3 options may re-choose and persist it.
+    document.querySelectorAll('#s1-bannerOptions .banner-opt').forEach(function(b){b.addEventListener('click',function(){
+      selectBanner(b.dataset.ref,b.dataset.img);
+      flash('ok',lang==='zh'?'已选择邮件横幅。':'Bannière sélectionnée.');})});
+    document.querySelectorAll('#bannerOptions .banner-opt').forEach(function(b){b.addEventListener('click',async function(){
+      var ref=b.dataset.ref||(b.dataset.img&&b.dataset.img.indexOf('02')>=0?'option_2':'option_1');
+      selectBanner(ref,b.dataset.img);
+      if(S.wb){ await api('PATCH','/api/v2/workbench/'+S.wb,buildAssetsPatch()); } })});
 
     // ---- Step 3: preview + send (real) ----
     $('btn-preview').addEventListener('click',async function(){
       if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先在第二步选为邮件主体。':'Choisissez d\'abord un corps.'));return}
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/preview');
       if(!r.ok||!r.json){flash('err',bizMsg(r));return}
-      diag('preview',{format:(r.json.email_body_plan||{}).layout_type,width:(r.json.email_body_plan||{}).container_width});
+      var bv=r.json.body_visual||{};
+      diag('preview',{selected_email_body_visual:r.json.selected_email_body_visual,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url});
+      // render the REAL assembled backend HTML (not a local mock)
       var f=$('mailFrame');$('emailStatic').style.display='none';f.style.display='block';
       var doc=f.contentWindow.document;doc.open();doc.write(r.json.html||'');doc.close();
+      // label: backend preview generated + clearly bound to the selected generated poster
+      var eb=$('email-preview-badge'); if(eb){eb.className='badge ready';eb.setAttribute('data-zh','邮件预览已生成');eb.setAttribute('data-fr','Aperçu généré');eb.textContent=(lang==='zh'?'邮件预览已生成':'Aperçu généré');}
+      var bd=$('email-body-binding'); if(bd){bd.setAttribute('data-zh','邮件主体：产品海报 · 已使用生成海报');bd.setAttribute('data-fr','Corps : affiche produit · poster généré utilisé');bd.textContent=(lang==='zh'?'邮件主体：产品海报 · 已使用生成海报':'Corps : affiche produit · poster généré utilisé');}
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?'邮件预览已生成。':'Aperçu généré.');
     });
@@ -722,15 +769,36 @@
       $('modal').classList.remove('open');
       var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:'inline_only'});
       if(!r.ok||!r.json){flash('err',bizMsg(r));return}
-      diag('send',r.json);renderResults(r.json);$('etat').textContent=(lang==='zh'?'已发送':'Envoyé');
+      // a true real delivery REQUIRES a provider_message_id; inline_only/preview_only is NOT a real send
+      var real=isRealSent(r.json);
+      diag('send',r.json);renderResults(r.json);
+      $('etat').textContent= real ? (lang==='zh'?'真实发送成功':'Envoyé') : (lang==='zh'?'预览已记录':'Aperçu enregistré');
     });
-    function stZh(s){return s==='sent'?(lang==='zh'?'已发送':'Envoyé'):(s==='error'?(lang==='zh'?'失败':'Échec'):(lang==='zh'?'已跳过':'Ignoré'))}
+    function attemptIsRealSent(a){return a&&a.status==='sent'&&!!a.provider_message_id;}
+    function isRealSent(b){return (b.attempts||[]).some(attemptIsRealSent);}
+    // per-attempt label: distinguish 真实发送成功 / 已跳过真实投递 / 发送失败 / 预览已记录
+    function attemptLabel(a){
+      if(attemptIsRealSent(a))return lang==='zh'?'真实发送成功':'Envoi réel réussi';
+      if(a.status==='error')return lang==='zh'?'发送失败':'Échec';
+      if(a.status==='skipped'||a.error_code==='preview_only')return lang==='zh'?'已跳过真实投递（预览已记录）':'Envoi réel ignoré (aperçu enregistré)';
+      return lang==='zh'?'已记录':'Enregistré';
+    }
     function renderResults(b){
-      $('send-summary').textContent=(lang==='zh'?'测试发送已记录':'Envoi enregistré')+' · '+(lang==='zh'?'成功':'réussi')+' '+(b.sent_count||0)+' / '+(lang==='zh'?'失败':'échec')+' '+(b.failed_count||0)+' / '+(lang==='zh'?'已跳过':'ignoré')+' '+(b.skipped_count||0);
+      var att=b.attempts||[];
+      var realN=att.filter(attemptIsRealSent).length;
+      var skipN=att.filter(function(a){return a.status==='skipped'||a.error_code==='preview_only'}).length;
+      var failN=att.filter(function(a){return a.status==='error'}).length;
+      var summary;
+      if(realN>0) summary=(lang==='zh'?('真实发送成功 '+realN+' 封'):('Envoi réel réussi : '+realN))+(failN?(lang==='zh'?(' / 失败 '+failN):(' / échec '+failN)):'');
+      else if(skipN>0) summary=(lang==='zh'?'当前环境未配置真实发送服务，已记录预览发送证据，未真实投递':'Aucun service d\'envoi réel configuré — preuve d\'aperçu enregistrée, non distribué');
+      else if(failN>0) summary=(lang==='zh'?('发送失败 '+failN+' 封'):('Échec : '+failN));
+      else summary=(lang==='zh'?'暂无发送记录':'Aucun envoi enregistré');
+      $('send-summary').textContent=summary;
       var res=$('results');res.innerHTML='';
-      (b.attempts||[]).forEach(function(a){var cls=a.status==='sent'?'r ok':(a.status==='error'?'r fail':'r ok');
+      att.forEach(function(a){var realOne=attemptIsRealSent(a);var cls=realOne?'r ok':(a.status==='error'?'r fail':'r');
+        var icon=realOne?'✔':(a.status==='error'?'✖':'◔');
         var time=(a.at||'').replace('T',' ').replace('+00:00','');
-        res.innerHTML+='<div class="'+cls+'"><span>'+(a.status==='error'?'✖':'✔')+'</span> '+a.recipient+' <span class="tag">'+stZh(a.status)+' · '+time+'</span></div>';});
+        res.innerHTML+='<div class="'+cls+'"><span>'+icon+'</span> '+a.recipient+' <span class="tag">'+attemptLabel(a)+' · '+time+'</span></div>';});
     }
     $('btn-evidence').addEventListener('click',async function(){
       if(!S.wb){$('send-summary').textContent=(lang==='zh'?'暂无记录。':'Aucune donnée.');return}
@@ -763,7 +831,8 @@
     // ---- use sample assets (hosted): fills all required slots so the affiche route runs without upload ----
     $('btn-sample').addEventListener('click',function(){
       setSlot('prod1',SAMPLE.prod1);setSlot('prod2',SAMPLE.prod2);
-      setSlot('g1',SAMPLE.prod2);setSlot('logo',SAMPLE.logo);setSlot('banner',SAMPLE.banner);
+      setSlot('g1',SAMPLE.prod2);setSlot('logo',SAMPLE.logo);
+      selectBanner('option_1','assets/banner_option_01.jpg');   // explicit email-banner choice (Option 1)
       flash('ok',lang==='zh'?'已使用示例素材（产品图/画廊/Logo/横幅），可「保存并进入下一步」。':'Éléments d\'exemple chargés.');
     });
 

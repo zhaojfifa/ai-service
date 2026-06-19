@@ -12233,3 +12233,31 @@ After bundle:
   (no creds held this pass; not claiming remote GO).
 - Files: frontend/cuistance_trial.html (+docs/cuistance_trial.html mirror), scripts/
   poster2_cuistance_real_poster_binding_proof.py, status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-V1-EMAIL-PREVIEW-SEND-SEMANTICS-CALIBRATION (2026-06-19) — SUBMITTED FOR OWNER REVIEW (GO local real-backend)
+- Frontend wiring only (NO renderer/provider/send change; no backend bug found). Five fixes:
+  (1) Step1 explicit email-banner selection: Option 1/2 -> email_banner.background.url (absolute) +
+  selected_banner_ref (persisted via Step1 save PATCH); default 使用默认品牌页眉; banner is email-layer, never
+  product truth, never baked into poster body; Step3 options re-persist via PATCH. (2) Step2 generated-poster URL
+  actions 查看生成大图 (open final_poster.url new tab) / 复制图片链接 (copy final_poster.url); no poster_key on main UI.
+  (3) Step3 preview: pre-preview label 预览示意，尚未生成邮件预览; on /email/preview 200 render assembled backend HTML,
+  label 邮件预览已生成 + 邮件主体：产品海报 · 已使用生成海报; diag records selected_email_body_visual,
+  body_visual_poster_key, layout_type, final_poster_url_present. (4) Select -> PATCH selected-visual -> immediate GET
+  -> only if selected_email_body_visual=affiche show 已选为邮件主体 + unlock Step3; else 选择邮件主体失败，请重试.
+  (5) Honest send semantics: real delivery REQUIRES provider_message_id; mode=real but inline_only/skipped/
+  preview_only/null -> 当前环境未配置真实发送服务，已记录预览发送证据，未真实投递 (state 预览已记录); never
+  发送成功/真实发送成功/已发送; per-attempt labels 真实发送成功 / 已跳过真实投递（预览已记录）/ 发送失败.
+- REAL (non-stubbed) browser verification: real app.main backend, real page, Playwright NO route stubbing (real
+  chromium email_campaign_composite_v1 render; final_poster.url data-URL; inline provider -> preview_only).
+  evidence.json: was_stubbed=false; selected_banner_ref=option_2; banner_background_url_present=true;
+  ui_has_open_generated_image_action=true; selected_email_body_visual_after_get=affiche; email_preview_status=200;
+  preview_uses_body_visual_poster_key=true; final_poster_url_present=true; send_mode=real; send_provider=inline_only;
+  provider_message_id_present=false; send_status=skipped; send_error_code=preview_only; real_email_sent=false;
+  send_summary='当前环境未配置真实发送服务，已记录预览发送证据，未真实投递'; ui_send_label_correct=true. Screenshots
+  docs/poster2/assets/cuistance_email_preview_send_semantics_v1/ 01 banner-selected / 02 poster+open-link / 03
+  preview-uses-generated-poster / 04 send-preview-only-not-real-sent / 05 diagnostics + evidence.json. Forbidden-term
+  scan NONE; inline JS node --check OK; docs router PASS.
+- Local real-backend validation = GO (affiche main route). Remote: pending trial-branch deploy + operator OPS login
+  (no creds held this pass; not claiming remote GO). No real email sent (provider_message_id absent).
+- Files: frontend/cuistance_trial.html (+docs mirror), scripts/
+  poster2_cuistance_email_preview_send_semantics_proof.py, status doc, README, this log. Backend unchanged.
