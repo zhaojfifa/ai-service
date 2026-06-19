@@ -1,0 +1,76 @@
+{
+  "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
+  "commits": [
+    "d34e315",
+    "13b8c47",
+    "ebdfea7"
+  ],
+  "rollback": {
+    "rollback_commit": "ae5e527",
+    "rollback_tag": "poster2-cuistance-asset-chain-pass-ae5e527",
+    "rollback_commands_documented": true
+  },
+  "source_inventory": {
+    "source_dir": "~/poster/ingredient/",
+    "file_count": 7,
+    "sha256_manifest": "inventory/source_sha256.txt"
+  },
+  "psd_analysis": {
+    "psd_layer_auto_parse": true,
+    "canvas": {
+      "w": 600,
+      "h": 1577
+    },
+    "layer_count": 49,
+    "visible_layer_count": 49,
+    "exported_slice_count": 6,
+    "replaceable_slot_count": 5,
+    "rejected_truth_layer_count": 21
+  },
+  "html_reference_analysis": {
+    "ttt_html_format": "product_sheet_email",
+    "ttt2_html_format": "campaign_poster_email",
+    "region_count": 16
+  },
+  "email_container": {
+    "template_id": "cuistance_email_container_psd_v1",
+    "supports_campaign_poster_email": true,
+    "supports_product_sheet_email": true,
+    "header_source": "psd_slice_manifest",
+    "body_visual_source": "selected_email_body_visual",
+    "workbench_truth_used": true,
+    "legacy_truth_rejected": true,
+    "preview_contains_header": true,
+    "preview_contains_body_visual": true,
+    "preview_contains_cta": true,
+    "preview_contains_footer": true,
+    "no_body_content_in_header_banner": true
+  },
+  "flow_validation": {
+    "step1_assets_saved": true,
+    "step2_affiche_generated": true,
+    "selected_visual_confirmed": true,
+    "step3_preview_ok": true,
+    "refresh_recovery_ok": true
+  },
+  "send_semantics": {
+    "real_email_sent": false,
+    "inline_only_not_claimed_as_real_send": true,
+    "provider_message_id": null
+  },
+  "workbench_key": "wb_09fa527e03fe4dc0",
+  "generated_poster_key": "p2_5ddd3c6702114905",
+  "screenshots": [
+    "operator_screenshots/01_source_material_inventory.png",
+    "operator_screenshots/02_psd_layer_inventory.png",
+    "operator_screenshots/03_html_reference_inventory.png",
+    "operator_screenshots/04_slice_manifest_overlay.png",
+    "operator_screenshots/05_step1_assets_saved.png",
+    "operator_screenshots/06_step2_affiche_generated.png",
+    "operator_screenshots/07_step2_selected_visual_confirmed.png",
+    "operator_screenshots/08_step3_psd_email_container_preview.png",
+    "operator_screenshots/09_refresh_recovery_preview.png",
+    "operator_screenshots/10_send_semantics_no_real_send.png"
+  ],
+  "was_stubbed": false
+}

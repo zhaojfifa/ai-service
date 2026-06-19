@@ -12456,3 +12456,44 @@ After bundle:
 - Files: frontend/cuistance_trial.html (+docs mirror), frontend/assets/header_band_0{1,2}.png (+docs/assets mirror),
   scripts/poster2_cuistance_header_band_assets.py, scripts/poster2_cuistance_asset_persistence_header_proof.py,
   scripts/check_email_fill_format_alignment.py, status doc, README, this log. Backend unchanged.
+
+## POSTER2-CUISTANCE-PSD-EMAIL-CONTAINER-LAST-MILE-HEAVY-V1 (2026-06-19) — PHASES 0–3 PASS (local REAL-backend), SUBMITTED FOR OWNER REVIEW
+- Direct heavy engineering (no Harness-X). Branch trial/poster2-cuistance-psd-email-container-last-mile-v1 off
+  baseline ae5e527; rollback tag poster2-cuistance-asset-chain-pass-ae5e527 (local, NOT pushed). Worktree at start
+  only .DS_Store dirty (OS noise, pre-existing); HEAD==ae5e527.
+- Phase 0 (d34e315): froze ~/poster/ingredient/ (7 files) -> docs/poster2/assets/
+  cuistance_psd_email_container_last_mile_v1/source/ + inventory/source_sha256.txt + source_inventory.json +
+  decision doc. No runtime change.
+- Phase 1 (13b8c47): scripts/poster2_cuistance_psd_inventory.py (psd_tools 1.17.2, dev-only venv, NOT in runtime
+  requirements; psd_layer_auto_parse=true) -> canvas 600x1577, 49 layers, 21 rejected_truth layers, 6 regions, 5
+  Workbench-bound replaceable slots; psd_flat_reference.png + psd_slice_overlay_debug.png. scripts/
+  poster2_cuistance_email_html_inventory.py (stdlib only) -> ttt.html=product_sheet_email, ttt2.html=
+  campaign_poster_email; third-party tracking (list-manage/campaign-image/zcsclwgt) detected in source, NOT copied.
+  Rejected: LES RÉCHAUDS GAZ / XR 1444 4 BRULEURS / gas kW+dim+PUISSANCE / NOTRE COUP DE COEUR / old phone
+  01 41 53 12 12 / old email / CATALOGUES / SITE IN TERNET / old product+scene rasters (all runtime_allowed=false).
+- Phase 2 (ebdfea7): tagged the deterministic 600px email assembly as cuistance_email_container_psd_v1 (additive,
+  email-layer only; NO renderer change). assembly.py + EmailAssemblyPreviewResponse now expose
+  email_container_template_id + email_fill_format (affiche->campaign_poster_email, fiche->product_sheet_email) +
+  email_container evidence (header_source=psd_slice_manifest, legacy_truth_rejected=true, workbench_truth_used=true,
+  uses_current_selected_visual, body_visual_poster_key). Backwards-compatible. tests/poster2/
+  test_workbench_psd_email_container.py (container fields + no legacy-gas leakage) PASS; 25 email/assembly tests PASS.
+- Phase 3 (this commit): integrated into /cuistance_trial.html Step 3 (frontend reads container fields into
+  diagnostics). REAL (non-stubbed) operator flow proof scripts/poster2_cuistance_psd_container_operator_proof.py:
+  step1_assets_saved + step2_affiche_generated + selected_visual_confirmed + step3_preview_ok + refresh_recovery_ok
+  all true; email_container template=cuistance_email_container_psd_v1 / fill_format=campaign_poster_email /
+  legacy_truth_rejected=true / workbench_truth_used=true / header+body+cta+footer present / no_body_content_in_header
+  _banner=true; send mode=real/provider=inline_only/status=skipped/error_code=preview_only/provider_message_id null/
+  real_email_sent=false/ui_send_label_correct=true. Operator screenshots 01-10 + evidence.json + operator_flow_
+  evidence.json under docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/.
+- Regression check: the 8 focused-test failures (generate-poster timeout/puppeteer/CORS + old stage3.html
+  "Show HTML Source") are PRE-EXISTING — verified identical on baseline with my email-layer changes stashed; my
+  changes touch only email assembly/schema/preview/frontend (no generate-poster/renderer/stage3 path). docs router
+  PASS; fill-format advisory PASS.
+- HOLD/Owner decision: remote operator validation pending deploy + OPS creds; real send remains HOLD; psd_tools is
+  venv-only (Owner decision for CI); no main merge / no tag push.
+- Files: docs/poster2/cuistance_psd_email_container_last_mile_{decision,status}_v1.md; docs/poster2/assets/
+  cuistance_psd_email_container_last_mile_v1/** (source+inventory+manifest+screenshots+operator_screenshots+
+  evidence); scripts/poster2_cuistance_psd_inventory.py, poster2_cuistance_email_html_inventory.py,
+  poster2_cuistance_psd_container_operator_proof.py; app/services/email/assembly.py, app/schemas/poster2.py,
+  app/main.py (preview endpoint), frontend/cuistance_trial.html (+docs mirror), tests/poster2/
+  test_workbench_psd_email_container.py; README, this log.

@@ -1,0 +1,34 @@
+{
+  "was_stubbed": false,
+  "step1_assets_saved": true,
+  "step2_affiche_generated": true,
+  "selected_visual_confirmed": true,
+  "step3_preview_ok": true,
+  "email_container": {
+    "template_id": "cuistance_email_container_psd_v1",
+    "email_fill_format": "campaign_poster_email",
+    "header_source": "psd_slice_manifest",
+    "legacy_truth_rejected": true,
+    "workbench_truth_used": true,
+    "uses_current_selected_visual": true,
+    "body_visual_poster_key": "p2_5ddd3c6702114905",
+    "preview_contains_header": true,
+    "preview_contains_body_visual": true,
+    "preview_contains_cta": true,
+    "preview_contains_footer": true,
+    "no_body_content_in_header_banner": true
+  },
+  "refresh_recovery_ok": true,
+  "recovered_workbench_key": "wb_09fa527e03fe4dc0",
+  "send": {
+    "mode": "real",
+    "provider": "inline_only",
+    "status": "skipped",
+    "error_code": "preview_only",
+    "provider_message_id": null,
+    "real_email_sent": false,
+    "ui_send_label_correct": true
+  },
+  "workbench_key": "wb_09fa527e03fe4dc0",
+  "generated_poster_key": "p2_5ddd3c6702114905"
+}
