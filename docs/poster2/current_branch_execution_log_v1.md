@@ -12746,3 +12746,17 @@ After bundle:
   not yet deployed (push+Render redeploy pending). No remote blocker proven; local REAL-backend PASS stands.
 - Owner Decision Needed: deploy this branch (>= the selection-truth commit) on Render and provide OPS creds via the
   secure temporary method, then the authenticated remote Fiche selection/preview validation completes.
+
+## CLEAN BASELINE TAG + LARGE-FILE CLOSURE (2026-06-20) — docs only, no code change
+- Accepted cleanup commit 4ae307a tagged LOCAL ONLY: poster2-cuistance-dual-mode-clean-baseline-4ae307a (not pushed).
+- Working-tree asset verification: docs/poster2/assets = 3.6 MB; only source files remain as image/html
+  (source/logo_01.jpg, source/ttt.html, source/ttt2.html) + source/产品海报.psd kept; 18 evidence.json preserved.
+- Working-tree large-file scan (>5MB, excl .git/.venv/node_modules): big finding = scripts/out/ ~655 MB of UNTRACKED
+  HTML/PNG render dumps (catalog_hero_v2_iter*.html 45M each ×12, catalog_hero_v1.html 47M) — DELETE_CANDIDATE but
+  OUT OF docs/poster2/assets scope -> DEFERRED (owner-authorized pass). app/assets/fonts + assets/fonts NotoSansSC
+  .ttf are tracked runtime deps -> KEEP. .claude/worktrees ~295 MB = agent tooling, not repo content.
+- Git history large-blob report written: docs/poster2/git_large_blobs_report_v1.txt (top blobs = removed
+  reconstruction_v1 catalog_hero_v1/v2.html 49M/47M still in history; tracked NotoSansSC 35M). No history rewrite run.
+- Clean baseline packet: docs/poster2/cuistance_clean_baseline_packet_v1.md (branch/tag/commit, supported modes,
+  non-scope, cleanup result, preserved artifacts, external archive TBD, next-stage options proposed not executed).
+- No app/frontend/tests/scripts/runtime change. Tag not pushed. No ai-service-clean export. No history rewrite.
