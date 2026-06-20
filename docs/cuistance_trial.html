@@ -619,7 +619,9 @@
       if(eb.selected_banner_ref)selectedBannerRef=eb.selected_banner_ref;
       var pc=j.poster_candidates||{};
       if((pc.affiche||{}).status==='ready'&&pc.affiche.poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
-      if((pc.fiche||{}).status==='ready'&&pc.fiche.poster_key){S.fiche=pc.fiche.poster_key; await loadModePoster('fiche');}
+      // fiche is ready by STATUS (product_sheet_email from Workbench truth) — it has NO poster_key by design.
+      // hydrate its body-image from the backend product image so re-entry can select it (backend truth wins).
+      if((pc.fiche||{}).status==='ready'){S.fiche=pc.fiche.poster_key||'fiche_sheet'; S.ficheUrl=S.ficheUrl||(pi[0]&&pi[0].url)||SLOTS.prod1||''; await loadModePoster('fiche');}
       var sel=j.selected_email_body_visual;
       if(sel){ selectedVisual=null; applySelectVisual(sel); }
       restoredOnce=true;
@@ -764,8 +766,11 @@
         if(real){real.src=url;real.style.display='';} if(opn)opn.href=url||'#';
         if(mock)mock.style.display='none'; if(lbl)lbl.style.display='none'; if(inc)inc.style.display='none';
         badge('ready', mode==='affiche'?'产品海报已生成':'简单产品页已生成', mode==='affiche'?'Affiche générée':'Fiche générée');
-        if(selectedVisual===mode) hint('已选为邮件主体。','Choisi comme corps de l\'email.');
-        else hint('产品海报已生成，请选择为邮件主体。','Généré — choisissez-le comme corps de l\'email.');
+        var nm=(MODE_NAME[mode]||{}).zh||'';
+        if(selectedVisual===mode){
+          if(previewGenerated) hint('已选为邮件主体：'+nm+'，可进入邮件预览。','Choisi comme corps — aperçu disponible.');
+          else hint('已选为邮件主体：'+nm+'。','Choisi comme corps de l\'email.');
+        } else hint(nm+'已生成，请选择为邮件主体。','Généré — choisissez-le comme corps de l\'email.');
         if(dot){dot.textContent='✓';dot.style.color='var(--ok,#188a42)';}
         // keep the Step-3 static email-body image coherent with the real generated visual (preview iframe is truth)
         var ei=$(mode==='affiche'?'emailBodyAffiche':'emailBodySheet'),eimg=ei&&ei.querySelector('img'); if(eimg&&url)eimg.src=url;
@@ -792,7 +797,7 @@
         if(real)real.style.display='none'; if(mock)mock.style.display='';
         if(lbl){lbl.style.display='';lbl.setAttribute('data-zh','预览示意，尚未生成');lbl.setAttribute('data-fr','Aperçu indicatif — non générée');lbl.textContent=(lang==='zh'?'预览示意，尚未生成':'Aperçu indicatif — non générée');}
         if(inc)inc.style.display='none';
-        badge('lock','尚未生成','Non générée'); hint('点击「生成'+MODE_NAME[mode].zh+'」生成主体。','Cliquez pour générer.');
+        badge('lock','尚未生成','Non générée'); hint('尚未生成'+MODE_NAME[mode].zh+'，点击「生成'+MODE_NAME[mode].zh+'」生成主体。','Cliquez pour générer.');
         if(dot){dot.textContent='';}
       }
     }
@@ -821,7 +826,9 @@
     async function loadModePoster(mode){
       // fiche = product_sheet_email built from Workbench truth — NO poster_key / poster_record. Its body visual is
       // the product image; bind the card from the product image rather than fetching a poster record.
-      if(mode==='fiche'){ S.ficheUrl=S.ficheUrl||SLOTS.prod1||''; setModeCard('fiche', S.ficheUrl?'ready':'placeholder', S.ficheUrl); return !!S.ficheUrl; }
+      // fiche readiness is owned by the BACKEND candidate (S.fiche set once status==ready), NOT by a client image url.
+      // the product image is only the inline body thumbnail; the Step-3 email preview iframe is the real truth.
+      if(mode==='fiche'){ S.ficheUrl=S.ficheUrl||SLOTS.prod1||''; var fr=!!S.fiche; setModeCard('fiche', fr?'ready':'placeholder', S.ficheUrl); return fr; }
       if(!S[mode])return false;
       var r=await api('GET','/api/v2/posters/'+S[mode]);
       if(r.ok&&r.json){
@@ -909,8 +916,10 @@
       // a ready candidate may already exist on the backend (e.g. after a timeout) while in-memory state is empty
       if(!key){ await refreshState(); key=S[v]; }
       if(!key){ flash('warn', lang==='zh'?('请先生成'+MODE_NAME[v].zh+'。'):'Générez d\'abord.'); return; }
-      // a mode may only be selected once its real poster_record.final_poster.url is loaded/verified
-      if(!S[v+'Url']){ await loadModePoster(v); if(!S[v+'Url']){ flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return; } }
+      // affiche may only be selected once its real poster_record.final_poster.url is verified. fiche is a
+      // Workbench-truth product sheet (no poster_key, no client image required) — its readiness is the backend
+      // candidate status; never block fiche selection on a missing client-side image url (backend truth wins).
+      if(v!=='fiche' && !S[v+'Url']){ await loadModePoster(v); if(!S[v+'Url']){ flash('warn',lang==='zh'?'已生成记录不完整，请查看内部诊断。':'Enregistrement incomplet — voir le diagnostic.'); return; } }
       b.disabled=true;
       var r=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:v});
       b.disabled=false;
@@ -976,8 +985,20 @@
       updateBindingLabels(); updateSendGate();
     }
     function markPreviewStale(){ previewGenerated=false; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
+    // backend truth: the email fill format MUST follow the selected email body visual. fiche -> product_sheet_email,
+    // affiche -> campaign_poster_email. a manual pick that contradicts the selected body is rejected with a clear
+    // instruction and snapped back — never silently preview Affiche under the product-sheet tab (or vice versa).
+    function fillMismatchMsg(sel){
+      if(sel==='affiche') return lang==='zh'?'当前邮件主体是目标海报，请先选择“简单产品页”为邮件主体。':'Le corps actuel est l\'affiche — choisissez d\'abord la fiche comme corps de l\'email.';
+      return lang==='zh'?'当前邮件主体是简单产品页，请先选择“目标海报”为邮件主体。':'Le corps actuel est la fiche — choisissez d\'abord l\'affiche comme corps de l\'email.';
+    }
     document.querySelectorAll('#fillFormatOptions .banner-opt').forEach(function(b){b.addEventListener('click',function(){
-      applyFillFormat(b.dataset.fmt,false); markPreviewStale();
+      var fmt=b.dataset.fmt;
+      if(selectedVisual && fmt!==defaultFillFor(selectedVisual)){
+        flash('warn', fillMismatchMsg(selectedVisual));
+        applyFillFormat(defaultFillFor(selectedVisual),true); diag('fill_format_mismatch_blocked',{requested:fmt,selected_email_body_visual:selectedVisual}); return;
+      }
+      applyFillFormat(fmt,false); markPreviewStale();
       flash('info',lang==='zh'?'已切换邮件格式，请重新「预览邮件」。':'Format changé — relancez l\'aperçu.'); })});
 
     // refresh both mode candidates + selection state from backend (reflect ready/selected on load or re-entry)
@@ -986,8 +1007,10 @@
       var g=await api('GET','/api/v2/workbench/'+S.wb); if(!g.ok||!g.json)return;
       var pc=g.json.poster_candidates||{};
       if((pc.affiche||{}).status==='ready'&&(pc.affiche||{}).poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
-      // fiche is ready by STATUS (workbench-truth product sheet) — no poster_key required
-      if((pc.fiche||{}).status==='ready'){S.fiche=pc.fiche.poster_key||'fiche_sheet'; S.ficheUrl=SLOTS.prod1||''; await loadModePoster('fiche');}
+      // fiche is ready by STATUS (workbench-truth product sheet) — no poster_key required. body image = product image
+      // (prefer the backend product image so selection works even when client slots are not hydrated).
+      var rpi=((g.json.product_assets||{}).product_images||[]);
+      if((pc.fiche||{}).status==='ready'){S.fiche=pc.fiche.poster_key||'fiche_sheet'; S.ficheUrl=S.ficheUrl||(rpi[0]&&rpi[0].url)||SLOTS.prod1||''; await loadModePoster('fiche');}
       var sel=g.json.selected_email_body_visual;
       if(sel&&!selectedVisual)applySelectVisual(sel);
       diag('refresh',{affiche:S.affiche,fiche:S.fiche,selected:sel});

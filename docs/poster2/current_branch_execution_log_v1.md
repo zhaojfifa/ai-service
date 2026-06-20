@@ -12709,3 +12709,40 @@ After bundle:
   + honest BLOCKED cards 00_remote_ops_auth_blocked, 01_remote_page_unauthenticated, 02_remote_v2_api_ops_gate).
 - Owner Decision Needed: provide OPS creds via the secure temporary method (/tmp/cuistance_ops_auth/creds.env) and
   confirm Render serves >= 83a58ee, then the OPS-authenticated remote Fiche validation completes.
+
+## FICHE SELECTION / PREVIEW TRUTH FIX (2026-06-20) — LOCAL REAL-backend PASS; remote HOLD
+- Task: POSTER2-CUISTANCE-FICHE-SELECTION-PREVIEW-TRUTH-FIX-V1. Remote Fiche generated (ready) but was never truly
+  selected/previewed — Workbench GET kept selected_email_body_visual=affiche while fiche sat ready.
+- Root cause (frontend state-truth coupling, NOT backend): Fiche selectability was coupled to a CLIENT-side product
+  image url, and the state-recovery path required a poster_key Fiche never has.
+  - tryRestore() restored fiche only `if status==ready && pc.fiche.poster_key` — fiche has NO poster_key by design,
+    so any page re-entry/recovery DROPPED fiche -> S.fiche unset -> card "尚未生成" -> selection impossible
+    (refreshState had already been fixed, but tryRestore was the missed twin path).
+  - the select gate blocked on `S.ficheUrl` (= SLOTS.prod1); when the client image was not hydrated (recovery /
+    server-side upload), fiche could not be PATCH-selected even though the backend candidate was ready.
+- Fix (frontend, backend truth wins):
+  - tryRestore + refreshState now restore fiche by STATUS and hydrate its body image from the backend product image
+    (product_assets.product_images[0]) — not just SLOTS.
+  - loadModePoster('fiche') readiness is owned by the backend candidate (S.fiche), not a client image url.
+  - select handler never blocks fiche on a missing client image; it PATCHes /selected-visual then GET-confirms and
+    only shows fiche selected when the backend returns selected_email_body_visual=fiche.
+  - Step3 fill format follows the selected body; a manual mismatched pick (e.g. product_sheet_email while selected
+    body is Affiche) is rejected with "当前邮件主体是目标海报，请先选择…" and snapped back (never silently previews
+    Affiche under the product-sheet tab).
+  - UI copy distinguishes 未生成 / 已生成请选择 / 已选为邮件主体 / 可进入邮件预览 per mode.
+- Backend defensive guard (additive, frontend sends no body): POST /email/preview accepts optional
+  email_fill_format; if it contradicts the selected visual's canonical format (affiche->campaign_poster_email,
+  fiche->product_sheet_email) it returns 422 email_fill_format_mismatch. Absent -> derived from selected (unchanged).
+- Tests: +4 focused (select PATCH GET-confirm flips affiche->fiche; preview-after-fiche-select uses fiche not
+  affiche; preview rejects fill_format mismatch; preview accepts matching assertion). Focused suites green:
+  test_workbench_email_assembly 16, test_workbench_candidates, test_workbench_email_assembly_reference (38 total),
+  test_workbench_psd_email_container 6, test_api -k email/workbench/selected/fiche 6. JS check OK; mirror synced.
+- Evidence: docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/remote_last_mile_fix/
+  fiche_selection_preview_truth_fix_v1/ (evidence.json local_pass=true: before=affiche, after=fiche,
+  selection_get_confirmed=true, fiche_selectable_after_reentry=true, email_fill_format=product_sheet_email,
+  preview_uses_fiche=true, preview_does_not_use_affiche=true, backend_mismatch_guard_rejects=true,
+  affiche_regression_still_ok=true, body_visual_contains_own_banner=false, real_email_sent=false) + screenshots 01-07.
+- Remote: HOLD. remote_validation/ evidence.json status=REMOTE_AUTH_BLOCKED — OPS creds unavailable AND the fix is
+  not yet deployed (push+Render redeploy pending). No remote blocker proven; local REAL-backend PASS stands.
+- Owner Decision Needed: deploy this branch (>= the selection-truth commit) on Render and provide OPS creds via the
+  secure temporary method, then the authenticated remote Fiche selection/preview validation completes.

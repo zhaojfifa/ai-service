@@ -1,0 +1,18 @@
+{
+  "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
+  "expected_after_push": "selection-truth fix",
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "remote_healthz": 200,
+  "remote_frontend_carries_selection_truth_fix": false,
+  "ops_creds_available": false,
+  "ops_auth_ok": false,
+  "remote_v2_gate": {
+    "workbench_post": 401,
+    "ops_auth_required": true,
+    "auth_me": 200,
+    "auth_me_body": "{\"enabled\":true,\"authenticated\":false,\"username\":null}"
+  },
+  "status": "REMOTE_AUTH_BLOCKED",
+  "blocked_reason": "OPS creds unavailable (/tmp/cuistance_ops_auth/creds.env) -> remote v2 API ops_auth_required; authenticated Fiche selection/preview/affiche/send checks cannot run. Additionally the deployed frontend does NOT yet carry this fix (push+Render redeploy pending). Local REAL-backend PASS stands.",
+  "remote_pass": false
+}

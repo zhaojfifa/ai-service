@@ -226,3 +226,61 @@ def test_preview_intro_derives_from_description(client):
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
     assert body["intro"] == "Deux cuves inox amovibles, construction robuste."
     assert body["cta_label"] == "Nous contacter"
+
+
+# --- FICHE SELECTION / PREVIEW TRUTH (selection PATCH -> GET-confirm -> product_sheet_email preview) ---
+
+def test_fiche_select_patch_is_get_confirmed(client):
+    # generate affiche, select it (selected=affiche), then generate+select fiche -> backend GET confirms fiche wins
+    wb = _make_workbench(client)
+    _gen(client, wb, "affiche")
+    _select(client, wb, "affiche")
+    assert client.get(f"/api/v2/workbench/{wb}").json()["selected_email_body_visual"] == "affiche"
+    _gen(client, wb, "fiche")
+    r = _select(client, wb, "fiche")
+    assert r.status_code == 200
+    assert client.get(f"/api/v2/workbench/{wb}").json()["selected_email_body_visual"] == "fiche"  # truth flipped
+
+
+def test_preview_after_fiche_select_uses_fiche_not_affiche(client):
+    # with fiche selected (after affiche was previously selected) the preview is product_sheet_email built from fiche
+    wb = _make_workbench(client)
+    _gen(client, wb, "affiche")
+    _select(client, wb, "affiche")
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["selected_email_body_visual"] == "fiche"
+    assert body["email_fill_format"] == "product_sheet_email"
+    assert body["body_visual"]["candidate_type"] == "fiche"           # preview uses fiche...
+    assert body["body_visual"]["url"] == "https://r2.example/p1.png"  # ...the product image, NOT the affiche poster
+    assert body["body_visual"]["url"] != "https://example.com/affiche.png"
+    assert body["fiche_uses_poster_generation"] is False
+    assert body["product_sheet_email_contract_pass"] is True
+
+
+def test_preview_rejects_fill_format_mismatch(client):
+    # selected body = affiche, but client asserts product_sheet_email -> 422 (never silently preview affiche as sheet)
+    wb = _make_workbench(client)
+    _gen(client, wb, "affiche")
+    _select(client, wb, "affiche")
+    r = client.post(f"/api/v2/workbench/{wb}/email/preview", json={"email_fill_format": "product_sheet_email"})
+    assert r.status_code == 422
+    assert r.json()["detail"] == "email_fill_format_mismatch"
+
+
+def test_preview_accepts_matching_fill_format_assertion(client):
+    # selected body = fiche AND client asserts product_sheet_email -> matches -> 200
+    wb = _make_workbench(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    r = client.post(f"/api/v2/workbench/{wb}/email/preview", json={"email_fill_format": "product_sheet_email"})
+    assert r.status_code == 200
+    assert r.json()["email_fill_format"] == "product_sheet_email"
+    # affiche selected + matching campaign_poster_email assertion also passes
+    wb2 = _make_workbench(client)
+    _gen(client, wb2, "affiche")
+    _select(client, wb2, "affiche")
+    r2 = client.post(f"/api/v2/workbench/{wb2}/email/preview", json={"email_fill_format": "campaign_poster_email"})
+    assert r2.status_code == 200
+    assert r2.json()["email_fill_format"] == "campaign_poster_email"

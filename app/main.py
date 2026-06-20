@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import quote, urlparse
 
 from google.api_core.exceptions import ResourceExhausted
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Body, FastAPI, HTTPException, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -1597,7 +1597,9 @@ from app.schemas.poster2 import (
     EmailAssemblyPreviewResponse,
     ProductAssets,
     ProductTruth,
+    FILL_FORMAT_FOR_VISUAL,
     WorkbenchCreateRequest,
+    WorkbenchEmailPreviewRequest,
     WorkbenchEmailSendRequest,
     WorkbenchEmailSendResponse,
     WorkbenchPatchRequest,
@@ -2586,7 +2588,9 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
     summary="CUISTANCE commercial trial — assemble email preview (banner + selected visual) (PR-3)",
     tags=["poster-v2"],
 )
-def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewResponse:
+def preview_workbench_email_v2(
+    workbench_key: str, payload: WorkbenchEmailPreviewRequest | None = Body(default=None)
+) -> EmailAssemblyPreviewResponse:
     """Assemble the final email preview at the email level: Email Banner Module (from workbench.email_banner)
     + the deterministically-selected body visual (the selected candidate's poster_record final_poster URL)
     + intro/CTA + footer/contact + attachment readiness. The visual is chosen ONLY by
@@ -2597,6 +2601,13 @@ def preview_workbench_email_v2(workbench_key: str) -> EmailAssemblyPreviewRespon
     candidate, record, draft, assembly, body_url = (
         pkg["candidate"], pkg["record"], pkg["draft"], pkg["assembly"], pkg["body_url"]
     )
+
+    # Backend truth: the email fill format follows the selected body visual. If the client explicitly asserts a
+    # fill format, it MUST match the selected visual's canonical format — reject a mismatch so a product_sheet_email
+    # preview is never built from an Affiche body (or a campaign_poster_email from a Fiche body).
+    canonical_fill = FILL_FORMAT_FOR_VISUAL.get(selected) or assembly.get("email_fill_format")
+    if payload and payload.email_fill_format and payload.email_fill_format != canonical_fill:
+        raise HTTPException(status_code=422, detail="email_fill_format_mismatch")
 
     settings = get_settings()
     # fiche/product_sheet_email has no poster_key/poster_record -> no poster attachments to build

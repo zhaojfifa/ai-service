@@ -392,6 +392,19 @@ class WorkbenchSelectVisualRequest(BaseModel):
     selected_email_body_visual: CandidateType
 
 
+# Canonical mapping: the email fill format MUST follow the selected email body visual.
+EmailFillFormat = Literal["campaign_poster_email", "product_sheet_email"]
+FILL_FORMAT_FOR_VISUAL: dict[str, str] = {"affiche": "campaign_poster_email", "fiche": "product_sheet_email"}
+
+
+class WorkbenchEmailPreviewRequest(BaseModel):
+    # Optional client assertion of the intended fill format. When present it MUST match the selected body visual's
+    # canonical format (affiche->campaign_poster_email, fiche->product_sheet_email); a mismatch is rejected so a
+    # product_sheet_email preview can never be silently built from an Affiche body (or vice versa). When omitted,
+    # the backend derives the format from the selected visual (backend truth wins).
+    email_fill_format: Optional[EmailFillFormat] = None
+
+
 # PR-3 — Email Banner Module + Email Assembly preview (workbench-level).
 class EmailAssemblyBannerView(BaseModel):
     """First-class email-level banner module, assembled from workbench.email_banner (NOT poster body truth)."""
