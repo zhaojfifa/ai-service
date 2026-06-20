@@ -12791,3 +12791,32 @@ After bundle:
   POSTER2-PRODUCTIZATION-P2-MATERIAL-INPUT-FLEXIBILITY-UI recommended (not started); plus appendix draft JSON shapes.
 - Validation: scripts/check_docs_router.py --all = PASS (only pre-existing legacy advisory warnings on unrelated docs).
 - No app/frontend/tests/scripts change. No UI. No multi-product. No real send. Tag not pushed. No history rewrite.
+
+## PRODUCTIZATION P2A — DEMO UI FIRST (2026-06-20) — new standalone demo page, no backend, no baseline mutation
+- Owner correction: the prior P2 engineering-diagnostics pass (truth/visual labels in cuistance_trial Step-1 + §6
+  contract panel in the internal drawer) was NOT the approved P2A direction. It was preserved as a patch
+  (/tmp/poster2_p2_partial_diagnostics_diff.patch) and stashed (git stash "p2-partial-material-labels-and-contract-
+  drawer-not-committed"), NOT committed. Stash targeted ONLY my 3 modified tracked files (frontend/docs cuistance_trial
+  .html + this log) — pre-existing unrelated untracked docs were deliberately NOT swept (avoided `-u`). cuistance_trial
+  baseline confirmed clean vs HEAD (0 P2 markers).
+- Approved direction = Demo UI first, no backend alignment, no baseline mutation, operator-facing workflow first.
+- New standalone page: frontend/cuistance_productization_demo.html (+ byte-identical docs/ mirror). Static, data-driven,
+  operator perspective. Workflow: 准备内容 → 选择邮件容器 → 装配预览 → 检查结果.
+  - Limits: max 2 products (产品 A / 产品 B = distinct products); max 3 views per product (视图 1/2/3 = images of one
+    product). Product B = visibly-marked 占位·待确认 placeholder (EF112V).
+  - Containers: 目标海报邮件 (affiche), 简单产品页邮件 (fiche), 双产品对比邮件 (DEMO ONLY — products[] backend not
+    implemented; cannot generate/send).
+  - 600px mock email: header / title-intro / body visual / spec / CTA / footer. Demo-local controls: switch container,
+    switch Product A/B, select primary image, edit title/intro/CTA.
+  - Business-readable checks + boundaries: 仅演示未接后台 / 不写入 Workbench / 不调用生成 API / 不实现 products[] 后台 /
+    不真实发送 (HOLD).
+  - Badges: 事实 / 事实资产 / 视觉 / 设计参考 / 已锁定 / 可编辑 / Demo only / HOLD.
+- NO backend touch: app/ schemas/ email assembly / poster generation / tests/ unchanged. Page has 0 fetch, 0 /api/,
+  0 localStorage/sessionStorage (verified). cuistance_trial baseline untouched.
+- Validation: node --check on extracted JS = DEMO_JS_SYNTAX_OK; scripts/check_docs_router.py --all = PASS (only
+  pre-existing legacy advisory warnings; new doc is clean). Mirror diff -q = identical.
+- Evidence: docs/poster2/assets/productization_p2a_demo_ui_first_v1/evidence.json (lightweight, no screenshots).
+  Doc: docs/poster2/productization_p2a_demo_ui_first_v1.md (why-UI-first, workflow, limits, containers, editable-vs-
+  locked, boundaries, Owner confirmations needed, next step P2B demo-to-contract mapping).
+- Owner Decision Needed: approve the operator workflow + 2-product/3-view limits + editable-vs-locked split, and decide
+  whether the dual-product comparison email is in productization scope (it needs a real products[] backend).

@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CUISTANCE · 产品化演示（仅演示，未接后台）</title>
+  <!--
+    CUISTANCE Productization P2A — DEMO UI FIRST.
+    Standalone, data-driven, operator-facing demo. NO backend: no fetch, no Workbench write, no generate API,
+    no real send. Does NOT touch the cuistance_trial baseline. Workflow:
+      准备内容 → 选择邮件容器 → 装配预览 → 检查结果
+    Limits: max 2 products (Product A / Product B = distinct products); max 3 views per product
+    (View 1/2/3 = images of ONE product). Dual product comparison container = demo only. Real send = HOLD.
+    Mirror of this file lives at docs/cuistance_productization_demo.html (kept byte-identical).
+  -->
+  <style>
+    :root{
+      --ink:#141b22; --muted:#6b7178; --faint:#9aa0a6; --line:#e6e8ec; --line2:#d7dade;
+      --bg:#f4f6f8; --card:#fff; --brand:#1f2329; --red:#E1002A;
+      --ok:#188a42; --ok-soft:#e7f6ec; --amber:#b8860b; --amber-soft:#fbf3d8;
+      --blue:#274690; --blue-soft:#eef4ff; --err:#c0392b; --err-soft:#fdecea;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);font-size:14px;line-height:1.5}
+    .app-header{display:flex;align-items:center;gap:14px;background:var(--brand);color:#fff;padding:12px 22px;border-bottom:3px solid var(--red)}
+    .app-header .wordmark{font-weight:700;font-size:18px;letter-spacing:1px}
+    .app-header .sub{font-size:12px;color:#cfd3d8}
+    .app-header .grow{flex:1}
+    .demo-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(255,255,255,.12);color:#ffd9dd;border:1px solid rgba(225,0,42,.5)}
+    .hold-pill{font-size:11px;font-weight:700;padding:3px 10px;border-radius:999px;background:rgba(184,134,11,.18);color:#ffdf91}
+    .workspace{max-width:1180px;margin:0 auto;padding:20px 18px 80px}
+    .steps{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+    .step-chip{flex:1;min-width:160px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:8px}
+    .step-chip .n{width:22px;height:22px;border-radius:999px;background:#eef0f3;color:var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+    .step-chip.active{color:var(--ink);border-color:var(--ink)}
+    .step-chip.active .n{background:var(--ink);color:#fff}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(20,23,28,.04)}
+    .card h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .sec-title{font-size:12px;font-weight:700;letter-spacing:.4px;color:var(--muted);text-transform:none;margin:0 0 8px}
+    .hint{font-size:12px;color:var(--faint);margin:4px 0}
+    .group-label{font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed #eef0f3}
+    .row:last-child{border-bottom:0}
+    .row .k{color:var(--muted);min-width:96px}
+    .row .v{color:var(--ink);font-weight:500}
+    .row .grow{flex:1}
+    .badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+    .b-fact{background:var(--ok-soft);color:var(--ok)}
+    .b-asset{background:var(--ok-soft);color:var(--ok)}
+    .b-visual{background:var(--amber-soft);color:var(--amber)}
+    .b-ref{background:var(--blue-soft);color:var(--blue)}
+    .b-locked{background:#eef0f3;color:var(--muted)}
+    .b-edit{background:var(--blue-soft);color:var(--blue)}
+    .b-demo{background:rgba(225,0,42,.10);color:var(--red)}
+    .b-hold{background:var(--amber-soft);color:var(--amber)}
+    .b-warn{background:var(--err-soft);color:var(--err)}
+    .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .thumb{width:84px;height:64px;border-radius:8px;border:1px solid var(--line);object-fit:cover;background:#eef0f3;cursor:pointer}
+    .thumb.sel{outline:2px solid var(--red);outline-offset:1px}
+    .thumb-cap{font-size:10px;color:var(--faint);text-align:center;margin-top:2px}
+    .thumb-wrap{display:flex;flex-direction:column;align-items:center}
+    .container-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+    @media(max-width:760px){.container-cards{grid-template-columns:1fr}}
+    .cc{border:1px solid var(--line);border-radius:12px;padding:14px;cursor:pointer;background:#fff;position:relative;transition:border-color .12s, box-shadow .12s}
+    .cc:hover{border-color:var(--line2)}
+    .cc.sel{border-color:var(--red);box-shadow:0 0 0 2px rgba(225,0,42,.12)}
+    .cc .cc-t{font-weight:700;font-size:13.5px;margin-bottom:4px}
+    .cc .cc-s{font-size:11px;color:var(--faint);line-height:1.45}
+    .cc .cc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .ctl{display:flex;flex-direction:column;gap:10px}
+    .ctl label{font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px}
+    .ctl input,.ctl textarea{width:100%;padding:8px 10px;border:1px solid var(--line2);border-radius:8px;font:inherit;font-size:13px;color:var(--ink)}
+    .ctl textarea{resize:vertical;min-height:60px}
+    .seg{display:flex;gap:6px;background:#eef0f3;border-radius:10px;padding:5px}
+    .seg button{flex:1;font:inherit;font-size:12.5px;font-weight:600;padding:7px 10px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer}
+    .seg button.active{background:#fff;color:var(--ink);border-color:var(--line);box-shadow:0 1px 2px rgba(20,23,28,.05)}
+    .seg button:disabled{opacity:.45;cursor:not-allowed}
+    /* 600px email mock */
+    .mail-wrap{background:#eef0f3;border-radius:10px;padding:16px;display:flex;justify-content:center}
+    .mail{width:100%;max-width:600px;background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:13px}
+    .mail .m-header{display:flex;align-items:center;gap:12px;background:var(--brand);border-bottom:3px solid var(--red);padding:14px 18px}
+    .mail .m-header .m-word{color:#fff;font-weight:700;font-size:18px;letter-spacing:1px}
+    .mail .m-header .m-meta{margin-left:auto;color:#cfd3d8;font-size:11px}
+    .mail .m-body{padding:16px 18px}
+    .mail .m-title{font-size:16px;font-weight:700;margin-bottom:6px}
+    .mail .m-intro{color:#3a4046;font-size:12.5px;margin-bottom:12px}
+    .mail .m-visual img{width:100%;display:block;border-radius:6px;border:1px solid var(--line)}
+    .mail .m-specs{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:4px 14px}
+    .mail .m-specs li{font-size:12px;color:#3a4046}
+    .mail .m-specs b{color:var(--ink)}
+    .mail .m-cta{display:inline-block;margin:14px 0 4px;background:var(--red);color:#fff;text-decoration:none;font-weight:700;font-size:13px;padding:9px 18px;border-radius:6px}
+    .mail .m-spec-line{font-size:11px;color:var(--muted);margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+    .mail .m-footer{background:#f7f8fa;border-top:1px solid var(--line);padding:12px 18px;font-size:11px;color:var(--muted)}
+    .mail .m-dual{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .mail .m-dual .dp{border:1px solid var(--line);border-radius:8px;padding:10px}
+    .mail .m-dual .dp img{width:100%;border-radius:6px;border:1px solid var(--line);display:block;margin-bottom:8px}
+    .mail .m-dual .dp .dp-n{font-weight:700;font-size:12.5px}
+    .mail .m-dual .dp .dp-r{font-size:11px;color:var(--muted);margin-bottom:6px}
+    .mail .m-dual .dp ul{margin:0;padding-left:16px;font-size:11px;color:#3a4046}
+    .demo-ribbon{position:absolute;top:10px;right:10px}
+    .checks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media(max-width:760px){.checks{grid-template-columns:1fr}}
+    .chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0}
+    .chk .ic{width:18px;text-align:center;font-weight:700}
+    .chk .ic.ok{color:var(--ok)} .chk .ic.warn{color:var(--amber)} .chk .ic.hold{color:var(--amber)}
+    .boundary{background:#fbfcfd;border:1px dashed var(--line2);border-radius:10px;padding:12px 14px;margin-top:12px}
+    .boundary .bt{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px}
+    .boundary ul{margin:0;padding-left:18px}
+    .boundary li{font-size:12px;color:var(--muted);padding:1px 0}
+    .legend{font-size:11px;color:var(--faint);margin-top:10px;line-height:1.6}
+    .panel-title{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 8px}
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <span class="wordmark">CUISTANCE</span>
+    <span class="sub">· 产品化演示工作台</span>
+    <span class="grow"></span>
+    <span class="demo-pill">仅演示 · 未接后台</span>
+    <span class="hold-pill">真实发送 HOLD</span>
+  </header>
+
+  <main class="workspace">
+    <div class="steps">
+      <div class="step-chip active"><span class="n">1</span>准备内容</div>
+      <div class="step-chip active"><span class="n">2</span>选择邮件容器</div>
+      <div class="step-chip active"><span class="n">3</span>装配预览</div>
+      <div class="step-chip active"><span class="n">4</span>检查结果</div>
+    </div>
+
+    <!-- ============ 1 · PREPARE CONTENT ============ -->
+    <section class="card">
+      <h3>① 准备内容 <span class="badge b-demo">Demo only</span></h3>
+      <p class="hint">演示数据。最多 2 个产品（产品 A / 产品 B 为不同产品）；每个产品最多 3 个视图（视图 1/2/3 为同一产品的不同图片）。</p>
+      <div class="grid">
+        <div>
+          <div class="group-label">品牌资料 <span class="badge b-asset">事实资产</span></div>
+          <div class="row"><span class="k">渠道名</span><span class="v" id="p-channel">—</span><span class="grow"></span><span class="badge b-locked">已锁定</span></div>
+          <div class="row"><span class="k">活动标签</span><span class="v" id="p-campaign">—</span><span class="grow"></span><span class="badge b-edit">可编辑</span></div>
+          <div class="row"><span class="k">品牌 Logo</span><span class="v">已提供</span><span class="grow"></span><span class="badge b-asset">事实资产</span></div>
+
+          <div class="group-label">联系方式（页脚） <span class="badge b-fact">事实</span></div>
+          <div class="row"><span class="k">邮箱</span><span class="v" id="p-email">—</span><span class="grow"></span><span class="badge b-locked">已锁定</span></div>
+          <div class="row"><span class="k">电话</span><span class="v" id="p-phone">—</span><span class="grow"></span><span class="badge b-locked">已锁定</span></div>
+
+          <div class="group-label">文案 <span class="badge b-edit">可编辑</span></div>
+          <div class="hint">标题 / 引言 / CTA 文案在第③步「装配预览」中编辑（演示本地，不写入后台）。</div>
+        </div>
+        <div>
+          <div class="group-label">产品 A <span class="badge b-fact" id="pa-state">事实 · 已确认</span></div>
+          <div class="row"><span class="k">产品名称</span><span class="v" id="pa-name">—</span><span class="grow"></span><span class="badge b-locked">已锁定</span></div>
+          <div class="row"><span class="k">型号</span><span class="v" id="pa-ref">—</span><span class="grow"></span><span class="badge b-locked">已锁定</span></div>
+          <div class="row"><span class="k">技术参数</span><span class="v" id="pa-params">—</span><span class="grow"></span><span class="badge b-fact">事实</span></div>
+          <div class="thumbs" id="pa-thumbs"></div>
+
+          <div class="group-label">产品 B（可选） <span class="badge b-warn" id="pb-state">占位 · 待确认</span></div>
+          <div class="row"><span class="k">产品名称</span><span class="v" id="pb-name">—</span><span class="grow"></span><span class="badge b-warn">待确认</span></div>
+          <div class="row"><span class="k">型号</span><span class="v" id="pb-ref">—</span><span class="grow"></span><span class="badge b-warn">待确认</span></div>
+          <div class="row"><span class="k">技术参数</span><span class="v" id="pb-params">—</span><span class="grow"></span><span class="badge b-warn">待确认</span></div>
+          <div class="thumbs" id="pb-thumbs"></div>
+
+          <div class="group-label">视觉素材（仅美化，不进入事实）</div>
+          <div class="row"><span class="k">氛围 / 场景图</span><span class="v">演示占位</span><span class="grow"></span><span class="badge b-visual">视觉</span></div>
+          <div class="row"><span class="k">参考 HTML / PSD</span><span class="v">设计外壳</span><span class="grow"></span><span class="badge b-ref">设计参考</span></div>
+        </div>
+      </div>
+      <div class="legend">徽章说明：<span class="badge b-fact">事实</span> 产品事实，AI 不可更改 · <span class="badge b-asset">事实资产</span> 真值资产 · <span class="badge b-visual">视觉</span> 仅美化 · <span class="badge b-ref">设计参考</span> 设计外壳 · <span class="badge b-locked">已锁定</span> · <span class="badge b-edit">可编辑</span> · <span class="badge b-demo">Demo only</span> · <span class="badge b-hold">HOLD</span></div>
+    </section>
+
+    <!-- ============ 2 · CHOOSE EMAIL CONTAINER ============ -->
+    <section class="card">
+      <h3>② 选择邮件容器</h3>
+      <p class="hint">三种邮件容器。前两种对应已支持路线；「双产品对比邮件」为仅演示（products[] 后台未实现）。</p>
+      <div class="container-cards" id="containerCards"></div>
+    </section>
+
+    <!-- ============ 3 · COMPOSE PREVIEW ============ -->
+    <section class="card">
+      <h3>③ 装配预览 <span class="badge b-demo">本地演示</span></h3>
+      <p class="hint">把产品 / 素材 / 文案装入所选邮件容器。下列控制仅演示本地生效，不调用任何后台。</p>
+      <div class="grid">
+        <div>
+          <div class="ctl">
+            <div>
+              <label>邮件容器（演示切换）</label>
+              <div class="seg" id="segContainer"></div>
+            </div>
+            <div>
+              <label>展示产品（产品 A / B 切换）</label>
+              <div class="seg" id="segProduct"></div>
+              <div class="hint" id="dualNote" style="display:none">双产品对比容器同时展示 A 与 B；下方单产品控制不适用。</div>
+            </div>
+            <div>
+              <label>主图选择（同一产品的视图 1/2/3）</label>
+              <div class="thumbs" id="viewPicker"></div>
+            </div>
+            <div>
+              <label>标题（可编辑）</label>
+              <input id="edit-title" type="text" />
+            </div>
+            <div>
+              <label>引言（可编辑）</label>
+              <textarea id="edit-intro"></textarea>
+            </div>
+            <div>
+              <label>CTA 文案（可编辑）</label>
+              <input id="edit-cta" type="text" />
+            </div>
+            <div class="boundary">
+              <div class="bt">可编辑 vs 已锁定</div>
+              <ul>
+                <li>可编辑：邮件容器、展示产品、主图、标题、引言、CTA 文案</li>
+                <li>已锁定（事实）：产品名称、型号、技术参数、联系方式</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div>
+          <p class="panel-title">600px 邮件容器预览</p>
+          <div class="mail-wrap">
+            <div class="mail" id="mailMock"></div>
+          </div>
+          <div class="legend">邮件 = 品牌页眉（en-tête） + 标题/引言 + 产品/主体视觉 + 参数 + CTA + 联系方式。仅演示渲染，不代表后台真实装配。</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4 · READINESS & CONTRACT CHECK ============ -->
+    <section class="card">
+      <h3>④ 检查结果</h3>
+      <p class="hint">业务可读的就绪检查（演示态）。</p>
+      <div class="checks" id="checks"></div>
+      <div class="boundary">
+        <div class="bt">演示边界（业务可读的工程状态）</div>
+        <ul>
+          <li>仅演示，未接后台</li>
+          <li>不写入 Workbench</li>
+          <li>不调用生成 API</li>
+          <li>不实现 products[] 后台</li>
+          <li>不真实发送（真实发送仍 HOLD）</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <script>
+  (function(){
+    function $(id){return document.getElementById(id);}
+    // ---- demo data (CUISTANCE-style; no backend) ----
+    var IMG={
+      a1:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/15545c0b-96a8-fbf3-e83c-bb9d69c44d7a.jpg",
+      a2:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/da42d592-d955-23d6-9560-a7a501b2bb24.jpg",
+      logo:"https://mcusercontent.com/43cb582d3a744559eaf77eab0/images/0a50184e-bee5-bf53-0c1b-45fb63855e78.png"
+    };
+    var DATA={
+      brand:{channel:"CUISTANCE Europe", campaign:"Nouveauté", email:"commercial@cuistance.eu", phone:"+33 (0)1 71 84 11 20", logo:IMG.logo},
+      products:{
+        A:{name:"Friteuse électrique double", ref:"EF132V", confirmed:true,
+           params:[{k:"容量",v:"2 cuves 13 + 13 L"},{k:"功率",v:"3 + 3 kW"},{k:"温控",v:"jusqu'à 190°C"}],
+           desc:"Deux cuves inox amovibles, montée en température maîtrisée, construction robuste pour un usage intensif.",
+           views:[IMG.a1, IMG.a2, IMG.a1]},
+        B:{name:"Friteuse électrique simple", ref:"EF112V", confirmed:false,
+           params:[{k:"容量",v:"1 cuve 13 L（待确认）"},{k:"功率",v:"3 kW（待确认）"}],
+           desc:"占位示例产品，参数与图片均为演示占位，需运营确认后方可使用。",
+           views:[IMG.a2, IMG.a1]}
+      }
+    };
+    var CONTAINERS={
+      affiche:{zh:"目标海报邮件", sub:"600px · 顶部横幅 · 海报主视觉 · 引言 · CTA · 页脚", demoOnly:false, route:"affiche"},
+      fiche:{zh:"简单产品页邮件", sub:"600px · 品牌页眉 · 标题/型号 · 产品图 · 参数 · CTA · 页脚", demoOnly:false, route:"fiche"},
+      dual:{zh:"双产品对比邮件", sub:"600px · 双产品并排对比（products[] 后台未实现）", demoOnly:true, route:"demo"}
+    };
+    var STATE={
+      container:"affiche", product:"A", primaryView:0,
+      title:"CUISTANCE | Les friteuses électriques",
+      intro:"Découvrez notre gamme de friteuses électriques professionnelles : deux cuves inox amovibles et une construction robuste.",
+      cta:"Nous contacter"
+    };
+    var MAX_PRODUCTS=2, MAX_VIEWS=3;
+    function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];});}
+    function curProd(){return DATA.products[STATE.product];}
+
+    // ---- 1 · prepare content ----
+    function renderPrepare(){
+      $("p-channel").textContent=DATA.brand.channel;
+      $("p-campaign").textContent=DATA.brand.campaign;
+      $("p-email").textContent=DATA.brand.email;
+      $("p-phone").textContent=DATA.brand.phone;
+      var A=DATA.products.A, B=DATA.products.B;
+      $("pa-name").textContent=A.name; $("pa-ref").textContent=A.ref;
+      $("pa-params").textContent=A.params.map(function(p){return p.k+" "+p.v;}).join(" · ");
+      $("pb-name").textContent=B.name; $("pb-ref").textContent=B.ref;
+      $("pb-params").textContent=B.params.map(function(p){return p.k+" "+p.v;}).join(" · ");
+      renderThumbStrip("pa-thumbs", A);
+      renderThumbStrip("pb-thumbs", B);
+    }
+    function renderThumbStrip(id, prod){
+      var host=$(id); if(!host)return; host.innerHTML="";
+      prod.views.slice(0,MAX_VIEWS).forEach(function(u,i){
+        var w=document.createElement("div"); w.className="thumb-wrap";
+        var img=document.createElement("img"); img.className="thumb"; img.src=u; img.alt="view";
+        var cap=document.createElement("div"); cap.className="thumb-cap"; cap.textContent="视图 "+(i+1);
+        w.appendChild(img); w.appendChild(cap); host.appendChild(w);
+      });
+    }
+
+    // ---- 2 · container cards ----
+    function renderContainerCards(){
+      var host=$("containerCards"); host.innerHTML="";
+      Object.keys(CONTAINERS).forEach(function(key){
+        var c=CONTAINERS[key];
+        var el=document.createElement("div");
+        el.className="cc"+(STATE.container===key?" sel":"");
+        el.innerHTML='<div class="cc-top"><span class="cc-t">'+esc(c.zh)+'</span>'+
+          (c.demoOnly?'<span class="badge b-demo">Demo only</span>':'<span class="badge b-fact">已支持路线</span>')+'</div>'+
+          '<div class="cc-s">'+esc(c.sub)+'</div>'+
+          '<div class="cc-s" style="margin-top:6px;color:#9aa0a6">路线：'+esc(c.route)+'</div>';
+        el.addEventListener("click", function(){ setContainer(key); });
+        host.appendChild(el);
+      });
+    }
+
+    // ---- 3 · compose controls ----
+    function renderSegContainer(){
+      var host=$("segContainer"); host.innerHTML="";
+      Object.keys(CONTAINERS).forEach(function(key){
+        var c=CONTAINERS[key];
+        var b=document.createElement("button");
+        b.textContent=c.zh+(c.demoOnly?"（演示）":"");
+        if(STATE.container===key)b.className="active";
+        b.addEventListener("click", function(){ setContainer(key); });
+        host.appendChild(b);
+      });
+    }
+    function renderSegProduct(){
+      var host=$("segProduct"); host.innerHTML="";
+      var dual=(STATE.container==="dual");
+      ["A","B"].forEach(function(pk){
+        var b=document.createElement("button");
+        b.textContent="产品 "+pk+(pk==="B"&&!DATA.products.B.confirmed?"（待确认）":"");
+        if(STATE.product===pk)b.className="active";
+        b.disabled=dual;
+        b.addEventListener("click", function(){ STATE.product=pk; STATE.primaryView=0; renderSegProduct(); renderViewPicker(); renderPreview(); renderChecks(); });
+        host.appendChild(b);
+      });
+      $("dualNote").style.display=dual?"":"none";
+    }
+    function renderViewPicker(){
+      var host=$("viewPicker"); host.innerHTML="";
+      var dual=(STATE.container==="dual");
+      var prod=curProd();
+      prod.views.slice(0,MAX_VIEWS).forEach(function(u,i){
+        var w=document.createElement("div"); w.className="thumb-wrap";
+        var img=document.createElement("img");
+        img.className="thumb"+(STATE.primaryView===i?" sel":"");
+        img.src=u; img.alt="view"; img.style.opacity=dual?"0.5":"1";
+        if(!dual)img.addEventListener("click", function(){ STATE.primaryView=i; renderViewPicker(); renderPreview(); });
+        var cap=document.createElement("div"); cap.className="thumb-cap"; cap.textContent="视图 "+(i+1);
+        w.appendChild(img); w.appendChild(cap); host.appendChild(w);
+      });
+    }
+    function setContainer(key){
+      STATE.container=key;
+      if(key==="affiche")STATE.title="CUISTANCE | Les friteuses électriques";
+      renderContainerCards(); renderSegContainer(); renderSegProduct(); renderViewPicker(); renderPreview(); renderChecks();
+    }
+
+    // ---- 3 · 600px mail preview ----
+    function specLine(prod){ return "RÉF. "+prod.ref+" · "+prod.params.map(function(p){return p.v;}).join(" · "); }
+    function headerHtml(){
+      return '<div class="m-header"><span class="m-word">CUISTANCE</span>'+
+        '<span class="m-meta">'+esc(DATA.brand.channel)+' · '+esc(DATA.brand.campaign)+'</span></div>';
+    }
+    function footerHtml(){
+      return '<div class="m-footer">'+esc(DATA.brand.email)+' · '+esc(DATA.brand.phone)+' · cuistance-europe.com</div>';
+    }
+    function ctaHtml(){ return '<a class="m-cta" href="#" onclick="return false;">'+esc(STATE.cta)+'</a>'; }
+    function renderPreview(){
+      var prod=curProd(), c=CONTAINERS[STATE.container], img=prod.views[STATE.primaryView]||prod.views[0];
+      var html=headerHtml()+'<div class="m-body">';
+      html+='<div class="m-title">'+esc(STATE.title)+'</div>';
+      html+='<div class="m-intro">'+esc(STATE.intro)+'</div>';
+      if(STATE.container==="affiche"){
+        html+='<div class="m-visual"><img src="'+esc(img)+'" alt="affiche"/></div>';
+        html+='<div class="m-spec-line">'+esc(specLine(prod))+'</div>';
+        html+=ctaHtml();
+      } else if(STATE.container==="fiche"){
+        html+='<div class="m-visual"><img src="'+esc(img)+'" alt="fiche"/></div>';
+        html+='<ul class="m-specs">'+prod.params.map(function(p){return '<li><b>'+esc(p.k)+'</b> '+esc(p.v)+'</li>';}).join("")+'</ul>';
+        html+=ctaHtml();
+      } else { // dual — demo only
+        html+='<div class="m-dual">'+["A","B"].map(function(pk){
+          var p=DATA.products[pk];
+          return '<div class="dp"><img src="'+esc(p.views[0])+'" alt="'+pk+'"/>'+
+            '<div class="dp-n">'+esc(p.name)+(p.confirmed?'':' <span class="badge b-warn">待确认</span>')+'</div>'+
+            '<div class="dp-r">RÉF. '+esc(p.ref)+'</div>'+
+            '<ul>'+p.params.map(function(x){return '<li>'+esc(x.k)+'：'+esc(x.v)+'</li>';}).join("")+'</ul></div>';
+        }).join("")+'</div>';
+        html+='<div class="m-spec-line">双产品对比为仅演示容器，products[] 后台未实现，不可真实生成 / 发送。</div>';
+        html+=ctaHtml();
+      }
+      html+='</div>'+footerHtml();
+      var mock=$("mailMock"); mock.innerHTML=html;
+      if(c.demoOnly){
+        var r=document.createElement("div"); // noop placeholder to keep structure simple
+      }
+    }
+
+    // ---- 4 · readiness & contract checks (demo) ----
+    function renderChecks(){
+      var host=$("checks"); host.innerHTML="";
+      var prod=curProd();
+      var brandReady=!!(DATA.brand.logo && DATA.brand.channel);
+      var productReady=DATA.products.A.confirmed; // A is the confirmed truth; B is optional placeholder
+      var imagesReady=prod.views.length>0;
+      var containerChosen=!!STATE.container;
+      var copyReady=!!(STATE.title && STATE.intro && STATE.cta);
+      var dual=(STATE.container==="dual");
+      var previewable=brandReady && productReady && imagesReady && containerChosen && copyReady && !dual;
+      var items=[
+        {zh:"品牌资料已准备", ok:brandReady},
+        {zh:"产品资料已准备", ok:productReady, note: DATA.products.B.confirmed?"":"（产品 B 为占位，待确认）"},
+        {zh:"产品图片已准备", ok:imagesReady},
+        {zh:"邮件容器已选择"+(dual?"（仅演示容器）":""), ok:containerChosen, warn:dual},
+        {zh:"文案已填写", ok:copyReady},
+        {zh:"预览可生成"+(dual?"（演示容器不可生成）":""), ok:previewable, warn:!previewable},
+        {zh:"真实发送仍 HOLD", hold:true}
+      ];
+      items.forEach(function(it){
+        var ic = it.hold ? '<span class="ic hold">⏸</span>' : (it.ok ? '<span class="ic ok">✓</span>' : '<span class="ic warn">!</span>');
+        var d=document.createElement("div"); d.className="chk";
+        d.innerHTML=ic+'<span>'+esc(it.zh)+(it.note?(' '+esc(it.note)):'')+'</span>'+
+          (it.hold?' <span class="badge b-hold" style="margin-left:auto">HOLD</span>':'');
+        host.appendChild(d);
+      });
+    }
+
+    // ---- editable copy controls ----
+    function bindEdits(){
+      $("edit-title").value=STATE.title;
+      $("edit-intro").value=STATE.intro;
+      $("edit-cta").value=STATE.cta;
+      $("edit-title").addEventListener("input", function(){ STATE.title=this.value; renderPreview(); renderChecks(); });
+      $("edit-intro").addEventListener("input", function(){ STATE.intro=this.value; renderPreview(); renderChecks(); });
+      $("edit-cta").addEventListener("input", function(){ STATE.cta=this.value; renderPreview(); renderChecks(); });
+    }
+
+    // ---- init ----
+    renderPrepare();
+    renderContainerCards();
+    renderSegContainer();
+    renderSegProduct();
+    renderViewPicker();
+    bindEdits();
+    renderPreview();
+    renderChecks();
+    // demo invariants (documented, not enforced at runtime): MAX_PRODUCTS=2, MAX_VIEWS=3
+    void MAX_PRODUCTS; void MAX_VIEWS;
+  })();
+  </script>
+</body>
+</html>

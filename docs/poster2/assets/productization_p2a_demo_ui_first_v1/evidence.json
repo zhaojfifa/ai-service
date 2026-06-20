@@ -1,0 +1,23 @@
+{
+  "demo_ui_created": true,
+  "backend_mutation": false,
+  "existing_baseline_touched": false,
+  "routes_represented": ["affiche", "fiche"],
+  "max_products": 2,
+  "max_views_per_product": 3,
+  "dual_product_comparison": "demo_only",
+  "real_send": "HOLD",
+  "files": {
+    "frontend": "frontend/cuistance_productization_demo.html",
+    "mirror": "docs/cuistance_productization_demo.html"
+  },
+  "no_network_calls": {
+    "fetch": 0,
+    "api_paths": 0,
+    "local_storage": 0,
+    "session_storage": 0
+  },
+  "js_syntax_check": "DEMO_JS_SYNTAX_OK",
+  "mirror_identical": true,
+  "previous_p2_diagnostics_patch": "stashed_not_committed"
+}
