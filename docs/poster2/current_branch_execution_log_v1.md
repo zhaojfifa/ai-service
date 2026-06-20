@@ -12776,3 +12776,18 @@ After bundle:
   POSTER2-PRODUCTIZATION-P1-MATERIAL-INPUT-AND-CONTAINER-CONTRACT (not started).
 - No app/frontend/tests change; only scripts/ change = deletion of untracked scripts/out. Tag not pushed. No history
   rewrite. No ai-service-clean export. docs/poster2/assets unchanged (3.6 MB).
+
+## PRODUCTIZATION P1 — MATERIAL INPUT + CONTAINER CONTRACT (2026-06-20) — docs only, no code change
+- Created docs/poster2/productization_p1_material_input_and_container_contract_v1.md (contract/design only; no UI,
+  runtime, schema, or behavior change). Grounded in current app/schemas/poster2.py + app/services/email + app/main.py.
+- Contents: (1) accepted baseline; (2) material input contract — 8 groups (brand/product_truth/product_assets/
+  gallery/atmosphere/reference/contact/operator_copy) with required/owner/truth-bearing/AI-touch/validation/fallback,
+  mapped to live schema ([exists] vs [future]); truth invariants (product_truth=truth, atmosphere is_truth=False,
+  reference HTML/PSD = design shell, AI visual never truth); (3) email container module contract — 4 families + 8
+  modules (incl. spec_list [future]); (4) slot naming contract mapped to real fields; (5) operator editability
+  (editable presentation vs truth-review-required) + gates truth/format/preview/send; (6) validation states
+  draft→assets_ready→candidate_ready→selected_for_email→preview_ready→send_hold + per-route Affiche/Fiche PASS
+  conditions (all existing preview fields); (7) future UI implications (not implemented); (8) next slice
+  POSTER2-PRODUCTIZATION-P2-MATERIAL-INPUT-FLEXIBILITY-UI recommended (not started); plus appendix draft JSON shapes.
+- Validation: scripts/check_docs_router.py --all = PASS (only pre-existing legacy advisory warnings on unrelated docs).
+- No app/frontend/tests/scripts change. No UI. No multi-product. No real send. Tag not pushed. No history rewrite.
