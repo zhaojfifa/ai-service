@@ -1,0 +1,483 @@
+{
+  "generated_for": "POSTER2-CUISTANCE-DUAL-MODE-FREEZE-AND-CLEANUP-AUDIT",
+  "branch": "trial/poster2-cuistance-psd-email-container-last-mile-v1",
+  "head": "a175ee1",
+  "scope": "docs/poster2/assets (top-level evidence directories)",
+  "audit_only_no_deletion": true,
+  "total_size_mb": 399.2,
+  "directory_count": 45,
+  "classification_summary": {
+    "ARCHIVE_EXTERNAL": {
+      "dirs": 1,
+      "size_kb": 103260,
+      "size_mb": 100.8
+    },
+    "DELETE_CANDIDATE": {
+      "dirs": 28,
+      "size_kb": 250352,
+      "size_mb": 244.5
+    },
+    "KEEP_IN_REPO": {
+      "dirs": 11,
+      "size_kb": 41832,
+      "size_mb": 40.9
+    },
+    "REVIEW_NEEDED": {
+      "dirs": 5,
+      "size_kb": 13368,
+      "size_mb": 13.1
+    }
+  },
+  "directories": [
+    {
+      "dir": "docs/poster2/assets/reconstruction_v1",
+      "name": "reconstruction_v1",
+      "size_kb": 103260,
+      "size_mb": 100.8,
+      "files": 7,
+      "git_tracked": true,
+      "classification": "ARCHIVE_EXTERNAL",
+      "reason": "Tracked but 101M, dominated by 47M+45M inlined catalog_hero HTML render dumps — move out of repo, keep externally."
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_v1",
+      "name": "email_campaign_composite_v1",
+      "size_kb": 37668,
+      "size_mb": 36.8,
+      "files": 27,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/case001_campaign_explainer_heavy_v1",
+      "name": "case001_campaign_explainer_heavy_v1",
+      "size_kb": 32776,
+      "size_mb": 32.0,
+      "files": 24,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/hybrid_gemini_real_generation_validation_v1",
+      "name": "hybrid_gemini_real_generation_validation_v1",
+      "size_kb": 32452,
+      "size_mb": 31.7,
+      "files": 28,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_business_flow_mvp_v1",
+      "name": "email_campaign_business_flow_mvp_v1",
+      "size_kb": 24032,
+      "size_mb": 23.5,
+      "files": 6,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_psd_email_container_last_mile_v1",
+      "name": "cuistance_psd_email_container_last_mile_v1",
+      "size_kb": 22212,
+      "size_mb": 21.7,
+      "files": 100,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/hybrid_real_asset_mvp_v1",
+      "name": "hybrid_real_asset_mvp_v1",
+      "size_kb": 16632,
+      "size_mb": 16.2,
+      "files": 18,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/template_a_refstyle_hybrid_4_8_v1",
+      "name": "template_a_refstyle_hybrid_4_8_v1",
+      "size_kb": 16320,
+      "size_mb": 15.9,
+      "files": 17,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/remote_ops_smoke_v2",
+      "name": "remote_ops_smoke_v2",
+      "size_kb": 11900,
+      "size_mb": 11.6,
+      "files": 9,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_ui_v1",
+      "name": "email_campaign_composite_ui_v1",
+      "size_kb": 11748,
+      "size_mb": 11.5,
+      "files": 7,
+      "git_tracked": true,
+      "classification": "REVIEW_NEEDED",
+      "reason": "Tracked composite UI evidence; superseded by CUISTANCE composite path — owner to confirm archive vs keep."
+    },
+    {
+      "dir": "docs/poster2/assets/ops_manual_test_pack_v1",
+      "name": "ops_manual_test_pack_v1",
+      "size_kb": 10968,
+      "size_mb": 10.7,
+      "files": 18,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/reference_grammar_v1",
+      "name": "reference_grammar_v1",
+      "size_kb": 8680,
+      "size_mb": 8.5,
+      "files": 16,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/sop_source_materialization_v1",
+      "name": "sop_source_materialization_v1",
+      "size_kb": 8288,
+      "size_mb": 8.1,
+      "files": 48,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/case001_campaign_explainer_p2_v1",
+      "name": "case001_campaign_explainer_p2_v1",
+      "size_kb": 7048,
+      "size_mb": 6.9,
+      "files": 8,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_ui_flow_heavy_v1",
+      "name": "ops_campaign_ui_flow_heavy_v1",
+      "size_kb": 6588,
+      "size_mb": 6.4,
+      "files": 11,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_real_asset_refinement_v1",
+      "name": "catalog_hero_real_asset_refinement_v1",
+      "size_kb": 6128,
+      "size_mb": 6.0,
+      "files": 11,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_v1_runtime",
+      "name": "email_campaign_composite_v1_runtime",
+      "size_kb": 5856,
+      "size_mb": 5.7,
+      "files": 6,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/gemini_image_probe_v1",
+      "name": "gemini_image_probe_v1",
+      "size_kb": 4060,
+      "size_mb": 4.0,
+      "files": 3,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_real_asset_trial_v1",
+      "name": "catalog_hero_real_asset_trial_v1",
+      "size_kb": 4004,
+      "size_mb": 3.9,
+      "files": 8,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_red_food_asset_gate_v1",
+      "name": "catalog_hero_red_food_asset_gate_v1",
+      "size_kb": 3996,
+      "size_mb": 3.9,
+      "files": 8,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/visual_grammar_replication_v1",
+      "name": "visual_grammar_replication_v1",
+      "size_kb": 3016,
+      "size_mb": 2.9,
+      "files": 6,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1",
+      "name": "cuistance_dual_body_mode_email_fill_format_alignment_v1",
+      "size_kb": 2784,
+      "size_mb": 2.7,
+      "files": 10,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_step3_email_fill_format_preview_correction_v1",
+      "name": "cuistance_step3_email_fill_format_preview_correction_v1",
+      "size_kb": 2712,
+      "size_mb": 2.6,
+      "files": 8,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1",
+      "name": "cuistance_asset_persistence_generate_payload_header_fix_v1",
+      "size_kb": 2680,
+      "size_mb": 2.6,
+      "files": 10,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/remote_deploy_smoke_v1",
+      "name": "remote_deploy_smoke_v1",
+      "size_kb": 2596,
+      "size_mb": 2.5,
+      "files": 9,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_state_recovery_step2_step3_consistency_v1",
+      "name": "cuistance_state_recovery_step2_step3_consistency_v1",
+      "size_kb": 2456,
+      "size_mb": 2.4,
+      "files": 10,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_1to1_replication_v1",
+      "name": "catalog_hero_1to1_replication_v1",
+      "size_kb": 2340,
+      "size_mb": 2.3,
+      "files": 5,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_step2_step3_layout_preview_consistency_v1",
+      "name": "cuistance_step2_step3_layout_preview_consistency_v1",
+      "size_kb": 2264,
+      "size_mb": 2.2,
+      "files": 10,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_productization",
+      "name": "catalog_hero_productization",
+      "size_kb": 2156,
+      "size_mb": 2.1,
+      "files": 7,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_email_preview_send_semantics_v1",
+      "name": "cuistance_email_preview_send_semantics_v1",
+      "size_kb": 2132,
+      "size_mb": 2.1,
+      "files": 6,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_ui_candidate_selection_state_fix_v1",
+      "name": "cuistance_ui_candidate_selection_state_fix_v1",
+      "size_kb": 1564,
+      "size_mb": 1.5,
+      "files": 7,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_final_email_preview_binding_v1",
+      "name": "cuistance_final_email_preview_binding_v1",
+      "size_kb": 1520,
+      "size_mb": 1.5,
+      "files": 6,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_real_poster_binding_selection_fix_v1",
+      "name": "cuistance_real_poster_binding_selection_fix_v1",
+      "size_kb": 1504,
+      "size_mb": 1.5,
+      "files": 6,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    },
+    {
+      "dir": "docs/poster2/assets/hybrid_real_generation_probe_v1",
+      "name": "hybrid_real_generation_probe_v1",
+      "size_kb": 1224,
+      "size_mb": 1.2,
+      "files": 2,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_r2_bridge_v1",
+      "name": "ops_campaign_r2_bridge_v1",
+      "size_kb": 896,
+      "size_mb": 0.9,
+      "files": 5,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/announcement_remote_ui_validation_v1",
+      "name": "announcement_remote_ui_validation_v1",
+      "size_kb": 848,
+      "size_mb": 0.8,
+      "files": 9,
+      "git_tracked": true,
+      "classification": "REVIEW_NEEDED",
+      "reason": "Family B announcement evidence (tracked); not in current single-product scope — owner to confirm retention."
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_remote_404_fix_v1",
+      "name": "ops_campaign_remote_404_fix_v1",
+      "size_kb": 672,
+      "size_mb": 0.7,
+      "files": 3,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/announcement_ui_closure_v1",
+      "name": "announcement_ui_closure_v1",
+      "size_kb": 652,
+      "size_mb": 0.6,
+      "files": 7,
+      "git_tracked": true,
+      "classification": "REVIEW_NEEDED",
+      "reason": "Family B announcement evidence (tracked); not in current single-product scope — owner to confirm retention."
+    },
+    {
+      "dir": "docs/poster2/assets/announcement_runtime_v1",
+      "name": "announcement_runtime_v1",
+      "size_kb": 104,
+      "size_mb": 0.1,
+      "files": 4,
+      "git_tracked": true,
+      "classification": "REVIEW_NEEDED",
+      "reason": "Family B announcement evidence (tracked); not in current single-product scope — owner to confirm retention."
+    },
+    {
+      "dir": "docs/poster2/assets/model_composed_hybrid_mvp_v2",
+      "name": "model_composed_hybrid_mvp_v2",
+      "size_kb": 28,
+      "size_mb": 0.0,
+      "files": 6,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked one-off generation/replication exploration (not in repo history); large image dumps."
+    },
+    {
+      "dir": "docs/poster2/assets/announcement_live_e2e_diagnosis_v1",
+      "name": "announcement_live_e2e_diagnosis_v1",
+      "size_kb": 16,
+      "size_mb": 0.0,
+      "files": 3,
+      "git_tracked": true,
+      "classification": "REVIEW_NEEDED",
+      "reason": "Family B announcement evidence (tracked); not in current single-product scope — owner to confirm retention."
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_ui_publish_v1",
+      "name": "email_campaign_composite_ui_publish_v1",
+      "size_kb": 12,
+      "size_mb": 0.0,
+      "files": 3,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_generate_502_diag_v1",
+      "name": "ops_campaign_generate_502_diag_v1",
+      "size_kb": 8,
+      "size_mb": 0.0,
+      "files": 2,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_path_compare_v1",
+      "name": "ops_campaign_path_compare_v1",
+      "size_kb": 8,
+      "size_mb": 0.0,
+      "files": 1,
+      "git_tracked": false,
+      "classification": "DELETE_CANDIDATE",
+      "reason": "Untracked smoke/diagnosis/runtime evidence (ephemeral; superseded by CUISTANCE baseline)."
+    },
+    {
+      "dir": "docs/poster2/assets/cuistance_remote_candidate_selection_verify_b9f3df5",
+      "name": "cuistance_remote_candidate_selection_verify_b9f3df5",
+      "size_kb": 4,
+      "size_mb": 0.0,
+      "files": 1,
+      "git_tracked": true,
+      "classification": "KEEP_IN_REPO",
+      "reason": "Active CUISTANCE dual-mode single-product baseline lineage (accepted PASS evidence)."
+    }
+  ]
+}

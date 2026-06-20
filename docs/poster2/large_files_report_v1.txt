@@ -1,0 +1,103 @@
+POSTER2 CLEANUP — LARGE FILES REPORT v1
+Generated for: POSTER2-CUISTANCE-DUAL-MODE-FREEZE-AND-CLEANUP-AUDIT
+Branch: trial/poster2-cuistance-psd-email-container-last-mile-v1 @ a175ee1
+Scope: docs/poster2/  (audit only — NO files deleted/moved)
+Total docs/poster2/assets: 399M
+
+=== Top 40 largest individual files (docs/poster2) ===
+ 47M	docs/poster2/assets/reconstruction_v1/catalog_hero_v1.html
+ 45M	docs/poster2/assets/reconstruction_v1/catalog_hero_v2.html
+9.1M	docs/poster2/assets/remote_ops_smoke_v2/_records/p2_45640c3e9c3e4f16.json
+9.1M	docs/poster2/assets/email_campaign_composite_ui_v1/_records/p2_7f4b14e390bd4d87.json
+9.1M	docs/poster2/assets/email_campaign_business_flow_mvp_v1/email_preview.html
+9.1M	docs/poster2/assets/email_campaign_business_flow_mvp_v1/_records/p2_c0cfd9c08f8842ec.json
+4.0M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/raw_candidates_contact_sheet.png
+3.2M	docs/poster2/assets/hybrid_real_asset_mvp_v1/candidate_02_overlaid.png
+3.2M	docs/poster2/assets/email_campaign_composite_v1/p1_reference_vs_baseline_vs_v1_vs_p1.png
+3.2M	docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/source/产品海报.psd
+3.1M	docs/poster2/assets/hybrid_real_asset_mvp_v1/candidate_03_overlaid.png
+3.1M	docs/poster2/assets/hybrid_real_asset_mvp_v1/candidate_01_overlaid.png
+3.1M	docs/poster2/assets/case001_campaign_explainer_heavy_v1/raw_substrates_contact_sheet.png
+3.0M	docs/poster2/assets/ops_campaign_ui_flow_heavy_v1/ops_ui_email_preview_section.png
+3.0M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/corrected_candidate_01.png
+3.0M	docs/poster2/assets/email_campaign_business_flow_mvp_v1/email_preview.txt
+2.9M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/corrected_candidate_02.png
+2.8M	docs/poster2/assets/case001_campaign_explainer_heavy_v1/composite_candidate_03_nuggets_basket.png
+2.7M	docs/poster2/assets/template_a_refstyle_hybrid_4_8_v1/reference_vs_candidate_contact_sheet.png
+2.7M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/corrected_candidate_05.png
+2.7M	docs/poster2/assets/email_campaign_composite_v1/reference_vs_baseline_vs_candidate.png
+2.7M	docs/poster2/assets/case001_campaign_explainer_heavy_v1/reference_vs_catalog_hero_vs_best_candidate.png
+2.4M	docs/poster2/assets/reconstruction_v1/reconstruction_render_v2.png
+2.4M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/corrected_candidate_04.png
+2.4M	docs/poster2/assets/case001_campaign_explainer_heavy_v1/composite_candidate_05_golden_food.png
+2.3M	docs/poster2/assets/template_a_refstyle_hybrid_4_8_v1/corrected_candidate_02_fried_chicken.png
+2.3M	docs/poster2/assets/remote_ops_smoke_v2/generated_poster.png
+2.3M	docs/poster2/assets/remote_deploy_smoke_v1/generated_poster_remote.png
+2.3M	docs/poster2/assets/ops_manual_test_pack_v1/upload_assets/accepted_expected_output.png
+2.3M	docs/poster2/assets/ops_manual_test_pack_v1/expected_output/runtime_smoke_poster.png
+2.3M	docs/poster2/assets/ops_manual_test_pack_v1/expected_output/comparison_reference_vs_p1_vs_p2.png
+2.3M	docs/poster2/assets/ops_manual_test_pack_v1/expected_output/accepted_p2_poster.png
+2.3M	docs/poster2/assets/ops_campaign_ui_flow_heavy_v1/generated_poster_from_ui.png
+2.3M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/corrected_candidate_03.png
+2.3M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/candidate_contact_sheet.png
+2.3M	docs/poster2/assets/email_campaign_composite_v1_runtime/runtime_smoke_case001.png
+2.3M	docs/poster2/assets/email_campaign_composite_v1_runtime/api_smoke_case001.png
+2.3M	docs/poster2/assets/email_campaign_composite_ui_v1/generated_poster.png
+2.3M	docs/poster2/assets/email_campaign_business_flow_mvp_v1/business_flow_poster.png
+2.3M	docs/poster2/assets/case001_campaign_explainer_p2_v1/p2_reference_vs_p1_vs_p2.png
+
+=== File-type totals (docs/poster2/assets) ===
+png      305 files    268128 KB (261.8 MB)
+jpg       15 files      1256 KB (1.2 MB)
+psd        1 files      3304 KB (3.2 MB)
+json      92 files     28348 KB (27.6 MB)
+txt       11 files      3244 KB (3.1 MB)
+md        93 files       416 KB (0.4 MB)
+html       7 files    104100 KB (101.6 MB)
+
+=== Per top-level asset dir (size desc) ===
+101M	docs/poster2/assets/reconstruction_v1/
+ 37M	docs/poster2/assets/email_campaign_composite_v1/
+ 32M	docs/poster2/assets/hybrid_gemini_real_generation_validation_v1/
+ 32M	docs/poster2/assets/case001_campaign_explainer_heavy_v1/
+ 23M	docs/poster2/assets/email_campaign_business_flow_mvp_v1/
+ 22M	docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/
+ 16M	docs/poster2/assets/template_a_refstyle_hybrid_4_8_v1/
+ 16M	docs/poster2/assets/hybrid_real_asset_mvp_v1/
+ 12M	docs/poster2/assets/remote_ops_smoke_v2/
+ 11M	docs/poster2/assets/ops_manual_test_pack_v1/
+ 11M	docs/poster2/assets/email_campaign_composite_ui_v1/
+8.5M	docs/poster2/assets/reference_grammar_v1/
+8.1M	docs/poster2/assets/sop_source_materialization_v1/
+6.9M	docs/poster2/assets/case001_campaign_explainer_p2_v1/
+6.4M	docs/poster2/assets/ops_campaign_ui_flow_heavy_v1/
+6.0M	docs/poster2/assets/catalog_hero_real_asset_refinement_v1/
+5.7M	docs/poster2/assets/email_campaign_composite_v1_runtime/
+4.0M	docs/poster2/assets/gemini_image_probe_v1/
+3.9M	docs/poster2/assets/catalog_hero_red_food_asset_gate_v1/
+3.9M	docs/poster2/assets/catalog_hero_real_asset_trial_v1/
+2.9M	docs/poster2/assets/visual_grammar_replication_v1/
+2.7M	docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/
+2.6M	docs/poster2/assets/cuistance_step3_email_fill_format_preview_correction_v1/
+2.6M	docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/
+2.5M	docs/poster2/assets/remote_deploy_smoke_v1/
+2.4M	docs/poster2/assets/cuistance_state_recovery_step2_step3_consistency_v1/
+2.3M	docs/poster2/assets/catalog_hero_1to1_replication_v1/
+2.2M	docs/poster2/assets/cuistance_step2_step3_layout_preview_consistency_v1/
+2.1M	docs/poster2/assets/cuistance_email_preview_send_semantics_v1/
+2.1M	docs/poster2/assets/catalog_hero_productization/
+1.5M	docs/poster2/assets/cuistance_ui_candidate_selection_state_fix_v1/
+1.5M	docs/poster2/assets/cuistance_real_poster_binding_selection_fix_v1/
+1.5M	docs/poster2/assets/cuistance_final_email_preview_binding_v1/
+1.2M	docs/poster2/assets/hybrid_real_generation_probe_v1/
+896K	docs/poster2/assets/ops_campaign_r2_bridge_v1/
+848K	docs/poster2/assets/announcement_remote_ui_validation_v1/
+672K	docs/poster2/assets/ops_campaign_remote_404_fix_v1/
+652K	docs/poster2/assets/announcement_ui_closure_v1/
+104K	docs/poster2/assets/announcement_runtime_v1/
+ 28K	docs/poster2/assets/model_composed_hybrid_mvp_v2/
+ 16K	docs/poster2/assets/announcement_live_e2e_diagnosis_v1/
+ 12K	docs/poster2/assets/email_campaign_composite_ui_publish_v1/
+8.0K	docs/poster2/assets/ops_campaign_path_compare_v1/
+8.0K	docs/poster2/assets/ops_campaign_generate_502_diag_v1/
+4.0K	docs/poster2/assets/cuistance_remote_candidate_selection_verify_b9f3df5/
