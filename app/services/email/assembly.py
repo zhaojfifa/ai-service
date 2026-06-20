@@ -52,6 +52,18 @@ EMAIL_BODY_CONTAINER_WIDTH = 600
 #   email_header_region -> (red filet) -> body_visual_region -> intro -> cta -> social_contact_region -> legal_footer
 EMAIL_CONTAINER_TEMPLATE_ID = "cuistance_email_container_psd_v1"
 
+# Container flexibility — the email container is a NAMED PROFILE with deterministic per-route modes (NOT a free
+# template engine). Each canonical fill format maps to exactly one internal profile name; both stay backward
+# compatible with the existing fill-format values (which remain the public/selection truth).
+CONTAINER_PROFILE_FOR_FILL_FORMAT: dict[str, str] = {
+    "campaign_poster_email": "single_product_campaign_email",
+    "product_sheet_email": "single_product_sheet_email",
+}
+
+
+def container_profile_for(fill_format: str | None) -> str | None:
+    return CONTAINER_PROFILE_FOR_FILL_FORMAT.get(fill_format or "")
+
 
 def fill_format_for(candidate_type: str) -> str:
     """Default-map the body visual mode to its reference-derived email fill format.
@@ -84,6 +96,7 @@ def build_email_assembly(
     body_visual_variant: str | None = None,
     body_visual_contains_own_banner: bool | None = None,
     standalone_poster_url: str | None = None,
+    container_profile: str | None = None,
 ) -> dict[str, Any]:
     banner = workbench.get("email_banner") or {}
     product_truth = workbench.get("product_truth") or {}
@@ -102,6 +115,7 @@ def build_email_assembly(
     # product sheet (fiche / product_sheet_email): reference line + spec list from CONFIRMED workbench parameters
     is_product_sheet = (candidate_type == "fiche")
     sheet_extra = ""
+    has_spec_items = False
     if is_product_sheet:
         reference = clean_copy_text(product_truth.get("reference") or "")
         spec_items = "".join(
@@ -109,6 +123,7 @@ def build_email_assembly(
             f'{escape(str(p.get("value") or ""))}</li>'
             for p in (product_truth.get("parameters") or []) if p and p.get("value")
         )
+        has_spec_items = bool(spec_items)
         if reference:
             sheet_extra += f'<p style="margin:0 0 8px;color:#6b7178;font-size:13px;font-weight:700;">RÉF. {escape(reference)}</p>'
         if spec_items:
@@ -208,6 +223,32 @@ def build_email_assembly(
     }
 
     fill_format = fill_format_for(candidate_type)
+    # ---- container flexibility: named profile + deterministic per-route container modes (NOT a template engine) ----
+    resolved_profile = container_profile or container_profile_for(fill_format)
+    header_variant = "ttt_html_header"
+    if is_product_sheet:
+        spec_display_mode = "spec_list" if has_spec_items else "spec_list_empty"
+        resolved_body_visual_mode = body_visual_variant or "product_image"
+    else:
+        spec_display_mode = "in_visual"  # affiche specs are baked into the poster body visual
+        resolved_body_visual_mode = body_visual_variant or "email_embedded_no_header"
+    # ---- container fillability: which fields are filled from truth, and what is still missing (no fake fallback) ----
+    product_name = clean_copy_text(product_truth.get("product_name") or "")
+    product_reference = clean_copy_text(product_truth.get("reference") or "")
+    filled_subject = bool(subject)
+    filled_intro = bool(intro)
+    filled_cta = bool(cta_label)
+    filled_footer = bool(meta_bits)
+    missing_required_fields: list[str] = []
+    if not body_visual_url:
+        missing_required_fields.append("product_image" if is_product_sheet else "email_body_visual")
+    if is_product_sheet and not (product_name or product_reference):
+        missing_required_fields.append("product_identity")
+    if not subject:
+        missing_required_fields.append("subject")
+    if not cta_label:
+        missing_required_fields.append("cta_label")
+    preview_ready = not missing_required_fields
     # contract guard: a campaign_poster_email with a ttt_html_header must embed a body visual WITHOUT its own banner
     own_banner = (body_visual_contains_own_banner if body_visual_contains_own_banner is not None
                   else (template_id in _BODY_VISUALS_WITH_OWN_BANNER))
@@ -245,9 +286,30 @@ def build_email_assembly(
         "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
         "email_fill_format": fill_format,
         "email_header_source": "ttt_html_header",
+        # ---- container flexibility + fillability (additive diagnostics; no behavior/truth change) ----
+        "container_profile": resolved_profile,
+        "header_variant": header_variant,
+        "spec_display_mode": spec_display_mode,
+        "body_visual_mode": resolved_body_visual_mode,
+        "filled_subject": filled_subject,
+        "filled_intro": filled_intro,
+        "filled_cta": filled_cta,
+        "filled_footer": filled_footer,
+        "missing_required_fields": missing_required_fields,
+        "preview_ready": preview_ready,
         "email_container": {
             "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
             "email_fill_format": fill_format,
+            "container_profile": resolved_profile,
+            "header_variant": header_variant,
+            "spec_display_mode": spec_display_mode,
+            "body_visual_mode": resolved_body_visual_mode,
+            "filled_subject": filled_subject,
+            "filled_intro": filled_intro,
+            "filled_cta": filled_cta,
+            "filled_footer": filled_footer,
+            "missing_required_fields": missing_required_fields,
+            "preview_ready": preview_ready,
             "body_visual_poster_key": poster_key,
             "body_visual_variant": body_visual_variant,
             "body_visual_contains_own_banner": (own_banner if own_banner is not None else (template_id in _BODY_VISUALS_WITH_OWN_BANNER)),
@@ -273,4 +335,10 @@ def build_email_assembly(
     }
 
 
-__all__ = ["build_email_assembly", "resolve_intro", "EMAIL_BODY_MODULE_ORDER"]
+__all__ = [
+    "build_email_assembly",
+    "resolve_intro",
+    "EMAIL_BODY_MODULE_ORDER",
+    "CONTAINER_PROFILE_FOR_FILL_FORMAT",
+    "container_profile_for",
+]

@@ -284,3 +284,77 @@ def test_preview_accepts_matching_fill_format_assertion(client):
     r2 = client.post(f"/api/v2/workbench/{wb2}/email/preview", json={"email_fill_format": "campaign_poster_email"})
     assert r2.status_code == 200
     assert r2.json()["email_fill_format"] == "campaign_poster_email"
+
+
+# ---- POSTER2-EMAIL-CONTAINER-TRIAL-CLOSURE-V1: container flexibility + fillability diagnostics ----
+def test_preview_exposes_container_profile_and_modes_affiche(client):
+    wb = _make_workbench(client)
+    _gen(client, wb, "affiche")
+    _select(client, wb, "affiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["container_profile"] == "single_product_campaign_email"
+    assert body["header_variant"] == "ttt_html_header"
+    assert body["spec_display_mode"] == "in_visual"           # affiche specs baked into the visual
+    assert body["body_visual_mode"]                            # variant present
+    assert body["preview_ready"] is True
+    assert body["missing_required_fields"] == []
+    assert body["filled_subject"] is True and body["filled_cta"] is True
+    assert body["send_hold"] is True and body["real_email_sent"] is False
+
+
+def test_preview_exposes_container_profile_fiche(client):
+    wb = _make_workbench(client)   # has a confirmed parameter -> spec list populated
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["container_profile"] == "single_product_sheet_email"
+    assert body["spec_display_mode"] == "spec_list"           # confirmed parameters -> populated spec list
+    assert body["body_visual_mode"] == "product_image"
+    assert body["preview_ready"] is True
+    assert body["missing_required_fields"] == []
+    assert body["send_hold"] is True and body["real_email_sent"] is False
+
+
+def test_preview_fiche_missing_product_image_surfaces_not_blocks(client):
+    # exposes a clear missing status (NO silent wrong fallback) but still returns 200 (preview, not send)
+    wb = _make_workbench(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    rec = load_workbench_record(wb)
+    rec["product_assets"]["product_images"] = []     # remove the product image after the candidate was ready
+    rec["product_truth"]["product_name"] = ""        # and clear identity
+    rec["product_truth"]["reference"] = ""
+    save_workbench_record(rec)
+    r = client.post(f"/api/v2/workbench/{wb}/email/preview")
+    assert r.status_code == 200                       # surfaced, not hard-blocked
+    body = r.json()
+    assert body["preview_ready"] is False
+    assert "product_image" in body["missing_required_fields"]
+    assert "product_identity" in body["missing_required_fields"]
+
+
+def test_preview_fiche_empty_spec_marks_spec_list_empty(client):
+    # a fiche whose only confirmed param is removed -> spec_display_mode flags the empty list (advisory)
+    wb = _make_workbench(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    rec = load_workbench_record(wb)
+    rec["product_truth"]["parameters"] = []
+    save_workbench_record(rec)
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["spec_display_mode"] == "spec_list_empty"
+    assert body["preview_ready"] is True              # identity + image still present -> still previewable
+
+
+def test_preview_rejects_container_profile_mismatch(client):
+    wb = _make_workbench(client)
+    _gen(client, wb, "affiche")
+    _select(client, wb, "affiche")
+    bad = client.post(f"/api/v2/workbench/{wb}/email/preview",
+                      json={"container_profile": "single_product_sheet_email"})
+    assert bad.status_code == 422
+    assert bad.json()["detail"] == "container_profile_mismatch"
+    ok = client.post(f"/api/v2/workbench/{wb}/email/preview",
+                     json={"container_profile": "single_product_campaign_email"})
+    assert ok.status_code == 200
+    assert ok.json()["container_profile"] == "single_product_campaign_email"

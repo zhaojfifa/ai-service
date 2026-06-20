@@ -12820,3 +12820,39 @@ After bundle:
   locked, boundaries, Owner confirmations needed, next step P2B demo-to-contract mapping).
 - Owner Decision Needed: approve the operator workflow + 2-product/3-view limits + editable-vs-locked split, and decide
   whether the dual-product comparison email is in productization scope (it needs a real products[] backend).
+
+## EMAIL CONTAINER TRIAL CLOSURE V1 (2026-06-20) — additive backend + minimal trial UI; no send change, baseline protected
+- Task POSTER2-EMAIL-CONTAINER-TRIAL-CLOSURE-V1: strengthen the EXISTING email-container trial flow — container
+  flexibility + fillability — without a new UI, without touching the P2A demo, without products[]/multi-product, and
+  without enabling real send. Both live routes keep their PASS contracts.
+- Container flexibility (additive, NOT a template engine): the container is now a NAMED PROFILE with deterministic
+  per-route modes.
+  - app/services/email/assembly.py: container_profile_for() + CONTAINER_PROFILE_FOR_FILL_FORMAT; per-assembly
+    container_profile / header_variant / spec_display_mode / body_visual_mode (mirrored in email_container dict).
+  - campaign_poster_email -> single_product_campaign_email (spec_display_mode=in_visual, body_visual_mode=
+    email_embedded_no_header). product_sheet_email -> single_product_sheet_email (spec_display_mode=spec_list|
+    spec_list_empty, body_visual_mode=product_image).
+  - app/schemas/poster2.py: ContainerProfile literal + map; WorkbenchEmailPreviewRequest.container_profile (bounded
+    assertion, validated like email_fill_format). app/main.py preview endpoint: container_profile_mismatch guard.
+- Container fillability (no silent wrong fallback): assembly computes filled_subject/intro/cta/footer +
+  missing_required_fields[] + preview_ready. Missing codes: product_image | email_body_visual | product_identity |
+  subject | cta_label. Missing fields are SURFACED (preview_ready=false, still HTTP 200 — preview, not send), never
+  silently substituted. No truth from atmosphere/gallery/reference HTML/PSD; no AI fact insertion; no unknown-product
+  fallback.
+- Response additions (all optional/defaulted -> backward compatible): container_profile, header_variant,
+  spec_display_mode, body_visual_mode, filled_subject/intro/cta/footer, missing_required_fields, preview_ready,
+  send_hold=true, real_email_sent=false.
+- Send path UNCHANGED: preview-only default (inline_only -> preview_only/skipped); real send needs explicit
+  confirm_send + delivery_mode=resend + provider env; real_email_sent proven only by provider_message_id. No real send
+  enabled; no real customer email sent.
+- Frontend (minimal, existing trial page only; no layout drift): business-readable container fill state
+  (邮件容器已填充 / 待补充：缺少产品图 · 缺少产品名称/型号 · 缺少产品参数 · 真实发送仍 HOLD) + extended internal
+  diagnostics. docs/cuistance_trial.html mirror synced byte-identical. P2A demo files NOT touched.
+- Tests: +5 focused in tests/poster2/test_workbench_email_assembly.py (profile/modes affiche+fiche, missing-image/
+  identity surfacing-not-blocking, spec_list_empty advisory, container_profile_mismatch). Focused suites green:
+  email_assembly+candidates+psd_email_container = 42 passed; test_api -k email/workbench/selected/fiche/preview = 10
+  passed; trial JS node --check = TRIAL_JS_OK; check_docs_router --all = PASS (legacy advisory only).
+- Evidence: docs/poster2/assets/email_container_trial_closure_v1/evidence.json. Doc:
+  docs/poster2/email_container_trial_closure_v1.md. Remote NOT validated (OPS-gated). Tag not pushed; no history rewrite.
+- Owner Decision Needed: approve the container profile/fillability contract; then OPS-authenticated remote validation of
+  preview_ready + container_profile + missing-field surfacing on Render (multi-product + real send stay HOLD).

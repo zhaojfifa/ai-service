@@ -1,0 +1,43 @@
+{
+  "affiche_preview_ready": true,
+  "fiche_preview_ready": true,
+  "container_flexibility_improved": true,
+  "container_fillability_improved": true,
+  "real_send_default": "HOLD",
+  "real_email_sent": false,
+  "multi_product_backend": false,
+  "demo_ui_backend_mapping": false,
+  "changes": {
+    "backend": [
+      "app/services/email/assembly.py: container_profile + header_variant + spec_display_mode + body_visual_mode + filled_* + missing_required_fields + preview_ready (additive)",
+      "app/schemas/poster2.py: ContainerProfile + CONTAINER_PROFILE_FOR_FILL_FORMAT; preview request container_profile; 13 additive optional response fields",
+      "app/main.py: container_profile_mismatch guard + response wiring (no send change)"
+    ],
+    "frontend": [
+      "frontend/cuistance_trial.html (+ docs mirror): business-readable container fill state (已填充/待补充/缺少产品图/缺少产品参数) + extended diagnostics; no layout drift"
+    ],
+    "tests": [
+      "tests/poster2/test_workbench_email_assembly.py: +5 focused tests (profile/modes, missing-field surfacing, spec_list_empty, profile mismatch)"
+    ]
+  },
+  "container_profile_map": {
+    "campaign_poster_email": "single_product_campaign_email",
+    "product_sheet_email": "single_product_sheet_email"
+  },
+  "missing_field_behavior": "exposed in preview_ready=false + missing_required_fields[]; preview NOT hard-blocked (surfaced, not silently fallen back)",
+  "send_semantics": "preview-only default (delivery_mode=inline_only -> preview_only/skipped); real send requires explicit confirm_send + delivery_mode=resend + provider env; unchanged this task",
+  "tests_run": {
+    "test_workbench_email_assembly": "21 passed (incl. 5 new)",
+    "test_workbench_candidates": "passed",
+    "test_workbench_psd_email_container": "passed",
+    "combined_assembly_candidates_psd": "42 passed",
+    "test_api_email_workbench_selected_fiche_preview": "10 passed",
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "real_email_sent_during_tests": false
+  },
+  "baseline_protected": {
+    "affiche_campaign_poster_email": "PASS",
+    "fiche_product_sheet_email": "PASS",
+    "p2a_demo_files_touched": false
+  }
+}

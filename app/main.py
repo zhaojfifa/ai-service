@@ -1598,6 +1598,7 @@ from app.schemas.poster2 import (
     ProductAssets,
     ProductTruth,
     FILL_FORMAT_FOR_VISUAL,
+    CONTAINER_PROFILE_FOR_FILL_FORMAT,
     WorkbenchCreateRequest,
     WorkbenchEmailPreviewRequest,
     WorkbenchEmailSendRequest,
@@ -2608,6 +2609,11 @@ def preview_workbench_email_v2(
     canonical_fill = FILL_FORMAT_FOR_VISUAL.get(selected) or assembly.get("email_fill_format")
     if payload and payload.email_fill_format and payload.email_fill_format != canonical_fill:
         raise HTTPException(status_code=422, detail="email_fill_format_mismatch")
+    # Same guard for the optional container_profile assertion: it must match the canonical profile for the selected
+    # visual (no free-form profile selection that contradicts the chosen body visual).
+    canonical_profile = CONTAINER_PROFILE_FOR_FILL_FORMAT.get(canonical_fill or "") or assembly.get("container_profile")
+    if payload and payload.container_profile and payload.container_profile != canonical_profile:
+        raise HTTPException(status_code=422, detail="container_profile_mismatch")
 
     settings = get_settings()
     # fiche/product_sheet_email has no poster_key/poster_record -> no poster attachments to build
@@ -2648,6 +2654,18 @@ def preview_workbench_email_v2(
         fiche_uses_poster_generation=assembly.get("fiche_uses_poster_generation"),
         fiche_generated_from=assembly.get("fiche_generated_from"),
         product_sheet_email_contract_pass=assembly.get("product_sheet_email_contract_pass"),
+        container_profile=assembly.get("container_profile"),
+        header_variant=assembly.get("header_variant"),
+        spec_display_mode=assembly.get("spec_display_mode"),
+        body_visual_mode=assembly.get("body_visual_mode"),
+        filled_subject=bool(assembly.get("filled_subject")),
+        filled_intro=bool(assembly.get("filled_intro")),
+        filled_cta=bool(assembly.get("filled_cta")),
+        filled_footer=bool(assembly.get("filled_footer")),
+        missing_required_fields=list(assembly.get("missing_required_fields") or []),
+        preview_ready=bool(assembly.get("preview_ready", True)),
+        send_hold=True,
+        real_email_sent=False,
     )
 
 

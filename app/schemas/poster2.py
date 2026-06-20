@@ -396,6 +396,14 @@ class WorkbenchSelectVisualRequest(BaseModel):
 EmailFillFormat = Literal["campaign_poster_email", "product_sheet_email"]
 FILL_FORMAT_FOR_VISUAL: dict[str, str] = {"affiche": "campaign_poster_email", "fiche": "product_sheet_email"}
 
+# Container flexibility — each canonical fill format has exactly one internal container profile name. The profile is
+# an additive naming layer (NOT a template engine); existing fill-format values remain the selection truth.
+ContainerProfile = Literal["single_product_campaign_email", "single_product_sheet_email"]
+CONTAINER_PROFILE_FOR_FILL_FORMAT: dict[str, str] = {
+    "campaign_poster_email": "single_product_campaign_email",
+    "product_sheet_email": "single_product_sheet_email",
+}
+
 
 class WorkbenchEmailPreviewRequest(BaseModel):
     # Optional client assertion of the intended fill format. When present it MUST match the selected body visual's
@@ -403,6 +411,11 @@ class WorkbenchEmailPreviewRequest(BaseModel):
     # product_sheet_email preview can never be silently built from an Affiche body (or vice versa). When omitted,
     # the backend derives the format from the selected visual (backend truth wins).
     email_fill_format: Optional[EmailFillFormat] = None
+    # Optional client assertion of the container profile. Same guard model as email_fill_format: when present it MUST
+    # match the canonical profile for the selected visual; a mismatch is rejected. When omitted, the backend derives
+    # the profile from the selected visual. This gives the container a configurable-but-bounded profile knob without a
+    # free-form template engine.
+    container_profile: Optional[ContainerProfile] = None
 
 
 # PR-3 — Email Banner Module + Email Assembly preview (workbench-level).
@@ -489,6 +502,20 @@ class EmailAssemblyPreviewResponse(BaseModel):
     fiche_uses_poster_generation: Optional[bool] = None
     fiche_generated_from: Optional[str] = None
     product_sheet_email_contract_pass: Optional[bool] = None
+    # ---- container flexibility + fillability diagnostics (additive; backward compatible) ----
+    container_profile: Optional[str] = None
+    header_variant: Optional[str] = None
+    spec_display_mode: Optional[str] = None
+    body_visual_mode: Optional[str] = None
+    filled_subject: bool = False
+    filled_intro: bool = False
+    filled_cta: bool = False
+    filled_footer: bool = False
+    missing_required_fields: list[str] = Field(default_factory=list)
+    preview_ready: bool = True
+    # send safety surfaced in the preview response (this endpoint never sends): real send stays HOLD by default.
+    send_hold: bool = True
+    real_email_sent: bool = False
 
 
 # PR-4 — manual multi-recipient confirmed send + evidence.

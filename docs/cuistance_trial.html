@@ -437,6 +437,11 @@
               <span class="hint" id="email-body-binding" data-zh="邮件主体：—" data-fr="Corps : —">邮件主体：—</span>
               <span class="hint" id="email-format-binding" data-zh="邮件格式：—" data-fr="Format : —">邮件格式：—</span>
             </div>
+            <!-- container fillability state (business-readable): filled / missing fields + real-send HOLD -->
+            <div class="card-state" id="container-fill-state" style="margin-top:6px;display:none">
+              <span class="badge lock" id="fill-badge"></span>
+              <span class="hint" id="fill-missing"></span>
+            </div>
             <div class="preview-frame" id="emailPreviewFrame">
               <div class="email" id="emailStatic">
                 <div class="ttt-header-preview"><span class="ttt-wordmark">CUISTANCE</span><span class="ttt-meta">CUISTANCE Europe · Nouveauté</span></div>
@@ -949,6 +954,31 @@
       var bd=$('email-body-binding'); if(bd&&selectedVisual){bd.textContent=(lang==='zh'?'邮件主体：'+BODY_NAME[selectedVisual].zh:'Corps : '+BODY_NAME[selectedVisual].fr);}
       var fb=$('email-format-binding'); if(fb&&selectedFillFormat){fb.textContent=(lang==='zh'?'邮件格式：'+FILL_NAME[selectedFillFormat].zh:'Format : '+FILL_NAME[selectedFillFormat].fr);}
     }
+    // container fillability (business-readable): map backend preview_ready / missing_required_fields to operator text.
+    var MISSING_LABEL={
+      product_image:{zh:'缺少产品图',fr:'image produit manquante'},
+      email_body_visual:{zh:'缺少邮件主体视觉',fr:'visuel manquant'},
+      product_identity:{zh:'缺少产品名称/型号',fr:'nom/référence manquant'},
+      subject:{zh:'缺少标题',fr:'objet manquant'},
+      cta_label:{zh:'缺少 CTA',fr:'CTA manquant'}
+    };
+    function updateContainerFillState(j){
+      var box=$('container-fill-state'),badge=$('fill-badge'),miss=$('fill-missing'); if(!box)return;
+      if(!j){box.style.display='none';return;}
+      box.style.display='';
+      var mf=(j.missing_required_fields||[]);
+      var specEmpty=(j.selected_email_body_visual==='fiche' && j.spec_display_mode==='spec_list_empty'); // soft advisory
+      var ready=(j.preview_ready!==false);
+      if(ready && !specEmpty){
+        badge.className='badge ready'; badge.textContent=(lang==='zh'?'邮件容器已填充':'Conteneur rempli');
+        miss.textContent=(lang==='zh'?'真实发送仍 HOLD':'Envoi réel en HOLD');
+      } else {
+        badge.className='badge miss'; badge.textContent=(lang==='zh'?'邮件容器待补充':'Conteneur incomplet');
+        var parts=mf.map(function(k){return (MISSING_LABEL[k]||{})[lang]||k;});
+        if(specEmpty)parts.push(lang==='zh'?'缺少产品参数':'paramètres manquants');
+        miss.textContent=(lang==='zh'?('待补充：'+parts.join(' · ')+' · 真实发送仍 HOLD'):('À compléter : '+parts.join(' · ')+' · envoi réel HOLD'));
+      }
+    }
     function applyFillFormat(fmt,isDefault){
       selectedFillFormat=fmt;
       document.querySelectorAll('#fillFormatOptions .banner-opt').forEach(function(b){b.classList.toggle('selected',b.dataset.fmt===fmt)});
@@ -984,7 +1014,7 @@
       var fpb=$('btn-full-preview'); if(fpb)fpb.style.display=previewGenerated?'':'none';
       updateBindingLabels(); updateSendGate();
     }
-    function markPreviewStale(){ previewGenerated=false; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
+    function markPreviewStale(){ previewGenerated=false; var cf=$('container-fill-state');if(cf)cf.style.display='none'; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
     // backend truth: the email fill format MUST follow the selected email body visual. fiche -> product_sheet_email,
     // affiche -> campaign_poster_email. a manual pick that contradicts the selected body is rejected with a clear
     // instruction and snapped back — never silently preview Affiche under the product-sheet tab (or vice versa).
@@ -1069,7 +1099,8 @@
       updateBindingLabels(); updateSendGate();
       var ins=inspectPreview(cdoc,bv.url||'');
       var ec=r.json.email_container||{};
-      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass});
+      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent});
+      updateContainerFillState(r.json);  // business-readable container fill state (filled / missing / HOLD)
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
     });
