@@ -12856,3 +12856,27 @@ After bundle:
   docs/poster2/email_container_trial_closure_v1.md. Remote NOT validated (OPS-gated). Tag not pushed; no history rewrite.
 - Owner Decision Needed: approve the container profile/fillability contract; then OPS-authenticated remote validation of
   preview_ready + container_profile + missing-field surfacing on Render (multi-product + real send stay HOLD).
+
+## EMAIL CONTAINER REMOTE TRIAL SMOKE V1 (2026-06-20) — REMOTE_AUTH_BLOCKED (docs only, no code change)
+- Task POSTER2-EMAIL-CONTAINER-REMOTE-TRIAL-SMOKE-V1: remote-validate the email container trial closure (commit
+  b6bcbbb) at https://ai-service-leob.onrender.com/cuistance_trial.html.
+- Branch/HEAD guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, HEAD = b6bcbbb exactly; only
+  .DS_Store dirty).
+- Remote DEPLOY CONFIRMED at >= b6bcbbb (NOT deploy lag): healthz=200, health=200, /cuistance_trial.html=200
+  (110895 bytes, 商业试用工作台). Served page carries the b6bcbbb container-flexibility markers — container-fill-state x3,
+  updateContainerFillState x2, container_profile x2, fill-badge x2, spec_display_mode x3, missing_required_fields x4.
+  No /version endpoint -> exact backend hash unverifiable, but the frontend markers prove the deployed build is the
+  trial-closure build.
+- BLOCKER = OPS auth. Remote v2 API is OPS-gated: POST /api/v2/workbench -> 401 ops_auth_required; /api/auth/me ->
+  {enabled:true, authenticated:false}. OPS creds NOT available this run (no /tmp/cuistance_ops_auth/creds.env, no OPS
+  env). Therefore the authenticated Affiche/Fiche preview field assertions (preview_ready / container_profile /
+  spec_display_mode / body_visual_mode / filled_* / missing_required_fields / contract_pass), the missing-field
+  surfacing case, and the container_profile_mismatch 422 guard COULD NOT be executed remotely. = BLOCKED_OPS_AUTH_REQUIRED.
+- Send semantics not exercised live (auth required); by code at b6bcbbb default is preview_only/skipped,
+  real_email_sent=false, send_hold=true. NO real send attempted. No test-recipient/confirm_send authorization in scope.
+- No app/schema/email/assembly change. P2A demo files untouched. No authenticated remote evidence fabricated. Local
+  b6bcbbb remains PASS (42+10 focused tests).
+- Evidence: docs/poster2/assets/email_container_remote_trial_smoke_v1/evidence.json (status=REMOTE_AUTH_BLOCKED).
+  Doc: docs/poster2/email_container_remote_trial_smoke_v1.md. check_docs_router --all = PASS (legacy advisory only).
+- Owner Decision Needed: provide OPS creds via the secure temporary method; the authenticated remote preview smoke then
+  completes against the already-deployed b6bcbbb build. Multi-product / products[] / real customer send remain HOLD.

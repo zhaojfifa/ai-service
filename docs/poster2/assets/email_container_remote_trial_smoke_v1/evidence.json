@@ -1,0 +1,47 @@
+{
+  "status": "REMOTE_AUTH_BLOCKED",
+  "blocker": "BLOCKED_OPS_AUTH_REQUIRED",
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "remote_commit": "b6bcbbb_or_later",
+  "remote_commit_proof": "deployed page serves the b6bcbbb container-flexibility markers (not deploy lag); no /version endpoint so exact backend hash unverifiable",
+  "remote_page_200": true,
+  "remote_healthz_200": true,
+  "deployed_feature_markers": {
+    "container-fill-state": 3,
+    "updateContainerFillState": 2,
+    "container_profile": 2,
+    "fill-badge": 2,
+    "spec_display_mode": 3,
+    "missing_required_fields": 4
+  },
+  "ops_auth": {
+    "enabled": true,
+    "authenticated": false,
+    "v2_api_unauth_status": 401,
+    "v2_api_unauth_error": "ops_auth_required",
+    "ops_creds_available": false
+  },
+  "affiche_preview_ready": false,
+  "fiche_preview_ready": false,
+  "affiche_container_profile": null,
+  "fiche_container_profile": null,
+  "missing_fields_surfaced": false,
+  "container_profile_mismatch_guard": "skipped_blocked_ops_auth_required",
+  "real_email_sent": false,
+  "real_send_attempted": false,
+  "p2a_demo_touched": false,
+  "verified_without_auth": [
+    "remote reachable: healthz=200, health=200",
+    "page loads: /cuistance_trial.html=200, 110895 bytes, is the trial page (商业试用工作台)",
+    "deployed code carries the b6bcbbb container flexibility + fillability markers",
+    "v2 API is OPS-gated (401 ops_auth_required); auth enabled=true authenticated=false"
+  ],
+  "blocked_by_auth": [
+    "Affiche preview field assertions (preview_ready/container_profile/spec_display_mode/body_visual_mode/filled_*/missing_required_fields)",
+    "Fiche preview field assertions (preview_ready/container_profile/spec_display_mode/body_visual_mode/poster_key/uses_poster_generation/generated_from/product_sheet_email_contract_pass)",
+    "missing-field surfacing live preview",
+    "container_profile_mismatch 422 guard live test",
+    "live send semantics (preview_only/skipped)"
+  ],
+  "note": "No authenticated remote evidence fabricated. Local commit b6bcbbb already PASS (42+10 focused tests). Remote validation completes once OPS creds are provided."
+}
