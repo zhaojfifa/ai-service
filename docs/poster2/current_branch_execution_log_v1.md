@@ -12931,3 +12931,27 @@ After bundle:
 - Owner Decision Needed: provide OPS creds via /tmp/cuistance_ops_auth/creds.env + confirm Resend provider env on
   Render for >= 396c7ea; then authenticated Fiche/Affiche preview + one owner-gated real test send to zhaojfifa@gmail.com
   (evidenced only by provider_message_id) completes.
+
+## EMAIL CONTAINER OWNER-GATED REAL SEND SMOKE V1 (2026-06-20) — PASS / REAL_SEND_OK (docs only, no code)
+- Owner provided OPS creds (/tmp/cuistance_ops_auth/creds.env) + confirmed Resend env; task continued from the prior
+  BLOCKED state. OPS login -> /api/auth/me authenticated=true (username ops). Remote healthz=200, page=200.
+- Fiche preview (wb_9308b112feb0436e) PASS — ALL expected fields matched: selected=fiche, email_fill_format=
+  product_sheet_email, container_profile=single_product_sheet_email, preview_ready=true, primary_product_visual_present=
+  true, supporting_media_strip_present=true, supporting_media_count=3, sources=[same_product_view,supporting_visual,
+  supporting_visual], product_image_count=2, gallery_image_count=3, atmosphere_present=true, atmosphere_used_in_fiche=
+  false, send_hold=true, real_email_sent=false; HTML contains "Vues produit / Détails". -> structure-first Fiche fix is
+  LIVE and correct on remote (>= 396c7ea by behavior).
+- Affiche regression PASS (temporarily selected affiche, previewed, restored fiche, GET-confirmed): email_fill_format=
+  campaign_poster_email, container_profile=single_product_campaign_email, preview_ready=true, email_body_visual_contract_
+  pass=true, body_visual_contains_own_banner=false, supporting_media_strip_present=false, real_email_sent=false.
+- Owner-gated REAL TEST SEND (one email, single authorized internal recipient zhaojfifa@gmail.com; no batch, no
+  customer): POST .../email/send {recipients:[zhaojfifa@gmail.com], mode:test, delivery_mode:resend, confirm_send:true}
+  -> HTTP 200, total=1 sent=1 failed=0 skipped=0; attempt status=sent provider=resend provider_message_id=
+  bd9fce38-4678-46db-bed8-fff2ca6a48cc. VERDICT=REAL_SEND_OK (real_email_sent=true, evidenced by provider_message_id).
+- No customer email. No batch. Real send NOT enabled by default (requires confirm_send + delivery_mode=resend +
+  provider env). OPS session logged out + cookie jar removed afterward. No code/schema/frontend change. P2A demo
+  untouched. Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/email_container_owner_gated_real_send_smoke_v1/evidence.json (status=PASS, verdict=
+  REAL_SEND_OK). Doc updated: docs/poster2/email_container_owner_gated_real_send_smoke_v1.md. check_docs_router=PASS.
+- Owner Decision Needed: confirm receipt at zhaojfifa@gmail.com (id bd9fce38-4678-46db-bed8-fff2ca6a48cc). Keep real
+  send strictly owner/test-gated; products[] / multi-product / customer send remain HOLD.
