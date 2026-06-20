@@ -1,0 +1,30 @@
+{
+  "status": "REMOTE_AUTH_BLOCKED",
+  "blocker": "BLOCKED_OPS_AUTH_REQUIRED",
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "remote_commit": "unverified_by_hash_remote_reachable",
+  "remote_healthz_200": true,
+  "remote_page_200": true,
+  "ops_authenticated": false,
+  "ops_creds_file_present": false,
+  "ops_env_present": false,
+  "auth_me": {"enabled": true, "authenticated": false, "username": null},
+  "v2_api_unauth_status": 401,
+  "fiche_preview_ready": null,
+  "fiche_supporting_media_strip_present": null,
+  "supporting_media_count": null,
+  "affiche_regression_pass": null,
+  "test_recipient": "zhaojfifa@gmail.com",
+  "real_send_attempted": false,
+  "real_email_sent": false,
+  "provider": null,
+  "provider_message_id": null,
+  "customer_email_sent": false,
+  "blocked_by_auth": [
+    "remote authenticated Fiche preview (supporting_media_strip / container_profile / preview_ready assertions)",
+    "remote Affiche regression preview",
+    "send preflight (provider env / delivery_mode=resend availability)",
+    "owner-gated single real test send to zhaojfifa@gmail.com"
+  ],
+  "note": "No OPS credentials available (no /tmp/cuistance_ops_auth/creds.env, no OPS env). No send attempted. No authenticated remote evidence fabricated. Local b... fix at 396c7ea remains PASS (81+10 focused tests)."
+}

@@ -12912,3 +12912,22 @@ After bundle:
   email_container_structure_and_fill_contract_v1.md + email_container_structure_fill_fix_v1.md.
 - Remote smoke remains HOLD (BLOCKED_OPS_AUTH_REQUIRED). Owner Decision Needed: approve the structure-first container
   contract; multi-product / products[] / real send stay HOLD; provide OPS creds for the authenticated remote smoke.
+
+## EMAIL CONTAINER OWNER-GATED REAL SEND SMOKE V1 (2026-06-20) — REMOTE_AUTH_BLOCKED (docs only, no code, no send)
+- Task POSTER2-EMAIL-CONTAINER-OWNER-GATED-REAL-SEND-SMOKE-V1: OPS-authenticated remote preview + ONE owner-gated real
+  test send to zhaojfifa@gmail.com (Fiche-first), after the structure-first Fiche supporting_media_strip fix (396c7ea).
+- Branch/HEAD guard PASS (trial/poster2-cuistance-psd-email-container-last-mile-v1, HEAD=396c7ea; only .DS_Store dirty).
+- BLOCKER = OPS auth ABSENT. No /tmp/cuistance_ops_auth/creds.env, no OPS env. Remote healthy (healthz=200, page=200)
+  but v2 API OPS-gated: /api/auth/me -> {enabled:true, authenticated:false}; POST /api/v2/workbench -> 401. = STOP /
+  BLOCKED_OPS_AUTH_REQUIRED per task spec.
+- Therefore NOT executed: authenticated Fiche preview (supporting_media_strip / container_profile / preview_ready
+  assertions + "Vues produit / Détails"), Affiche regression preview, send preflight, and the single owner-gated real
+  send. real_send_attempted=false, real_email_sent=false, provider_message_id=null, customer_email_sent=false.
+- Remote 396c7ea deploy NOT hash-verified this run (needs auth; no /version). No send request transmitted. No
+  authenticated remote evidence fabricated. Local 396c7ea remains PASS (81+10 focused tests).
+- No app/backend/schema/frontend change. Docs/evidence only. P2A demo untouched. Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/email_container_owner_gated_real_send_smoke_v1/evidence.json (status=REMOTE_AUTH_BLOCKED).
+  Doc: docs/poster2/email_container_owner_gated_real_send_smoke_v1.md. check_docs_router --all = PASS (legacy advisory).
+- Owner Decision Needed: provide OPS creds via /tmp/cuistance_ops_auth/creds.env + confirm Resend provider env on
+  Render for >= 396c7ea; then authenticated Fiche/Affiche preview + one owner-gated real test send to zhaojfifa@gmail.com
+  (evidenced only by provider_message_id) completes.
