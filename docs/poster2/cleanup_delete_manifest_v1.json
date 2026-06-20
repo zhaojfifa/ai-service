@@ -1,0 +1,149 @@
+{
+  "deleted_untracked_dirs": [
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_v1",
+      "size_mb": 36.8,
+      "files": 27
+    },
+    {
+      "dir": "docs/poster2/assets/case001_campaign_explainer_heavy_v1",
+      "size_mb": 32.0,
+      "files": 24
+    },
+    {
+      "dir": "docs/poster2/assets/hybrid_gemini_real_generation_validation_v1",
+      "size_mb": 31.7,
+      "files": 28
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_business_flow_mvp_v1",
+      "size_mb": 23.5,
+      "files": 6
+    },
+    {
+      "dir": "docs/poster2/assets/hybrid_real_asset_mvp_v1",
+      "size_mb": 16.2,
+      "files": 18
+    },
+    {
+      "dir": "docs/poster2/assets/template_a_refstyle_hybrid_4_8_v1",
+      "size_mb": 15.9,
+      "files": 17
+    },
+    {
+      "dir": "docs/poster2/assets/remote_ops_smoke_v2",
+      "size_mb": 11.6,
+      "files": 9
+    },
+    {
+      "dir": "docs/poster2/assets/ops_manual_test_pack_v1",
+      "size_mb": 10.7,
+      "files": 18
+    },
+    {
+      "dir": "docs/poster2/assets/reference_grammar_v1",
+      "size_mb": 8.5,
+      "files": 16
+    },
+    {
+      "dir": "docs/poster2/assets/sop_source_materialization_v1",
+      "size_mb": 8.1,
+      "files": 48
+    },
+    {
+      "dir": "docs/poster2/assets/case001_campaign_explainer_p2_v1",
+      "size_mb": 6.9,
+      "files": 8
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_ui_flow_heavy_v1",
+      "size_mb": 6.4,
+      "files": 11
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_real_asset_refinement_v1",
+      "size_mb": 6.0,
+      "files": 11
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_v1_runtime",
+      "size_mb": 5.7,
+      "files": 6
+    },
+    {
+      "dir": "docs/poster2/assets/gemini_image_probe_v1",
+      "size_mb": 4.0,
+      "files": 3
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_real_asset_trial_v1",
+      "size_mb": 3.9,
+      "files": 8
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_red_food_asset_gate_v1",
+      "size_mb": 3.9,
+      "files": 8
+    },
+    {
+      "dir": "docs/poster2/assets/visual_grammar_replication_v1",
+      "size_mb": 2.9,
+      "files": 6
+    },
+    {
+      "dir": "docs/poster2/assets/remote_deploy_smoke_v1",
+      "size_mb": 2.5,
+      "files": 9
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_1to1_replication_v1",
+      "size_mb": 2.3,
+      "files": 5
+    },
+    {
+      "dir": "docs/poster2/assets/catalog_hero_productization",
+      "size_mb": 2.1,
+      "files": 7
+    },
+    {
+      "dir": "docs/poster2/assets/hybrid_real_generation_probe_v1",
+      "size_mb": 1.2,
+      "files": 2
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_r2_bridge_v1",
+      "size_mb": 0.9,
+      "files": 5
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_remote_404_fix_v1",
+      "size_mb": 0.7,
+      "files": 3
+    },
+    {
+      "dir": "docs/poster2/assets/model_composed_hybrid_mvp_v2",
+      "size_mb": 0.0,
+      "files": 6
+    },
+    {
+      "dir": "docs/poster2/assets/email_campaign_composite_ui_publish_v1",
+      "size_mb": 0.0,
+      "files": 3
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_generate_502_diag_v1",
+      "size_mb": 0.0,
+      "files": 2
+    },
+    {
+      "dir": "docs/poster2/assets/ops_campaign_path_compare_v1",
+      "size_mb": 0.0,
+      "files": 1
+    }
+  ],
+  "skipped_tracked_or_missing": [],
+  "estimated_reclaimed_mb": 244.5,
+  "reason": "untracked process evidence superseded by CUISTANCE dual-mode baseline",
+  "git_history_impact": "none",
+  "deleted_count": 28
+}

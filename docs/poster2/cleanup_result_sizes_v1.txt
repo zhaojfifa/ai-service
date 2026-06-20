@@ -1,0 +1,75 @@
+POSTER2 CLEANUP RESULT — SIZES v1
+Branch: trial/poster2-cuistance-psd-email-container-last-mile-v1
+Generated: 2026-06-20
+
+=== du -sh docs/poster2/assets (AFTER) ===
+3.7M	docs/poster2/assets
+
+=== du -sh docs/poster2/assets/* (AFTER, sorted) ===
+4.0K	docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1
+4.0K	docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1
+4.0K	docs/poster2/assets/cuistance_email_preview_send_semantics_v1
+4.0K	docs/poster2/assets/cuistance_final_email_preview_binding_v1
+4.0K	docs/poster2/assets/cuistance_real_poster_binding_selection_fix_v1
+4.0K	docs/poster2/assets/cuistance_remote_candidate_selection_verify_b9f3df5
+4.0K	docs/poster2/assets/cuistance_state_recovery_step2_step3_consistency_v1
+4.0K	docs/poster2/assets/cuistance_step2_step3_layout_preview_consistency_v1
+4.0K	docs/poster2/assets/cuistance_step3_email_fill_format_preview_correction_v1
+4.0K	docs/poster2/assets/cuistance_ui_candidate_selection_state_fix_v1
+ 16K	docs/poster2/assets/announcement_live_e2e_diagnosis_v1
+ 28K	docs/poster2/assets/announcement_runtime_v1
+ 32K	docs/poster2/assets/announcement_ui_closure_v1
+ 36K	docs/poster2/assets/announcement_remote_ui_validation_v1
+3.5M	docs/poster2/assets/cuistance_psd_email_container_last_mile_v1
+
+=== remaining png/jpg/html files under assets ===
+8.0K	docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/source/logo_01.jpg
+112K	docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/source/ttt2.html
+ 24K	docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/source/ttt.html
+
+=== evidence.json count (preserved) ===
+      18
+
+=== git status --short (truncated) ===
+ M .DS_Store
+ M docs/.DS_Store
+D  docs/poster2/assets/announcement_remote_ui_validation_v1/final_poster.png
+D  docs/poster2/assets/announcement_remote_ui_validation_v1/final_poster_page_screenshot.png
+D  docs/poster2/assets/announcement_remote_ui_validation_v1/stage1_filled_correct_values.png
+D  docs/poster2/assets/announcement_remote_ui_validation_v1/stage2_summary_correct_values.png
+D  docs/poster2/assets/announcement_runtime_v1/final_poster.png
+D  docs/poster2/assets/announcement_ui_closure_v1/final_poster.png
+D  docs/poster2/assets/announcement_ui_closure_v1/stage1_or_stage2_input_screenshot.png
+D  docs/poster2/assets/announcement_ui_closure_v1/stage2_request_preview_screenshot.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/01_step1_gallery_selected.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/02_workbench_after_save_gallery_persisted.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/03_step2_generation_with_asset_counts.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/04_step2_current_generated_poster_not_old_send_attempt.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/05_step2_selected_visual_confirmed.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/06_step3_header_options_corrected.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/07_step3_final_preview_correct_header.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/08_send_preview_only_if_run.png
+D  docs/poster2/assets/cuistance_asset_persistence_generate_payload_header_fix_v1/09_diagnostics_asset_payload_header_evidence.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/01_step1_simplified_product_assets_no_banner_confusion.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/02_step2_dual_body_modes.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/03_step2_affiche_generated_with_open_copy_actions.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/04_step2_fiche_generated_or_mode_specific_unavailable.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/05_step2_selected_body_visual_confirmed.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/06_step3_email_fill_format_selection.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/07_step3_final_email_preview.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/08_send_preview_only_semantics.png
+D  docs/poster2/assets/cuistance_dual_body_mode_email_fill_format_alignment_v1/09_diagnostics_dual_mode_email_format_evidence.png
+D  docs/poster2/assets/cuistance_email_preview_send_semantics_v1/01_step1_banner_option_selected.png
+D  docs/poster2/assets/cuistance_email_preview_send_semantics_v1/02_step2_generated_poster_with_open_link.png
+D  docs/poster2/assets/cuistance_email_preview_send_semantics_v1/03_step3_preview_uses_generated_poster.png
+D  docs/poster2/assets/cuistance_email_preview_send_semantics_v1/04_send_preview_only_not_real_sent.png
+D  docs/poster2/assets/cuistance_email_preview_send_semantics_v1/05_diagnostics_email_preview_send_evidence.png
+D  docs/poster2/assets/cuistance_final_email_preview_binding_v1/01_step3_before_preview_not_generated.png
+D  docs/poster2/assets/cuistance_final_email_preview_binding_v1/02_step3_after_backend_preview_generated.png
+D  docs/poster2/assets/cuistance_final_email_preview_binding_v1/03_step3_preview_contains_generated_poster.png
+D  docs/poster2/assets/cuistance_final_email_preview_binding_v1/04_send_preview_only_not_real_sent.png
+D  docs/poster2/assets/cuistance_final_email_preview_binding_v1/05_diagnostics_email_preview_binding_evidence.png
+D  docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/operator_screenshots/01_source_material_inventory.png
+D  docs/poster2/assets/cuistance_psd_email_container_last_mile_v1/operator_screenshots/02_psd_layer_inventory.png
+... total changed entries:
+     233
