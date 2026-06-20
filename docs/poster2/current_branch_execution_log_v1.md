@@ -12760,3 +12760,19 @@ After bundle:
 - Clean baseline packet: docs/poster2/cuistance_clean_baseline_packet_v1.md (branch/tag/commit, supported modes,
   non-scope, cleanup result, preserved artifacts, external archive TBD, next-stage options proposed not executed).
 - No app/frontend/tests/scripts/runtime change. Tag not pushed. No ai-service-clean export. No history rewrite.
+
+## UNTRACKED LARGE ARTIFACT CLEANUP + PRODUCTIZATION BASELINE (2026-06-20) — docs only (+ deleted untracked scripts/out)
+- Part A: scripts/out (655 MB / 87 files, UNTRACKED — catalog_hero render dumps: catalog_hero_v1.html 47M +
+  12×catalog_hero_v2_iter*.html ~45M + iter PNGs) archived to
+  ~/poster_archive/poster2_cleanup_20260620/untracked_large_artifacts/scripts_out then rm -rf. Confirmed untracked ->
+  no git status entry, no history impact. No other untracked file >5MB remained; remaining >5MB are tracked NotoSansSC
+  runtime fonts (KEEP) + .claude/worktrees tooling.
+- ArchivoBlack-Regular.ttf (92K, untracked, no refs in app/frontend/scripts) = REVIEW_NEEDED, report-only, NOT deleted.
+- Reports: untracked_large_artifacts_cleanup_v1.md, untracked_large_artifacts_inventory_v1.json,
+  untracked_large_artifacts_cleanup_result_v1.md, untracked_large_artifacts_cleanup_result_sizes_v1.txt.
+- Part B: cuistance_productization_next_stage_baseline_v1.md — routes (Affiche/campaign_poster_email,
+  Fiche/product_sheet_email single-product), non-scope, Direction A material input flexibility, Direction B email
+  container module/slot flexibility, Direction C operator editability, contract boundaries, and next recommended phase
+  POSTER2-PRODUCTIZATION-P1-MATERIAL-INPUT-AND-CONTAINER-CONTRACT (not started).
+- No app/frontend/tests change; only scripts/ change = deletion of untracked scripts/out. Tag not pushed. No history
+  rewrite. No ai-service-clean export. docs/poster2/assets unchanged (3.6 MB).

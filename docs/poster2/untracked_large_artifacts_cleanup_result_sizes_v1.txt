@@ -1,0 +1,26 @@
+POSTER2 — UNTRACKED LARGE ARTIFACTS CLEANUP — RESULT SIZES v1
+Branch: trial/poster2-cuistance-psd-email-container-last-mile-v1 @ 032b946
+Generated: 2026-06-20
+
+=== scripts/out (AFTER) ===
+scripts/out: REMOVED (does not exist)
+
+=== docs/poster2/assets (unchanged in this pass) ===
+3.6M	docs/poster2/assets
+
+=== working-tree files >5MB (excl .git/.venv/node_modules) ===
+33M ./.claude/worktrees/festive-heisenberg/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./.claude/worktrees/flamboyant-mclaren/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./.claude/worktrees/gracious-allen/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./.claude/worktrees/hungry-neumann/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./.claude/worktrees/pensive-shamir/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./.claude/worktrees/recursing-joliot/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./.claude/worktrees/vibrant-khayyam/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./app/assets/fonts/NotoSansSC-Regular.ttf
+33M ./app/assets/fonts/NotoSansSC-SemiBold.ttf
+33M ./assets/fonts/NotoSansSC-SemiBold.ttf
+
+=== git status --short (tracked changes; untracked deletion not shown) ===
+ M .DS_Store
+ M docs/.DS_Store
+untracked count: 67

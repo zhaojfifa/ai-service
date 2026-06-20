@@ -1,0 +1,117 @@
+{
+  "scope": "untracked large process artifacts (working tree, excl .git/.venv/node_modules)",
+  "scripts_out": {
+    "exists": true,
+    "size_kb": 670872,
+    "size_mb": 655.1,
+    "file_count": 87,
+    "largest_20": [
+      {
+        "file": "scripts/out/reference_grammar_v1/reconstruction/catalog_hero_v1.html",
+        "bytes": 49166385
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter12.html",
+        "bytes": 47371369
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter13.html",
+        "bytes": 47369856
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter9.html",
+        "bytes": 47358353
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter8.html",
+        "bytes": 47357213
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter10.html",
+        "bytes": 47356417
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter11.html",
+        "bytes": 47356417
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter2.html",
+        "bytes": 47146320
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter3.html",
+        "bytes": 47140512
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter6.html",
+        "bytes": 47129580
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter7.html",
+        "bytes": 47129511
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter5.html",
+        "bytes": 47129137
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/catalog_hero_v2_iter4.html",
+        "bytes": 47127123
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_2.png",
+        "bytes": 2713340
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_6.png",
+        "bytes": 2696728
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_4.png",
+        "bytes": 2655578
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_3.png",
+        "bytes": 2650924
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_5.png",
+        "bytes": 2634933
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_7.png",
+        "bytes": 2608588
+      },
+      {
+        "file": "scripts/out/reference_grammar_v1/heavy/iter_12.png",
+        "bytes": 2565893
+      }
+    ],
+    "tracked": false,
+    "classification": "DELETE_CANDIDATE"
+  },
+  "other_large_untracked_files": [],
+  "tracked_large_kept": [
+    {
+      "file": "./app/assets/fonts/NotoSansSC-Regular.ttf",
+      "mb": 33.4,
+      "tracked": true,
+      "classification": "KEEP",
+      "reason": "tracked runtime/asset dependency"
+    },
+    {
+      "file": "./app/assets/fonts/NotoSansSC-SemiBold.ttf",
+      "mb": 33.4,
+      "tracked": true,
+      "classification": "KEEP",
+      "reason": "tracked runtime/asset dependency"
+    },
+    {
+      "file": "./assets/fonts/NotoSansSC-SemiBold.ttf",
+      "mb": 33.4,
+      "tracked": true,
+      "classification": "KEEP",
+      "reason": "tracked runtime/asset dependency"
+    }
+  ]
+}
