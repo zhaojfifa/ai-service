@@ -2515,8 +2515,17 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
         if candidate.get("status") != "ready":
             raise HTTPException(status_code=422, detail="selected_candidate_not_ready")
         truth = workbench.get("product_truth") or {}
-        images = [i.get("url") for i in ((workbench.get("product_assets") or {}).get("product_images") or []) if i and i.get("url")]
+        assets = workbench.get("product_assets") or {}
+        images = [i.get("url") for i in (assets.get("product_images") or []) if i and i.get("url")]
+        gallery = [g.get("url") for g in (assets.get("gallery_images") or []) if g and g.get("url")]
         product_image_url = images[0] if images else None
+        # supporting_media_strip fill rule (Fiche): product_images[1..] (same-product views) first, then gallery
+        # (supporting visuals), capped at 3. Atmosphere is NEVER included (visual-only, not truth).
+        supporting_media = (
+            [{"url": u, "role": "same_product_view"} for u in images[1:]]
+            + [{"url": u, "role": "supporting_visual"} for u in gallery]
+        )[:3]
+        atmosphere_present = bool(((assets.get("atmosphere") or {}) or {}).get("url"))
         draft = {
             "subject": (truth.get("product_name") or truth.get("reference") or "CUISTANCE"),
             "preview_text": (truth.get("description") or "")[:140],
@@ -2529,6 +2538,9 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
                 candidate_type="fiche", template_id="product_sheet_email", poster_key=None,
                 body_visual_variant="product_image", body_visual_contains_own_banner=False,
                 standalone_poster_url=None,
+                supporting_media=supporting_media,
+                product_image_count=len(images), gallery_image_count=len(gallery),
+                atmosphere_present=atmosphere_present,
             )
         except Exception as exc:
             raise HTTPException(status_code=422, detail="email_body_plan_unavailable") from exc
@@ -2554,6 +2566,12 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
     # derive the email-embedded body visual (no inner poster banner) deterministically — NEVER the standalone poster
     ebv = derive_email_body_visual(record)
     email_body_visual_url = ebv.get("url") or standalone_url
+    # Affiche carries the views/specs inside the rendered poster -> NO supporting_media_strip. Surface asset counts
+    # only (for coherent diagnostics); supporting_media stays None so the campaign container adds no strip.
+    a_assets = workbench.get("product_assets") or {}
+    a_image_count = len([i for i in (a_assets.get("product_images") or []) if i and i.get("url")])
+    a_gallery_count = len([g for g in (a_assets.get("gallery_images") or []) if g and g.get("url")])
+    a_atmo_present = bool(((a_assets.get("atmosphere") or {}) or {}).get("url"))
     try:
         assembly = build_email_assembly(
             workbench=workbench,
@@ -2565,6 +2583,9 @@ def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
             body_visual_variant=ebv.get("variant"),
             body_visual_contains_own_banner=bool(ebv.get("contains_own_banner")),
             standalone_poster_url=standalone_url,
+            supporting_media=None,
+            product_image_count=a_image_count, gallery_image_count=a_gallery_count,
+            atmosphere_present=a_atmo_present,
         )
     except Exception as exc:  # plan/assembly could not be built
         raise HTTPException(status_code=422, detail="email_body_plan_unavailable") from exc
@@ -2666,6 +2687,15 @@ def preview_workbench_email_v2(
         preview_ready=bool(assembly.get("preview_ready", True)),
         send_hold=True,
         real_email_sent=False,
+        container_modules=list(assembly.get("container_modules") or []),
+        primary_product_visual_present=bool(assembly.get("primary_product_visual_present")),
+        supporting_media_strip_present=bool(assembly.get("supporting_media_strip_present")),
+        supporting_media_count=int(assembly.get("supporting_media_count") or 0),
+        supporting_media_sources=list(assembly.get("supporting_media_sources") or []),
+        product_image_count=int(assembly.get("product_image_count") or 0),
+        gallery_image_count=int(assembly.get("gallery_image_count") or 0),
+        atmosphere_present=bool(assembly.get("atmosphere_present")),
+        atmosphere_used_in_fiche=bool(assembly.get("atmosphere_used_in_fiche")),
     )
 
 

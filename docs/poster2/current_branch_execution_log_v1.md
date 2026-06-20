@@ -12880,3 +12880,35 @@ After bundle:
   Doc: docs/poster2/email_container_remote_trial_smoke_v1.md. check_docs_router --all = PASS (legacy advisory only).
 - Owner Decision Needed: provide OPS creds via the secure temporary method; the authenticated remote preview smoke then
   completes against the already-deployed b6bcbbb build. Multi-product / products[] / real customer send remain HOLD.
+
+## EMAIL CONTAINER STRUCTURE-FIRST FILLABILITY FIX V1 (2026-06-20) — Fiche supporting_media_strip; structure-first
+- Task POSTER2-EMAIL-CONTAINER-STRUCTURE-FIRST-FILLABILITY-FIX-V1. Root cause: Fiche assembly rendered ONLY
+  product_images[0]; there was NO container module to receive product_images[1..] or gallery_images[], so they
+  "disappeared" in preview. Structure gap, not upload loss.
+- Structure-first: defined docs/poster2/email_container_structure_and_fill_contract_v1.md (two containers, module
+  structure, Fiche fill rules) BEFORE code. supporting_media_strip is now a STRUCTURAL module in the deterministic
+  order (between primary visual and product_description); rendered for Fiche, present=false for Affiche.
+- Assembly (app/services/email/assembly.py): new supporting_media_strip module + render (max 3, priority
+  product_images[1..] same_product_view, then gallery supporting_visual; atmosphere NEVER included; 600px email-safe
+  table row, object-fit cover). New diagnostics: container_modules, primary_product_visual_present,
+  supporting_media_strip_present, supporting_media_count, supporting_media_sources, product_image_count,
+  gallery_image_count, atmosphere_present, atmosphere_used_in_fiche(=false).
+- Schema (app/schemas/poster2.py): EmailBodyModuleKey += supporting_media_strip; 9 additive optional response fields.
+- Endpoint (app/main.py): fiche resolve computes supporting_media (product_images[1..]+gallery, cap 3) + counts +
+  atmosphere_present and passes them; affiche passes counts only (supporting_media=None -> no strip). Response wires
+  the new fields. Selection persistence unchanged (already Workbench truth via /selected-visual).
+- Frontend (cuistance_trial.html + mirror): Step-2 Fiche card now explains 简单产品页将装入 主图/多视角/支撑图/参数/
+  描述/CTA + 氛围图仅作视觉; Step-3 shows business-readable 已填充多视角/支撑图：N 张 OR 未提供多视角/支撑图…只显示主图,
+  plus the atmosphere note; extended internal diagnostics. No layout drift. node --check = TRIAL_JS_OK; mirror synced.
+- Truth boundaries reaffirmed: product_images[1..] = MORE VIEWS of ONE product (not products[]); gallery = supporting
+  visual (not truth); atmosphere = visual only, never in Fiche fact area; no free-form spec-value editing.
+- Tests: +7 focused (strip module present+ordered; 2 images+3 gallery -> 3 supporting; primary stays
+  product_images[0]; roles views-then-gallery; atmosphere present-but-unused; no-supporting -> primary only; affiche
+  has no strip + real_email_sent false; selection persists both routes). Updated test_workbench_email_body_plan module
+  order (8 modules incl. supporting_media_strip, present=false for affiche). Focused: assembly+candidates+psd+body_plan+
+  reference+send = 81 passed; test_api -k email/workbench/selected/fiche/preview = 10 passed; check_docs_router = PASS.
+- No products[]; no multi-product backend; no real send; no real email sent; P2A demo untouched.
+- Evidence: docs/poster2/assets/email_container_structure_fill_fix_v1/evidence.json. Docs:
+  email_container_structure_and_fill_contract_v1.md + email_container_structure_fill_fix_v1.md.
+- Remote smoke remains HOLD (BLOCKED_OPS_AUTH_REQUIRED). Owner Decision Needed: approve the structure-first container
+  contract; multi-product / products[] / real send stay HOLD; provide OPS creds for the authenticated remote smoke.

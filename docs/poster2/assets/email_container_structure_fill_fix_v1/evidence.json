@@ -1,0 +1,51 @@
+{
+  "container_structure_defined": true,
+  "single_product_sheet_email_modules": [
+    "email_header",
+    "title_intro",
+    "primary_product_visual",
+    "supporting_media_strip",
+    "product_description",
+    "spec_list",
+    "cta",
+    "contact_footer",
+    "legal_footer"
+  ],
+  "fiche_supporting_media_strip": true,
+  "max_supporting_media": 3,
+  "product_images_used_as_single_product_views": true,
+  "gallery_images_used_as_supporting_visual": true,
+  "atmosphere_used_in_fiche": false,
+  "products_backend_introduced": false,
+  "selected_email_body_visual_persisted": true,
+  "real_email_sent": false,
+  "root_cause": "Fiche assembly only rendered product_images[0]; there was no supporting_media_strip module, so product_images[1..] and gallery_images[] were never placed into the container (structure gap, not upload loss).",
+  "fill_rule": "primary=product_images[0]; supporting_media_strip = product_images[1..] (same_product_view) then gallery_images[] (supporting_visual), capped at 3; atmosphere excluded by default.",
+  "observed_case_result": {
+    "container_profile": "single_product_sheet_email",
+    "body_visual_mode": "product_image",
+    "primary_product_visual_present": true,
+    "product_image_count": 2,
+    "gallery_image_count": 3,
+    "supporting_media_strip_present": true,
+    "supporting_media_count": 3,
+    "supporting_media_sources": ["same_product_view", "supporting_visual", "supporting_visual"],
+    "atmosphere_present": true,
+    "atmosphere_used_in_fiche": false
+  },
+  "tests": {
+    "new_supporting_media_tests": 7,
+    "updated_module_order_test": 1,
+    "focused_assembly_candidates_psd_bodyplan_reference_send": "81 passed",
+    "test_api_email_workbench_selected_fiche_preview": "10 passed",
+    "trial_js_node_check": "TRIAL_JS_OK"
+  },
+  "boundaries": {
+    "atmosphere_truth_bearing": false,
+    "gallery_truth_bearing": false,
+    "product_images_treated_as_products": false,
+    "free_form_spec_value_editing": false
+  },
+  "p2a_demo_touched": false,
+  "remote_smoke": "HOLD (BLOCKED_OPS_AUTH_REQUIRED, not run this task)"
+}

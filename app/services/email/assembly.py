@@ -76,11 +76,15 @@ EMAIL_BODY_MODULE_ORDER = [
     "email_banner",
     "title_intro",
     "selected_body_visual",
+    "supporting_media_strip",   # fiche-only structural module (product_images[1..] + gallery_images[]); empty for affiche
     "product_description",
     "cta",
     "contact_footer",
     "legal_footer",
 ]
+
+# supporting_media_strip (Fiche / single_product_sheet_email): same-product views + supporting visuals, NEVER truth.
+SUPPORTING_MEDIA_MAX = 3
 
 
 def build_email_assembly(
@@ -97,6 +101,10 @@ def build_email_assembly(
     body_visual_contains_own_banner: bool | None = None,
     standalone_poster_url: str | None = None,
     container_profile: str | None = None,
+    supporting_media: list[dict[str, Any]] | None = None,
+    product_image_count: int = 0,
+    gallery_image_count: int = 0,
+    atmosphere_present: bool = False,
 ) -> dict[str, Any]:
     banner = workbench.get("email_banner") or {}
     product_truth = workbench.get("product_truth") or {}
@@ -129,6 +137,31 @@ def build_email_assembly(
         if spec_items:
             sheet_extra += f'<ul style="margin:0 0 12px;padding-left:18px;font-size:13px;color:#33363b;list-style:disc;">{spec_items}</ul>'
 
+    # ---- supporting_media_strip (Fiche-only): same-product views (product_images[1..]) then supporting visuals
+    # (gallery_images[]), max 3, priority product views first. Atmosphere is NEVER included. These are supporting
+    # VISUALS only — never business truth. Empty (and absent) for Affiche, whose poster already carries the views.
+    strip_items: list[dict[str, Any]] = []
+    if is_product_sheet and supporting_media:
+        strip_items = [m for m in supporting_media if m and m.get("url")][:SUPPORTING_MEDIA_MAX]
+    supporting_media_count = len(strip_items)
+    supporting_media_strip_present = supporting_media_count > 0
+    supporting_media_sources = [str(m.get("role") or "supporting_visual") for m in strip_items]
+    primary_product_visual_present = bool(body_visual_url)
+    atmosphere_used_in_fiche = False  # contract: atmosphere is visual-only, never enters the Fiche fact/visual area
+    strip_cells = "".join(
+        '<td style="width:33.33%;padding:0 4px;vertical-align:top;">'
+        + _img(m.get("url"), style="width:100%;height:84px;object-fit:cover;border:1px solid #e4e2de;"
+               "border-radius:6px;display:block;", alt=("vue produit" if m.get("role") == "same_product_view" else "détail"))
+        + "</td>"
+        for m in strip_items
+    )
+    supporting_media_strip_html = (
+        '<div style="padding:0 12px 4px;">'
+        '<p style="margin:0 0 6px;font-size:12px;color:#6b7178;font-weight:700;">Vues produit / Détails</p>'
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" '
+        'style="border-collapse:collapse;width:100%;"><tr>' + strip_cells + "</tr></table></div>"
+    ) if strip_items else ""
+
     # ---- per-module HTML fragments (reference-aligned PR-3R grammar) ----
     # email header = ttt.html-style clean dark bar with a CSS CUISTANCE WORDMARK (deterministic, never distorted) +
     # optional campaign meta + red filet. We do NOT use email_banner.background.url / header-band cover / a stretched
@@ -151,12 +184,14 @@ def build_email_assembly(
             f'<div style="padding:16px 16px 0;"><p style="margin:0;font-weight:700;font-size:16px;">{escape(subject)}</p></div>'
             if subject else ""
         ),
-        # selected body visual — the ONLY place the selected poster/product image enters the email
+        # selected body visual — the primary product visual (the ONLY place the primary poster/product image enters)
         "selected_body_visual": (
             '<div style="padding:16px;border-bottom:1px solid #e4e2de;">'
             + _img(body_visual_url, style="max-width:100%;border-radius:6px;display:block;", alt="aperçu produit")
             + "</div>"
         ),
+        # supporting media strip — same-product views + supporting visuals (fiche only); never truth
+        "supporting_media_strip": supporting_media_strip_html,
         "product_description": (
             '<div style="padding:12px 16px 0;">'
             + (f'<p style="margin:0 0 12px;">{escape(intro)}</p>' if intro else "")
@@ -297,6 +332,16 @@ def build_email_assembly(
         "filled_footer": filled_footer,
         "missing_required_fields": missing_required_fields,
         "preview_ready": preview_ready,
+        # ---- container structure + supporting-media fillability (structure-first) ----
+        "container_modules": modules,
+        "primary_product_visual_present": primary_product_visual_present,
+        "supporting_media_strip_present": supporting_media_strip_present,
+        "supporting_media_count": supporting_media_count,
+        "supporting_media_sources": supporting_media_sources,
+        "product_image_count": int(product_image_count),
+        "gallery_image_count": int(gallery_image_count),
+        "atmosphere_present": bool(atmosphere_present),
+        "atmosphere_used_in_fiche": atmosphere_used_in_fiche,
         "email_container": {
             "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
             "email_fill_format": fill_format,
@@ -310,6 +355,14 @@ def build_email_assembly(
             "filled_footer": filled_footer,
             "missing_required_fields": missing_required_fields,
             "preview_ready": preview_ready,
+            "primary_product_visual_present": primary_product_visual_present,
+            "supporting_media_strip_present": supporting_media_strip_present,
+            "supporting_media_count": supporting_media_count,
+            "supporting_media_sources": supporting_media_sources,
+            "product_image_count": int(product_image_count),
+            "gallery_image_count": int(gallery_image_count),
+            "atmosphere_present": bool(atmosphere_present),
+            "atmosphere_used_in_fiche": atmosphere_used_in_fiche,
             "body_visual_poster_key": poster_key,
             "body_visual_variant": body_visual_variant,
             "body_visual_contains_own_banner": (own_banner if own_banner is not None else (template_id in _BODY_VISUALS_WITH_OWN_BANNER)),

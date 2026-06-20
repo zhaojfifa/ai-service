@@ -301,6 +301,13 @@
           <div class="card selectable mode-ctl" id="card-fiche" data-mode="fiche" style="display:none">
             <h3 style="margin-bottom:4px"><span data-zh="简单产品页模式" data-fr="Fiche produit simple">简单产品页模式</span> <span class="badge ready" data-zh="正式模式 · 默认产品介绍" data-fr="Mode officiel · produit par défaut">正式模式 · 默认产品介绍</span></h3>
             <p class="hint" data-zh="稳定产品展示页，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。" data-fr="Présentation produit stable, HTML + rendu, contrôlable, par défaut pour les emails produit.">稳定产品展示页，HTML 拼接 + 渲染，更可控，默认适合产品介绍邮件。</p>
+            <div class="explain" style="margin:6px 0 4px">
+              <span class="ic">🛈</span>
+              <div>
+                <div data-zh="简单产品页将装入：主产品图 · 同一产品多视角图 · 支撑视觉小图 · 产品参数 · 产品描述 · CTA。" data-fr="La fiche assemble : image principale · autres vues du même produit · visuels d'appui · caractéristiques · description · CTA.">简单产品页将装入：主产品图 · 同一产品多视角图 · 支撑视觉小图 · 产品参数 · 产品描述 · CTA。</div>
+                <div data-zh="多视角图来自第二产品图与画廊图（最多 3 张）。氛围图仅作为视觉素材，不默认进入简单产品页事实区。" data-fr="Les vues viennent de la 2e image produit et de la galerie (max 3). Le visuel d'ambiance reste décoratif et n'entre pas dans la fiche par défaut.">多视角图来自第二产品图与画廊图（最多 3 张）。氛围图仅作为视觉素材，不默认进入简单产品页事实区。</div>
+              </div>
+            </div>
             <div class="card-state" id="fiche-card-state">
               <span class="badge lock" id="fiche-card-badge" data-zh="尚未生成" data-fr="Non générée">尚未生成</span>
               <span class="hint" id="fiche-card-hint" data-zh="点击「生成简单产品页」生成主体。" data-fr="Cliquez sur « Générer la fiche ».">点击「生成简单产品页」生成主体。</span>
@@ -441,6 +448,10 @@
             <div class="card-state" id="container-fill-state" style="margin-top:6px;display:none">
               <span class="badge lock" id="fill-badge"></span>
               <span class="hint" id="fill-missing"></span>
+            </div>
+            <!-- Fiche supporting-media state (multi-view / supporting thumbnails) -->
+            <div class="card-state" id="container-media-state" style="margin-top:4px;display:none">
+              <span class="hint" id="fill-media"></span>
             </div>
             <div class="preview-frame" id="emailPreviewFrame">
               <div class="email" id="emailStatic">
@@ -978,6 +989,21 @@
         if(specEmpty)parts.push(lang==='zh'?'缺少产品参数':'paramètres manquants');
         miss.textContent=(lang==='zh'?('待补充：'+parts.join(' · ')+' · 真实发送仍 HOLD'):('À compléter : '+parts.join(' · ')+' · envoi réel HOLD'));
       }
+      // Fiche supporting-media (multi-view / supporting thumbnails) — business-readable
+      var mbox=$('container-media-state'),media=$('fill-media');
+      if(mbox&&media){
+        if(j.selected_email_body_visual==='fiche'){
+          mbox.style.display='';
+          if(j.supporting_media_strip_present){
+            media.textContent=(lang==='zh'?('已填充多视角 / 支撑图：'+(j.supporting_media_count||0)+' 张'):('Vues / visuels d\'appui : '+(j.supporting_media_count||0)));
+          } else {
+            media.textContent=(lang==='zh'?'未提供多视角 / 支撑图，简单产品页将只显示主图':'Pas de vues/visuels d\'appui — la fiche n\'affiche que l\'image principale');
+          }
+          if(j.atmosphere_present){
+            media.textContent+=(lang==='zh'?' · 氛围图仅作视觉，不进入事实区':' · ambiance décorative uniquement');
+          }
+        } else { mbox.style.display='none'; }
+      }
     }
     function applyFillFormat(fmt,isDefault){
       selectedFillFormat=fmt;
@@ -1014,7 +1040,7 @@
       var fpb=$('btn-full-preview'); if(fpb)fpb.style.display=previewGenerated?'':'none';
       updateBindingLabels(); updateSendGate();
     }
-    function markPreviewStale(){ previewGenerated=false; var cf=$('container-fill-state');if(cf)cf.style.display='none'; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
+    function markPreviewStale(){ previewGenerated=false; var cf=$('container-fill-state');if(cf)cf.style.display='none'; var cm=$('container-media-state');if(cm)cm.style.display='none'; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
     // backend truth: the email fill format MUST follow the selected email body visual. fiche -> product_sheet_email,
     // affiche -> campaign_poster_email. a manual pick that contradicts the selected body is rejected with a clear
     // instruction and snapped back — never silently preview Affiche under the product-sheet tab (or vice versa).
@@ -1099,8 +1125,8 @@
       updateBindingLabels(); updateSendGate();
       var ins=inspectPreview(cdoc,bv.url||'');
       var ec=r.json.email_container||{};
-      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent});
-      updateContainerFillState(r.json);  // business-readable container fill state (filled / missing / HOLD)
+      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent,supporting_media_strip_present:r.json.supporting_media_strip_present,supporting_media_count:r.json.supporting_media_count,supporting_media_sources:r.json.supporting_media_sources,product_image_count:r.json.product_image_count,gallery_image_count:r.json.gallery_image_count,atmosphere_present:r.json.atmosphere_present,atmosphere_used_in_fiche:r.json.atmosphere_used_in_fiche,primary_product_visual_present:r.json.primary_product_visual_present});
+      updateContainerFillState(r.json);  // business-readable container fill state (filled / missing / media / HOLD)
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
     });

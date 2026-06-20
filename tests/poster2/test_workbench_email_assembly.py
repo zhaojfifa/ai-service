@@ -358,3 +358,111 @@ def test_preview_rejects_container_profile_mismatch(client):
                      json={"container_profile": "single_product_campaign_email"})
     assert ok.status_code == 200
     assert ok.json()["container_profile"] == "single_product_campaign_email"
+
+
+# ---- POSTER2-EMAIL-CONTAINER-STRUCTURE-FIRST-FILLABILITY-FIX-V1: supporting_media_strip ----
+def _wb_with_media(client):
+    """Workbench with 2 product images (views of ONE product) + 3 gallery images + 1 atmosphere."""
+    wb = _make_workbench(client)  # 2 product images + 1 confirmed param
+    client.patch(
+        f"/api/v2/workbench/{wb}",
+        json={"product_assets": {
+            "product_images": [{"url": "https://r2.example/p1.png"}, {"url": "https://r2.example/p2.png"}],
+            "gallery_images": [{"url": "https://r2.example/g1.png"}, {"url": "https://r2.example/g2.png"},
+                               {"url": "https://r2.example/g3.png"}],
+            "atmosphere": {"url": "https://r2.example/atmo.png", "is_truth": False},
+        }},
+    )
+    return wb
+
+
+def test_fiche_container_includes_supporting_media_strip_module(client):
+    wb = _wb_with_media(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    keys = [m["key"] for m in body["container_modules"]]
+    assert "supporting_media_strip" in keys
+    strip = next(m for m in body["container_modules"] if m["key"] == "supporting_media_strip")
+    assert strip["present"] is True
+    # ordered after the primary visual, before product_description
+    assert keys.index("selected_body_visual") < keys.index("supporting_media_strip") < keys.index("product_description")
+
+
+def test_fiche_two_product_images_three_gallery_renders_three_supporting(client):
+    wb = _wb_with_media(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["supporting_media_strip_present"] is True
+    assert body["supporting_media_count"] == 3                 # capped at 3 (p2 + g1 + g2)
+    assert body["product_image_count"] == 2
+    assert body["gallery_image_count"] == 3
+    # primary visual stays product_images[0]; the strip never replaces it
+    assert body["primary_product_visual_present"] is True
+    assert body["body_visual"]["url"] == "https://r2.example/p1.png"
+    # rendered strip: p2 + g1 + g2 present, g3 dropped by the max-3 cap
+    assert "Vues produit" in body["html"]
+    assert "p2.png" in body["html"] and "g1.png" in body["html"] and "g2.png" in body["html"]
+    assert "g3.png" not in body["html"]
+
+
+def test_fiche_supporting_media_roles_views_then_gallery(client):
+    wb = _wb_with_media(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    # product_images[1..] are SAME-product views (priority), gallery images are supporting visuals
+    assert body["supporting_media_sources"] == ["same_product_view", "supporting_visual", "supporting_visual"]
+
+
+def test_fiche_atmosphere_present_but_not_used(client):
+    wb = _wb_with_media(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["atmosphere_present"] is True
+    assert body["atmosphere_used_in_fiche"] is False
+    assert "atmo.png" not in body["html"]            # atmosphere never enters the Fiche body
+
+
+def test_fiche_no_supporting_media_only_primary(client):
+    wb = _make_workbench(client, two_images=False)   # single product image, default 1 gallery
+    client.patch(f"/api/v2/workbench/{wb}", json={"product_assets": {
+        "product_images": [{"url": "https://r2.example/p1.png"}], "gallery_images": []}})
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["supporting_media_strip_present"] is False
+    assert body["supporting_media_count"] == 0
+    assert "Vues produit" not in body["html"]
+
+
+def test_affiche_has_no_supporting_media_strip(client):
+    wb = _wb_with_media(client)
+    _gen(client, wb, "affiche")
+    _select(client, wb, "affiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["supporting_media_strip_present"] is False
+    assert body["supporting_media_count"] == 0
+    keys = [m["key"] for m in body["container_modules"]]
+    assert "supporting_media_strip" in keys           # structural module exists...
+    strip = next(m for m in body["container_modules"] if m["key"] == "supporting_media_strip")
+    assert strip["present"] is False                  # ...but is not rendered for affiche
+    assert "Vues produit" not in body["html"]
+    assert body["real_email_sent"] is False
+
+
+def test_selected_email_body_visual_persists(client):
+    # Fiche selection persists as workbench truth across preview
+    wb = _wb_with_media(client)
+    _gen(client, wb, "fiche")
+    _select(client, wb, "fiche")
+    client.post(f"/api/v2/workbench/{wb}/email/preview")
+    assert client.get(f"/api/v2/workbench/{wb}").json()["selected_email_body_visual"] == "fiche"
+    # Affiche selection persists too
+    wb2 = _make_workbench(client)
+    _gen(client, wb2, "affiche")
+    _select(client, wb2, "affiche")
+    client.post(f"/api/v2/workbench/{wb2}/email/preview")
+    assert client.get(f"/api/v2/workbench/{wb2}").json()["selected_email_body_visual"] == "affiche"

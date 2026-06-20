@@ -438,7 +438,7 @@ class EmailAssemblyBodyVisual(BaseModel):
 
 # PR-3S — explicit, deterministic Email Body Plan (the selected visual enters ONLY via the planned slot).
 EmailBodyModuleKey = Literal[
-    "email_banner", "title_intro", "selected_body_visual", "product_description",
+    "email_banner", "title_intro", "selected_body_visual", "supporting_media_strip", "product_description",
     "cta", "contact_footer", "legal_footer",
 ]
 
@@ -516,6 +516,16 @@ class EmailAssemblyPreviewResponse(BaseModel):
     # send safety surfaced in the preview response (this endpoint never sends): real send stays HOLD by default.
     send_hold: bool = True
     real_email_sent: bool = False
+    # ---- container structure + supporting-media fillability (structure-first; additive) ----
+    container_modules: list[dict[str, Any]] = Field(default_factory=list)
+    primary_product_visual_present: bool = False
+    supporting_media_strip_present: bool = False
+    supporting_media_count: int = 0
+    supporting_media_sources: list[str] = Field(default_factory=list)
+    product_image_count: int = 0
+    gallery_image_count: int = 0
+    atmosphere_present: bool = False
+    atmosphere_used_in_fiche: bool = False
 
 
 # PR-4 — manual multi-recipient confirmed send + evidence.

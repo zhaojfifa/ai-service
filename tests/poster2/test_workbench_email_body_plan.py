@@ -66,13 +66,18 @@ def test_module_order_banner_before_body_visual(client):
     wb = _prepare(client, "affiche")
     plan = client.post(f"/api/v2/workbench/{wb}/email/preview").json()["email_body_plan"]
     keys = [m["key"] for m in plan["modules"]]
+    # supporting_media_strip is a STRUCTURAL module (between primary visual and description); present=False for affiche
     assert keys == [
-        "email_banner", "title_intro", "selected_body_visual",
+        "email_banner", "title_intro", "selected_body_visual", "supporting_media_strip",
         "product_description", "cta", "contact_footer", "legal_footer",
     ]
     assert keys.index("email_banner") < keys.index("selected_body_visual")
+    assert keys.index("selected_body_visual") < keys.index("supporting_media_strip") < keys.index("product_description")
     # module order entries carry their position
-    assert [m["order"] for m in plan["modules"]] == [1, 2, 3, 4, 5, 6, 7]
+    assert [m["order"] for m in plan["modules"]] == [1, 2, 3, 4, 5, 6, 7, 8]
+    # affiche poster carries its own views -> the strip module is present in structure but not rendered
+    strip = next(m for m in plan["modules"] if m["key"] == "supporting_media_strip")
+    assert strip["present"] is False
 
 
 # 5
