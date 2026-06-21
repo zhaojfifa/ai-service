@@ -13292,3 +13292,19 @@ After bundle:
   docs/poster2/email_package_send_binding_remote_verify_v1.md. check_docs_router = PASS.
 - Owner Decision Needed: accept the send-binding hotfix as remote-verified; commission designer banner assets.
   customer/batch + products[] remain HOLD.
+
+## CUISTANCE EMAIL TRIAL BASELINE TAG V1 (2026-06-21) — first internally-testable baseline (docs + local tag; no code)
+- Task POSTER2-CUISTANCE-EMAIL-TRIAL-BASELINE-TAG-V1. Marks the first internally testable baseline (NOT final release).
+- Baseline includes: Fiche + Affiche routes, ttt/ttt2 container migration, interim banner/header module, internal Resend
+  real send (owner/test-gated, provider_message_id proven), email package candidate layer, send-binding hotfix (P0 fixed
+  + remote-verified Affiche sends Affiche).
+- Local annotated tag created (NOT pushed): poster2-cuistance-email-trial-baseline-v1 on the baseline-doc commit.
+- Accepted (internally testable): Fiche/Affiche test routes, internal real send, package compare, send-time package
+  selection. Interim: banner/header visual (PASS_WITH_NITS), body polish, copy quality. HOLD: customer send, customer
+  batch send, products[], P2A demo backend mapping, final designer banner assets.
+- Next 4 tracks: (1) designer banner assets, (2) AI copy optimization under truth boundary, (3) container visual
+  refinement, (4) product/input UX refinement.
+- No code change. No email sent. P2A demo untouched. Stash preserved. Tag NOT pushed (awaiting owner authorization).
+- Doc: docs/poster2/cuistance_email_trial_baseline_v1.md. check_docs_router = PASS.
+- Owner Decision Needed: authorize tag push ("push the baseline tag") if desired; commission designer banner assets.
+  customer/batch + products[] remain HOLD.
