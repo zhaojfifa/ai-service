@@ -393,8 +393,8 @@
             </div>
           </div>
           <div class="card banner-editor">
-            <h3><span data-zh="邮件页眉 / Header" data-fr="En-tête de l'email">邮件页眉 / Header</span> <span class="badge ready" data-zh="统一品牌页眉（自动）" data-fr="En-tête de marque (auto)">统一品牌页眉（自动）</span></h3>
-            <p class="hint" data-zh="邮件页眉为统一的 CUISTANCE 品牌页眉：深色条 + 品牌字标 + 红色分隔，无需选择横幅样式，不含产品主体 / 描述 / CTA / 页脚。" data-fr="En-tête unifié CUISTANCE : barre sombre + nom de marque + filet rouge ; aucun choix de bannière ; pas de corps / description / CTA / pied.">邮件页眉为统一的 CUISTANCE 品牌页眉：深色条 + 品牌字标 + 红色分隔，无需选择横幅样式，不含产品主体 / 描述 / CTA / 页脚。</p>
+            <h3><span data-zh="邮件容器与页眉" data-fr="Conteneur &amp; en-tête">邮件容器与页眉</span> <span class="badge ready" data-zh="TTT / TTT2 容器" data-fr="Conteneurs TTT / TTT2">TTT / TTT2 容器</span></h3>
+            <p class="hint" data-zh="邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条），不含产品主体 / 描述 / CTA / 页脚。" data-fr="Conteneur automatique selon le mode : fiche = conteneur TTT ; affiche = conteneur TTT2. En-tête : barre sombre + filet rouge ; bannière remplaçable (wordmark / logo) ; pas de corps / description / CTA / pied.">邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条）。</p>
             <div class="ttt-header-preview" id="tttHeaderPreview"><span class="ttt-wordmark" id="tttWordmark">CUISTANCE</span><img class="ttt-logo" id="tttLogo" alt="CUISTANCE" style="display:none;height:30px;max-width:200px;object-fit:contain" /><span class="ttt-meta" id="tttHeaderMeta">CUISTANCE Europe · Nouveauté</span></div>
             <div class="radio-row" id="headerVariantRow" style="margin-top:8px">
               <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" checked /> <span data-zh="文字品牌条" data-fr="Bandeau wordmark">文字品牌条</span></label>
@@ -1105,15 +1105,23 @@
       selectedHeaderVariant=r.value; updateHeaderPreview(); markPreviewStale();
       diag('header_variant',{selected_header_variant:selectedHeaderVariant,logo_present:!!SLOTS.logo});
     });});
-    // business-readable header diagnostics after a backend preview
+    // business-readable container + banner/header diagnostics after a backend preview
+    var CONTAINER_NAME={ttt_product_sheet_container:{zh:'TTT 简单产品容器',fr:'conteneur fiche TTT'},
+      ttt2_campaign_container:{zh:'TTT2 目标海报容器',fr:'conteneur affiche TTT2'}};
+    var BANNER_SRC={uploaded_logo:{zh:'当前使用上传 Logo',fr:'logo importé'},
+      default_wordmark:{zh:'当前使用默认文字品牌',fr:'wordmark par défaut'},
+      wordmark_fallback:{zh:'缺少 Logo，已回退文字品牌',fr:'retour au wordmark (logo manquant)'}};
     function updateHeaderDiag(j){
       var box=$('header-diag-state'),el=$('header-diag'); if(!box||!el)return;
       if(!j||!j.header_variant){box.style.display='none';return;}
       box.style.display='';
-      var isLogo=(j.header_variant==='logo_image_bar');
-      var parts=[(lang==='zh'?'当前 Header：':'Header : ')+(isLogo?(lang==='zh'?'Logo 图片条':'bandeau logo'):(lang==='zh'?'文字品牌条':'wordmark'))];
-      parts.push((lang==='zh'?'Logo 已使用：':'logo utilisé : ')+(j.header_logo_used?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
-      if(j.header_logo_missing_fallback)parts.push(lang==='zh'?'（缺少 Logo，已回退文字品牌条）':'(logo manquant — retour au wordmark)');
+      var cv=(CONTAINER_NAME[j.container_visual_variant]||{})[lang]||j.container_visual_variant||'';
+      var bs=(BANNER_SRC[j.banner_source]||{})[lang]||j.banner_source||'';
+      var parts=[];
+      if(cv)parts.push((lang==='zh'?'当前邮件容器：':'Conteneur : ')+cv);
+      parts.push((lang==='zh'?'当前 Banner：可替换 · ':'Bannière : remplaçable · ')+bs);
+      parts.push((lang==='zh'?'Logo 已使用：':'logo : ')+(j.header_logo_used?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
+      if(j.header_logo_missing_fallback)parts.push(lang==='zh'?'（已回退文字品牌条）':'(retour au wordmark)');
       el.textContent=parts.join(' · ');
     }
 
@@ -1161,7 +1169,7 @@
       updateBindingLabels(); updateSendGate();
       var ins=inspectPreview(cdoc,bv.url||'');
       var ec=r.json.email_container||{};
-      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent,supporting_media_strip_present:r.json.supporting_media_strip_present,supporting_media_count:r.json.supporting_media_count,supporting_media_sources:r.json.supporting_media_sources,product_image_count:r.json.product_image_count,gallery_image_count:r.json.gallery_image_count,atmosphere_present:r.json.atmosphere_present,atmosphere_used_in_fiche:r.json.atmosphere_used_in_fiche,primary_product_visual_present:r.json.primary_product_visual_present});
+      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent,supporting_media_strip_present:r.json.supporting_media_strip_present,supporting_media_count:r.json.supporting_media_count,supporting_media_sources:r.json.supporting_media_sources,product_image_count:r.json.product_image_count,gallery_image_count:r.json.gallery_image_count,atmosphere_present:r.json.atmosphere_present,atmosphere_used_in_fiche:r.json.atmosphere_used_in_fiche,primary_product_visual_present:r.json.primary_product_visual_present,container_visual_variant:r.json.container_visual_variant,banner_source:r.json.banner_source,banner_replaceable:r.json.banner_replaceable});
       updateContainerFillState(r.json);  // business-readable container fill state (filled / missing / media / HOLD)
       updateHeaderDiag(r.json);          // replaceable header diagnostics (variant / logo used / fallback)
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');

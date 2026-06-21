@@ -529,3 +529,69 @@ def test_header_never_uses_product_gallery_atmosphere_as_logo(client):
     assert body["supporting_media_strip_present"] is True
     assert body["supporting_media_count"] == 3
     assert body["atmosphere_used_in_fiche"] is False
+
+
+# ---- POSTER2-CUISTANCE-DEEP-CONTAINER-MIGRATION-V1: ttt / ttt2 containers ----
+def test_fiche_default_container_is_ttt_product_sheet(client):
+    wb = _make_workbench(client)
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["container_visual_variant"] == "ttt_product_sheet_container"
+    assert body["banner_replaceable"] is True
+    assert body["banner_source"] == "default_wordmark"
+    # ttt grammar markers: dark header, red filet, serif headline, rounded red CTA, dark footer
+    html = body["html"]
+    assert "#1f2329" in html and "background:#E1002A" in html
+    assert "Georgia" in html and "df3004" in html
+    assert "CONTACT" in html and "cuistance-europe.com" in html
+
+
+def test_affiche_default_container_is_ttt2_campaign(client):
+    wb = _make_workbench(client)
+    _gen(client, wb, "affiche"); _select(client, wb, "affiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["container_visual_variant"] == "ttt2_campaign_container"
+    # affiche container does NOT render the structured fiche spec block (the poster carries the specs)
+    assert body["spec_display_mode"] == "in_visual"
+    assert "Tarif = Nous contacter" not in body["html"]          # fiche-only spec block marker
+    assert body["supporting_media_strip_present"] is False
+    # the email header is separate from the body visual (no double header): header bar precedes the body image
+    html = body["html"]
+    assert html.index("#1f2329") < html.index("background:#E1002A")  # dark header + filet come first
+
+
+def test_container_banner_source_diagnostics(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"}, header_variant="logo_image_bar")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_source"] == "uploaded_logo"
+    assert body["banner_replaceable"] is True
+    assert body["header_logo_used"] is True
+
+
+def test_fiche_product_replacement_fills_ttt_container(client):
+    wb = _make_workbench(client)
+    # replace the product truth + image -> the container must reflect the NEW product, no stale facts
+    client.patch(f"/api/v2/workbench/{wb}", json={"product_truth": {
+        "product_name": "Trancheuse à jambon", "reference": "TJ250",
+        "description": "Lame inox 250 mm, affûtage intégré.",
+        "parameters": [{"key": "power", "label": "Puissance", "value": "180 W", "state": "confirmed"}]}})
+    client.patch(f"/api/v2/workbench/{wb}", json={"product_assets": {
+        "product_images": [{"url": "https://r2.example/tj250.png"}]}})
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    html = client.post(f"/api/v2/workbench/{wb}/email/preview").json()["html"]
+    assert "Trancheuse à jambon" in html and "TJ250" in html
+    assert "Lame inox 250 mm" in html and "180 W" in html
+    assert "https://r2.example/tj250.png" in html
+    assert "Friteuse" not in html and "EF132V" not in html      # the previous product does NOT leak
+
+
+def test_container_has_no_mailchimp_tracking_or_stale_facts(client):
+    wb = _wb_with_media(client)
+    for ct in ("fiche", "affiche"):
+        _gen(client, wb, ct); _select(client, wb, ct)
+        html = client.post(f"/api/v2/workbench/{wb}/email/preview").json()["html"].lower()
+        for forbidden in ("list-manage", "mcusercontent", "campaign-image", "mailchimp", "/track",
+                          "coupe-frites", "1210025", "les réchauds gaz"):
+            assert forbidden not in html

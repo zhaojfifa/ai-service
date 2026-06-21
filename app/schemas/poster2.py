@@ -532,7 +532,10 @@ class EmailAssemblyPreviewResponse(BaseModel):
     gallery_image_count: int = 0
     atmosphere_present: bool = False
     atmosphere_used_in_fiche: bool = False
-    # ---- replaceable banner/header (additive) ----
+    # ---- deep container migration (ttt.html / ttt2.html grammar) + replaceable banner/header (additive) ----
+    container_visual_variant: str = "ttt_product_sheet_container"
+    banner_source: str = "default_wordmark"
+    banner_replaceable: bool = True
     header_variant: str = "css_dark_bar_wordmark"
     header_logo_url: Optional[str] = None
     header_logo_used: bool = False

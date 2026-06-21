@@ -120,22 +120,33 @@ def build_email_assembly(
     intro = resolve_intro(product_truth, draft)
     meta_bits = " · ".join([b for b in (channel_name, campaign_label) if b])
 
-    # product sheet (fiche / product_sheet_email): reference line + spec list from CONFIRMED workbench parameters
+    product_name = clean_copy_text(product_truth.get("product_name") or "")
+    product_reference = clean_copy_text(product_truth.get("reference") or "")
+    # product sheet (fiche / product_sheet_email): spec block in the ttt.html editorial grammar
+    # (✔ red check + bold name + clean spec rows + reference line). Business facts ONLY (confirmed parameters).
     is_product_sheet = (candidate_type == "fiche")
-    sheet_extra = ""
+    spec_block_html = ""
     has_spec_items = False
     if is_product_sheet:
-        reference = clean_copy_text(product_truth.get("reference") or "")
-        spec_items = "".join(
-            f'<li style="margin:3px 0;"><b>{escape(str(p.get("label") or p.get("key") or ""))}</b> '
-            f'{escape(str(p.get("value") or ""))}</li>'
+        spec_rows = "".join(
+            f'<li style="margin:4px 0;"><strong style="color:#16181b;">'
+            f'{escape(str(p.get("label") or p.get("key") or ""))}</strong> : {escape(str(p.get("value") or ""))}</li>'
             for p in (product_truth.get("parameters") or []) if p and p.get("value")
         )
-        has_spec_items = bool(spec_items)
-        if reference:
-            sheet_extra += f'<p style="margin:0 0 8px;color:#6b7178;font-size:13px;font-weight:700;">RÉF. {escape(reference)}</p>'
-        if spec_items:
-            sheet_extra += f'<ul style="margin:0 0 12px;padding-left:18px;font-size:13px;color:#33363b;list-style:disc;">{spec_items}</ul>'
+        has_spec_items = bool(spec_rows)
+        if has_spec_items or product_reference:
+            spec_block_html = (
+                '<div style="display:inline-block;text-align:left;max-width:460px;margin:6px auto 0;">'
+                + (f'<p style="margin:0 0 8px;font-family:Georgia,\'Times New Roman\',serif;font-size:17px;color:#16181b;">'
+                   f'<span style="color:#df3004;font-weight:700;">&#10004;</span> <strong>{escape(product_name)}</strong></p>'
+                   if product_name else "")
+                + (f'<ul style="margin:0;padding-left:20px;font-family:Helvetica,Arial,sans-serif;font-size:14px;'
+                   f'line-height:1.7;color:#454b50;list-style:disc;">{spec_rows}</ul>' if spec_rows else "")
+                + (f'<p style="margin:10px 0 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;color:#6b7178;">'
+                   f'R&eacute;f&eacute;rence : <strong>{escape(product_reference)}</strong> &middot; Tarif = Nous contacter</p>'
+                   if product_reference else "")
+                + "</div>"
+            )
 
     # ---- supporting_media_strip (Fiche-only): same-product views (product_images[1..]) then supporting visuals
     # (gallery_images[]), max 3, priority product views first. Atmosphere is NEVER included. These are supporting
@@ -156,74 +167,120 @@ def build_email_assembly(
         for m in strip_items
     )
     supporting_media_strip_html = (
-        '<div style="padding:0 12px 4px;">'
-        '<p style="margin:0 0 6px;font-size:12px;color:#6b7178;font-weight:700;">Vues produit / Détails</p>'
+        '<div style="padding:8px 28px 0;text-align:center;">'
+        '<p style="margin:0 0 8px;font-family:Helvetica,Arial,sans-serif;font-size:12px;color:#8a8f94;'
+        'font-weight:700;letter-spacing:1px;text-transform:uppercase;">Vues produit / D&eacute;tails</p>'
         '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" '
-        'style="border-collapse:collapse;width:100%;"><tr>' + strip_cells + "</tr></table></div>"
+        'style="border-collapse:collapse;width:100%;max-width:460px;margin:0 auto;"><tr>' + strip_cells + "</tr></table></div>"
     ) if strip_items else ""
 
-    # ---- per-module HTML fragments (reference-aligned PR-3R grammar) ----
-    # email header = ttt.html-style clean dark bar + red filet. The brand element is REPLACEABLE:
-    #   css_dark_bar_wordmark (default) -> CSS CUISTANCE wordmark (deterministic, never distorted)
-    #   logo_image_bar                  -> the operator's email_banner.logo image ONLY (never product/gallery/atmosphere)
-    # If logo_image_bar is requested but no logo asset is present, fall back to the wordmark and flag the fallback.
-    # Header = header only (no body/product/CTA/footer); we never use a header-band background cover.
+    # ---- container visual variant (NEW default per route): ttt.html (Fiche) / ttt2.html (Affiche) grammar ----
+    # header_variant (css_dark_bar_wordmark default | logo_image_bar) governs the brand element INSIDE the dark header.
+    # logo_image_bar uses email_banner.logo ONLY (never product/gallery/atmosphere); missing logo -> wordmark fallback.
     requested_header_variant = clean_copy_text(banner.get("header_variant") or "") or "css_dark_bar_wordmark"
     header_logo_missing_fallback = (requested_header_variant == "logo_image_bar" and not logo_url)
     header_variant = "logo_image_bar" if (requested_header_variant == "logo_image_bar" and logo_url) else "css_dark_bar_wordmark"
     header_logo_used = (header_variant == "logo_image_bar")
     header_visual_mode = header_variant
-    wordmark_html = ('<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1.5px;'
-                     'font-family:Arial,Helvetica,sans-serif;">CUISTANCE</span>')
-    if header_logo_used:
-        # logo image bar — the email_banner.logo ONLY (url/key asset uploaded/selected as the brand logo)
-        brand_html = _img(logo_url, style="height:34px;max-width:220px;object-fit:contain;display:block;", alt="CUISTANCE")
+    container_visual_variant = "ttt_product_sheet_container" if is_product_sheet else "ttt2_campaign_container"
+    banner_source = ("uploaded_logo" if header_logo_used
+                     else ("wordmark_fallback" if header_logo_missing_fallback else "default_wordmark"))
+    footer_bg = "#333333" if is_product_sheet else "#3F3F3F"
+
+    def _brand(size_px: int) -> str:
+        if header_logo_used:
+            # logo directly on the dark header (ttt.html grammar) — the CUISTANCE brand logo is light-on-transparent;
+            # the email_banner.logo is the operator's responsibility to provide as a header-suitable (light) asset.
+            return _img(logo_url, style=f"height:{size_px + 8}px;max-width:240px;object-fit:contain;display:inline-block;", alt="CUISTANCE")
+        return (f'<span style="color:#ffffff;font-size:{size_px}px;font-weight:700;letter-spacing:2px;'
+                f'font-family:Georgia,\'Times New Roman\',serif;">CUISTANCE</span>')
+
+    header_meta_html = (
+        f'<div style="margin-top:9px;color:#cfd3d8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;'
+        f'font-family:Helvetica,Arial,sans-serif;">{escape(meta_bits)}</div>' if meta_bits else ""
+    )
+
+    # Fiche: reference line + big serif title; description (serif) + spec block. Affiche: modest campaign lead only
+    # (the generated poster already carries the product hero/title/specs — the container must NOT duplicate them).
+    if is_product_sheet:
+        title_intro_html = (
+            '<div style="padding:34px 28px 4px;text-align:center;">'
+            + (f'<p style="margin:0 0 10px;font-family:Georgia,\'Times New Roman\',serif;font-style:italic;'
+               f'font-size:14px;color:#8a8f94;letter-spacing:0.5px;">R&Eacute;F&Eacute;RENCE PRODUIT : {escape(product_reference)}</p>'
+               if product_reference else "")
+            + (f'<h1 style="margin:0;font-family:Georgia,\'Times New Roman\',serif;font-size:30px;line-height:1.22;'
+               f'font-weight:700;color:#16181b;">{escape(product_name or subject)}</h1>' if (product_name or subject) else "")
+            + "</div>"
+        ) if (product_name or subject or product_reference) else ""
+        body_visual_html = (
+            '<div style="padding:24px 28px 6px;text-align:center;">'
+            + _img(body_visual_url, style="width:100%;max-width:430px;border-radius:8px;display:inline-block;border:1px solid #ececec;", alt="produit")
+            + "</div>"
+        ) if body_visual_url else ""
+        desc_html = (
+            '<div style="padding:14px 32px 0;text-align:center;">'
+            + (f'<p style="margin:0 0 16px;font-family:Georgia,\'Times New Roman\',serif;font-style:italic;'
+               f'font-size:16px;line-height:1.65;color:#454b50;">{escape(intro)}</p>' if intro else "")
+            + spec_block_html
+            + "</div>"
+        ) if (intro or spec_block_html) else ""
     else:
-        brand_html = wordmark_html
-    meta_html = (
-        f'<div style="margin-left:auto;color:#cfd3d8;font-size:12px;">{escape(meta_bits)}</div>' if meta_bits else ""
+        title_intro_html = (
+            '<div style="padding:32px 28px 0;text-align:center;">'
+            + (f'<h1 style="margin:0 0 8px;font-family:Georgia,\'Times New Roman\',serif;font-size:24px;line-height:1.25;'
+               f'font-weight:700;color:#16181b;">{escape(subject)}</h1>' if subject else "")
+            + (f'<p style="margin:0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#5a6066;">{escape(intro)}</p>'
+               if intro else "")
+            + "</div>"
+        ) if (subject or intro) else ""
+        body_visual_html = (
+            '<div style="padding:22px 24px 6px;text-align:center;">'
+            + _img(body_visual_url, style="width:100%;max-width:540px;border-radius:8px;display:inline-block;", alt="affiche produit")
+            + "</div>"
+        ) if body_visual_url else ""
+        desc_html = ""  # affiche poster carries its own product copy/specs; the container does NOT duplicate
+
+    divider_html = ('<div style="padding:20px 28px 0;"><div style="border-top:2px solid #eaeaea;line-height:0;'
+                    'font-size:0;">&nbsp;</div></div>')
+    cta_html = (
+        '<div style="padding:22px 28px 30px;text-align:center;">'
+        + f'<a href="{escape(cta_href, quote=True)}" style="display:inline-block;background:#df3004;color:#ffffff;'
+        + 'font-family:Helvetica,Arial,sans-serif;font-weight:700;font-size:16px;padding:15px 34px;border-radius:14px;'
+        + f'text-decoration:none;letter-spacing:0.3px;">{escape(cta_label)}</a>'
+        + "</div>"
     )
 
     fragments: dict[str, str] = {
-        # ttt_html_header: clean ~58px dark bar + CUISTANCE wordmark + meta, then explicit red filet (reference grammar)
+        # dark header (ttt grammar): centered brand element + meta, then the red filet (#E1002A). Header only.
         "email_banner": (
-            '<div style="background:#1f2329;padding:18px 20px;display:flex;align-items:center;gap:14px;">'
-            + brand_html + meta_html + "</div>"
+            '<div style="background:#1f2329;padding:32px 24px 26px;text-align:center;">'
+            + "<div>" + _brand(26) + "</div>" + header_meta_html + "</div>"
             + '<div style="height:3px;line-height:3px;font-size:0;background:#E1002A;">&nbsp;</div>'
         ),
-        "title_intro": (
-            f'<div style="padding:16px 16px 0;"><p style="margin:0;font-weight:700;font-size:16px;">{escape(subject)}</p></div>'
-            if subject else ""
-        ),
-        # selected body visual — the primary product visual (the ONLY place the primary poster/product image enters)
-        "selected_body_visual": (
-            '<div style="padding:16px;border-bottom:1px solid #e4e2de;">'
-            + _img(body_visual_url, style="max-width:100%;border-radius:6px;display:block;", alt="aperçu produit")
-            + "</div>"
-        ),
+        "title_intro": title_intro_html,
+        # selected body visual — the primary product/poster visual (the ONLY place it enters the email)
+        "selected_body_visual": body_visual_html,
         # supporting media strip — same-product views + supporting visuals (fiche only); never truth
         "supporting_media_strip": supporting_media_strip_html,
-        "product_description": (
-            '<div style="padding:12px 16px 0;">'
-            + (f'<p style="margin:0 0 12px;">{escape(intro)}</p>' if intro else "")
-            + sheet_extra
-            + "</div>"
-        ) if (intro or sheet_extra) else "",
-        "cta": (
-            '<div style="padding:0 16px 16px;">'
-            + f'<a href="{escape(cta_href, quote=True)}" style="display:inline-block;background:#E1002A;color:#fff;'
-            + f'font-weight:600;padding:9px 16px;border-radius:6px;text-decoration:none;">{escape(cta_label)}</a>'
-            + "</div>"
-        ),
+        "product_description": desc_html,
+        "cta": (divider_html + cta_html),
+        # dark contact footer (ttt grammar): brand + CONTACT (CUISTANCE's own facts, deterministic)
         "contact_footer": (
-            '<div style="background:#f7f8fa;border-top:1px solid #e4e2de;padding:14px 16px 6px;font-size:12px;color:#6b7178;">'
-            + escape(meta_bits or "CUISTANCE")
-            + "</div>"
+            f'<div style="background:{footer_bg};padding:34px 24px 8px;text-align:center;">'
+            + "<div>" + _brand(22) + "</div>"
+            + '<div style="margin-top:18px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.85;color:#e7e9ec;">'
+            + '<span style="text-decoration:underline;letter-spacing:1px;">CONTACT</span><br>'
+            + 'T&eacute;l&eacute;phone : +33 (0)1 71 84 11 20<br>'
+            + 'Email : <a href="mailto:commercial@cuistance.eu" style="color:#ffffff;text-decoration:none;">commercial@cuistance.eu</a>'
+            + "</div></div>"
         ),
+        # legal footer — deterministic; NO Mailchimp tracking / list-manage unsubscribe (placeholder link only)
         "legal_footer": (
-            '<div style="background:#f7f8fa;padding:0 16px 14px;font-size:11px;color:#9aa0a6;">'
-            + 'Vous recevez cet email en tant que contact professionnel CUISTANCE. · '
-            + '<a href="#" style="color:#9aa0a6;text-decoration:underline;">Se désabonner</a>'
+            f'<div style="background:{footer_bg};padding:8px 24px 34px;text-align:center;'
+            + 'font-family:Helvetica,Arial,sans-serif;font-size:11px;line-height:1.75;color:#aeb3b8;">'
+            + 'Tous droits r&eacute;serv&eacute;s &middot; <a href="https://cuistance-europe.com" style="color:#cfd3d8;text-decoration:underline;">cuistance-europe.com</a><br>'
+            + '&copy; Cuistance Europe &middot; ZI Garonor, tour G, lot 409 &middot; 93600 Aulnay-sous-Bois<br>'
+            + '<a href="#" style="color:#aeb3b8;text-decoration:underline;">Se désabonner</a>'
             + "</div>"
         ),
     }
@@ -280,8 +337,7 @@ def build_email_assembly(
         spec_display_mode = "in_visual"  # affiche specs are baked into the poster body visual
         resolved_body_visual_mode = body_visual_variant or "email_embedded_no_header"
     # ---- container fillability: which fields are filled from truth, and what is still missing (no fake fallback) ----
-    product_name = clean_copy_text(product_truth.get("product_name") or "")
-    product_reference = clean_copy_text(product_truth.get("reference") or "")
+    # (product_name / product_reference resolved near the top for the ttt headline/spec grammar)
     filled_subject = bool(subject)
     filled_intro = bool(intro)
     filled_cta = bool(cta_label)
@@ -335,6 +391,9 @@ def build_email_assembly(
         "email_header_source": "ttt_html_header",
         # ---- container flexibility + fillability (additive diagnostics; no behavior/truth change) ----
         "container_profile": resolved_profile,
+        "container_visual_variant": container_visual_variant,
+        "banner_source": banner_source,
+        "banner_replaceable": True,
         "header_variant": header_variant,
         "spec_display_mode": spec_display_mode,
         "body_visual_mode": resolved_body_visual_mode,
@@ -365,6 +424,9 @@ def build_email_assembly(
             "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
             "email_fill_format": fill_format,
             "container_profile": resolved_profile,
+            "container_visual_variant": container_visual_variant,
+            "banner_source": banner_source,
+            "banner_replaceable": True,
             "header_variant": header_variant,
             "spec_display_mode": spec_display_mode,
             "body_visual_mode": resolved_body_visual_mode,

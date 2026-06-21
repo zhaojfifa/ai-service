@@ -13016,3 +13016,40 @@ After bundle:
 - Owner Decision Needed: confirm receipt at zhaojfifa@gmail.com (id e46866d5-fed5-4915-9a7e-ae4b11f4f13f). Trial send
   alignment + replaceable header verified end-to-end in a real browser. Real send stays owner/test-gated; customer/
   batch + products[] remain HOLD.
+
+## CUISTANCE DEEP CONTAINER MIGRATION V1 (2026-06-21) — ttt.html (Fiche) + ttt2.html (Affiche) native containers
+- Task POSTER2-CUISTANCE-DEEP-CONTAINER-MIGRATION-V1. Rebuilt both email containers around the real reference HTML
+  (~/poster/ingredient/ttt.html, ttt2.html + PSD layer images — all present) so the first operator-usable CUISTANCE
+  email reads native, not an engineering preview. Design analysis FIRST: docs/poster2/container_deep_migration_design_
+  review_v1.md.
+- Fiche -> ttt_product_sheet_container (ttt.html grammar): dark #1f2329 header + centered serif CUISTANCE brand + red
+  #E1002A filet; white 600px body with italic serif reference line + big serif title + centered hero image +
+  supporting strip + italic description + ✔ red-check spec block (confirmed params) + #eaeaea divider + rounded
+  #df3004 CTA; dark #333333 footer (brand + CONTACT + legal + non-tracking unsubscribe).
+- Affiche -> ttt2_campaign_container (ttt2.html grammar): same dark header + filet; modest serif campaign title +
+  intro; the generated poster visual (no inner banner) as centered body; rounded CTA; dark #3F3F3F footer. NO spec_list
+  duplication (poster carries specs); NO double header.
+- Banner replaceable: container_visual_variant auto per route; header_variant css_dark_bar_wordmark (default) |
+  logo_image_bar (operator-selectable, persisted); banner_source default_wordmark|uploaded_logo|wordmark_fallback;
+  banner_replaceable=true. Logo = email_banner.logo ONLY (never product/gallery/atmosphere/AI). Logo sits directly on
+  the dark header (ttt grammar; brand logo is light-on-transparent).
+- Product replaceable: Fiche fills name/reference/description/confirmed params/images from product_truth+product_assets
+  (verified previous product does NOT leak). Truth boundaries held: NO Mailchimp tracking/unsubscribe/list-manage, NO
+  stale sample facts (coupe-frites/1210025/les réchauds gaz), specs from confirmed params only.
+- Diagnostics added: container_visual_variant, banner_source, banner_replaceable (+ existing header_variant/header_logo_*).
+  Frontend: container card now states TTT/TTT2 auto-per-route + replaceable banner (文字品牌条 / Logo 图片条) + header diag
+  shows 当前邮件容器 / 当前 Banner / Logo 已使用. Mirror synced; node --check = TRIAL_JS_OK.
+- Screenshots (Playwright + Chrome, 600px): fiche_screenshot.png = PASS, affiche_screenshot.png = PASS_WITH_NITS. Gate
+  met (both >= PASS_WITH_NITS; no double header; no broken image; no truth leak). Evidence dir 168K total. visual_review.md.
+- Tests: +5 new container tests (fiche=ttt / affiche=ttt2 / banner_source / product replacement / no mailchimp+stale
+  leak); updated 4 stale grammar assertions (legal footer entity, red filet, footer/legal placeholder, header_variant
+  meaning). Focused: assembly+candidates+psd+body_plan+reference+send = 92 passed; test_api -k email/workbench/selected/
+  fiche/preview/send = 11 passed; check_docs_router = PASS.
+- Send path unchanged (real send still resend + provider_message_id; preview-only inline_only skips). No customer email,
+  no batch, no products[]. P2A demo untouched. Stash preserved. No tag/merge/rewrite.
+- Remote ttt/ttt2 container validation = PENDING_REDEPLOY (new backend not yet on Render; send path already browser-
+  validated last task on the same endpoint).
+- Evidence: docs/poster2/assets/container_deep_migration_v1/ (evidence.json, fiche/affiche_preview.html, fiche/affiche_
+  screenshot.png, visual_review.md). Docs: container_deep_migration_design_review_v1.md + container_deep_migration_v1.md.
+- Owner Decision Needed: accept the native ttt/ttt2 containers; after Render redeploy, one internal test send to
+  zhaojfifa@gmail.com confirms the received email uses the new container. customer/batch send + products[] remain HOLD.

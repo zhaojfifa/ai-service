@@ -1,0 +1,38 @@
+{
+  "ttt_fiche_container_adopted": true,
+  "ttt2_affiche_container_adopted": true,
+  "container_visual_variant_fiche": "ttt_product_sheet_container",
+  "container_visual_variant_affiche": "ttt2_campaign_container",
+  "banner_replaceable": true,
+  "banner_sources": ["default_wordmark", "uploaded_logo", "wordmark_fallback"],
+  "product_replaceable": true,
+  "fiche_screenshot_created": true,
+  "affiche_screenshot_created": true,
+  "fiche_visual_verdict": "PASS",
+  "affiche_visual_verdict": "PASS_WITH_NITS",
+  "no_double_header": true,
+  "no_broken_images": true,
+  "no_mailchimp_tracking_copied_as_truth": true,
+  "no_stale_sample_facts_copied": true,
+  "header_uses_email_banner_logo_only": true,
+  "product_gallery_atmosphere_used_as_logo": false,
+  "send_path_preserved": true,
+  "real_send_success_requires_provider_message_id": true,
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "remote_container_validation": "PENDING_REDEPLOY",
+  "tests": {
+    "focused_assembly_candidates_psd_bodyplan_reference_send": "92 passed",
+    "test_api_email_workbench_selected_fiche_preview_send": "11 passed",
+    "new_container_tests": 5,
+    "updated_grammar_tests": 4,
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "check_docs_router": "PASS"
+  },
+  "evidence_files": [
+    "fiche_preview.html", "affiche_preview.html",
+    "fiche_screenshot.png", "affiche_screenshot.png", "visual_review.md", "evidence.json"
+  ]
+}

@@ -88,7 +88,10 @@ def test_assembly_has_cta(client):
 def test_assembly_has_footer_and_legal_placeholder(client):
     _, html = _preview_html(client)
     assert "Se désabonner" in html  # legal/unsubscribe placeholder (non-functional href="#")
-    assert "contact professionnel" in html
+    # ttt dark contact+legal footer grammar (CUISTANCE's own brand contact, deterministic; no tracking)
+    assert "CONTACT" in html
+    assert "cuistance-europe.com" in html
+    assert 'href="#"' in html        # unsubscribe is a non-tracking placeholder, NOT a list-manage link
 
 
 def test_assembly_has_no_third_party_tracking(client):
