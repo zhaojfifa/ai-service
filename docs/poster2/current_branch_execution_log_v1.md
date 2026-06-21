@@ -13134,3 +13134,27 @@ After bundle:
   banner_composite_module_fix_v1.md.
 - Owner Decision Needed: accept the composite banner; operators with a dark logo select 浅色 Logo 板 (light_plate). After
   Render redeploy, a browser re-verify confirms the live composite banner. customer/batch + products[] remain HOLD.
+
+## BANNER PRODUCT MODULE SPEC + DESIGN REVIEW V1 (2026-06-21) — route-specific defaults; honest recommendation = C
+- Task POSTER2-BANNER-PRODUCT-SPEC-AND-DESIGN-REVIEW-V1. Product/designer-perspective finalization of the banner module.
+  Route-specific product defaults: Fiche -> brand_standard_header (medium, larger logo, hairline + small-caps meta);
+  Affiche -> campaign_poster_header (tighter, smaller logo, compact meta; poster stays the hero); no usable logo ->
+  text_fallback_header. Contrast on_dark|light_plate. Logo = email_banner.logo ONLY (never product/gallery/atmosphere/
+  poster/AI).
+- assembly.py: banner_variant now ROUTE-DERIVED (product names) + route geometry + refined meta hierarchy. main.py
+  already wires banner_variant (unchanged this task). Frontend: operator labels 品牌标准页眉 / 营销海报页眉 / 文字回退页眉 +
+  route-default note + diag mapping; mirror synced; node --check = TRIAL_JS_OK.
+- Tests: +3 route-default (fiche->brand_standard / affiche->campaign_poster / no-logo->text_fallback); 2 banner_variant
+  assertions updated to product names. Focused suites = 102 passed; test_api -k = 11 passed; check_docs_router = PASS.
+- Screenshots (Playwright + Chrome): fiche_brand_standard_header.png + affiche_campaign_poster_header.png. DESIGNER-STYLE
+  review across 10 criteria -> both PASS_WITH_NITS (clean, route-correct; but flat dark plate -> not premium/bespoke).
+- HONEST RECOMMENDATION = C: request a designer banner/base-lockup draft. designer_base_recommended=true. The route
+  variants are accepted as the INTERIM first-trial default; the premium gap is a DESIGN-ASSET gap (ttt's quality came
+  from a background photo we deliberately avoid due to the prior PSD header distortion bug), not an engineering gap, so a
+  further engineering polish (B) would not close it. Did NOT force PASS.
+- Body/layout unchanged; send path unchanged; no customer email; no batch; no products[]. P2A demo untouched. Stash
+  preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/banner_product_module_finalize_v1/ (evidence.json, visual_review.md, 2 screenshots).
+  Docs: banner_product_module_spec_v1.md + banner_product_module_finalize_v1.md.
+- Owner Decision Needed: commission a designer banner/base-lockup master to reach premium native quality; until then the
+  brand_standard / campaign_poster route defaults stand as the interim trial banner. customer/batch + products[] HOLD.

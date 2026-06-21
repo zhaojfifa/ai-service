@@ -195,13 +195,17 @@ def build_email_assembly(
         header_variant = "css_dark_bar_wordmark"
     header_logo_used = header_variant in LOGO_VARIANTS
     header_visual_mode = header_variant
-    BANNER_VARIANT_FOR_HEADER = {
-        "ttt_logo_banner": "ttt_banner_composite",
-        "logo_image_bar": "compact_logo_banner",
-        "css_dark_bar_wordmark": "text_wordmark_fallback",
-    }
-    banner_variant = BANNER_VARIANT_FOR_HEADER[header_variant]
-    banner_composite_used = (banner_variant == "ttt_banner_composite")
+    # ---- ROUTE-SPECIFIC product banner variant (designer intent) ----
+    #   Fiche   -> brand_standard_header  (professional product-sheet header; stable, premium, doesn't overpower title)
+    #   Affiche -> campaign_poster_header (lighter/tighter framing; the generated poster body stays the hero)
+    #   no usable logo -> text_fallback_header (safe fallback, not preferred)
+    if not header_logo_used:
+        banner_variant = "text_fallback_header"
+    elif is_product_sheet:
+        banner_variant = "brand_standard_header"
+    else:
+        banner_variant = "campaign_poster_header"
+    banner_composite_used = (banner_variant != "text_fallback_header")
     banner_source = ("uploaded_logo" if header_logo_used
                      else ("default_wordmark" if explicit_wordmark else "wordmark_fallback"))
     # contrast: on_dark (default; light logo) | light_plate (dark/colored logo gets a subtle white plate so it stays
@@ -223,22 +227,28 @@ def build_email_assembly(
         return (f'<span style="color:#ffffff;font-size:{word_size}px;font-weight:700;letter-spacing:2px;'
                 f'font-family:Georgia,\'Times New Roman\',serif;">CUISTANCE</span>')
 
-    # composite geometry: ttt_banner_composite (taller lockup) | compact_logo_banner (thinner) | wordmark (medium)
-    if banner_variant == "ttt_banner_composite":
-        header_pad, logo_h, word_size = "34px 24px 26px", 44, 30
-    elif banner_variant == "compact_logo_banner":
-        header_pad, logo_h, word_size = "18px 24px 14px", 30, 24
-    else:
+    # route geometry + meta hierarchy:
+    #   brand_standard_header : medium height, larger logo, channel line + subtle campaign (small caps, not a loud pill)
+    #   campaign_poster_header: tighter height, smaller logo, compact single meta line (poster stays the hero)
+    #   text_fallback_header  : medium, wordmark + channel/campaign
+    if banner_variant == "brand_standard_header":
+        header_pad, logo_h, word_size = "36px 24px 28px", 46, 30
+        meta = " · ".join([b for b in (channel_name, campaign_label) if b])
+        header_meta_html = (
+            (f'<div style="margin-top:8px;height:1px;width:46px;background:rgba(255,255,255,.18);margin-left:auto;margin-right:auto;"></div>' if meta else "")
+            + (f'<div style="margin-top:11px;color:#cfd4d9;font-size:11.5px;letter-spacing:2.5px;text-transform:uppercase;'
+               f'font-family:Helvetica,Arial,sans-serif;">{escape(meta)}</div>' if meta else "")
+        )
+    elif banner_variant == "campaign_poster_header":
+        header_pad, logo_h, word_size = "22px 24px 15px", 34, 24
+        meta = " · ".join([b for b in (channel_name, campaign_label) if b])
+        header_meta_html = (f'<div style="margin-top:8px;color:#c9ced3;font-size:11px;letter-spacing:2px;'
+                            f'text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">{escape(meta)}</div>' if meta else "")
+    else:  # text_fallback_header
         header_pad, logo_h, word_size = "30px 24px 24px", 26, 26
-
-    # lockup line: channel_name (primary secondary) + campaign_label (uppercase tag) composed UNDER the brand
-    channel_html = (f'<div style="margin-top:13px;color:#dfe3e7;font-size:13px;letter-spacing:1px;'
-                    f'font-family:Helvetica,Arial,sans-serif;">{escape(channel_name)}</div>' if channel_name else "")
-    campaign_html = (f'<div style="margin-top:6px;"><span style="display:inline-block;color:#ffd9dd;font-size:10px;'
-                     f'font-weight:700;letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(225,0,42,.5);'
-                     f'border-radius:999px;padding:3px 12px;font-family:Helvetica,Arial,sans-serif;">{escape(campaign_label)}</span></div>'
-                     if campaign_label else "")
-    header_meta_html = channel_html + campaign_html
+        meta = " · ".join([b for b in (channel_name, campaign_label) if b])
+        header_meta_html = (f'<div style="margin-top:11px;color:#c9ced3;font-size:11px;letter-spacing:2px;'
+                            f'text-transform:uppercase;font-family:Helvetica,Arial,sans-serif;">{escape(meta)}</div>' if meta else "")
 
     # Fiche: reference line + big serif title; description (serif) + spec block. Affiche: modest campaign lead only
     # (the generated poster already carries the product hero/title/specs — the container must NOT duplicate them).

@@ -1,0 +1,39 @@
+{
+  "banner_product_module_defined": true,
+  "fiche_default_banner_variant": "brand_standard_header",
+  "affiche_default_banner_variant": "campaign_poster_header",
+  "fallback_banner_variant": "text_fallback_header",
+  "route_specific_defaults": true,
+  "fiche_visual_verdict": "PASS_WITH_NITS",
+  "affiche_visual_verdict": "PASS_WITH_NITS",
+  "designer_style_recommendation": "C_request_designer_base",
+  "designer_base_recommended": true,
+  "interim_default_accepted": true,
+  "premium_gap_is_design_asset_not_engineering": true,
+  "logo_contrast_modes": ["on_dark", "light_plate"],
+  "body_layout_changed": false,
+  "send_path_preserved": true,
+  "product_assets_used_as_banner": false,
+  "gallery_assets_used_as_banner": false,
+  "atmosphere_used_as_banner": false,
+  "generated_poster_used_as_banner": false,
+  "no_double_header": true,
+  "no_invisible_logo": true,
+  "no_broken_logo": true,
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "tests": {
+    "focused_assembly_candidates_psd_bodyplan_reference_send": "102 passed",
+    "test_api_email_workbench_selected_fiche_preview_send": "11 passed",
+    "new_route_default_tests": 3,
+    "updated_banner_variant_tests": 2,
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "check_docs_router": "PASS"
+  },
+  "screenshots": [
+    "docs/poster2/assets/banner_product_module_finalize_v1/fiche_brand_standard_header.png",
+    "docs/poster2/assets/banner_product_module_finalize_v1/affiche_campaign_poster_header.png"
+  ]
+}

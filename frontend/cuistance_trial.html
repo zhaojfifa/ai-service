@@ -396,11 +396,12 @@
             <h3><span data-zh="邮件容器与页眉" data-fr="Conteneur &amp; en-tête">邮件容器与页眉</span> <span class="badge ready" data-zh="TTT / TTT2 容器" data-fr="Conteneurs TTT / TTT2">TTT / TTT2 容器</span></h3>
             <p class="hint" data-zh="邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条），不含产品主体 / 描述 / CTA / 页脚。" data-fr="Conteneur automatique selon le mode : fiche = conteneur TTT ; affiche = conteneur TTT2. En-tête : barre sombre + filet rouge ; bannière remplaçable (wordmark / logo) ; pas de corps / description / CTA / pied.">邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条）。</p>
             <div class="ttt-header-preview" id="tttHeaderPreview"><span class="ttt-wordmark" id="tttWordmark">CUISTANCE</span><img class="ttt-logo" id="tttLogo" alt="CUISTANCE" style="display:none;height:30px;max-width:200px;object-fit:contain" /><span class="ttt-meta" id="tttHeaderMeta">CUISTANCE Europe · Nouveauté</span></div>
+            <div class="hint" id="bannerRouteDefaults" data-zh="页眉为产品模块，按模式自动：简单产品页默认 = 品牌标准页眉；目标海报默认 = 营销海报页眉；无可用 Logo 时回退 = 文字回退页眉。" data-fr="L'en-tête est un module produit, automatique selon le mode : fiche = en-tête marque standard ; affiche = en-tête campagne ; sans logo = repli wordmark.">页眉为产品模块，按模式自动：简单产品页默认 = 品牌标准页眉；目标海报默认 = 营销海报页眉；无可用 Logo 时回退 = 文字回退页眉。</div>
             <div class="radio-row" id="headerVariantRow" style="margin-top:8px">
-              <label><input type="radio" name="hdrvar" value="ttt_logo_banner" checked /> <span data-zh="TTT Banner 组件" data-fr="Composant bannière TTT">TTT Banner 组件</span></label>
-              <label><input type="radio" name="hdrvar" value="logo_image_bar" /> <span data-zh="紧凑 Logo Banner" data-fr="Bannière logo compacte">紧凑 Logo Banner</span></label>
-              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" /> <span data-zh="文字品牌回退" data-fr="Wordmark (repli)">文字品牌回退</span></label>
-              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="Banner 是完整页眉组件（深底 + Logo/字标 + 渠道 + 活动标签 + 红色分隔）。有 Logo 时默认 TTT Banner 组件；仅使用「邮件 Logo」，不使用产品 / 画廊 / 氛围 / 海报图。" data-fr="La bannière est un composant complet (plaque sombre + logo/wordmark + canal + libellé + filet rouge). Logo email uniquement.">Banner 是完整页眉组件（深底 + Logo/字标 + 渠道 + 活动标签 + 红色分隔）。有 Logo 时默认 TTT Banner 组件；仅使用「邮件 Logo」素材。</span>
+              <label><input type="radio" name="hdrvar" value="ttt_logo_banner" checked /> <span data-zh="品牌/营销页眉（按模式）" data-fr="En-tête marque/campagne (auto)">品牌/营销页眉（按模式）</span></label>
+              <label><input type="radio" name="hdrvar" value="logo_image_bar" /> <span data-zh="紧凑 Logo" data-fr="Logo compact">紧凑 Logo</span></label>
+              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" /> <span data-zh="文字回退页眉" data-fr="En-tête wordmark (repli)">文字回退页眉</span></label>
+              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="仅使用「邮件 Logo」素材，不使用产品 / 画廊 / 氛围 / 海报图。" data-fr="Logo email uniquement (jamais produit / galerie / ambiance / affiche).">仅使用「邮件 Logo」素材，不使用产品 / 画廊 / 氛围 / 海报图。</span>
             </div>
             <div class="radio-row" id="bannerContrastRow" style="margin-top:6px">
               <span class="hint" data-zh="Logo 对比模式：" data-fr="Contraste logo :">Logo 对比模式：</span>
@@ -1120,7 +1121,7 @@
     // business-readable composite banner diagnostics after a backend preview
     var CONTAINER_NAME={ttt_product_sheet_container:{zh:'TTT 简单产品容器',fr:'conteneur fiche TTT'},
       ttt2_campaign_container:{zh:'TTT2 目标海报容器',fr:'conteneur affiche TTT2'}};
-    var BANNER_VAR={ttt_banner_composite:{zh:'TTT Banner 组件',fr:'Composant bannière TTT'},compact_logo_banner:{zh:'紧凑 Logo Banner',fr:'Bannière logo compacte'},text_wordmark_fallback:{zh:'文字品牌回退',fr:'Wordmark (repli)'}};
+    var BANNER_VAR={brand_standard_header:{zh:'品牌标准页眉',fr:'En-tête marque standard'},campaign_poster_header:{zh:'营销海报页眉',fr:'En-tête campagne'},text_fallback_header:{zh:'文字回退页眉',fr:'En-tête wordmark (repli)'}};
     var BANNER_SRC={uploaded_logo:{zh:'上传 Logo',fr:'logo importé'},default_banner_lockup_asset:{zh:'默认 Banner 素材',fr:'asset bannière par défaut'},default_wordmark:{zh:'默认文字',fr:'wordmark'},wordmark_fallback:{zh:'文字回退',fr:'repli wordmark'}};
     var CONTRAST={on_dark:{zh:'深色底（浅色 Logo）',fr:'fond sombre / logo clair'},light_plate:{zh:'浅色 Logo 板（深色 Logo）',fr:'plaque claire / logo sombre'}};
     function updateHeaderDiag(j){

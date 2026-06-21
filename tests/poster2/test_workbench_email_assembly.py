@@ -648,7 +648,7 @@ def test_banner_is_composite_module_with_lockup(client):
                   channel_name="CUISTANCE Europe", campaign_label="Nouveauté")
     _gen(client, wb, "fiche"); _select(client, wb, "fiche")
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
-    assert body["banner_variant"] == "ttt_banner_composite"          # default with a logo
+    assert body["banner_variant"] == "brand_standard_header"      # fiche default product variant
     assert body["banner_composite_used"] is True
     assert body["banner_source"] == "uploaded_logo"
     assert body["banner_background_mode"] == "dark_plate"
@@ -679,7 +679,7 @@ def test_banner_no_logo_falls_back_to_wordmark(client):
     client.patch(f"/api/v2/workbench/{wb}", json={"email_banner": {"channel_name": "CUISTANCE Europe"}})  # no logo
     _gen(client, wb, "fiche"); _select(client, wb, "fiche")
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
-    assert body["banner_variant"] == "text_wordmark_fallback"
+    assert body["banner_variant"] == "text_fallback_header"
     assert body["banner_source"] == "wordmark_fallback"
     assert body["banner_composite_used"] is False
     assert body["header_logo_used"] is False
@@ -698,3 +698,37 @@ def test_banner_never_uses_product_gallery_atmosphere_poster_as_logo(client):
     for forbidden in (poster_url, "p1.png", "p2.png", "g1.png", "g2.png", "g3.png", "atmo.png"):
         assert forbidden not in header_region
     assert body["banner_composite_used"] is True
+
+
+# ---- POSTER2-BANNER-PRODUCT-SPEC-AND-DESIGN-REVIEW-V1: route-specific product banner defaults ----
+def test_fiche_defaults_to_brand_standard_header(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"}, channel_name="CUISTANCE Europe")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_variant"] == "brand_standard_header"
+    assert body["banner_composite_used"] is True
+    assert body["banner_source"] == "uploaded_logo"
+
+
+def test_affiche_defaults_to_campaign_poster_header(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"}, channel_name="CUISTANCE Europe")
+    _gen(client, wb, "affiche"); _select(client, wb, "affiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_variant"] == "campaign_poster_header"
+    assert body["banner_composite_used"] is True
+    # the campaign header must not duplicate the spec block or add a double header
+    assert "Tarif = Nous contacter" not in body["html"]
+    assert body["supporting_media_strip_present"] is False
+
+
+def test_missing_logo_defaults_to_text_fallback_header(client):
+    wb = _make_workbench(client)
+    client.patch(f"/api/v2/workbench/{wb}", json={"email_banner": {"channel_name": "CUISTANCE Europe"}})
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_variant"] == "text_fallback_header"
+    assert body["banner_source"] == "wordmark_fallback"
+    assert body["header_logo_missing_fallback"] is True
+    assert body["banner_composite_used"] is False
