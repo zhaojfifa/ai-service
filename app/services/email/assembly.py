@@ -174,29 +174,48 @@ def build_email_assembly(
         'style="border-collapse:collapse;width:100%;max-width:460px;margin:0 auto;"><tr>' + strip_cells + "</tr></table></div>"
     ) if strip_items else ""
 
-    # ---- container visual variant (NEW default per route): ttt.html (Fiche) / ttt2.html (Affiche) grammar ----
-    # header_variant (css_dark_bar_wordmark default | logo_image_bar) governs the brand element INSIDE the dark header.
-    # logo_image_bar uses email_banner.logo ONLY (never product/gallery/atmosphere); missing logo -> wordmark fallback.
-    requested_header_variant = clean_copy_text(banner.get("header_variant") or "") or "css_dark_bar_wordmark"
-    header_logo_missing_fallback = (requested_header_variant == "logo_image_bar" and not logo_url)
-    header_variant = "logo_image_bar" if (requested_header_variant == "logo_image_bar" and logo_url) else "css_dark_bar_wordmark"
-    header_logo_used = (header_variant == "logo_image_bar")
+    # ---- container visual variant (default per route): ttt.html (Fiche) / ttt2.html (Affiche) grammar ----
+    # Banner/header variants (brand element INSIDE the dark header):
+    #   ttt_logo_banner       -> ttt-style header with the centered CUISTANCE LOGO image (preferred default w/ a logo)
+    #   logo_image_bar        -> compact logo image bar
+    #   css_dark_bar_wordmark -> text wordmark (fallback when NO logo, or when the operator explicitly picks text)
+    # DEFAULT now PREFERS a logo banner: when email_banner.logo exists and the operator did not explicitly pick the
+    # wordmark, the header uses ttt_logo_banner. The logo asset is email_banner.logo ONLY — NEVER product / gallery /
+    # atmosphere / generated-poster / AI visuals. Missing logo (when a logo was preferred) -> wordmark fallback.
+    LOGO_VARIANTS = ("ttt_logo_banner", "logo_image_bar")
+    requested_header_variant = clean_copy_text(banner.get("header_variant") or "")  # "" = default (prefer logo)
+    explicit_wordmark = (requested_header_variant == "css_dark_bar_wordmark")
+    wants_logo = not explicit_wordmark                  # default ("") and the logo variants all want a logo
+    has_logo = bool(logo_url)
+    header_logo_missing_fallback = bool(wants_logo and not has_logo)
+    if has_logo and wants_logo:
+        header_variant = requested_header_variant if requested_header_variant in LOGO_VARIANTS else "ttt_logo_banner"
+    else:
+        header_variant = "css_dark_bar_wordmark"
+    header_logo_used = header_variant in LOGO_VARIANTS
     header_visual_mode = header_variant
     container_visual_variant = "ttt_product_sheet_container" if is_product_sheet else "ttt2_campaign_container"
     banner_source = ("uploaded_logo" if header_logo_used
-                     else ("wordmark_fallback" if header_logo_missing_fallback else "default_wordmark"))
+                     else ("default_wordmark" if explicit_wordmark else "wordmark_fallback"))
     footer_bg = "#333333" if is_product_sheet else "#3F3F3F"
 
     def _brand(size_px: int) -> str:
         if header_logo_used:
-            # logo directly on the dark header (ttt.html grammar) — the CUISTANCE brand logo is light-on-transparent;
-            # the email_banner.logo is the operator's responsibility to provide as a header-suitable (light) asset.
-            return _img(logo_url, style=f"height:{size_px + 8}px;max-width:240px;object-fit:contain;display:inline-block;", alt="CUISTANCE")
+            # logo directly on the dark header (ttt.html grammar) — email_banner.logo ONLY (light-on-transparent asset)
+            return _img(logo_url, style=f"height:{size_px}px;max-width:240px;object-fit:contain;display:inline-block;", alt="CUISTANCE")
         return (f'<span style="color:#ffffff;font-size:{size_px}px;font-weight:700;letter-spacing:2px;'
                 f'font-family:Georgia,\'Times New Roman\',serif;">CUISTANCE</span>')
 
+    # header geometry: ttt_logo_banner is the taller, native ttt header; logo_image_bar is compact; wordmark is medium.
+    if header_variant == "ttt_logo_banner":
+        header_pad, brand_size = "40px 24px 30px", 46
+    elif header_variant == "logo_image_bar":
+        header_pad, brand_size = "20px 24px 16px", 30
+    else:
+        header_pad, brand_size = "32px 24px 26px", 26
+
     header_meta_html = (
-        f'<div style="margin-top:9px;color:#cfd3d8;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;'
+        f'<div style="margin-top:11px;color:#c9ced3;font-size:11px;letter-spacing:2px;text-transform:uppercase;'
         f'font-family:Helvetica,Arial,sans-serif;">{escape(meta_bits)}</div>' if meta_bits else ""
     )
 
@@ -253,8 +272,8 @@ def build_email_assembly(
     fragments: dict[str, str] = {
         # dark header (ttt grammar): centered brand element + meta, then the red filet (#E1002A). Header only.
         "email_banner": (
-            '<div style="background:#1f2329;padding:32px 24px 26px;text-align:center;">'
-            + "<div>" + _brand(26) + "</div>" + header_meta_html + "</div>"
+            f'<div style="background:#1f2329;padding:{header_pad};text-align:center;">'
+            + "<div>" + _brand(brand_size) + "</div>" + header_meta_html + "</div>"
             + '<div style="height:3px;line-height:3px;font-size:0;background:#E1002A;">&nbsp;</div>'
         ),
         "title_intro": title_intro_html,

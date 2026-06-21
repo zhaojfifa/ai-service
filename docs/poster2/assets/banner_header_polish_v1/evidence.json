@@ -1,0 +1,33 @@
+{
+  "default_prefers_logo_banner": true,
+  "header_variant_default_with_logo": "ttt_logo_banner",
+  "header_variant_default_no_logo": "css_dark_bar_wordmark",
+  "banner_source_with_logo": "uploaded_logo",
+  "banner_source_no_logo": "wordmark_fallback",
+  "header_variants_supported": ["ttt_logo_banner", "logo_image_bar", "css_dark_bar_wordmark"],
+  "banner_replaceable": true,
+  "header_uses_email_banner_logo_only": true,
+  "product_image_used_as_logo": false,
+  "gallery_image_used_as_logo": false,
+  "atmosphere_used_as_logo": false,
+  "generated_poster_used_as_logo": false,
+  "fiche_banner_verdict": "PASS",
+  "affiche_banner_verdict": "PASS",
+  "fiche_screenshot": "docs/poster2/assets/banner_header_polish_v1/fiche_banner_polished.png",
+  "affiche_screenshot": "docs/poster2/assets/banner_header_polish_v1/affiche_banner_polished.png",
+  "no_broken_logo": true,
+  "no_double_header": true,
+  "body_layout_unchanged": true,
+  "send_path_preserved": true,
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "tests": {
+    "focused_assembly_candidates_psd_bodyplan_reference_send": "all green",
+    "new_polish_tests": 4,
+    "updated_default_tests": 6,
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "check_docs_router": "PASS"
+  }
+}

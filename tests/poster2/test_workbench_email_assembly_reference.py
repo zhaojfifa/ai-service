@@ -60,10 +60,10 @@ def test_assembly_has_600px_table_safe_shell(client):
 def test_assembly_has_email_banner_module(client):
     _, html = _preview_html(client)
     assert "#1f2329" in html or "1f2329" in html  # dark brand header
-    # ttt_html_header: clean dark bar + CUISTANCE CSS WORDMARK + channel meta (logo image is NOT stretched in)
+    # ttt header: dark bar + channel meta. With a logo present the DEFAULT header is the ttt logo banner.
     assert "CUISTANCE" in html
     assert "CUISTANCE Europe" in html
-    assert "https://r2.example/logo.png" not in html
+    assert "https://r2.example/logo.png" in html  # default header now uses the logo banner (email_banner.logo only)
 
 
 def test_assembly_has_red_filet_divider(client):

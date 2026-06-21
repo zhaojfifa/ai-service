@@ -359,7 +359,7 @@ class ProductAssets(BaseModel):
     atmosphere: Optional[WorkbenchAtmosphereAsset] = None
 
 
-EmailHeaderVariant = Literal["css_dark_bar_wordmark", "logo_image_bar"]
+EmailHeaderVariant = Literal["css_dark_bar_wordmark", "logo_image_bar", "ttt_logo_banner"]
 
 
 class EmailBanner(BaseModel):

@@ -57,7 +57,7 @@ def test_preview_exposes_psd_email_container(client):
     assert body["email_header_source"] == "ttt_html_header"
     assert ec["email_header_source"] == "ttt_html_header"
     assert ec["header_source"] == "ttt_html_header"
-    assert ec["header_visual_mode"] == "css_dark_bar_wordmark"
+    assert ec["header_visual_mode"] == "ttt_logo_banner"
     assert ec["uses_header_band_cover"] is False
     assert ec["logo_not_stretched"] is True and ec["logo_not_clipped"] is True
     assert ec["header_only"] is True

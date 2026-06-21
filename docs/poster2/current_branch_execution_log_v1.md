@@ -13053,3 +13053,30 @@ After bundle:
   screenshot.png, visual_review.md). Docs: container_deep_migration_design_review_v1.md + container_deep_migration_v1.md.
 - Owner Decision Needed: accept the native ttt/ttt2 containers; after Render redeploy, one internal test send to
   zhaojfifa@gmail.com confirms the received email uses the new container. customer/batch send + products[] remain HOLD.
+
+## CUISTANCE BANNER/HEADER POLISH V1 (2026-06-21) — default prefers logo banner; ttt_logo_banner variant
+- Task POSTER2-CUISTANCE-BANNER-HEADER-POLISH-V1. Focused polish of the BANNER/HEADER layer only (body/layout from the
+  deep migration accepted, unchanged). Root cause: header defaulted to css_dark_bar_wordmark even when email_banner.logo
+  existed (remote showed header_variant=css_dark_bar_wordmark, banner_source=default_wordmark, header_logo_used=false) ->
+  plain text block, engineering-like.
+- Fix (default prefers logo): when email_banner.logo exists and the operator did NOT explicitly pick the wordmark, the
+  header is ttt_logo_banner (logo used). No logo + preferred logo -> css_dark_bar_wordmark + header_logo_missing_fallback
+  =true. Explicit 文字品牌条 -> css_dark_bar_wordmark (banner_source=default_wordmark). New variant ttt_logo_banner
+  (taller ttt header + centered logo + meta + red filet); logo_image_bar = compact; css_dark_bar_wordmark = fallback.
+  Frontend default radio is now TTT Logo Banner (not 文字品牌条); 3 variants; header diag shows 当前邮件容器 / 当前 Banner /
+  Logo 已使用 / 缺失回退. Mirror synced; node --check = TRIAL_JS_OK.
+- Asset safety (test-enforced): header/logo uses email_banner.logo ONLY — never product/gallery/atmosphere/generated
+  poster/AI. Diagnostics: header_variant, banner_source, banner_replaceable, header_logo_url, header_logo_used,
+  header_logo_missing_fallback, container_visual_variant.
+- Tests: +4 new (default prefers logo / no-logo wordmark fallback / ttt_logo_banner renders logo+filet / affiche header
+  never uses poster+assets as logo); 6 updated (old wordmark-default tests now assert logo-banner default). Focused:
+  assembly+candidates+psd+body_plan+reference+send all green; test_api -k email/workbench/selected/fiche/preview/send =
+  11 passed; check_docs_router = PASS.
+- Screenshots (Playwright + Chrome, 600px): fiche_banner_polished.png = PASS, affiche_banner_polished.png = PASS (logo
+  banner native; no broken logo; no double header; banner no longer drags down design). Evidence dir lightweight.
+- Send path unchanged; no customer email; no batch; no products[]. P2A demo untouched. Stash preserved. No tag/merge/
+  rewrite.
+- Evidence: docs/poster2/assets/banner_header_polish_v1/ (evidence.json, visual_review.md, fiche/affiche_banner_polished
+  .png, fiche/affiche_preview.html). Doc: docs/poster2/banner_header_polish_v1.md.
+- Owner Decision Needed: accept the logo-banner default; after Render redeploy, a browser re-verify can confirm the
+  received email shows the ttt logo banner. customer/batch + products[] remain HOLD.

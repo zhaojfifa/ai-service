@@ -117,12 +117,13 @@ def test_preview_includes_email_banner_module(client):
     assert body["banner"]["channel_name"] == "CUISTANCE Europe"
     assert body["banner"]["campaign_label"] == "Nouveauté"
     assert body["banner"]["selected_banner_ref"] == "banner_option_01"
-    # ttt_html_header: clean dark bar + CUISTANCE wordmark + red filet + channel meta.
-    # The header uses a CSS WORDMARK (not the logo image) and NO header-band background cover.
+    # ttt header: dark bar + red filet + channel meta. When a logo exists, the DEFAULT now prefers the logo banner.
     assert "1f2329" in body["html"]            # dark bar
-    assert "CUISTANCE" in body["html"]         # wordmark
+    assert "CUISTANCE" in body["html"]         # brand (logo alt or wordmark)
     assert "CUISTANCE Europe" in body["html"]  # channel/campaign meta
-    assert "https://r2.example/logo.png" not in body["html"]  # logo image NOT stretched into the header
+    assert body["header_variant"] == "ttt_logo_banner"          # logo present -> logo banner by default
+    assert body["header_logo_used"] is True
+    assert "https://r2.example/logo.png" in body["html"]        # the logo IS the header brand element now
     assert "background-image" not in body["html"].split("selected_body_visual")[0]  # no header-band cover
 
 
@@ -294,7 +295,7 @@ def test_preview_exposes_container_profile_and_modes_affiche(client):
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
     assert body["container_profile"] == "single_product_campaign_email"
     # header_variant now reports the brand-element variant; the header source stays ttt_html_header
-    assert body["header_variant"] == "css_dark_bar_wordmark"
+    assert body["header_variant"] == "ttt_logo_banner"
     assert body["email_header_source"] == "ttt_html_header"
     assert body["spec_display_mode"] == "in_visual"           # affiche specs baked into the visual
     assert body["body_visual_mode"]                            # variant present
@@ -475,18 +476,33 @@ def _patch_banner(client, wb, **fields):
     client.patch(f"/api/v2/workbench/{wb}", json={"email_banner": fields})
 
 
-def test_header_default_css_dark_bar_wordmark(client):
+def test_header_default_prefers_logo_banner_when_logo_exists(client):
+    # POLISH: when a valid email_banner.logo exists, the DEFAULT header is the ttt logo banner (not text wordmark)
     wb = _make_workbench(client)
     _set_banner_meta(client, wb)   # sets logo + channel + campaign, NO header_variant
     _gen(client, wb, "fiche"); _select(client, wb, "fiche")
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
-    assert body["header_variant"] == "css_dark_bar_wordmark"
-    assert body["header_logo_used"] is False
+    assert body["header_variant"] == "ttt_logo_banner"
+    assert body["banner_source"] == "uploaded_logo"
+    assert body["header_logo_used"] is True
     assert body["header_logo_missing_fallback"] is False
     assert body["email_header_source"] == "ttt_html_header"
-    # CSS wordmark present; the logo image is NOT used as the header brand element
     header_region = body["html"].split("E1002A")[0]   # up to the red filet (end of header bar)
-    assert "CUISTANCE" in header_region
+    assert "https://r2.example/logo.png" in header_region   # the logo IS the header brand element
+
+
+def test_header_no_logo_falls_back_to_wordmark(client):
+    # POLISH: with NO logo, the default header falls back to the text wordmark and flags the fallback
+    wb = _make_workbench(client)
+    client.patch(f"/api/v2/workbench/{wb}", json={"email_banner": {"channel_name": "CUISTANCE Europe"}})  # no logo
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["header_variant"] == "css_dark_bar_wordmark"
+    assert body["banner_source"] == "wordmark_fallback"
+    assert body["header_logo_used"] is False
+    assert body["header_logo_missing_fallback"] is True
+    header_region = body["html"].split("E1002A")[0]
+    assert "CUISTANCE" in header_region            # css wordmark text
     assert "https://r2.example/logo.png" not in header_region
 
 
@@ -538,7 +554,7 @@ def test_fiche_default_container_is_ttt_product_sheet(client):
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
     assert body["container_visual_variant"] == "ttt_product_sheet_container"
     assert body["banner_replaceable"] is True
-    assert body["banner_source"] == "default_wordmark"
+    assert body["banner_source"] == "uploaded_logo"
     # ttt grammar markers: dark header, red filet, serif headline, rounded red CTA, dark footer
     html = body["html"]
     assert "#1f2329" in html and "background:#E1002A" in html
@@ -595,3 +611,31 @@ def test_container_has_no_mailchimp_tracking_or_stale_facts(client):
         for forbidden in ("list-manage", "mcusercontent", "campaign-image", "mailchimp", "/track",
                           "coupe-frites", "1210025", "les réchauds gaz"):
             assert forbidden not in html
+
+
+# ---- POSTER2-CUISTANCE-BANNER-HEADER-POLISH-V1 ----
+def test_ttt_logo_banner_renders_logo_and_filet(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"},
+                  channel_name="CUISTANCE Europe", header_variant="ttt_logo_banner")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["header_variant"] == "ttt_logo_banner"
+    assert body["banner_source"] == "uploaded_logo"
+    assert body["header_logo_used"] is True
+    header_region = body["html"].split("E1002A")[0]
+    assert "https://r2.example/brandlogo.png" in header_region   # logo image in the banner
+    assert "background:#E1002A" in body["html"]                  # red filet preserved
+
+
+def test_header_never_uses_poster_or_assets_as_logo_affiche(client):
+    wb = _wb_with_media(client)   # 2 product images + 3 gallery + atmosphere
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"},
+                  channel_name="CUISTANCE Europe", header_variant="ttt_logo_banner")
+    _gen(client, wb, "affiche"); _select(client, wb, "affiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    header_region = body["html"].split("E1002A")[0]              # header bar only
+    assert "https://r2.example/brandlogo.png" in header_region   # only the email_banner.logo
+    poster_url = body["body_visual"]["url"] or "ZZZ_NONE"
+    for forbidden in (poster_url, "p1.png", "p2.png", "g1.png", "g2.png", "g3.png", "atmo.png"):
+        assert forbidden not in header_region                   # never poster/product/gallery/atmosphere as logo

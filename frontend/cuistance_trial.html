@@ -397,9 +397,10 @@
             <p class="hint" data-zh="邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条），不含产品主体 / 描述 / CTA / 页脚。" data-fr="Conteneur automatique selon le mode : fiche = conteneur TTT ; affiche = conteneur TTT2. En-tête : barre sombre + filet rouge ; bannière remplaçable (wordmark / logo) ; pas de corps / description / CTA / pied.">邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条）。</p>
             <div class="ttt-header-preview" id="tttHeaderPreview"><span class="ttt-wordmark" id="tttWordmark">CUISTANCE</span><img class="ttt-logo" id="tttLogo" alt="CUISTANCE" style="display:none;height:30px;max-width:200px;object-fit:contain" /><span class="ttt-meta" id="tttHeaderMeta">CUISTANCE Europe · Nouveauté</span></div>
             <div class="radio-row" id="headerVariantRow" style="margin-top:8px">
-              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" checked /> <span data-zh="文字品牌条" data-fr="Bandeau wordmark">文字品牌条</span></label>
+              <label><input type="radio" name="hdrvar" value="ttt_logo_banner" checked /> <span data-zh="TTT Logo Banner" data-fr="Bannière logo TTT">TTT Logo Banner</span></label>
               <label><input type="radio" name="hdrvar" value="logo_image_bar" /> <span data-zh="Logo 图片条" data-fr="Bandeau logo">Logo 图片条</span></label>
-              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="Logo 图片条仅使用「邮件 Logo」素材；缺失时回退为文字品牌条。" data-fr="Le bandeau logo utilise uniquement le logo email ; sinon retour au wordmark.">Logo 图片条仅使用「邮件 Logo」素材；缺失时回退为文字品牌条。</span>
+              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" /> <span data-zh="文字品牌条" data-fr="Wordmark">文字品牌条</span></label>
+              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="有 Logo 时默认使用 Logo Banner；缺失时回退文字品牌条。Banner 仅使用「邮件 Logo」素材，不使用产品 / 画廊 / 氛围 / 海报图。" data-fr="Avec un logo : bannière logo par défaut ; sinon retour au wordmark. La bannière utilise uniquement le logo email.">有 Logo 时默认使用 Logo Banner；缺失时回退文字品牌条。Banner 仅使用「邮件 Logo」素材。</span>
             </div>
             <div class="grid-2" style="margin-top:8px">
               <div class="field"><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input class="input" id="f-channel" value="CUISTANCE Europe" /></div>
@@ -540,7 +541,7 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='css_dark_bar_wordmark';
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='ttt_logo_banner';
     // email-layer header asset per fill format (ttt2/campaign -> Technitalia banner; ttt/sheet -> brand header)
     var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/header_band_02.png'}, product_sheet_email:{ref:'option_1',img:'assets/header_band_01.png'}};
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:'', afficheStale:false, ficheStale:false};
@@ -1091,11 +1092,12 @@
     }
     function updateHeaderPreview(){
       var wm=$('tttWordmark'),lg=$('tttLogo');
-      var useLogo=(selectedHeaderVariant==='logo_image_bar' && !!SLOTS.logo);
+      var wantsLogo=(selectedHeaderVariant==='ttt_logo_banner' || selectedHeaderVariant==='logo_image_bar');
+      var useLogo=(wantsLogo && !!SLOTS.logo);
       if(wm)wm.style.display=useLogo?'none':'';
       if(lg){ if(useLogo){lg.src=SLOTS.logo;lg.style.display='';} else {lg.style.display='none';} }
       var hint=$('headerVariantHint');
-      if(hint && selectedHeaderVariant==='logo_image_bar' && !SLOTS.logo){
+      if(hint && wantsLogo && !SLOTS.logo){
         hint.textContent=(lang==='zh'?'未提供邮件 Logo，已回退为文字品牌条。':'Pas de logo email — retour au wordmark.');
       } else if(hint){ hint.textContent=hint.getAttribute('data-'+lang)||hint.textContent; }
     }
@@ -1115,13 +1117,14 @@
       var box=$('header-diag-state'),el=$('header-diag'); if(!box||!el)return;
       if(!j||!j.header_variant){box.style.display='none';return;}
       box.style.display='';
+      var HV={ttt_logo_banner:{zh:'TTT Logo Banner',fr:'Bannière logo TTT'},logo_image_bar:{zh:'Logo 图片条',fr:'Bandeau logo'},css_dark_bar_wordmark:{zh:'文字品牌条',fr:'Wordmark'}};
       var cv=(CONTAINER_NAME[j.container_visual_variant]||{})[lang]||j.container_visual_variant||'';
-      var bs=(BANNER_SRC[j.banner_source]||{})[lang]||j.banner_source||'';
+      var hv=(HV[j.header_variant]||{})[lang]||j.header_variant||'';
       var parts=[];
       if(cv)parts.push((lang==='zh'?'当前邮件容器：':'Conteneur : ')+cv);
-      parts.push((lang==='zh'?'当前 Banner：可替换 · ':'Bannière : remplaçable · ')+bs);
+      parts.push((lang==='zh'?'当前 Banner：可替换 · ':'Bannière : remplaçable · ')+hv);
       parts.push((lang==='zh'?'Logo 已使用：':'logo : ')+(j.header_logo_used?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
-      if(j.header_logo_missing_fallback)parts.push(lang==='zh'?'（已回退文字品牌条）':'(retour au wordmark)');
+      parts.push((lang==='zh'?'缺失回退：':'fallback : ')+(j.header_logo_missing_fallback?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
       el.textContent=parts.join(' · ');
     }
 
