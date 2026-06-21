@@ -13080,3 +13080,28 @@ After bundle:
   .png, fiche/affiche_preview.html). Doc: docs/poster2/banner_header_polish_v1.md.
 - Owner Decision Needed: accept the logo-banner default; after Render redeploy, a browser re-verify can confirm the
   received email shows the ttt logo banner. customer/batch + products[] remain HOLD.
+
+## CUISTANCE 0A55A1C REMOTE BANNER SEND VERIFY V1 (2026-06-21) — PASS (docs only, no code, no send)
+- Task POSTER2-CUISTANCE-0A55A1C-REMOTE-BANNER-SEND-VERIFY. Render deployed >= 0a55a1c (served page carries
+  ttt_logo_banner / TTT Logo Banner / 缺失回退 / selectedHeaderVariant='ttt_logo_banner'; backend preview returns
+  header_variant=ttt_logo_banner + banner_source=uploaded_logo). healthz=200, page=200.
+- Method: literal browser (Playwright + Chrome) for Fiche preview + live screenshot; authenticated API for Affiche route
+  diagnostics (banner is backend-determined, identical). Workbench wb_9308b112feb0436e (logo present, header_variant
+  persisted ttt_logo_banner).
+- Fiche PASS: container_visual_variant=ttt_product_sheet_container, header_variant=ttt_logo_banner, banner_source=
+  uploaded_logo, header_logo_used=true, missing_fallback=false, supporting_media_count=3. UI header diag: 当前邮件容器：
+  TTT 简单产品容器 · 当前 Banner：可替换 · TTT Logo Banner · Logo 已使用：是 · 缺失回退：否. Live screenshot shows the LOGO
+  BANNER (logo + meta + red filet), NOT the old plain text bar; body + supporting strip unchanged.
+- Affiche PASS: container_visual_variant=ttt2_campaign_container, header_variant=ttt_logo_banner, banner_source=
+  uploaded_logo, header_logo_used=true, email_body_visual_contract_pass=true, body_visual_contains_own_banner=false
+  (no double header).
+- Send regression: NOT RUN (justified) — banner-only commit; send path unchanged code, already browser-validated end-
+  to-end at 850a0af (provider=resend, provider_message_id present). real_send_provider=not_run, provider_message_id=null.
+  No customer email; no batch.
+- Honest nit: the operator's uploaded logo_01.jpg is a darker asset -> low contrast on the dark header; mechanism is
+  correct (logo used, not wordmark); a light logo renders crisply (local polish screenshots). Cosmetic asset choice.
+- No code change. P2A demo untouched. Workbench left selected=affiche (original). Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/remote_banner_send_verify_v1/ (evidence.json, fiche_remote_banner.png). Doc:
+  docs/poster2/remote_banner_send_verify_v1.md. check_docs_router = PASS.
+- Owner Decision Needed: accept the remote-verified ttt_logo_banner default; optionally replace the operator logo with a
+  light/transparent header logo for max contrast. customer/batch + products[] remain HOLD.
