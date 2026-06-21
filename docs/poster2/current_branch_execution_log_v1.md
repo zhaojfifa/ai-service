@@ -13240,3 +13240,26 @@ After bundle:
   docs/poster2/email_package_candidate_remote_verify_v1.md. check_docs_router = PASS.
 - Owner Decision Needed: accept the package-candidate layer (remote-verified); commission designer banner assets for
   final quality. customer/batch + products[] remain HOLD.
+
+## EMAIL PACKAGE SEND-BINDING HOTFIX V1 (2026-06-21) — P0: send delivered wrong version; now binds to selected package
+- Task POSTER2-EMAIL-PACKAGE-SEND-BINDING-HOTFIX-V1. Remote browser test found a P0: operator selected/previewed Affiche
+  but send delivered Fiche.
+- Root cause (two bugs): (1) BACKEND send called _resolve_workbench_email_package(workbench_key) with NO route -> resolved
+  the persisted selected_email_body_visual, ignoring payload.selected_email_package (guard only). (2) FRONTEND send used
+  the JS global selectedVisual; viewing the Affiche package CARD (via /email/packages, independent of selection) never
+  changed the persisted selection -> bottom send could send the stale persisted route (fiche) with no mismatch.
+- Backend fix: send resolves from payload.selected_email_package (route=...) = AUTHORITATIVE; keeps 422
+  selected_package_mismatch vs persisted; response +email_fill_format (+ existing sent_package_type/selected/
+  body_visual_poster_key/container_visual_variant/real_email_sent). Affiche -> campaign_poster_email/ttt2/poster_key;
+  Fiche -> product_sheet_email/ttt/poster_key=null.
+- Frontend fix: "发送这个版本" is now a COMPLETE explicit send of THAT route (select -> GET-confirm -> preview that route
+  -> bind pendingSendPackage -> open send modal). modalConfirm re-GETs the persisted selection, requires it == the bound
+  package (else blocks), sends selected_email_package=route, and VERIFIES response.sent_package_type==route (else ERROR,
+  not success). Bottom send binds to the current selection (no hidden fiche default). Staleness -> confirm dialog before
+  send. "已发送版本：<目标海报邮件|简单产品页邮件> · 容器 · 海报Key · provider_message_id". Mirror synced; node --check OK.
+- Tests: +4 (affiche binds to affiche / fiche binds to fiche / explicit package authoritative / response includes
+  container_visual_variant) + existing mismatch 422. Focused suites = 96 passed; test_api -k = 11 passed;
+  check_docs_router = PASS.
+- No banner/body change; no send-provider change; no customer/batch; no products[]. P2A untouched. Stash preserved.
+- Evidence: docs/poster2/assets/email_package_send_binding_hotfix_v1/evidence.json. Doc:
+  docs/poster2/email_package_send_binding_hotfix_v1.md. Remote verification follows after Render deploy.

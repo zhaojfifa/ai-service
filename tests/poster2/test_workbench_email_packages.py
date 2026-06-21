@@ -151,3 +151,63 @@ def test_inline_only_send_is_not_real(client):
     assert b["real_email_sent"] is False
     assert b["sent_package_type"] == "affiche"
     assert b["attempts"][0]["status"] == "skipped"
+
+
+# ---- POSTER2-EMAIL-PACKAGE-SEND-BINDING-HOTFIX-V1 ----
+def test_send_affiche_binds_to_affiche(client, monkeypatch):
+    monkeypatch.setattr(main, "get_email_provider", lambda mode: _FakeSentProvider())
+    wb = _both(client)
+    _select(client, wb, "affiche")
+    r = client.post(f"/api/v2/workbench/{wb}/email/send",
+                    json={"recipients": ["a@x.com"], "mode": "real", "confirm_send": True,
+                          "delivery_mode": "resend", "selected_email_package": "affiche"})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["sent_package_type"] == "affiche"
+    assert b["selected_email_body_visual"] == "affiche"
+    assert b["email_fill_format"] == "campaign_poster_email"
+    assert b["container_visual_variant"] == "ttt2_campaign_container"
+    assert b["body_visual_poster_key"]            # affiche carries a poster_key (NOT the fiche body)
+    assert b["real_email_sent"] is True
+
+
+def test_send_fiche_binds_to_fiche(client, monkeypatch):
+    monkeypatch.setattr(main, "get_email_provider", lambda mode: _FakeSentProvider())
+    wb = _both(client)
+    _select(client, wb, "fiche")
+    r = client.post(f"/api/v2/workbench/{wb}/email/send",
+                    json={"recipients": ["a@x.com"], "mode": "real", "confirm_send": True,
+                          "delivery_mode": "resend", "selected_email_package": "fiche"})
+    assert r.status_code == 200
+    b = r.json()
+    assert b["sent_package_type"] == "fiche"
+    assert b["selected_email_body_visual"] == "fiche"
+    assert b["email_fill_format"] == "product_sheet_email"
+    assert b["container_visual_variant"] == "ttt_product_sheet_container"
+    assert b["body_visual_poster_key"] is None    # fiche has NO poster_key (does not use the affiche poster)
+
+
+def test_explicit_package_is_authoritative_over_legacy(client, monkeypatch):
+    # the explicit selected_email_package drives resolution; the response container proves the right body was sent
+    monkeypatch.setattr(main, "get_email_provider", lambda mode: _FakeSentProvider())
+    wb = _both(client)
+    _select(client, wb, "affiche")
+    aff = client.post(f"/api/v2/workbench/{wb}/email/send",
+                      json={"recipients": ["a@x.com"], "mode": "real", "confirm_send": True,
+                            "delivery_mode": "resend", "selected_email_package": "affiche"}).json()
+    _select(client, wb, "fiche")
+    fic = client.post(f"/api/v2/workbench/{wb}/email/send",
+                      json={"recipients": ["a@x.com"], "mode": "real", "confirm_send": True,
+                            "delivery_mode": "resend", "selected_email_package": "fiche"}).json()
+    assert aff["container_visual_variant"] == "ttt2_campaign_container" and aff["body_visual_poster_key"]
+    assert fic["container_visual_variant"] == "ttt_product_sheet_container" and fic["body_visual_poster_key"] is None
+
+
+def test_send_response_includes_container_visual_variant(client):
+    wb = _both(client)
+    _select(client, wb, "affiche")
+    b = client.post(f"/api/v2/workbench/{wb}/email/send",
+                    json={"recipients": ["a@x.com"], "confirm_send": True, "delivery_mode": "inline_only",
+                          "selected_email_package": "affiche"}).json()
+    assert b["container_visual_variant"] == "ttt2_campaign_container"
+    assert b["real_email_sent"] is False          # inline_only is never a real send

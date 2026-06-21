@@ -564,7 +564,7 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='ttt_logo_banner', selectedBannerContrast='on_dark';
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='ttt_logo_banner', selectedBannerContrast='on_dark', pendingSendPackage=null, pkgStale={fiche:false,affiche:false};
     // email-layer header asset per fill format (ttt2/campaign -> Technitalia banner; ttt/sheet -> brand header)
     var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/header_band_02.png'}, product_sheet_email:{ref:'option_1',img:'assets/header_band_01.png'}};
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:'', afficheStale:false, ficheStale:false};
@@ -1099,21 +1099,33 @@
       var pc=r.json.email_package_candidates||{};
       renderPkgCard('fiche',pc.fiche,r.json.selected_email_body_visual);
       renderPkgCard('affiche',pc.affiche,r.json.selected_email_body_visual);
+      pkgStale.fiche=((pc.fiche||{}).staleness_status==='maybe_stale');
+      pkgStale.affiche=((pc.affiche||{}).staleness_status==='maybe_stale');
       var t=$('pkgSendTarget'); if(t){var sel=r.json.selected_email_body_visual; t.textContent=(lang==='zh'?'当前将发送：':'Version à envoyer : ')+(sel?((sel==='fiche')?(lang==='zh'?'简单产品页邮件':'fiche'):(lang==='zh'?'目标海报邮件':'affiche')):(lang==='zh'?'请选择一个版本':'choisir une version'));}
       diag('packages',{selected:r.json.selected_email_body_visual,fiche_status:(pc.fiche||{}).status,affiche_status:(pc.affiche||{}).status,fiche_stale:(pc.fiche||{}).staleness_status,affiche_stale:(pc.affiche||{}).staleness_status});
     }
-    // "发送这个版本": select that route as the send package, then refresh
+    // "发送这个版本": COMPLETE explicit send of THAT route — select it on the backend, preview it, then open the send
+    // modal bound to that exact package (never relies on a stale global). Warns first if the package is maybe-stale.
+    async function sendThisVersion(route){
+      if(!S.wb)return;
+      var pr=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:route});
+      if(!pr.ok){flash('err',bizMsg(pr));return;}
+      var g=await api('GET','/api/v2/workbench/'+S.wb);
+      var sel=(g.json&&g.json.selected_email_body_visual);
+      if(sel!==route){flash('err',lang==='zh'?'选择此版本失败，请重试。':'Échec de sélection — réessayez.');return;}
+      applySelectVisual(route);             // sets selectedVisual + fill format for this route
+      await loadPackages();
+      if(pkgStale[route]){ if(!window.confirm(lang==='zh'?'该版本可能不是最新（素材已变更）。建议返回第二步重新生成。仍要继续发送吗？':'Cette version peut être obsolète. Continuer quand même ?')){return;} }
+      flash('info',lang==='zh'?'正在生成该版本预览…':'Génération de l\'aperçu…');
+      await doPreview();                     // preview THIS route so the iframe matches what will be sent
+      if(!previewGenerated){flash('err',lang==='zh'?'预览失败，无法发送。':'Aperçu impossible — envoi annulé.');return;}
+      pendingSendPackage=route;              // bind the send to this exact package
+      if(!$('f-confirm').checked){flash('warn',lang==='zh'?'已选择并预览此版本，请勾选「确认发送」后点击发送。':'Cochez « Confirmer » puis envoyez.');}
+      openSendModal();
+    }
     ['fiche','affiche'].forEach(function(route){
       var btn=$('pkgsend-'+route); if(!btn)return;
-      btn.addEventListener('click',async function(){
-        if(!S.wb)return;
-        var pr=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:route});
-        if(!pr.ok){flash('err',bizMsg(pr));return;}
-        var g=await api('GET','/api/v2/workbench/'+S.wb);
-        var sel=(g.json&&g.json.selected_email_body_visual);
-        if(sel===route){ applySelectVisual(route); flash('ok',lang==='zh'?'已选择此版本，请「预览邮件」后发送。':'Version choisie — aperçu puis envoi.'); }
-        await loadPackages();
-      });
+      btn.addEventListener('click',function(){ sendThisVersion(route); });
     });
     // entering Step 3 (incl. after Command+R recovery): without a fresh backend preview, never claim one exists
     function updateStep3Preview(){
@@ -1225,7 +1237,7 @@
       return out;
     }
     var lastPreviewHtml='';  // last backend-assembled email HTML (for the full-size preview window)
-    $('btn-preview').addEventListener('click',async function(){
+    async function doPreview(){
       if(!S.wb||!selectedVisual){flash('warn',(lang==='zh'?'请先选择邮件主体':'Choisissez d\'abord le corps'));return}
       // ensure the selected candidate is ready + has a poster_key/url before asking the backend to assemble
       var key=S[selectedVisual]; if(!key){ await refreshState(); key=S[selectedVisual]; }
@@ -1256,7 +1268,8 @@
       updateHeaderDiag(r.json);          // replaceable header diagnostics (variant / logo used / fallback)
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
-    });
+    }
+    $('btn-preview').addEventListener('click',function(){ pendingSendPackage=selectedVisual; doPreview(); });
     // 打开完整预览 — open the full 600px backend-assembled email in a new tab (Blob URL), unclipped + scrollable
     // Full preview = in-page modal (not popup-blockable) showing the full 600px email, scrollable; + new-tab backup.
     function fullPreviewShell(){
@@ -1276,28 +1289,44 @@
     $('fp-close').addEventListener('click',function(){$('fullPreviewModal').classList.remove('open');});
     $('fullPreviewModal').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
     function curMode(){var el=document.querySelector('input[name=mode]:checked');return el?el.value:'test'}
+    function pkgNameZh(route){return route==='affiche'?'目标海报邮件':'简单产品页邮件';}
     function openSendModal(){
       if(!S.wb||!selectedVisual){$('send-summary').textContent=(lang==='zh'?'请先预览邮件。':'Prévisualisez d\'abord.');return}
       if(!previewGenerated){$('send-summary').textContent=(lang==='zh'?'请先生成邮件预览':'Générez d\'abord l\'aperçu');return}
       if(!$('f-confirm').checked){$('send-summary').textContent=(lang==='zh'?'请勾选「确认发送」。':'Cochez « Confirmer ».');return}
-      $('modal-text').textContent=(lang==='zh'? ('确认'+(curMode()==='real'?'正式':'测试')+'发送给：'+$('f-recipient').value+'？') : ('Confirmer envoi '+(curMode()==='real'?'réel':'test')+' à : '+$('f-recipient').value+' ?'));
+      // bind the send to an explicit package: the version just prepared (pendingSendPackage) or the current selection
+      pendingSendPackage=pendingSendPackage||selectedVisual;
+      var pn=(lang==='zh'?pkgNameZh(pendingSendPackage):pendingSendPackage);
+      var stwarn=pkgStale[pendingSendPackage]?(lang==='zh'?'（注意：该版本可能不是最新）':' (peut-être obsolète)'):'';
+      $('modal-text').textContent=(lang==='zh'? ('确认'+(curMode()==='real'?'正式':'测试')+'发送【'+pn+'】给：'+$('f-recipient').value+'？'+stwarn) : ('Envoyer ['+pn+'] '+(curMode()==='real'?'(réel)':'(test)')+' à : '+$('f-recipient').value+' ?'+stwarn));
       $('modal').classList.add('open');
     }
-    $('btn-send').addEventListener('click',openSendModal);
+    $('btn-send').addEventListener('click',function(){ pendingSendPackage=selectedVisual; openSendModal(); });
     $('modalCancel').addEventListener('click',function(){$('modal').classList.remove('open')});
     $('modalConfirm').addEventListener('click',async function(){
       $('modal').classList.remove('open');
-      // ALIGN WITH MAINLINE SEND: 正式发送(real) routes to the shared real provider (delivery_mode=resend);
-      // 测试发送(test) stays preview-only (inline_only). Same backend endpoint + same provider config as mainline.
+      var route=pendingSendPackage||selectedVisual;
+      if(!route){flash('warn',lang==='zh'?'请先选择要发送的版本。':'Choisissez d\'abord une version.');return}
+      // AUTHORITATIVE: re-confirm the backend persisted selection equals the package we intend to send (no stale send)
+      var g=await api('GET','/api/v2/workbench/'+S.wb);
+      var persisted=(g.json&&g.json.selected_email_body_visual);
+      if(persisted!==route){ flash('err',lang==='zh'?('当前后台版本为「'+(lang==='zh'?pkgNameZh(persisted||'fiche'):persisted)+'」，请在版本卡片点击「发送这个版本」后再发送。'):'Version backend différente — utilisez « Envoyer cette version ».'); return; }
       var deliveryMode=(curMode()==='real')?'resend':'inline_only';
-      // explicit package selection: send exactly the selected version (unambiguous)
-      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:deliveryMode,selected_email_package:selectedVisual});
+      // explicit package binding: send exactly this version
+      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:deliveryMode,selected_email_package:route});
       if(!r.ok||!r.json){flash('err',bizMsg(r));return}
-      diag('send_package',{sent_package_type:r.json.sent_package_type,container_visual_variant:r.json.container_visual_variant,body_visual_poster_key:r.json.body_visual_poster_key,real_email_sent:r.json.real_email_sent});
-      // a true real delivery REQUIRES a provider_message_id; inline_only/preview_only is NOT a real send
+      diag('send_package',{requested:route,sent_package_type:r.json.sent_package_type,email_fill_format:r.json.email_fill_format,container_visual_variant:r.json.container_visual_variant,body_visual_poster_key:r.json.body_visual_poster_key,real_email_sent:r.json.real_email_sent});
+      // CRITICAL: the backend must confirm it sent the package we asked for — otherwise NOT a success
+      if(r.json.sent_package_type && r.json.sent_package_type!==route){
+        flash('err',lang==='zh'?('发送版本不匹配：请求「'+pkgNameZh(route)+'」但后台发送「'+pkgNameZh(r.json.sent_package_type)+'」，已中止。'):'Version envoyée incorrecte — abandon.');
+        $('etat').textContent=(lang==='zh'?'版本不匹配':'Incohérent'); return;
+      }
       var real=isRealSent(r.json);
       diag('send',r.json);renderResults(r.json);
+      // surface which package was actually sent + its identity
+      $('send-summary').textContent=(lang==='zh'?('已发送版本：'+pkgNameZh(r.json.sent_package_type||route)+' · 容器：'+(r.json.container_visual_variant||'')+(r.json.body_visual_poster_key?(' · 海报 Key：'+r.json.body_visual_poster_key):'')+(real?(' · provider_message_id：'+((r.json.attempts||[]).map(function(a){return a.provider_message_id;}).filter(Boolean)[0]||'')):' · 未真实发送')):('Version envoyée : '+(r.json.sent_package_type||route)));
       $('etat').textContent= real ? (lang==='zh'?'真实发送成功':'Envoyé') : (lang==='zh'?'未真实发送':'Non distribué');
+      pendingSendPackage=null;
     });
     function attemptIsRealSent(a){return a&&a.status==='sent'&&!!a.provider_message_id;}
     function isRealSent(b){return (b.attempts||[]).some(attemptIsRealSent);}

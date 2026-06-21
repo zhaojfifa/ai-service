@@ -604,6 +604,7 @@ class WorkbenchEmailSendResponse(BaseModel):
     # ---- which package was actually sent (additive; backward compatible) ----
     sent_package_type: Optional[CandidateType] = None
     selected_email_body_visual: Optional[CandidateType] = None
+    email_fill_format: Optional[str] = None
     body_visual_poster_key: Optional[str] = None
     container_visual_variant: Optional[str] = None
     real_email_sent: bool = False

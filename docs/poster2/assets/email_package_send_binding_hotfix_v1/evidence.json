@@ -1,0 +1,28 @@
+{
+  "root_cause": "send resolved the persisted selected_email_body_visual (ignoring payload.selected_email_package); the UI viewed the package card without changing the persisted selection, so a stale persisted route (fiche) could be sent while the operator looked at affiche",
+  "affiche_send_binds_to_affiche": true,
+  "fiche_send_binds_to_fiche": true,
+  "send_payload_has_selected_email_package": true,
+  "send_resolves_from_selected_email_package": true,
+  "send_response_reports_sent_package_type": true,
+  "send_response_includes_email_fill_format": true,
+  "send_response_includes_container_visual_variant": true,
+  "ui_verifies_sent_package_type_matches_request": true,
+  "ui_prevents_stale_default_send": true,
+  "ui_send_this_version_is_complete_explicit_send": true,
+  "mismatch_guard": "422 selected_package_mismatch",
+  "staleness_warned_before_send": true,
+  "banner_or_body_layout_changed": false,
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "tests": {
+    "new_binding_tests": 4,
+    "focused_suites": "96 passed",
+    "test_api": "11 passed",
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "check_docs_router": "PASS"
+  },
+  "remote_verification": "see email_package_send_binding_hotfix_v1.md / log — performed after Render deploy of this commit"
+}

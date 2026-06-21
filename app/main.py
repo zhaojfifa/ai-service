@@ -2833,13 +2833,17 @@ def send_workbench_email_v2(
     Gemini fact change, no new poster). Reuses the existing provider path; does NOT change the single-recipient
     /api/v2/email/send. Manual recipients only — no contact import / Excel / CRM / scheduling / segmentation /
     analytics."""
-    # deterministic package (raises the same 404/422 guards as preview, incl. email_body_plan_unavailable)
-    pkg = _resolve_workbench_email_package(workbench_key)
+    # AUTHORITATIVE send-time package binding: resolve the package the request EXPLICITLY asks for
+    # (selected_email_package), not just the persisted selection — this is the P0 fix so the sent version is exactly
+    # the one the operator picked. route=None falls back to the persisted selection (legacy callers).
+    pkg = _resolve_workbench_email_package(workbench_key, route=payload.selected_email_package)
     selected, poster_key, candidate = pkg["selected"], pkg["poster_key"], pkg["candidate"]
     record, assembly = pkg["record"], pkg["assembly"]
 
-    # explicit send-time package selection: if asserted it MUST equal the persisted selected route -> unambiguous send
-    if payload.selected_email_package and payload.selected_email_package != selected:
+    # the explicit package must agree with the persisted selection (the UI selects-then-sends) — a divergence is a
+    # state bug and is rejected rather than silently sending the wrong version.
+    persisted_selected = (pkg.get("workbench") or {}).get("selected_email_body_visual")
+    if payload.selected_email_package and persisted_selected and payload.selected_email_package != persisted_selected:
         raise HTTPException(status_code=422, detail="selected_package_mismatch")
 
     # explicit confirmation — neither test nor real send happens implicitly
@@ -2931,6 +2935,7 @@ def send_workbench_email_v2(
         # which package was actually sent (explicit + unambiguous)
         sent_package_type=selected,
         selected_email_body_visual=selected,
+        email_fill_format=assembly.get("email_fill_format"),
         body_visual_poster_key=poster_key,
         container_visual_variant=assembly.get("container_visual_variant"),
         real_email_sent=real_email_sent,
