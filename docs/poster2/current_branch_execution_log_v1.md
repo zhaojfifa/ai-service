@@ -13105,3 +13105,32 @@ After bundle:
   docs/poster2/remote_banner_send_verify_v1.md. check_docs_router = PASS.
 - Owner Decision Needed: accept the remote-verified ttt_logo_banner default; optionally replace the operator logo with a
   light/transparent header logo for max contrast. customer/batch + products[] remain HOLD.
+
+## CUISTANCE BANNER COMPOSITE MODULE FIX V1 (2026-06-21) — email_banner_composite (lockup + contrast modes)
+- Task POSTER2-CUISTANCE-BANNER-COMPOSITE-MODULE-FIX-V1. Root cause: banner was a logo FLAG (dark slab + raw logo),
+  dark logo invisible dark-on-dark, no lockup -> engineering bar. Fix: make the banner a first-class composite module
+  email_banner_composite (banner-layer only; body unchanged).
+- Module: background_plate #1f2329 + brand lockup (logo OR white wordmark) + channel_line (channel_name) + campaign_tag
+  (campaign_label red-bordered pill) + red filet #E1002A full 600px. Variants: ttt_banner_composite (default w/ logo) |
+  compact_logo_banner | text_wordmark_fallback, mapped 1:1 from header_variant (backward compatible).
+- Contrast (dark-on-dark fix): banner_logo_contrast_mode on_dark (default; light logo) | light_plate (dark logo -> subtle
+  white rounded plate inside the dark banner, never invisible). Operator setting; never product/gallery/atmosphere/
+  generated-poster/AI as logo (email_banner.logo ONLY, test-enforced).
+- Schema: EmailBanner.banner_logo_contrast_mode; response +banner_variant/banner_composite_used/banner_logo_url/
+  banner_logo_contrast_mode/banner_background_mode/banner_filet_used. main.py wired. banner_source reserves
+  default_banner_lockup_asset (logo banner.png is a layers-panel screenshot, NOT a usable asset -> not adopted).
+- Frontend: radios renamed TTT Banner 组件 / 紧凑 Logo Banner / 文字品牌回退 + contrast radios 深色底 / 浅色 Logo 板;
+  persisted via email_banner.banner_logo_contrast_mode; header diag shows 当前 Banner / Logo 来源 / 对比模式. Mirror
+  synced; node --check = TRIAL_JS_OK.
+- Tests: +4 (composite module with lockup / light_plate contrast for dark logo / no-logo wordmark fallback / banner
+  never uses product-gallery-atmosphere-poster as logo). Focused suites = 99 passed; test_api -k = 11 passed;
+  check_docs_router = PASS.
+- Screenshots (Playwright + Chrome, 600px): fiche_banner_composite.png = PASS, affiche_banner_composite.png = PASS
+  (real lockup: logo + CUISTANCE Europe channel + NOUVEAUTÉ pill + red filet; no invisible/broken logo; no double
+  header). Evidence dir lightweight. visual_review.md.
+- Send path unchanged; no customer email; no batch; no products[]. P2A demo untouched. Stash preserved. No tag/merge/
+  rewrite.
+- Evidence: docs/poster2/assets/banner_composite_module_fix_v1/. Docs: banner_composite_module_design_v1.md +
+  banner_composite_module_fix_v1.md.
+- Owner Decision Needed: accept the composite banner; operators with a dark logo select 浅色 Logo 板 (light_plate). After
+  Render redeploy, a browser re-verify confirms the live composite banner. customer/batch + products[] remain HOLD.

@@ -175,17 +175,18 @@ def build_email_assembly(
     ) if strip_items else ""
 
     # ---- container visual variant (default per route): ttt.html (Fiche) / ttt2.html (Affiche) grammar ----
-    # Banner/header variants (brand element INSIDE the dark header):
-    #   ttt_logo_banner       -> ttt-style header with the centered CUISTANCE LOGO image (preferred default w/ a logo)
-    #   logo_image_bar        -> compact logo image bar
-    #   css_dark_bar_wordmark -> text wordmark (fallback when NO logo, or when the operator explicitly picks text)
-    # DEFAULT now PREFERS a logo banner: when email_banner.logo exists and the operator did not explicitly pick the
-    # wordmark, the header uses ttt_logo_banner. The logo asset is email_banner.logo ONLY — NEVER product / gallery /
-    # atmosphere / generated-poster / AI visuals. Missing logo (when a logo was preferred) -> wordmark fallback.
+    container_visual_variant = "ttt_product_sheet_container" if is_product_sheet else "ttt2_campaign_container"
+    footer_bg = "#333333" if is_product_sheet else "#3F3F3F"
+
+    # ---- email_banner_composite: a first-class composite header MODULE (not just a logo flag) ----
+    # variants: ttt_banner_composite (default w/ logo) | compact_logo_banner | text_wordmark_fallback.
+    # header_variant (css_dark_bar_wordmark | logo_image_bar | ttt_logo_banner) is kept backward-compatible and maps
+    # 1:1 to the banner_variant. DEFAULT prefers the logo composite when email_banner.logo exists. The banner/logo uses
+    # email_banner.logo ONLY — NEVER product / gallery / atmosphere / generated-poster / AI visuals.
     LOGO_VARIANTS = ("ttt_logo_banner", "logo_image_bar")
     requested_header_variant = clean_copy_text(banner.get("header_variant") or "")  # "" = default (prefer logo)
     explicit_wordmark = (requested_header_variant == "css_dark_bar_wordmark")
-    wants_logo = not explicit_wordmark                  # default ("") and the logo variants all want a logo
+    wants_logo = not explicit_wordmark
     has_logo = bool(logo_url)
     header_logo_missing_fallback = bool(wants_logo and not has_logo)
     if has_logo and wants_logo:
@@ -194,30 +195,50 @@ def build_email_assembly(
         header_variant = "css_dark_bar_wordmark"
     header_logo_used = header_variant in LOGO_VARIANTS
     header_visual_mode = header_variant
-    container_visual_variant = "ttt_product_sheet_container" if is_product_sheet else "ttt2_campaign_container"
+    BANNER_VARIANT_FOR_HEADER = {
+        "ttt_logo_banner": "ttt_banner_composite",
+        "logo_image_bar": "compact_logo_banner",
+        "css_dark_bar_wordmark": "text_wordmark_fallback",
+    }
+    banner_variant = BANNER_VARIANT_FOR_HEADER[header_variant]
+    banner_composite_used = (banner_variant == "ttt_banner_composite")
     banner_source = ("uploaded_logo" if header_logo_used
                      else ("default_wordmark" if explicit_wordmark else "wordmark_fallback"))
-    footer_bg = "#333333" if is_product_sheet else "#3F3F3F"
+    # contrast: on_dark (default; light logo) | light_plate (dark/colored logo gets a subtle white plate so it stays
+    # visible on the dark banner). Operator setting; never leave a dark logo invisible dark-on-dark.
+    banner_logo_contrast_mode = clean_copy_text(banner.get("banner_logo_contrast_mode") or "") or "on_dark"
+    if banner_logo_contrast_mode not in ("on_dark", "light_plate"):
+        banner_logo_contrast_mode = "on_dark"
+    banner_background_mode = "dark_plate"
+    banner_filet_used = True
 
-    def _brand(size_px: int) -> str:
+    def _brand_lockup(logo_h: int, word_size: int) -> str:
         if header_logo_used:
-            # logo directly on the dark header (ttt.html grammar) — email_banner.logo ONLY (light-on-transparent asset)
-            return _img(logo_url, style=f"height:{size_px}px;max-width:240px;object-fit:contain;display:inline-block;", alt="CUISTANCE")
-        return (f'<span style="color:#ffffff;font-size:{size_px}px;font-weight:700;letter-spacing:2px;'
+            img = _img(logo_url, style=f"height:{logo_h}px;max-width:230px;object-fit:contain;display:block;margin:0 auto;", alt="CUISTANCE")
+            if banner_logo_contrast_mode == "light_plate":
+                # subtle white plate so a dark/colored logo is never invisible on the dark banner
+                return ('<span style="display:inline-block;background:#ffffff;padding:9px 16px;border-radius:10px;">'
+                        + img + "</span>")
+            return img
+        return (f'<span style="color:#ffffff;font-size:{word_size}px;font-weight:700;letter-spacing:2px;'
                 f'font-family:Georgia,\'Times New Roman\',serif;">CUISTANCE</span>')
 
-    # header geometry: ttt_logo_banner is the taller, native ttt header; logo_image_bar is compact; wordmark is medium.
-    if header_variant == "ttt_logo_banner":
-        header_pad, brand_size = "40px 24px 30px", 46
-    elif header_variant == "logo_image_bar":
-        header_pad, brand_size = "20px 24px 16px", 30
+    # composite geometry: ttt_banner_composite (taller lockup) | compact_logo_banner (thinner) | wordmark (medium)
+    if banner_variant == "ttt_banner_composite":
+        header_pad, logo_h, word_size = "34px 24px 26px", 44, 30
+    elif banner_variant == "compact_logo_banner":
+        header_pad, logo_h, word_size = "18px 24px 14px", 30, 24
     else:
-        header_pad, brand_size = "32px 24px 26px", 26
+        header_pad, logo_h, word_size = "30px 24px 24px", 26, 26
 
-    header_meta_html = (
-        f'<div style="margin-top:11px;color:#c9ced3;font-size:11px;letter-spacing:2px;text-transform:uppercase;'
-        f'font-family:Helvetica,Arial,sans-serif;">{escape(meta_bits)}</div>' if meta_bits else ""
-    )
+    # lockup line: channel_name (primary secondary) + campaign_label (uppercase tag) composed UNDER the brand
+    channel_html = (f'<div style="margin-top:13px;color:#dfe3e7;font-size:13px;letter-spacing:1px;'
+                    f'font-family:Helvetica,Arial,sans-serif;">{escape(channel_name)}</div>' if channel_name else "")
+    campaign_html = (f'<div style="margin-top:6px;"><span style="display:inline-block;color:#ffd9dd;font-size:10px;'
+                     f'font-weight:700;letter-spacing:2px;text-transform:uppercase;border:1px solid rgba(225,0,42,.5);'
+                     f'border-radius:999px;padding:3px 12px;font-family:Helvetica,Arial,sans-serif;">{escape(campaign_label)}</span></div>'
+                     if campaign_label else "")
+    header_meta_html = channel_html + campaign_html
 
     # Fiche: reference line + big serif title; description (serif) + spec block. Affiche: modest campaign lead only
     # (the generated poster already carries the product hero/title/specs — the container must NOT duplicate them).
@@ -273,7 +294,7 @@ def build_email_assembly(
         # dark header (ttt grammar): centered brand element + meta, then the red filet (#E1002A). Header only.
         "email_banner": (
             f'<div style="background:#1f2329;padding:{header_pad};text-align:center;">'
-            + "<div>" + _brand(brand_size) + "</div>" + header_meta_html + "</div>"
+            + "<div>" + _brand_lockup(logo_h, word_size) + "</div>" + header_meta_html + "</div>"
             + '<div style="height:3px;line-height:3px;font-size:0;background:#E1002A;">&nbsp;</div>'
         ),
         "title_intro": title_intro_html,
@@ -286,7 +307,7 @@ def build_email_assembly(
         # dark contact footer (ttt grammar): brand + CONTACT (CUISTANCE's own facts, deterministic)
         "contact_footer": (
             f'<div style="background:{footer_bg};padding:34px 24px 8px;text-align:center;">'
-            + "<div>" + _brand(22) + "</div>"
+            + "<div>" + _brand_lockup(26, 20) + "</div>"
             + '<div style="margin-top:18px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.85;color:#e7e9ec;">'
             + '<span style="text-decoration:underline;letter-spacing:1px;">CONTACT</span><br>'
             + 'T&eacute;l&eacute;phone : +33 (0)1 71 84 11 20<br>'
@@ -413,6 +434,13 @@ def build_email_assembly(
         "container_visual_variant": container_visual_variant,
         "banner_source": banner_source,
         "banner_replaceable": True,
+        # ---- composite banner module diagnostics ----
+        "banner_variant": banner_variant,
+        "banner_composite_used": banner_composite_used,
+        "banner_logo_url": logo_url,
+        "banner_logo_contrast_mode": banner_logo_contrast_mode,
+        "banner_background_mode": banner_background_mode,
+        "banner_filet_used": banner_filet_used,
         "header_variant": header_variant,
         "spec_display_mode": spec_display_mode,
         "body_visual_mode": resolved_body_visual_mode,
@@ -446,6 +474,11 @@ def build_email_assembly(
             "container_visual_variant": container_visual_variant,
             "banner_source": banner_source,
             "banner_replaceable": True,
+            "banner_variant": banner_variant,
+            "banner_composite_used": banner_composite_used,
+            "banner_logo_contrast_mode": banner_logo_contrast_mode,
+            "banner_background_mode": banner_background_mode,
+            "banner_filet_used": banner_filet_used,
             "header_variant": header_variant,
             "spec_display_mode": spec_display_mode,
             "body_visual_mode": resolved_body_visual_mode,

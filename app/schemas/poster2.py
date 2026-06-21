@@ -360,6 +360,9 @@ class ProductAssets(BaseModel):
 
 
 EmailHeaderVariant = Literal["css_dark_bar_wordmark", "logo_image_bar", "ttt_logo_banner"]
+# How the logo sits inside the dark composite banner. on_dark suits a light/white brand logo; light_plate wraps a
+# dark/colored logo in a subtle white plate so it is never invisible dark-on-dark.
+BannerLogoContrastMode = Literal["on_dark", "light_plate"]
 
 
 class EmailBanner(BaseModel):
@@ -372,6 +375,8 @@ class EmailBanner(BaseModel):
     # header presentation variant (replaceable banner): default keeps the CSS dark-bar CUISTANCE wordmark;
     # logo_image_bar uses email_banner.logo ONLY (never product/gallery/atmosphere). Optional -> backward compatible.
     header_variant: Optional[EmailHeaderVariant] = None
+    # composite banner contrast mode (operator setting for the logo-on-dark plate). Optional -> backward compatible.
+    banner_logo_contrast_mode: Optional[BannerLogoContrastMode] = None
 
 
 class WorkbenchCreateRequest(BaseModel):
@@ -536,6 +541,13 @@ class EmailAssemblyPreviewResponse(BaseModel):
     container_visual_variant: str = "ttt_product_sheet_container"
     banner_source: str = "default_wordmark"
     banner_replaceable: bool = True
+    # ---- composite banner module (email_banner_composite) diagnostics ----
+    banner_variant: str = "text_wordmark_fallback"
+    banner_composite_used: bool = False
+    banner_logo_url: Optional[str] = None
+    banner_logo_contrast_mode: str = "on_dark"
+    banner_background_mode: str = "dark_plate"
+    banner_filet_used: bool = True
     header_variant: str = "css_dark_bar_wordmark"
     header_logo_url: Optional[str] = None
     header_logo_used: bool = False

@@ -1,0 +1,38 @@
+{
+  "banner_composite_module_defined": true,
+  "default_banner_variant": "ttt_banner_composite",
+  "banner_variants": ["ttt_banner_composite", "compact_logo_banner", "text_wordmark_fallback"],
+  "banner_source": "uploaded_logo",
+  "banner_source_values": ["uploaded_logo", "default_banner_lockup_asset", "default_wordmark", "wordmark_fallback"],
+  "banner_composite_used": true,
+  "banner_lockup_elements": ["background_plate", "logo_or_wordmark", "channel_name", "campaign_label_pill", "red_filet"],
+  "logo_contrast_checked": true,
+  "banner_logo_contrast_modes": ["on_dark", "light_plate"],
+  "default_banner_lockup_asset_note": "logo banner.png is a Photoshop layers-panel screenshot, not a usable hosted banner image; the field is reserved, not adopted",
+  "fiche_banner_verdict": "PASS",
+  "affiche_banner_verdict": "PASS",
+  "no_invisible_logo": true,
+  "no_broken_logo": true,
+  "no_double_header": true,
+  "product_assets_used_as_banner": false,
+  "gallery_assets_used_as_banner": false,
+  "atmosphere_used_as_banner": false,
+  "generated_poster_used_as_banner": false,
+  "body_layout_unchanged": true,
+  "send_path_preserved": true,
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "tests": {
+    "focused_assembly_candidates_psd_bodyplan_reference_send": "99 passed",
+    "test_api_email_workbench_selected_fiche_preview_send": "11 passed",
+    "new_composite_tests": 4,
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "check_docs_router": "PASS"
+  },
+  "screenshots": [
+    "docs/poster2/assets/banner_composite_module_fix_v1/fiche_banner_composite.png",
+    "docs/poster2/assets/banner_composite_module_fix_v1/affiche_banner_composite.png"
+  ]
+}

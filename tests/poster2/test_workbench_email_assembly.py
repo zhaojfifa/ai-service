@@ -639,3 +639,62 @@ def test_header_never_uses_poster_or_assets_as_logo_affiche(client):
     poster_url = body["body_visual"]["url"] or "ZZZ_NONE"
     for forbidden in (poster_url, "p1.png", "p2.png", "g1.png", "g2.png", "g3.png", "atmo.png"):
         assert forbidden not in header_region                   # never poster/product/gallery/atmosphere as logo
+
+
+# ---- POSTER2-CUISTANCE-BANNER-COMPOSITE-MODULE-FIX-V1 ----
+def test_banner_is_composite_module_with_lockup(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"},
+                  channel_name="CUISTANCE Europe", campaign_label="Nouveauté")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_variant"] == "ttt_banner_composite"          # default with a logo
+    assert body["banner_composite_used"] is True
+    assert body["banner_source"] == "uploaded_logo"
+    assert body["banner_background_mode"] == "dark_plate"
+    assert body["banner_filet_used"] is True
+    assert body["banner_logo_url"] == "https://r2.example/brandlogo.png"
+    # composite lockup: logo + channel line + campaign tag + red filet (not just a logo flag)
+    header_region = body["html"].split("E1002A")[0]
+    assert "https://r2.example/brandlogo.png" in header_region        # logo
+    assert "CUISTANCE Europe" in header_region                        # channel line
+    assert "Nouveaut" in header_region                                # campaign tag
+    assert "background:#E1002A" in body["html"]                       # red filet
+
+
+def test_banner_light_plate_contrast_for_dark_logo(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/darklogo.png"},
+                  channel_name="C", banner_logo_contrast_mode="light_plate")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_logo_contrast_mode"] == "light_plate"
+    # the dark logo sits on a subtle white plate so it is never invisible dark-on-dark
+    assert "background:#ffffff;padding:9px 16px;border-radius:10px" in body["html"]
+    assert body["header_logo_used"] is True
+
+
+def test_banner_no_logo_falls_back_to_wordmark(client):
+    wb = _make_workbench(client)
+    client.patch(f"/api/v2/workbench/{wb}", json={"email_banner": {"channel_name": "CUISTANCE Europe"}})  # no logo
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["banner_variant"] == "text_wordmark_fallback"
+    assert body["banner_source"] == "wordmark_fallback"
+    assert body["banner_composite_used"] is False
+    assert body["header_logo_used"] is False
+    assert body["header_logo_missing_fallback"] is True
+
+
+def test_banner_never_uses_product_gallery_atmosphere_poster_as_logo(client):
+    wb = _wb_with_media(client)   # 2 product + 3 gallery + atmosphere
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"},
+                  channel_name="C", banner_logo_contrast_mode="light_plate")
+    _gen(client, wb, "affiche"); _select(client, wb, "affiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    header_region = body["html"].split("E1002A")[0]
+    assert "https://r2.example/brandlogo.png" in header_region        # only the email_banner.logo
+    poster_url = body["body_visual"]["url"] or "ZZZ_NONE"
+    for forbidden in (poster_url, "p1.png", "p2.png", "g1.png", "g2.png", "g3.png", "atmo.png"):
+        assert forbidden not in header_region
+    assert body["banner_composite_used"] is True

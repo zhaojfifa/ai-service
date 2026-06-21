@@ -397,10 +397,15 @@
             <p class="hint" data-zh="邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条），不含产品主体 / 描述 / CTA / 页脚。" data-fr="Conteneur automatique selon le mode : fiche = conteneur TTT ; affiche = conteneur TTT2. En-tête : barre sombre + filet rouge ; bannière remplaçable (wordmark / logo) ; pas de corps / description / CTA / pied.">邮件容器按所选模式自动：简单产品页 = TTT 简单产品容器；目标海报 = TTT2 目标海报容器。页眉为深色品牌条 + 红色分隔，Banner 可替换（文字品牌条 / Logo 图片条）。</p>
             <div class="ttt-header-preview" id="tttHeaderPreview"><span class="ttt-wordmark" id="tttWordmark">CUISTANCE</span><img class="ttt-logo" id="tttLogo" alt="CUISTANCE" style="display:none;height:30px;max-width:200px;object-fit:contain" /><span class="ttt-meta" id="tttHeaderMeta">CUISTANCE Europe · Nouveauté</span></div>
             <div class="radio-row" id="headerVariantRow" style="margin-top:8px">
-              <label><input type="radio" name="hdrvar" value="ttt_logo_banner" checked /> <span data-zh="TTT Logo Banner" data-fr="Bannière logo TTT">TTT Logo Banner</span></label>
-              <label><input type="radio" name="hdrvar" value="logo_image_bar" /> <span data-zh="Logo 图片条" data-fr="Bandeau logo">Logo 图片条</span></label>
-              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" /> <span data-zh="文字品牌条" data-fr="Wordmark">文字品牌条</span></label>
-              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="有 Logo 时默认使用 Logo Banner；缺失时回退文字品牌条。Banner 仅使用「邮件 Logo」素材，不使用产品 / 画廊 / 氛围 / 海报图。" data-fr="Avec un logo : bannière logo par défaut ; sinon retour au wordmark. La bannière utilise uniquement le logo email.">有 Logo 时默认使用 Logo Banner；缺失时回退文字品牌条。Banner 仅使用「邮件 Logo」素材。</span>
+              <label><input type="radio" name="hdrvar" value="ttt_logo_banner" checked /> <span data-zh="TTT Banner 组件" data-fr="Composant bannière TTT">TTT Banner 组件</span></label>
+              <label><input type="radio" name="hdrvar" value="logo_image_bar" /> <span data-zh="紧凑 Logo Banner" data-fr="Bannière logo compacte">紧凑 Logo Banner</span></label>
+              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" /> <span data-zh="文字品牌回退" data-fr="Wordmark (repli)">文字品牌回退</span></label>
+              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="Banner 是完整页眉组件（深底 + Logo/字标 + 渠道 + 活动标签 + 红色分隔）。有 Logo 时默认 TTT Banner 组件；仅使用「邮件 Logo」，不使用产品 / 画廊 / 氛围 / 海报图。" data-fr="La bannière est un composant complet (plaque sombre + logo/wordmark + canal + libellé + filet rouge). Logo email uniquement.">Banner 是完整页眉组件（深底 + Logo/字标 + 渠道 + 活动标签 + 红色分隔）。有 Logo 时默认 TTT Banner 组件；仅使用「邮件 Logo」素材。</span>
+            </div>
+            <div class="radio-row" id="bannerContrastRow" style="margin-top:6px">
+              <span class="hint" data-zh="Logo 对比模式：" data-fr="Contraste logo :">Logo 对比模式：</span>
+              <label><input type="radio" name="bctr" value="on_dark" checked /> <span data-zh="深色底（浅色 Logo）" data-fr="Sur fond sombre (logo clair)">深色底（浅色 Logo）</span></label>
+              <label><input type="radio" name="bctr" value="light_plate" /> <span data-zh="浅色 Logo 板（深色 Logo）" data-fr="Plaque claire (logo sombre)">浅色 Logo 板（深色 Logo）</span></label>
             </div>
             <div class="grid-2" style="margin-top:8px">
               <div class="field"><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input class="input" id="f-channel" value="CUISTANCE Europe" /></div>
@@ -541,7 +546,7 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='ttt_logo_banner';
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='ttt_logo_banner', selectedBannerContrast='on_dark';
     // email-layer header asset per fill format (ttt2/campaign -> Technitalia banner; ttt/sheet -> brand header)
     var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/header_band_02.png'}, product_sheet_email:{ref:'option_1',img:'assets/header_band_01.png'}};
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:'', afficheStale:false, ficheStale:false};
@@ -642,6 +647,7 @@
       if(eb.channel_name)$('f-channel').value=eb.channel_name;
       if(eb.campaign_label)$('f-camplabel').value=eb.campaign_label;
       if(eb.header_variant){selectedHeaderVariant=eb.header_variant;document.querySelectorAll('input[name=hdrvar]').forEach(function(r){r.checked=(r.value===eb.header_variant)});if(typeof updateHeaderPreview==='function')updateHeaderPreview();}
+      if(eb.banner_logo_contrast_mode){selectedBannerContrast=eb.banner_logo_contrast_mode;document.querySelectorAll('input[name=bctr]').forEach(function(r){r.checked=(r.value===eb.banner_logo_contrast_mode)});}
       if(eb.selected_banner_ref)selectedBannerRef=eb.selected_banner_ref;
       var pc=j.poster_candidates||{};
       if((pc.affiche||{}).status==='ready'&&pc.affiche.poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
@@ -720,7 +726,7 @@
       if(SLOTS.atmo)pa.atmosphere={url:SLOTS.atmo,is_truth:false};   // visual-only, never business fact
       // email header is the deterministic ttt_html_header (clean CUISTANCE wordmark). We send logo + channel/campaign
       // meta only; we do NOT send a banner background (no header-band cover overlay drives the runtime header).
-      var eb={logo:(SLOTS.logo?{url:SLOTS.logo}:null),channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value,header_variant:selectedHeaderVariant};
+      var eb={logo:(SLOTS.logo?{url:SLOTS.logo}:null),channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value,header_variant:selectedHeaderVariant,banner_logo_contrast_mode:selectedBannerContrast};
       return {product_assets:pa,email_banner:eb};
     }
     // Explicit email-banner selection (email-layer; never product truth; never baked into the poster body).
@@ -1105,26 +1111,32 @@
     // header variant radio: persist via email_banner.header_variant on next preview; invalidate stale preview
     document.querySelectorAll('input[name=hdrvar]').forEach(function(r){r.addEventListener('change',function(){
       selectedHeaderVariant=r.value; updateHeaderPreview(); markPreviewStale();
-      diag('header_variant',{selected_header_variant:selectedHeaderVariant,logo_present:!!SLOTS.logo});
+      diag('banner_variant',{selected_header_variant:selectedHeaderVariant,logo_present:!!SLOTS.logo});
     });});
-    // business-readable container + banner/header diagnostics after a backend preview
+    document.querySelectorAll('input[name=bctr]').forEach(function(r){r.addEventListener('change',function(){
+      selectedBannerContrast=r.value; updateHeaderPreview(); markPreviewStale();
+      diag('banner_contrast',{banner_logo_contrast_mode:selectedBannerContrast});
+    });});
+    // business-readable composite banner diagnostics after a backend preview
     var CONTAINER_NAME={ttt_product_sheet_container:{zh:'TTT 简单产品容器',fr:'conteneur fiche TTT'},
       ttt2_campaign_container:{zh:'TTT2 目标海报容器',fr:'conteneur affiche TTT2'}};
-    var BANNER_SRC={uploaded_logo:{zh:'当前使用上传 Logo',fr:'logo importé'},
-      default_wordmark:{zh:'当前使用默认文字品牌',fr:'wordmark par défaut'},
-      wordmark_fallback:{zh:'缺少 Logo，已回退文字品牌',fr:'retour au wordmark (logo manquant)'}};
+    var BANNER_VAR={ttt_banner_composite:{zh:'TTT Banner 组件',fr:'Composant bannière TTT'},compact_logo_banner:{zh:'紧凑 Logo Banner',fr:'Bannière logo compacte'},text_wordmark_fallback:{zh:'文字品牌回退',fr:'Wordmark (repli)'}};
+    var BANNER_SRC={uploaded_logo:{zh:'上传 Logo',fr:'logo importé'},default_banner_lockup_asset:{zh:'默认 Banner 素材',fr:'asset bannière par défaut'},default_wordmark:{zh:'默认文字',fr:'wordmark'},wordmark_fallback:{zh:'文字回退',fr:'repli wordmark'}};
+    var CONTRAST={on_dark:{zh:'深色底（浅色 Logo）',fr:'fond sombre / logo clair'},light_plate:{zh:'浅色 Logo 板（深色 Logo）',fr:'plaque claire / logo sombre'}};
     function updateHeaderDiag(j){
       var box=$('header-diag-state'),el=$('header-diag'); if(!box||!el)return;
-      if(!j||!j.header_variant){box.style.display='none';return;}
+      if(!j||!j.banner_variant){box.style.display='none';return;}
       box.style.display='';
-      var HV={ttt_logo_banner:{zh:'TTT Logo Banner',fr:'Bannière logo TTT'},logo_image_bar:{zh:'Logo 图片条',fr:'Bandeau logo'},css_dark_bar_wordmark:{zh:'文字品牌条',fr:'Wordmark'}};
       var cv=(CONTAINER_NAME[j.container_visual_variant]||{})[lang]||j.container_visual_variant||'';
-      var hv=(HV[j.header_variant]||{})[lang]||j.header_variant||'';
+      var bv=(BANNER_VAR[j.banner_variant]||{})[lang]||j.banner_variant||'';
+      var src=(BANNER_SRC[j.banner_source]||{})[lang]||j.banner_source||'';
+      var ct=(CONTRAST[j.banner_logo_contrast_mode]||{})[lang]||j.banner_logo_contrast_mode||'';
       var parts=[];
       if(cv)parts.push((lang==='zh'?'当前邮件容器：':'Conteneur : ')+cv);
-      parts.push((lang==='zh'?'当前 Banner：可替换 · ':'Bannière : remplaçable · ')+hv);
-      parts.push((lang==='zh'?'Logo 已使用：':'logo : ')+(j.header_logo_used?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
-      parts.push((lang==='zh'?'缺失回退：':'fallback : ')+(j.header_logo_missing_fallback?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
+      parts.push((lang==='zh'?'当前 Banner：':'Bannière : ')+bv);
+      parts.push((lang==='zh'?'Logo 来源：':'source logo : ')+src);
+      parts.push((lang==='zh'?'对比模式：':'contraste : ')+ct);
+      if(j.header_logo_missing_fallback)parts.push(lang==='zh'?'（已回退文字）':'(repli wordmark)');
       el.textContent=parts.join(' · ');
     }
 
@@ -1172,7 +1184,7 @@
       updateBindingLabels(); updateSendGate();
       var ins=inspectPreview(cdoc,bv.url||'');
       var ec=r.json.email_container||{};
-      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent,supporting_media_strip_present:r.json.supporting_media_strip_present,supporting_media_count:r.json.supporting_media_count,supporting_media_sources:r.json.supporting_media_sources,product_image_count:r.json.product_image_count,gallery_image_count:r.json.gallery_image_count,atmosphere_present:r.json.atmosphere_present,atmosphere_used_in_fiche:r.json.atmosphere_used_in_fiche,primary_product_visual_present:r.json.primary_product_visual_present,container_visual_variant:r.json.container_visual_variant,banner_source:r.json.banner_source,banner_replaceable:r.json.banner_replaceable});
+      diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent,supporting_media_strip_present:r.json.supporting_media_strip_present,supporting_media_count:r.json.supporting_media_count,supporting_media_sources:r.json.supporting_media_sources,product_image_count:r.json.product_image_count,gallery_image_count:r.json.gallery_image_count,atmosphere_present:r.json.atmosphere_present,atmosphere_used_in_fiche:r.json.atmosphere_used_in_fiche,primary_product_visual_present:r.json.primary_product_visual_present,container_visual_variant:r.json.container_visual_variant,banner_source:r.json.banner_source,banner_replaceable:r.json.banner_replaceable,banner_variant:r.json.banner_variant,banner_composite_used:r.json.banner_composite_used,banner_logo_contrast_mode:r.json.banner_logo_contrast_mode,banner_background_mode:r.json.banner_background_mode,banner_filet_used:r.json.banner_filet_used});
       updateContainerFillState(r.json);  // business-readable container fill state (filled / missing / media / HOLD)
       updateHeaderDiag(r.json);          // replaceable header diagnostics (variant / logo used / fallback)
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
