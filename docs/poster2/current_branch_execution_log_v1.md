@@ -13218,3 +13218,25 @@ After bundle:
   docs/poster2/email_package_candidate_persistence_v1.md.
 - Owner Decision Needed: accept the package candidate layer; commission designer banner assets for final quality.
   customer/batch send + products[] remain HOLD.
+
+## EMAIL PACKAGE CANDIDATE REMOTE VERIFY V1 (2026-06-21) — PASS (docs only, no code, no real send)
+- Task POSTER2-EMAIL-PACKAGE-CANDIDATE-REMOTE-VERIFY-V1. Render deployed >= ce28295 (GET /email/packages -> 401
+  ops-gated not 404; page carries pkgCards/loadPackages/email/packages/selected_email_package/发送这个版本). OPS-auth API
+  verify on wb_9308b112feb0436e.
+- Packages endpoint = 200; both fiche + affiche packages present with all required fields. Fiche PASS (ready,
+  ttt_product_sheet_container, uses_poster_generation=false, generated_from=workbench_truth, supporting_media_count=3,
+  product_image_count=2, gallery_image_count=3, staleness=maybe_stale). Affiche PASS (ready, ttt2_campaign_container,
+  poster_key=p2_9f215cca560e4e2d, standalone_poster_url+email_body_visual_url present, available_attachment_types=[],
+  staleness=fresh).
+- Switching PASS: select fiche -> both ready; select affiche -> both ready (other route never lost). Mismatch guard PASS:
+  selected=affiche + send selected_email_package=fiche -> 422 selected_package_mismatch. Send-shape PASS via non-real
+  inline_only send -> attempt skipped, real_email_sent=false, sent_package_type=affiche, body_visual_poster_key=
+  p2_9f215cca560e4e2d, container_visual_variant=ttt2_campaign_container.
+- Staleness PASS on LIVE data (fiche=maybe_stale because its candidate predates a later content edit; affiche=fresh) +
+  local test. Live workbench truth NOT mutated. No real send (path unchanged; already proven real at 850a0af) -> no
+  customer email, no batch. Workbench restored to original selection (fiche); OPS session logged out.
+- No code change. P2A demo untouched. Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/email_package_candidate_remote_verify_v1/evidence.json. Doc:
+  docs/poster2/email_package_candidate_remote_verify_v1.md. check_docs_router = PASS.
+- Owner Decision Needed: accept the package-candidate layer (remote-verified); commission designer banner assets for
+  final quality. customer/batch + products[] remain HOLD.

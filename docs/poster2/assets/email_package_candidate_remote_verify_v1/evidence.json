@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "remote_commit": "ce28295_or_later",
+  "remote_deploy_proof": "GET /email/packages returns 401 (deployed + ops-gated, not 404); served page carries pkgCards/loadPackages/email/packages/selected_email_package/发送这个版本 markers",
+  "validation_method": "OPS-authenticated API (mirrors the trial UI calls) on workbench wb_9308b112feb0436e",
+  "package_endpoint_status": 200,
+  "fiche_package_visible": true,
+  "affiche_package_visible": true,
+  "fiche_package": {
+    "package_type": "fiche", "status": "ready", "preview_ready": true, "send_ready": true,
+    "container_visual_variant": "ttt_product_sheet_container", "banner_variant": "brand_standard_header",
+    "uses_poster_generation": false, "generated_from": "workbench_truth",
+    "supporting_media_count": 3, "product_image_count": 2, "gallery_image_count": 3,
+    "staleness_status": "maybe_stale"
+  },
+  "affiche_package": {
+    "package_type": "affiche", "status": "ready", "preview_ready": true, "send_ready": true,
+    "container_visual_variant": "ttt2_campaign_container", "banner_variant": "campaign_poster_header",
+    "poster_key": "p2_9f215cca560e4e2d", "standalone_poster_url_present": true, "email_body_visual_url_present": true,
+    "available_attachment_types": [], "staleness_status": "fresh"
+  },
+  "switching_preserves_other_package": true,
+  "send_package_selection_explicit": true,
+  "sent_package_type_reported": true,
+  "send_shape_check": {
+    "delivery_mode": "inline_only", "attempt_status": "skipped", "real_email_sent": false,
+    "sent_package_type": "affiche", "selected_email_body_visual": "affiche",
+    "body_visual_poster_key": "p2_9f215cca560e4e2d", "container_visual_variant": "ttt2_campaign_container"
+  },
+  "mismatch_guard": "422 selected_package_mismatch",
+  "staleness_status_visible": true,
+  "staleness_observed_live": "fiche=maybe_stale (generated before a later content edit), affiche=fresh",
+  "real_send_run": false,
+  "real_send_reason_not_run": "package-layer verify only; send path unchanged code and already proven real at 850a0af (provider_message_id present). Validated send-response shape via a non-delivering inline_only call to avoid an unnecessary real email.",
+  "provider_message_id": null,
+  "customer_email_sent": false,
+  "customer_batch_send_enabled": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "code_changed": false,
+  "workbench_restored_to_original_selection": true
+}
