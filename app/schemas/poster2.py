@@ -359,6 +359,9 @@ class ProductAssets(BaseModel):
     atmosphere: Optional[WorkbenchAtmosphereAsset] = None
 
 
+EmailHeaderVariant = Literal["css_dark_bar_wordmark", "logo_image_bar"]
+
+
 class EmailBanner(BaseModel):
     logo: Optional[WorkbenchAssetRef] = None
     background: Optional[WorkbenchAssetRef] = None
@@ -366,6 +369,9 @@ class EmailBanner(BaseModel):
     channel_name: str = Field(default="", max_length=80)
     campaign_label: str = Field(default="", max_length=80)
     selected_banner_ref: Optional[str] = Field(default=None, max_length=200)
+    # header presentation variant (replaceable banner): default keeps the CSS dark-bar CUISTANCE wordmark;
+    # logo_image_bar uses email_banner.logo ONLY (never product/gallery/atmosphere). Optional -> backward compatible.
+    header_variant: Optional[EmailHeaderVariant] = None
 
 
 class WorkbenchCreateRequest(BaseModel):
@@ -526,6 +532,13 @@ class EmailAssemblyPreviewResponse(BaseModel):
     gallery_image_count: int = 0
     atmosphere_present: bool = False
     atmosphere_used_in_fiche: bool = False
+    # ---- replaceable banner/header (additive) ----
+    header_variant: str = "css_dark_bar_wordmark"
+    header_logo_url: Optional[str] = None
+    header_logo_used: bool = False
+    header_logo_missing_fallback: bool = False
+    header_channel_name: str = ""
+    header_campaign_label: str = ""
 
 
 # PR-4 — manual multi-recipient confirmed send + evidence.

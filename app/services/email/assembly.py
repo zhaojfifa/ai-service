@@ -163,12 +163,23 @@ def build_email_assembly(
     ) if strip_items else ""
 
     # ---- per-module HTML fragments (reference-aligned PR-3R grammar) ----
-    # email header = ttt.html-style clean dark bar with a CSS CUISTANCE WORDMARK (deterministic, never distorted) +
-    # optional campaign meta + red filet. We do NOT use email_banner.background.url / header-band cover / a stretched
-    # logo image (those caused the "强覆盖 / 配色不对" header). Header = header only (no body/product/CTA/footer).
-    header_visual_mode = "css_dark_bar_wordmark"
-    brand_html = ('<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1.5px;'
-                  'font-family:Arial,Helvetica,sans-serif;">CUISTANCE</span>')
+    # email header = ttt.html-style clean dark bar + red filet. The brand element is REPLACEABLE:
+    #   css_dark_bar_wordmark (default) -> CSS CUISTANCE wordmark (deterministic, never distorted)
+    #   logo_image_bar                  -> the operator's email_banner.logo image ONLY (never product/gallery/atmosphere)
+    # If logo_image_bar is requested but no logo asset is present, fall back to the wordmark and flag the fallback.
+    # Header = header only (no body/product/CTA/footer); we never use a header-band background cover.
+    requested_header_variant = clean_copy_text(banner.get("header_variant") or "") or "css_dark_bar_wordmark"
+    header_logo_missing_fallback = (requested_header_variant == "logo_image_bar" and not logo_url)
+    header_variant = "logo_image_bar" if (requested_header_variant == "logo_image_bar" and logo_url) else "css_dark_bar_wordmark"
+    header_logo_used = (header_variant == "logo_image_bar")
+    header_visual_mode = header_variant
+    wordmark_html = ('<span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:1.5px;'
+                     'font-family:Arial,Helvetica,sans-serif;">CUISTANCE</span>')
+    if header_logo_used:
+        # logo image bar — the email_banner.logo ONLY (url/key asset uploaded/selected as the brand logo)
+        brand_html = _img(logo_url, style="height:34px;max-width:220px;object-fit:contain;display:block;", alt="CUISTANCE")
+    else:
+        brand_html = wordmark_html
     meta_html = (
         f'<div style="margin-left:auto;color:#cfd3d8;font-size:12px;">{escape(meta_bits)}</div>' if meta_bits else ""
     )
@@ -260,7 +271,8 @@ def build_email_assembly(
     fill_format = fill_format_for(candidate_type)
     # ---- container flexibility: named profile + deterministic per-route container modes (NOT a template engine) ----
     resolved_profile = container_profile or container_profile_for(fill_format)
-    header_variant = "ttt_html_header"
+    # header_variant (brand-element variant: css_dark_bar_wordmark | logo_image_bar) is resolved above with the header
+    # fragment. The header GRAMMAR/source stays "ttt_html_header" (email_header_source / header_source).
     if is_product_sheet:
         spec_display_mode = "spec_list" if has_spec_items else "spec_list_empty"
         resolved_body_visual_mode = body_visual_variant or "product_image"
@@ -342,6 +354,13 @@ def build_email_assembly(
         "gallery_image_count": int(gallery_image_count),
         "atmosphere_present": bool(atmosphere_present),
         "atmosphere_used_in_fiche": atmosphere_used_in_fiche,
+        # ---- replaceable banner/header diagnostics ----
+        "header_variant": header_variant,
+        "header_logo_url": logo_url,
+        "header_logo_used": header_logo_used,
+        "header_logo_missing_fallback": header_logo_missing_fallback,
+        "header_channel_name": channel_name,
+        "header_campaign_label": campaign_label,
         "email_container": {
             "email_container_template_id": EMAIL_CONTAINER_TEMPLATE_ID,
             "email_fill_format": fill_format,
@@ -363,6 +382,9 @@ def build_email_assembly(
             "gallery_image_count": int(gallery_image_count),
             "atmosphere_present": bool(atmosphere_present),
             "atmosphere_used_in_fiche": atmosphere_used_in_fiche,
+            "header_variant": header_variant,
+            "header_logo_used": header_logo_used,
+            "header_logo_missing_fallback": header_logo_missing_fallback,
             "body_visual_poster_key": poster_key,
             "body_visual_variant": body_visual_variant,
             "body_visual_contains_own_banner": (own_banner if own_banner is not None else (template_id in _BODY_VISUALS_WITH_OWN_BANNER)),

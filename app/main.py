@@ -2676,7 +2676,6 @@ def preview_workbench_email_v2(
         fiche_generated_from=assembly.get("fiche_generated_from"),
         product_sheet_email_contract_pass=assembly.get("product_sheet_email_contract_pass"),
         container_profile=assembly.get("container_profile"),
-        header_variant=assembly.get("header_variant"),
         spec_display_mode=assembly.get("spec_display_mode"),
         body_visual_mode=assembly.get("body_visual_mode"),
         filled_subject=bool(assembly.get("filled_subject")),
@@ -2696,6 +2695,12 @@ def preview_workbench_email_v2(
         gallery_image_count=int(assembly.get("gallery_image_count") or 0),
         atmosphere_present=bool(assembly.get("atmosphere_present")),
         atmosphere_used_in_fiche=bool(assembly.get("atmosphere_used_in_fiche")),
+        header_variant=str(assembly.get("header_variant") or "css_dark_bar_wordmark"),
+        header_logo_url=assembly.get("header_logo_url"),
+        header_logo_used=bool(assembly.get("header_logo_used")),
+        header_logo_missing_fallback=bool(assembly.get("header_logo_missing_fallback")),
+        header_channel_name=str(assembly.get("header_channel_name") or ""),
+        header_campaign_label=str(assembly.get("header_campaign_label") or ""),
     )
 
 

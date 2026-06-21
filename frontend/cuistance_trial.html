@@ -395,10 +395,18 @@
           <div class="card banner-editor">
             <h3><span data-zh="邮件页眉 / Header" data-fr="En-tête de l'email">邮件页眉 / Header</span> <span class="badge ready" data-zh="统一品牌页眉（自动）" data-fr="En-tête de marque (auto)">统一品牌页眉（自动）</span></h3>
             <p class="hint" data-zh="邮件页眉为统一的 CUISTANCE 品牌页眉：深色条 + 品牌字标 + 红色分隔，无需选择横幅样式，不含产品主体 / 描述 / CTA / 页脚。" data-fr="En-tête unifié CUISTANCE : barre sombre + nom de marque + filet rouge ; aucun choix de bannière ; pas de corps / description / CTA / pied.">邮件页眉为统一的 CUISTANCE 品牌页眉：深色条 + 品牌字标 + 红色分隔，无需选择横幅样式，不含产品主体 / 描述 / CTA / 页脚。</p>
-            <div class="ttt-header-preview" id="tttHeaderPreview"><span class="ttt-wordmark">CUISTANCE</span><span class="ttt-meta" id="tttHeaderMeta">CUISTANCE Europe · Nouveauté</span></div>
+            <div class="ttt-header-preview" id="tttHeaderPreview"><span class="ttt-wordmark" id="tttWordmark">CUISTANCE</span><img class="ttt-logo" id="tttLogo" alt="CUISTANCE" style="display:none;height:30px;max-width:200px;object-fit:contain" /><span class="ttt-meta" id="tttHeaderMeta">CUISTANCE Europe · Nouveauté</span></div>
+            <div class="radio-row" id="headerVariantRow" style="margin-top:8px">
+              <label><input type="radio" name="hdrvar" value="css_dark_bar_wordmark" checked /> <span data-zh="文字品牌条" data-fr="Bandeau wordmark">文字品牌条</span></label>
+              <label><input type="radio" name="hdrvar" value="logo_image_bar" /> <span data-zh="Logo 图片条" data-fr="Bandeau logo">Logo 图片条</span></label>
+              <span class="hint" id="headerVariantHint" style="margin-left:8px" data-zh="Logo 图片条仅使用「邮件 Logo」素材；缺失时回退为文字品牌条。" data-fr="Le bandeau logo utilise uniquement le logo email ; sinon retour au wordmark.">Logo 图片条仅使用「邮件 Logo」素材；缺失时回退为文字品牌条。</span>
+            </div>
             <div class="grid-2" style="margin-top:8px">
               <div class="field"><label><span data-zh="渠道名" data-fr="Nom du canal">渠道名</span></label><input class="input" id="f-channel" value="CUISTANCE Europe" /></div>
               <div class="field"><label><span data-zh="活动标签" data-fr="Libellé de campagne">活动标签</span></label><input class="input" id="f-camplabel" value="Nouveauté" /></div>
+            </div>
+            <div class="card-state" id="header-diag-state" style="margin-top:6px;display:none">
+              <span class="hint" id="header-diag"></span>
             </div>
           </div>
 
@@ -532,7 +540,7 @@
 
   <script>
   (function () {
-    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false;
+    var lang='zh', step=1, selectedVisual=null, connected=false, selectedBannerRef='', selectedFillFormat='', previewGenerated=false, bannerManual=false, selectedHeaderVariant='css_dark_bar_wordmark';
     // email-layer header asset per fill format (ttt2/campaign -> Technitalia banner; ttt/sheet -> brand header)
     var FORMAT_HEADER={campaign_poster_email:{ref:'option_2',img:'assets/header_band_02.png'}, product_sheet_email:{ref:'option_1',img:'assets/header_band_01.png'}};
     var S={wb:null, affiche:null, fiche:null, afficheUrl:'', ficheUrl:'', afficheStale:false, ficheStale:false};
@@ -632,6 +640,7 @@
       if(eb.background&&eb.background.url){setSlot('banner',eb.background.url);var i3=$('emailBannerImg');if(i3)i3.src=eb.background.url;var p3=$('bannerPreviewImg');if(p3)p3.src=eb.background.url;}
       if(eb.channel_name)$('f-channel').value=eb.channel_name;
       if(eb.campaign_label)$('f-camplabel').value=eb.campaign_label;
+      if(eb.header_variant){selectedHeaderVariant=eb.header_variant;document.querySelectorAll('input[name=hdrvar]').forEach(function(r){r.checked=(r.value===eb.header_variant)});if(typeof updateHeaderPreview==='function')updateHeaderPreview();}
       if(eb.selected_banner_ref)selectedBannerRef=eb.selected_banner_ref;
       var pc=j.poster_candidates||{};
       if((pc.affiche||{}).status==='ready'&&pc.affiche.poster_key){S.affiche=pc.affiche.poster_key; await loadModePoster('affiche');}
@@ -669,6 +678,7 @@
       if(changed && GEN_ASSET_SLOTS[slot]){
         ['affiche','fiche'].forEach(function(m){ if(S[m]){ S[m+'Stale']=true; if(typeof refreshModeStaleUI==='function')refreshModeStaleUI(m); } });
       }
+      if(slot==='logo' && typeof updateHeaderPreview==='function')updateHeaderPreview();  // keep logo-bar preview in sync
       renderReadiness();
     }
     // Step-1 asset readiness panel — business-level readiness only (NOT the generated poster).
@@ -709,7 +719,7 @@
       if(SLOTS.atmo)pa.atmosphere={url:SLOTS.atmo,is_truth:false};   // visual-only, never business fact
       // email header is the deterministic ttt_html_header (clean CUISTANCE wordmark). We send logo + channel/campaign
       // meta only; we do NOT send a banner background (no header-band cover overlay drives the runtime header).
-      var eb={logo:(SLOTS.logo?{url:SLOTS.logo}:null),channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value};
+      var eb={logo:(SLOTS.logo?{url:SLOTS.logo}:null),channel_name:$('f-channel').value,campaign_label:$('f-camplabel').value,header_variant:selectedHeaderVariant};
       return {product_assets:pa,email_banner:eb};
     }
     // Explicit email-banner selection (email-layer; never product truth; never baked into the poster body).
@@ -1040,7 +1050,7 @@
       var fpb=$('btn-full-preview'); if(fpb)fpb.style.display=previewGenerated?'':'none';
       updateBindingLabels(); updateSendGate();
     }
-    function markPreviewStale(){ previewGenerated=false; var cf=$('container-fill-state');if(cf)cf.style.display='none'; var cm=$('container-media-state');if(cm)cm.style.display='none'; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
+    function markPreviewStale(){ previewGenerated=false; var cf=$('container-fill-state');if(cf)cf.style.display='none'; var cm=$('container-media-state');if(cm)cm.style.display='none'; var hd=$('header-diag-state');if(hd)hd.style.display='none'; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
     // backend truth: the email fill format MUST follow the selected email body visual. fiche -> product_sheet_email,
     // affiche -> campaign_poster_email. a manual pick that contradicts the selected body is rejected with a clear
     // instruction and snapped back — never silently preview Affiche under the product-sheet tab (or vice versa).
@@ -1072,14 +1082,40 @@
       diag('refresh',{affiche:S.affiche,fiche:S.fiche,selected:sel});
     }
 
-    // email header is the deterministic clean CUISTANCE wordmark (ttt_html_header) — no operator banner picker.
-    // keep the Step-3 header preview meta in sync with channel/campaign inputs.
+    // email header = ttt_html_header grammar; the brand element is REPLACEABLE (文字品牌条 / Logo 图片条).
+    // logo_image_bar uses ONLY the email Logo asset; if missing it falls back to the wordmark.
     function syncTttHeaderMeta(){
       var m=$('tttHeaderMeta'); if(!m)return;
       var bits=[($('f-channel')||{}).value,($('f-camplabel')||{}).value].filter(function(x){return x&&x.trim()});
       m.textContent=bits.join(' · ');
     }
+    function updateHeaderPreview(){
+      var wm=$('tttWordmark'),lg=$('tttLogo');
+      var useLogo=(selectedHeaderVariant==='logo_image_bar' && !!SLOTS.logo);
+      if(wm)wm.style.display=useLogo?'none':'';
+      if(lg){ if(useLogo){lg.src=SLOTS.logo;lg.style.display='';} else {lg.style.display='none';} }
+      var hint=$('headerVariantHint');
+      if(hint && selectedHeaderVariant==='logo_image_bar' && !SLOTS.logo){
+        hint.textContent=(lang==='zh'?'未提供邮件 Logo，已回退为文字品牌条。':'Pas de logo email — retour au wordmark.');
+      } else if(hint){ hint.textContent=hint.getAttribute('data-'+lang)||hint.textContent; }
+    }
     ['f-channel','f-camplabel'].forEach(function(id){var el=$(id); if(el)el.addEventListener('input',function(){syncTttHeaderMeta();markPreviewStale();});});
+    // header variant radio: persist via email_banner.header_variant on next preview; invalidate stale preview
+    document.querySelectorAll('input[name=hdrvar]').forEach(function(r){r.addEventListener('change',function(){
+      selectedHeaderVariant=r.value; updateHeaderPreview(); markPreviewStale();
+      diag('header_variant',{selected_header_variant:selectedHeaderVariant,logo_present:!!SLOTS.logo});
+    });});
+    // business-readable header diagnostics after a backend preview
+    function updateHeaderDiag(j){
+      var box=$('header-diag-state'),el=$('header-diag'); if(!box||!el)return;
+      if(!j||!j.header_variant){box.style.display='none';return;}
+      box.style.display='';
+      var isLogo=(j.header_variant==='logo_image_bar');
+      var parts=[(lang==='zh'?'当前 Header：':'Header : ')+(isLogo?(lang==='zh'?'Logo 图片条':'bandeau logo'):(lang==='zh'?'文字品牌条':'wordmark'))];
+      parts.push((lang==='zh'?'Logo 已使用：':'logo utilisé : ')+(j.header_logo_used?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
+      if(j.header_logo_missing_fallback)parts.push(lang==='zh'?'（缺少 Logo，已回退文字品牌条）':'(logo manquant — retour au wordmark)');
+      el.textContent=parts.join(' · ');
+    }
 
     // ---- Step 3: preview (backend) + send (real) ----
     // inspect the assembled email (same-origin iframe doc): header / body visual / cta / footer + header boundary
@@ -1127,6 +1163,7 @@
       var ec=r.json.email_container||{};
       diag('preview',{workbench_key:S.wb,email_container_template_id:r.json.email_container_template_id,email_fill_format:r.json.email_fill_format,selected_email_body_visual:r.json.selected_email_body_visual,selected_email_fill_format:selectedFillFormat,body_visual_poster_key:bv.poster_key,layout_type:(r.json.email_body_plan||{}).layout_type,final_poster_url_present:!!bv.url,backend_preview_html_present:!!htmlContent,final_preview_rendered:previewGenerated,preview_contains_header:ins.header,preview_contains_body_visual:ins.body,preview_contains_cta:ins.cta,preview_contains_footer:ins.footer,header_boundary_valid:(ins.header&&!ins.headerHasBody),no_body_content_in_header_banner:!ins.headerHasBody,email_header_source:r.json.email_header_source,header_source:ec.header_source,no_body_content_in_header:ec.no_body_content_in_header,no_product_visual_in_header:ec.no_product_visual_in_header,no_cta_in_header:ec.no_cta_in_header,no_footer_in_header:ec.no_footer_in_header,psd_header_logo_fit_known_issue_closed:ec.psd_header_logo_fit_known_issue_closed,legacy_truth_rejected:ec.legacy_truth_rejected,workbench_truth_used:ec.workbench_truth_used,uses_current_selected_visual:ec.uses_current_selected_visual,body_visual_variant:r.json.body_visual_variant,standalone_poster_url_present:!!r.json.standalone_poster_url,email_body_visual_url_present:!!r.json.email_body_visual_url,body_visual_contains_own_banner:r.json.body_visual_contains_own_banner,email_body_visual_contract_pass:r.json.email_body_visual_contract_pass,container_profile:r.json.container_profile,header_variant:r.json.header_variant,spec_display_mode:r.json.spec_display_mode,body_visual_mode:r.json.body_visual_mode,preview_ready:r.json.preview_ready,missing_required_fields:r.json.missing_required_fields,filled_subject:r.json.filled_subject,filled_intro:r.json.filled_intro,filled_cta:r.json.filled_cta,filled_footer:r.json.filled_footer,send_hold:r.json.send_hold,real_email_sent:r.json.real_email_sent,supporting_media_strip_present:r.json.supporting_media_strip_present,supporting_media_count:r.json.supporting_media_count,supporting_media_sources:r.json.supporting_media_sources,product_image_count:r.json.product_image_count,gallery_image_count:r.json.gallery_image_count,atmosphere_present:r.json.atmosphere_present,atmosphere_used_in_fiche:r.json.atmosphere_used_in_fiche,primary_product_visual_present:r.json.primary_product_visual_present});
       updateContainerFillState(r.json);  // business-readable container fill state (filled / missing / media / HOLD)
+      updateHeaderDiag(r.json);          // replaceable header diagnostics (variant / logo used / fallback)
       $('etat').textContent=(lang==='zh'?'可发送':'Prêt');
       $('send-summary').textContent=(lang==='zh'?('邮件预览已生成 · 邮件主体：'+BODY_NAME[selectedVisual].zh+' · 邮件格式：'+(FILL_NAME[selectedFillFormat]?FILL_NAME[selectedFillFormat].zh:'')):'Aperçu généré.');
     });
@@ -1160,12 +1197,15 @@
     $('modalCancel').addEventListener('click',function(){$('modal').classList.remove('open')});
     $('modalConfirm').addEventListener('click',async function(){
       $('modal').classList.remove('open');
-      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:'inline_only'});
+      // ALIGN WITH MAINLINE SEND: 正式发送(real) routes to the shared real provider (delivery_mode=resend);
+      // 测试发送(test) stays preview-only (inline_only). Same backend endpoint + same provider config as mainline.
+      var deliveryMode=(curMode()==='real')?'resend':'inline_only';
+      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:deliveryMode});
       if(!r.ok||!r.json){flash('err',bizMsg(r));return}
       // a true real delivery REQUIRES a provider_message_id; inline_only/preview_only is NOT a real send
       var real=isRealSent(r.json);
       diag('send',r.json);renderResults(r.json);
-      $('etat').textContent= real ? (lang==='zh'?'真实发送成功':'Envoyé') : (lang==='zh'?'预览已记录':'Aperçu enregistré');
+      $('etat').textContent= real ? (lang==='zh'?'真实发送成功':'Envoyé') : (lang==='zh'?'未真实发送':'Non distribué');
     });
     function attemptIsRealSent(a){return a&&a.status==='sent'&&!!a.provider_message_id;}
     function isRealSent(b){return (b.attempts||[]).some(attemptIsRealSent);}
@@ -1181,13 +1221,30 @@
       var realN=att.filter(attemptIsRealSent).length;
       var skipN=att.filter(function(a){return a.status==='skipped'||a.error_code==='preview_only'}).length;
       var failN=att.filter(function(a){return a.status==='error'}).length;
+      var realEmailSent=(realN>0);
       var summary;
-      if(realN>0) summary=(lang==='zh'?('真实发送成功 '+realN+' 封'):('Envoi réel réussi : '+realN))+(failN?(lang==='zh'?(' / 失败 '+failN):(' / échec '+failN)):'');
-      else if(skipN>0) summary=(lang==='zh'?'当前环境未配置真实发送服务，已记录预览发送证据，未真实投递':'Aucun service d\'envoi réel configuré — preuve d\'aperçu enregistrée, non distribué');
+      // business-readable; NEVER label inline_only/preview_only/skipped as sent
+      if(realN>0 && failN>0) summary=(lang==='zh'?('部分发送失败：真实 '+realN+' / 失败 '+failN):('Partiel : '+realN+' réussi / '+failN+' échec'));
+      else if(realN>0) summary=(lang==='zh'?('已发送真实测试邮件 '+realN+' 封'):('Email test réel envoyé : '+realN));
+      else if(skipN>0) summary=(lang==='zh'?'未真实发送：当前为预览模式 / inline_only':'Non distribué : mode aperçu / inline_only');
       else if(failN>0) summary=(lang==='zh'?('发送失败 '+failN+' 封'):('Échec : '+failN));
       else summary=(lang==='zh'?'暂无发送记录':'Aucun envoi enregistré');
       $('send-summary').textContent=summary;
       var res=$('results');res.innerHTML='';
+      // diagnostics detail row: mode · provider · status · counts · error_code · provider_message_id · real_email_sent
+      var a0=att[0]||{};
+      var detail=[
+        (lang==='zh'?'模式':'mode')+'='+(b.mode||a0.mode||'-'),
+        'provider='+(a0.provider||'-'),
+        'status='+(a0.status||'-'),
+        'sent='+(b.sent_count!=null?b.sent_count:realN),
+        'skipped='+(b.skipped_count!=null?b.skipped_count:skipN),
+        'failed='+(b.failed_count!=null?b.failed_count:failN),
+        (a0.error_code?('error_code='+a0.error_code):null),
+        'message_id='+(a0.provider_message_id||'null'),
+        'real_email_sent='+(realEmailSent?'true':'false')
+      ].filter(Boolean).join(' · ');
+      res.innerHTML='<div class="r" style="font-size:11px;color:var(--muted,#6b7178);word-break:break-all">'+detail+'</div>';
       att.forEach(function(a){var realOne=attemptIsRealSent(a);var cls=realOne?'r ok':(a.status==='error'?'r fail':'r');
         var icon=realOne?'✔':(a.status==='error'?'✖':'◔');
         var time=(a.at||'').replace('T',' ').replace('+00:00','');

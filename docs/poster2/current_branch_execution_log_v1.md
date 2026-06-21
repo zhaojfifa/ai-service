@@ -12955,3 +12955,39 @@ After bundle:
   REAL_SEND_OK). Doc updated: docs/poster2/email_container_owner_gated_real_send_smoke_v1.md. check_docs_router=PASS.
 - Owner Decision Needed: confirm receipt at zhaojfifa@gmail.com (id bd9fce38-4678-46db-bed8-fff2ca6a48cc). Keep real
   send strictly owner/test-gated; products[] / multi-product / customer send remain HOLD.
+
+## CUISTANCE TRIAL SEND MAINLINE ALIGN + BANNER FLEX V1 (2026-06-21) — align trial send + replaceable header
+- Task POSTER2-CUISTANCE-TRIAL-SEND-MAINLINE-ALIGN-AND-BANNER-FLEX-V1. Two changes only: (A) align trial UI send with
+  the existing mainline send capability; (B) add minimal replaceable banner/header. No send rebuild, no duplicate
+  provider, no customer/batch, no products[]. P2A demo untouched.
+- Root cause (A): frontend hardcoded delivery_mode:'inline_only' -> even 正式发送 routed to inline provider ->
+  provider=inline_only, status=skipped, error_code=preview_only, provider_message_id=null. Backend was fine: the
+  workbench send endpoint already reaches the SHARED mainline provider (providers.py ResendEmailProvider(settings.resend))
+  when delivery_mode=resend.
+- Fix (A): frontend maps 正式发送 -> delivery_mode=resend, 测试发送 -> inline_only (same endpoint, no duplicate provider).
+  Result display shows mode/provider/status/sent/skipped/failed/error_code/provider_message_id/real_email_sent;
+  skipped/preview_only NEVER labelled as sent (业务文案: 已发送真实测试邮件 / 未真实发送：当前为预览模式 / 发送失败 /
+  部分发送失败). Real success criteria = status=sent AND provider=resend AND provider_message_id != null.
+- Banner flex (B): EmailBanner.header_variant (css_dark_bar_wordmark default | logo_image_bar). assembly renders the
+  logo bar from email_banner.logo ONLY (never product/gallery/atmosphere); logo missing + logo_image_bar -> fallback to
+  wordmark + header_logo_missing_fallback=true; red filet + header-only preserved. Diagnostics: header_variant,
+  header_logo_url, header_logo_used, header_logo_missing_fallback, header_channel_name, header_campaign_label. Response
+  header_variant now reports the brand-element variant; header source stays ttt_html_header (email_header_source/
+  header_source). Frontend: 文字品牌条 / Logo 图片条 selector persisted via email_banner.header_variant + header diag line.
+- Tests: +4 header (default wordmark / logo_image_bar uses banner logo / fallback when no logo / never product-gallery-
+  atmosphere as logo) + +2 send alignment (inline_only skipped-not-sent / resend success requires provider_message_id);
+  updated 1 stale assertion (header_variant=css_dark_bar_wordmark, email_header_source=ttt_html_header). Focused:
+  assembly+candidates+psd+body_plan+reference+send = 87 passed; test_api -k email/workbench/selected/fiche/preview/send
+  = 11 passed; trial JS node --check = TRIAL_JS_OK; check_docs_router = PASS.
+- Remote (OPS-auth, wb_9308b112feb0436e): API replay of the corrected-UI payload. REAL (mode=real,delivery_mode=resend)
+  -> sent_count=1, provider=resend, provider_message_id=2c895198-9e81-4ea0-9a4a-c380cca68cdd = REAL_SEND_OK. PREVIEW
+  (test,inline_only) -> skipped/preview_only, not real. One real test email to zhaojfifa@gmail.com only; no customer/
+  batch. No Playwright in env -> literal browser run + header-variant remote diagnostics pending Render redeploy of this
+  commit. Preflight fiche preview_ready=true, supporting_media_count=3 (396c7ea container intact remotely).
+- Fiche + Affiche regressions intact (local tests). No customer email beyond the single authorized test recipient. No
+  customer batch enabled. Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/cuistance_trial_send_mainline_align_banner_flex_v1/evidence.json. Doc:
+  docs/poster2/cuistance_trial_send_mainline_align_banner_flex_v1.md.
+- Owner Decision Needed: confirm receipt at zhaojfifa@gmail.com (id 2c895198-9e81-4ea0-9a4a-c380cca68cdd); after Render
+  redeploy, literal browser pass confirms the deployed UI send + logo_image_bar header. Real send stays owner/test-gated;
+  customer/batch + products[] remain HOLD.

@@ -1,0 +1,44 @@
+{
+  "trial_send_aligned_with_mainline": true,
+  "root_cause": "frontend hardcoded delivery_mode='inline_only' -> always preview_only/skipped even on 正式发送",
+  "fix": "frontend maps 正式发送 -> delivery_mode=resend (shared mainline provider), 测试发送 -> inline_only; same endpoint, no duplicate provider logic",
+  "preview_only_not_marked_sent": true,
+  "real_send_success_requires_provider_message_id": true,
+  "remote_real_send_validated": true,
+  "validation_method": "authenticated API replay of the exact corrected-UI payload (no Playwright in this env)",
+  "remote_browser_literal_validated": false,
+  "header_variant_backend_deployed_remote": false,
+  "remote_real_send": {
+    "payload": {"recipients": ["zhaojfifa@gmail.com"], "mode": "real", "delivery_mode": "resend", "confirm_send": true},
+    "sent_count": 1, "skipped_count": 0, "failed_count": 0,
+    "status": "sent", "provider": "resend",
+    "provider_message_id": "2c895198-9e81-4ea0-9a4a-c380cca68cdd",
+    "verdict": "REAL_SEND_OK"
+  },
+  "remote_inline_only_send": {
+    "payload": {"recipients": ["zhaojfifa@gmail.com"], "mode": "test", "delivery_mode": "inline_only", "confirm_send": true},
+    "status": "skipped", "provider": "inline_only", "error_code": "preview_only", "provider_message_id": null,
+    "is_real_send": false
+  },
+  "provider": "resend",
+  "provider_message_id": "2c895198-9e81-4ea0-9a4a-c380cca68cdd",
+  "banner_header_variant_supported": true,
+  "logo_image_bar_supported": true,
+  "header_uses_email_banner_logo_only": true,
+  "header_logo_missing_fallback_supported": true,
+  "product_assets_used_as_logo": false,
+  "gallery_assets_used_as_logo": false,
+  "atmosphere_used_as_logo": false,
+  "fiche_supporting_media_regression": true,
+  "affiche_regression": true,
+  "tests": {
+    "focused_assembly_candidates_psd_bodyplan_reference_send": "87 passed",
+    "test_api_email_workbench_selected_fiche_preview_send": "11 passed",
+    "new_header_tests": 4,
+    "new_send_alignment_tests": 2,
+    "trial_js_node_check": "TRIAL_JS_OK"
+  },
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "p2a_demo_touched": false
+}

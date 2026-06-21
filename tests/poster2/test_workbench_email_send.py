@@ -197,3 +197,35 @@ def test_real_mode_marks_workbench_sent(client, monkeypatch):
     assert r.status_code == 200
     assert r.json()["sent_count"] == 1
     assert load_workbench_record(wb)["status"] == "sent"
+
+
+# ---- POSTER2-CUISTANCE-TRIAL-SEND-MAINLINE-ALIGN-V1: explicit send-alignment criteria ----
+def test_inline_only_preview_send_is_skipped_not_sent(client):
+    # 测试发送 maps to delivery_mode=inline_only -> preview_only/skipped, NEVER counted as a real send
+    wb = _ready(client, "affiche")
+    r = _send(client, wb, mode="test", delivery_mode="inline_only")
+    assert r.status_code == 200
+    b = r.json()
+    assert b["sent_count"] == 0
+    assert b["skipped_count"] == 1
+    a = b["attempts"][0]
+    assert a["status"] == "skipped"
+    assert a["provider"] == "inline_only"
+    assert a["error_code"] == "preview_only"
+    assert a["provider_message_id"] is None
+    # real-send criteria (status==sent AND provider_message_id) is NOT met
+    assert not (a["status"] == "sent" and a.get("provider_message_id"))
+
+
+def test_real_send_success_requires_provider_message_id(client, monkeypatch):
+    # 正式发送 maps to delivery_mode=resend -> shared real provider; real success carries a provider_message_id
+    monkeypatch.setattr(main, "get_email_provider", lambda mode: _FakeSentProvider())
+    wb = _ready(client, "fiche")
+    r = _send(client, wb, mode="real", recipients=["a@x.com"], delivery_mode="resend")
+    assert r.status_code == 200
+    b = r.json()
+    assert b["sent_count"] == 1
+    a = b["attempts"][0]
+    assert a["status"] == "sent"
+    assert a["provider"] == "resend"
+    assert a["provider_message_id"]  # non-null -> real send

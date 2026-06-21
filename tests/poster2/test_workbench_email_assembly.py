@@ -293,7 +293,9 @@ def test_preview_exposes_container_profile_and_modes_affiche(client):
     _select(client, wb, "affiche")
     body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
     assert body["container_profile"] == "single_product_campaign_email"
-    assert body["header_variant"] == "ttt_html_header"
+    # header_variant now reports the brand-element variant; the header source stays ttt_html_header
+    assert body["header_variant"] == "css_dark_bar_wordmark"
+    assert body["email_header_source"] == "ttt_html_header"
     assert body["spec_display_mode"] == "in_visual"           # affiche specs baked into the visual
     assert body["body_visual_mode"]                            # variant present
     assert body["preview_ready"] is True
@@ -466,3 +468,64 @@ def test_selected_email_body_visual_persists(client):
     _select(client, wb2, "affiche")
     client.post(f"/api/v2/workbench/{wb2}/email/preview")
     assert client.get(f"/api/v2/workbench/{wb2}").json()["selected_email_body_visual"] == "affiche"
+
+
+# ---- POSTER2-CUISTANCE-TRIAL-SEND-MAINLINE-ALIGN-AND-BANNER-FLEX-V1: replaceable header ----
+def _patch_banner(client, wb, **fields):
+    client.patch(f"/api/v2/workbench/{wb}", json={"email_banner": fields})
+
+
+def test_header_default_css_dark_bar_wordmark(client):
+    wb = _make_workbench(client)
+    _set_banner_meta(client, wb)   # sets logo + channel + campaign, NO header_variant
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["header_variant"] == "css_dark_bar_wordmark"
+    assert body["header_logo_used"] is False
+    assert body["header_logo_missing_fallback"] is False
+    assert body["email_header_source"] == "ttt_html_header"
+    # CSS wordmark present; the logo image is NOT used as the header brand element
+    header_region = body["html"].split("E1002A")[0]   # up to the red filet (end of header bar)
+    assert "CUISTANCE" in header_region
+    assert "https://r2.example/logo.png" not in header_region
+
+
+def test_header_logo_image_bar_uses_email_banner_logo(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"},
+                  channel_name="CUISTANCE Europe", campaign_label="Nouveauté", header_variant="logo_image_bar")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["header_variant"] == "logo_image_bar"
+    assert body["header_logo_used"] is True
+    assert body["header_logo_url"] == "https://r2.example/brandlogo.png"
+    assert body["header_logo_missing_fallback"] is False
+    header_region = body["html"].split("E1002A")[0]
+    assert "https://r2.example/brandlogo.png" in header_region   # logo image is the header brand element
+
+
+def test_header_logo_image_bar_falls_back_when_no_logo(client):
+    wb = _make_workbench(client)
+    _patch_banner(client, wb, channel_name="CUISTANCE Europe", header_variant="logo_image_bar")  # NO logo asset
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["header_variant"] == "css_dark_bar_wordmark"     # fell back to wordmark
+    assert body["header_logo_used"] is False
+    assert body["header_logo_missing_fallback"] is True
+
+
+def test_header_never_uses_product_gallery_atmosphere_as_logo(client):
+    wb = _wb_with_media(client)   # 2 product images + 3 gallery + atmosphere
+    _patch_banner(client, wb, logo={"url": "https://r2.example/brandlogo.png"},
+                  channel_name="C", header_variant="logo_image_bar")
+    _gen(client, wb, "fiche"); _select(client, wb, "fiche")
+    body = client.post(f"/api/v2/workbench/{wb}/email/preview").json()
+    assert body["header_logo_url"] == "https://r2.example/brandlogo.png"
+    header_region = body["html"].split("E1002A")[0]   # header bar only
+    assert "brandlogo.png" in header_region
+    for forbidden in ["p1.png", "p2.png", "g1.png", "g2.png", "g3.png", "atmo.png"]:
+        assert forbidden not in header_region
+    # Fiche container regression still intact alongside the logo header
+    assert body["supporting_media_strip_present"] is True
+    assert body["supporting_media_count"] == 3
+    assert body["atmosphere_used_in_fiche"] is False
