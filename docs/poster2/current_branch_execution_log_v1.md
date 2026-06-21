@@ -13263,3 +13263,12 @@ After bundle:
 - No banner/body change; no send-provider change; no customer/batch; no products[]. P2A untouched. Stash preserved.
 - Evidence: docs/poster2/assets/email_package_send_binding_hotfix_v1/evidence.json. Doc:
   docs/poster2/email_package_send_binding_hotfix_v1.md. Remote verification follows after Render deploy.
+
+## EMAIL PACKAGE SEND-BINDING HOTFIX V1 — REMOTE = PENDING_REDEPLOY (2026-06-21)
+- Fix committed + pushed (8aa7ba8). As of this commit Render still serves ce28295 (deployed /cuistance_trial.html has
+  loadPackages but NOT the new sendThisVersion markers) -> remote browser verification of the hotfix = PENDING_REDEPLOY.
+- Did NOT run a real send against the OLD build (would not exercise the new resolve-from-explicit binding and would be a
+  misleading "verification" + an unnecessary real email). The fix is proven by local tests (96 passed incl. 4 binding
+  tests: affiche binds to affiche / fiche binds to fiche / explicit authoritative / response container_visual_variant).
+- Owner Decision Needed: once Render deploys >= 8aa7ba8, the authenticated Affiche real send (to zhaojfifa@gmail.com)
+  confirming sent_package_type=affiche + provider=resend + provider_message_id can run. No customer email; no batch.

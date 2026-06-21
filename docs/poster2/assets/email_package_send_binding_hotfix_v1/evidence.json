@@ -24,5 +24,8 @@
     "trial_js_node_check": "TRIAL_JS_OK",
     "check_docs_router": "PASS"
   },
-  "remote_verification": "see email_package_send_binding_hotfix_v1.md / log — performed after Render deploy of this commit"
+  "remote_verification": "PENDING_REDEPLOY",
+  "remote_verification_detail": "as of this commit Render still serves ce28295 (deployed page has loadPackages but NOT the new sendThisVersion markers); did NOT run a real send against the old build to avoid a misleading verification. The fix is committed (8aa7ba8) + proven by local tests (96 passed incl. 4 binding tests). The authenticated Affiche real send (sent_package_type=affiche, provider=resend, provider_message_id non-null) completes once the new commit is live.",
+  "real_send_run": false,
+  "remote_deployed_commit_at_verify": "ce28295 (old; 8aa7ba8 not yet deployed)"
 }
