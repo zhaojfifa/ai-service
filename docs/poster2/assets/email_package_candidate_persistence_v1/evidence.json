@@ -1,0 +1,31 @@
+{
+  "fiche_package_retained": true,
+  "affiche_package_retained": true,
+  "switching_does_not_destroy_other_package": true,
+  "send_package_selection_explicit": true,
+  "selected_email_package_request_field": true,
+  "selected_package_mismatch_rejected": true,
+  "sent_package_type_reported": true,
+  "fiche_supporting_media_preserved": true,
+  "affiche_poster_assets_preserved": true,
+  "staleness_status_exposed": true,
+  "staleness_mechanism": "monotonic content_version (robust to same-second timestamps) + content_updated_at for display",
+  "staleness_values": ["fresh", "maybe_stale"],
+  "new_endpoint": "GET /api/v2/workbench/{key}/email/packages -> {email_package_candidates:{fiche,affiche}}",
+  "send_response_fields": ["sent_package_type", "selected_email_body_visual", "body_visual_poster_key", "container_visual_variant", "real_email_sent"],
+  "send_path_preserved": true,
+  "real_send_requires_provider_message_id": true,
+  "inline_only_not_real_send": true,
+  "banner_or_body_layout_changed": false,
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "products_backend_introduced": false,
+  "p2a_demo_touched": false,
+  "tests": {
+    "new_package_tests": 8,
+    "focused_suites": "110 passed",
+    "test_api_email_workbench_selected_fiche_preview_send_package": "11 passed",
+    "trial_js_node_check": "TRIAL_JS_OK",
+    "check_docs_router": "PASS"
+  }
+}

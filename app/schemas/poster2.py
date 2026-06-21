@@ -570,6 +570,9 @@ class WorkbenchEmailSendRequest(BaseModel):
     confirm_send: bool = False
     delivery_mode: Literal["inline_only", "resend"] = "inline_only"
     attachment_types: list[Literal["poster_png", "poster_pdf"]] = Field(default_factory=list, max_length=2)
+    # explicit send-time package selection. When present it MUST equal the persisted selected_email_body_visual
+    # (the operator's "发送这个版本" pick) — a mismatch is rejected so the sent package is unambiguous.
+    selected_email_package: Optional[CandidateType] = None
 
 
 class WorkbenchSendAttempt(BaseModel):
@@ -598,6 +601,21 @@ class WorkbenchEmailSendResponse(BaseModel):
     skipped_count: int
     deduplicated_count: int
     attempts: list[WorkbenchSendAttempt] = Field(default_factory=list)
+    # ---- which package was actually sent (additive; backward compatible) ----
+    sent_package_type: Optional[CandidateType] = None
+    selected_email_body_visual: Optional[CandidateType] = None
+    body_visual_poster_key: Optional[str] = None
+    container_visual_variant: Optional[str] = None
+    real_email_sent: bool = False
+
+
+# Email package candidate persistence — both routes coexist and are selectable before sending.
+class EmailPackageCandidatesResponse(BaseModel):
+    workbench_key: str
+    selected_email_body_visual: Optional[CandidateType] = None
+    content_updated_at: Optional[str] = None
+    workbench_updated_at: Optional[str] = None
+    email_package_candidates: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkbenchRecordResponse(BaseModel):

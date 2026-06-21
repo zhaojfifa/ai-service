@@ -1595,6 +1595,7 @@ from app.schemas.poster2 import (
     PosterRecordResponse,
     Poster2DebugArtifacts,
     EmailAssemblyPreviewResponse,
+    EmailPackageCandidatesResponse,
     ProductAssets,
     ProductTruth,
     FILL_FORMAT_FOR_VISUAL,
@@ -2494,16 +2495,18 @@ def select_workbench_visual_v2(
     return WorkbenchRecordResponse.model_validate(record)
 
 
-def _resolve_workbench_email_package(workbench_key: str) -> dict[str, Any]:
-    """Resolve the deterministic PR-3S email package for a workbench: load workbench -> selected visual ->
-    selected candidate poster_key -> poster_record -> draft -> assembly (with email_body_plan). Raises
-    HTTPException for the same guards used by preview. BOTH preview and send consume this single source so the
-    sent email is byte-identical to the previewed one (no reconstruction in the send path)."""
+def _resolve_workbench_email_package(workbench_key: str, route: str | None = None) -> dict[str, Any]:
+    """Resolve the deterministic PR-3S email package for a workbench: load workbench -> route (explicit or the
+    persisted selected visual) -> candidate poster_key -> poster_record -> draft -> assembly (with email_body_plan).
+    Raises HTTPException for the same guards used by preview. BOTH preview and send consume this single source so the
+    sent email is byte-identical to the previewed one (no reconstruction in the send path). Passing `route` resolves
+    a SPECIFIC route (fiche|affiche) independently of the persisted selection — used to build both package candidates
+    for side-by-side compare."""
     workbench = load_workbench_record(workbench_key)
     if workbench is None:
         raise HTTPException(status_code=404, detail="workbench_record_not_found")
 
-    selected = workbench.get("selected_email_body_visual")
+    selected = route if route in ("affiche", "fiche") else workbench.get("selected_email_body_visual")
     if selected not in ("affiche", "fiche"):
         raise HTTPException(status_code=422, detail="no_selected_email_body_visual")
 
@@ -2713,6 +2716,108 @@ def preview_workbench_email_v2(
     )
 
 
+def _build_email_package_candidate(workbench: dict[str, Any], route: str) -> dict[str, Any]:
+    """Build a sendable email-package-candidate summary for ONE route (fiche|affiche), independent of the persisted
+    selection. Reuses the same deterministic assembly as preview/send (no reconstruction). Surfaces preview/send
+    readiness, container + banner diagnostics, and a maybe-stale signal (content changed after the candidate was
+    generated). Never raises — an un-ready/unresolvable route returns a stub."""
+    candidate = (workbench.get("poster_candidates") or {}).get(route) or {}
+    content_at = workbench.get("content_updated_at") or workbench.get("updated_at")
+    generated_at = candidate.get("generated_at")
+    base: dict[str, Any] = {
+        "package_type": route,
+        "status": candidate.get("status") or "not_generated",
+        "preview_ready": False,
+        "send_ready": False,
+        "package_updated_at": generated_at,
+        "content_updated_at": content_at,
+        "workbench_updated_at": workbench.get("updated_at"),
+        "staleness_status": "fresh",
+        "is_stale": False,
+        "stale_reason": None,
+        "missing_required_fields": [],
+    }
+    if candidate.get("status") != "ready":
+        return base
+    try:
+        pkg = _resolve_workbench_email_package(workbench["workbench_key"], route=route)
+    except HTTPException as exc:
+        base["status"] = "error"
+        base["stale_reason"] = str(getattr(exc, "detail", "unresolvable"))
+        return base
+    asm = pkg["assembly"]
+    preview_ready = bool(asm.get("preview_ready", True))
+    missing = list(asm.get("missing_required_fields") or [])
+    # maybe-stale: content (truth/assets/banner) changed after this candidate was generated. Uses a monotonic
+    # content_version (robust to same-second timestamps); the timestamps are surfaced for display only.
+    cur_ver = int(workbench.get("content_version") or 1)
+    gen_ver = int(candidate.get("content_version") or 0)
+    stale = gen_ver < cur_ver
+    base.update({
+        "status": "ready",
+        "preview_ready": preview_ready,
+        "send_ready": bool(preview_ready and not missing),
+        "subject": asm.get("subject"),
+        "preview_text": asm.get("preview_text"),
+        "html": asm.get("html"),
+        "text": asm.get("text"),
+        "body_visual_url": pkg.get("body_url"),
+        "container_profile": asm.get("container_profile"),
+        "container_visual_variant": asm.get("container_visual_variant"),
+        "banner_variant": asm.get("banner_variant"),
+        "missing_required_fields": missing,
+        "is_stale": stale,
+        "staleness_status": "maybe_stale" if stale else "fresh",
+        "stale_reason": ("content_changed_after_generation" if stale else None),
+        "source_content_version": cur_ver,
+        "package_content_version": gen_ver,
+    })
+    if route == "affiche":
+        record = pkg.get("record") or {}
+        email_assets = (record.get("email_assets") or {})
+        base.update({
+            "poster_key": pkg.get("poster_key"),
+            "standalone_poster_url": pkg.get("standalone_poster_url"),
+            "email_body_visual_url": asm.get("email_body_visual_url"),
+            "email_body_visual_contract_pass": asm.get("email_body_visual_contract_pass"),
+            "available_attachment_types": sorted(email_assets.keys()),
+        })
+    else:
+        base.update({
+            "poster_key": None,
+            "uses_poster_generation": False,
+            "generated_from": "workbench_truth",
+            "supporting_media_count": asm.get("supporting_media_count"),
+            "product_image_count": asm.get("product_image_count"),
+            "gallery_image_count": asm.get("gallery_image_count"),
+        })
+    return base
+
+
+@app.get(
+    "/api/v2/workbench/{workbench_key}/email/packages",
+    response_model=EmailPackageCandidatesResponse,
+    summary="CUISTANCE commercial trial — both email package candidates (fiche + affiche) for compare/select",
+    tags=["poster-v2"],
+)
+def get_email_package_candidates_v2(workbench_key: str) -> EmailPackageCandidatesResponse:
+    """Expose BOTH route packages so the operator can generate/compare Fiche and Affiche and pick one at send time.
+    Both packages coexist in the workbench; building one route never destroys the other. Read-only; no send."""
+    workbench = load_workbench_record(workbench_key)
+    if workbench is None:
+        raise HTTPException(status_code=404, detail="workbench_record_not_found")
+    return EmailPackageCandidatesResponse(
+        workbench_key=workbench_key,
+        selected_email_body_visual=workbench.get("selected_email_body_visual"),
+        content_updated_at=workbench.get("content_updated_at"),
+        workbench_updated_at=workbench.get("updated_at"),
+        email_package_candidates={
+            "fiche": _build_email_package_candidate(workbench, "fiche"),
+            "affiche": _build_email_package_candidate(workbench, "affiche"),
+        },
+    )
+
+
 @app.post(
     "/api/v2/workbench/{workbench_key}/email/send",
     response_model=WorkbenchEmailSendResponse,
@@ -2732,6 +2837,10 @@ def send_workbench_email_v2(
     pkg = _resolve_workbench_email_package(workbench_key)
     selected, poster_key, candidate = pkg["selected"], pkg["poster_key"], pkg["candidate"]
     record, assembly = pkg["record"], pkg["assembly"]
+
+    # explicit send-time package selection: if asserted it MUST equal the persisted selected route -> unambiguous send
+    if payload.selected_email_package and payload.selected_email_package != selected:
+        raise HTTPException(status_code=422, detail="selected_package_mismatch")
 
     # explicit confirmation — neither test nor real send happens implicitly
     if not payload.confirm_send:
@@ -2809,6 +2918,7 @@ def send_workbench_email_v2(
 
     append_send_attempts(workbench_key, attempts, mark_sent=(payload.mode == "real" and sent_count > 0))
 
+    real_email_sent = any(a.get("status") == "sent" and a.get("provider_message_id") for a in attempts)
     return WorkbenchEmailSendResponse(
         workbench_key=workbench_key,
         mode=payload.mode,
@@ -2818,6 +2928,12 @@ def send_workbench_email_v2(
         skipped_count=skipped_count,
         deduplicated_count=norm["deduplicated_count"],
         attempts=attempts,
+        # which package was actually sent (explicit + unambiguous)
+        sent_package_type=selected,
+        selected_email_body_visual=selected,
+        body_visual_poster_key=poster_key,
+        container_visual_variant=assembly.get("container_visual_variant"),
+        real_email_sent=real_email_sent,
     )
 
 

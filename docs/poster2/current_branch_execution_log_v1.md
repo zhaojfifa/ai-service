@@ -13184,3 +13184,37 @@ After bundle:
   technitalia.png, cuistance_logo_only.png). Doc: docs/poster2/banner_asset_audit_and_design_brief_v1.md.
 - Owner Decision Needed: commission the designer banner master (Deliverables A + B); the interim CSS reconstruction
   stands until then. customer/batch send + products[] remain HOLD.
+
+## EMAIL PACKAGE CANDIDATE PERSISTENCE V1 (2026-06-21) — both routes coexist, compare + send-time selection + staleness
+- Task POSTER2-EMAIL-PACKAGE-CANDIDATE-PERSISTENCE-V1. Both Fiche + Affiche email packages coexist and are selectable
+  before sending. No body redesign, no banner polish, no send-provider rebuild, no products[], no batch/customer send.
+  P2A demo untouched.
+- Root cause: scalar selected_email_body_visual made the other route feel lost/not-sendable on switch; send didn't state
+  which package was sent. (Candidates already coexisted in poster_candidates; missing = surfaced package layer + explicit
+  send selection + staleness.)
+- Backend:
+  - workbench_records: content_updated_at + monotonic content_version (bumped ONLY on product_truth/product_assets/
+    email_banner change, NOT selection/generation); set_poster_candidate captures the content_version it was generated
+    against (robust same-second staleness).
+  - main.py: _resolve_workbench_email_package(route=...) resolves a SPECIFIC route independently of selection;
+    GET /api/v2/workbench/{key}/email/packages -> {email_package_candidates:{fiche,affiche}} each a full package summary
+    (status/preview_ready/send_ready/subject/html/text/body_visual_url/container/banner/missing + route-specific:
+    fiche supporting_media+counts / affiche poster_key+standalone+attachments) + staleness (maybe_stale when
+    package_content_version < workbench content_version).
+  - send: optional selected_email_package MUST equal persisted selected -> else 422 selected_package_mismatch; response
+    +sent_package_type/selected_email_body_visual/body_visual_poster_key/container_visual_variant/real_email_sent. Send
+    path otherwise unchanged (same provider, byte-identical to preview).
+- Schema: WorkbenchEmailSendRequest.selected_email_package; WorkbenchEmailSendResponse +5 fields;
+  EmailPackageCandidatesResponse.
+- Frontend (Step 3): two package cards (简单产品页邮件 / 目标海报邮件) showing status/预览就绪/可发送/容器/Banner/多视角/
+  poster_key/新鲜度/更新时间 from the packages endpoint; 发送这个版本 selects that route + refreshes; send includes
+  selected_email_package; 当前将发送 line. Mirror synced; node --check = TRIAL_JS_OK.
+- Tests: +8 (both retained / switching keeps both / fiche supporting media preserved / affiche poster_key preserved /
+  sent_package_type reported / package mismatch 422 / staleness maybe_stale after content change / inline_only not real).
+  Focused suites = 110 passed; test_api -k = 11 passed; check_docs_router = PASS.
+- Banner unchanged (interim default accepted; final requires designer assets per banner_asset_audit_and_design_brief_v1).
+  No customer email; no batch; no products[]. Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/email_package_candidate_persistence_v1/evidence.json. Doc:
+  docs/poster2/email_package_candidate_persistence_v1.md.
+- Owner Decision Needed: accept the package candidate layer; commission designer banner assets for final quality.
+  customer/batch send + products[] remain HOLD.

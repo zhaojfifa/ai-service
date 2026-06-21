@@ -385,6 +385,23 @@
       <div class="two-col">
         <div>
           <div class="card">
+            <h3><span data-zh="邮件版本对比 · 选择发送版本" data-fr="Comparer &amp; choisir la version à envoyer">邮件版本对比 · 选择发送版本</span> <span class="badge ready" data-zh="两个版本可共存" data-fr="Deux versions coexistent">两个版本可共存</span></h3>
+            <p class="hint" data-zh="先分别生成简单产品页与目标海报，两个邮件版本同时保留；在此选择「发送这个版本」。" data-fr="Générez la fiche et l'affiche : les deux versions coexistent ; choisissez ici « Envoyer cette version ».">先分别生成简单产品页与目标海报，两个邮件版本同时保留；在此选择「发送这个版本」。</p>
+            <div class="pkg-cards" id="pkgCards" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+              <div class="pkg-card" id="pkg-fiche" data-pkg="fiche" style="border:1px solid var(--line,#e6e8ec);border-radius:10px;padding:10px 12px">
+                <div style="font-weight:600;font-size:13px"><span data-zh="简单产品页邮件" data-fr="Email fiche">简单产品页邮件</span> <span class="badge lock" id="pkgsel-fiche" style="display:none">✓ <span data-zh="将发送" data-fr="À envoyer">将发送</span></span></div>
+                <div class="hint" id="pkginfo-fiche" style="margin-top:4px;line-height:1.6">—</div>
+                <button class="btn secondary sm" id="pkgsend-fiche" type="button" style="margin-top:6px" data-zh="发送这个版本" data-fr="Envoyer cette version">发送这个版本</button>
+              </div>
+              <div class="pkg-card" id="pkg-affiche" data-pkg="affiche" style="border:1px solid var(--line,#e6e8ec);border-radius:10px;padding:10px 12px">
+                <div style="font-weight:600;font-size:13px"><span data-zh="目标海报邮件" data-fr="Email affiche">目标海报邮件</span> <span class="badge lock" id="pkgsel-affiche" style="display:none">✓ <span data-zh="将发送" data-fr="À envoyer">将发送</span></span></div>
+                <div class="hint" id="pkginfo-affiche" style="margin-top:4px;line-height:1.6">—</div>
+                <button class="btn secondary sm" id="pkgsend-affiche" type="button" style="margin-top:6px" data-zh="发送这个版本" data-fr="Envoyer cette version">发送这个版本</button>
+              </div>
+            </div>
+            <div class="hint" id="pkgSendTarget" style="margin-top:8px" data-zh="当前将发送：—" data-fr="Version à envoyer : —">当前将发送：—</div>
+          </div>
+          <div class="card">
             <h3><span data-zh="邮件填充格式" data-fr="Format d'email">邮件填充格式</span> <span class="badge ready" data-zh="两种正式格式" data-fr="Deux formats officiels">两种正式格式</span></h3>
             <p class="hint" id="fill-default-hint" data-zh="默认按所选展示模式映射；可在两种正式格式间切换并重新预览。" data-fr="Mappé par défaut selon le mode choisi ; permutable, puis régénérer l'aperçu.">默认按所选展示模式映射；可在两种正式格式间切换并重新预览。</p>
             <div class="banner-options" id="fillFormatOptions">
@@ -1049,6 +1066,55 @@
         ready:{zh:'邮件预览已生成，可打开完整预览检查最终效果。',fr:'Aperçu généré — ouvrez l\'aperçu complet pour vérifier.'} }[state]||{};
       h.setAttribute('data-zh',M.zh||''); h.setAttribute('data-fr',M.fr||''); h.textContent=(lang==='zh'?M.zh:M.fr)||'';
     }
+    // ---- email package candidates: both routes coexist; the operator compares + picks which to send ----
+    var PKG_CV={ttt_product_sheet_container:{zh:'TTT 简单产品容器',fr:'fiche TTT'},ttt2_campaign_container:{zh:'TTT2 目标海报容器',fr:'affiche TTT2'}};
+    var PKG_BV={brand_standard_header:{zh:'品牌标准页眉',fr:'marque standard'},campaign_poster_header:{zh:'营销海报页眉',fr:'campagne'},text_fallback_header:{zh:'文字回退页眉',fr:'wordmark'}};
+    function renderPkgCard(route,p,selected){
+      var info=$('pkginfo-'+route),selBadge=$('pkgsel-'+route),btn=$('pkgsend-'+route),card=$('pkg-'+route);
+      if(!info)return;
+      if(!p||p.status==='not_generated'){ info.textContent=(lang==='zh'?'尚未生成。请在第二步生成此版本。':'Non généré — générez à l\'étape 2.'); if(btn)btn.disabled=true; if(selBadge)selBadge.style.display='none'; if(card)card.style.opacity='0.6'; return; }
+      if(card)card.style.opacity='1';
+      var ready=(p.status==='ready');
+      var cv=(PKG_CV[p.container_visual_variant]||{})[lang]||p.container_visual_variant||'';
+      var bv=(PKG_BV[p.banner_variant]||{})[lang]||p.banner_variant||'';
+      var upd=(p.package_updated_at||'').replace('T',' ').replace('+00:00','');
+      var lines=[];
+      lines.push((lang==='zh'?'状态：':'statut : ')+(ready?(lang==='zh'?'已生成':'prêt'):p.status));
+      lines.push((lang==='zh'?'预览就绪：':'aperçu : ')+(p.preview_ready?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non'))+(lang==='zh'?' · 可发送：':' · envoyable : ')+(p.send_ready?(lang==='zh'?'是':'oui'):(lang==='zh'?'否':'non')));
+      if(cv)lines.push((lang==='zh'?'容器：':'conteneur : ')+cv);
+      if(bv)lines.push((lang==='zh'?'Banner：':'bannière : ')+bv);
+      if(route==='fiche'&&p.supporting_media_count!=null)lines.push((lang==='zh'?'多视角/支撑图：':'vues : ')+p.supporting_media_count+(lang==='zh'?' 张':''));
+      if(route==='affiche'&&p.poster_key)lines.push((lang==='zh'?'海报 Key：已绑定':'poster_key : lié'));
+      lines.push((lang==='zh'?'新鲜度：':'fraîcheur : ')+(p.staleness_status==='maybe_stale'?(lang==='zh'?'可能过期（素材已变更，建议重生成）':'peut-être obsolète'):(lang==='zh'?'最新':'à jour')));
+      if(upd)lines.push((lang==='zh'?'更新：':'maj : ')+upd);
+      info.innerHTML=lines.join('<br>');
+      if(btn)btn.disabled=!ready;
+      if(selBadge)selBadge.style.display=(selected===route)?'':'none';
+      if(card)card.style.borderColor=(selected===route)?'var(--ok,#188a42)':'var(--line,#e6e8ec)';
+    }
+    async function loadPackages(){
+      if(!S.wb)return;
+      var r=await api('GET','/api/v2/workbench/'+S.wb+'/email/packages');
+      if(!r.ok||!r.json){return;}
+      var pc=r.json.email_package_candidates||{};
+      renderPkgCard('fiche',pc.fiche,r.json.selected_email_body_visual);
+      renderPkgCard('affiche',pc.affiche,r.json.selected_email_body_visual);
+      var t=$('pkgSendTarget'); if(t){var sel=r.json.selected_email_body_visual; t.textContent=(lang==='zh'?'当前将发送：':'Version à envoyer : ')+(sel?((sel==='fiche')?(lang==='zh'?'简单产品页邮件':'fiche'):(lang==='zh'?'目标海报邮件':'affiche')):(lang==='zh'?'请选择一个版本':'choisir une version'));}
+      diag('packages',{selected:r.json.selected_email_body_visual,fiche_status:(pc.fiche||{}).status,affiche_status:(pc.affiche||{}).status,fiche_stale:(pc.fiche||{}).staleness_status,affiche_stale:(pc.affiche||{}).staleness_status});
+    }
+    // "发送这个版本": select that route as the send package, then refresh
+    ['fiche','affiche'].forEach(function(route){
+      var btn=$('pkgsend-'+route); if(!btn)return;
+      btn.addEventListener('click',async function(){
+        if(!S.wb)return;
+        var pr=await api('PATCH','/api/v2/workbench/'+S.wb+'/selected-visual',{selected_email_body_visual:route});
+        if(!pr.ok){flash('err',bizMsg(pr));return;}
+        var g=await api('GET','/api/v2/workbench/'+S.wb);
+        var sel=(g.json&&g.json.selected_email_body_visual);
+        if(sel===route){ applySelectVisual(route); flash('ok',lang==='zh'?'已选择此版本，请「预览邮件」后发送。':'Version choisie — aperçu puis envoi.'); }
+        await loadPackages();
+      });
+    });
     // entering Step 3 (incl. after Command+R recovery): without a fresh backend preview, never claim one exists
     function updateStep3Preview(){
       if(!selectedVisual){ setPreviewHelp('null'); }
@@ -1056,7 +1122,7 @@
         var f=$('mailFrame'); if(f)f.style.display='none'; var es=$('emailStatic'); if(es)es.style.display=''; }
       else { setPreviewHelp('ready'); }
       var fpb=$('btn-full-preview'); if(fpb)fpb.style.display=previewGenerated?'':'none';
-      updateBindingLabels(); updateSendGate();
+      updateBindingLabels(); updateSendGate(); loadPackages();
     }
     function markPreviewStale(){ previewGenerated=false; var cf=$('container-fill-state');if(cf)cf.style.display='none'; var cm=$('container-media-state');if(cm)cm.style.display='none'; var hd=$('header-diag-state');if(hd)hd.style.display='none'; if(step===3){setEmailPreviewBadge('needs');setPreviewHelp('needs');var fpb=$('btn-full-preview');if(fpb)fpb.style.display='none';} updateSendGate(); }
     // backend truth: the email fill format MUST follow the selected email body visual. fiche -> product_sheet_email,
@@ -1224,8 +1290,10 @@
       // ALIGN WITH MAINLINE SEND: 正式发送(real) routes to the shared real provider (delivery_mode=resend);
       // 测试发送(test) stays preview-only (inline_only). Same backend endpoint + same provider config as mainline.
       var deliveryMode=(curMode()==='real')?'resend':'inline_only';
-      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:deliveryMode});
+      // explicit package selection: send exactly the selected version (unambiguous)
+      var r=await api('POST','/api/v2/workbench/'+S.wb+'/email/send',{recipients:[$('f-recipient').value],mode:curMode(),confirm_send:true,delivery_mode:deliveryMode,selected_email_package:selectedVisual});
       if(!r.ok||!r.json){flash('err',bizMsg(r));return}
+      diag('send_package',{sent_package_type:r.json.sent_package_type,container_visual_variant:r.json.container_visual_variant,body_visual_poster_key:r.json.body_visual_poster_key,real_email_sent:r.json.real_email_sent});
       // a true real delivery REQUIRES a provider_message_id; inline_only/preview_only is NOT a real send
       var real=isRealSent(r.json);
       diag('send',r.json);renderResults(r.json);

@@ -83,6 +83,12 @@ def create_workbench_record(
         "workbench_key": workbench_key,
         "created_at": now,
         "updated_at": now,
+        # content_updated_at + content_version track ONLY content-affecting changes (product_truth / product_assets /
+        # email_banner), NOT selection or candidate generation — so email package staleness is meaningful and robust
+        # to same-second timestamps (the version is a monotonic counter; a candidate captures the version it was
+        # generated against, and is maybe_stale when the workbench content_version has advanced past it).
+        "content_updated_at": now,
+        "content_version": 1,
         "language": language,
         "status": status,
         "product_truth": deepcopy(product_truth or {}),
@@ -100,16 +106,25 @@ def create_workbench_record(
 
 # fields a PATCH may replace in PR-1 (placeholders are owned by later PRs)
 _PATCHABLE_FIELDS = ("language", "status", "product_truth", "product_assets", "email_banner")
+# content-affecting fields whose change makes existing email packages potentially stale
+_CONTENT_FIELDS = ("product_truth", "product_assets", "email_banner")
 
 
 def update_workbench_record(workbench_key: str, updates: dict[str, Any]) -> dict[str, Any]:
     record = load_workbench_record(workbench_key)
     if record is None:
         raise KeyError(workbench_key)
+    content_changed = False
     for field in _PATCHABLE_FIELDS:
         if field in updates and updates[field] is not None:
             record[field] = deepcopy(updates[field])
-    record["updated_at"] = _utc_now()
+            if field in _CONTENT_FIELDS:
+                content_changed = True
+    now = _utc_now()
+    record["updated_at"] = now
+    if content_changed or not record.get("content_updated_at"):
+        record["content_updated_at"] = now
+        record["content_version"] = int(record.get("content_version") or 1) + (1 if content_changed else 0)
     return save_workbench_record(record)
 
 
@@ -138,6 +153,8 @@ def set_poster_candidate(
         "poster_key": poster_key,
         "status": status,
         "generated_at": _utc_now(),
+        # capture the content version this candidate was generated against (for robust staleness)
+        "content_version": int(record.get("content_version") or 1),
         "template_id": template_id,
         "contract_review_summary": deepcopy(contract_review_summary or {}),
     }
