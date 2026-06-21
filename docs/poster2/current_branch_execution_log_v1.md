@@ -13158,3 +13158,29 @@ After bundle:
   Docs: banner_product_module_spec_v1.md + banner_product_module_finalize_v1.md.
 - Owner Decision Needed: commission a designer banner/base-lockup master to reach premium native quality; until then the
   brand_standard / campaign_poster route defaults stand as the interim trial banner. customer/batch + products[] HOLD.
+
+## BANNER ASSET AUDIT + DESIGNER BRIEF V1 (2026-06-21) — NO usable CUISTANCE banner master (docs only)
+- Task POSTER2-BANNER-ASSET-AUDIT-AND-DESIGN-BRIEF-V1. Audited ~/poster/ingredient (all 7 files present) via sips
+  (dims), psd_tools (PSD layer tree), and visual inspection. Design/container reference only; no product facts /
+  Mailchimp tracking / stale facts extracted.
+- Core answer (evidence-backed): NO usable CUISTANCE banner/header master exists.
+  - 产品海报.psd = 600x1577 RGB Technitalia gas-stove poster. It DOES have a top header layer 'logo banner' (0,0,600,54),
+    but that layer is a TECHNITALIA / CODIMATEL banner (verified visually) -> NOT_USABLE_FOR_BANNER (wrong brand).
+  - logo_01.jpg (400x80) = the ONLY CUISTANCE asset = logo lockup ONLY (dark wordmark + icon); no plate/channel/campaign/
+    filet/bg-rule/fallback; dark-on-transparent -> needs light bg / light_plate on dark -> USABLE_LOGO_ONLY.
+  - logo banner.png (271x240) = Photoshop layers-PANEL SCREENSHOT (no artwork) -> NOT_USABLE_FOR_BANNER.
+  - ttt.html / ttt2.html / 图层示意.png / 图层细节.png / PSD-whole -> DESIGN_REFERENCE_ONLY.
+- Conclusion: the only 600px banner master in the assets is the wrong brand; the only CUISTANCE asset is logo-only.
+  Engineering cannot extract a CUISTANCE banner master -> a DESIGNER must provide one. Designer brief written:
+  Deliverable A (Brand Standard Header / Fiche) + Deliverable B (Campaign Poster Header / Affiche) with exact specs
+  (600px email-safe, logo lockup, channel/campaign, red filet, dark/light bg rule, no-logo fallback, mobile-safe crop,
+  PNG/SVG or CSS/table reconstruction).
+- Recommended path: keep the interim CSS/table reconstruction (brand_standard / campaign_poster headers shipped at
+  7e16d66, with logo_01 + light_plate) for internal testing; REQUEST a designer banner master for final. Proposed
+  follow-up POSTER2-BANNER-MASTER-WIRE-IN-V1 documented but NOT executed (no usable asset yet; not authorized).
+- No app/frontend/schema/send change. No AI images. No email sent. P2A demo untouched. Stash preserved. No tag/merge/
+  rewrite.
+- Evidence: docs/poster2/assets/banner_asset_audit_v1/ (evidence.json, asset_inventory.md, psd_logo_banner_is_
+  technitalia.png, cuistance_logo_only.png). Doc: docs/poster2/banner_asset_audit_and_design_brief_v1.md.
+- Owner Decision Needed: commission the designer banner master (Deliverables A + B); the interim CSS reconstruction
+  stands until then. customer/batch send + products[] remain HOLD.

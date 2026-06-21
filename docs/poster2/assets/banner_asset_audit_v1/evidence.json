@@ -1,0 +1,32 @@
+{
+  "source_dir": "~/poster/ingredient",
+  "all_files_present": true,
+  "files_inspected": ["ttt.html", "ttt2.html", "产品海报.psd", "图层示意.png", "图层细节.png", "logo banner.png", "logo_01.jpg"],
+  "psd_canvas": "600x1577 RGB",
+  "psd_has_top_banner_layer": true,
+  "psd_top_banner_layer": {"name": "logo banner", "bbox": [0, 0, 600, 54], "brand": "TECHNITALIA / CODIMATEL", "is_cuistance": false},
+  "usable_cuistance_banner_master_exists": false,
+  "classification": {
+    "logo_01.jpg": "USABLE_LOGO_ONLY",
+    "psd_logo_banner_layer": "NOT_USABLE_FOR_BANNER",
+    "产品海报.psd": "DESIGN_REFERENCE_ONLY",
+    "ttt.html": "DESIGN_REFERENCE_ONLY",
+    "ttt2.html": "DESIGN_REFERENCE_ONLY",
+    "图层示意.png": "DESIGN_REFERENCE_ONLY",
+    "图层细节.png": "DESIGN_REFERENCE_ONLY",
+    "logo banner.png": "NOT_USABLE_FOR_BANNER"
+  },
+  "only_cuistance_asset": "logo_01.jpg (400x80, dark wordmark + icon, logo only, dark-on-transparent)",
+  "logo_needs_light_treatment_on_dark": true,
+  "recommended_path": "reconstruct_from_css_table_interim_PLUS_request_designer_banner_master",
+  "designer_base_required": true,
+  "follow_up_implementation_authorized": false,
+  "code_changed": false,
+  "frontend_changed": false,
+  "schema_changed": false,
+  "send_path_changed": false,
+  "email_sent": false,
+  "p2a_demo_touched": false,
+  "ai_images_generated": false,
+  "mailchimp_or_stale_facts_copied": false
+}
