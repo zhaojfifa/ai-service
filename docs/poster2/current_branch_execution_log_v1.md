@@ -13272,3 +13272,23 @@ After bundle:
   tests: affiche binds to affiche / fiche binds to fiche / explicit authoritative / response container_visual_variant).
 - Owner Decision Needed: once Render deploys >= 8aa7ba8, the authenticated Affiche real send (to zhaojfifa@gmail.com)
   confirming sent_package_type=affiche + provider=resend + provider_message_id can run. No customer email; no batch.
+
+## EMAIL PACKAGE SEND-BINDING REMOTE VERIFY V1 (2026-06-21) — PASS (docs only, no code; one authorized real send)
+- Task POSTER2-EMAIL-PACKAGE-SEND-BINDING-REMOTE-VERIFY-V1. Render now deployed >= 8aa7ba8 (served page carries
+  sendThisVersion/pendingSendPackage/sent_package_type!==route/selected_email_package:route; backend send response
+  returns the new email_fill_format). OPS-auth API mirroring the new UI sendThisVersion flow on wb_9308b112feb0436e.
+- AFFICHE real send binding PASS (AFFICHE_BIND_REAL_OK): select affiche -> send selected_email_package=affiche (real,
+  resend) -> sent_package_type=affiche, selected_email_body_visual=affiche, email_fill_format=campaign_poster_email,
+  container_visual_variant=ttt2_campaign_container, body_visual_poster_key=p2_9f215cca560e4e2d, real_email_sent=true,
+  provider=resend, provider_message_id=b2c8b594-a271-4659-9198-ab1ac824dff6. The P0 (Affiche selected -> Fiche delivered)
+  is RESOLVED: sending Affiche sent Affiche.
+- FICHE dry binding PASS (inline_only, NOT real): sent_package_type=fiche, email_fill_format=product_sheet_email,
+  container_visual_variant=ttt_product_sheet_container, body_visual_poster_key=null, real_email_sent=false, attempt
+  skipped. Mismatch guard PASS: persisted=fiche + selected_email_package=affiche -> 422 selected_package_mismatch.
+- UI display: deployed JS carries the sent_package_type!==route mismatch->error logic + 已发送版本 rendering; response
+  provides sent_package_type/provider/provider_message_id. One real email to zhaojfifa@gmail.com only; no customer; no
+  batch. Selection restored to original; OPS session logged out. No code change. P2A untouched. Stash preserved.
+- Evidence: docs/poster2/assets/email_package_send_binding_remote_verify_v1/evidence.json. Doc:
+  docs/poster2/email_package_send_binding_remote_verify_v1.md. check_docs_router = PASS.
+- Owner Decision Needed: accept the send-binding hotfix as remote-verified; commission designer banner assets.
+  customer/batch + products[] remain HOLD.
