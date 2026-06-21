@@ -12991,3 +12991,28 @@ After bundle:
 - Owner Decision Needed: confirm receipt at zhaojfifa@gmail.com (id 2c895198-9e81-4ea0-9a4a-c380cca68cdd); after Render
   redeploy, literal browser pass confirms the deployed UI send + logo_image_bar header. Real send stays owner/test-gated;
   customer/batch + products[] remain HOLD.
+
+## CUISTANCE TRIAL 850A0AF REMOTE BROWSER VERIFY V1 (2026-06-21) — PASS (docs only, no code)
+- Task POSTER2-CUISTANCE-TRIAL-850A0AF-REMOTE-BROWSER-VERIFY. Render deployed >= 850a0af (served page carries hdrvar/
+  updateHeaderDiag/selectedHeaderVariant/header_logo_missing_fallback + deliveryMode real->resend mapping; backend
+  preview returns header_variant/header_logo_* fields). healthz=200, page=200.
+- LITERAL browser validation via Playwright + system Chrome (channel=chrome) driving the deployed /cuistance_trial.html:
+  OPS login -> recover wb_9308b112feb0436e -> Fiche -> preview (preview_ready=true) -> recipient zhaojfifa@gmail.com ->
+  正式发送 -> 确认发送 -> send once.
+- Browser UI real send PASS: UI summary 已发送真实测试邮件 1 封; results row 模式=real · provider=resend · status=sent ·
+  sent=1 · skipped=0 · failed=0 · message_id=e46866d5-fed5-4915-9a7e-ae4b11f4f13f · real_email_sent=true; Network
+  /email/send response sent_count=1, status=sent, provider=resend, provider_message_id=e46866d5-fed5-4915-9a7e-
+  ae4b11f4f13f. VERDICT REAL_SEND_OK (NOT inline_only/preview_only/skipped).
+- Banner/header (browser previews): css_dark_bar_wordmark default (header_logo_used=false); logo_image_bar (UI radio)
+  header_variant=logo_image_bar, header_logo_used=true, fallback=false; UI header diag 当前 Header：Logo 图片条 · Logo
+  已使用：是; logo from email_banner.logo ONLY (product/gallery/atmosphere NOT used as logo).
+- Regression: Fiche supporting_media_count=3, atmosphere_used_in_fiche=false (both previews). Affiche (API): container_
+  profile=single_product_campaign_email, email_body_visual_contract_pass=true, body_visual_contains_own_banner=false,
+  no strip.
+- One real test email to zhaojfifa@gmail.com only; no customer/batch. No code change. P2A demo untouched. Workbench
+  restored to defaults (fiche + css_dark_bar_wordmark); OPS session logged out. Stash preserved. No tag/merge/rewrite.
+- Evidence: docs/poster2/assets/cuistance_trial_send_mainline_align_banner_flex_remote_verify_v1/evidence.json. Doc:
+  docs/poster2/cuistance_trial_send_mainline_align_banner_flex_remote_verify_v1.md. check_docs_router=PASS.
+- Owner Decision Needed: confirm receipt at zhaojfifa@gmail.com (id e46866d5-fed5-4915-9a7e-ae4b11f4f13f). Trial send
+  alignment + replaceable header verified end-to-end in a real browser. Real send stays owner/test-gated; customer/
+  batch + products[] remain HOLD.

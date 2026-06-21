@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "remote_url": "https://ai-service-leob.onrender.com/cuistance_trial.html",
+  "remote_deployed_commit": "850a0af_or_later",
+  "remote_deploy_proof": "served page carries hdrvar/updateHeaderDiag/selectedHeaderVariant/header_logo_missing_fallback + deliveryMode=(curMode()==='real')?'resend':'inline_only'; backend preview returns header_variant/header_logo_* fields",
+  "validation_method": "literal browser (Playwright + system Chrome, channel=chrome) driving the deployed trial UI",
+  "browser_ui_real_send": {
+    "flow": "OPS login -> recover workbench -> Fiche -> preview (preview_ready=true) -> recipient zhaojfifa@gmail.com -> 正式发送 -> 确认发送 -> send once",
+    "send_summary_ui": "已发送真实测试邮件 1 封",
+    "results_row_ui": "模式=real · provider=resend · status=sent · sent=1 · skipped=0 · failed=0 · message_id=e46866d5-fed5-4915-9a7e-ae4b11f4f13f · real_email_sent=true",
+    "network_response": {"sent_count": 1, "skipped_count": 0, "failed_count": 0, "status": "sent", "provider": "resend", "provider_message_id": "e46866d5-fed5-4915-9a7e-ae4b11f4f13f"},
+    "verdict": "REAL_SEND_OK"
+  },
+  "provider": "resend",
+  "provider_message_id": "e46866d5-fed5-4915-9a7e-ae4b11f4f13f",
+  "banner_header_variants": {
+    "css_dark_bar_wordmark": {"header_variant": "css_dark_bar_wordmark", "header_logo_used": false, "header_logo_missing_fallback": false},
+    "logo_image_bar": {"header_variant": "logo_image_bar", "header_logo_used": true, "header_logo_missing_fallback": false, "ui_header_diag": "当前 Header：Logo 图片条 · Logo 已使用：是"},
+    "logo_uses_email_banner_logo_only": true,
+    "product_gallery_atmosphere_used_as_logo": false
+  },
+  "fiche_supporting_media_strip_present": true,
+  "fiche_supporting_media_count": 3,
+  "fiche_atmosphere_used_in_fiche": false,
+  "affiche_regression": {"container_profile": "single_product_campaign_email", "email_body_visual_contract_pass": true, "body_visual_contains_own_banner": false, "supporting_media_strip_present": false},
+  "customer_email_sent": false,
+  "batch_send_enabled_for_customer": false,
+  "code_changed": false,
+  "p2a_demo_touched": false,
+  "workbench_restored_to_defaults": true
+}
